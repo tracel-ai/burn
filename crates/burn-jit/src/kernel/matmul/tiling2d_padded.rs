@@ -136,15 +136,16 @@ impl MatmulTiling2dPaddedShader {
 
         // Phase 2: Loop over k for loading and computing
 
-        let results = scope.create_local_array(lhs.item().elem(), results_size);
-        let register_m = scope.create_local(Item::Vec4(lhs.item().elem()));
-        let register_n = scope.create_local(Item::Vec4(lhs.item().elem()));
+        let elem = lhs.item().elem();
+        let results = scope.create_local_array(elem, results_size);
+        let register_m = scope.create_local(Item::Vec4(elem));
+        let register_n = scope.create_local(Item::Vec4(elem));
         let shared_lhs = scope.create_shared(
-            Item::Vec4(lhs.item().elem()),
+            Item::Vec4(elem),
             self.config.block_size_m as u32 * self.config.block_size_k as u32 / 4u32,
         );
         let shared_rhs = scope.create_shared(
-            Item::Vec4(rhs.item().elem()),
+            Item::Vec4(elem),
             self.config.block_size_k as u32 * self.config.block_size_n as u32 / 4u32,
         );
 
@@ -160,11 +161,9 @@ impl MatmulTiling2dPaddedShader {
                 // Phase 2.1: Load to shared memory
 
                 // LHS
-                load_shared_memory(
+                self.load_shared_memory(
                     scope,
                     k,
-                    block_size_k,
-                    block_size_n,
                     thread_col,
                     thread_row,
                     lhs_stride_col,
@@ -176,11 +175,9 @@ impl MatmulTiling2dPaddedShader {
                 );
 
                 // RHS
-                load_shared_memory(
+                self.load_shared_memory(
                     scope,
                     k,
-                    block_size_k,
-                    block_size_n,
                     thread_row,
                     thread_col,
                     rhs_stride_row,
@@ -195,20 +192,50 @@ impl MatmulTiling2dPaddedShader {
 
                 // Phase 2.2: Compute intermediate results
 
-                computation_loop();
+                self.computation_loop(
+                    scope, thread_col, thread_row, shared_lhs, shared_rhs, register_m, register_n,
+                    results,
+                );
 
                 scope.register(Synchronization::WorkgroupBarrier);
             })
         );
 
         // Phase 3: Write to output
+        for res_idx_m in 0..self.config.tile_size_m {
+            for res_idx_n in 0..self.config.tile_size_n {
+                let results_position = scope.create_local(Elem::UInt);
+                gpu!(
+                    scope,
+                    results_position = res_idx_m * self.config.tile_size_n
+                );
+                gpu!(scope, results_position += res_idx_n);
+
+                let result = scope.create_local(elem);
+                gpu!(scope, result = results[results_position]);
+
+                let output_position = scope.create_local(Elem::UInt);
+                let output_position_tmp1 = scope.create_local(Elem::UInt);
+                let output_position_tmp2 = scope.create_local(Elem::UInt);
+                gpu!(scope, output_position_tmp1 = row + res_idx_m);
+                gpu!(scope, output_position_tmp1 *= out_stride_row);
+                gpu!(scope, output_position_tmp2 = col + res_idx_n);
+                gpu!(scope, output_position_tmp2 *= out_stride_col);
+                gpu!(
+                    scope,
+                    output_position = output_position_tmp1 + output_position_tmp2
+                );
+                gpu!(scope, output_position += offset_output);
+
+                gpu!(scope, out[output_position] = result);
+            }
+        }
     }
 
     fn load_shared_memory(
+        &self,
         scope: &mut Scope,
         k: Variable,
-        block_size_k: Variable,
-        block_size_n: Variable,
         thread_idx_1: Variable,
         thread_idx_2: Variable,
         stride_1: Variable,
@@ -218,6 +245,10 @@ impl MatmulTiling2dPaddedShader {
         shared_memory: Variable,
         is_lhs: bool,
     ) {
+        let block_size_k: Variable = self.config.block_size_k.into();
+        let block_size_n: Variable = self.config.block_size_n.into();
+        let elem = input.item().elem();
+
         for j in 0u32..4u32 {
             let current_col = scope.create_local(Elem::UInt);
             gpu!(scope, current_col = thread_idx_1 + j);
@@ -254,10 +285,10 @@ impl MatmulTiling2dPaddedShader {
                 gpu!(scope, lhs_position_2 = lhs_position_1 + stride_2);
                 gpu!(scope, lhs_position_3 = lhs_position_2 + stride_2);
 
-                let lhs_0 = scope.create_local(input.item().elem());
-                let lhs_1 = scope.create_local(input.item().elem());
-                let lhs_2 = scope.create_local(input.item().elem());
-                let lhs_3 = scope.create_local(input.item().elem());
+                let lhs_0 = scope.create_local(elem);
+                let lhs_1 = scope.create_local(elem);
+                let lhs_2 = scope.create_local(elem);
+                let lhs_3 = scope.create_local(elem);
                 gpu!(scope, lhs_0 = input[lhs_position_0]);
                 gpu!(scope, lhs_1 = input[lhs_position_1]);
                 gpu!(scope, lhs_2 = input[lhs_position_2]);
@@ -274,19 +305,65 @@ impl MatmulTiling2dPaddedShader {
     }
 
     fn computation_loop(
+        &self,
         scope: &mut Scope,
-        block_size_k: Variable, // needed in computation, but also use attribute for unrolling
+        thread_col: Variable,
         thread_row: Variable,
         shared_lhs: Variable,
-        register_m: Variable,
-        block_size_n: Variable,
-        thread_col: Variable,
         shared_rhs: Variable,
-        register_n: Variable, // TM/TN use attribute for unrolling
+        register_m: Variable,
+        register_n: Variable,
         results: Variable,
     ) {
+        let block_size_k: Variable = self.config.block_size_k.into();
+        let block_size_n: Variable = self.config.block_size_n.into();
+        let elem = results.item().elem();
+
+        for dot_index in 0..self.config.block_size_k {
+            // Load a subcolumn of values from lhs
+            let lhs_sm_position = scope.create_local(Elem::UInt);
+            gpu!(scope, lhs_sm_position = thread_row / 4u32);
+            gpu!(scope, lhs_sm_position *= block_size_k);
+            gpu!(scope, lhs_sm_position += dot_index);
+            gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
+
+            // Load a subrow of values from rhs
+            let rhs_sm_position = scope.create_local(Elem::UInt);
+            gpu!(scope, rhs_sm_position = dot_index * block_size_n);
+            gpu!(scope, rhs_sm_position += thread_col);
+            gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
+            gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
+
+            for res_idx_m in 0..self.config.tile_size_m {
+                for res_idx_n in 0..self.config.tile_size_n {
+                    let registered_m = scope.create_local(elem);
+                    let registered_n = scope.create_local(elem);
+                    gpu!(scope, registered_m = register_m[res_idx_m]);
+                    gpu!(scope, registered_n = register_n[res_idx_n]);
+
+                    let multiplied = scope.create_local(elem);
+                    gpu!(scope, multiplied = registered_m * registered_n);
+
+                    let results_position = scope.create_local(Elem::UInt);
+                    gpu!(
+                        scope,
+                        results_position = res_idx_m * self.config.tile_size_n
+                    );
+                    gpu!(scope, results_position += res_idx_n);
+
+                    let results_before = scope.create_local(elem);
+                    gpu!(scope, results_before = results[results_position]);
+                    let results_after = scope.create_local(elem);
+                    gpu!(scope, results_after = results_before + multiplied);
+
+                    gpu!(scope, results[results_position] = results_after);
+                }
+            }
+        }
     }
 }
+
+// TODO try to reuse variables declared before the scope
 
 impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
     fn source(&self) -> SourceTemplate {
