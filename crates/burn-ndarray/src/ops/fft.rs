@@ -1,3 +1,5 @@
+use core::panic::PanicInfo;
+
 use burn_tensor::ElementConversion;
 use ndarray::{Array3, Ix3};
 #[cfg(not(feature = "std"))]
@@ -11,7 +13,6 @@ struct SingleIterParams {
     /// Nth iteration of the Fast Fourier transform
     iteration: usize,
     remaining_iterations: usize,
-    transform_width: usize,
     /// Mask used as "mask & sample_id" to extract the required bits
     sign_mask: usize,
     /// Mask used as "mask & sample_id" to extract the required bits
@@ -24,14 +25,13 @@ impl SingleIterParams {
     fn new(iteration: usize, required_iterations: usize) -> Self {
         let remaining_iterations = required_iterations - iteration;
 
-        let samples = usize::pow(2, required_iterations as u32);
-        let num_dfts = samples >> (1 + iteration);
+        // Some of these expressions look a litle crazy - much easier to see how they
+        //  work if inspecting these numbers as binary strings (most have only 1 bit).
         SingleIterParams {
             iteration,
             remaining_iterations,
-            transform_width: 2 << iteration,
-            sign_mask: 1 << (remaining_iterations - 1),
-            even_mask: num_dfts ^ 0xFFFF,
+            sign_mask: (1 << (remaining_iterations - 1)),
+            even_mask: !(1 << (remaining_iterations - 1)),
             nth_root_of_unity: -2. * std::f64::consts::PI / ((2 << iteration) as f64),
         }
     }
@@ -109,9 +109,6 @@ pub(crate) fn fft1d<E: FloatNdArrayElement>(x: NdArrayTensor<E, 3>) -> NdArrayTe
                         e_k.0 + twiddle.0 * o_k.0 - twiddle.1 * o_k.1,
                         e_k.1 + twiddle.0 * o_k.1 + twiddle.1 * o_k.0,
                     );
-
-                    // println!("{:?}", x_k);
-                    println!("{:?}", twiddle);
 
                     x_hat_ref[(b, sample_id, 0)] = x_k.0;
                     x_hat_ref[(b, sample_id, 1)] = x_k.1;

@@ -1054,4 +1054,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
         out
     }
+
+    fn fft(
+        _x: FloatTensor<Self, 3>,
+    ) -> FloatTensor<Self, 3> {
+        todo!();
+    }
+
+    fn fft_backward(
+        _x: FloatTensor<Self, 3>,
+        _grad: FloatTensor<Self, 3>,
+    ) -> FloatTensor<Self, 3> {
+        todo!()
+    }
 }

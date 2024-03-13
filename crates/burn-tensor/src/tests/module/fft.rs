@@ -5,17 +5,21 @@ mod tests {
     use burn_tensor::Shape;
 
     #[test]
-    fn test_fft_1d() {
-        let x = TestTensor::from([[[1., 3.], [2.3, -1.]], [[-1., 0.], [-1., 0.]]]);
-        let x_hat = TestTensor::from([[[3.3, 2.0], [-1.3, 4.0]], [[-2.0, 0.0], [0.0, 0.0]]]);
-        println!("x\t\t{:?}", x.clone().into_data());
-        println!("x_hat\t\t{:?}", x_hat.clone().into_data());
-        println!("x_hat_fft\t{:?}", fft(x.clone()).into_data());
+    fn test_fft_single_value() {
+        let x = TestTensor::from([[[1., 0.]]]);
+        let x_hat = TestTensor::from([[[1., 0.]]]);
         assert_output(fft(x), x_hat);
     }
 
     #[test]
-    fn test_fft_1d_len16() {
+    fn test_fft_1d() {
+        let x = TestTensor::from([[[1., 3.], [2.3, -1.]], [[-1., 0.], [-1., 0.]]]);
+        let x_hat = TestTensor::from([[[3.3, 2.0], [-1.3, 4.0]], [[-2.0, 0.0], [0.0, 0.0]]]);
+        assert_output(fft(x), x_hat);
+    }
+
+    #[test]
+    fn test_fft_1d_len_even_pow_2() {
         // 1x 1D FFTs of length 16. Sampled from unit normal distribution.
         let x = TestTensor::from([[
             [-0.23220552, -0.87818233],
@@ -58,10 +62,8 @@ mod tests {
     }
 
     #[test]
-    fn test_fft_1d_len32() {
+    fn test_fft_1d_len_odd_pow_2() {
         // 2x 1D FFTs of length 32. Sampled from unit normal distribution.
-        // It's a good idea to test consecutive powers of 2 due to the "ping pong" buffers.
-
         let x = TestTensor::from([
             [
                 [0.04274893, -0.98480909],
