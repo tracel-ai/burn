@@ -57,6 +57,7 @@ pub enum Operator {
     BitwiseXor(BinaryOperator),
     ShiftLeft(BinaryOperator),
     ShiftRight(BinaryOperator),
+    AssignVec4(AssignVec4Operator),
 }
 
 /// All metadata that can be access in a shader.
@@ -102,6 +103,16 @@ pub struct ClampOperator {
     pub input: Variable,
     pub min_value: Variable,
     pub max_value: Variable,
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct AssignVec4Operator {
+    pub a: Variable,
+    pub b: Variable,
+    pub c: Variable,
+    pub d: Variable,
     pub out: Variable,
 }
 

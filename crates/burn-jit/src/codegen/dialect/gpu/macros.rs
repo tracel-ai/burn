@@ -283,6 +283,12 @@ macro_rules! gpu {
             gpu!(unary $input, $out)
         ));
     };
+    // out = vec4(a, b, c, d)
+    ($scope:expr, $out:ident = vec4($a:ident,$b:ident,$c:ident,$d:ident)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::AssignVec4(
+            $crate::codegen::dialect::gpu::AssignVec4Operator{a:$a,b:$b,c:$c,d:$d,out:$out}
+        ));
+    };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
         gpu!($scope, $out = cast($input))

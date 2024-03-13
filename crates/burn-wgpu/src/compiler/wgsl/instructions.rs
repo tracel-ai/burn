@@ -205,6 +205,13 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    AssignVec4 {
+        a: Variable,
+        b: Variable,
+        c: Variable,
+        d: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -454,6 +461,9 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::ShiftRight { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} >> {rhs};\n"))
+            }
+            Instruction::AssignVec4 { a, b, c, d, out } => {
+                f.write_fmt(format_args!("{out} = vec4({a}, {b}, {c}, {d});\n"))
             }
         }
     }

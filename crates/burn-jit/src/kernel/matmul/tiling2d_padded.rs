@@ -6,7 +6,10 @@ use crate::{
         Execution, InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable},
+    gpu::{
+        gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Item, Scope,
+        Synchronization, Variable,
+    },
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Runtime,
@@ -157,55 +160,131 @@ impl MatmulTiling2dPaddedShader {
                 // Phase 2.1: Load to shared memory
 
                 // LHS
-                for j in 0u32..4u32 {
-                    let current_col = scope.create_local(Elem::UInt);
-                    gpu!(scope, current_col = thread_col + j);
+                load_shared_memory(
+                    scope,
+                    k,
+                    block_size_k,
+                    block_size_n,
+                    thread_col,
+                    thread_row,
+                    lhs_stride_col,
+                    lhs_stride_row,
+                    lhs,
+                    offset_lhs,
+                    shared_lhs,
+                    true,
+                );
 
-                    let aligned_with_shared_memory = scope.create_local(Elem::Bool);
-                    gpu!(
-                        scope,
-                        aligned_with_shared_memory = current_col < block_size_k
-                    );
+                // RHS
+                load_shared_memory(
+                    scope,
+                    k,
+                    block_size_k,
+                    block_size_n,
+                    thread_row,
+                    thread_col,
+                    rhs_stride_row,
+                    rhs_stride_col,
+                    rhs,
+                    offset_rhs,
+                    shared_rhs,
+                    false,
+                );
 
-                    // TODO if current_col >= B_K then we could break and not try other j
-                    gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
-                        let lhs_sm_position = scope.create_local(Elem::UInt);
-                        gpu!(scope, lhs_sm_position = thread_row / 4u32);
-                        gpu!(scope, lhs_sm_position *= block_size_k);
-                        gpu!(scope, lhs_sm_position += current_col);
+                scope.register(Synchronization::WorkgroupBarrier);
 
-                        let lhs_position_0 = scope.create_local(Elem::UInt);
-                        gpu!(scope, lhs_position_0 = k + current_col);
-                        gpu!(scope, lhs_position_0 *= lhs_stride_col);
-                        let tmp = scope.create_local(Elem::UInt);
-                        gpu!(scope, tmp = thread_row * lhs_stride_row);
-                        gpu!(scope, lhs_position_0 += tmp);
-                        gpu!(scope, lhs_position_0 += offset_lhs);
-                        let lhs_position_1 = scope.create_local(Elem::UInt);
-                        let lhs_position_2 = scope.create_local(Elem::UInt);
-                        let lhs_position_3 = scope.create_local(Elem::UInt);
-                        gpu!(scope, lhs_position_1 = lhs_position_0 + lhs_stride_row);
-                        gpu!(scope, lhs_position_2 = lhs_position_1 + lhs_stride_row);
-                        gpu!(scope, lhs_position_3 = lhs_position_2 + lhs_stride_row);
+                // Phase 2.2: Compute intermediate results
 
-                        let lhs_0 = scope.create_local(lhs.item().elem());
-                        let lhs_1 = scope.create_local(lhs.item().elem());
-                        let lhs_2 = scope.create_local(lhs.item().elem());
-                        let lhs_3 = scope.create_local(lhs.item().elem());
-                        gpu!(scope, lhs_0 = lhs[lhs_position_0]);
-                        gpu!(scope, lhs_1 = lhs[lhs_position_1]);
-                        gpu!(scope, lhs_2 = lhs[lhs_position_2]);
-                        gpu!(scope, lhs_3 = lhs[lhs_position_3]);
+                computation_loop();
 
-                        let lhs_vec4 = scope.create_local(shared_lhs.item());
-                        // gpu!(scope, lhs_vec4 = [lhs_0, lhs_1, lhs_2, lhs_3]);
-                        gpu!(scope, shared_lhs[lhs_sm_position] = lhs_vec4);
-                    }));
-                }
+                scope.register(Synchronization::WorkgroupBarrier);
             })
-        )
+        );
 
         // Phase 3: Write to output
+    }
+
+    fn load_shared_memory(
+        scope: &mut Scope,
+        k: Variable,
+        block_size_k: Variable,
+        block_size_n: Variable,
+        thread_idx_1: Variable,
+        thread_idx_2: Variable,
+        stride_1: Variable,
+        stride_2: Variable,
+        input: Variable,
+        input_offset: Variable,
+        shared_memory: Variable,
+        is_lhs: bool,
+    ) {
+        for j in 0u32..4u32 {
+            let current_col = scope.create_local(Elem::UInt);
+            gpu!(scope, current_col = thread_idx_1 + j);
+
+            let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+            gpu!(
+                scope,
+                aligned_with_shared_memory = current_col < block_size_k
+            );
+
+            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+                let lhs_sm_position = scope.create_local(Elem::UInt);
+                if is_lhs {
+                    gpu!(scope, lhs_sm_position = thread_idx_2 / 4u32);
+                    gpu!(scope, lhs_sm_position *= block_size_k);
+                    gpu!(scope, lhs_sm_position += current_col);
+                } else {
+                    gpu!(scope, lhs_sm_position = current_col * block_size_n);
+                    gpu!(scope, lhs_sm_position += thread_idx_2);
+                    gpu!(scope, lhs_sm_position = lhs_sm_position / 4u32);
+                }
+
+                let lhs_position_0 = scope.create_local(Elem::UInt);
+                gpu!(scope, lhs_position_0 = k + current_col);
+                gpu!(scope, lhs_position_0 *= stride_1);
+                let tmp = scope.create_local(Elem::UInt);
+                gpu!(scope, tmp = thread_idx_2 * stride_2);
+                gpu!(scope, lhs_position_0 += tmp);
+                gpu!(scope, lhs_position_0 += input_offset);
+                let lhs_position_1 = scope.create_local(Elem::UInt);
+                let lhs_position_2 = scope.create_local(Elem::UInt);
+                let lhs_position_3 = scope.create_local(Elem::UInt);
+                gpu!(scope, lhs_position_1 = lhs_position_0 + stride_2);
+                gpu!(scope, lhs_position_2 = lhs_position_1 + stride_2);
+                gpu!(scope, lhs_position_3 = lhs_position_2 + stride_2);
+
+                let lhs_0 = scope.create_local(input.item().elem());
+                let lhs_1 = scope.create_local(input.item().elem());
+                let lhs_2 = scope.create_local(input.item().elem());
+                let lhs_3 = scope.create_local(input.item().elem());
+                gpu!(scope, lhs_0 = input[lhs_position_0]);
+                gpu!(scope, lhs_1 = input[lhs_position_1]);
+                gpu!(scope, lhs_2 = input[lhs_position_2]);
+                gpu!(scope, lhs_3 = input[lhs_position_3]);
+
+                let lhs_vec4 = scope.create_local(shared_memory.item());
+                gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
+                gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
+
+            }).else(|scope|{
+                scope.register(Branch::Break); // TODO test if faster, else remove
+            }));
+        }
+    }
+
+    fn computation_loop(
+        scope: &mut Scope,
+        block_size_k: Variable, // needed in computation, but also use attribute for unrolling
+        thread_row: Variable,
+        shared_lhs: Variable,
+        register_m: Variable,
+        block_size_n: Variable,
+        thread_col: Variable,
+        shared_rhs: Variable,
+        register_n: Variable, // TM/TN use attribute for unrolling
+        results: Variable,
+    ) {
     }
 }
 

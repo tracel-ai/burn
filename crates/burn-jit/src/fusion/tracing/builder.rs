@@ -346,6 +346,13 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::AssignVec4(op) => {
+                        mark(&op.a, &mut local_tensor_ids_input);
+                        mark(&op.b, &mut local_tensor_ids_input);
+                        mark(&op.c, &mut local_tensor_ids_input);
+                        mark(&op.d, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
                 },
                 Operation::Procedure(proc) => {
                     match proc {

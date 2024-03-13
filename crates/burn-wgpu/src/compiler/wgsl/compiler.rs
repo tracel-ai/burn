@@ -543,6 +543,13 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::AssignVec4(op) => wgsl::Instruction::AssignVec4 {
+                a: self.compile_variable(op.a),
+                b: self.compile_variable(op.b),
+                c: self.compile_variable(op.c),
+                d: self.compile_variable(op.d),
+                out: self.compile_variable(op.out),
+            },
         }
     }
 

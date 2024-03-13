@@ -346,7 +346,7 @@ impl Scope {
         let item = item.into();
         let index = self.new_shared_index();
         let shared_memory = Variable::SharedMemory(index, item, shared_memory_size);
-        self.local_arrays.push(shared_memory);
+        self.shared_memories.push(shared_memory);
         shared_memory
     }
 
