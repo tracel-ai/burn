@@ -37,8 +37,6 @@ struct MatmulTiling2dPaddedShader {
 
 impl MatmulTiling2dPaddedShader {
     fn expand(self, scope: &mut Scope) {
-        // Phase 1: Gather information: input, shader and offsets
-
         // Inputs
         let lhs = self.variables.lhs;
         let rhs = self.variables.rhs;
@@ -256,45 +254,43 @@ impl MatmulTiling2dPaddedShader {
                 );
 
                 gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
-                    let lhs_sm_position = scope.create_local(Elem::UInt);
+                    let sm_position = scope.create_local(Elem::UInt);
                     if is_lhs {
-                        gpu!(scope, lhs_sm_position = thread_idx_2 / 4u32);
-                        gpu!(scope, lhs_sm_position *= block_size_k);
-                        gpu!(scope, lhs_sm_position += current_col);
+                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                        gpu!(scope, sm_position *= block_size_k);
+                        gpu!(scope, sm_position += current_col);
                     } else {
-                        gpu!(scope, lhs_sm_position = current_col * block_size_n);
-                        gpu!(scope, lhs_sm_position += thread_idx_2);
-                        gpu!(scope, lhs_sm_position = lhs_sm_position / 4u32);
+                        gpu!(scope, sm_position = current_col * block_size_n);
+                        gpu!(scope, sm_position += thread_idx_2);
+                        gpu!(scope, sm_position = sm_position / 4u32);
                     }
 
-                    let lhs_position_0 = scope.create_local(Elem::UInt);
-                    gpu!(scope, lhs_position_0 = k + current_col);
-                    gpu!(scope, lhs_position_0 *= stride_1);
+                    let position_0 = scope.create_local(Elem::UInt);
+                    gpu!(scope, position_0 = k + current_col);
+                    gpu!(scope, position_0 *= stride_1);
                     let tmp = scope.create_local(Elem::UInt);
                     gpu!(scope, tmp = thread_idx_2 * stride_2);
-                    gpu!(scope, lhs_position_0 += tmp);
-                    gpu!(scope, lhs_position_0 += input_offset);
-                    let lhs_position_1 = scope.create_local(Elem::UInt);
-                    let lhs_position_2 = scope.create_local(Elem::UInt);
-                    let lhs_position_3 = scope.create_local(Elem::UInt);
-                    gpu!(scope, lhs_position_1 = lhs_position_0 + stride_2);
-                    gpu!(scope, lhs_position_2 = lhs_position_1 + stride_2);
-                    gpu!(scope, lhs_position_3 = lhs_position_2 + stride_2);
+                    gpu!(scope, position_0 += tmp);
+                    gpu!(scope, position_0 += input_offset);
+                    let position_1 = scope.create_local(Elem::UInt);
+                    let position_2 = scope.create_local(Elem::UInt);
+                    let position_3 = scope.create_local(Elem::UInt);
+                    gpu!(scope, position_1 = position_0 + stride_2);
+                    gpu!(scope, position_2 = position_1 + stride_2);
+                    gpu!(scope, position_3 = position_2 + stride_2);
 
-                    let lhs_0 = scope.create_local(elem);
-                    let lhs_1 = scope.create_local(elem);
-                    let lhs_2 = scope.create_local(elem);
-                    let lhs_3 = scope.create_local(elem);
-                    gpu!(scope, lhs_0 = input[lhs_position_0]);
-                    gpu!(scope, lhs_1 = input[lhs_position_1]);
-                    gpu!(scope, lhs_2 = input[lhs_position_2]);
-                    gpu!(scope, lhs_3 = input[lhs_position_3]);
+                    let val_0 = scope.create_local(elem);
+                    let val_1 = scope.create_local(elem);
+                    let val_2 = scope.create_local(elem);
+                    let val_3 = scope.create_local(elem);
+                    gpu!(scope, val_0 = input[position_0]);
+                    gpu!(scope, val_1 = input[position_1]);
+                    gpu!(scope, val_2 = input[position_2]);
+                    gpu!(scope, val_3 = input[position_3]);
 
-                    let lhs_vec4 = scope.create_local(shared_memory.item());
-                    gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
-                    gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
-                }).else(|scope|{
-                    scope.register(Branch::Break); // TODO test if faster, else remove
+                    let val_vec4 = scope.create_local(shared_memory.item());
+                    gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                    gpu!(scope, shared_memory[sm_position] = val_vec4);
                 }));
             })
         );
