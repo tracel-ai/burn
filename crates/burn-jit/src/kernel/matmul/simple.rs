@@ -13,7 +13,7 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-use super::launch_options;
+use super::simple_launch_options;
 
 #[derive(new, Debug)]
 struct MatmulEagerKernel<R: Runtime> {
@@ -228,7 +228,7 @@ pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let workgroup = launch_options(
+    let workgroup = simple_launch_options(
         &lhs.shape,
         &rhs.shape,
         &out.shape,

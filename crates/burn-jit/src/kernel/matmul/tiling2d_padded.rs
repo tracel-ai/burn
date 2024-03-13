@@ -6,10 +6,7 @@ use crate::{
         Execution, InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{
-        gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Item, Scope,
-        Synchronization, Variable,
-    },
+    gpu::{gpu, BinaryOperator, Branch, Elem, Item, Scope, Synchronization, Variable},
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Runtime,
@@ -17,9 +14,8 @@ use crate::{
 use std::marker::PhantomData;
 
 use super::{
-    launch_options,
     padding::{crop, pad_round, PaddingOutput},
-    shape_out, Tiling2dConfig,
+    shape_out, tiling2d_launch_options, Tiling2dConfig,
 };
 
 #[derive(new, Debug)]
@@ -64,14 +60,16 @@ impl MatmulTiling2dPaddedShader {
 
         // Shapes
         let rank = Variable::Rank;
+        let ultimate_dim = scope.create_local(Elem::UInt);
         let penultimate_dim = scope.create_local(Elem::UInt);
-        gpu!(scope, penultimate_dim = rank - 1u32);
+        gpu!(scope, ultimate_dim = rank - 1u32);
+        gpu!(scope, penultimate_dim = rank - 2u32);
         let dim_m = scope.create_local(Elem::UInt);
         let dim_k = scope.create_local(Elem::UInt);
         let dim_n = scope.create_local(Elem::UInt);
         gpu!(scope, dim_m = shape(lhs, penultimate_dim));
-        gpu!(scope, dim_k = shape(rhs, penultimate_dim));
-        gpu!(scope, dim_n = shape(rhs, rank));
+        gpu!(scope, dim_k = shape(lhs, ultimate_dim));
+        gpu!(scope, dim_n = shape(rhs, ultimate_dim));
 
         // Strides
         let lhs_stride_row = scope.create_local(Elem::UInt);
@@ -81,11 +79,11 @@ impl MatmulTiling2dPaddedShader {
         let out_stride_row = scope.create_local(Elem::UInt);
         let out_stride_col = scope.create_local(Elem::UInt);
         gpu!(scope, lhs_stride_row = stride(lhs, penultimate_dim));
-        gpu!(scope, lhs_stride_col = stride(lhs, rank));
+        gpu!(scope, lhs_stride_col = stride(lhs, ultimate_dim));
         gpu!(scope, rhs_stride_row = stride(rhs, penultimate_dim));
-        gpu!(scope, rhs_stride_col = stride(rhs, rank));
+        gpu!(scope, rhs_stride_col = stride(rhs, ultimate_dim));
         gpu!(scope, out_stride_row = stride(out, penultimate_dim));
-        gpu!(scope, out_stride_col = stride(out, rank));
+        gpu!(scope, out_stride_col = stride(out, ultimate_dim));
 
         // Workgroup offset
         let skip_row = scope.create_local(Elem::UInt);
@@ -125,15 +123,34 @@ impl MatmulTiling2dPaddedShader {
 
         // Batch offset for the lhs & rhs matrices.
         gpu!(scope, batch_dims = rank - 2u32);
-        IndexOffsetGlobalWithLayout {
-            tensors: vec![lhs, rhs],
-            indexes: vec![offset_lhs, offset_rhs],
-            layout: out,
-            index_ref: offset_output,
-            dim_start: 0u32.into(),
-            dim_end: batch_dims,
-        }
-        .expand(scope);
+        gpu!(
+            scope,
+            range(0u32, batch_dims).for_each(|b, scope| {
+                let stride_lhs = scope.create_local(Elem::UInt);
+                let stride_rhs = scope.create_local(Elem::UInt);
+                let stride_output = scope.create_local(Elem::UInt);
+                let shape_lhs = scope.create_local(Elem::UInt);
+                let shape_rhs = scope.create_local(Elem::UInt);
+
+                gpu!(scope, stride_lhs = stride(lhs, b));
+                gpu!(scope, stride_rhs = stride(rhs, b));
+                gpu!(scope, stride_output = stride(out, b));
+                gpu!(scope, shape_lhs = shape(lhs, b));
+                gpu!(scope, shape_rhs = shape(rhs, b));
+
+                let tmp = scope.create_local(Elem::UInt);
+                gpu!(scope, tmp = offset_output / stride_output);
+                let tmp_lhs = scope.create_local(Elem::UInt);
+                gpu!(scope, tmp_lhs = tmp % shape_lhs);
+                gpu!(scope, tmp_lhs = tmp_lhs * stride_lhs);
+                gpu!(scope, offset_lhs += tmp_lhs);
+
+                let tmp_rhs = scope.create_local(Elem::UInt);
+                gpu!(scope, tmp_rhs = tmp % shape_rhs);
+                gpu!(scope, tmp_rhs = tmp_rhs * stride_rhs);
+                gpu!(scope, offset_rhs += tmp_rhs);
+            })
+        );
 
         let elem = lhs.item().elem();
         let results = scope.create_local_array(elem, results_size);
@@ -206,6 +223,7 @@ impl MatmulTiling2dPaddedShader {
             results,
             offset_output,
             out,
+            batch,
         );
     }
 
@@ -276,9 +294,10 @@ impl MatmulTiling2dPaddedShader {
                     let lhs_vec4 = scope.create_local(shared_memory.item());
                     gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
                     gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
-                }).else(|scope|{
-                    scope.register(Branch::Break); // TODO test if faster, else remove
                 }));
+                // }).else(|scope|{
+                // scope.register(Branch::Break); // TODO test if faster, else remove
+                // }));
             })
         );
     }
@@ -369,6 +388,7 @@ impl MatmulTiling2dPaddedShader {
         results: Variable,
         offset_output: Variable,
         out: Variable,
+        tmp: Variable,
     ) {
         let elem = results.item().elem();
 
@@ -403,6 +423,7 @@ impl MatmulTiling2dPaddedShader {
                                 );
                                 gpu!(scope, output_position += offset_output);
 
+                                // gpu!(scope, out[output_position] = tmp);
                                 gpu!(scope, out[output_position] = result);
                             }
                         )
@@ -412,8 +433,6 @@ impl MatmulTiling2dPaddedShader {
         );
     }
 }
-
-// TODO try to reuse variables declared before the scope
 
 impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
     fn source(&self) -> SourceTemplate {
@@ -497,6 +516,8 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
         }
         _ => round_rhs.into_tensor(),
     };
+    println!("{:?}", lhs.shape);
+    println!("{:?}", rhs.shape);
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
@@ -508,6 +529,7 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
         rounded_output_shape.clone(),
         buffer,
     );
+    println!("{:?}", rounded_output.shape);
 
     Execution::start(kernel, client)
         .inputs(&[
@@ -519,12 +541,9 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(launch_options(
-            &lhs.shape,
-            &rhs.shape,
-            &out.shape,
-            config.grid_x,
-            config.grid_y,
+        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+            &rounded_output.shape,
+            config,
         )));
 
     crop(rounded_output, out)

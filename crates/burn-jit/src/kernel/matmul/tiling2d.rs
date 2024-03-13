@@ -13,7 +13,7 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-use super::{launch_options, Tiling2dConfig};
+use super::{tiling2d_launch_options, Tiling2dConfig};
 
 #[derive(new, Debug)]
 struct MatmulTiling2d<E: JitElement> {
@@ -231,12 +231,8 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
             EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
         .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
-        .execute(WorkgroupLaunch::Custom(launch_options(
-            &lhs.shape,
-            &rhs.shape,
-            &out.shape,
-            config.grid_x,
-            config.grid_y,
+        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+            &out.shape, config,
         )));
 
     out
