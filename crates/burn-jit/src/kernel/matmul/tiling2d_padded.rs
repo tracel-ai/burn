@@ -136,16 +136,72 @@ impl MatmulTiling2dPaddedShader {
         let results = scope.create_local_array(lhs.item().elem(), results_size);
         let register_m = scope.create_local(Item::Vec4(lhs.item().elem()));
         let register_n = scope.create_local(Item::Vec4(lhs.item().elem()));
+        let shared_lhs = scope.create_shared(
+            Item::Vec4(lhs.item().elem()),
+            self.config.block_size_m as u32 * self.config.block_size_k as u32 / 4u32,
+        );
+        let shared_rhs = scope.create_shared(
+            Item::Vec4(rhs.item().elem()),
+            self.config.block_size_k as u32 * self.config.block_size_n as u32 / 4u32,
+        );
 
         let n_loops = scope.create_local(Elem::UInt);
         gpu!(scope, n_loops = K / block_size_k); // assumes padding, otherwise ceil
         gpu!(
             scope,
-            range(0, n_loops).for_each(|i, scope| {
+            range(0u32, n_loops).for_each(|i, scope| {
+                // Equivalent of looping from 0 to K with steps block_size_k
                 let k = scope.create_local(Elem::UInt);
                 gpu!(scope, k = i * block_size_k);
 
-                // HERE
+                // Phase 2.1: Load to shared memory
+
+                // LHS
+                for j in 0u32..4u32 {
+                    let current_col = scope.create_local(Elem::UInt);
+                    gpu!(scope, current_col = thread_col + j);
+
+                    let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+                    gpu!(
+                        scope,
+                        aligned_with_shared_memory = current_col < block_size_k
+                    );
+
+                    // TODO if current_col >= B_K then we could break and not try other j
+                    gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+                        let lhs_sm_position = scope.create_local(Elem::UInt);
+                        gpu!(scope, lhs_sm_position = thread_row / 4u32);
+                        gpu!(scope, lhs_sm_position *= block_size_k);
+                        gpu!(scope, lhs_sm_position += current_col);
+
+                        let lhs_position_0 = scope.create_local(Elem::UInt);
+                        gpu!(scope, lhs_position_0 = k + current_col);
+                        gpu!(scope, lhs_position_0 *= lhs_stride_col);
+                        let tmp = scope.create_local(Elem::UInt);
+                        gpu!(scope, tmp = thread_row * lhs_stride_row);
+                        gpu!(scope, lhs_position_0 += tmp);
+                        gpu!(scope, lhs_position_0 += offset_lhs);
+                        let lhs_position_1 = scope.create_local(Elem::UInt);
+                        let lhs_position_2 = scope.create_local(Elem::UInt);
+                        let lhs_position_3 = scope.create_local(Elem::UInt);
+                        gpu!(scope, lhs_position_1 = lhs_position_0 + lhs_stride_row);
+                        gpu!(scope, lhs_position_2 = lhs_position_1 + lhs_stride_row);
+                        gpu!(scope, lhs_position_3 = lhs_position_2 + lhs_stride_row);
+
+                        let lhs_0 = scope.create_local(lhs.item().elem());
+                        let lhs_1 = scope.create_local(lhs.item().elem());
+                        let lhs_2 = scope.create_local(lhs.item().elem());
+                        let lhs_3 = scope.create_local(lhs.item().elem());
+                        gpu!(scope, lhs_0 = lhs[lhs_position_0]);
+                        gpu!(scope, lhs_1 = lhs[lhs_position_1]);
+                        gpu!(scope, lhs_2 = lhs[lhs_position_2]);
+                        gpu!(scope, lhs_3 = lhs[lhs_position_3]);
+
+                        let lhs_vec4 = scope.create_local(shared_lhs.item());
+                        // gpu!(scope, lhs_vec4 = [lhs_0, lhs_1, lhs_2, lhs_3]);
+                        gpu!(scope, shared_lhs[lhs_sm_position] = lhs_vec4);
+                    }));
+                }
             })
         )
 

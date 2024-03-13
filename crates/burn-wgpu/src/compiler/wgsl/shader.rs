@@ -93,7 +93,7 @@ impl Display for ComputeShader {
 
         for array in self.shared_memories.iter() {
             f.write_fmt(format_args!(
-                "var<{}> array_{}: array<{}, {}>;\n\n",
+                "var<{}> shared_memory_{}: array<{}, {}>;\n\n",
                 array.location, array.index, array.item, array.size
             ))?;
         }
