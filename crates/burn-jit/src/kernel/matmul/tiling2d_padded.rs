@@ -36,6 +36,7 @@ struct MatmulTiling2dPaddedEagerKernel<R: Runtime> {
 struct MatmulTiling2dPaddedShader {
     variables: BinaryOperator,
     config: Tiling2dConfig,
+    unroll: bool,
 }
 
 impl MatmulTiling2dPaddedShader {
@@ -65,12 +66,12 @@ impl MatmulTiling2dPaddedShader {
         let rank = Variable::Rank;
         let penultimate_dim = scope.create_local(Elem::UInt);
         gpu!(scope, penultimate_dim = rank - 1u32);
-        let M = scope.create_local(Elem::UInt);
-        let K = scope.create_local(Elem::UInt);
-        let N = scope.create_local(Elem::UInt);
-        gpu!(scope, M = shape(lhs, penultimate_dim));
-        gpu!(scope, K = shape(rhs, penultimate_dim));
-        gpu!(scope, N = shape(rhs, rank));
+        let dim_m = scope.create_local(Elem::UInt);
+        let dim_k = scope.create_local(Elem::UInt);
+        let dim_n = scope.create_local(Elem::UInt);
+        gpu!(scope, dim_m = shape(lhs, penultimate_dim));
+        gpu!(scope, dim_k = shape(rhs, penultimate_dim));
+        gpu!(scope, dim_n = shape(rhs, rank));
 
         // Strides
         let lhs_stride_row = scope.create_local(Elem::UInt);
@@ -119,7 +120,7 @@ impl MatmulTiling2dPaddedShader {
         // Batch offset for the output.
         let offset_output = scope.create_local(Elem::UInt);
         let batch_dims = scope.create_local(Elem::UInt);
-        gpu!(scope, offset_output = M * N);
+        gpu!(scope, offset_output = dim_m * dim_n);
         gpu!(scope, offset_output = offset_output * batch);
 
         // Batch offset for the lhs & rhs matrices.
@@ -133,8 +134,6 @@ impl MatmulTiling2dPaddedShader {
             dim_end: batch_dims,
         }
         .expand(scope);
-
-        // Phase 2: Loop over k for loading and computing
 
         let elem = lhs.item().elem();
         let results = scope.create_local_array(elem, results_size);
@@ -150,15 +149,13 @@ impl MatmulTiling2dPaddedShader {
         );
 
         let n_loops = scope.create_local(Elem::UInt);
-        gpu!(scope, n_loops = K / block_size_k); // assumes padding, otherwise ceil
+        gpu!(scope, n_loops = dim_k / block_size_k); // assumes padding, otherwise ceil
         gpu!(
             scope,
             range(0u32, n_loops).for_each(|i, scope| {
                 // Equivalent of looping from 0 to K with steps block_size_k
                 let k = scope.create_local(Elem::UInt);
                 gpu!(scope, k = i * block_size_k);
-
-                // Phase 2.1: Load to shared memory
 
                 // LHS
                 self.load_shared_memory(
@@ -190,8 +187,6 @@ impl MatmulTiling2dPaddedShader {
 
                 scope.register(Synchronization::WorkgroupBarrier);
 
-                // Phase 2.2: Compute intermediate results
-
                 self.computation_loop(
                     scope, thread_col, thread_row, shared_lhs, shared_rhs, register_m, register_n,
                     results,
@@ -202,34 +197,16 @@ impl MatmulTiling2dPaddedShader {
         );
 
         // Phase 3: Write to output
-        for res_idx_m in 0..self.config.tile_size_m {
-            for res_idx_n in 0..self.config.tile_size_n {
-                let results_position = scope.create_local(Elem::UInt);
-                gpu!(
-                    scope,
-                    results_position = res_idx_m * self.config.tile_size_n
-                );
-                gpu!(scope, results_position += res_idx_n);
-
-                let result = scope.create_local(elem);
-                gpu!(scope, result = results[results_position]);
-
-                let output_position = scope.create_local(Elem::UInt);
-                let output_position_tmp1 = scope.create_local(Elem::UInt);
-                let output_position_tmp2 = scope.create_local(Elem::UInt);
-                gpu!(scope, output_position_tmp1 = row + res_idx_m);
-                gpu!(scope, output_position_tmp1 *= out_stride_row);
-                gpu!(scope, output_position_tmp2 = col + res_idx_n);
-                gpu!(scope, output_position_tmp2 *= out_stride_col);
-                gpu!(
-                    scope,
-                    output_position = output_position_tmp1 + output_position_tmp2
-                );
-                gpu!(scope, output_position += offset_output);
-
-                gpu!(scope, out[output_position] = result);
-            }
-        }
+        self.write_to_output(
+            scope,
+            row,
+            col,
+            out_stride_row,
+            out_stride_col,
+            results,
+            offset_output,
+            out,
+        );
     }
 
     fn load_shared_memory(
@@ -249,59 +226,61 @@ impl MatmulTiling2dPaddedShader {
         let block_size_n: Variable = self.config.block_size_n.into();
         let elem = input.item().elem();
 
-        for j in 0u32..4u32 {
-            let current_col = scope.create_local(Elem::UInt);
-            gpu!(scope, current_col = thread_idx_1 + j);
+        gpu!(
+            scope,
+            range(0_u32, 4u32, self.unroll).for_each(|j, scope| {
+                let current_col = scope.create_local(Elem::UInt);
+                gpu!(scope, current_col = thread_idx_1 + j);
 
-            let aligned_with_shared_memory = scope.create_local(Elem::Bool);
-            gpu!(
-                scope,
-                aligned_with_shared_memory = current_col < block_size_k
-            );
+                let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+                gpu!(
+                    scope,
+                    aligned_with_shared_memory = current_col < block_size_k
+                );
 
-            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
-                let lhs_sm_position = scope.create_local(Elem::UInt);
-                if is_lhs {
-                    gpu!(scope, lhs_sm_position = thread_idx_2 / 4u32);
-                    gpu!(scope, lhs_sm_position *= block_size_k);
-                    gpu!(scope, lhs_sm_position += current_col);
-                } else {
-                    gpu!(scope, lhs_sm_position = current_col * block_size_n);
-                    gpu!(scope, lhs_sm_position += thread_idx_2);
-                    gpu!(scope, lhs_sm_position = lhs_sm_position / 4u32);
-                }
+                gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+                    let lhs_sm_position = scope.create_local(Elem::UInt);
+                    if is_lhs {
+                        gpu!(scope, lhs_sm_position = thread_idx_2 / 4u32);
+                        gpu!(scope, lhs_sm_position *= block_size_k);
+                        gpu!(scope, lhs_sm_position += current_col);
+                    } else {
+                        gpu!(scope, lhs_sm_position = current_col * block_size_n);
+                        gpu!(scope, lhs_sm_position += thread_idx_2);
+                        gpu!(scope, lhs_sm_position = lhs_sm_position / 4u32);
+                    }
 
-                let lhs_position_0 = scope.create_local(Elem::UInt);
-                gpu!(scope, lhs_position_0 = k + current_col);
-                gpu!(scope, lhs_position_0 *= stride_1);
-                let tmp = scope.create_local(Elem::UInt);
-                gpu!(scope, tmp = thread_idx_2 * stride_2);
-                gpu!(scope, lhs_position_0 += tmp);
-                gpu!(scope, lhs_position_0 += input_offset);
-                let lhs_position_1 = scope.create_local(Elem::UInt);
-                let lhs_position_2 = scope.create_local(Elem::UInt);
-                let lhs_position_3 = scope.create_local(Elem::UInt);
-                gpu!(scope, lhs_position_1 = lhs_position_0 + stride_2);
-                gpu!(scope, lhs_position_2 = lhs_position_1 + stride_2);
-                gpu!(scope, lhs_position_3 = lhs_position_2 + stride_2);
+                    let lhs_position_0 = scope.create_local(Elem::UInt);
+                    gpu!(scope, lhs_position_0 = k + current_col);
+                    gpu!(scope, lhs_position_0 *= stride_1);
+                    let tmp = scope.create_local(Elem::UInt);
+                    gpu!(scope, tmp = thread_idx_2 * stride_2);
+                    gpu!(scope, lhs_position_0 += tmp);
+                    gpu!(scope, lhs_position_0 += input_offset);
+                    let lhs_position_1 = scope.create_local(Elem::UInt);
+                    let lhs_position_2 = scope.create_local(Elem::UInt);
+                    let lhs_position_3 = scope.create_local(Elem::UInt);
+                    gpu!(scope, lhs_position_1 = lhs_position_0 + stride_2);
+                    gpu!(scope, lhs_position_2 = lhs_position_1 + stride_2);
+                    gpu!(scope, lhs_position_3 = lhs_position_2 + stride_2);
 
-                let lhs_0 = scope.create_local(elem);
-                let lhs_1 = scope.create_local(elem);
-                let lhs_2 = scope.create_local(elem);
-                let lhs_3 = scope.create_local(elem);
-                gpu!(scope, lhs_0 = input[lhs_position_0]);
-                gpu!(scope, lhs_1 = input[lhs_position_1]);
-                gpu!(scope, lhs_2 = input[lhs_position_2]);
-                gpu!(scope, lhs_3 = input[lhs_position_3]);
+                    let lhs_0 = scope.create_local(elem);
+                    let lhs_1 = scope.create_local(elem);
+                    let lhs_2 = scope.create_local(elem);
+                    let lhs_3 = scope.create_local(elem);
+                    gpu!(scope, lhs_0 = input[lhs_position_0]);
+                    gpu!(scope, lhs_1 = input[lhs_position_1]);
+                    gpu!(scope, lhs_2 = input[lhs_position_2]);
+                    gpu!(scope, lhs_3 = input[lhs_position_3]);
 
-                let lhs_vec4 = scope.create_local(shared_memory.item());
-                gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
-                gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
-
-            }).else(|scope|{
-                scope.register(Branch::Break); // TODO test if faster, else remove
-            }));
-        }
+                    let lhs_vec4 = scope.create_local(shared_memory.item());
+                    gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
+                    gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
+                }).else(|scope|{
+                    scope.register(Branch::Break); // TODO test if faster, else remove
+                }));
+            })
+        );
     }
 
     fn computation_loop(
@@ -319,47 +298,118 @@ impl MatmulTiling2dPaddedShader {
         let block_size_n: Variable = self.config.block_size_n.into();
         let elem = results.item().elem();
 
-        for dot_index in 0..self.config.block_size_k {
-            // Load a subcolumn of values from lhs
-            let lhs_sm_position = scope.create_local(Elem::UInt);
-            gpu!(scope, lhs_sm_position = thread_row / 4u32);
-            gpu!(scope, lhs_sm_position *= block_size_k);
-            gpu!(scope, lhs_sm_position += dot_index);
-            gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
+        gpu!(
+            scope,
+            range(0u32, self.config.block_size_k as u32, self.unroll).for_each(
+                |dot_index, scope| {
+                    // Load a subcolumn of values from lhs
+                    let lhs_sm_position = scope.create_local(Elem::UInt);
+                    gpu!(scope, lhs_sm_position = thread_row / 4u32);
+                    gpu!(scope, lhs_sm_position *= block_size_k);
+                    gpu!(scope, lhs_sm_position += dot_index);
+                    gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
 
-            // Load a subrow of values from rhs
-            let rhs_sm_position = scope.create_local(Elem::UInt);
-            gpu!(scope, rhs_sm_position = dot_index * block_size_n);
-            gpu!(scope, rhs_sm_position += thread_col);
-            gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
-            gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
+                    // Load a subrow of values from rhs
+                    let rhs_sm_position = scope.create_local(Elem::UInt);
+                    gpu!(scope, rhs_sm_position = dot_index * block_size_n);
+                    gpu!(scope, rhs_sm_position += thread_col);
+                    gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
+                    gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
 
-            for res_idx_m in 0..self.config.tile_size_m {
-                for res_idx_n in 0..self.config.tile_size_n {
-                    let registered_m = scope.create_local(elem);
-                    let registered_n = scope.create_local(elem);
-                    gpu!(scope, registered_m = register_m[res_idx_m]);
-                    gpu!(scope, registered_n = register_n[res_idx_n]);
-
-                    let multiplied = scope.create_local(elem);
-                    gpu!(scope, multiplied = registered_m * registered_n);
-
-                    let results_position = scope.create_local(Elem::UInt);
                     gpu!(
                         scope,
-                        results_position = res_idx_m * self.config.tile_size_n
+                        range(0u32, self.config.tile_size_m as u32, self.unroll).for_each(
+                            |res_idx_m, scope| {
+                                gpu!(
+                                    scope,
+                                    range(0u32, self.config.tile_size_n as u32, self.unroll)
+                                        .for_each(|res_idx_n, scope| {
+                                            let registered_m = scope.create_local(elem);
+                                            let registered_n = scope.create_local(elem);
+                                            gpu!(scope, registered_m = register_m[res_idx_m]);
+                                            gpu!(scope, registered_n = register_n[res_idx_n]);
+
+                                            let multiplied = scope.create_local(elem);
+                                            gpu!(scope, multiplied = registered_m * registered_n);
+
+                                            let results_position = scope.create_local(Elem::UInt);
+                                            gpu!(
+                                                scope,
+                                                results_position =
+                                                    res_idx_m * self.config.tile_size_n
+                                            );
+                                            gpu!(scope, results_position += res_idx_n);
+
+                                            let results_before = scope.create_local(elem);
+                                            gpu!(scope, results_before = results[results_position]);
+                                            let results_after = scope.create_local(elem);
+                                            gpu!(
+                                                scope,
+                                                results_after = results_before + multiplied
+                                            );
+
+                                            gpu!(scope, results[results_position] = results_after);
+                                        })
+                                );
+                            }
+                        )
                     );
-                    gpu!(scope, results_position += res_idx_n);
-
-                    let results_before = scope.create_local(elem);
-                    gpu!(scope, results_before = results[results_position]);
-                    let results_after = scope.create_local(elem);
-                    gpu!(scope, results_after = results_before + multiplied);
-
-                    gpu!(scope, results[results_position] = results_after);
                 }
-            }
-        }
+            )
+        );
+    }
+
+    fn write_to_output(
+        &self,
+        scope: &mut Scope,
+        row: Variable,
+        col: Variable,
+        out_stride_row: Variable,
+        out_stride_col: Variable,
+        results: Variable,
+        offset_output: Variable,
+        out: Variable,
+    ) {
+        let elem = results.item().elem();
+
+        gpu!(
+            scope,
+            range(0u32, self.config.tile_size_m as u32, self.unroll).for_each(
+                |res_idx_m, scope| {
+                    gpu!(
+                        scope,
+                        range(0u32, self.config.tile_size_n as u32, self.unroll).for_each(
+                            |res_idx_n, scope| {
+                                let results_position = scope.create_local(Elem::UInt);
+                                gpu!(
+                                    scope,
+                                    results_position = res_idx_m * self.config.tile_size_n
+                                );
+                                gpu!(scope, results_position += res_idx_n);
+
+                                let result = scope.create_local(elem);
+                                gpu!(scope, result = results[results_position]);
+
+                                let output_position = scope.create_local(Elem::UInt);
+                                let output_position_tmp1 = scope.create_local(Elem::UInt);
+                                let output_position_tmp2 = scope.create_local(Elem::UInt);
+                                gpu!(scope, output_position_tmp1 = row + res_idx_m);
+                                gpu!(scope, output_position_tmp1 *= out_stride_row);
+                                gpu!(scope, output_position_tmp2 = col + res_idx_n);
+                                gpu!(scope, output_position_tmp2 *= out_stride_col);
+                                gpu!(
+                                    scope,
+                                    output_position = output_position_tmp1 + output_position_tmp2
+                                );
+                                gpu!(scope, output_position += offset_output);
+
+                                gpu!(scope, out[output_position] = result);
+                            }
+                        )
+                    );
+                }
+            )
+        );
     }
 }
 
@@ -377,6 +427,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
         MatmulTiling2dPaddedShader {
             variables: gpu::BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
+            unroll: false,
         }
         .expand(&mut scope);
 

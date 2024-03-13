@@ -322,9 +322,17 @@ macro_rules! gpu {
             out: $out.into(),
         });
     };
-    // range(start, end).for_each(|scope| { ... })
+    // range(start, end).for_each(|i, scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+    };
+    // range(start, end, unroll).for_each(|i, scope| { ... })
+    ($scope:expr, range($start:expr, $end:expr, $unroll:expr).for_each($arg:expr)) => {
+        if $unroll {
+            $crate::codegen::dialect::gpu::UnrolledRangeLoop::register($scope, $start.into(), $end.into(), $arg);
+        } else {
+            $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+        }
     };
     // loop(|scope| { ... })
     ($scope:expr, loop($arg:expr)) => {
