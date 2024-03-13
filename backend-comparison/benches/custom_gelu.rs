@@ -142,7 +142,7 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
             vec![
                 run_benchmark(reference_gelu),
                 run_benchmark(reference_erf_gelu),
-                // run_benchmark(custom_erf_gelu),
+                run_benchmark(custom_erf_gelu),
             ],
             device,
             url,

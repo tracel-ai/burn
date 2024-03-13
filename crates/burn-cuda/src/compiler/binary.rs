@@ -243,6 +243,7 @@ function!(Max, "max");
 function!(Min, "min");
 
 pub struct IndexAssign;
+pub struct Index;
 
 impl Binary for IndexAssign {
     fn format_scalar<Lhs, Rhs, Out>(
@@ -331,11 +332,118 @@ impl Binary for IndexAssign {
         rhs: &Variable,
         out: &Variable,
     ) -> std::fmt::Result {
+        if let Variable::Local {
+            index: _,
+            item: _,
+            scope_depth: _,
+        } = out
+        {
+            return IndexAssignVector::format(f, lhs, rhs, out);
+        };
+
+        let elem = out.elem();
+
         match lhs.item() {
-            Item::Vec4(elem) => Self::unroll_vec4(f, lhs, rhs, out, elem),
-            Item::Vec3(elem) => Self::unroll_vec3(f, lhs, rhs, out, elem),
-            Item::Vec2(elem) => Self::unroll_vec2(f, lhs, rhs, out, elem),
-            Item::Scalar(elem) => Self::format_scalar(f, *lhs, *rhs, *out, elem),
+            Item::Vec4(_) => Self::unroll_vec4(f, lhs, rhs, out, elem),
+            Item::Vec3(_) => Self::unroll_vec3(f, lhs, rhs, out, elem),
+            Item::Vec2(_) => Self::unroll_vec2(f, lhs, rhs, out, elem),
+            Item::Scalar(_) => Self::format_scalar(f, *lhs, *rhs, *out, elem),
         }
+    }
+}
+
+impl Binary for Index {
+    fn format(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+    ) -> std::fmt::Result {
+        if let Variable::Local {
+            index: _,
+            item: _,
+            scope_depth: _,
+        } = lhs
+        {
+            return IndexVector::format(f, lhs, rhs, out);
+        }
+
+        Self::format_scalar(f, *lhs, *rhs, *out, out.elem())
+    }
+
+    fn format_scalar<Lhs, Rhs, Out>(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: Lhs,
+        rhs: Rhs,
+        out: Out,
+        _elem: Elem,
+    ) -> std::fmt::Result
+    where
+        Lhs: Component,
+        Rhs: Component,
+        Out: Component,
+    {
+        f.write_fmt(format_args!("{out} = {lhs}[{rhs}];\n"))
+    }
+}
+
+/// The goal is to support indexing of vectorized types.
+///
+/// # Examples
+///
+/// ```c
+/// float4 rhs;
+/// float item = var[0]; // We want that.
+/// float item = var.x; // So we compile to that.
+/// ```
+struct IndexVector;
+
+/// The goal is to support indexing of vectorized types.
+///
+/// # Examples
+///
+/// ```c
+/// float4 var;
+///
+/// var[0] = 1.0; // We want that.
+/// var.x = 1.0;  // So we compile to that.
+/// ```
+struct IndexAssignVector;
+
+impl IndexVector {
+    fn format(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+    ) -> std::fmt::Result {
+        let index = match rhs {
+            Variable::ConstantScalar(value, _) => *value as usize,
+            _ => panic!("Only constant indexing is supported"),
+        };
+
+        let out = out.index(index);
+        let lhs = lhs.index(index);
+
+        f.write_fmt(format_args!("{out} = {lhs};\n"))
+    }
+}
+
+impl IndexAssignVector {
+    fn format(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+    ) -> std::fmt::Result {
+        let index = match lhs {
+            Variable::ConstantScalar(value, _) => *value as usize,
+            _ => panic!("Only constant indexing is supported"),
+        };
+
+        let out = out.index(index);
+        let rhs = rhs.index(index);
+
+        f.write_fmt(format_args!("{out} = {rhs};\n"))
     }
 }
