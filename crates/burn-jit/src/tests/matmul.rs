@@ -677,8 +677,6 @@ mod tests {
             y_jit.into_primitive(),
             strategy,
         ));
-        println!("{}", z_reference);
-        println!("{}", z);
 
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }

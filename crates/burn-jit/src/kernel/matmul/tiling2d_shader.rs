@@ -1,42 +1,16 @@
-use burn_tensor::Element;
+use crate::gpu::{gpu, BinaryOperator, Elem, Item, Scope, Synchronization, Variable};
 
-use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        Execution, InputInfo, OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    gpu::{gpu, BinaryOperator, Branch, Elem, Item, Scope, Synchronization, Variable},
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
-    tensor::JitTensor,
-    Runtime,
-};
-use std::marker::PhantomData;
+use super::{Tiling2DAssumption, Tiling2dConfig};
 
-use super::{
-    padding::{crop, pad_round, PaddingOutput},
-    shape_out, tiling2d_launch_options, Tiling2dConfig,
-};
-
-#[derive(new, Debug)]
-struct MatmulTiling2dPadded<E: JitElement> {
-    _elem: PhantomData<E>,
+pub(crate) struct MatmulTiling2dShader {
+    pub variables: BinaryOperator,
+    pub config: Tiling2dConfig,
+    pub assumption: Tiling2DAssumption,
+    pub unroll: bool,
 }
 
-#[derive(new, Debug)]
-struct MatmulTiling2dPaddedEagerKernel<R: Runtime> {
-    config: Tiling2dConfig,
-    _runtime: PhantomData<R>,
-}
-
-struct MatmulTiling2dPaddedShader {
-    variables: BinaryOperator,
-    config: Tiling2dConfig,
-    unroll: bool,
-}
-
-impl MatmulTiling2dPaddedShader {
-    fn expand(self, scope: &mut Scope) {
+impl MatmulTiling2dShader {
+    pub(crate) fn expand(self, scope: &mut Scope) {
         // Inputs
         let lhs = self.variables.lhs;
         let rhs = self.variables.rhs;
@@ -93,7 +67,7 @@ impl MatmulTiling2dPaddedShader {
         gpu!(scope, skip_col = workgroup_id_y);
         gpu!(scope, skip_col *= block_size_n);
 
-        // Invocation offset
+        // Position of the first element of the thread, relative to the block
         let thread_row = scope.create_local(Elem::UInt);
         gpu!(scope, thread_row = local_idx / n_threads_per_row);
         gpu!(scope, thread_row *= tile_size_m);
@@ -101,7 +75,7 @@ impl MatmulTiling2dPaddedShader {
         gpu!(scope, thread_col = local_idx % n_threads_per_row);
         gpu!(scope, thread_col *= tile_size_n);
 
-        // Row and col
+        // Position of the first element of the thread, in absolute (in one batch)
         let row = scope.create_local(Elem::UInt);
         let col = scope.create_local(Elem::UInt);
         gpu!(scope, row = skip_row + thread_row);
@@ -151,6 +125,8 @@ impl MatmulTiling2dPaddedShader {
         );
 
         let elem = lhs.item().elem();
+
+        // Registers used in the compute pass
         let results = scope.create_local_array(elem, results_size);
         let register_m = scope.create_local(Item::Vec4(elem));
         let register_n = scope.create_local(Item::Vec4(elem));
@@ -164,7 +140,22 @@ impl MatmulTiling2dPaddedShader {
         );
 
         let n_loops = scope.create_local(Elem::UInt);
-        gpu!(scope, n_loops = dim_k / block_size_k); // assumes padding, otherwise ceil
+        match self.assumption {
+            Tiling2DAssumption::Round => {
+                gpu!(scope, n_loops = dim_k / block_size_k);
+            }
+            Tiling2DAssumption::None => {
+                let dim_k_float = scope.create_local(elem);
+                let block_size_k_float = scope.create_local(elem);
+                let n_loops_float = scope.create_local(elem);
+                gpu!(scope, dim_k_float = dim_k);
+                gpu!(scope, block_size_k_float = block_size_k);
+                gpu!(scope, n_loops_float = dim_k_float / block_size_k_float);
+                gpu!(scope, n_loops_float = ceil(n_loops_float));
+                gpu!(scope, n_loops = n_loops_float);
+            }
+        }
+
         gpu!(
             scope,
             range(0u32, n_loops).for_each(|i, scope| {
@@ -172,33 +163,72 @@ impl MatmulTiling2dPaddedShader {
                 let k = scope.create_local(Elem::UInt);
                 gpu!(scope, k = i * block_size_k);
 
-                // LHS
-                self.load_shared_memory(
-                    scope,
-                    k,
-                    thread_col,
-                    thread_row,
-                    lhs_stride_col,
-                    lhs_stride_row,
-                    lhs,
-                    offset_lhs,
-                    shared_lhs,
-                    true,
-                );
+                match self.assumption {
+                    Tiling2DAssumption::Round => {
+                        // LHS
+                        self.load_shared_memory(
+                            scope,
+                            k,
+                            thread_col,
+                            thread_row,
+                            lhs_stride_col,
+                            lhs_stride_row,
+                            lhs,
+                            offset_lhs,
+                            shared_lhs,
+                            true,
+                        );
 
-                // RHS
-                self.load_shared_memory(
-                    scope,
-                    k,
-                    thread_row,
-                    thread_col,
-                    rhs_stride_row,
-                    rhs_stride_col,
-                    rhs,
-                    offset_rhs,
-                    shared_rhs,
-                    false,
-                );
+                        // RHS
+                        self.load_shared_memory(
+                            scope,
+                            k,
+                            thread_row,
+                            thread_col,
+                            rhs_stride_row,
+                            rhs_stride_col,
+                            rhs,
+                            offset_rhs,
+                            shared_rhs,
+                            false,
+                        );
+                    }
+                    Tiling2DAssumption::None => {
+                        // LHS
+                        self.load_shared_memory_with_bound_check(
+                            scope,
+                            k,
+                            dim_k,
+                            thread_col,
+                            thread_row,
+                            lhs_stride_col,
+                            lhs_stride_row,
+                            dim_m,
+                            row,
+                            lhs,
+                            offset_lhs,
+                            shared_lhs,
+                            true,
+                        );
+
+                        // RHS
+                        self.load_shared_memory_with_bound_check(
+                            scope,
+                            k,
+                            dim_k,
+                            thread_row,
+                            thread_col,
+                            rhs_stride_row,
+                            rhs_stride_col,
+                            dim_n,
+                            col,
+                            rhs,
+                            offset_rhs,
+                            shared_rhs,
+                            false,
+                        );
+                    }
+                }
 
                 scope.register(Synchronization::WorkgroupBarrier);
 
@@ -216,11 +246,134 @@ impl MatmulTiling2dPaddedShader {
             scope,
             row,
             col,
+            dim_m,
+            dim_n,
             out_stride_row,
             out_stride_col,
             results,
             offset_output,
             out,
+        );
+    }
+
+    fn load_shared_memory_with_bound_check(
+        &self,
+        scope: &mut Scope,
+        k: Variable,
+        dim_k: Variable,
+        thread_idx_1: Variable,
+        thread_idx_2: Variable,
+        stride_1: Variable,
+        stride_2: Variable,
+        dim: Variable,
+        pos_in_dim: Variable,
+        input: Variable,
+        input_offset: Variable,
+        shared_memory: Variable,
+        is_lhs: bool,
+    ) {
+        // How close is the thread to the end of the matrix.
+        // If < 4 then it is an edge case
+
+        let remain = scope.create_local(Elem::UInt);
+        gpu!(scope, remain = dim - pos_in_dim);
+
+        let block_size_k: Variable = self.config.block_size_k.into();
+        let block_size_n: Variable = self.config.block_size_n.into();
+        let elem = input.item().elem();
+
+        gpu!(
+            scope,
+            range(0_u32, 4u32, self.unroll).for_each(|j, scope| {
+                let current = scope.create_local(Elem::UInt);
+                gpu!(scope, current = thread_idx_1 + j);
+
+                let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+                gpu!(scope, aligned_with_shared_memory = current < block_size_k);
+
+                // To avoid overwriting following row in shared memory
+                gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+
+                    // Position in shared memory
+                    let sm_position = scope.create_local(Elem::UInt);
+                    if is_lhs {
+                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                        gpu!(scope, sm_position *= block_size_k);
+                        gpu!(scope, sm_position += current);
+                    } else {
+                        gpu!(scope, sm_position = current * block_size_n);
+                        gpu!(scope, sm_position += thread_idx_2);
+                        gpu!(scope, sm_position = sm_position / 4u32);
+                    }
+
+                    // To pad with zeros if outside lhs
+                    let within_input = scope.create_local(Elem::Bool);
+                    let current_with_k = scope.create_local(Elem::UInt);
+                    let remain_at_least_1 = scope.create_local(Elem::Bool);
+                    let read_condition = scope.create_local(Elem::Bool);
+                    gpu!(scope, current_with_k = current + k);
+                    gpu!(scope, within_input = current_with_k < dim_k);
+                    gpu!(scope, remain_at_least_1 = remain >= 1u32);
+                    gpu!(scope, read_condition = within_input && remain_at_least_1);
+
+                    gpu!(scope, if(read_condition).then(|scope| {
+                        let position_0 = scope.create_local(Elem::UInt);
+                        gpu!(scope, position_0 = k + current);
+                        gpu!(scope, position_0 *= stride_1);
+                        let tmp = scope.create_local(Elem::UInt);
+                        gpu!(scope, tmp = thread_idx_2 * stride_2);
+                        gpu!(scope, position_0 += tmp);
+                        gpu!(scope, position_0 += input_offset);
+                        let position_1 = scope.create_local(Elem::UInt);
+                        let position_2 = scope.create_local(Elem::UInt);
+                        let position_3 = scope.create_local(Elem::UInt);
+                        gpu!(scope, position_1 = position_0 + stride_2);
+                        gpu!(scope, position_2 = position_1 + stride_2);
+                        gpu!(scope, position_3 = position_2 + stride_2);
+
+                        let val_0 = scope.zero(elem);
+                        let val_1 = scope.zero(elem);
+                        let val_2 = scope.zero(elem);
+                        let val_3 = scope.zero(elem);
+
+                        let remain_n = scope.create_local(Elem::Bool);
+                        gpu!(scope, remain_n = remain >= 4u32);
+                        gpu!(scope, if(remain_n).then(|scope|{
+                            gpu!(scope, val_0 = input[position_0]);
+                            gpu!(scope, val_1 = input[position_1]);
+                            gpu!(scope, val_2 = input[position_2]);
+                            gpu!(scope, val_3 = input[position_3]);
+                        }).else(|scope|{
+                            gpu!(scope, remain_n = remain == 3u32);
+                            gpu!(scope, if(remain_n).then(|scope|{
+                                gpu!(scope, val_0 = input[position_0]);
+                                gpu!(scope, val_1 = input[position_1]);
+                                gpu!(scope, val_2 = input[position_2]);
+                            }).else(|scope|{
+                                gpu!(scope, remain_n = remain == 2u32);
+                                gpu!(scope, if(remain_n).then(|scope|{
+                                    gpu!(scope, val_0 = input[position_0]);
+                                    gpu!(scope, val_1 = input[position_1]);
+                                }).else(|scope|{
+                                    gpu!(scope, remain_n = remain == 1u32);
+                                    gpu!(scope, if(remain_n).then(|scope|{
+                                        gpu!(scope, val_0 = input[position_0]);
+                                    }));
+                                }));
+                            }));
+                        }));
+
+                        let val_vec4 = scope.create_local(shared_memory.item());
+                        gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                        gpu!(scope, shared_memory[sm_position] = val_vec4);
+                    }).else(|scope|{
+                        let val_0 = scope.zero(elem);
+                        let val_vec4 = scope.create_local(shared_memory.item());
+                        gpu!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
+                        gpu!(scope, shared_memory[sm_position] = val_vec4);
+                    }));
+                }));
+            })
         );
     }
 
@@ -244,29 +397,28 @@ impl MatmulTiling2dPaddedShader {
         gpu!(
             scope,
             range(0_u32, 4u32, self.unroll).for_each(|j, scope| {
-                let current_col = scope.create_local(Elem::UInt);
-                gpu!(scope, current_col = thread_idx_1 + j);
+                let current = scope.create_local(Elem::UInt);
+                gpu!(scope, current = thread_idx_1 + j);
 
                 let aligned_with_shared_memory = scope.create_local(Elem::Bool);
-                gpu!(
-                    scope,
-                    aligned_with_shared_memory = current_col < block_size_k
-                );
+                gpu!(scope, aligned_with_shared_memory = current < block_size_k);
 
+                // To avoid overwriting following row in shared memory
                 gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+
                     let sm_position = scope.create_local(Elem::UInt);
                     if is_lhs {
                         gpu!(scope, sm_position = thread_idx_2 / 4u32);
                         gpu!(scope, sm_position *= block_size_k);
-                        gpu!(scope, sm_position += current_col);
+                        gpu!(scope, sm_position += current);
                     } else {
-                        gpu!(scope, sm_position = current_col * block_size_n);
+                        gpu!(scope, sm_position = current * block_size_n);
                         gpu!(scope, sm_position += thread_idx_2);
                         gpu!(scope, sm_position = sm_position / 4u32);
                     }
 
                     let position_0 = scope.create_local(Elem::UInt);
-                    gpu!(scope, position_0 = k + current_col);
+                    gpu!(scope, position_0 = k + current);
                     gpu!(scope, position_0 *= stride_1);
                     let tmp = scope.create_local(Elem::UInt);
                     gpu!(scope, tmp = thread_idx_2 * stride_2);
@@ -377,14 +529,14 @@ impl MatmulTiling2dPaddedShader {
         scope: &mut Scope,
         row: Variable,
         col: Variable,
+        dim_m: Variable,
+        dim_n: Variable,
         out_stride_row: Variable,
         out_stride_col: Variable,
         results: Variable,
         offset_output: Variable,
         out: Variable,
     ) {
-        let elem = results.item().elem();
-
         gpu!(
             scope,
             range(0u32, self.config.tile_size_m as u32, self.unroll).for_each(
@@ -393,31 +545,49 @@ impl MatmulTiling2dPaddedShader {
                         scope,
                         range(0u32, self.config.tile_size_n as u32, self.unroll).for_each(
                             |res_idx_n, scope| {
-                                let results_position = scope.create_local(Elem::UInt);
-                                gpu!(
-                                    scope,
-                                    results_position = res_idx_m * self.config.tile_size_n
-                                );
-                                gpu!(scope, results_position += res_idx_n);
+                                let row_index = scope.create_local(Elem::UInt);
+                                let col_index = scope.create_local(Elem::UInt);
+                                gpu!(scope, row_index = row + res_idx_m);
+                                gpu!(scope, col_index = col + res_idx_n);
 
-                                let result = scope.create_local(elem);
-                                gpu!(scope, result = results[results_position]);
-
-                                let output_position = scope.create_local(Elem::UInt);
-                                let output_position_tmp1 = scope.create_local(Elem::UInt);
-                                let output_position_tmp2 = scope.create_local(Elem::UInt);
-                                gpu!(scope, output_position_tmp1 = row + res_idx_m);
-                                gpu!(scope, output_position_tmp1 *= out_stride_row);
-                                gpu!(scope, output_position_tmp2 = col + res_idx_n);
-                                gpu!(scope, output_position_tmp2 *= out_stride_col);
-                                gpu!(
-                                    scope,
-                                    output_position = output_position_tmp1 + output_position_tmp2
-                                );
-                                gpu!(scope, output_position += offset_output);
-
-                                // gpu!(scope, out[output_position] = tmp);
-                                gpu!(scope, out[output_position] = result);
+                                match self.assumption {
+                                    Tiling2DAssumption::Round => self.write_inner(
+                                        scope,
+                                        res_idx_m,
+                                        res_idx_n,
+                                        row_index,
+                                        col_index,
+                                        out_stride_row,
+                                        out_stride_col,
+                                        results,
+                                        offset_output,
+                                        out,
+                                    ),
+                                    Tiling2DAssumption::None => {
+                                        let within_output = scope.create_local(Elem::Bool);
+                                        let within_output_tmp = scope.create_local(Elem::Bool);
+                                        gpu!(scope, within_output = row_index < dim_m);
+                                        gpu!(scope, within_output_tmp = col_index < dim_n);
+                                        gpu!(
+                                            scope,
+                                            within_output = within_output && within_output_tmp
+                                        );
+                                        gpu!(scope, if(within_output).then(|scope|{
+                                            self.write_inner(
+                                                scope,
+                                                res_idx_m,
+                                                res_idx_n,
+                                                row_index,
+                                                col_index,
+                                                out_stride_row,
+                                                out_stride_col,
+                                                results,
+                                                offset_output,
+                                                out,
+                                            );
+                                        }));
+                                    }
+                                }
                             }
                         )
                     );
@@ -425,116 +595,37 @@ impl MatmulTiling2dPaddedShader {
             )
         );
     }
-}
 
-impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
-    fn source(&self) -> SourceTemplate {
-        let mut scope = gpu::Scope::root();
-        let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
-        let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
-        let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
-
-        scope.write_global_custom(out);
-
-        MatmulTiling2dPaddedShader {
-            variables: gpu::BinaryOperator { lhs, rhs, out },
-            config: self.config.clone(),
-            unroll: true,
-        }
-        .expand(&mut scope);
-
-        let lhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
-            visibility: gpu::Visibility::Read,
-        };
-        let rhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
-            visibility: gpu::Visibility::Read,
-        };
-        let out = OutputInfo::Array {
-            item: gpu::Elem::Float.into(),
-        };
-
-        let info = CompilationInfo {
-            inputs: vec![lhs, rhs],
-            outputs: vec![out],
+    fn write_inner(
+        &self,
+        scope: &mut Scope,
+        res_idx_m: Variable,
+        res_idx_n: Variable,
+        row_index: Variable,
+        col_index: Variable,
+        out_stride_row: Variable,
+        out_stride_col: Variable,
+        results: Variable,
+        offset_output: Variable,
+        out: Variable,
+    ) {
+        let elem = results.item().elem();
+        let results_position = scope.create_local(Elem::UInt);
+        gpu!(
             scope,
-        };
+            results_position = res_idx_m * self.config.tile_size_n
+        );
+        gpu!(scope, results_position += res_idx_n);
 
-        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
-            self.config.grid_x as u32,
-            self.config.grid_y as u32,
-            1,
-        ));
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        let result = scope.create_local(elem);
+        gpu!(scope, result = results[results_position]);
+
+        let output_position = scope.create_local(Elem::UInt);
+        gpu!(scope, row_index *= out_stride_row);
+        gpu!(scope, col_index *= out_stride_col);
+        gpu!(scope, output_position = row_index + col_index);
+        gpu!(scope, output_position += offset_output);
+
+        gpu!(scope, out[output_position] = result);
     }
-
-    fn id(&self) -> String {
-        format!(
-            "{:?}config={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.config,
-        )
-    }
-}
-
-/// Matrix multiplication using tiling 2d algorithm with
-/// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-    out: JitTensor<R, E, D>,
-    config: Tiling2dConfig,
-) -> JitTensor<R, E, D> {
-    let kernel = MatmulTiling2dPaddedEagerKernel::<R>::new(config.clone());
-    let client = lhs.client.clone();
-
-    // A tensor may need to be padded, in which case it will implicitly become contiguous
-    // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
-    // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
-    // kernel handles it without needing to turn it into contiguous.
-    let round_lhs = pad_round::<R, E, D>(lhs, config.block_size_m, config.block_size_k);
-    let lhs = match round_lhs {
-        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
-            into_contiguous(tensor)
-        }
-        _ => round_lhs.into_tensor(),
-    };
-    let round_rhs = pad_round::<R, E, D>(rhs, config.block_size_k, config.block_size_n);
-    let rhs = match round_rhs {
-        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
-            into_contiguous(tensor)
-        }
-        _ => round_rhs.into_tensor(),
-    };
-
-    let rounded_output_shape = shape_out(&lhs, &rhs);
-
-    let num_elems = rounded_output_shape.num_elements();
-    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let rounded_output = JitTensor::new(
-        rhs.client.clone(),
-        rhs.device.clone(),
-        rounded_output_shape.clone(),
-        buffer,
-    );
-
-    Execution::start(kernel, client)
-        .inputs(&[
-            EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-        ])
-        .outputs(&[EagerHandle::new(
-            &rounded_output.handle,
-            &rounded_output.strides,
-            &rounded_output.shape.dims,
-        )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
-            &rounded_output.shape,
-            config,
-        )));
-
-    crop(rounded_output, out)
 }

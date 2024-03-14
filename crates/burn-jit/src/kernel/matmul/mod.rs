@@ -1,7 +1,7 @@
 mod base;
 mod simple;
 mod tiling2d;
-mod tiling2d_padded;
+mod tiling2d_shader;
 mod tune;
 
 /// Contains utilitary for matmul operation
@@ -20,4 +20,4 @@ pub mod padding;
 mod padding;
 
 pub use tiling2d::*;
-pub use tiling2d_padded::*;
+use tiling2d_shader::*;

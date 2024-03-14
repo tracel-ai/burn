@@ -5,9 +5,16 @@ use burn_tensor::Shape;
 use crate::{compute::WorkGroup, tensor::JitTensor, Compiler, JitElement, Runtime};
 
 use super::{
-    init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d,
-    tiling2d_padded::matmul_tiling_2d_padded,
+    init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_padded,
 };
+
+#[derive(Debug, Clone)]
+pub(crate) enum Tiling2DAssumption {
+    // Input shapes are divisible by their corresponding block sizes
+    Round,
+    // Bounds must be checked
+    None,
+}
 
 #[derive(Debug, Clone)]
 /// Tiling 2D parameters
