@@ -5,8 +5,17 @@ use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
+use burn_tensor::backend::Backend;
 
 impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
+    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+        dyn_tensor.into()
+    }
+
+    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        tensor.into()
+    }
+
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::empty(shape, device)
     }
@@ -59,6 +68,10 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::slice_assign(tensor, ranges, value)
     }
 
+    fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
+        kernel::cast(tensor)
+    }
+
     fn int_mask_where<const D: usize>(
         tensor: IntTensor<Self, D>,
         mask: BoolTensor<Self, D>,
@@ -107,6 +120,14 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
         kernel::select_assign(tensor, dim, indices, value)
+    }
+
+    fn int_repeat<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> IntTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
@@ -197,6 +218,14 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         numeric::add_scalar(lhs, rhs)
     }
 
+    fn int_clamp<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
+
     fn int_sub<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
@@ -267,14 +296,6 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::reduce::argmin(tensor, dim, Default::default())
     }
 
-    fn int_clamp<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        min: IntElem<Self>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        kernel::clamp(tensor, min, max)
-    }
-
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
@@ -285,10 +306,6 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
             input: tensor,
             elem: IntElem<Self>
         )
-    }
-
-    fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
-        kernel::cast(tensor)
     }
 
     fn int_swap_dims<const D: usize>(
@@ -302,12 +319,11 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         tensor
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_permute<const D: usize>(
         tensor: IntTensor<Self, D>,
-        dim: usize,
-        times: usize,
+        axes: [usize; D],
     ) -> IntTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        permute(tensor, axes)
     }
 
     fn int_random<const D: usize>(
@@ -327,12 +343,5 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         };
 
         kernel::cast(float_tensor)
-    }
-
-    fn int_permute<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        axes: [usize; D],
-    ) -> IntTensor<Self, D> {
-        permute(tensor, axes)
     }
 }

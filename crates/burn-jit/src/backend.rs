@@ -2,6 +2,9 @@ use crate::{codegen::Compiler, tensor::JitTensor, Runtime};
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
+use burn_tensor::{DynData, DynRankData};
+use crate::gpu::Elem;
+use crate::tensor::DynJitTensor;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -11,17 +14,26 @@ pub struct JitBackend<R: Runtime> {
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime> Backend for JitBackend<R> {
+impl<R: Runtime> Backend for JitBackend<R>
+where
+    R::FullPrecisionRuntime: Runtime<Server = R::Server, Channel = R::Channel, Device = R::Device>
+{
     type Device = R::Device;
     type FullPrecisionBackend = JitBackend<R::FullPrecisionRuntime>;
 
     type FullPrecisionElem = f32;
-    type FloatElem = <R::Compiler as Compiler>::Float;
-    type IntElem = <R::Compiler as Compiler>::Int;
-
     type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
+    type FloatElem = <R::Compiler as Compiler>::Float;
+
     type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
+    type IntElem = <R::Compiler as Compiler>::Int;
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
+
+    type DynTensorPrimitive = DynJitTensor<R::Server, R::Channel, R::Device>;
+
+    fn ad_enabled() -> bool {
+        false
+    }
 
     fn name() -> String {
         format!("jit<{}>", R::name())
@@ -33,13 +45,46 @@ impl<R: Runtime> Backend for JitBackend<R> {
         *seed = Some(rng);
     }
 
-    fn ad_enabled() -> bool {
-        false
-    }
-
     fn sync(device: &Self::Device) {
         let client = R::client(device);
         client.sync();
+    }
+
+    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive {
+        match data {
+            DynData::Float(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, Self::FloatElem>(dyn_rank_data.convert(), device),
+            DynData::Int(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, Self::IntElem>(dyn_rank_data, device),
+            DynData::Bool(dyn_rank_data) => {
+                DynJitTensor::from_dyn_rank_data::<R, u32>(DynRankData::new(
+                    dyn_rank_data.value
+                        .into_iter()
+                        .map(|boolean| boolean as u32)
+                        .collect(),
+                    dyn_rank_data.shape
+                ), device)
+            },
+        }
+    }
+
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+        match dyn_tensor.elem {
+            Elem::Float => DynData::Float(dyn_tensor.into_dyn_rank_data().read()),
+            Elem::Int => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
+            Elem::UInt => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
+            Elem::Bool => {
+                let mut dyn_rank_data = dyn_tensor.into_dyn_rank_data::<u32>().read();
+
+                DynData::Bool(
+                    DynRankData::new(
+                        dyn_rank_data.value
+                            .into_iter()
+                            .map(|boolean| boolean != 0)
+                            .collect(),
+                        dyn_rank_data.shape
+                    )
+                )
+            },
+        }
     }
 }
 

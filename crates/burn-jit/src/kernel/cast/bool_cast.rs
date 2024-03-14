@@ -14,7 +14,7 @@ use crate::{
 /// Cast a bool tensor to the given element type.
 ///
 /// This alternative to cast is necessary because bool are represented as u32
-/// where any non-zero value means true. Depending how it was created
+/// where any non-zero value means true. Depending on how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
 pub fn bool_cast<R: Runtime, EO: JitElement, const D: usize>(

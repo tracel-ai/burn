@@ -3,10 +3,19 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
+use burn_tensor::backend::Backend;
 
 use super::permute;
 
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
+    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+        dyn_tensor.into()
+    }
+
+    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        tensor.into()
+    }
+
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::empty(shape, device)
     }
@@ -37,6 +46,10 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
+        kernel::bool_cast(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
         kernel::bool_cast(tensor)
     }
 
@@ -73,6 +86,14 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         kernel::slice_assign(tensor, ranges, value)
     }
 
+    fn bool_repeat<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> BoolTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
+    }
+
     fn bool_cat<const D: usize>(
         tensors: Vec<BoolTensor<Self, D>>,
         dim: usize,
@@ -91,10 +112,6 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         kernel::equal_elem(tensor, 0)
     }
 
-    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
-        kernel::bool_cast(tensor)
-    }
-
     fn bool_swap_dims<const D: usize>(
         mut tensor: BoolTensor<Self, D>,
         dim1: usize,
@@ -104,14 +121,6 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         tensor.shape.dims.swap(dim1, dim2);
 
         tensor
-    }
-
-    fn bool_repeat<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        dim: usize,
-        times: usize,
-    ) -> BoolTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
     }
 
     fn bool_permute<const D: usize>(
