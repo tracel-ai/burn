@@ -1,6 +1,9 @@
 use crate::{
     compiler::wgsl,
-    compute::{WgpuServer, WgpuStorage},
+    compute::{
+        webgpu_select_adapter, webgpu_select_device, WebGPUAdapter, WebGPUAdapterInfo,
+        WebGPUDevice, WebGPUQueue, WgpuServer, WgpuStorage,
+    },
     GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
@@ -15,7 +18,6 @@ use burn_compute::{
 use burn_jit::Runtime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use std::marker::PhantomData;
-use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
@@ -135,164 +137,28 @@ async fn create_client<G: GraphicsApi>(
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
 pub async fn select_device<G: GraphicsApi>(
     device: &WgpuDevice,
-) -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
+) -> (WebGPUDevice, WebGPUQueue, WebGPUAdapterInfo) {
     #[cfg(target_family = "wasm")]
     let adapter = select_adapter::<G>(device).await;
 
     #[cfg(not(target_family = "wasm"))]
     let adapter = select_adapter::<G>(device);
 
-    let limits = adapter.limits();
-
-    let (device, queue) = adapter
-        .request_device(
-            &DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: limits,
-            },
-            None,
-        )
-        .await
-        .map_err(|err| {
-            format!(
-                "Unable to request the device with the adapter {:?}, err {:?}",
-                adapter.get_info(),
-                err
-            )
-        })
-        .unwrap();
+    let (device, queue) = webgpu_select_device(&adapter).await;
 
     (device, queue, adapter.get_info())
 }
 
-fn tuner_device_id(info: AdapterInfo) -> String {
+fn tuner_device_id(info: WebGPUAdapterInfo) -> String {
     format!("wgpu-{}-{}", info.device, info.backend.to_str())
 }
 
 #[cfg(target_family = "wasm")]
-async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> wgpu::Adapter {
-    let instance = wgpu::Instance::default();
-
-    instance
-        .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
-        .await
-        .unwrap()
+async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> WebGPUAdapter {
+    webgpu_select_adapter::<G>(device)
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
-    use wgpu::DeviceType;
-
-    let instance = wgpu::Instance::default();
-    let mut adapters_other = Vec::new();
-    let mut adapters = Vec::new();
-
-    instance
-        .enumerate_adapters(G::backend().into())
-        .into_iter()
-        .for_each(|adapter| {
-            let device_type = adapter.get_info().device_type;
-
-            if let DeviceType::Other = device_type {
-                adapters_other.push(adapter);
-                return;
-            }
-
-            let is_same_type = match device {
-                WgpuDevice::DiscreteGpu(_) => device_type == DeviceType::DiscreteGpu,
-                WgpuDevice::IntegratedGpu(_) => device_type == DeviceType::IntegratedGpu,
-                WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
-                WgpuDevice::Cpu => device_type == DeviceType::Cpu,
-                WgpuDevice::BestAvailable => true,
-            };
-
-            if is_same_type {
-                adapters.push(adapter);
-            }
-        });
-
-    fn select(
-        num: usize,
-        error: &str,
-        mut adapters: Vec<wgpu::Adapter>,
-        mut adapters_other: Vec<wgpu::Adapter>,
-    ) -> wgpu::Adapter {
-        if adapters.len() <= num {
-            if adapters_other.len() <= num {
-                panic!(
-                    "{}, adapters {:?}, other adapters {:?}",
-                    error,
-                    adapters
-                        .into_iter()
-                        .map(|adapter| adapter.get_info())
-                        .collect::<Vec<_>>(),
-                    adapters_other
-                        .into_iter()
-                        .map(|adapter| adapter.get_info())
-                        .collect::<Vec<_>>(),
-                );
-            }
-
-            return adapters_other.remove(num);
-        }
-
-        adapters.remove(num)
-    }
-
-    let adapter = match device {
-        WgpuDevice::DiscreteGpu(num) => select(
-            *num,
-            "No Discrete GPU device found",
-            adapters,
-            adapters_other,
-        ),
-        WgpuDevice::IntegratedGpu(num) => select(
-            *num,
-            "No Integrated GPU device found",
-            adapters,
-            adapters_other,
-        ),
-        WgpuDevice::VirtualGpu(num) => select(
-            *num,
-            "No Virtual GPU device found",
-            adapters,
-            adapters_other,
-        ),
-        WgpuDevice::Cpu => select(0, "No CPU device found", adapters, adapters_other),
-        WgpuDevice::BestAvailable => {
-            let mut most_performant_adapter = None;
-            let mut current_score = -1;
-
-            adapters
-                .into_iter()
-                .chain(adapters_other)
-                .for_each(|adapter| {
-                    let info = adapter.get_info();
-                    let score = match info.device_type {
-                        DeviceType::DiscreteGpu => 5,
-                        DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
-                        // often a Discrete Gpu.
-                        DeviceType::IntegratedGpu => 3,
-                        DeviceType::VirtualGpu => 2,
-                        DeviceType::Cpu => 1,
-                    };
-
-                    if score > current_score {
-                        most_performant_adapter = Some(adapter);
-                        current_score = score;
-                    }
-                });
-
-            if let Some(adapter) = most_performant_adapter {
-                adapter
-            } else {
-                panic!("No adapter found for graphics API {:?}", G::default());
-            }
-        }
-    };
-
-    log::info!("Using adapter {:?}", adapter.get_info());
-
-    adapter
+fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> WebGPUAdapter {
+    webgpu_select_adapter::<G>(device)
 }
