@@ -1,6 +1,8 @@
 /// Module with convolution operations.
 pub mod conv;
 
+/// Module with cat operation
+pub(crate) mod cat;
 /// Module with unfold operations.
 pub(crate) mod unfold;
 
