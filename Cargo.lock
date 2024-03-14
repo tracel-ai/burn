@@ -543,6 +543,7 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "derive-new",
+ "half",
  "hashbrown 0.14.3",
  "log",
  "num-traits",
@@ -648,6 +649,7 @@ dependencies = [
  "bytemuck",
  "derive-new",
  "futures-intrusive",
+ "half",
  "hashbrown 0.14.3",
  "log",
  "pollster",
@@ -1158,10 +1160,7 @@ version = "0.13.0"
 dependencies = [
  "burn",
  "flate2",
- "indicatif",
- "reqwest",
  "tar",
- "tokio",
 ]
 
 [[package]]
@@ -3503,6 +3502,7 @@ name = "pytorch-tests"
 version = "0.13.0"
 dependencies = [
  "burn",
+ "burn-autodiff",
  "burn-import",
  "burn-ndarray",
  "float-cmp",

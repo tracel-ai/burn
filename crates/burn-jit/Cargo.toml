@@ -33,6 +33,7 @@ burn-fusion = { path = "../burn-fusion", version = "0.13.0", optional = true }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
+half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
 num-traits = { workspace = true }
 rand = { workspace = true }

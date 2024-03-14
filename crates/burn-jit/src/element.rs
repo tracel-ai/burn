@@ -1,5 +1,6 @@
 use crate::codegen::dialect::gpu;
 use burn_tensor::Element;
+use half::f16;
 
 /// The base element trait for the jit backend.
 pub trait JitElement:
@@ -90,5 +91,27 @@ impl JitElement for f32 {
     }
 }
 
+impl JitElement for f16 {
+    fn type_name() -> &'static str {
+        "f16"
+    }
+    fn as_bytes(slice: &[Self]) -> &[u8] {
+        bytemuck::cast_slice(slice)
+    }
+    fn from_bytes(bytes: &[u8]) -> &[Self] {
+        bytemuck::cast_slice(bytes)
+    }
+    fn gpu_elem() -> gpu::Elem {
+        gpu::Elem::Half
+    }
+    fn maximum_value() -> Self {
+        f16::MAX
+    }
+    fn minimum_value() -> Self {
+        f16::MIN
+    }
+}
+
 impl FloatElement for f32 {}
 impl IntElement for i32 {}
+impl FloatElement for f16 {}
