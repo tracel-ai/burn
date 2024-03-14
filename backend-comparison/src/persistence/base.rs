@@ -238,14 +238,14 @@ impl Display for BenchMarkCollection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "||{0:<15}||{1:<35}||{2:<15}||\n||{3:=<15}||{4:=<35}||{5:=<15}||",
+            "| {0:<15}| {1:<35}| {2:<15}|\n|{3:-<16}|{4:-<36}|{5:-<16}|",
             "Benchmark", "Backend", "Runtime", "", "", ""
         )?;
         for record in self.records.iter() {
             let backend = [record.backend.clone(), record.device.clone()].join("-");
             writeln!(
                 f,
-                "||{0:<15}||{1:<35}||{2:<15.3?}||",
+                "| {0:<15}| {1:<35}| {2:<15.3?}|",
                 record.results.name, backend, record.results.computed.mean
             )?;
         }
