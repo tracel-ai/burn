@@ -58,7 +58,9 @@ fn main(
         }
     }
 
-    output[id] = grad_acc;
+    if (id < arrayLength(&output)) {
+        output[id] = grad_acc;
+    }
 }
 
 fn start_index(input_index: u32, output_size: u32, input_size: u32) -> u32 {

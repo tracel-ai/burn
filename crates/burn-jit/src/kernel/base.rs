@@ -2,9 +2,9 @@ use super::SourceTemplate;
 use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
 use std::marker::PhantomData;
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "dawn"))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(not(target_family = "wasm"), not(feature = "dawn")))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
 /// Static jit kernel to create a [source template](SourceTemplate).

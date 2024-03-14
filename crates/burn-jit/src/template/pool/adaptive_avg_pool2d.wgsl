@@ -59,7 +59,9 @@ fn main(
     }
 
     let count = {{ elem }}((ih_end - ih_start) * (iw_end - iw_start));
-    output[id] = sum / count;
+    if (arrayLength(&output) > id) {
+        output[id] = sum / count;
+    }
 }
 
 fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {

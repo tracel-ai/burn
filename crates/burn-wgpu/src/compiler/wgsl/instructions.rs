@@ -411,7 +411,19 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                         Item::Vec2(_) => Item::Vec2(elem_out),
                         Item::Scalar(_) => Item::Scalar(elem_out),
                     };
-                    f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                    match out {
+                        Variable::GlobalOutputArray(_, _) => f.write_fmt(format_args!(
+                            "if ({lhs} < arrayLength(&{out})) {{
+    {out}[{lhs}] = {casting_type}({rhs});
+}}\n"
+                        )),
+                        Variable::GlobalInputArray(_, _) => f.write_fmt(format_args!(
+                            "if ({lhs} < arrayLength(&{out})) {{
+    {out}[{lhs}] = {casting_type}({rhs});
+}}\n"
+                        )),
+                        _ => f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n")),
+                    }
                 }
             },
             Instruction::If { cond, instructions } => {

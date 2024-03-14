@@ -109,5 +109,7 @@ fn main(
     );
 
     let val = cubic_interp1d(coefficients0, coefficients1, coefficients2, coefficients3, yw);
-    output[id] = val;
+    if (id < arrayLength(&output)) {
+        output[id] = val;
+    }
 }

@@ -99,5 +99,7 @@ fn main(
         }
     }
 
-    output[id] = sum;
+    if (arrayLength(&output) > id) {
+        output[id] = sum;
+    }
 }

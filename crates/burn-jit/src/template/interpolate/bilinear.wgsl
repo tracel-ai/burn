@@ -68,5 +68,7 @@ fn main(
     let pc = p_c * (1.0 - xw) * yw;
     let pd = p_d * xw * yw;
 
-    output[id] = pa + pb + pc + pd;
+    if (id < arrayLength(&output)) {
+        output[id] = pa + pb + pc + pd;
+    }
 }

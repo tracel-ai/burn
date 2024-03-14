@@ -57,7 +57,7 @@ fn main(
     }
 
     // Basic matmul implementation
-    var sum = 0.0;
+    var sum = {{ elem }}(0.0);
     for (var k: u32 = 0u; k < K; k++) {
         let lhs_index = row * K + k;
         let rhs_index = k * n_cols + col;

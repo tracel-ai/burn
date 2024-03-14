@@ -50,5 +50,7 @@ fn main(
     let yu = u32(floor(y));
 
     let val = input[b * input_stride_0 + c * input_stride_1 + yu * input_stride_2 + xu * input_stride_3];
-    output[id] = val;
+    if (id < arrayLength(&output)) {
+        output[id] = val;
+    }
 }

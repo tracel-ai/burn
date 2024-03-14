@@ -215,6 +215,9 @@ impl Display for Variable {
             }
             Variable::ConstantScalar(number, elem) => match elem {
                 Elem::F32 => f.write_fmt(format_args!("{number}f")),
+                #[cfg(feature = "dawn")]
+                Elem::I32 => f.write_fmt(format_args!("{number}")),
+                #[cfg(feature = "wgpu")]
                 Elem::I32 => f.write_fmt(format_args!("{number}i")),
                 Elem::U32 => f.write_fmt(format_args!("{number}u")),
                 Elem::Bool => f.write_fmt(format_args!("bool({number})")),

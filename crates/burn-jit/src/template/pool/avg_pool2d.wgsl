@@ -83,5 +83,7 @@ fn main(
     if COUNT_INCLUDE_PAD {
         count = {{ elem }}(kernel_size_1 * kernel_size_0);
     }
-    output[id] = sum / count;
+    if (arrayLength(&output) > id) {
+        output[id] = sum / count;
+    }
 }

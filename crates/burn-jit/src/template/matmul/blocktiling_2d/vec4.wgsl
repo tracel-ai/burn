@@ -159,7 +159,9 @@ fn main(
         for (var res_idx_N = 0u; res_idx_N < T_N; res_idx_N++) {
             let result_position = res_idx_M * T_N + res_idx_N;
             let output_position = offset_output + (row + res_idx_M) * out_stride_row + (col + res_idx_N) * out_stride_col;
-            output[output_position] = results[result_position];
+            if (arrayLength(&output) > output_position) {
+                output[output_position] = results[result_position];
+            }
         }
     }
 }

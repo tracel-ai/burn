@@ -106,5 +106,7 @@ fn main(
         }
     }
 
-    output[id] = grad_acc;
+    if (arrayLength(&output) > id) {
+        output[id] = grad_acc;
+    }
 }
