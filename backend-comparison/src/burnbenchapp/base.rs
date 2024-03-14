@@ -16,6 +16,7 @@ use super::{
 };
 
 const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
+const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
 const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
     // development
     "http://localhost:8000/benchmarks"
@@ -235,6 +236,8 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 &bench_str,
                 "--features",
                 &backend_str,
+                "--target-dir",
+                BENCHMARKS_TARGET_DIR,
             ];
             if let Some(t) = token {
                 args.push("--");

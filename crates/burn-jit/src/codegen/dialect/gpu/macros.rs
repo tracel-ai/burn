@@ -145,6 +145,16 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = lhs != rhs
+    ($scope:expr, $out:ident = $lhs:ident != $rhs:expr) => {
+        gpu!($scope, $out = not_equal($lhs, $rhs))
+    };
+    // out = not_equal(lhs, rhs)
+    ($scope:expr, $out:ident = not_equal($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::NotEqual(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out = lhs > rhs
     ($scope:expr, $out:ident = $lhs:ident > $rhs:expr) => {
         gpu!($scope, $out = greater($lhs, $rhs))

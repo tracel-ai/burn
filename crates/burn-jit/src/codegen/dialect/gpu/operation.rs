@@ -40,6 +40,7 @@ pub enum Operator {
     Erf(UnaryOperator),
     Recip(UnaryOperator),
     Equal(BinaryOperator),
+    NotEqual(BinaryOperator),
     Lower(BinaryOperator),
     Clamp(ClampOperator),
     Greater(BinaryOperator),

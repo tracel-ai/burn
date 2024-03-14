@@ -504,6 +504,11 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::NotEqual(op) => wgsl::Instruction::NotEqual {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Assign(op) => wgsl::Instruction::Assign {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),

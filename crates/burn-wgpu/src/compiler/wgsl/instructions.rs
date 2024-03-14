@@ -152,6 +152,11 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    NotEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Stride {
         dim: Variable,
         position: usize,
@@ -303,6 +308,7 @@ impl Display for Instruction {
             Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
             Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Instruction::NotEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "!=", f),
             Instruction::Assign { input, out } => match out.item() {
                 Item::Vec4(elem) => {
                     let input0 = input.index(0);

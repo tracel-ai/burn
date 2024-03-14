@@ -105,7 +105,6 @@ impl IntoContiguousShader {
 
         let offset_input = scope.zero(Elem::UInt);
 
-        // Batch offset for the lhs & rhs matrices.
         IndexOffsetGlobalWithLayout {
             tensors: vec![tensor],
             indexes: vec![offset_input],
