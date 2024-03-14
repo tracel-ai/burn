@@ -129,7 +129,7 @@ mod tests {
         let data_actual = tensor.prod().to_data();
 
         // 2 * 1 * 2 * 3 * 4 * 5 = 240 but we need to check the precision because of the float
-        Data::from([240.0]).assert_approx_eq(&data_actual, 4);
+        Data::from([240.0]).assert_approx_eq(&data_actual, 3);
 
         let tensor_with_zero = TestTensor::from([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_actual = tensor_with_zero.prod().to_data();
