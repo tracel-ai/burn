@@ -84,7 +84,7 @@ ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
-wgpu = ["burn-wgpu"]
+wgpu = ["burn-wgpu/wgpu"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror", "regex"]

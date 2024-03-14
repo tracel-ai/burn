@@ -25,6 +25,7 @@ export_tests = [
   "burn-ndarray",
   "fusion",
 ]
+dawn = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.14.0" }

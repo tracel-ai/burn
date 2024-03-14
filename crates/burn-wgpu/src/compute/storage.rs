@@ -1,19 +1,19 @@
-use crate::compute::{
-    WebGPUBindingResource, WebGPUBuffer, WebGPUBufferAddress, WebGPUBufferBinding,
-    WebGPUBufferDescriptor, WebGPUBufferSize, WebGPUDevice, COPY_DST, COPY_SRC, STORAGE,
-};
+use crate::compute::{BindingResource, Buffer, BufferBinding, BufferDescriptor, Device, WebGPUApi};
 use burn_compute::storage::{ComputeStorage, StorageHandle, StorageId, StorageUtilization};
 use hashbrown::HashMap;
 use std::{num::NonZeroU64, sync::Arc};
 
 /// Buffer storage for wgpu.
-pub struct WgpuStorage {
-    memory: HashMap<StorageId, Arc<WebGPUBuffer>>,
+pub struct WgpuStorage<W: WebGPUApi> {
+    memory: HashMap<StorageId, Arc<W::Buffer>>,
     deallocations: Vec<StorageId>,
-    device: Arc<WebGPUDevice>,
+    device: Arc<W::Device>,
 }
 
-impl core::fmt::Debug for WgpuStorage {
+impl<W> core::fmt::Debug for WgpuStorage<W>
+where
+    W: WebGPUApi,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("WgpuStorage {{ device: {:?} }}", self.device).as_str())
     }
@@ -21,32 +21,35 @@ impl core::fmt::Debug for WgpuStorage {
 
 /// The memory resource that can be allocated for wgpu.
 #[derive(new, Debug)]
-pub struct WgpuResource {
+pub struct WgpuResource<W: WebGPUApi> {
     /// The wgpu buffer.
-    pub buffer: Arc<WebGPUBuffer>,
+    pub buffer: Arc<W::Buffer>,
     /// How the resource is used.
     pub kind: WgpuResourceKind,
 }
 
-impl WgpuResource {
+impl<W> WgpuResource<W>
+where
+    W: WebGPUApi,
+{
     /// Return the binding view of the buffer.
-    pub fn as_binding(&self) -> WebGPUBindingResource {
+    pub fn as_binding(&self) -> BindingResource<'_, W::Buffer> {
         let binding = match &self.kind {
             WgpuResourceKind::Full => self.buffer.as_entire_buffer_binding(),
-            WgpuResourceKind::Slice(offs, size) => WebGPUBufferBinding {
-                buffer: &self.buffer,
-                offset: *offs,
+            WgpuResourceKind::Slice { offset, size } => BufferBinding::<'_> {
+                buffer: self.buffer.as_ref(),
+                offset: *offset,
                 size: Some(*size),
             },
         };
-        WebGPUBindingResource::Buffer(binding)
+        BindingResource::Buffer(binding)
     }
 
     /// Return the buffer size.
     pub fn size(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => self.buffer.size(),
-            WgpuResourceKind::Slice(_, size) => size.get(),
+            WgpuResourceKind::Slice { offset: _, size } => size.get(),
         }
     }
 
@@ -54,7 +57,7 @@ impl WgpuResource {
     pub fn offset(&self) -> u64 {
         match self.kind {
             WgpuResourceKind::Full => 0,
-            WgpuResourceKind::Slice(offset, _) => offset,
+            WgpuResourceKind::Slice { offset, size: _ } => offset,
         }
     }
 }
@@ -65,13 +68,16 @@ pub enum WgpuResourceKind {
     /// Represents an entire buffer.
     Full,
     /// A slice over a buffer.
-    Slice(WebGPUBufferAddress, WebGPUBufferSize),
+    Slice { offset: u64, size: NonZeroU64 },
 }
 
 /// Keeps actual wgpu buffer references in a hashmap with ids as key.
-impl WgpuStorage {
+impl<W> WgpuStorage<W>
+where
+    W: WebGPUApi,
+{
     /// Create a new storage on the given [device](WebGPUDevice).
-    pub fn new(device: Arc<WebGPUDevice>) -> Self {
+    pub fn new(device: Arc<W::Device>) -> Self {
         Self {
             memory: HashMap::new(),
             deallocations: Vec::new(),
@@ -89,8 +95,11 @@ impl WgpuStorage {
     }
 }
 
-impl ComputeStorage for WgpuStorage {
-    type Resource = WgpuResource;
+impl<W> ComputeStorage for WgpuStorage<W>
+where
+    W: WebGPUApi,
+{
+    type Resource = WgpuResource<W>;
 
     fn get(&mut self, handle: &StorageHandle) -> Self::Resource {
         let buffer = self.memory.get(&handle.id).unwrap();
@@ -101,7 +110,10 @@ impl ComputeStorage for WgpuStorage {
             }
             StorageUtilization::Slice { offset, size } => WgpuResource::new(
                 buffer.clone(),
-                WgpuResourceKind::Slice(offset as u64, NonZeroU64::new(size as u64).unwrap()),
+                WgpuResourceKind::Slice {
+                    offset: offset as u64,
+                    size: NonZeroU64::new(size as u64).unwrap(),
+                },
             ),
         }
     }
@@ -109,14 +121,14 @@ impl ComputeStorage for WgpuStorage {
     fn alloc(&mut self, size: usize) -> StorageHandle {
         let id = StorageId::new();
 
-        let buffer = Arc::new(self.device.create_buffer(&WebGPUBufferDescriptor {
+        let buffer = self.device.create_buffer(&BufferDescriptor {
             label: None,
             size: size as u64,
-            usage: COPY_DST | STORAGE | COPY_SRC,
+            usage: W::COPY_DST | W::STORAGE | W::COPY_SRC,
             mapped_at_creation: false,
-        }));
+        });
 
-        self.memory.insert(id.clone(), buffer);
+        self.memory.insert(id.clone(), buffer.into());
 
         StorageHandle::new(id, StorageUtilization::Full(size))
     }

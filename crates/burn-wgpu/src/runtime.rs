@@ -1,9 +1,6 @@
 use crate::{
     compiler::wgsl,
-    compute::{
-        webgpu_select_adapter, webgpu_select_device, WebGPUAdapter, WebGPUAdapterInfo,
-        WebGPUDevice, WebGPUQueue, WgpuServer, WgpuStorage,
-    },
+    compute::{Adapter, AdapterInfo, WebGPUApi, WgpuServer, WgpuStorage},
     GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
@@ -13,7 +10,6 @@ use burn_compute::{
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
-    ComputeRuntime,
 };
 use burn_jit::Runtime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
@@ -23,27 +19,20 @@ use std::marker::PhantomData;
 ///
 /// The [graphics api](GraphicsApi) type is passed as generic.
 #[derive(Debug)]
-pub struct WgpuRuntime<G: GraphicsApi> {
+pub struct WgpuRuntime<W: WebGPUApi, G: GraphicsApi> {
+    _w: PhantomData<W>,
     _g: PhantomData<G>,
 }
 
-/// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
-static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> =
-    ComputeRuntime::new();
-
-type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
-
-impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
+impl<W: WebGPUApi, G: GraphicsApi> Runtime for WgpuRuntime<W, G> {
     type Compiler = wgsl::WgslCompiler;
-    type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
+    type Server = W::Server;
 
-    type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;
+    type Channel = W::Channel;
     type Device = WgpuDevice;
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
-        RUNTIME.client(device, move || {
-            pollster::block_on(create_client::<G>(device, RuntimeOptions::default()))
-        })
+        W::client::<G>(device)
     }
 
     fn name() -> &'static str {
@@ -93,29 +82,26 @@ impl Default for RuntimeOptions {
 }
 
 /// Init the client sync, useful to configure the runtime options.
-pub fn init_sync<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
-    let device = Arc::new(device);
-    let client = pollster::block_on(create_client::<G>(&device, options));
-
-    RUNTIME.register(&device, client)
+pub fn init_sync<W: WebGPUApi, G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
+    W::init_sync::<G>(device, options)
 }
 
 /// Init the client async, necessary for wasm.
-pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
-    let device = Arc::new(device);
-    let client = create_client::<G>(&device, options).await;
-
-    RUNTIME.register(&device, client)
+pub async fn init_async<W: WebGPUApi, G: GraphicsApi>(
+    device: &WgpuDevice,
+    options: RuntimeOptions,
+) {
+    W::init_async::<G>(device, options).await
 }
 
-async fn create_client<G: GraphicsApi>(
+pub async fn create_client<W: WebGPUApi, G: GraphicsApi>(
     device: &WgpuDevice,
     options: RuntimeOptions,
 ) -> ComputeClient<
-    WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
-    MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
+    WgpuServer<W, SimpleMemoryManagement<WgpuStorage<W>>>,
+    MutexComputeChannel<WgpuServer<W, SimpleMemoryManagement<WgpuStorage<W>>>>,
 > {
-    let (device_wgpu, queue, info) = select_device::<G>(device).await;
+    let (device_wgpu, queue, info) = select_device::<W, G>(device).await;
 
     log::info!(
         "Created wgpu compute server on device {:?} => {:?}",
@@ -130,35 +116,35 @@ async fn create_client<G: GraphicsApi>(
     let server = WgpuServer::new(memory_management, device, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
 
-    let tuner_device_id = tuner_device_id(info);
+    let tuner_device_id = tuner_device_id::<W>(info);
     ComputeClient::new(channel, Arc::new(RwLock::new(Tuner::new(&tuner_device_id))))
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
-pub async fn select_device<G: GraphicsApi>(
+pub async fn select_device<W: WebGPUApi, G: GraphicsApi>(
     device: &WgpuDevice,
-) -> (WebGPUDevice, WebGPUQueue, WebGPUAdapterInfo) {
+) -> (W::Device, W::Queue, W::AdapterInfo) {
     #[cfg(target_family = "wasm")]
-    let adapter = select_adapter::<G>(device).await;
+    let adapter = select_adapter::<W, G>(device).await;
 
     #[cfg(not(target_family = "wasm"))]
-    let adapter = select_adapter::<G>(device);
+    let adapter = select_adapter::<W, G>(device);
 
-    let (device, queue) = webgpu_select_device(&adapter).await;
+    let (device, queue) = W::select_device(&adapter).await;
 
     (device, queue, adapter.get_info())
 }
 
-fn tuner_device_id(info: WebGPUAdapterInfo) -> String {
-    format!("wgpu-{}-{}", info.device, info.backend.to_str())
+fn tuner_device_id<W: WebGPUApi>(info: W::AdapterInfo) -> String {
+    format!("wgpu-{}-{}", info.device(), info.backend().as_ref())
 }
 
 #[cfg(target_family = "wasm")]
-async fn select_adapter<G: GraphicsApi>(_device: &WgpuDevice) -> WebGPUAdapter {
-    webgpu_select_adapter::<G>(device)
+async fn select_adapter<W: WebGPUApi, G: GraphicsApi>(_device: &WgpuDevice) -> W::Adapter {
+    W::select_adapter::<G>(device)
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> WebGPUAdapter {
-    webgpu_select_adapter::<G>(device)
+fn select_adapter<W: WebGPUApi, G: GraphicsApi>(device: &WgpuDevice) -> W::Adapter {
+    W::select_adapter::<G>(device)
 }

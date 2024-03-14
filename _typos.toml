@@ -5,4 +5,5 @@ extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
 extend-exclude = [
     "assets/ModuleSerialization.xml",
     "examples/image-classification-web/src/model/label.txt",
+    "crates/burn-wgpu/dawn",
 ]

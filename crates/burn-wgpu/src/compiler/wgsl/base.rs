@@ -218,7 +218,9 @@ impl Display for Variable {
             }
             Variable::ConstantScalar(number, elem) => match elem {
                 Elem::F32 => f.write_fmt(format_args!("{number}f")),
-                Elem::I32 => f.write_fmt(format_args!("{number}i")),
+                // Dawn seems to get tripped up by the 'i' suffix, while wgpu is happy
+                // with or without it, so emit the literal without it.
+                Elem::I32 => f.write_fmt(format_args!("{number}")),
                 Elem::U32 => f.write_fmt(format_args!("{number}u")),
                 Elem::Bool => f.write_fmt(format_args!("bool({number})")),
             },
