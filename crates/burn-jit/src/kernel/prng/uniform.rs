@@ -53,7 +53,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
                 let float_random = scope.create_local(Elem::Float);
                 let float_scale = scope.create_local(Elem::Float);
                 cast_uint_to_float(scope, int_random, float_random);
-                cast_uint_to_float(scope, scale, float_scale);
+                gpu!(scope, float_scale = cast(scale));
 
                 let uniform_float = scope.create_local(Elem::Float);
                 let uniform = scope.create_local(item);
