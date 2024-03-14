@@ -256,6 +256,7 @@ impl MatmulTiling2dShader {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn load_shared_memory_with_bound_check(
         &self,
         scope: &mut Scope,
@@ -377,6 +378,7 @@ impl MatmulTiling2dShader {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn load_shared_memory(
         &self,
         scope: &mut Scope,
@@ -448,6 +450,7 @@ impl MatmulTiling2dShader {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn computation_loop(
         &self,
         scope: &mut Scope,
@@ -524,6 +527,7 @@ impl MatmulTiling2dShader {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn write_to_output(
         &self,
         scope: &mut Scope,
@@ -596,6 +600,7 @@ impl MatmulTiling2dShader {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn write_inner(
         &self,
         scope: &mut Scope,
