@@ -12,4 +12,3 @@ pub fn sum<R: Runtime, E: JitElement, const D: usize>(
     let input: JitTensor<R, E, 1> = JitTensor::new(input.client, input.device, shape, input.handle);
     sum_dim(input, 0, strategy)
 }
-
