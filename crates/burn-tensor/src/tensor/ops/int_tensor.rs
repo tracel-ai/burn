@@ -769,6 +769,29 @@ pub trait IntTensorOps<B: Backend> {
     /// The sum of all elements in the tensor along the dimension.
     fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
 
+    /// Computes the product of all elements in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor.
+    fn int_prod<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1>;
+
+    /// Computes the product of all elements in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    /// * `dim` - The dimension to compute the product along.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor along the dimension.
+    fn int_prod_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+
     /// Computes the mean of all elements in the tensor.
     ///
     /// # Arguments
@@ -1119,7 +1142,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-
     fn int_all<const D: usize>(tensor: IntTensor<B, D>) -> BoolTensor<B, 1> {
         let num_elems = B::int_shape(&tensor).num_elements();
         let bool_tensor = B::int_equal_elem(tensor, 0.elem());
@@ -1140,12 +1162,30 @@ pub trait IntTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-
     fn int_all_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let num_elems = B::int_shape(&tensor).dims[dim];
         let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())
+    }
+
+    /// Returns the signs of the int `tensor`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the signs from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
+    fn int_sign<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, D> {
+        let zeros = B::int_zeros(B::int_shape(&tensor), &B::int_device(&tensor));
+        let less_than_zero = B::int_lower_elem(tensor.clone(), 0.0f32.elem());
+        let greater_than_zero = B::int_greater_elem(tensor, 0.0f32.elem());
+
+        let mut result = B::int_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
+        result = B::int_mask_fill(result, greater_than_zero, 1.0f32.elem());
+        result
     }
 }

@@ -82,6 +82,11 @@ where
         Self::new(K::neg(self.primitive))
     }
 
+    /// Returns the signs of the elements of the input tensor.
+    pub fn sign(self) -> Self {
+        Self::new(K::sign(self.primitive))
+    }
+
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
@@ -111,16 +116,31 @@ where
         Tensor::new(K::sum(self.primitive))
     }
 
-    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
+    /// Aggregate all elements along the given *dimension* or *axis*
+    /// in the tensor with the mean operation.
     pub fn mean_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
-    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the sum operation.
+    /// Aggregate all elements along the given *dimension* or *axis*
+    /// in the tensor with the sum operation.
     pub fn sum_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis*
+    /// in the tensor with the product operation.
+    pub fn prod(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::prod(self.primitive))
+    }
+
+    /// Aggregate all elements along the given *dimension* or *axis*
+    /// in the tensor with the product operation.
+    pub fn prod_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
+        Self::new(K::prod_dim(self.primitive, dim))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
@@ -668,12 +688,12 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    /// Create diagonal matrix.
+    /// Creates a new 2D tensor with ones on the diagonal and zeros elsewhere.
     ///
     /// # Arguments
     ///
     /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize, device: &B::Device) -> Self {
+    pub fn eye(size: usize, device: &B::Device) -> Self {
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
@@ -890,6 +910,26 @@ where
     /// which is more high-level and designed for public use.
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
+    /// Returns the signs of the elements of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The signs of the elements of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the signs of the elements of a tensor, users should prefer the [Tensor::sign](Tensor::sign) function,
+    /// which is more high-level and designed for public use.
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
     /// Creates a tensor filled with zeros.
     ///
     /// # Arguments
@@ -998,6 +1038,51 @@ where
     /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::sum_dim](Tensor::sum_dim) function,
     /// which is more high-level and designed for public use.
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
+    /// Computes the product of all the elements of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    ///
+    /// # Returns
+    ///
+    /// The product of all the elements of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the product of all the elements of a tensor, users should prefer the
+    /// [Tensor::prod](Tensor::prod) function,
+    /// which is more high-level and designed for public use.
+    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+
+    /// Computes the product of all the elements of the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    /// * `dim` - The dimension along which to compute the product.
+    ///
+    /// # Returns
+    ///
+    /// The product of all the elements of the tensor along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the product of all the elements of a tensor along a dimension, users should
+    /// prefer the [Tensor::prod_dim](Tensor::prod_dim) function,
+    /// which is more high-level and designed for public use.
+    ///
+    ///
+    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Computes the mean of all the elements of the tensor.
     ///
@@ -1856,12 +1941,23 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D> {
         B::int_full(shape, fill_value.elem(), device)
     }
+
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::int_sum(tensor)
     }
+
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::int_sum_dim(tensor, dim)
     }
+
+    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::int_prod(tensor)
+    }
+
+    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::int_prod_dim(tensor, dim)
+    }
+
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::int_mean(tensor)
     }
@@ -2085,6 +2181,10 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D> {
         B::int_random(shape, distribution, device)
     }
+
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::int_sign(tensor)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -2145,6 +2245,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         B::float_ones(shape, device)
     }
+
     fn full<const D: usize, E: ElementConversion>(
         shape: Shape<D>,
         fill_value: E,
@@ -2152,15 +2253,27 @@ impl<B: Backend> Numeric<B> for Float {
     ) -> Self::Primitive<D> {
         B::float_full(shape, fill_value.elem(), device)
     }
+
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::float_sum(tensor)
     }
+
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::float_sum_dim(tensor, dim)
     }
+
+    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+        B::float_prod(tensor)
+    }
+
+    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::float_prod_dim(tensor, dim)
+    }
+
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::float_mean(tensor)
     }
+
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::float_mean_dim(tensor, dim)
     }
@@ -2381,6 +2494,10 @@ impl<B: Backend> Numeric<B> for Float {
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
         B::float_random(shape, distribution, device)
+    }
+
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::float_sign(tensor)
     }
 }
 

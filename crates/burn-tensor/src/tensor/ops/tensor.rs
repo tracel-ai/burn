@@ -843,6 +843,34 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Product of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the product of all elements in `tensor`.
+    fn float_prod<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+        // Product of all elements in a tensor
+        B::float_exp(B::float_sum(B::float_log(tensor)))
+    }
+
+    /// Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the product of all elements in `tensor` along `dim`.
+    fn float_prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+        // Product of all elements in a tensor along a dimension
+        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
+    }
+
     /// Mean of all elements in a tensor.
     ///
     /// # Arguments
@@ -1314,5 +1342,24 @@ pub trait FloatTensorOps<B: Backend> {
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
         B::float_equal_elem(sum, (num_elems as f32).elem())
+    }
+
+    /// Returns the signs of the float `tensor`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the signs from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
+    fn float_sign<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        let zeros = B::float_zeros(B::float_shape(&tensor), &B::float_device(&tensor));
+        let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
+        let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
+
+        let mut result = B::float_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
+        result = B::float_mask_fill(result, greater_than_zero, 1.0f32.elem());
+        result
     }
 }

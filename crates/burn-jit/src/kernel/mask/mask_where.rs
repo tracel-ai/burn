@@ -1,15 +1,12 @@
 use crate::{
-    compute::StaticKernel,
+    codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
-    kernel_wgsl,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
 };
 
-kernel_wgsl!(MaskWhere, "../../template/mask/where.wgsl");
-kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
+use super::{MaskInplaceEagerKernel, MaskReadOnlyEagerKernel, MaskWhere};
 
 #[derive(Clone, Copy, Debug)]
 /// Define how to run the mask where kernel.
@@ -40,63 +37,53 @@ pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_where_readonly<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    let num_elems = input.shape.num_elements();
+fn mask_where_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+    input: JitTensor<R, EI, D>,
+    mask: JitTensor<R, EM, D>,
+    value: JitTensor<R, EI, D>,
+) -> JitTensor<R, EI, D> {
+    let client = input.client.clone();
+    let kernel = MaskReadOnlyEagerKernel::<MaskWhere, R, EI, EM>::new(false);
+
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
         input.shape.clone(),
     );
 
-    let kernel = StaticKernel::<
-        KernelSettings<MaskWhere, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
-    let info = build_info(&[&input, &value, &mask, &output]);
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
-
-    input.client.execute(
-        Box::new(kernel),
-        &[
-            &input.handle,
-            &value.handle,
-            &mask.handle,
+    Execution::start(kernel, client)
+        .inputs(&[
+            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
-            &info_handle,
-        ],
-    );
+            &output.strides,
+            &output.shape.dims,
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }
 
-fn mask_where_inplace<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: JitTensor<R, E, D>,
+fn mask_where_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+    input: JitTensor<R, EI, D>,
+    mask: JitTensor<R, EM, D>,
+    value: JitTensor<R, EI, D>,
     reverse: bool,
-) -> JitTensor<R, E, D> {
-    let kernel = StaticKernel::<
-        KernelSettings<MaskWhereInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(
-        input.shape.num_elements(),
-        WORKGROUP_DEFAULT,
-    ));
-    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
-    let mut info = build_info(&[&input, &value, &mask]);
-    info.push(match reverse {
-        true => 1,
-        false => 0,
-    });
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
+) -> JitTensor<R, EI, D> {
+    let kernel = MaskInplaceEagerKernel::<MaskWhere, R, EI, EM>::new(reverse);
 
-    input.client.execute(
-        Box::new(kernel),
-        &[&input.handle, &value.handle, &mask.handle, &info_handle],
-    );
+    let client = input.client.clone();
+
+    Execution::start(kernel, client)
+        .inputs(&[
+            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+        ])
+        .execute(WorkgroupLaunch::Input { pos: 0 });
 
     input
 }

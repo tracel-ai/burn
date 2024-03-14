@@ -507,4 +507,8 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         let array = tensor.array.permuted_axes(axes.into_dimension());
         NdArrayTensor { array }
     }
+
+    fn float_sign<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::sign_op(tensor)
+    }
 }

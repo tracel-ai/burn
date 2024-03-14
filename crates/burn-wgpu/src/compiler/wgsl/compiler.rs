@@ -484,6 +484,11 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::NotEqual(op) => wgsl::Instruction::NotEqual {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Assign(op) => wgsl::Instruction::Assign {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
@@ -505,6 +510,26 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             },
             gpu::Operator::Not(op) => wgsl::Instruction::Not {
                 input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::BitwiseAnd(op) => wgsl::Instruction::BitwiseAnd {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::BitwiseXor(op) => wgsl::Instruction::BitwiseXor {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::ShiftLeft(op) => wgsl::Instruction::ShiftLeft {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::ShiftRight(op) => wgsl::Instruction::ShiftRight {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
         }

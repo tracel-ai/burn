@@ -41,6 +41,7 @@ mod recip;
 mod repeat;
 mod reshape;
 mod select;
+mod sign;
 mod sin;
 mod slice;
 mod sqrt;

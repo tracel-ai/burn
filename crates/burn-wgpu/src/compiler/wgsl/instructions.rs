@@ -148,6 +148,11 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    NotEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Stride {
         dim: Variable,
         position: usize,
@@ -184,6 +189,26 @@ pub enum Instruction {
     },
     Loop {
         instructions: Vec<Instruction>,
+    },
+    BitwiseAnd {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    BitwiseXor {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    ShiftLeft {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    ShiftRight {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
 }
 
@@ -269,6 +294,7 @@ impl Display for Instruction {
             Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
             Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Instruction::NotEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "!=", f),
             Instruction::Assign { input, out } => match out.item() {
                 Item::Vec4(elem) => {
                     let input0 = input.index(0);
@@ -422,6 +448,18 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                     f.write_fmt(format_args!("{i}"))?;
                 }
                 f.write_str("}\n")
+            }
+            Instruction::BitwiseAnd { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} & {rhs};\n"))
+            }
+            Instruction::BitwiseXor { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} ^ {rhs};\n"))
+            }
+            Instruction::ShiftLeft { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} << {rhs};\n"))
+            }
+            Instruction::ShiftRight { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} >> {rhs};\n"))
             }
         }
     }

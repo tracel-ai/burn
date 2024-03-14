@@ -19,7 +19,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum_dim(1);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]

@@ -312,11 +312,6 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor)
     }
 
-    pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.sum(E::KIND);
-        TchTensor::new(tensor)
-    }
-
     pub fn mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchTensor::from_existing(
             tensor
@@ -326,11 +321,28 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
+    pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
+        let tensor = tensor.tensor.sum(E::KIND);
+        TchTensor::new(tensor)
+    }
+
     pub fn sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchTensor::from_existing(
             tensor
                 .tensor
                 .sum_dim_intlist(Some([dim as i64].as_slice()), true, E::KIND),
+            tensor.storage,
+        )
+    }
+
+    pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
+        let tensor = tensor.tensor.prod(E::KIND);
+        TchTensor::new(tensor)
+    }
+
+    pub fn prod_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchTensor::from_existing(
+            tensor.tensor.prod_dim_int(dim as i64, true, E::KIND),
             tensor.storage,
         )
     }
@@ -471,5 +483,9 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
         )
+    }
+
+    pub fn sign<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
     }
 }

@@ -347,6 +347,58 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .expect("Should decode state successfully")
 ```
 
+### Models containing enum modules
+
+Burn supports models containing enum modules with new-type variants (tuple with one item). Importing
+weights for such models is automatically supported by the PyTorchFileRecorder. However, it should be
+noted that since the source weights file does not contain the enum variant information, the enum
+variant is picked based on the enum variant type. Let's consider the following example:
+
+```rust
+#[derive(Module, Debug)]
+pub enum Conv<B: Backend> {
+    DwsConv(DwsConv<B>),
+    Conv(Conv2d<B>),
+}
+
+#[derive(Module, Debug)]
+pub struct DwsConv<B: Backend> {
+    dconv: Conv2d<B>,
+    pconv: Conv2d<B>,
+}
+
+#[derive(Module, Debug)]
+pub struct Net<B: Backend> {
+    conv: Conv<B>,
+}
+```
+
+If the source weights file contains weights for `DwsConv`, such as the following keys:
+
+```text
+---
+Key: conv.dconv.bias
+Shape: [2]
+Dtype: F32
+---
+Key: conv.dconv.weight
+Shape: [2, 1, 3, 3]
+Dtype: F32
+---
+Key: conv.pconv.bias
+Shape: [2]
+Dtype: F32
+---
+Key: conv.pconv.weight
+Shape: [2, 2, 1, 1]
+Dtype: F32
+```
+
+The weights will be imported into the `DwsConv` variant of the `Conv` enum module.
+
+If the variant types are identical, then the first variant is picked. Generally, it won't be a
+problem since the variant types are usually different.
+
 ## Current known issues
 
 1. [Candle's pickle does not currently unpack boolean tensors](https://github.com/tracel-ai/burn/issues/1179).

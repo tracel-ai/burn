@@ -1,4 +1,4 @@
 mod cov;
-mod diagonal;
 mod display;
+mod eye;
 mod var;
