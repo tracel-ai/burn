@@ -89,6 +89,14 @@ impl<P> GradientsParams<P> {
         module.visit(&mut visitor);
         grads_params
     }
+
+    pub fn into_inner(self) -> TensorContainer<ParamId, P> {
+        self.container
+    }
+
+    pub fn from_inner(container: TensorContainer<ParamId, P>) -> Self {
+        Self { container }
+    }
 }
 
 #[cfg(test)]

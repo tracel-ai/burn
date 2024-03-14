@@ -58,6 +58,14 @@ impl<P> Gradients<P> {
                 .register::<B, D>(node.id.value, Tensor::from_primitive(value));
         }
     }
+
+    pub fn into_inner(self) -> TensorContainer<GradId, P> {
+        self.container
+    }
+
+    pub fn from_inner(container: TensorContainer<GradId, P>) -> Self {
+        Self { container }
+    }
 }
 
 impl<P: Clone> Gradients<P> {

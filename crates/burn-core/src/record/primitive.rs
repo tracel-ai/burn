@@ -19,6 +19,8 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Serialize,
 };
+use burn_autodiff::grads::{GradId, Gradients};
+use crate::optim::GradientsParams;
 
 impl<B> Record<B> for ()
 where
@@ -242,6 +244,38 @@ where
         device: &<B as Backend>::Device,
     ) -> Self {
         Self::from_inner(<HashMap<Id, DynTensor<B::DynTensorPrimitive>> as Record<B>>::from_item(item, device))
+    }
+}
+
+impl<B: Backend> Record<B> for Gradients<B::DynTensorPrimitive>
+{
+    type Item<S: PrecisionSettings> = HashMap<GradId, B::DynTensorPrimitive>;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        self.into_inner().into_item()
+    }
+
+    fn from_item<S: PrecisionSettings>(
+        item: Self::Item<S>,
+        device: &<B as Backend>::Device,
+    ) -> Self {
+        Self::from_inner(TensorContainer::from_item(item, device))
+    }
+}
+
+impl<B: Backend> Record<B> for GradientsParams<B::DynTensorPrimitive>
+{
+    type Item<S: PrecisionSettings> = HashMap<ParamId, B::DynTensorPrimitive>;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        self.into_inner().into_item()
+    }
+
+    fn from_item<S: PrecisionSettings>(
+        item: Self::Item<S>,
+        device: &<B as Backend>::Device,
+    ) -> Self {
+        Self::from_inner(TensorContainer::from_item(item, device))
     }
 }
 
