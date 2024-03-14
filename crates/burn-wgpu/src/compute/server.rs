@@ -1,4 +1,11 @@
 use super::WgpuStorage;
+use crate::compute::{
+    webgpu_device_poll, webgpu_read_buffer, WebGPUBindGroup, WebGPUBindGroupDescriptor,
+    WebGPUBindGroupEntry, WebGPUBuffer, WebGPUBufferDescriptor, WebGPUCommandEncoder,
+    WebGPUCommandEncoderDescriptor, WebGPUComputePassDescriptor, WebGPUComputePipeline,
+    WebGPUComputePipelineDescriptor, WebGPUDevice, WebGPUQueue, WebGPUShaderModuleDescriptor,
+    WebGPUShaderSource, COPY_DST, MAP_READ,
+};
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
     memory_management::MemoryManagement,
@@ -7,19 +14,15 @@ use burn_compute::{
 use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
 use burn_tensor::Reader;
 use hashbrown::HashMap;
-use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, CommandEncoder, ComputePipeline, ShaderModuleDescriptor,
-};
 
 /// Wgpu compute server.
 #[derive(Debug)]
 pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     memory_management: MM,
-    device: Arc<wgpu::Device>,
-    queue: wgpu::Queue,
-    encoder: CommandEncoder,
-    pipelines: HashMap<String, Arc<ComputePipeline>>,
+    device: Arc<WebGPUDevice>,
+    queue: WebGPUQueue,
+    encoder: WebGPUCommandEncoder,
+    pipelines: HashMap<String, Arc<WebGPUComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
     manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
@@ -28,8 +31,8 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
 
 #[derive(new, Debug)]
 struct ComputeTask {
-    pipeline: Arc<ComputePipeline>,
-    bind_group: BindGroup,
+    pipeline: Arc<WebGPUComputePipeline>,
+    bind_group: WebGPUBindGroup,
     work_group: WorkGroup,
 }
 
@@ -40,11 +43,11 @@ where
     /// Create a new server.
     pub fn new(
         memory_management: MM,
-        device: Arc<wgpu::Device>,
-        queue: wgpu::Queue,
+        device: Arc<WebGPUDevice>,
+        queue: WebGPUQueue,
         max_tasks: usize,
     ) -> Self {
-        let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let encoder = device.create_command_encoder(&WebGPUCommandEncoderDescriptor {
             label: Some("Command Encoder"),
         });
 
@@ -68,7 +71,7 @@ where
         );
         let mut new_encoder = self
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            .create_command_encoder(&WebGPUCommandEncoderDescriptor { label: None });
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
@@ -123,7 +126,7 @@ where
 
         let mut compute = self
             .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+            .begin_compute_pass(&WebGPUComputePassDescriptor {
                 label: None,
                 timestamp_writes: None,
             });
@@ -138,7 +141,7 @@ where
         self.tasks.clear();
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<WebGPUComputePipeline> {
         let kernel_id = kernel.id();
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
@@ -151,15 +154,17 @@ where
         pipeline
     }
 
-    fn compile_source(&self, source: &str) -> Arc<ComputePipeline> {
-        let module = self.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source)),
-        });
+    fn compile_source(&self, source: &str) -> Arc<WebGPUComputePipeline> {
+        let module = self
+            .device
+            .create_shader_module(WebGPUShaderModuleDescriptor {
+                label: None,
+                source: WebGPUShaderSource::Wgsl(Cow::Borrowed(source)),
+            });
 
         Arc::new(
             self.device
-                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                .create_compute_pipeline(&WebGPUComputePipelineDescriptor {
                     label: None,
                     layout: None,
                     module: &module,
@@ -175,10 +180,10 @@ where
         let resource = self.memory_management.get(&handle.memory);
 
         let size = resource.size();
-        let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer_dest = self.device.create_buffer(&WebGPUBufferDescriptor {
             label: None,
             size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            usage: MAP_READ | COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -198,43 +203,12 @@ where
 
 #[derive(new)]
 struct BufferReader {
-    buffer: wgpu::Buffer,
+    buffer: WebGPUBuffer,
 }
 
 impl BufferReader {
-    #[cfg(target_family = "wasm")]
-    async fn read(self, device: alloc::sync::Arc<wgpu::Device>) -> Vec<u8> {
-        self.read_async(&device).await
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn read(self, device: &wgpu::Device) -> Vec<u8> {
-        pollster::block_on(self.read_async(device))
-    }
-
-    async fn read_async(&self, device: &wgpu::Device) -> Vec<u8> {
-        let buffer_slice = self.buffer.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
-
-        device.poll(wgpu::Maintain::Wait);
-
-        let result = receiver.receive().await;
-
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
-
-            drop(data);
-            self.buffer.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer {:?}", result)
-        }
+    fn read(&self, device: &WebGPUDevice) -> Vec<u8> {
+        webgpu_read_buffer(&self.buffer, device)
     }
 }
 
@@ -248,13 +222,6 @@ where
     type AutotuneKey = JitAutotuneKey;
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
-        #[cfg(target_family = "wasm")]
-        {
-            let future = self.buffer_reader(handle).read(self.device.clone());
-            return Reader::Future(Box::pin(future));
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         Reader::Concrete(self.buffer_reader(handle).read(&self.device))
     }
 
@@ -266,21 +233,9 @@ where
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let handle = self.manual_reserve(data.len());
 
-        let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Buffer Src"),
-            contents: data,
-            usage: wgpu::BufferUsages::COPY_SRC,
-        }));
-
         let resource = self.memory_management.get(&handle.memory);
 
-        self.encoder.copy_buffer_to_buffer(
-            &buffer_src,
-            0,
-            &resource.buffer,
-            resource.offset(),
-            buffer_src.size(),
-        );
+        self.queue.write_buffer(&resource.buffer, 0, data);
 
         handle
     }
@@ -302,13 +257,13 @@ where
         let entries = handles
             .iter()
             .enumerate()
-            .map(|(i, buffer)| wgpu::BindGroupEntry {
+            .map(|(i, buffer)| WebGPUBindGroupEntry {
                 binding: i as u32,
                 resource: buffer.as_binding(),
             })
             .collect::<Vec<_>>();
 
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = self.device.create_bind_group(&WebGPUBindGroupDescriptor {
             label: None,
             layout: &group_layout,
             entries: &entries,
@@ -329,6 +284,6 @@ where
             self.submit();
         }
 
-        self.device.poll(wgpu::Maintain::Wait);
+        webgpu_device_poll(&self.device);
     }
 }
