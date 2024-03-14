@@ -5,6 +5,7 @@ use burn_tensor::{
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
+use burn_tensor::backend::Backend;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -14,11 +15,23 @@ use crate::{
 use super::base::permute;
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
+    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+        CandleTensor::new(dyn_tensor)
+    }
+
+    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        tensor.tensor
+    }
+
     fn float_from_data<const D: usize>(
         data: Data<F, D>,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
+    }
+
+    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<Data<F, D>> {
+        Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn float_random<const D: usize>(
@@ -59,10 +72,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::shape(tensor)
     }
 
-    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<Data<F, D>> {
-        Reader::Concrete(super::base::into_data(tensor))
-    }
-
     fn float_device<const D: usize>(tensor: &CandleTensor<F, D>) -> Device<Self> {
         super::base::device(tensor)
     }
@@ -94,6 +103,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
         CandleTensor::new((lhs.tensor + rhs.elem::<f64>()).unwrap())
+    }
+
+    fn float_clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.maximum(min).unwrap())
+    }
+
+    fn float_clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.minimum(max).unwrap())
+    }
+
+    fn float_clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
     }
 
     fn float_sub<const D: usize>(
@@ -155,12 +186,23 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs_contiguous.broadcast_matmul(&rhs_contiguous).unwrap())
     }
 
+    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.recip().unwrap())
+    }
+
     fn float_swap_dims<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim1: usize,
         dim2: usize,
     ) -> FloatTensor<Self, D> {
         super::base::swap_dims(tensor, dim1, dim2)
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        permute(tensor, axes)
     }
 
     fn float_reshape<const D1: usize, const D2: usize>(
@@ -392,6 +434,23 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
+    fn float_powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        //broadcast_pow is in main but not yet published
+        //note: probably replace once pow once 0.3.3 is out
+        //see: https://github.com/huggingface/candle/pull/1583/files#diff-6319fa1e16dadc4c7b4e25698139703d93b70f30a1f8e2ac0999978e39efaa81R2594
+
+        CandleTensor::new(
+            rhs.tensor
+                .broadcast_mul(&lhs.tensor.log().unwrap())
+                .unwrap()
+                .exp()
+                .unwrap(),
+        )
+    }
+
     fn float_powf_scalar<const D: usize>(
         tensor: FloatTensor<Self, D>,
         value: f32,
@@ -458,32 +517,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_clamp_max<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.minimum(max).unwrap())
-    }
-
-    fn float_clamp_min<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.maximum(min).unwrap())
-    }
-
-    fn float_clamp<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
-    }
-
-    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.recip().unwrap())
-    }
-
     fn float_narrow<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -499,30 +532,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         dim: usize,
     ) -> Vec<FloatTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
-    }
-
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
-        //broadcast_pow is in main but not yet published
-        //note: probably replace once pow once 0.3.3 is out
-        //see: https://github.com/huggingface/candle/pull/1583/files#diff-6319fa1e16dadc4c7b4e25698139703d93b70f30a1f8e2ac0999978e39efaa81R2594
-
-        CandleTensor::new(
-            rhs.tensor
-                .broadcast_mul(&lhs.tensor.log().unwrap())
-                .unwrap()
-                .exp()
-                .unwrap(),
-        )
-    }
-
-    fn float_permute<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        axes: [usize; D],
-    ) -> FloatTensor<Self, D> {
-        permute(tensor, axes)
     }
 
     // TODO add sign operator once Candle supports it:
