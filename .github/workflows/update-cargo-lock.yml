@@ -16,13 +16,13 @@ jobs:
       # we use a GitHub app token so that other workflows can react to the
       # creation of the Pull Request.
       # Following these guidelines -> https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#authenticating-with-github-app-generated-tokens
-      # For additional info -> https://github.com/tibdex/github-app-token?tab=readme-ov-file#github-app-token
+      # For additional info -> https://github.com/actions/create-github-app-token
       - name: generate GitHub app token
         id: generate-app-token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.UPDATE_CARGO_LOCK_APP_ID }}
-          private_key: ${{ secrets.UPDATE_CARGO_LOCK_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.UPDATE_CARGO_LOCK_APP_ID }}
+          private-key: ${{ secrets.UPDATE_CARGO_LOCK_APP_PRIVATE_KEY }}
       - name: cargo update
         run: cargo update
       - name: create pull request

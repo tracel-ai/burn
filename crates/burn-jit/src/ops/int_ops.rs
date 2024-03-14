@@ -251,6 +251,19 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::reduce::sum_dim(tensor, dim, Default::default())
     }
 
+    fn int_prod<const D: usize>(_tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+        // kernel::reduce::prod(tensor, Default::default())
+        todo!("prod for int tensor")
+    }
+
+    fn int_prod_dim<const D: usize>(
+        _tensor: IntTensor<Self, D>,
+        _dim: usize,
+    ) -> IntTensor<Self, D> {
+        // kernel::reduce::prod_dim(tensor, dim, Default::default())
+        todo!("prod_dim for int tensor")
+    }
+
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         kernel::reduce::mean_dim(tensor, dim, Default::default())
     }
