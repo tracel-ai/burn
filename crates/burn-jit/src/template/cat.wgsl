@@ -1,3 +1,5 @@
+{{ features }}
+
 @group(0)
 @binding(0)
 var<storage, read> input: array<{{ elem }}>;

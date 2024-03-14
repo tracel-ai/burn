@@ -71,6 +71,11 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
+        let features = match F::gpu_elem() {
+            gpu::Elem::Half => vec![wgsl::Feature::ShaderF16],
+            _ => vec![],
+        };
+
         let instructions = self.compile_scope(&mut value.body);
         let extensions = register_extensions(&instructions);
         let body = wgsl::Body {
@@ -106,6 +111,7 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             workgroup_id: self.workgroup_id,
             body,
             extensions,
+            features,
         }
     }
 
@@ -121,6 +127,7 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
     fn compile_elem(value: gpu::Elem) -> wgsl::Elem {
         match value {
             gpu::Elem::Float => F::wgpu_elem(),
+            gpu::Elem::Half => F::wgpu_elem(),
             gpu::Elem::Int => I::wgpu_elem(),
             gpu::Elem::UInt => wgsl::Elem::U32,
             gpu::Elem::Bool => wgsl::Elem::Bool,

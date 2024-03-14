@@ -42,6 +42,11 @@ impl SharedMemory {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Feature {
+    ShaderF16,
+}
+
 #[derive(Debug, Clone)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
@@ -56,10 +61,15 @@ pub struct ComputeShader {
     pub workgroup_id: bool,
     pub body: Body,
     pub extensions: Vec<Extension>,
+    pub features: Vec<Feature>,
 }
 
 impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for feature in self.features.iter() {
+            f.write_fmt(format_args!("{feature};\n"))?;
+        }
+
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
 
@@ -186,6 +196,14 @@ impl Display for Visibility {
         match self {
             Visibility::Read => f.write_str("read"),
             Visibility::ReadWrite => f.write_str("read_write"),
+        }
+    }
+}
+
+impl Display for Feature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Feature::ShaderF16 => f.write_str("enable f16"),
         }
     }
 }

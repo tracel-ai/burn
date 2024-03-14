@@ -1,5 +1,7 @@
 use super::SourceTemplate;
-use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
+use crate::{
+    codegen::dialect::gpu, compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime,
+};
 use std::marker::PhantomData;
 
 #[cfg(any(target_family = "wasm", feature = "dawn"))]
@@ -65,6 +67,10 @@ impl<
     for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
 {
     fn source() -> SourceTemplate {
+        let features = match E::gpu_elem() {
+            gpu::Elem::Half => "enable f16;",
+            _ => "",
+        };
         K::source()
             .register("workgroup_size_x", WORKGROUP_X_SIZE.to_string())
             .register("workgroup_size_y", WORKGROUP_Y_SIZE.to_string())
@@ -75,6 +81,7 @@ impl<
             )
             .register("elem", E::type_name())
             .register("int", I::type_name())
+            .register("features", features)
     }
 }
 
@@ -93,6 +100,10 @@ impl<K: StaticKernelSource, E: JitElement, I: JitElement> DynamicKernelSource
     for DynamicKernelSettings<K, E, I>
 {
     fn source(&self) -> SourceTemplate {
+        let features = match E::gpu_elem() {
+            gpu::Elem::Half => "enable f16;",
+            _ => "",
+        };
         K::source()
             .register("workgroup_size_x", self.workgroup_x_size.to_string())
             .register("workgroup_size_y", self.workgroup_y_size.to_string())
@@ -103,6 +114,7 @@ impl<K: StaticKernelSource, E: JitElement, I: JitElement> DynamicKernelSource
             )
             .register("elem", E::type_name())
             .register("int", I::type_name())
+            .register("features", features)
     }
 
     fn id(&self) -> String {

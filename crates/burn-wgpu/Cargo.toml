@@ -27,6 +27,7 @@ burn-common = { path = "../burn-common", version = "0.13.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.13.0", optional = true }
 
 bytemuck = { workspace = true }
+half = { workspace = true, features = ["bytemuck"] }
 wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
 pollster = { workspace = true }
 

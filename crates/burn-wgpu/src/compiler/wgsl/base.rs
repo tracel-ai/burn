@@ -41,6 +41,7 @@ pub enum Variable {
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
+    F16,
     I32,
     U32,
     Bool,
@@ -162,6 +163,7 @@ impl Elem {
     pub fn size(&self) -> usize {
         match self {
             Self::F32 => core::mem::size_of::<f32>(),
+            Self::F16 => core::mem::size_of::<half::f16>(),
             Self::I32 => core::mem::size_of::<i32>(),
             Self::U32 => core::mem::size_of::<u32>(),
             Self::Bool => core::mem::size_of::<bool>(),
@@ -173,6 +175,7 @@ impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::F32 => f.write_str("f32"),
+            Self::F16 => f.write_str("f16"),
             Self::I32 => f.write_str("i32"),
             Self::U32 => f.write_str("u32"),
             Self::Bool => f.write_str("bool"),
@@ -215,6 +218,7 @@ impl Display for Variable {
             }
             Variable::ConstantScalar(number, elem) => match elem {
                 Elem::F32 => f.write_fmt(format_args!("{number}f")),
+                Elem::F16 => f.write_fmt(format_args!("{number}f")),
                 #[cfg(feature = "dawn")]
                 Elem::I32 => f.write_fmt(format_args!("{number}")),
                 #[cfg(feature = "wgpu")]

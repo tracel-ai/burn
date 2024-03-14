@@ -95,6 +95,13 @@ impl TraceBuilder {
                 self.scalars.num_float += 1;
                 var
             }
+            gpu::Elem::Half => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_half as u16, elem_type);
+                self.scalars.num_half += 1;
+                var
+            }
             gpu::Elem::Int => {
                 let var = self
                     .scope

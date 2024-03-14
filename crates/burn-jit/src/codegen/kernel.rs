@@ -386,6 +386,7 @@ fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElem
         Elem::Int => 1,
         Elem::UInt => 2,
         Elem::Bool => panic!("Bool scalars are not supported"),
+        Elem::Half => panic!("Half scalars are not supported"),
     };
     let scalar_priorities: [usize; 3] = [
         element_priority(E1::gpu_elem()),
