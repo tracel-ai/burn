@@ -5,18 +5,20 @@ use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::DynPrimBackend;
 use std::sync::Arc;
+use burn_core::prelude::Backend;
 
 /// A training output.
-pub struct TrainOutput<TO> {
+pub struct TrainOutput<TO, P> {
     /// The gradients.
-    pub grads: GradientsParams,
+    pub grads: GradientsParams<P>,
 
     /// The item.
     pub item: TO,
 }
 
-impl<TO> TrainOutput<TO> {
+impl<TO, P> TrainOutput<TO, P> {
     /// Creates a new training output.
     ///
     /// # Arguments
@@ -32,7 +34,10 @@ impl<TO> TrainOutput<TO> {
         module: &M,
         grads: B::Gradients,
         item: TO,
-    ) -> Self {
+    ) -> Self
+    where
+        B: DynPrimBackend<P>,
+    {
         let grads = GradientsParams::from_grads(grads, module);
         Self { grads, item }
     }
@@ -51,7 +56,7 @@ impl<TO> TrainOutput<TO> {
 /// To be used with the [Learner](Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
+pub trait TrainStep<TI, TO, P> {
     /// Runs the training step, which executes the forward and backward passes.
     ///
     /// # Arguments
@@ -61,7 +66,7 @@ pub trait TrainStep<TI, TO> {
     /// # Returns
     ///
     /// The training output containing the model output and the gradients.
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+    fn step(&self, item: TI) -> TrainOutput<TO, P>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
@@ -73,9 +78,10 @@ pub trait TrainStep<TI, TO> {
     /// # Returns
     ///
     /// The updated model.
-    fn optimize<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
+    fn optimize<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams<P>) -> Self
     where
         B: AutodiffBackend,
+        B: DynPrimBackend<P>,
         O: Optimizer<Self, B>,
         Self: AutodiffModule<B>,
     {
@@ -118,7 +124,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         InputValid: Send,
         OutputTrain: Send + 'static,
         OutputValid: Send,
-        LC::Model: TrainStep<InputTrain, OutputTrain>,
+        LC::Model: TrainStep<InputTrain, OutputTrain, <LC::Backend as Backend>::DynTensorPrimitive>,
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {

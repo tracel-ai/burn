@@ -7,7 +7,7 @@ use burn::{
             checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
             grads::Gradients,
             ops::{broadcast_shape, Backward, Ops, OpsKind},
-            Autodiff, NodeID,
+            Autodiff, NodeId,
         },
         wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend, WgpuRuntime},
     },
@@ -42,12 +42,12 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B, D>, Shape<D>);
+            type State = (NodeId, NodeId, FloatTensor<B, D>, Shape<D>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 3>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 // Get the nodes of each variable.

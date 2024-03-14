@@ -95,7 +95,7 @@ impl<TI> TrainEpoch<TI> {
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
+        LC::Model: TrainStep<TI, TO, <LC::Backend as Backend>::DynTensorPrimitive>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -173,7 +173,7 @@ impl<TI> TrainEpoch<TI> {
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
+        LC::Model: TrainStep<TI, TO, <LC::Backend as Backend>::DynTensorPrimitive>,
         TO: Send + 'static,
         TI: Send + 'static,
     {

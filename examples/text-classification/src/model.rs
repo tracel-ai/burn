@@ -155,13 +155,13 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
+impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive>
     for TextClassificationModel<B>
 {
     fn step(
         &self,
         item: TextClassificationTrainingBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>> {
+    ) -> TrainOutput<ClassificationOutput<B>, B::DynTensorPrimitive> {
         // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();

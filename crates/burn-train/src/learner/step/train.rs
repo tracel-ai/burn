@@ -8,7 +8,7 @@ use std::thread::spawn;
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<B: AutodiffBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
-    receiver: Receiver<TrainOutput<TO>>,
+    receiver: Receiver<TrainOutput<TO, B::DynTensorPrimitive>>,
 }
 
 struct Message<M, TI> {
@@ -36,12 +36,12 @@ where
 
     fn start<TO>(
         &self,
-        sender_output: Sender<TrainOutput<TO>>,
+        sender_output: Sender<TrainOutput<TO, B::DynTensorPrimitive>>,
         receiver_input: Receiver<Message<M, TI>>,
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
-        M: TrainStep<TI, TO> + Send + 'static,
+        M: TrainStep<TI, TO, B::DynTensorPrimitive> + Send + 'static,
     {
         let device = self.device.clone();
 
@@ -65,7 +65,7 @@ where
 impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
 where
     B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
+    M: AutodiffModule<B> + TrainStep<TI, TO, B::DynTensorPrimitive> + Send + Clone + 'static,
     TI: Send + 'static,
     TO: Send + 'static,
 {
@@ -117,7 +117,7 @@ where
         &self,
         dataloader: &mut Box<dyn DataLoaderIterator<TI> + 'a>,
         model: &M,
-    ) -> Vec<TrainOutput<TO>> {
+    ) -> Vec<TrainOutput<TO, B::DynTensorPrimitive>> {
         let mut num_send = 0;
 
         for worker in self.workers.iter() {
