@@ -6,7 +6,7 @@
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-wgpu/blob/master/README.md)
 
 This crate provides a WGPU backend for [Burn](https://github.com/tracel-ai/burn) using the
-[wgpu](https://github.com/gfx-rs/wgpu).
+[wgpu](https://github.com/gfx-rs/wgpu) or [Dawn](https://dawn.googlesource.com/dawn/).
 
 The backend supports Vulkan, Metal, DirectX11/12, OpenGL, WebGPU.
 
@@ -39,3 +39,7 @@ You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many
 | OpenGL    | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
 | WebGpu    | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
 | Dx11/Dx12 | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
+
+## Building with the `dawn` backend enabled
+
+This crate can be built using Dawn as the backing WebGPU implementation. To do this enable the `dawn` feature. Note that Dawn requires `python3`and `ninja` (https://ninja-build.org/) to build and may take a non-negligible time to compile.

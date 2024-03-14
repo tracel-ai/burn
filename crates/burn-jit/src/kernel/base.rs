@@ -1,8 +1,8 @@
 use crate::{compute::WorkGroup, gpu::ComputeShader};
 
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", feature = "dawn"))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(not(target_family = "wasm"), not(feature = "dawn")))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).
