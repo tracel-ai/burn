@@ -302,7 +302,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The concatenated tensor.
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
-        cat_with_slice_assign(
+        cat_with_slice_assign::<B, D, Int>(
             tensors
                 .into_iter()
                 .map(Tensor::<B, D, Int>::from_primitive)

@@ -1,4 +1,5 @@
 use crate::{backend::Backend, BasicOps, Tensor, TensorKind};
+use alloc::vec::Vec;
 
 pub(crate) fn cat_with_slice_assign<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     tensors: Vec<Tensor<B, D, K>>,

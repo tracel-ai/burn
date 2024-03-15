@@ -206,7 +206,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the tensors concatenated along the given dimension.
     fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D> {
-        cat_with_slice_assign(
+        cat_with_slice_assign::<B, D, Bool>(
             tensors
                 .into_iter()
                 .map(Tensor::<B, D, Bool>::from_primitive)

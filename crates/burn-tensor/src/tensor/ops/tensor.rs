@@ -1087,7 +1087,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the concatenated tensors along `dim`.
     fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
-        cat_with_slice_assign(
+        cat_with_slice_assign::<B, D, Float>(
             tensors
                 .into_iter()
                 .map(Tensor::<B, D>::from_primitive)
