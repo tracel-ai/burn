@@ -6,8 +6,8 @@ use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde_json;
+use std::fmt::Display;
 use std::time::Duration;
-use std::{env, fmt::Display};
 use std::{fs, io::Write};
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
@@ -82,18 +82,17 @@ pub fn save<B: Backend>(
         serde_json::to_writer_pretty(file, &record)
             .expect("Benchmark file should be updated with benchmark results");
 
-        // Append the benchmark result filepath in a temp file to be later picked by benchrun
-        let curdir_filepath = env::current_dir()
-            .expect("Cannot resolve current directory")
-            .join("benchmark_results.txt");
-        let mut curdir_file = fs::OpenOptions::new()
+        // Append the benchmark result filepath in the benchmark_results.tx file of  cache folder to be later picked by benchrun
+        let benchmark_results_path = cache_dir.join("benchmark_results.txt");
+        let mut benchmark_results_file = fs::OpenOptions::new()
             .append(true)
             .create(true)
-            .open(curdir_filepath)
+            .open(benchmark_results_path)
             .unwrap();
-        curdir_file
+        benchmark_results_file
             .write_all(format!("{}\n", file_path.to_string_lossy()).as_bytes())
             .unwrap();
+
         if url.is_some() {
             println!("Sharing results...");
             let client = reqwest::blocking::Client::new();
@@ -230,23 +229,23 @@ impl<'de> Deserialize<'de> for BenchmarkRecord {
 }
 
 #[derive(Default)]
-pub(crate) struct BenchMarkCollection {
+pub(crate) struct BenchmarkCollection {
     pub records: Vec<BenchmarkRecord>,
 }
 
-impl Display for BenchMarkCollection {
+impl Display for BenchmarkCollection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
             "| {0:<15}| {1:<35}| {2:<15}|\n|{3:-<16}|{4:-<36}|{5:-<16}|",
-            "Benchmark", "Backend", "Runtime", "", "", ""
+            "Benchmark", "Backend", "Median", "", "", ""
         )?;
         for record in self.records.iter() {
             let backend = [record.backend.clone(), record.device.clone()].join("-");
             writeln!(
                 f,
                 "| {0:<15}| {1:<35}| {2:<15.3?}|",
-                record.results.name, backend, record.results.computed.mean
+                record.results.name, backend, record.results.computed.median
             )?;
         }
 
@@ -260,7 +259,69 @@ mod tests {
 
     #[test]
     fn get_benchmark_result() {
-        let sample_result = r#"{"backend":"candle","device":"Cuda(0)","gitHash":"02d37011ab4dc773286e5983c09cde61f95ba4b5","name":"unary","max":8858,"mean":8629,"median":8592,"min":8506,"numSamples":10,"options":null,"rawDurations":[{"secs":0,"nanos":8858583},{"secs":0,"nanos":8719822},{"secs":0,"nanos":8705335},{"secs":0,"nanos":8835636},{"secs":0,"nanos":8592507},{"secs":0,"nanos":8506423},{"secs":0,"nanos":8534337},{"secs":0,"nanos":8506627},{"secs":0,"nanos":8521615},{"secs":0,"nanos":8511474}],"shapes":[[32,512,1024]],"timestamp":1710208069697,"variance":0}"#;
+        let sample_result = r#"{
+            "backend": "candle",
+            "device": "Cuda(0)",
+            "gitHash": "02d37011ab4dc773286e5983c09cde61f95ba4b5",
+            "name": "unary",
+            "max": 8858,
+            "mean": 8629,
+            "median": 8592,
+            "min": 8506,
+            "numSamples": 10,
+            "options": null,
+            "rawDurations": [
+                {
+                    "secs": 0,
+                    "nanos": 8858583
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8719822
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8705335
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8835636
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8592507
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8506423
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8534337
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8506627
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8521615
+                },
+                {
+                    "secs": 0,
+                    "nanos": 8511474
+                }
+            ],
+            "shapes": [
+                [
+                    32,
+                    512,
+                    1024
+                ]
+            ],
+            "timestamp": 1710208069697,
+            "variance": 0
+        }"#;
         let record = serde_json::from_str::<BenchmarkRecord>(sample_result).unwrap();
         assert!(record.backend == "candle");
         assert!(record.device == "Cuda(0)");

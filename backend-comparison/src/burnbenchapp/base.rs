@@ -3,13 +3,13 @@ use super::{
     App,
 };
 use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
-use crate::persistence::{BenchMarkCollection, BenchmarkRecord};
+use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand, ValueEnum};
 use github_device_flow::{self, DeviceFlow};
 use serde_json;
+use std::fs;
 use std::io::{BufRead, BufReader, Result as ioResult};
-use std::{env::current_dir, fs};
 use std::{
     process::{Command, ExitStatus, Stdio},
     thread, time,
@@ -186,12 +186,12 @@ fn command_run(run_args: RunArgs) {
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
-        "Executing the following benchmark and backend combinations (Total: {}):",
+        "Executing benchmark and backend combinations in total: {}",
         total_combinations
     );
     let mut app = App::new();
     app.init();
-    println!("Running benchmarks...");
+    println!("Running benchmarks...\n");
     app.run(
         &run_args.benches,
         &run_args.backends,
@@ -222,10 +222,14 @@ pub(crate) fn run_backend_comparison_benchmarks(
     let filler = ["="; 10].join("");
 
     // Delete the file containing file paths to benchmark results, if existing
-    let result_path = current_dir()
-        .expect("Cannot resolve current directory")
-        .join("backend-comparison/benchmark_results.txt");
-    fs::remove_file(result_path.clone()).ok();
+    let benchmark_results_file = dirs::home_dir()
+        .expect("Home directory should exist")
+        .join(".cache")
+        .join("burn")
+        .join("backend-comparison")
+        .join("benchmark_results.txt");
+
+    fs::remove_file(benchmark_results_file.clone()).ok();
 
     // Iterate through every combination of benchmark and backend
     for bench in benches.iter() {
@@ -266,8 +270,8 @@ pub(crate) fn run_backend_comparison_benchmarks(
 
     // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
     // and print them in a single table.
-    let mut benchmark_results = BenchMarkCollection::default();
-    if let Ok(file) = fs::File::open(result_path.clone()) {
+    let mut benchmark_results = BenchmarkCollection::default();
+    if let Ok(file) = fs::File::open(benchmark_results_file.clone()) {
         let file_reader = BufReader::new(file);
         for file in file_reader.lines() {
             let file_path = file.unwrap();
@@ -279,10 +283,10 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 println!("Cannot find the benchmark-record file: {}", file_path);
             };
         }
-        fs::remove_file(result_path).ok();
-    } else {
-        println!("Cannot find the result file: backend-comparison/tmp_bench.json");
-    };
-    println!("{}Benchmark Results{}\n", filler, filler);
-    println!("{}", benchmark_results);
+        println!(
+            "{}Benchmark Results{}\n\n{}",
+            filler, filler, benchmark_results
+        );
+        fs::remove_file(benchmark_results_file).ok();
+    }
 }
