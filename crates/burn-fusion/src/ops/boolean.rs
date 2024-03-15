@@ -29,8 +29,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        let stream = tensor.stream;
         let client = get_client::<B>(&Self::bool_device::<D>(&tensor).into());
-        let base_tensor = client.server().lock().handles.get_bool_tensor(&tensor.into_description());
+        let base_tensor = client.read_tensor_bool(tensor.into_description(), stream);
 
         B::bool_into_dyn::<D>(base_tensor)
     }

@@ -72,7 +72,7 @@ where
             Elem::Int => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
             Elem::UInt => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
             Elem::Bool => {
-                let mut dyn_rank_data = dyn_tensor.into_dyn_rank_data::<u32>().read();
+                let dyn_rank_data = dyn_tensor.into_dyn_rank_data::<u32>().read();
 
                 DynData::Bool(
                     DynRankData::new(

@@ -1,14 +1,11 @@
-use std::sync::Arc;
-use spin::Mutex;
 use crate::{
     stream::{Operation, OperationDescription, StreamId},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{
-    ops::{FloatElem, IntElem},
-    Data, Reader,
+    ops::FloatTensor,
 };
-use crate::server::FusionServer;
+use burn_tensor::ops::{BoolTensor, IntTensor};
 
 /// Define how to interact with the fusion server.
 pub trait FusionClient: Send + Sync + Clone {
@@ -17,8 +14,6 @@ pub trait FusionClient: Send + Sync + Clone {
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
-
-    fn server(&self) -> &Arc<Mutex<FusionServer<Self::FusionBackend>>>;
 
     /// Register a new [tensor operation description](OperationDescription).
     fn register<O: Operation<Self::FusionBackend> + 'static>(
@@ -50,21 +45,21 @@ pub trait FusionClient: Send + Sync + Clone {
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<FloatElem<Self::FusionBackend>, D>>;
+    ) -> FloatTensor<Self::FusionBackend, D>;
 
     /// Read the values contained by an int tensor.
     fn read_tensor_int<const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<IntElem<Self::FusionBackend>, D>>;
+    ) -> IntTensor<Self::FusionBackend, D>;
 
     /// Read the values contained by a bool tensor.
     fn read_tensor_bool<const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<bool, D>>;
+    ) -> BoolTensor<Self::FusionBackend, D>;
 
     /// Change the client of the given float tensor.
     fn change_client_float<const D: usize>(

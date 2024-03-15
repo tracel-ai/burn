@@ -2,7 +2,7 @@ use crate::{
     stream::{MultiStream, Operation, OperationDescription, StreamId},
     FusionBackend, HandleContainer, TensorId,
 };
-use burn_tensor::ops::{FloatElem, IntElem};
+use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor};
 use std::sync::Arc;
 
 pub struct FusionServer<B>
@@ -48,39 +48,36 @@ where
         &mut self,
         tensor: crate::TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
+    ) -> FloatTensor<B, D> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_float_tensor(&tensor);
-        B::float_into_data(tensor)
+        self.handles.get_float_tensor(&tensor)
     }
 
     pub fn read_int<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
+    ) -> IntTensor<B, D> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_int_tensor(&tensor);
-        B::int_into_data(tensor)
+        self.handles.get_int_tensor(&tensor)
     }
 
     pub fn read_bool<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
+    ) -> BoolTensor<B, D> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_bool_tensor(&tensor);
-        B::bool_into_data(tensor)
+        self.handles.get_bool_tensor(&tensor)
     }
 
     pub fn change_server_float<const D: usize>(

@@ -29,8 +29,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        let stream = tensor.stream;
         let client = get_client::<B>(&Self::int_device::<D>(&tensor).into());
-        let base_tensor = client.server().lock().handles.get_int_tensor(&tensor.into_description());
+        let base_tensor = client.read_tensor_int(tensor.into_description(), stream);
 
         B::int_into_dyn::<D>(base_tensor)
     }

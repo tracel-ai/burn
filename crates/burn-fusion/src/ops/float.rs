@@ -29,8 +29,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        let stream = tensor.stream;
         let client = get_client::<B>(&Self::float_device::<D>(&tensor).into());
-        let base_tensor = client.server().lock().handles.get_float_tensor(&tensor.into_description());
+        let base_tensor = client.read_tensor_float(tensor.into_description(), stream);
 
         B::float_into_dyn::<D>(base_tensor)
     }

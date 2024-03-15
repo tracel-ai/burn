@@ -3,7 +3,7 @@ use crate::{
     stream::{Operation, OperationDescription, StreamId},
     FusionBackend, FusionServer, FusionTensor, Handle,
 };
-use burn_tensor::ops::FloatElem;
+use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor};
 use spin::Mutex;
 use std::sync::Arc;
 
@@ -39,10 +39,6 @@ where
             device: device.clone(),
             server: Arc::new(Mutex::new(FusionServer::new(device))),
         }
-    }
-
-    fn server(&self) -> &Arc<Mutex<FusionServer<Self::FusionBackend>>> {
-        &self.server
     }
 
     fn register<O: Operation<Self::FusionBackend> + 'static>(
@@ -88,24 +84,24 @@ where
         &self,
         tensor: crate::TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusionBackend>, D>> {
+    ) -> FloatTensor<Self::FusionBackend, D> {
         self.server.lock().read_float(tensor, stream)
     }
 
     fn read_tensor_int<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
-        id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusionBackend>, D>>
+        stream: StreamId,
+    ) -> IntTensor<Self::FusionBackend, D>
     {
-        self.server.lock().read_int(tensor, id)
+        self.server.lock().read_int(tensor, stream)
     }
 
     fn read_tensor_bool<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
+    ) -> BoolTensor<Self::FusionBackend, D> {
         self.server.lock().read_bool(tensor, stream)
     }
 
