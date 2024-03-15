@@ -51,3 +51,4 @@ mod sub;
 mod tanh;
 mod transpose;
 mod tri;
+mod dyn_roundtrip;

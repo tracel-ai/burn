@@ -16,6 +16,8 @@ pub use tensor::*;
 #[cfg(test)]
 mod tests {
     extern crate alloc;
+
+    use burn_tensor::backend::Backend;
     use super::*;
 
     pub type TestBackend = Candle<f32, i64>;
@@ -26,6 +28,7 @@ mod tests {
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =
         burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+    pub type TestTensorDyn = burn_tensor::DynTensor<<TestBackend as Backend>::DynTensorPrimitive>;
 
     type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
@@ -53,6 +56,7 @@ mod tests {
     // burn_tensor::testgen_module_adaptive_avg_pool2d!();
 
     // test ops
+    burn_tensor::testgen_dyn_roundtrip!();
     burn_tensor::testgen_add!();
     // burn_tensor::testgen_aggregation!();
     burn_tensor::testgen_arange!();
