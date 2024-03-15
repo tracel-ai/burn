@@ -59,10 +59,12 @@ impl<P> Gradients<P> {
         }
     }
 
+    /// Returns the underlying [TensorContainer] used.
     pub fn into_inner(self) -> TensorContainer<GradId, P> {
         self.container
     }
 
+    /// Creates a gradient container from a matching [TensorContainer].
     pub fn from_inner(container: TensorContainer<GradId, P>) -> Self {
         Self { container }
     }

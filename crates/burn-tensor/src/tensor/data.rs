@@ -6,15 +6,19 @@ use crate::{tensor::Shape, Element, ElementConversion};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
-/// A version of [`DynRankData`] without an explicit element type. Used for serializing [`DynTensor`].
+/// A version of [`DynRankData`] without an explicit element in its type. Used for serializing [`DynTensor`].
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum DynData<FElem: Element, IElem: Element> {
+    /// An instance of [DynData] storing float elements.
     Float(DynRankData<FElem>),
+    /// An instance of [DynData] storing integer elements.
     Int(DynRankData<IElem>),
+    /// An instance of [DynData] storing boolean elements.
     Bool(DynRankData<bool>),
 }
 
 impl<FElem: Element, IElem: Element> DynData<FElem, IElem> {
+    /// Converts an instance of [DynData] into an instance with different float and integer backing types.
     pub fn convert<FElemOther: Element, IElemOther: Element>(
         self,
     ) -> DynData<FElemOther, IElemOther> {
@@ -25,6 +29,7 @@ impl<FElem: Element, IElem: Element> DynData<FElem, IElem> {
         }
     }
 
+    /// Returns a reference to the shape of this [DynData].
     pub fn shape(&self) -> &[usize] {
         match self {
             DynData::Float(dyn_rank_data) => &dyn_rank_data.shape,

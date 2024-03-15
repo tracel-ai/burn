@@ -169,10 +169,10 @@ impl<B: Backend> Record<B> for DynTensor<B::DynTensorPrimitive> {
         todo!("Recording dynamic tensors isn't yet supported on wasm.");
 
         #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        self.into_data::<B>().convert().into()
+        self.into_dyn_data::<B>().convert().into()
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        DynTensor::from_data::<_, _, B>(DynData::from(item), device)
+        DynTensor::from_dyn_data::<_, _, B>(DynData::from(item), device)
     }
 }

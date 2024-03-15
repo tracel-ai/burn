@@ -285,12 +285,13 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
 }
 
 #[derive(Debug)]
+/// A [TchTensor] without a static element type, and with dynamic rank.
 pub struct DynTchTensor {
-    pub tensor: tch::Tensor,
+    pub(crate) tensor: tch::Tensor,
 }
 
 impl DynTchTensor {
-    pub fn new(tensor: tch::Tensor) -> Self {
+    pub(crate) fn new(tensor: tch::Tensor) -> Self {
         Self { tensor }
     }
 }

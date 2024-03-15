@@ -33,9 +33,13 @@ pub struct NdArray<E = f32> {
 }
 
 #[derive(Debug, Clone)]
+/// An n-dimensional array with a dynamic rank, and a dynamic specific element type.
 pub enum DynNdArray<F, I> {
+    /// An n-dimensional array storing floats.
     Float(ArcArray<F, IxDyn>),
+    /// An n-dimensional array storing integers.
     Int(ArcArray<I, IxDyn>),
+    /// An n-dimensional array storing booleans.
     Bool(ArcArray<bool, IxDyn>),
 }
 

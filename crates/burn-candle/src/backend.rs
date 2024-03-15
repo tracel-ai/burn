@@ -89,13 +89,18 @@ fn dyn_rank_data_from_candle_tensor<E: Element + WithDType>(tensor: candle_core:
 }
 
 #[derive(Clone, Debug)]
+/// A [CandleTensor] with a dynamic rank and element type.
 pub enum DynCandleTensor {
+    /// Float tensor variant.
     Float(candle_core::Tensor),
+    /// Integer tensor variant.
     Int(candle_core::Tensor),
+    /// Boolean tensor variant.
     Bool(candle_core::Tensor),
 }
 
 impl DynCandleTensor {
+    /// Returns the [candle_core::Tensor] internally used by this enum.
     pub fn into_inner(self) -> candle_core::Tensor {
         match self {
             DynCandleTensor::Float(dyn_tensor) => dyn_tensor,

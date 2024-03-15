@@ -1,4 +1,3 @@
-use crate::gpu::Elem;
 use crate::tensor::{DynJitTensor, ElemKind};
 use crate::{codegen::Compiler, tensor::JitTensor, Runtime};
 use burn_tensor::backend::Backend;

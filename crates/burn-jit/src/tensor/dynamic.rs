@@ -1,4 +1,3 @@
-use crate::gpu::Elem;
 use crate::tensor::JitTensor;
 use crate::{JitElement, Runtime};
 use burn_common::reader::Reader;
@@ -10,12 +9,18 @@ use core::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 #[derive(Clone, Copy, Debug)]
+/// The kind of element stored in a [DynJitTensor]. This refers to the elements interpretation, not the actual data stored.
+/// For example, a [u32] could be used as storage for a boolean, while being an integer type.
 pub enum ElemKind {
+    /// A float element.
     Float,
+    /// A integer element.
     Int,
+    /// A boolean element.
     Bool,
 }
 
+/// The dynamic JIT tensor primitive.
 pub struct DynJitTensor<S: ComputeServer, C: ComputeChannel<S>, D> {
     /// Compute client for the [runtime](Runtime).
     pub client: ComputeClient<S, C>,
@@ -27,6 +32,7 @@ pub struct DynJitTensor<S: ComputeServer, C: ComputeChannel<S>, D> {
     pub device: D,
     /// The strides of the tensor.
     pub strides: Vec<usize>,
+    /// The kind of elements the tensor stores.
     pub elem_kind: ElemKind,
 }
 
@@ -55,6 +61,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>, D: Debug> Debug for DynJitTensor<S,
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>, D> DynJitTensor<S, C, D> {
+    /// Creates a [DynJitTensor], which should use a contiguous memory layout.
     pub fn new(
         client: ComputeClient<S, C>,
         device: D,
@@ -80,14 +87,16 @@ impl<S: ComputeServer, C: ComputeChannel<S>, D> DynJitTensor<S, C, D> {
         }
     }
 
+    /// Converts this dynamic tensor primitive into [DynRankData] of a given element type, which should match the element type stored in the tensor.
     pub fn into_dyn_rank_data<E: JitElement>(self) -> Reader<DynRankData<E>> {
         self.client
             .read(&self.handle)
             .map(|bytes| DynRankData::new(E::from_bytes(&bytes).to_vec(), self.shape))
     }
 
-    pub fn from_jit_tensor<E, R, const Dim: usize>(
-        value: JitTensor<R, E, Dim>,
+    /// Converts a [JitTensor] into a [DynJitTensor].
+    pub fn from_jit_tensor<E, R, const DIM: usize>(
+        value: JitTensor<R, E, DIM>,
         elem_kind: ElemKind,
     ) -> DynJitTensor<S, C, D>
     where
@@ -106,6 +115,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>, D> DynJitTensor<S, C, D> {
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>, D: Clone> DynJitTensor<S, C, D> {
+    /// Converts this [DynRankData] into a dynamic JIT tensor.
     pub fn from_dyn_rank_data<R: Runtime<Server = S, Device = D, Channel = C>, E: JitElement>(
         dyn_rank_data: DynRankData<E>,
         elem_kind: ElemKind,

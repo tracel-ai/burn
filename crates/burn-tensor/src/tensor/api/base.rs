@@ -1268,8 +1268,42 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive>;
+    /// Converts a tensor primitive into the corresponding dynamic tensor primitive.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The corresponding dynamic tensor primitive.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For converting between [Tensor] and [DynTensor], users should prefer using the [From] trait.
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> B::DynTensorPrimitive;
 
+    /// Converts a dynamic tensor primitive into a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The dynamic tensor.
+    ///
+    /// # Returns
+    ///
+    /// The resulting tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For converting between [Tensor] and [DynTensor], users should prefer using the [From] trait.
     fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
@@ -1517,8 +1551,8 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_from_data(data, device)
     }
 
-    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
-        Reader::Concrete(B::float_into_dyn(tensor))
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> B::DynTensorPrimitive {
+        B::float_into_dyn(tensor)
     }
 
     fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {
@@ -1628,8 +1662,8 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
-        Reader::Concrete(B::int_into_dyn(tensor))
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> B::DynTensorPrimitive {
+        B::int_into_dyn(tensor)
     }
 
     fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {
@@ -1750,8 +1784,8 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
-        Reader::Concrete(B::bool_into_dyn(tensor))
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> B::DynTensorPrimitive {
+        B::bool_into_dyn(tensor)
     }
 
     fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {

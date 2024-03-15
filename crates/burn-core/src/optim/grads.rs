@@ -10,11 +10,12 @@ pub struct GradientsParams<P> {
 }
 
 impl<P: Clone> GradientsParams<P> {
-    pub fn add<B: DynPrimBackend<P>, const D: usize>(&mut self, id: ParamId, value: Tensor<B, D>) {
+    /// Adds a gradient into an existing gradient with a given ID, or creates a new gradient at this ID, with the provided value.
+    pub fn add<B: DynPrimBackend<P>, const D: usize>(&mut self, id: ParamId, gradient: Tensor<B, D>) {
         self.container
             .entry(id)
-            .and_modify(|grad| *grad = DynTensor::from(Tensor::from(grad.clone()).add(value.clone())))
-            .or_insert(value.into());
+            .and_modify(|grad| *grad = DynTensor::from(Tensor::from(grad.clone()).add(gradient.clone())))
+            .or_insert(gradient.into());
     }
 
     /// Get the gradients for the given [parameter id](ParamId).
@@ -90,10 +91,12 @@ impl<P> GradientsParams<P> {
         grads_params
     }
 
+    /// Returns the underlying [TensorContainer] used for this struct.
     pub fn into_inner(self) -> TensorContainer<ParamId, P> {
         self.container
     }
 
+    /// Creates a parameter-gradient container using an underlying [TensorContainer].
     pub fn from_inner(container: TensorContainer<ParamId, P>) -> Self {
         Self { container }
     }

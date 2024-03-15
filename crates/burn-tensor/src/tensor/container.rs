@@ -36,6 +36,7 @@ where
             .insert(id, DynTensor::from(value));
     }
 
+    /// Returns the underlying [HashMap] entry for a given ID.
     pub fn entry(&mut self, id: Id) -> Entry<'_, Id, DynTensor<P>, DefaultHashBuilder> {
         self.tensors.entry(id)
     }
