@@ -1,4 +1,6 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -1085,37 +1087,14 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the concatenated tensors along `dim`.
     fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
-        let first_tensor = tensors.first().expect("Tensors should not be empty");
-        let mut shape = B::float_shape(first_tensor);
-        let device = &B::float_device(first_tensor);
-
-        let output_dim_length: usize = tensors
-            .iter()
-            .map(|tensor: &FloatTensor<B, D>| B::float_shape(tensor).dims[dim])
-            .sum();
-        shape.dims[dim] = output_dim_length;
-
-        let mut tensor_output = B::float_empty(shape.clone(), device);
-
-        let mut i = 0;
-        let indices_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut output_index = 0;
-        for tensor in tensors {
-            let mut indices = indices_select_all.clone();
-            let tensor_dim_length = B::float_shape(&tensor).dims[dim];
-            indices[dim] = output_index..tensor_dim_length;
-            output_index += tensor_dim_length;
-
-            tensor_output = B::float_slice_assign(tensor_output, indices, tensor)
-        }
-
-        tensor_output
+        cat_with_slice_assign(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
     }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
