@@ -1,6 +1,6 @@
-use super::{BoolTensor, Device, FloatTensor, IntTensor};
+use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{
-    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion,
+    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -206,37 +206,14 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the tensors concatenated along the given dimension.
     fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D> {
-        let first_tensor = tensors.first().expect("Tensors should not be empty");
-        let mut shape = B::bool_shape(first_tensor);
-        let device = &B::bool_device(first_tensor);
-
-        let output_dim_length: usize = tensors
-            .iter()
-            .map(|tensor: &BoolTensor<B, D>| B::bool_shape(tensor).dims[dim])
-            .sum();
-        shape.dims[dim] = output_dim_length;
-
-        let mut tensor_output = B::bool_empty(shape.clone(), device);
-
-        let mut i = 0;
-        let indices_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut output_index = 0;
-        for tensor in tensors {
-            let mut indices = indices_select_all.clone();
-            let tensor_dim_length = B::bool_shape(&tensor).dims[dim];
-            indices[dim] = output_index..tensor_dim_length;
-            output_index += tensor_dim_length;
-
-            tensor_output = B::bool_slice_assign(tensor_output, indices, tensor)
-        }
-
-        tensor_output
+        cat_with_slice_assign(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D, Bool>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
     }
 
     /// Equates the two tensors.
