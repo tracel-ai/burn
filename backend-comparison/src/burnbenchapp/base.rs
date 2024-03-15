@@ -11,17 +11,8 @@ use strum_macros::{Display, EnumIter};
 use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
 
 use super::{
-    auth::{auth, get_tokens_from_cache, verify_tokens},
+    auth::{auth, get_tokens},
     App,
-};
-
-const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
-const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
-    // development
-    "http://localhost:8000/benchmarks"
-} else {
-    // production
-    "https://user-benchmark-server-gvtbw64teq-nn.a.run.app/benchmarks"
 };
 
 /// Base trait to define an application
@@ -141,21 +132,12 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
-    let tokens = get_tokens_from_cache();
-    if run_args.share {
-        // Verify if a token is saved
-        if tokens.is_none() {
-            eprintln!("You need to be authenticated to be able to share benchmark results.");
-            eprintln!("Run the command 'burnbench auth' to authenticate.");
-            return;
-        }
-        // TODO refresh the token when it is expired
-        // Check for the validity of the saved token
-        if !verify_tokens(tokens.as_ref().unwrap()) {
-            eprintln!("Your access token is no longer valid.");
-            eprintln!("Run the command 'burnbench auth' again to get a new token.");
-            return;
-        }
+    let tokens = get_tokens();
+    if run_args.share && tokens.is_none() {
+        eprintln!("Credentials not found or expired.");
+        eprintln!("You need to (re)authenticate yourself to be able to share benchmark results.");
+        eprintln!("Run the command 'burnbench auth' to authenticate.");
+        return;
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
@@ -214,6 +196,7 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 "{}Benchmarking {} on {}{}",
                 filler, bench_str, backend_str, filler
             );
+            let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
             let mut args = vec![
                 "-p",
                 "backend-comparison",
@@ -222,12 +205,12 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 "--features",
                 &backend_str,
                 "--target-dir",
-                BENCHMARKS_TARGET_DIR,
+                super::BENCHMARKS_TARGET_DIR,
             ];
             if let Some(t) = token {
                 args.push("--");
                 args.push("--sharing-url");
-                args.push(USER_BENCHMARK_SERVER_URL);
+                args.push(url.as_str());
                 args.push("--sharing-token");
                 args.push(t);
             }

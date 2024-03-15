@@ -29,8 +29,18 @@ pub(crate) struct Tokens {
     pub refresh_token: String,
 }
 
-pub(crate) fn get_access_token() {
-    todo!()
+/// Retrieve cached tokens and refresh them if necessary then save the new tokens.
+pub(crate) fn get_tokens() -> Option<Tokens> {
+    get_tokens_from_cache().map(|tokens| {
+        if verify_tokens(&tokens) {
+            Some(tokens)
+        } else {
+            refresh_tokens(&tokens).map(|new_tokens| {
+                save_tokens(&new_tokens);
+                new_tokens
+            })
+        }
+    })?
 }
 
 pub(crate) fn auth() {
@@ -55,7 +65,7 @@ pub(crate) fn auth() {
     thread::sleep(FIVE_SECONDS);
     match flow.poll(20) {
         Ok(creds) => {
-            save_token(&Tokens {
+            save_tokens(&Tokens {
                 access_token: creds.token.clone(),
                 refresh_token: creds.refresh_token.clone(),
             });
@@ -76,7 +86,7 @@ fn get_tokens_from_cache() -> Option<Tokens> {
 /// Returns true if the token is still valid
 fn verify_tokens(tokens: &Tokens) -> bool {
     let client = reqwest::blocking::Client::new();
-    let response = client
+    client
         .get("https://api.github.com/user")
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
@@ -85,8 +95,33 @@ fn verify_tokens(tokens: &Tokens) -> bool {
             format!("Bearer {}", tokens.access_token),
         )
         .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
-        .send();
-    response.map_or(false, |resp| resp.status().is_success())
+        .send()
+        .map_or(false, |resp| resp.status().is_success())
+}
+
+fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
+    println!("Access tokens must be refreshed.");
+    println!("Refreshing tokens...");
+    let client = reqwest::blocking::Client::new();
+    client
+        .post(format!(
+            "{}auth/refresh-token",
+            super::USER_BENCHMARK_SERVER_URL
+        ))
+        .header(reqwest::header::USER_AGENT, "burnbench")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer-Refresh {}", tokens.refresh_token),
+        )
+        .send()
+        .ok()?
+        .json::<Tokens>()
+        .ok()
+        .map(|new_tokens| {
+            println!("✅ Tokens refreshed!");
+            new_tokens
+        })
 }
 
 /// Return the file path for the auth cache on disk
@@ -100,7 +135,7 @@ fn get_auth_cache_file_path() -> PathBuf {
 }
 
 /// Save token in Burn cache directory and adjust file permissions
-fn save_token(tokens: &Tokens) {
+fn save_tokens(tokens: &Tokens) {
     let path = get_auth_cache_file_path();
     fs::create_dir_all(path.parent().expect("path should have a parent directory"))
         .expect("directory should be created");
@@ -153,7 +188,7 @@ mod tests {
         if path.exists() {
             fs::remove_file(&path).unwrap();
         }
-        save_token(&tokens);
+        save_tokens(&tokens);
         let retrieved_tokens = get_tokens_from_cache().unwrap();
         assert_eq!(retrieved_tokens.access_token, tokens.access_token);
         assert_eq!(retrieved_tokens.refresh_token, tokens.refresh_token);
@@ -164,12 +199,12 @@ mod tests {
     #[serial]
     fn test_overwrite_saved_token_when_file_already_exists(tokens: Tokens) {
         cleanup_test_environment();
-        save_token(&tokens);
+        save_tokens(&tokens);
         let new_tokens = Tokens {
             access_token: "new_test_token".to_string(),
             refresh_token: "new_refresh_token".to_string(),
         };
-        save_token(&new_tokens);
+        save_tokens(&new_tokens);
         let retrieved_tokens = get_tokens_from_cache().unwrap();
         assert_eq!(retrieved_tokens.access_token, new_tokens.access_token);
         assert_eq!(retrieved_tokens.refresh_token, new_tokens.refresh_token);
