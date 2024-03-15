@@ -1,10 +1,10 @@
+use crate::gpu::Elem;
+use crate::tensor::{DynJitTensor, ElemKind};
 use crate::{codegen::Compiler, tensor::JitTensor, Runtime};
 use burn_tensor::backend::Backend;
+use burn_tensor::{DynData, DynRankData};
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
-use burn_tensor::{DynData, DynRankData};
-use crate::gpu::Elem;
-use crate::tensor::DynJitTensor;
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -16,7 +16,7 @@ pub struct JitBackend<R: Runtime> {
 
 impl<R: Runtime> Backend for JitBackend<R>
 where
-    R::FullPrecisionRuntime: Runtime<Server = R::Server, Channel = R::Channel, Device = R::Device>
+    R::FullPrecisionRuntime: Runtime<Server = R::Server, Channel = R::Channel, Device = R::Device>,
 {
     type Device = R::Device;
     type FullPrecisionBackend = JitBackend<R::FullPrecisionRuntime>;
@@ -50,40 +50,56 @@ where
         client.sync();
     }
 
-    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive {
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
         match data {
-            DynData::Float(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, Self::FloatElem>(dyn_rank_data.convert(), device),
-            DynData::Int(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, Self::IntElem>(dyn_rank_data, device),
-            DynData::Bool(dyn_rank_data) => {
-                DynJitTensor::from_dyn_rank_data::<R, u32>(DynRankData::new(
-                    dyn_rank_data.value
+            DynData::Float(dyn_rank_data) => {
+                DynJitTensor::from_dyn_rank_data::<R, Self::FloatElem>(
+                    dyn_rank_data.convert(),
+                    ElemKind::Float,
+                    device,
+                )
+            }
+            DynData::Int(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, Self::IntElem>(
+                dyn_rank_data,
+                ElemKind::Int,
+                device,
+            ),
+            DynData::Bool(dyn_rank_data) => DynJitTensor::from_dyn_rank_data::<R, u32>(
+                DynRankData::new(
+                    dyn_rank_data
+                        .value
                         .into_iter()
                         .map(|boolean| boolean as u32)
                         .collect(),
-                    dyn_rank_data.shape
-                ), device)
-            },
+                    dyn_rank_data.shape,
+                ),
+                ElemKind::Bool,
+                device,
+            ),
         }
     }
 
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
-        match dyn_tensor.elem {
-            Elem::Float => DynData::Float(dyn_tensor.into_dyn_rank_data().read()),
-            Elem::Int => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
-            Elem::UInt => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
-            Elem::Bool => {
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+        match dyn_tensor.elem_kind {
+            ElemKind::Float => DynData::Float(dyn_tensor.into_dyn_rank_data().read()),
+            ElemKind::Int => DynData::Int(dyn_tensor.into_dyn_rank_data().read()),
+            ElemKind::Bool => {
                 let dyn_rank_data = dyn_tensor.into_dyn_rank_data::<u32>().read();
 
-                DynData::Bool(
-                    DynRankData::new(
-                        dyn_rank_data.value
-                            .into_iter()
-                            .map(|boolean| boolean != 0)
-                            .collect(),
-                        dyn_rank_data.shape
-                    )
-                )
-            },
+                DynData::Bool(DynRankData::new(
+                    dyn_rank_data
+                        .value
+                        .into_iter()
+                        .map(|boolean| boolean != 0)
+                        .collect(),
+                    dyn_rank_data.shape,
+                ))
+            }
         }
     }
 }

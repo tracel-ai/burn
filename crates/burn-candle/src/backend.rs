@@ -88,6 +88,23 @@ fn dyn_rank_data_from_candle_tensor<E: Element + WithDType>(tensor: candle_core:
     )
 }
 
+#[derive(Clone, Debug)]
+pub enum DynCandleTensor {
+    Float(candle_core::Tensor),
+    Int(candle_core::Tensor),
+    Bool(candle_core::Tensor),
+}
+
+impl DynCandleTensor {
+    pub fn into_inner(self) -> candle_core::Tensor {
+        match self {
+            DynCandleTensor::Float(dyn_tensor) => dyn_tensor,
+            DynCandleTensor::Int(dyn_tensor) => dyn_tensor,
+            DynCandleTensor::Bool(dyn_tensor) => dyn_tensor,
+        }
+    }
+}
+
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
@@ -101,7 +118,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type IntElem = I;
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
-    type DynTensorPrimitive = candle_core::Tensor;
+    type DynTensorPrimitive = DynCandleTensor;
 
     fn name() -> String {
         "candle".to_string()
@@ -118,30 +135,33 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     ) -> Self::DynTensorPrimitive {
         match data {
             DynData::Float(float_data) => {
-                candle_tensor_from_dyn_rank_data(float_data.convert::<Self::FloatElem>(), device)
+                DynCandleTensor::Float(candle_tensor_from_dyn_rank_data(float_data.convert::<Self::FloatElem>(), device))
             }
-            DynData::Int(int_data) => candle_tensor_from_dyn_rank_data(int_data, device),
-            DynData::Bool(bool_data) => candle_tensor_from_dyn_rank_data(
+            DynData::Int(int_data) => DynCandleTensor::Int(candle_tensor_from_dyn_rank_data(int_data, device)),
+            DynData::Bool(bool_data) => DynCandleTensor::Bool(candle_tensor_from_dyn_rank_data(
                 DynRankData::new(
                     bool_data.value.into_iter().map(|boolean| boolean as u8).collect(),
                     bool_data.shape,
                 ),
                 device,
-            ),
+            )),
         }
     }
 
     fn dyn_into_data(
         dyn_tensor: Self::DynTensorPrimitive,
     ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
-        match dyn_tensor.dtype() {
-            DType::U8 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::U32 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::I64 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::BF16 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::F16 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::F32 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
-            DType::F64 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+        match dyn_tensor {
+            DynCandleTensor::Float(dyn_tensor) => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DynCandleTensor::Int(dyn_tensor) => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DynCandleTensor::Bool(dyn_tensor) => {
+                let dyn_rank_data = dyn_rank_data_from_candle_tensor::<u8>(dyn_tensor);
+
+                DynData::Bool(DynRankData::new(
+                    dyn_rank_data.value.into_iter().map(|boolean| boolean != 0).collect(),
+                    dyn_rank_data.shape,
+                ))
+            }
         }
     }
 }

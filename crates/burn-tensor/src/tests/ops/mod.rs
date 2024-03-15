@@ -52,3 +52,4 @@ mod tanh;
 mod transpose;
 mod tri;
 mod dyn_roundtrip;
+mod dyn_data_roundtrip;

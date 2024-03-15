@@ -17,7 +17,7 @@ pub use tensor::*;
 mod tests {
     extern crate alloc;
 
-    use burn_tensor::backend::Backend;
+    use burn_tensor::{DynData, backend::Backend};
     use super::*;
 
     pub type TestBackend = Candle<f32, i64>;
@@ -56,6 +56,7 @@ mod tests {
     // burn_tensor::testgen_module_adaptive_avg_pool2d!();
 
     // test ops
+    burn_tensor::testgen_dyn_data_roundtrip!();
     burn_tensor::testgen_dyn_roundtrip!();
     burn_tensor::testgen_add!();
     // burn_tensor::testgen_aggregation!();

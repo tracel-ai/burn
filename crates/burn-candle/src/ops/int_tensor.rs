@@ -4,20 +4,17 @@ use burn_tensor::{
 };
 use burn_tensor::backend::Backend;
 
-use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
-    Candle, CandleTensor,
-};
+use crate::{element::{CandleElement, FloatCandleElement, IntCandleElement}, Candle, CandleTensor, DynCandleTensor};
 
 use super::base::permute;
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
-        CandleTensor::new(dyn_tensor)
+        CandleTensor::new(dyn_tensor.into_inner())
     }
 
     fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        tensor.tensor
+        DynCandleTensor::Int(tensor.tensor)
     }
 
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {

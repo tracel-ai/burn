@@ -4,6 +4,7 @@ use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
 use burn_tensor::backend::Backend;
+use crate::tensor::{DynJitTensor, ElemKind};
 
 use super::permute;
 
@@ -13,7 +14,7 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     }
 
     fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        tensor.into()
+        DynJitTensor::from_jit_tensor(tensor, ElemKind::Bool)
     }
 
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {

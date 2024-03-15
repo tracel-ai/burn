@@ -7,6 +7,7 @@ use crate::{tensor::Shape, Element, ElementConversion};
 use rand::{distributions::Standard, Rng, RngCore};
 
 /// A version of [`DynRankData`] without an explicit element type. Used for serializing [`DynTensor`].
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum DynData<FElem: Element, IElem: Element> {
     Float(DynRankData<FElem>),
     Int(DynRankData<IElem>),
@@ -405,6 +406,18 @@ impl<E, const D: usize> From<DynRankData<E>> for Data<E, D> {
         let mut dims = [0; D];
         dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value, Shape::new(dims))
+    }
+}
+
+impl<E: Clone, const D: usize> From<&Data<E, D>> for DynRankData<E> {
+    fn from(data: &Data<E, D>) -> Self {
+        DynRankData::new(data.value.to_vec(), data.shape.dims.to_vec())
+    }
+}
+
+impl<E, const D: usize> From<Data<E, D>> for DynRankData<E> {
+    fn from(data: Data<E, D>) -> Self {
+        DynRankData::new(data.value.into(), data.shape.dims.into())
     }
 }
 

@@ -36,6 +36,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_bicubic_interpolate!();
 
         // test ops
+        burn_tensor::testgen_dyn_data_roundtrip!();
         burn_tensor::testgen_dyn_roundtrip!();
         burn_tensor::testgen_add!();
         burn_tensor::testgen_aggregation!();

@@ -3,7 +3,7 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryO
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
-use crate::tensor::JitTensor;
+use crate::tensor::{DynJitTensor, ElemKind, JitTensor};
 use crate::Runtime;
 use crate::{unary, JitBackend};
 use burn_tensor::ops::{
@@ -20,7 +20,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     }
 
     fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        tensor.into()
+        DynJitTensor::from_jit_tensor(tensor, ElemKind::Float)
     }
 
     fn float_from_data<const D: usize>(

@@ -6,6 +6,7 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
 use burn_tensor::backend::Backend;
+use crate::tensor::{DynJitTensor, ElemKind};
 
 impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
@@ -13,7 +14,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        tensor.into()
+        DynJitTensor::from_jit_tensor(tensor, ElemKind::Int)
     }
 
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {

@@ -4,20 +4,17 @@ use burn_tensor::{
 };
 use burn_tensor::backend::Backend;
 
-use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
-    Candle, CandleTensor,
-};
+use crate::{element::{CandleElement, FloatCandleElement, IntCandleElement}, Candle, CandleTensor, DynCandleTensor};
 
 use super::base::permute;
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
-        CandleTensor::new(dyn_tensor)
+        CandleTensor::new(dyn_tensor.into_inner())
     }
 
     fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        tensor.tensor
+        DynCandleTensor::Bool(tensor.tensor)
     }
 
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
@@ -114,11 +111,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     }
 
     fn bool_swap_dims<const D: usize>(
-        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
+        tensor: <Candle<F, I> as Backend>::BoolTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    ) -> <Candle<F, I> as Backend>::BoolTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
+    }
+
+    fn bool_permute<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> BoolTensor<Self, D> {
+        permute(tensor, axes)
     }
 
     fn bool_narrow<const D: usize>(
@@ -136,12 +140,5 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         dim: usize,
     ) -> Vec<BoolTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
-    }
-
-    fn bool_permute<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        axes: [usize; D],
-    ) -> BoolTensor<Self, D> {
-        permute(tensor, axes)
     }
 }
