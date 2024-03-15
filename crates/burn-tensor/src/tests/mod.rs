@@ -90,6 +90,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_argwhere_nonzero!();
         burn_tensor::testgen_sign!();
         burn_tensor::testgen_tri_mask!();
+        burn_tensor::testgen_sort_argsort!();
 
         // test stats
         burn_tensor::testgen_var!();

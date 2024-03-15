@@ -44,6 +44,7 @@ mod select;
 mod sign;
 mod sin;
 mod slice;
+mod sort_argsort;
 mod sqrt;
 mod squeeze;
 mod stack;

@@ -230,6 +230,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.sort(dim)`                                              | `tensor.sort(dim).values`                      |
+| `tensor.sort_with_indices(dim)`                                 | `tensor.sort(dim)`                             |
+| `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
 
 ### Float Operations
 

@@ -488,4 +488,18 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::sign(tensor)
     }
+
+    fn float_sort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
+        TchOps::sort(tensor, dim)
+    }
+
+    fn float_argsort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::argsort(tensor, dim)
+    }
 }

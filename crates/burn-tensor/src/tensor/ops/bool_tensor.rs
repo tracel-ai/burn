@@ -334,7 +334,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A vectors of tensors
+    /// A vector of tensors
     fn bool_chunk<const D: usize>(
         tensor: BoolTensor<B, D>,
         chunks: usize,
