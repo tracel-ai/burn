@@ -22,13 +22,16 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 tui = ["ratatui", "crossterm"]
-wgpu = ["burn/wgpu", "burn/autotune"]
-wgpu-fusion = ["wgpu", "burn/fusion"]
+wgpu = ["burn/wgpu", "burn-jit/default", "burn/autotune", "burn-compute/default"]
+wgpu-fusion = ["wgpu", "burn-jit/default", "burn/fusion", "burn-compute/default"]
 
 [dependencies]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
+burn-jit = { path = "../crates/burn-jit", features = ["autotune", "std"] }
 burn-common = { path = "../crates/burn-common", version = "0.13.0" }
+burn-compute = { path = "../crates/burn-compute", default-features = true }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false }
 clap = { workspace = true }
 crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
