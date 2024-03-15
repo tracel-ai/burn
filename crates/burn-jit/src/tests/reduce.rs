@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(reduction)]
 mod reduction {
     use super::*;
-    use burn_jit::kernel::reduce::{argmax, argmin, mean_dim, sum, sum_dim, ReduceStrategy};
+    use burn_jit::kernel::reduce::{
+        argmax, argmin, mean_dim, prod, prod_dim, sum, sum_dim, ReduceStrategy,
+    };
     use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
 
     #[test]
@@ -18,6 +20,24 @@ mod reduction {
             ReduceStrategy::Naive,
         ));
         let val_ref = tensor_ref.sum_dim(1);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
+    fn reduction_prod_dim_should_work_with_multiple_invocations() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(prod_dim::<TestRuntime, f32, f32, 2>(
+            tensor.into_primitive(),
+            reduce_dim,
+            ReduceStrategy::Naive,
+        ));
+        let val_ref = tensor_ref.prod_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
@@ -233,6 +253,22 @@ mod reduction {
             ReduceStrategy::default(),
         ));
         let val_ref = tensor_ref.sum();
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+    }
+
+    #[test]
+    fn reduction_prod_should_work_with_multiple_invocations() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+
+        let val = Tensor::<TestBackend, 1>::from_primitive(prod(
+            tensor.into_primitive(),
+            ReduceStrategy::default(),
+        ));
+        let val_ref = tensor_ref.prod();
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
     }
