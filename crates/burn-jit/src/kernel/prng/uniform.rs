@@ -51,10 +51,14 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
                 gpu!(scope, int_random = int_random ^ state_3);
 
                 let float_random = scope.create_local(Elem::Float);
+                let float_scale = scope.create_local(Elem::Float);
                 cast_uint_to_float(scope, int_random, float_random);
+                gpu!(scope, float_scale = cast(scale));
 
+                let uniform_float = scope.create_local(Elem::Float);
                 let uniform = scope.create_local(item);
-                gpu!(scope, uniform = float_random * scale);
+                gpu!(scope, uniform_float = float_random * float_scale);
+                gpu!(scope, uniform = cast(uniform_float));
                 gpu!(scope, uniform += lower_bound);
 
                 let write_index = scope.create_local(Elem::UInt);

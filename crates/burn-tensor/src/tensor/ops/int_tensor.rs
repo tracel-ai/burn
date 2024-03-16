@@ -757,6 +757,29 @@ pub trait IntTensorOps<B: Backend> {
     /// The sum of all elements in the tensor along the dimension.
     fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
 
+    /// Computes the product of all elements in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor.
+    fn int_prod<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1>;
+
+    /// Computes the product of all elements in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    /// * `dim` - The dimension to compute the product along.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor along the dimension.
+    fn int_prod_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+
     /// Computes the mean of all elements in the tensor.
     ///
     /// # Arguments

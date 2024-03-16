@@ -1,12 +1,13 @@
 use crate::Distribution;
 use half::{bf16, f16};
-use num_traits::{identities::Zero, ToPrimitive};
+use num_traits::{identities::Zero, One, ToPrimitive};
 use rand::RngCore;
 
 /// Element trait for tensor.
 pub trait Element:
     ToPrimitive
     + Zero
+    + One
     + ElementRandom
     + ElementConversion
     + ElementPrecision
