@@ -7,6 +7,9 @@ pub mod linear;
 /// Noam learning rate scheduler
 pub mod noam;
 
+/// Exponential learning rate scheduler
+pub mod exponential;
+
 mod base;
 
 pub use base::*;
