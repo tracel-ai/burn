@@ -4,10 +4,10 @@ use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
+use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::tensor::DynPrimBackend;
 use std::sync::Arc;
-use burn_core::prelude::Backend;
 
 /// A training output.
 pub struct TrainOutput<TO, P> {

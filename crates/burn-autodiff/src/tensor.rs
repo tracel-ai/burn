@@ -24,7 +24,11 @@ struct RootStep<B: Backend> {
 impl<B: Backend> Step for RootStep<B> {
     type DynTensorPrim = B::DynTensorPrimitive;
 
-    fn step(self: Box<Self>, _grads: &mut Gradients<Self::DynTensorPrim>, _checkpointer: &mut Checkpointer) {
+    fn step(
+        self: Box<Self>,
+        _grads: &mut Gradients<Self::DynTensorPrim>,
+        _checkpointer: &mut Checkpointer,
+    ) {
         // Nothing to do
     }
 
@@ -123,7 +127,10 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     }
 
     /// Register a step into a graph for that tensor.
-    pub fn register_step<O: Step<DynTensorPrim = B::DynTensorPrimitive> + 'static>(mut self, ops: O) -> Self {
+    pub fn register_step<O: Step<DynTensorPrim = B::DynTensorPrimitive> + 'static>(
+        mut self,
+        ops: O,
+    ) -> Self {
         self.graph = self.graph.register(&self.node.id, Box::new(ops));
         self
     }

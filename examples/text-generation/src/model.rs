@@ -94,10 +94,14 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive>
+impl<B: AutodiffBackend>
+    TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive>
     for TextGenerationModel<B>
 {
-    fn step(&self, item: TrainingTextGenerationBatch<B>) -> TrainOutput<ClassificationOutput<B>, B::DynTensorPrimitive> {
+    fn step(
+        &self,
+        item: TrainingTextGenerationBatch<B>,
+    ) -> TrainOutput<ClassificationOutput<B>, B::DynTensorPrimitive> {
         let item = self.forward_training(item);
         let grads = item.loss.backward();
 

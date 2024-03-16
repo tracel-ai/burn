@@ -1,22 +1,32 @@
-use crate::{binary_float_cmp_ops, binary_float_ops, client::FusionClient, get_client, ops::binary::binary_ops_shape, scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, stream::{
-    BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-    ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
-    MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-    Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-    ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-    SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-    UnaryOperationDescription,
-}, unary_float_ops, Fusion, FusionBackend, TensorDescription};
+use crate::{
+    binary_float_cmp_ops, binary_float_ops,
+    client::FusionClient,
+    get_client,
+    ops::binary::binary_ops_shape,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    stream::{
+        BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
+        ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
+        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
+        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        UnaryOperationDescription,
+    },
+    unary_float_ops, Fusion, FusionBackend, TensorDescription,
+};
+use burn_tensor::backend::Backend;
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
-use burn_tensor::backend::Backend;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
-    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
         let base_tensor = B::float_from_dyn::<D>(dyn_tensor);
         let client = get_client::<B>(&B::float_device(&base_tensor).into());
         let shape = B::float_shape(&base_tensor);
@@ -24,11 +34,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client.register_tensor(
             B::float_tensor_handle(base_tensor),
             shape.dims.into(),
-            StreamId::current()
+            StreamId::current(),
         )
     }
 
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         let stream = tensor.stream;
         let client = get_client::<B>(&Self::float_device::<D>(&tensor).into());
         let base_tensor = client.read_tensor_float(tensor.into_description(), stream);

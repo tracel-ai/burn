@@ -1,4 +1,5 @@
 use crate::{client::FusionClient, stream::StreamId};
+use burn_tensor::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
 use burn_tensor::{
     backend::Backend,
     ops::{FloatElem, IntElem},
@@ -6,7 +7,6 @@ use burn_tensor::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use burn_tensor::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 #[derive(Clone)]
@@ -87,25 +87,31 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
         let id = self.stream;
-        C::FusionBackend::float_into_data(self.client
-            .clone()
-            .read_tensor_float(self.into_description(), id))
+        C::FusionBackend::float_into_data(
+            self.client
+                .clone()
+                .read_tensor_float(self.into_description(), id),
+        )
     }
 
     pub(crate) fn int_into_data<const D: usize>(
         self,
     ) -> Reader<Data<IntElem<C::FusionBackend>, D>> {
         let id = self.stream;
-        C::FusionBackend::int_into_data(self.client
-            .clone()
-            .read_tensor_int(self.into_description(), id))
+        C::FusionBackend::int_into_data(
+            self.client
+                .clone()
+                .read_tensor_int(self.into_description(), id),
+        )
     }
 
     pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
         let id = self.stream;
-        C::FusionBackend::bool_into_data(self.client
-            .clone()
-            .read_tensor_bool(self.into_description(), id))
+        C::FusionBackend::bool_into_data(
+            self.client
+                .clone()
+                .read_tensor_bool(self.into_description(), id),
+        )
     }
 }
 

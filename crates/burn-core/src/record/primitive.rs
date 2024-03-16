@@ -1,7 +1,4 @@
-use alloc::{
-    vec,
-    vec::Vec,
-};
+use alloc::{vec, vec::Vec};
 use core::fmt::Debug;
 use core::{fmt, marker::PhantomData};
 use std::hash::Hash;
@@ -10,8 +7,12 @@ use super::tensor::{BoolTensorSerde, DynTensorSerde, FloatTensorSerde, IntTensor
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, container::TensorContainer, Bool, DynRankData, Element, Int, Tensor, DynTensor};
+use burn_tensor::{
+    backend::Backend, container::TensorContainer, Bool, DynRankData, DynTensor, Element, Int,
+    Tensor,
+};
 
+use crate::optim::GradientsParams;
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::{
@@ -19,7 +20,6 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Serialize,
 };
-use crate::optim::GradientsParams;
 
 impl<B> Record<B> for ()
 where
@@ -242,12 +242,13 @@ where
         item: Self::Item<S>,
         device: &<B as Backend>::Device,
     ) -> Self {
-        Self::from_inner(<HashMap<Id, DynTensor<B::DynTensorPrimitive>> as Record<B>>::from_item(item, device))
+        Self::from_inner(<HashMap<Id, DynTensor<B::DynTensorPrimitive>> as Record<
+            B,
+        >>::from_item(item, device))
     }
 }
 
-impl<B: Backend> Record<B> for GradientsParams<B::DynTensorPrimitive>
-{
+impl<B: Backend> Record<B> for GradientsParams<B::DynTensorPrimitive> {
     type Item<S: PrecisionSettings> = HashMap<ParamId, DynTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {

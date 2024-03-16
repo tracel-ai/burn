@@ -27,13 +27,8 @@ where
     /// # Notes
     ///
     /// If a tensor is already registered for the given ID, it will be replaced.
-    pub fn register<B: DynPrimBackend<P>, const D: usize>(
-        &mut self,
-        id: Id,
-        value: Tensor<B, D>,
-    ) {
-        self.tensors
-            .insert(id, DynTensor::from(value));
+    pub fn register<B: DynPrimBackend<P>, const D: usize>(&mut self, id: Id, value: Tensor<B, D>) {
+        self.tensors.insert(id, DynTensor::from(value));
     }
 
     /// Returns the underlying [HashMap] entry for a given ID.
@@ -66,23 +61,18 @@ where
 
     /// Creates a new [`TensorContainer`] from a [`HashMap`] of [`DynRankTensor`]s, which is the
     /// internal representation of it.
-    pub fn from_inner(
-        tensors: HashMap<Id, DynTensor<P>>,
-    ) -> Self {
+    pub fn from_inner(tensors: HashMap<Id, DynTensor<P>>) -> Self {
         Self { tensors }
     }
 }
 
 impl<Id, P> TensorContainer<Id, P>
-    where
-        P: Clone,
-        Id: Hash + PartialEq + Eq + Debug,
+where
+    P: Clone,
+    Id: Hash + PartialEq + Eq + Debug,
 {
     /// Get a tensor with the given ID.
-    pub fn get<B: DynPrimBackend<P>, const D: usize>(
-        &self,
-        id: &Id,
-    ) -> Option<Tensor<B, D>> {
+    pub fn get<B: DynPrimBackend<P>, const D: usize>(&self, id: &Id) -> Option<Tensor<B, D>> {
         let dyn_tensor = self.tensors.get(id)?.clone();
 
         Some(dyn_tensor.into())

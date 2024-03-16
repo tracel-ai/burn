@@ -15,10 +15,14 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// To implementors and users, this function should panic when the dynamic tensor provided
     /// doesn't have float elements as needed.
-    fn float_from_dyn<const D: usize>(dyn_tensor: <B as Backend>::DynTensorPrimitive) -> FloatTensor<B, D>;
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <B as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<B, D>;
 
     /// Converts from the backend's float tensor primitive, to a dynamic tensor primitive.
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<B, D>) -> <B as Backend>::DynTensorPrimitive;
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<B, D>,
+    ) -> <B as Backend>::DynTensorPrimitive;
 
     /// Creates a new tensor from the data structure.
     ///

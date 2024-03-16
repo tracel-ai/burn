@@ -36,8 +36,13 @@ impl<B: Backend> Cnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive> for Cnn<B> {
-    fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>, B::DynTensorPrimitive> {
+impl<B: AutodiffBackend>
+    TrainStep<ClassificationBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive> for Cnn<B>
+{
+    fn step(
+        &self,
+        batch: ClassificationBatch<B>,
+    ) -> TrainOutput<ClassificationOutput<B>, B::DynTensorPrimitive> {
         let item = self.forward_classification(batch.images, batch.targets);
 
         TrainOutput::new(self, item.loss.backward(), item)

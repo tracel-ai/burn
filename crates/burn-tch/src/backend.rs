@@ -1,8 +1,8 @@
-use tch::Kind;
 use super::element::TchElement;
 use super::{DynTchTensor, TchTensor};
 use burn_tensor::backend::Backend;
 use burn_tensor::{DynData, DynRankData};
+use tch::Kind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -63,12 +63,29 @@ impl Default for LibTorchDevice {
     }
 }
 
-fn dyn_rank_data_to_tch_tensor<E: tch::kind::Element>(dyn_rank_data: DynRankData<E>, device: &LibTorchDevice) -> tch::Tensor {
-    tch::Tensor::from_slice(&dyn_rank_data.value).to((*device).into()).reshape(dyn_rank_data.shape.into_iter().map(|dim| dim as i64).collect::<Vec<_>>().as_slice())
+fn dyn_rank_data_to_tch_tensor<E: tch::kind::Element>(
+    dyn_rank_data: DynRankData<E>,
+    device: &LibTorchDevice,
+) -> tch::Tensor {
+    tch::Tensor::from_slice(&dyn_rank_data.value)
+        .to((*device).into())
+        .reshape(
+            dyn_rank_data
+                .shape
+                .into_iter()
+                .map(|dim| dim as i64)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
 }
 
-fn tch_tensor_to_dyn_rank_data<E: tch::kind::Element + Copy>(tensor: tch::Tensor) -> DynRankData<E> {
-    DynRankData::new(tensor.reshape([tensor.numel() as i64]).try_into().unwrap(), tensor.size().into_iter().map(|dim| dim as usize).collect())
+fn tch_tensor_to_dyn_rank_data<E: tch::kind::Element + Copy>(
+    tensor: tch::Tensor,
+) -> DynRankData<E> {
+    DynRankData::new(
+        tensor.reshape([tensor.numel() as i64]).try_into().unwrap(),
+        tensor.size().into_iter().map(|dim| dim as usize).collect(),
+    )
 }
 
 /// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.
@@ -120,20 +137,31 @@ impl<E: TchElement> Backend for LibTorch<E> {
         }
     }
 
-    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive {
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
         match data {
-            DynData::Float(float_data) => DynTchTensor::new(dyn_rank_data_to_tch_tensor(float_data, device)),
-            DynData::Int(int_data) => DynTchTensor::new(dyn_rank_data_to_tch_tensor(int_data, device)),
-            DynData::Bool(bool_data) => DynTchTensor::new(dyn_rank_data_to_tch_tensor(bool_data, device)),
+            DynData::Float(float_data) => {
+                DynTchTensor::new(dyn_rank_data_to_tch_tensor(float_data, device))
+            }
+            DynData::Int(int_data) => {
+                DynTchTensor::new(dyn_rank_data_to_tch_tensor(int_data, device))
+            }
+            DynData::Bool(bool_data) => {
+                DynTchTensor::new(dyn_rank_data_to_tch_tensor(bool_data, device))
+            }
         }
     }
 
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
         match dyn_tensor.tensor.kind() {
             Kind::Float => DynData::Float(tch_tensor_to_dyn_rank_data(dyn_tensor.tensor)),
             Kind::Int64 => DynData::Int(tch_tensor_to_dyn_rank_data(dyn_tensor.tensor)),
             Kind::Bool => DynData::Bool(tch_tensor_to_dyn_rank_data(dyn_tensor.tensor)),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

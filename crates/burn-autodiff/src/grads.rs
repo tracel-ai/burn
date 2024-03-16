@@ -1,6 +1,4 @@
-use burn_tensor::{
-    container::TensorContainer, ops::FloatTensor, DynPrimBackend, Tensor,
-};
+use burn_tensor::{container::TensorContainer, ops::FloatTensor, DynPrimBackend, Tensor};
 
 use crate::{
     graph::{NodeRef, Requirement},

@@ -12,7 +12,7 @@ use ndarray::IntoDimension;
 // Current crate
 use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
-use crate::{tensor::NdArrayTensor, NdArray, DynNdArray};
+use crate::{tensor::NdArrayTensor, DynNdArray, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
@@ -21,16 +21,18 @@ use burn_tensor::{backend::Backend, Data, Shape};
 use super::{NdArrayMathOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
-    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+    fn int_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> IntTensor<Self, D> {
         match dyn_tensor {
-            DynNdArray::Int(arc_array) => NdArrayTensor {
-                array: arc_array
-            },
-            _ => panic!("cannot create float tensor from non-float dyn tensor")
+            DynNdArray::Int(arc_array) => NdArrayTensor { array: arc_array },
+            _ => panic!("cannot create float tensor from non-float dyn tensor"),
         }
     }
 
-    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn int_into_dyn<const D: usize>(
+        tensor: IntTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynNdArray::Int(tensor.array)
     }
 

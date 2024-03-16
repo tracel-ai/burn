@@ -50,16 +50,16 @@ impl<P: Clone> Graph<P> {
                 std::mem::swap(map1, &mut map2);
             }
         })
-            .execute_mut_checkpointing_actions(|actions1| {
-                if actions1.len() > actions2.len() {
-                    actions1.extend(actions2);
-                } else {
-                    let mut checkpointing_drain = CheckpointerBuilder::default();
-                    std::mem::swap(actions1, &mut checkpointing_drain);
-                    actions2.extend(checkpointing_drain);
-                    std::mem::swap(actions1, &mut actions2);
-                }
-            })
+        .execute_mut_checkpointing_actions(|actions1| {
+            if actions1.len() > actions2.len() {
+                actions1.extend(actions2);
+            } else {
+                let mut checkpointing_drain = CheckpointerBuilder::default();
+                std::mem::swap(actions1, &mut checkpointing_drain);
+                actions2.extend(checkpointing_drain);
+                std::mem::swap(actions1, &mut actions2);
+            }
+        })
     }
 
     /// Merge two graphs.
@@ -74,7 +74,7 @@ impl<P: Clone> Graph<P> {
 
 impl<P> Default for Graph<P> {
     fn default() -> Self {
-         Self::new()
+        Self::new()
     }
 }
 

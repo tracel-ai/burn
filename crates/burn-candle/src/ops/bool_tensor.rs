@@ -1,19 +1,26 @@
+use burn_tensor::backend::Backend;
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Data, Device, Reader, Shape,
 };
-use burn_tensor::backend::Backend;
 
-use crate::{element::{CandleElement, FloatCandleElement, IntCandleElement}, Candle, CandleTensor, DynCandleTensor};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    Candle, CandleTensor, DynCandleTensor,
+};
 
 use super::base::permute;
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
-    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
         CandleTensor::new(dyn_tensor.into_inner())
     }
 
-    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynCandleTensor::Bool(tensor.tensor)
     }
 

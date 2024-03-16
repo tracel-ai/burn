@@ -8,8 +8,8 @@ use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::FloatNdArrayElement;
-use crate::{DynNdArray, NdArrayDevice};
 use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{DynNdArray, NdArrayDevice};
 
 // Workspace crates
 use burn_tensor::{backend::Backend, Data, Shape};
@@ -17,16 +17,18 @@ use burn_tensor::{backend::Backend, Data, Shape};
 use super::NdArrayOps;
 
 impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
-    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
         match dyn_tensor {
-            DynNdArray::Bool(arc_array) => NdArrayTensor {
-                array: arc_array
-            },
-            _ => panic!("cannot create bool tensor from non-bool dyn tensor")
+            DynNdArray::Bool(arc_array) => NdArrayTensor { array: arc_array },
+            _ => panic!("cannot create bool tensor from non-bool dyn tensor"),
         }
     }
 
-    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynNdArray::Bool(tensor.array)
     }
 

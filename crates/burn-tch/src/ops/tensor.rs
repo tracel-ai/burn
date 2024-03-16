@@ -1,17 +1,21 @@
 use super::TchOps;
-use crate::{DynTchTensor, element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, DynTchTensor, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use burn_tensor::ops::FloatTensor;
 use burn_tensor::{
     backend::Backend, ops::FloatTensorOps, Data, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
-use burn_tensor::ops::{FloatTensor};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
-    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
         TchTensor::new(dyn_tensor.tensor)
     }
 
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynTchTensor::new(tensor.tensor)
     }
 

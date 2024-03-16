@@ -1,22 +1,29 @@
 use std::borrow::Borrow;
 
+use burn_tensor::backend::Backend;
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
-use burn_tensor::backend::Backend;
 
-use crate::{element::{CandleElement, FloatCandleElement, IntCandleElement}, Candle, CandleTensor, DynCandleTensor};
+use crate::{
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
+    Candle, CandleTensor, DynCandleTensor,
+};
 
 use super::base::permute;
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
-    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
         CandleTensor::new(dyn_tensor.into_inner())
     }
 
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynCandleTensor::Float(tensor.tensor)
     }
 

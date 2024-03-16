@@ -73,7 +73,12 @@ where
 {
     type Record = HashMap<ParamId, AdaptorRecord<O, B>>;
 
-    fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams<B::DynTensorPrimitive>) -> M {
+    fn step(
+        &mut self,
+        lr: LearningRate,
+        module: M,
+        mut grads: GradientsParams<B::DynTensorPrimitive>,
+    ) -> M {
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
             &self.optim,
             &mut self.records,

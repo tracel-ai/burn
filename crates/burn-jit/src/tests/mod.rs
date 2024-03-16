@@ -83,7 +83,7 @@ macro_rules! testgen_jit {
     () => {
         use super::*;
         use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
-        use burn_tensor::{DynData, backend::Backend};
+        use burn_tensor::{backend::Backend, DynData};
 
         pub type TestBackend = JitBackend<TestRuntime>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
@@ -93,7 +93,8 @@ macro_rules! testgen_jit {
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
         pub type TestTensorBool<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-        pub type TestTensorDyn = burn_tensor::DynTensor<<TestBackend as Backend>::DynTensorPrimitive>;
+        pub type TestTensorDyn =
+            burn_tensor::DynTensor<<TestBackend as Backend>::DynTensorPrimitive>;
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
@@ -107,7 +108,7 @@ macro_rules! testgen_jit_fusion {
     () => {
         use super::*;
         use burn_jit::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
-        use burn_tensor::{DynData, backend::Backend};
+        use burn_tensor::{backend::Backend, DynData};
 
         pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime>>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
@@ -117,7 +118,8 @@ macro_rules! testgen_jit_fusion {
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
         pub type TestTensorBool<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-        pub type TestTensorDyn = burn_tensor::DynTensor<<TestBackend as Backend>::DynTensorPrimitive>;
+        pub type TestTensorDyn =
+            burn_tensor::DynTensor<<TestBackend as Backend>::DynTensorPrimitive>;
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 

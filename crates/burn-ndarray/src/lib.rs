@@ -29,7 +29,7 @@ extern crate alloc;
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{DynData, backend::Backend};
+    use burn_tensor::{backend::Backend, DynData};
 
     type TestBackend = crate::NdArray<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

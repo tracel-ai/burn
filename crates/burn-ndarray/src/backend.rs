@@ -3,10 +3,10 @@ use crate::NdArrayTensor;
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::Backend;
+use burn_tensor::{DynData, DynRankData};
 use core::marker::PhantomData;
 use ndarray::{ArcArray, IxDyn};
 use rand::{rngs::StdRng, SeedableRng};
-use burn_tensor::{DynData, DynRankData};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -72,19 +72,39 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
         *seed = Some(rng);
     }
 
-    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, _device: &Self::Device) -> Self::DynTensorPrimitive {
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        _device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
         match data {
-            DynData::Float(data) => DynNdArray::Float(ArcArray::from_vec(data.value).reshape(data.shape)),
-            DynData::Int(data) => DynNdArray::Int(ArcArray::from_vec(data.value).reshape(data.shape)),
-            DynData::Bool(data) => DynNdArray::Bool(ArcArray::from_vec(data.value).reshape(data.shape)),
+            DynData::Float(data) => {
+                DynNdArray::Float(ArcArray::from_vec(data.value).reshape(data.shape))
+            }
+            DynData::Int(data) => {
+                DynNdArray::Int(ArcArray::from_vec(data.value).reshape(data.shape))
+            }
+            DynData::Bool(data) => {
+                DynNdArray::Bool(ArcArray::from_vec(data.value).reshape(data.shape))
+            }
         }
     }
 
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
         match dyn_tensor {
-            DynNdArray::Float(arc_array) => DynData::Float(DynRankData::new(arc_array.clone().into_iter().collect(), arc_array.shape().to_vec())),
-            DynNdArray::Int(arc_array) => DynData::Int(DynRankData::new(arc_array.clone().into_iter().collect(), arc_array.shape().to_vec())),
-            DynNdArray::Bool(arc_array)=> DynData::Bool(DynRankData::new(arc_array.clone().into_iter().collect(), arc_array.shape().to_vec())),
+            DynNdArray::Float(arc_array) => DynData::Float(DynRankData::new(
+                arc_array.clone().into_iter().collect(),
+                arc_array.shape().to_vec(),
+            )),
+            DynNdArray::Int(arc_array) => DynData::Int(DynRankData::new(
+                arc_array.clone().into_iter().collect(),
+                arc_array.shape().to_vec(),
+            )),
+            DynNdArray::Bool(arc_array) => DynData::Bool(DynRankData::new(
+                arc_array.clone().into_iter().collect(),
+                arc_array.shape().to_vec(),
+            )),
         }
     }
 }

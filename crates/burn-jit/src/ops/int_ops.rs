@@ -1,19 +1,23 @@
 use super::{numeric, permute};
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+use crate::tensor::{DynJitTensor, ElemKind};
 use crate::{kernel, unary, JitBackend, Runtime};
+use burn_tensor::backend::Backend;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
-use burn_tensor::backend::Backend;
-use crate::tensor::{DynJitTensor, ElemKind};
 
 impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
-    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+    fn int_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> IntTensor<Self, D> {
         dyn_tensor.into()
     }
 
-    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn int_into_dyn<const D: usize>(
+        tensor: IntTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynJitTensor::from_jit_tensor(tensor, ElemKind::Int)
     }
 

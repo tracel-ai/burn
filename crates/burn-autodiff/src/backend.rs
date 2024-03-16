@@ -5,12 +5,12 @@ use burn_tensor::{
     DynData,
 };
 
+use crate::graph::backward;
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
     tensor::AutodiffTensor,
 };
-use crate::graph::backward;
 
 /// Enable auto-differentiation on a backend.
 ///
@@ -53,11 +53,16 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::sync(device);
     }
 
-    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive {
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
         B::dyn_from_data(data, device)
     }
 
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
         B::dyn_into_data(dyn_tensor)
     }
 }

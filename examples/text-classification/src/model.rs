@@ -155,7 +155,8 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive>
+impl<B: AutodiffBackend>
+    TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>, B::DynTensorPrimitive>
     for TextClassificationModel<B>
 {
     fn step(

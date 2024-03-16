@@ -6,20 +6,24 @@ use crate::kernel::{self, reduce};
 use crate::tensor::{DynJitTensor, ElemKind, JitTensor};
 use crate::Runtime;
 use crate::{unary, JitBackend};
+use burn_tensor::backend::Backend;
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
-use burn_tensor::backend::Backend;
 
 impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
-    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
         dyn_tensor.into()
     }
 
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynJitTensor::from_jit_tensor(tensor, ElemKind::Float)
     }
 

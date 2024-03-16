@@ -7,7 +7,8 @@ use crate::{
         CatOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
         ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription, StreamId,
         SwapDimsDescription, UnaryOperationDescription,
-    }, Fusion, FusionBackend,
+    },
+    Fusion, FusionBackend,
 };
 use burn_tensor::backend::Backend;
 use burn_tensor::{
@@ -16,7 +17,9 @@ use burn_tensor::{
 };
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
-    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
         let base_tensor = B::bool_from_dyn::<D>(dyn_tensor);
         let client = get_client::<B>(&B::bool_device(&base_tensor).into());
         let shape = B::bool_shape(&base_tensor);
@@ -24,11 +27,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         client.register_tensor(
             B::bool_tensor_handle(base_tensor),
             shape.dims.into(),
-            StreamId::current()
+            StreamId::current(),
         )
     }
 
-    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         let stream = tensor.stream;
         let client = get_client::<B>(&Self::bool_device::<D>(&tensor).into());
         let base_tensor = client.read_tensor_bool(tensor.into_description(), stream);

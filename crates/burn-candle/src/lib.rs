@@ -17,8 +17,8 @@ pub use tensor::*;
 mod tests {
     extern crate alloc;
 
-    use burn_tensor::{DynData, backend::Backend};
     use super::*;
+    use burn_tensor::{backend::Backend, DynData};
 
     pub type TestBackend = Candle<f32, i64>;
     pub type ReferenceBackend = burn_tch::LibTorch<f32>;

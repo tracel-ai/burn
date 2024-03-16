@@ -1,18 +1,22 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Distribution, Reader, Shape};
 use burn_tensor::ops::IntTensor;
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Distribution, Reader, Shape};
 
-use crate::{DynTchTensor, element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, DynTchTensor, LibTorch, LibTorchDevice, TchShape, TchTensor};
 
 use super::TchOps;
 
 impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
-    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+    fn int_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> IntTensor<Self, D> {
         TchTensor::new(dyn_tensor.tensor)
     }
 
-    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn int_into_dyn<const D: usize>(
+        tensor: IntTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynTchTensor::new(tensor.tensor)
     }
 

@@ -92,8 +92,7 @@ where
         &self,
         tensor: crate::TensorDescription,
         stream: StreamId,
-    ) -> IntTensor<Self::FusionBackend, D>
-    {
+    ) -> IntTensor<Self::FusionBackend, D> {
         self.server.lock().read_int(tensor, stream)
     }
 

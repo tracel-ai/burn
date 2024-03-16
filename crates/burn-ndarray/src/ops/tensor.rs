@@ -6,7 +6,7 @@ use ndarray::IntoDimension;
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 use crate::element::FloatNdArrayElement;
-use crate::{tensor::NdArrayTensor, NdArray, DynNdArray};
+use crate::{tensor::NdArrayTensor, DynNdArray, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
@@ -17,22 +17,26 @@ use burn_tensor::{Distribution, Reader};
 // External crates
 use libm::{cos, erf, sin, tanh};
 
+use burn_tensor::ops::FloatTensor;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
-use burn_tensor::ops::FloatTensor;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
-    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
         match dyn_tensor {
-            DynNdArray::Float(arc_array) => Self::float_from_full_precision(NdArrayTensor {
-                array: arc_array
-            }),
-            _ => panic!("cannot create float tensor from non-float dyn tensor")
+            DynNdArray::Float(arc_array) => {
+                Self::float_from_full_precision(NdArrayTensor { array: arc_array })
+            }
+            _ => panic!("cannot create float tensor from non-float dyn tensor"),
         }
     }
 
-    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynNdArray::Float(Self::float_to_full_precision(&tensor).array)
     }
 

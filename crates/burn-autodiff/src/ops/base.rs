@@ -294,7 +294,11 @@ struct UntrackedOpsStep<B: Backend, const N: usize> {
 impl<B: Backend, const N: usize> Step for UntrackedOpsStep<B, N> {
     type DynTensorPrim = B::DynTensorPrimitive;
 
-    fn step(self: Box<Self>, _grads: &mut Gradients<Self::DynTensorPrim>, _checkpointer: &mut Checkpointer) {
+    fn step(
+        self: Box<Self>,
+        _grads: &mut Gradients<Self::DynTensorPrim>,
+        _checkpointer: &mut Checkpointer,
+    ) {
         // Nothing to do
     }
 

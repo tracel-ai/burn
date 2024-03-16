@@ -1,22 +1,32 @@
-use crate::{binary_int_cmp_ops, binary_int_ops, client::FusionClient, get_client, ops::binary::binary_ops_shape, scalar_int_cmp_ops, scalar_int_ops, stream::{
-    self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-    ClampOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
-    MaskWhereOperationDescription, NumericOperationDescription, Operation,
-    OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-    ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-    SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-    UnaryOperationDescription,
-}, unary_int_ops, Fusion, FusionBackend, TensorDescription};
+use crate::{
+    binary_int_cmp_ops, binary_int_ops,
+    client::FusionClient,
+    get_client,
+    ops::binary::binary_ops_shape,
+    scalar_int_cmp_ops, scalar_int_ops,
+    stream::{
+        self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
+        ClampOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
+        MaskWhereOperationDescription, NumericOperationDescription, Operation,
+        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
+        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        UnaryOperationDescription,
+    },
+    unary_int_ops, Fusion, FusionBackend, TensorDescription,
+};
+use burn_tensor::backend::Backend;
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use core::ops::Range;
-use burn_tensor::backend::Backend;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
-    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+    fn int_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> IntTensor<Self, D> {
         let base_tensor = B::int_from_dyn::<D>(dyn_tensor);
         let client = get_client::<B>(&B::int_device(&base_tensor).into());
         let shape = B::int_shape(&base_tensor);
@@ -24,11 +34,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client.register_tensor(
             B::int_tensor_handle(base_tensor),
             shape.dims.into(),
-            StreamId::current()
+            StreamId::current(),
         )
     }
 
-    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn int_into_dyn<const D: usize>(
+        tensor: IntTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         let stream = tensor.stream;
         let client = get_client::<B>(&Self::int_device::<D>(&tensor).into());
         let base_tensor = client.read_tensor_int(tensor.into_description(), stream);

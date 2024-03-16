@@ -1887,7 +1887,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-
     fn float_powf_scalar<const D: usize>(
         tensor: FloatTensor<Self, D>,
         value: f32,
@@ -2203,7 +2202,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend, const D: usize> Step for CatStep<B, D> {
             type DynTensorPrim = B::DynTensorPrimitive;
 
-            fn step(self: Box<Self>, grads: &mut Gradients<Self::DynTensorPrim>, _checkpointer: &mut Checkpointer) {
+            fn step(
+                self: Box<Self>,
+                grads: &mut Gradients<Self::DynTensorPrim>,
+                _checkpointer: &mut Checkpointer,
+            ) {
                 let grad = grads.consume::<B, D>(&self.output);
                 let ranges: Vec<_> = B::float_shape(&grad).dims.iter().map(|v| 0..*v).collect();
                 let ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();

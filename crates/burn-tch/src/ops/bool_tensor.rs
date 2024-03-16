@@ -1,15 +1,19 @@
 use super::TchOps;
-use crate::{DynTchTensor, element::TchElement, LibTorch, LibTorchDevice, TchTensor};
+use crate::{element::TchElement, DynTchTensor, LibTorch, LibTorchDevice, TchTensor};
+use burn_tensor::ops::BoolTensor;
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 use std::ops::Range;
-use burn_tensor::ops::BoolTensor;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
-    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
         TchTensor::new(dyn_tensor.tensor)
     }
 
-    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynTchTensor::new(tensor.tensor)
     }
 

@@ -63,8 +63,13 @@ impl<B: Backend> RegressionModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<DiabetesBatch<B>, RegressionOutput<B>, B::DynTensorPrimitive> for RegressionModel<B> {
-    fn step(&self, item: DiabetesBatch<B>) -> TrainOutput<RegressionOutput<B>, B::DynTensorPrimitive> {
+impl<B: AutodiffBackend> TrainStep<DiabetesBatch<B>, RegressionOutput<B>, B::DynTensorPrimitive>
+    for RegressionModel<B>
+{
+    fn step(
+        &self,
+        item: DiabetesBatch<B>,
+    ) -> TrainOutput<RegressionOutput<B>, B::DynTensorPrimitive> {
         let item = self.forward_step(item);
 
         TrainOutput::new(self, item.loss.backward(), item)

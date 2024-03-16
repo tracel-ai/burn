@@ -2,9 +2,7 @@ use crate::{
     stream::{Operation, OperationDescription, StreamId},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
-use burn_tensor::{
-    ops::FloatTensor,
-};
+use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::{BoolTensor, IntTensor};
 
 /// Define how to interact with the fusion server.

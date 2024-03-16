@@ -1,19 +1,23 @@
+use crate::tensor::{DynJitTensor, ElemKind};
 use crate::{kernel, JitBackend, Runtime};
+use burn_tensor::backend::Backend;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
-use burn_tensor::backend::Backend;
-use crate::tensor::{DynJitTensor, ElemKind};
 
 use super::permute;
 
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
-    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
         dyn_tensor.into()
     }
 
-    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
         DynJitTensor::from_jit_tensor(tensor, ElemKind::Bool)
     }
 

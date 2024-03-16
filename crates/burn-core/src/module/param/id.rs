@@ -1,6 +1,6 @@
 use alloc::string::{String, ToString};
-use serde::{Deserialize, Serialize};
 use burn_common::id::IdGenerator;
+use serde::{Deserialize, Serialize};
 
 /// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
