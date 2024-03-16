@@ -145,7 +145,7 @@ where
         JitTensor {
             client: value.client,
             handle: value.handle,
-            shape: value.shape.try_into().unwrap(),
+            shape: value.shape.into(),
             device: value.device,
             strides: value.strides.try_into().unwrap(),
             elem: PhantomData,

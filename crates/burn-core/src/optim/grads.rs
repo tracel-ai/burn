@@ -1,4 +1,6 @@
-use burn_tensor::{backend::AutodiffBackend, container::TensorContainer, DynPrimBackend, DynTensor, Tensor};
+use burn_tensor::{
+    backend::AutodiffBackend, container::TensorContainer, DynPrimBackend, DynTensor, Tensor,
+};
 
 use crate::module::{AutodiffModule, ParamId};
 
@@ -11,10 +13,16 @@ pub struct GradientsParams<P> {
 
 impl<P: Clone> GradientsParams<P> {
     /// Adds a gradient into an existing gradient with a given ID, or creates a new gradient at this ID, with the provided value.
-    pub fn add<B: DynPrimBackend<P>, const D: usize>(&mut self, id: ParamId, gradient: Tensor<B, D>) {
+    pub fn add<B: DynPrimBackend<P>, const D: usize>(
+        &mut self,
+        id: ParamId,
+        gradient: Tensor<B, D>,
+    ) {
         self.container
             .entry(id)
-            .and_modify(|grad| *grad = DynTensor::from(Tensor::from(grad.clone()).add(gradient.clone())))
+            .and_modify(|grad| {
+                *grad = DynTensor::from(Tensor::from(grad.clone()).add(gradient.clone()))
+            })
             .or_insert(gradient.into());
     }
 
@@ -25,17 +33,25 @@ impl<P: Clone> GradientsParams<P> {
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
     pub fn get<B, const D: usize>(&self, id: &ParamId) -> Option<Tensor<B, D>>
-        where
-            B: DynPrimBackend<P>,
+    where
+        B: DynPrimBackend<P>,
     {
         self.container.get(id)
+    }
+}
+
+impl<P> Default for GradientsParams<P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl<P> GradientsParams<P> {
     /// Creates a new [GradientsParams](GradientsParams).
     pub fn new() -> Self {
-        Self {container: TensorContainer::new()}
+        Self {
+            container: TensorContainer::new(),
+        }
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).

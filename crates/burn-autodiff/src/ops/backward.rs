@@ -36,7 +36,7 @@ where
         self,
         nodes: [NodeRef; N],
         graphs: [Graph<B::DynTensorPrimitive>; N],
-    ) -> OpsPrep<Self, B, B::DynTensorPrimitive, Self::State, C, D, N> {
+    ) -> OpsPrep<Self, B, Self::State, C, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         OpsPrep::new(
             nodes,

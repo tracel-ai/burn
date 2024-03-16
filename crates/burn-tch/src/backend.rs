@@ -68,7 +68,7 @@ fn dyn_rank_data_to_tch_tensor<E: tch::kind::Element>(dyn_rank_data: DynRankData
 }
 
 fn tch_tensor_to_dyn_rank_data<E: tch::kind::Element + Copy>(tensor: tch::Tensor) -> DynRankData<E> {
-    DynRankData::new(tensor.reshape(&[tensor.numel() as i64]).try_into().unwrap(), tensor.size().into_iter().map(|dim| dim as usize).collect())
+    DynRankData::new(tensor.reshape([tensor.numel() as i64]).try_into().unwrap(), tensor.size().into_iter().map(|dim| dim as usize).collect())
 }
 
 /// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.

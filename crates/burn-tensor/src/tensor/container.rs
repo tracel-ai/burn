@@ -6,7 +6,7 @@ use hashbrown::hash_map::{DefaultHashBuilder, Entry};
 use crate::{DynPrimBackend, DynTensor, Tensor};
 
 /// Contains tensors of arbitrary dimension, as [`DynTensor`]s.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TensorContainer<Id, P> {
     tensors: HashMap<Id, DynTensor<P>>,
 }

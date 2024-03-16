@@ -422,7 +422,7 @@ impl<E: Clone, const D: usize> From<&Data<E, D>> for DynRankData<E> {
 
 impl<E, const D: usize> From<Data<E, D>> for DynRankData<E> {
     fn from(data: Data<E, D>) -> Self {
-        DynRankData::new(data.value.into(), data.shape.dims.into())
+        DynRankData::new(data.value, data.shape.dims.into())
     }
 }
 

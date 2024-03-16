@@ -72,6 +72,12 @@ impl<P: Clone> Graph<P> {
     }
 }
 
+impl<P> Default for Graph<P> {
+    fn default() -> Self {
+         Self::new()
+    }
+}
+
 impl<P> Graph<P> {
     /// Create a new graph.
     pub fn new() -> Self {

@@ -17,9 +17,9 @@ use std::marker::PhantomData;
 ///
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
-pub struct OpsPrep<Backward, B, P, S, C, const D: usize, const N: usize, Mode = Init> {
+pub struct OpsPrep<Backward, B: Backend, S, C, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
-    graphs: [Graph<P>; N],
+    graphs: [Graph<B::DynTensorPrimitive>; N],
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
@@ -43,14 +43,14 @@ pub struct Tracked;
 /// Untracked operation tag.
 pub struct UnTracked;
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, Init>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Init>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
     /// Indicates that the operation is compute bound, meaning its computation
     /// is heavy and should not be recomputed
-    pub fn compute_bound(self) -> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, ComputePropertyDone> {
+    pub fn compute_bound(self) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -63,7 +63,7 @@ where
 
     /// Indicates that the operation is memory bound, meaning its computation
     /// is light and can be recomputed
-    pub fn memory_bound(self) -> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, MemoryBound> {
+    pub fn memory_bound(self) -> OpsPrep<BO, B, S, C, D, N, MemoryBound> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -75,7 +75,7 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, MemoryBound>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, MemoryBound>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
@@ -85,7 +85,7 @@ where
     pub fn retro_forward<R: RetroForward>(
         self,
         retro_forward: R,
-    ) -> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, MemoryBoundRetroForward> {
+    ) -> OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -98,7 +98,7 @@ where
 }
 
 impl<BO, B, S, C, const D: usize, const N: usize>
-    OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, MemoryBoundRetroForward>
+    OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
@@ -108,7 +108,7 @@ where
     pub fn parents<'a, B2, const D2: usize, A>(
         mut self,
         parents: A,
-    ) -> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, ComputePropertyDone>
+    ) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
     where
         B2: Backend,
         A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<BO, B, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, (), C, D, N, ComputePropertyDone>
+impl<BO, B, C, const D: usize, const N: usize> OpsPrep<BO, B, (), C, D, N, ComputePropertyDone>
 where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
@@ -143,7 +143,7 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, ComputePropertyDone>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -172,7 +172,7 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, UnTracked>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, UnTracked>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -197,7 +197,7 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, Tracked>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Tracked>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -235,9 +235,9 @@ where
 /// Enum used before finishing tracked and untracked operations.
 pub enum OpsKind<BO, B: Backend, S, C, const D: usize, const N: usize> {
     /// Tracked operation preparation.
-    Tracked(OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, Tracked>),
+    Tracked(OpsPrep<BO, B, S, C, D, N, Tracked>),
     /// Untracked operation preparation.
-    UnTracked(OpsPrep<BO, B, B::DynTensorPrimitive, S, C, D, N, UnTracked>),
+    UnTracked(OpsPrep<BO, B, S, C, D, N, UnTracked>),
 }
 
 /// Operation containing its parent nodes, its own node and the backward step state.
