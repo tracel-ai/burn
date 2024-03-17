@@ -8,12 +8,11 @@ use std::{
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
+use crate::burnbenchapp::auth::Tokens;
 use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
 
-use super::{
-    auth::{auth, get_tokens},
-    App,
-};
+use super::auth::get_username;
+use super::{auth::get_tokens, App};
 
 /// Base trait to define an application
 pub(crate) trait Application {
@@ -114,10 +113,17 @@ pub fn execute() {
     }
 }
 
-/// Create an access token from GitHub Burnbench application and store it
-/// to be used with the user benchmark backend.
+/// Create an access token from GitHub Burnbench application, store it,
+/// and display the name of the authenticated user.
 fn command_auth() {
-    auth();
+    get_tokens()
+        .and_then(|t| get_username(&t.access_token))
+        .map(|user_info| {
+            println!("🔑 Your username is: {}", user_info.nickname);
+        })
+        .unwrap_or_else(|| {
+            println!("Failed to display your username.");
+        });
 }
 
 fn command_list() {
@@ -132,12 +138,9 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
-    let tokens = get_tokens();
-    if run_args.share && tokens.is_none() {
-        eprintln!("Credentials not found or expired.");
-        eprintln!("You need to (re)authenticate yourself to be able to share benchmark results.");
-        eprintln!("Run the command 'burnbench auth' to authenticate.");
-        return;
+    let mut tokens: Option<Tokens> = None;
+    if run_args.share {
+        tokens = get_tokens();
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
@@ -147,12 +150,12 @@ fn command_run(run_args: RunArgs) {
     let mut app = App::new();
     app.init();
     println!("Running benchmarks...\n");
-    let access_token = if run_args.share {
-        tokens.as_ref().map(|t| t.access_token.as_str())
-    } else {
-        None
-    };
-    app.run(&run_args.benches, &run_args.backends, access_token);
+    let access_token = tokens.map(|t| t.access_token);
+    app.run(
+        &run_args.benches,
+        &run_args.backends,
+        access_token.as_deref(),
+    );
     app.cleanup();
 }
 

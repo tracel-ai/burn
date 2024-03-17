@@ -29,26 +29,59 @@ pub(crate) struct Tokens {
     pub refresh_token: String,
 }
 
-/// Retrieve cached tokens and refresh them if necessary then save the new tokens.
-pub(crate) fn get_tokens() -> Option<Tokens> {
-    get_tokens_from_cache().map(|tokens| {
-        if verify_tokens(&tokens) {
-            Some(tokens)
-        } else {
-            refresh_tokens(&tokens).map(|new_tokens| {
-                save_tokens(&new_tokens);
-                new_tokens
-            })
-        }
-    })?
+#[derive(Debug, Deserialize)]
+pub(crate) struct UserInfo {
+    pub nickname: String,
 }
 
-pub(crate) fn auth() {
+/// Retrieve cached tokens and refresh them if necessary then save the new tokens.
+/// If there is no cached token or if the access token cannot be resfresh then
+/// ask for the user to reauthorize the Burnbench github application.
+pub(crate) fn get_tokens() -> Option<Tokens> {
+    get_tokens_from_cache().map_or_else(
+        // no token saved yet
+        auth,
+        // cached tokens found
+        |tokens| {
+            if verify_tokens(&tokens) {
+                Some(tokens)
+            } else {
+                refresh_tokens(&tokens).map_or_else(
+                    || {
+                        println!("⚠ Cannot refresh the access token. You need to reauthorize the Burnbench application.");
+                        auth()
+                    },
+                    |new_tokens| {
+                        save_tokens(&new_tokens);
+                        Some(new_tokens)
+                    })
+            }
+        },
+    )
+}
+
+/// Returns the authenticated user name from access token
+pub(crate) fn get_username(access_token: &str) -> Option<UserInfo> {
+    let client = reqwest::blocking::Client::new();
+    let response = client
+        .get(format!("{}users/me", super::USER_BENCHMARK_SERVER_URL))
+        .header(reqwest::header::USER_AGENT, "burnbench")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", access_token),
+        )
+        .send()
+        .ok()?;
+    response.json::<UserInfo>().ok()
+}
+
+fn auth() -> Option<Tokens> {
     let mut flow = match DeviceFlow::start(CLIENT_ID, None) {
         Ok(flow) => flow,
         Err(e) => {
             eprintln!("Error authenticating: {}", e);
-            return;
+            return None;
         }
     };
     println!("🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):");
@@ -65,13 +98,18 @@ pub(crate) fn auth() {
     thread::sleep(FIVE_SECONDS);
     match flow.poll(20) {
         Ok(creds) => {
-            save_tokens(&Tokens {
+            let tokens = Tokens {
                 access_token: creds.token.clone(),
                 refresh_token: creds.refresh_token.clone(),
-            });
+            };
+            save_tokens(&tokens);
+            Some(tokens)
         }
-        Err(e) => eprint!("Authentication error: {}", e),
-    };
+        Err(e) => {
+            eprint!("Authentication error: {}", e);
+            None
+        }
+    }
 }
 
 /// Return the token saved in the cache file
@@ -86,7 +124,7 @@ fn get_tokens_from_cache() -> Option<Tokens> {
 /// Returns true if the token is still valid
 fn verify_tokens(tokens: &Tokens) -> bool {
     let client = reqwest::blocking::Client::new();
-    client
+    let response = client
         .get("https://api.github.com/user")
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
@@ -95,15 +133,15 @@ fn verify_tokens(tokens: &Tokens) -> bool {
             format!("Bearer {}", tokens.access_token),
         )
         .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
-        .send()
-        .map_or(false, |resp| resp.status().is_success())
+        .send();
+    response.map_or(false, |resp| resp.status().is_success())
 }
 
 fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
-    println!("Access tokens must be refreshed.");
-    println!("Refreshing tokens...");
+    println!("Access token must be refreshed.");
+    println!("Refreshing token...");
     let client = reqwest::blocking::Client::new();
-    client
+    let response = client
         .post(format!(
             "{}auth/refresh-token",
             super::USER_BENCHMARK_SERVER_URL
@@ -114,14 +152,11 @@ fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
             reqwest::header::AUTHORIZATION,
             format!("Bearer-Refresh {}", tokens.refresh_token),
         )
-        .send()
-        .ok()?
-        .json::<Tokens>()
-        .ok()
-        .map(|new_tokens| {
-            println!("✅ Tokens refreshed!");
-            new_tokens
-        })
+        .send();
+    response.ok()?.json::<Tokens>().ok().map(|new_tokens| {
+        println!("✅ Token refreshed!");
+        new_tokens
+    })
 }
 
 /// Return the file path for the auth cache on disk

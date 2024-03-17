@@ -97,8 +97,8 @@ pub fn save<B: Backend>(
         if let Some(upload_url) = url {
             upload_record(
                 &record,
+                token.expect("An auth token should be provided."),
                 upload_url,
-                &token.expect("An auth token should be provided."),
             );
         }
     }
