@@ -1,7 +1,7 @@
-use alloc::{vec, vec::Vec, string::String};
+use alloc::{string::String, vec, vec::Vec};
 use core::fmt::Debug;
-use core::{fmt, marker::PhantomData};
 use core::hash::Hash;
+use core::{fmt, marker::PhantomData};
 
 use super::tensor::{BoolTensorSerde, DynTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
