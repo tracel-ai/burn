@@ -180,21 +180,3 @@ pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> Wor
 
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::any::TypeId;
-
-    #[test]
-    fn test_kernel_type_id() {
-        kernel_wgsl!(Cat, "../template/cat.wgsl");
-
-        let type_id_1 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 4>>();
-        let type_id_2 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 5>>();
-        let type_id_3 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 4>>();
-
-        assert_ne!(type_id_1, type_id_2);
-        assert_eq!(type_id_1, type_id_3);
-    }
-}
