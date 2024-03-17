@@ -96,13 +96,25 @@ authentication. To authenticate run the `auth` command, then follow the URL
 to enter your device code and authorize the Burnbench application:
 
 ```sh
-> cargo run --bin burnbench -- run auth
+> cargo run --bin burnbench -- auth
 ```
 
 If everything is fine you should get a confirmation in the terminal that your
 token has been saved to the burn cache directory.
 
+We don't store any of your personal information. A anonymized user name will
+be attributed to you and displayed in the terminal once you are authenticated.
+For instance:
+
+```
+🔑 Your username is: CuteFlame
+```
+
 You can now use the `--share` argument to upload and share your benchmarks!
+
+Note that your access token will be refreshed automatically so you should not
+need to reauthorize the application again except if your refresh token itself
+becomes invalid.
 
 ### Terminal UI
 
