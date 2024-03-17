@@ -310,6 +310,17 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         reduce::mean_dim(tensor, dim, Default::default())
     }
 
+    fn float_prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        reduce::prod(tensor, Default::default())
+    }
+
+    fn float_prod_dim<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+    ) -> FloatTensor<Self, D> {
+        reduce::prod_dim(tensor, dim, Default::default())
+    }
+
     fn float_to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
@@ -448,13 +459,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
             input: tensor,
             elem: FloatElem<Self>
         )
-    }
-
-    fn float_cat<const D: usize>(
-        tensors: Vec<FloatTensor<Self, D>>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
-        kernel::cat(tensors, dim)
     }
 
     fn float_argmax<const D: usize>(
