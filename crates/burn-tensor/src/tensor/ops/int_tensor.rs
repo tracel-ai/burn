@@ -1,4 +1,6 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -299,7 +301,16 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The concatenated tensor.
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D>;
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
+        cat_with_slice_assign::<B, D, Int>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D, Int>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Element-wise equality comparison.
     ///

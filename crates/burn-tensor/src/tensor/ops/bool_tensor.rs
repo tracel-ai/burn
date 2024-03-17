@@ -1,6 +1,6 @@
-use super::{BoolTensor, Device, FloatTensor, IntTensor};
+use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{
-    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion,
+    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -205,7 +205,16 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the tensors concatenated along the given dimension.
-    fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D>;
+    fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D> {
+        cat_with_slice_assign::<B, D, Bool>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D, Bool>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Equates the two tensors.
     ///
