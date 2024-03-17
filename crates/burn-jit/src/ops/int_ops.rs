@@ -135,10 +135,6 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::repeat(tensor, dim, times)
     }
 
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn int_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,

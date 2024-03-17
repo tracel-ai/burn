@@ -99,13 +99,6 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         kernel::repeat(tensor, dim, times)
     }
 
-    fn bool_cat<const D: usize>(
-        tensors: Vec<BoolTensor<Self, D>>,
-        dim: usize,
-    ) -> BoolTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn bool_equal<const D: usize>(
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
