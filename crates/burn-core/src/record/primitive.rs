@@ -1,7 +1,7 @@
-use alloc::{vec, vec::Vec};
+use alloc::{vec, vec::Vec, string::String};
 use core::fmt::Debug;
 use core::{fmt, marker::PhantomData};
-use std::hash::Hash;
+use core::hash::Hash;
 
 use super::tensor::{BoolTensorSerde, DynTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
@@ -12,7 +12,9 @@ use burn_tensor::{
     Tensor,
 };
 
+#[cfg(feature = "std")]
 use crate::optim::GradientsParams;
+
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::{
@@ -248,6 +250,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<B: Backend> Record<B> for GradientsParams<B::DynTensorPrimitive> {
     type Item<S: PrecisionSettings> = HashMap<ParamId, DynTensorSerde<S>>;
 
