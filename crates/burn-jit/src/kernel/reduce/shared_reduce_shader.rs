@@ -173,7 +173,7 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         // Load to shared memory, unrolled
         gpu!(
             scope,
-            range(0u32, self.n_input_values_per_thread as u32).for_each(|i, scope| {
+            range(0u32, self.n_input_values_per_thread).for_each(|i, scope| {
                 let nth = scope.create_local(Elem::UInt);
                 gpu!(scope, nth = i * n_threads);
                 gpu!(scope, nth += local_id);
