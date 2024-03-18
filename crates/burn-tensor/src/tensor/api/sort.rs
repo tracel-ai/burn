@@ -302,8 +302,9 @@ fn sort_slice<B: Backend, const D: usize, K: BasicOps<B>>(
         .map(|(_, d)| d)
         .product();
 
-    // TODO:     run_par!(|| {
-    // iter_par!(output.axis_iter_mut(Axis(0)))
+    // TODO: run each sort in parallel
+    // run_par!(|| {
+    //     iter_range_par!(0, num_sorts).for_each(|id| {...})
     for id in 0..num_sorts {
         let mut index_offset = 0;
         let mut stride_dim = 0;
