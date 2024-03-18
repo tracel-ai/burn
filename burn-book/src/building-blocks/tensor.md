@@ -279,13 +279,16 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API            | PyTorch Equivalent              |
-| ------------------- | ------------------------------- |
-| `tensor.float()`    | `tensor.to(torch.float)`        |
-| `tensor.int()`      | `tensor.to(torch.long)`         |
-| `tensor.not()`      | `tensor.logical_not()`          |
-| `tensor.argwhere()` | `tensor.argwhere()`             |
-| `tensor.nonzero()`  | `tensor.nonzero(as_tuple=True)` |
+| Burn API                            | PyTorch Equivalent              |
+| ----------------------------------- | ------------------------------- |
+| `Tensor.diag_mask(shape, diagonal)` | N/A                             |
+| `Tensor.tril_mask(shape, diagonal)` | N/A                             |
+| `Tensor.triu_mask(shape, diagonal)` | N/A                             |
+| `tensor.argwhere()`                 | `tensor.argwhere()`             |
+| `tensor.float()`                    | `tensor.to(torch.float)`        |
+| `tensor.int()`                      | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                      | `tensor.logical_not()`          |
 
 ## Activation Functions
 
