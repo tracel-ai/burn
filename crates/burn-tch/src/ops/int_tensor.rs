@@ -263,6 +263,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::sum_dim(tensor, dim)
     }
 
+    fn int_prod<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
+        TchOps::prod(tensor)
+    }
+
+    fn int_prod_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::prod_dim(tensor, dim)
+    }
+
     fn int_mean<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
         let tensor: TchTensor<f64, D> =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));

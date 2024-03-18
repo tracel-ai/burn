@@ -7,7 +7,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer.
-#[derive(Config)]
+#[derive(Debug, Config)]
 pub struct LayerNormConfig {
     /// The size of the input features.
     pub d_model: usize,

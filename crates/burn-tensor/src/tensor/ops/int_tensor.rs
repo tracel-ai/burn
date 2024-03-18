@@ -1,4 +1,6 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -299,7 +301,16 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The concatenated tensor.
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D>;
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
+        cat_with_slice_assign::<B, D, Int>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D, Int>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Element-wise equality comparison.
     ///
@@ -756,6 +767,29 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The sum of all elements in the tensor along the dimension.
     fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+
+    /// Computes the product of all elements in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor.
+    fn int_prod<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1>;
+
+    /// Computes the product of all elements in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the product of.
+    /// * `dim` - The dimension to compute the product along.
+    ///
+    /// # Returns
+    ///
+    /// The product of all elements in the tensor along the dimension.
+    fn int_prod_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
 
     /// Computes the mean of all elements in the tensor.
     ///

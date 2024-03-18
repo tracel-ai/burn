@@ -1,21 +1,24 @@
-use arboard::Clipboard;
-use clap::{Parser, Subcommand, ValueEnum};
-use github_device_flow::{self, DeviceFlow};
-use std::{
-    process::{Command, Stdio},
-    thread, time,
-};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
-
-use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
-
 use super::{
     auth::{save_token, CLIENT_ID},
     App,
 };
+use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
+use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
+use arboard::Clipboard;
+use clap::{Parser, Subcommand, ValueEnum};
+use github_device_flow::{self, DeviceFlow};
+use serde_json;
+use std::fs;
+use std::io::{BufRead, BufReader, Result as ioResult};
+use std::{
+    process::{Command, ExitStatus, Stdio},
+    thread, time,
+};
 
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter};
 const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
+const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
 const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
     // development
     "http://localhost:8000/benchmarks"
@@ -183,17 +186,12 @@ fn command_run(run_args: RunArgs) {
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
-        "Executing the following benchmark and backend combinations (Total: {}):",
+        "Executing benchmark and backend combinations in total: {}",
         total_combinations
     );
-    for backend in &run_args.backends {
-        for bench in &run_args.benches {
-            println!("- Benchmark: {}, Backend: {}", bench, backend);
-        }
-    }
     let mut app = App::new();
     app.init();
-    println!("Running benchmarks...");
+    println!("Running benchmarks...\n");
     app.run(
         &run_args.benches,
         &run_args.backends,
@@ -203,7 +201,7 @@ fn command_run(run_args: RunArgs) {
 }
 
 #[allow(unused)] // for tui as this is WIP
-pub(crate) fn run_cargo(command: &str, params: &[&str]) {
+pub(crate) fn run_cargo(command: &str, params: &[&str]) -> ioResult<ExitStatus> {
     let mut cargo = Command::new("cargo")
         .arg(command)
         .arg("--color=always")
@@ -212,10 +210,7 @@ pub(crate) fn run_cargo(command: &str, params: &[&str]) {
         .stderr(Stdio::inherit())
         .spawn()
         .expect("cargo process should run");
-    let status = cargo.wait().expect("");
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
+    cargo.wait()
 }
 
 pub(crate) fn run_backend_comparison_benchmarks(
@@ -223,11 +218,28 @@ pub(crate) fn run_backend_comparison_benchmarks(
     backends: &[BackendValues],
     token: Option<&str>,
 ) {
-    // Iterate over each combination of backend and bench
-    for backend in backends.iter() {
-        for bench in benches.iter() {
+    // Prefix and postfix for titles
+    let filler = ["="; 10].join("");
+
+    // Delete the file containing file paths to benchmark results, if existing
+    let benchmark_results_file = dirs::home_dir()
+        .expect("Home directory should exist")
+        .join(".cache")
+        .join("burn")
+        .join("backend-comparison")
+        .join("benchmark_results.txt");
+
+    fs::remove_file(benchmark_results_file.clone()).ok();
+
+    // Iterate through every combination of benchmark and backend
+    for bench in benches.iter() {
+        for backend in backends.iter() {
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
+            println!(
+                "{}Benchmarking {} on {}{}",
+                filler, bench_str, backend_str, filler
+            );
             let mut args = vec![
                 "-p",
                 "backend-comparison",
@@ -235,6 +247,8 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 &bench_str,
                 "--features",
                 &backend_str,
+                "--target-dir",
+                BENCHMARKS_TARGET_DIR,
             ];
             if let Some(t) = token {
                 args.push("--");
@@ -243,7 +257,36 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 args.push("--sharing-token");
                 args.push(t);
             }
-            run_cargo("bench", &args);
+            let status = run_cargo("bench", &args).unwrap();
+            if !status.success() {
+                println!(
+                    "Benchmark {} didn't ran successfully on the backend {}",
+                    bench_str, backend_str
+                );
+                continue;
+            }
         }
+    }
+
+    // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
+    // and print them in a single table.
+    let mut benchmark_results = BenchmarkCollection::default();
+    if let Ok(file) = fs::File::open(benchmark_results_file.clone()) {
+        let file_reader = BufReader::new(file);
+        for file in file_reader.lines() {
+            let file_path = file.unwrap();
+            if let Ok(br_file) = fs::File::open(file_path.clone()) {
+                let benchmarkrecord =
+                    serde_json::from_reader::<_, BenchmarkRecord>(br_file).unwrap();
+                benchmark_results.records.push(benchmarkrecord)
+            } else {
+                println!("Cannot find the benchmark-record file: {}", file_path);
+            };
+        }
+        println!(
+            "{}Benchmark Results{}\n\n{}",
+            filler, filler, benchmark_results
+        );
+        fs::remove_file(benchmark_results_file).ok();
     }
 }

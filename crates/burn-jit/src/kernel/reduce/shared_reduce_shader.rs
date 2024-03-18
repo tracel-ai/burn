@@ -171,32 +171,35 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         );
 
         // Load to shared memory, unrolled
-        for i in 0..self.n_input_values_per_thread {
-            let nth = scope.create_local(Elem::UInt);
-            gpu!(scope, nth = i * n_threads);
-            gpu!(scope, nth += local_id);
+        gpu!(
+            scope,
+            range(0u32, self.n_input_values_per_thread).for_each(|i, scope| {
+                let nth = scope.create_local(Elem::UInt);
+                gpu!(scope, nth = i * n_threads);
+                gpu!(scope, nth += local_id);
 
-            let within_shape = scope.create_local(Elem::Bool);
+                let within_shape = scope.create_local(Elem::Bool);
 
-            if self.divisible_shape {
-                let current_position = scope.create_local(Elem::UInt);
-                gpu!(scope, current_position = nth * stride_reduce_dim_input);
-                gpu!(scope, current_position += index_offset);
-
-                let new_value = RD::read_from_input(scope, tensor, current_position, nth);
-                RD::write_to_shared(scope, shared_memory, local_id, new_value);
-            } else {
-                gpu!(scope, within_shape = nth < shape_reduce_dim_input);
-                gpu!(scope, if(within_shape).then(|scope|{
+                if self.divisible_shape {
                     let current_position = scope.create_local(Elem::UInt);
                     gpu!(scope, current_position = nth * stride_reduce_dim_input);
                     gpu!(scope, current_position += index_offset);
 
                     let new_value = RD::read_from_input(scope, tensor, current_position, nth);
                     RD::write_to_shared(scope, shared_memory, local_id, new_value);
-                }));
-            }
-        }
+                } else {
+                    gpu!(scope, within_shape = nth < shape_reduce_dim_input);
+                    gpu!(scope, if(within_shape).then(|scope|{
+                        let current_position = scope.create_local(Elem::UInt);
+                        gpu!(scope, current_position = nth * stride_reduce_dim_input);
+                        gpu!(scope, current_position += index_offset);
+
+                        let new_value = RD::read_from_input(scope, tensor, current_position, nth);
+                        RD::write_to_shared(scope, shared_memory, local_id, new_value);
+                    }));
+                }
+            })
+        );
 
         scope.register(Synchronization::WorkgroupBarrier);
 

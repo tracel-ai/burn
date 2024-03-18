@@ -1,4 +1,6 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -831,6 +833,34 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Product of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the product of all elements in `tensor`.
+    fn float_prod<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+        // Product of all elements in a tensor
+        B::float_exp(B::float_sum(B::float_log(tensor)))
+    }
+
+    /// Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the product of all elements in `tensor` along `dim`.
+    fn float_prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+        // Product of all elements in a tensor along a dimension
+        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
+    }
+
     /// Mean of all elements in a tensor.
     ///
     /// # Arguments
@@ -1046,17 +1076,26 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with error function values.
     fn float_erf<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Catcatenates tensors along a dimension.
+    /// Concatenates tensors along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensors` - The tensors to catcatenate.
-    /// * `dim` - The dimension along which to catcatenate.
+    /// * `tensors` - The tensors to concatenate.
+    /// * `dim` - The dimension along which to concatenate.
     ///
     /// # Returns
     ///
-    /// A tensor with the catcatenated tensors along `dim`.
-    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D>;
+    /// A tensor with the concatenated tensors along `dim`.
+    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
+        cat_with_slice_assign::<B, D, Float>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///

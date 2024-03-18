@@ -7,7 +7,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer.
-#[derive(Config)]
+#[derive(Debug, Config)]
 pub struct GroupNormConfig {
     /// The number of groups to separate the channels into
     pub num_groups: usize,
