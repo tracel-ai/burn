@@ -1,6 +1,9 @@
 use crate::{backend::Backend, Data, Float, Int, Tensor};
 use core::ops::Range;
 
+#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+use crate::{argsort, check, check::TensorCheck, sort, sort_with_indices};
+
 impl<B> Tensor<B, 1, Int>
 where
     B: Backend,
@@ -65,5 +68,33 @@ where
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
         Tensor::new(B::int_into_float(self.primitive))
+    }
+
+    /// Sort the elements by value in ascending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn sort(self, dim: usize) -> Tensor<B, D, Int> {
+        Tensor::new(sort::<B, D, Int>(self.primitive, dim).await)
+    }
+
+    /// Sort the elements by value in ascending order along a given dimension.
+    /// Also returns the indices.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn sort_with_indices(self, dim: usize) -> (Tensor<B, D, Int>, Tensor<B, D, Int>) {
+        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+        let (values, indices) = sort_with_indices::<B, D, Int>(self.primitive, dim).await;
+        (Tensor::new(values), Tensor::new(indices))
+    }
+
+    /// Returns the indices that sort the elements by value in ascending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn argsort(self, dim: usize) -> Tensor<B, D, Int> {
+        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+        Tensor::new(argsort::<B, D, Int>(self.primitive, dim).await)
     }
 }

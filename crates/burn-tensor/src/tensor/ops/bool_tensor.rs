@@ -1,10 +1,13 @@
 use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{
-    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
+    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use crate::argwhere;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.

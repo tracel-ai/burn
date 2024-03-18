@@ -1,13 +1,15 @@
 use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::Tensor;
-use crate::{argsort, sort, sort_with_indices};
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
 use num_traits::ToPrimitive;
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use crate::{argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -1199,6 +1201,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
         sort::<B, D, Int>(tensor, dim)
     }
@@ -1216,6 +1219,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// the elements are sorted by value and the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort_with_indices<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
@@ -1236,6 +1240,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_argsort<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
         argsort::<B, D, Int>(tensor, dim)
     }
