@@ -9,6 +9,11 @@ pub(crate) struct MatmulTiling2dShader {
     pub unroll: bool,
 }
 
+enum InputIdentifier {
+    Lhs,
+    Rhs,
+}
+
 impl MatmulTiling2dShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         // Inputs
@@ -161,8 +166,8 @@ impl MatmulTiling2dShader {
                 gpu!(scope, k = i * block_size_k);
 
                 if self.bounds_check_required {
-                    // LHS
                     self.load_shared_memory_with_bound_check(
+                        InputIdentifier::Lhs,
                         scope,
                         k,
                         dim_k,
@@ -175,11 +180,10 @@ impl MatmulTiling2dShader {
                         lhs,
                         offset_lhs,
                         shared_lhs,
-                        true,
                     );
 
-                    // RHS
                     self.load_shared_memory_with_bound_check(
+                        InputIdentifier::Rhs,
                         scope,
                         k,
                         dim_k,
@@ -192,11 +196,10 @@ impl MatmulTiling2dShader {
                         rhs,
                         offset_rhs,
                         shared_rhs,
-                        false,
                     );
                 } else {
-                    // LHS
                     self.load_shared_memory(
+                        InputIdentifier::Lhs,
                         scope,
                         k,
                         thread_col,
@@ -206,11 +209,10 @@ impl MatmulTiling2dShader {
                         lhs,
                         offset_lhs,
                         shared_lhs,
-                        true,
                     );
 
-                    // RHS
                     self.load_shared_memory(
+                        InputIdentifier::Rhs,
                         scope,
                         k,
                         thread_row,
@@ -220,7 +222,6 @@ impl MatmulTiling2dShader {
                         rhs,
                         offset_rhs,
                         shared_rhs,
-                        false,
                     );
                 }
 
@@ -253,6 +254,7 @@ impl MatmulTiling2dShader {
     #[allow(clippy::too_many_arguments)]
     fn load_shared_memory_with_bound_check(
         &self,
+        input_identifier: InputIdentifier,
         scope: &mut Scope,
         k: Variable,
         dim_k: Variable,
@@ -265,7 +267,6 @@ impl MatmulTiling2dShader {
         input: Variable,
         input_offset: Variable,
         shared_memory: Variable,
-        is_lhs: bool,
     ) {
         // How close is the thread to the end of the matrix.
         // If < 4 then it is an edge case
@@ -291,14 +292,17 @@ impl MatmulTiling2dShader {
 
                     // Position in shared memory
                     let sm_position = scope.create_local(Elem::UInt);
-                    if is_lhs {
-                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
-                        gpu!(scope, sm_position *= block_size_k);
-                        gpu!(scope, sm_position += current);
-                    } else {
-                        gpu!(scope, sm_position = current * block_size_n);
-                        gpu!(scope, sm_position += thread_idx_2);
-                        gpu!(scope, sm_position = sm_position / 4u32);
+                    match input_identifier {
+                        InputIdentifier::Lhs => {
+                            gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                            gpu!(scope, sm_position *= block_size_k);
+                            gpu!(scope, sm_position += current);
+                    },
+                        InputIdentifier::Rhs => {
+                            gpu!(scope, sm_position = current * block_size_n);
+                            gpu!(scope, sm_position += thread_idx_2);
+                            gpu!(scope, sm_position = sm_position / 4u32);
+                        }
                     }
 
                     // To pad with zeros if outside lhs
@@ -375,6 +379,7 @@ impl MatmulTiling2dShader {
     #[allow(clippy::too_many_arguments)]
     fn load_shared_memory(
         &self,
+        input_identifier: InputIdentifier,
         scope: &mut Scope,
         k: Variable,
         thread_idx_1: Variable,
@@ -384,7 +389,6 @@ impl MatmulTiling2dShader {
         input: Variable,
         input_offset: Variable,
         shared_memory: Variable,
-        is_lhs: bool,
     ) {
         let block_size_k: Variable = self.config.block_size_k.into();
         let block_size_n: Variable = self.config.block_size_n.into();
@@ -403,14 +407,17 @@ impl MatmulTiling2dShader {
                 gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                     let sm_position = scope.create_local(Elem::UInt);
-                    if is_lhs {
-                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
-                        gpu!(scope, sm_position *= block_size_k);
-                        gpu!(scope, sm_position += current);
-                    } else {
-                        gpu!(scope, sm_position = current * block_size_n);
-                        gpu!(scope, sm_position += thread_idx_2);
-                        gpu!(scope, sm_position = sm_position / 4u32);
+                    match input_identifier {
+                        InputIdentifier::Lhs => {
+                            gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                            gpu!(scope, sm_position *= block_size_k);
+                            gpu!(scope, sm_position += current);
+                    },
+                        InputIdentifier::Rhs => {
+                            gpu!(scope, sm_position = current * block_size_n);
+                            gpu!(scope, sm_position += thread_idx_2);
+                            gpu!(scope, sm_position = sm_position / 4u32);
+                        }
                     }
 
                     let position_0 = scope.create_local(Elem::UInt);
