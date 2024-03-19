@@ -4,16 +4,16 @@ use super::{
     AvgPool2dBackwardDescription, AvgPool2dDescription, BaseOperationDescription,
     BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
     Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
-    EmbeddingBackwardDescription, EmbeddingDescription, FloatOperationDescription,
-    GatherOperationDescription, IntOperationDescription, InterpolateBackwardDescription,
-    InterpolateDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
-    MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
-    MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
-    ModuleOperationDescription, NumericOperationDescription, OperationDescription,
-    PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-    ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
-    SelectAssignOperationDescription, SelectOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+    EmbeddingBackwardDescription, EmbeddingDescription, FlipOperationDescription,
+    FloatOperationDescription, GatherOperationDescription, IntOperationDescription,
+    InterpolateBackwardDescription, InterpolateDescription, MaskFillOperationDescription,
+    MaskWhereOperationDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+    MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
+    MaxPool2dWithIndicesDescription, ModuleOperationDescription, NumericOperationDescription,
+    OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+    ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
+    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+    SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
 };
 use crate::{FusionBackend, HandleContainer, TensorDescription, TensorId};
 use burn_tensor::{Element, ElementConversion};
@@ -793,6 +793,13 @@ impl BaseOperationDescription {
             }
             BaseOperationDescription::Permute(desc) => {
                 BaseOperationDescription::Permute(PermuteOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    axes: desc.axes.clone(),
+                })
+            }
+            BaseOperationDescription::Flip(desc) => {
+                BaseOperationDescription::Flip(FlipOperationDescription {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                     axes: desc.axes.clone(),

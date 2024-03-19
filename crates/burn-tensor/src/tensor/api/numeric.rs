@@ -1,3 +1,5 @@
+use crate::alloc::borrow::ToOwned;
+
 use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
     ElementConversion, Float, Int, Shape, Tensor, TensorKind,
@@ -482,42 +484,6 @@ where
         Self::new(K::abs(self.primitive))
     }
 
-    /// Returns the triangular part of a matrix (2-D tensor) or batch of matrices,
-    /// based on the specified comparison method, zeroing out the other elements.
-    ///
-    /// # Parameters
-    ///
-    /// - `diagonal`: The diagonal from which the triangular part is computed.
-    /// - `compare`: A comparison function determining which part of the triangle to zero out.
-    ///              Use `Tensor::<B, D, Int>::greater_elem` for upper triangular
-    ///              and `Tensor::<B, D, Int>::lower_elem` for lower triangular.
-    ///
-    pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
-    where
-        F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
-    {
-        check!(TensorCheck::tri::<{ D }>());
-
-        let shape = self.shape();
-        let height = shape.dims[D - 2];
-        let width = shape.dims[D - 1];
-
-        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, &self.device());
-        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width as i64, &self.device());
-
-        let mut row_shape = [1; D];
-        row_shape[D - 2] = height;
-        let mut col_shape = [1; D];
-        col_shape[D - 1] = width;
-
-        let row_broadcast = row_indices.reshape(Shape::new(row_shape));
-        let col_broadcast = col_indices.reshape(Shape::new(col_shape));
-
-        let mask = compare(row_broadcast - (col_broadcast - diagonal), 0).unsqueeze();
-
-        self.mask_fill(mask, 0)
-    }
-
     /// Returns the upper triangular part of a matrix (2-D tensor) or batch of matrices input,
     /// the other elements of the result tensor out are set to 0.
     ///
@@ -546,7 +512,13 @@ where
     /// }
     /// ```
     pub fn triu(self, diagonal: i64) -> Self {
-        self.tri_compare(diagonal, Tensor::greater_elem)
+        check!(TensorCheck::tri::<{ D }>());
+
+        // last two dimensions
+        let shape = &self.shape().dims[D - 2..].to_owned();
+
+        let mask = Tensor::<B, 2, Bool>::triu_mask(shape, diagonal, &self.device()).unsqueeze();
+        self.mask_fill(mask, 0)
     }
 
     /// Returns the lower triangular part of a matrix (2-D tensor) or batch of matrices input,
@@ -578,7 +550,13 @@ where
     /// }
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
-        self.tri_compare(diagonal, Tensor::lower_elem)
+        check!(TensorCheck::tri::<{ D }>());
+
+        // last two dimensions
+        let shape = &self.shape().dims[D - 2..].to_owned();
+
+        let mask = Tensor::<B, 2, Bool>::tril_mask(shape, diagonal, &self.device()).unsqueeze();
+        self.mask_fill(mask, 0)
     }
 
     /// Applies element wise power operation with a float Tensor

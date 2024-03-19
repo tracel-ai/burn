@@ -34,12 +34,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         super::from_data(data, device)
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<Self>, D>> {
-        super::into_data(tensor)
-    }
-
     fn float_random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution,
@@ -57,24 +51,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         }
     }
 
-    fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::zeros(shape, device)
-    }
-
-    fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::ones(shape, device)
-    }
-
-    fn float_full<const D: usize>(
-        shape: Shape<D>,
-        fill_value: FloatElem<Self>,
-        device: &R::Device,
-    ) -> FloatTensor<Self, D> {
-        numeric::full(shape, device, fill_value)
-    }
-
     fn float_shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
         tensor.shape.clone()
+    }
+
+    fn float_into_data<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> Reader<Data<FloatElem<Self>, D>> {
+        super::into_data(tensor)
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -88,20 +72,8 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         super::to_device(tensor, device)
     }
 
-    fn float_into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
-        kernel::cast(tensor)
-    }
-
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         super::empty(shape, device)
-    }
-
-    fn float_repeat<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-        times: usize,
-    ) -> FloatTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
     }
 
     fn float_add<const D: usize>(
@@ -118,12 +90,20 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         numeric::add_scalar(lhs, rhs)
     }
 
-    fn float_clamp<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-        max: FloatElem<Self>,
+    fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        numeric::zeros(shape, device)
+    }
+
+    fn float_full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: FloatElem<Self>,
+        device: &R::Device,
     ) -> FloatTensor<Self, D> {
-        kernel::clamp(tensor, min, max)
+        numeric::full(shape, device, fill_value)
+    }
+
+    fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        numeric::ones(shape, device)
     }
 
     fn float_sub<const D: usize>(
@@ -175,31 +155,12 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         matmul(lhs, rhs, MatmulStrategy::default())
     }
 
-    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Recip(UnaryOperator {
-                input: scope.read_array(0, elem),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
-    }
-
     fn float_swap_dims<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim1: usize,
         dim2: usize,
     ) -> FloatTensor<Self, D> {
         super::swap_dims(tensor, dim1, dim2)
-    }
-
-    fn float_permute<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        axes: [usize; D],
-    ) -> FloatTensor<Self, D> {
-        permute(tensor, axes)
     }
 
     fn float_reshape<const D1: usize, const D2: usize>(
@@ -425,13 +386,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         )
     }
 
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
-        numeric::pow(lhs, rhs)
-    }
-
     fn float_powf_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: f32,
@@ -532,5 +486,58 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         dim: usize,
     ) -> IntTensor<Self, D> {
         reduce::argmin(tensor, dim, Default::default())
+    }
+
+    fn float_into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
+        kernel::cast(tensor)
+    }
+
+    fn float_clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
+
+    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(
+            operation: |scope: &mut Scope, elem: Elem| Operator::Recip(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
+            input: tensor,
+            elem: FloatElem<Self>
+        )
+    }
+
+    fn float_repeat<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> FloatTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
+    }
+
+    fn float_powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        numeric::pow(lhs, rhs)
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        permute(tensor, axes)
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        kernel::flip(tensor, axes)
     }
 }

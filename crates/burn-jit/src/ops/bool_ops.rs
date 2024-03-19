@@ -127,4 +127,11 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     ) -> BoolTensor<Self, D> {
         permute(tensor, axes)
     }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        kernel::flip(tensor, axes)
+    }
 }

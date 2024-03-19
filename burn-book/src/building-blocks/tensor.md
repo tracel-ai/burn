@@ -149,6 +149,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.dims()`                       | `tensor.size()`                      |
 | `tensor.equal(other)`                 | `x == y`                             |
 | `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)` |
+| `tensor.flip(axes)`                   | `tensor.flip(axes)`                  |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.into_primitive()`             | N/A                                  |
 | `tensor.into_scalar()`                | `tensor.item()`                      |
@@ -279,13 +280,16 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API            | PyTorch Equivalent              |
-| ------------------- | ------------------------------- |
-| `tensor.float()`    | `tensor.to(torch.float)`        |
-| `tensor.int()`      | `tensor.to(torch.long)`         |
-| `tensor.not()`      | `tensor.logical_not()`          |
-| `tensor.argwhere()` | `tensor.argwhere()`             |
-| `tensor.nonzero()`  | `tensor.nonzero(as_tuple=True)` |
+| Burn API                            | PyTorch Equivalent              |
+| ----------------------------------- | ------------------------------- |
+| `Tensor.diag_mask(shape, diagonal)` | N/A                             |
+| `Tensor.tril_mask(shape, diagonal)` | N/A                             |
+| `Tensor.triu_mask(shape, diagonal)` | N/A                             |
+| `tensor.argwhere()`                 | `tensor.argwhere()`             |
+| `tensor.float()`                    | `tensor.to(torch.float)`        |
+| `tensor.int()`                      | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                      | `tensor.logical_not()`          |
 
 ## Activation Functions
 

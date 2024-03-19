@@ -152,4 +152,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         let array = tensor.array.permuted_axes(axes.into_dimension());
         NdArrayTensor { array }
     }
+
+    fn bool_flip<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        NdArrayOps::flip(tensor, axes)
+    }
 }

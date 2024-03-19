@@ -1,3 +1,4 @@
+mod flip;
 mod gather;
 mod repeat;
 mod scatter;
@@ -6,6 +7,7 @@ mod select_assign;
 mod slice;
 mod slice_assign;
 
+pub use flip::*;
 pub use repeat::*;
 pub use select::*;
 pub use select_assign::*;

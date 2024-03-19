@@ -9,8 +9,6 @@ use crate::{
     Candle, CandleTensor, DynCandleTensor,
 };
 
-use super::base::permute;
-
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_from_dyn<const D: usize>(
         dyn_tensor: <Self as Backend>::DynTensorPrimitive,
@@ -438,7 +436,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         tensor: IntTensor<Self, D>,
         axes: [usize; D],
     ) -> IntTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        super::base::flip(tensor, axes)
     }
 
     // TODO add sign operator once Candle supports it:
