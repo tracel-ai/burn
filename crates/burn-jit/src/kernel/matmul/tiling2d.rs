@@ -184,7 +184,7 @@ fn check_bound_requirement<const D: usize>(
     rhs_shape: &Shape<D>,
     config: &Tiling2dConfig,
 ) -> bool {
-    !(lhs_shape.dims[D - 2] % config.block_size_m == 0)
-        || !(lhs_shape.dims[D - 1] % config.block_size_k == 0)
-        || !(rhs_shape.dims[D - 1] % config.block_size_n == 0)
+    lhs_shape.dims[D - 2] % config.block_size_m != 0
+        || lhs_shape.dims[D - 1] % config.block_size_k != 0
+        || rhs_shape.dims[D - 1] % config.block_size_n != 0
 }
