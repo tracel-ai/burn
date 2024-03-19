@@ -339,4 +339,8 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     ) -> IntTensor<Self, D> {
         permute(tensor, axes)
     }
+
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        kernel::flip(tensor, axes)
+    }
 }

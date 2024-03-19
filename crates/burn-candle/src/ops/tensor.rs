@@ -11,8 +11,6 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::permute;
-
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
         data: Data<F, D>,
@@ -522,7 +520,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         tensor: FloatTensor<Self, D>,
         axes: [usize; D],
     ) -> FloatTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        super::base::flip(tensor, axes)
     }
 
     // TODO add sign operator once Candle supports it:

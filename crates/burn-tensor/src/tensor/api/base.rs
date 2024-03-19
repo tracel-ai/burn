@@ -170,6 +170,33 @@ where
         Tensor::new(K::permute(self.primitive, transformed_axes))
     }
 
+    /// Reverse the order of elements in the tensor along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the number of dimensions.
+    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the axes flipped.
+    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<B, D, K> {
+        // Convert the axes to usize and handle negative values without using vector
+        let mut transformed_axes: [usize; N] = [0; N];
+        for (i, &x) in axes.iter().enumerate() {
+            transformed_axes[i] = if x < 0 {
+                (D as isize + x) as usize
+            } else {
+                x as usize
+            };
+        }
+
+        // Check if the axes are valid
+        check!(TensorCheck::flip(D, &transformed_axes));
+
+        Tensor::new(K::flip(self.primitive, &transformed_axes))
+    }
+
     /// Flatten the tensor along a given range of dimensions.
     ///
     /// This function collapses the specified range of dimensions into a single dimension,
@@ -1130,6 +1157,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The tensor with the dimensions permuted.
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
 
+    /// Flips the tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to flip.
+    /// * `axes` - The axes to flip the tensor along.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the axes flipped.
+    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D>;
+
     ///  Select tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
@@ -1558,6 +1597,10 @@ impl<B: Backend> BasicOps<B> for Float {
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::float_permute(tensor, axes)
     }
+
+    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+        B::float_flip(tensor, axes)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -1672,6 +1715,10 @@ impl<B: Backend> BasicOps<B> for Int {
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::int_permute(tensor, axes)
     }
+
+    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+        B::int_flip(tensor, axes)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1785,6 +1832,10 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::bool_permute(tensor, axes)
+    }
+
+    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+        B::bool_flip(tensor, axes)
     }
 }
 

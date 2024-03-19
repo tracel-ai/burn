@@ -483,6 +483,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn float_flip<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn float_sign<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {

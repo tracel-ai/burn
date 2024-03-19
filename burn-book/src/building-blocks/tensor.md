@@ -149,6 +149,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.dims()`                       | `tensor.size()`                      |
 | `tensor.equal(other)`                 | `x == y`                             |
 | `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)` |
+| `tensor.flip(axes)`                   | `tensor.flip(axes)`                  |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.into_primitive()`             | N/A                                  |
 | `tensor.into_scalar()`                | `tensor.item()`                      |

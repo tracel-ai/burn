@@ -449,6 +449,16 @@ pub trait FloatTensorOps<B: Backend> {
         axes: [usize; D],
     ) -> FloatTensor<B, D>;
 
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn float_flip<const D: usize>(tensor: FloatTensor<B, D>, axes: &[usize]) -> FloatTensor<B, D>;
+
     /// Reshapes a tensor.
     ///
     /// # Arguments

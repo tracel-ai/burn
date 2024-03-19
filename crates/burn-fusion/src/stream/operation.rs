@@ -156,6 +156,12 @@ pub enum BaseOperationDescription {
     Permute(PermuteOperationDescription),
 
     /// Operation corresponding to:
+    /// Float => [flip](burn_tensor::ops::FloatTensorOps::float_flip).
+    /// Int => [flip](burn_tensor::ops::IntTensorOps::int_flip).
+    /// Bool => [flip](burn_tensor::ops::BoolTensorOps::bool_flip).
+    Flip(FlipOperationDescription),
+
+    /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
     /// Int => [slice](burn_tensor::ops::IntTensorOps::int_slice).
@@ -453,6 +459,17 @@ pub struct PermuteOperationDescription {
     /// Output tensor description.
     pub out: TensorDescription,
     /// The new order of the dimensions.
+    pub axes: Vec<usize>,
+}
+
+/// Flip operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct FlipOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// Output tensor description.
+    pub out: TensorDescription,
+    /// The dimensions to flip.
     pub axes: Vec<usize>,
 }
 
@@ -1034,8 +1051,10 @@ impl BaseOperationDescription {
             BaseOperationDescription::SwapDims(desc) => {
                 vec![&desc.input, &desc.out]
             }
-
             BaseOperationDescription::Permute(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+            BaseOperationDescription::Flip(desc) => {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::Slice(desc) => {

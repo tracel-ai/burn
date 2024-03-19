@@ -520,4 +520,11 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     ) -> FloatTensor<Self, D> {
         permute(tensor, axes)
     }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        kernel::flip(tensor, axes)
+    }
 }
