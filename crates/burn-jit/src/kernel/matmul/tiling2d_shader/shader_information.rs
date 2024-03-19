@@ -27,16 +27,16 @@ pub(crate) fn gather_shader_information(
 
     // Shapes
     let rank = Variable::Rank;
-    let ultimate_dim = scope.create_local(Elem::UInt);
-    let penultimate_dim = scope.create_local(Elem::UInt);
-    gpu!(scope, ultimate_dim = rank - 1u32);
-    gpu!(scope, penultimate_dim = rank - 2u32);
+    let last_dim = scope.create_local(Elem::UInt);
+    let second_to_last_dim = scope.create_local(Elem::UInt);
     let dim_m = scope.create_local(Elem::UInt);
     let dim_k = scope.create_local(Elem::UInt);
     let dim_n = scope.create_local(Elem::UInt);
-    gpu!(scope, dim_m = shape(lhs, penultimate_dim));
-    gpu!(scope, dim_k = shape(lhs, ultimate_dim));
-    gpu!(scope, dim_n = shape(rhs, ultimate_dim));
+    gpu!(scope, last_dim = rank - 1u32);
+    gpu!(scope, second_to_last_dim = rank - 2u32);
+    gpu!(scope, dim_m = shape(lhs, second_to_last_dim));
+    gpu!(scope, dim_k = shape(lhs, last_dim));
+    gpu!(scope, dim_n = shape(rhs, last_dim));
 
     // Strides
     let lhs_stride_row = scope.create_local(Elem::UInt);
@@ -45,28 +45,28 @@ pub(crate) fn gather_shader_information(
     let rhs_stride_col = scope.create_local(Elem::UInt);
     let out_stride_row = scope.create_local(Elem::UInt);
     let out_stride_col = scope.create_local(Elem::UInt);
-    gpu!(scope, lhs_stride_row = stride(lhs, penultimate_dim));
-    gpu!(scope, lhs_stride_col = stride(lhs, ultimate_dim));
-    gpu!(scope, rhs_stride_row = stride(rhs, penultimate_dim));
-    gpu!(scope, rhs_stride_col = stride(rhs, ultimate_dim));
-    gpu!(scope, out_stride_row = stride(out, penultimate_dim));
-    gpu!(scope, out_stride_col = stride(out, ultimate_dim));
+    gpu!(scope, lhs_stride_row = stride(lhs, second_to_last_dim));
+    gpu!(scope, lhs_stride_col = stride(lhs, last_dim));
+    gpu!(scope, rhs_stride_row = stride(rhs, second_to_last_dim));
+    gpu!(scope, rhs_stride_col = stride(rhs, last_dim));
+    gpu!(scope, out_stride_row = stride(out, second_to_last_dim));
+    gpu!(scope, out_stride_col = stride(out, last_dim));
 
     // Workgroup offset
     let skip_row = scope.create_local(Elem::UInt);
+    let skip_col = scope.create_local(Elem::UInt);
     let workgroup_id_x = Variable::WorkgroupIdX;
+    let workgroup_id_y = Variable::WorkgroupIdY;
     gpu!(scope, skip_row = workgroup_id_x);
     gpu!(scope, skip_row *= block_size_m);
-    let skip_col = scope.create_local(Elem::UInt);
-    let workgroup_id_y = Variable::WorkgroupIdY;
     gpu!(scope, skip_col = workgroup_id_y);
     gpu!(scope, skip_col *= block_size_n);
 
     // Position of the first element of the thread, relative to the block
     let thread_row = scope.create_local(Elem::UInt);
+    let thread_col = scope.create_local(Elem::UInt);
     gpu!(scope, thread_row = local_idx / n_threads_per_row);
     gpu!(scope, thread_row *= tile_size_m);
-    let thread_col = scope.create_local(Elem::UInt);
     gpu!(scope, thread_col = local_idx % n_threads_per_row);
     gpu!(scope, thread_col *= tile_size_n);
 
@@ -89,30 +89,29 @@ pub(crate) fn gather_shader_information(
     gpu!(scope, offset_output = offset_output * batch);
 
     // Batch offset for the lhs & rhs matrices.
+    let stride_lhs = scope.create_local(Elem::UInt);
+    let stride_rhs = scope.create_local(Elem::UInt);
+    let stride_output = scope.create_local(Elem::UInt);
+    let shape_lhs = scope.create_local(Elem::UInt);
+    let shape_rhs = scope.create_local(Elem::UInt);
+    let tmp = scope.create_local(Elem::UInt);
+    let tmp_lhs = scope.create_local(Elem::UInt);
+    let tmp_rhs = scope.create_local(Elem::UInt);
     gpu!(scope, batch_dims = rank - 2u32);
     gpu!(
         scope,
         range(0u32, batch_dims).for_each(|b, scope| {
-            let stride_lhs = scope.create_local(Elem::UInt);
-            let stride_rhs = scope.create_local(Elem::UInt);
-            let stride_output = scope.create_local(Elem::UInt);
-            let shape_lhs = scope.create_local(Elem::UInt);
-            let shape_rhs = scope.create_local(Elem::UInt);
-
             gpu!(scope, stride_lhs = stride(lhs, b));
             gpu!(scope, stride_rhs = stride(rhs, b));
             gpu!(scope, stride_output = stride(out, b));
             gpu!(scope, shape_lhs = shape(lhs, b));
             gpu!(scope, shape_rhs = shape(rhs, b));
 
-            let tmp = scope.create_local(Elem::UInt);
             gpu!(scope, tmp = offset_output / stride_output);
-            let tmp_lhs = scope.create_local(Elem::UInt);
             gpu!(scope, tmp_lhs = tmp % shape_lhs);
             gpu!(scope, tmp_lhs = tmp_lhs * stride_lhs);
             gpu!(scope, offset_lhs += tmp_lhs);
 
-            let tmp_rhs = scope.create_local(Elem::UInt);
             gpu!(scope, tmp_rhs = tmp % shape_rhs);
             gpu!(scope, tmp_rhs = tmp_rhs * stride_rhs);
             gpu!(scope, offset_rhs += tmp_rhs);
@@ -134,7 +133,9 @@ pub(crate) fn gather_shader_information(
         shader.config.block_size_k as u32 * shader.config.block_size_n as u32 / 4u32,
     );
 
+    // Calculate exact number of loop iterations
     let n_loops = scope.create_local(Elem::UInt);
+    let k = scope.create_local(Elem::UInt);
     if shader.bounds_check_required {
         let dim_k_float = scope.create_local(elem);
         let block_size_k_float = scope.create_local(elem);
@@ -147,8 +148,6 @@ pub(crate) fn gather_shader_information(
     } else {
         gpu!(scope, n_loops = dim_k / block_size_k);
     }
-
-    let k = scope.create_local(Elem::UInt);
 
     Tiling2dState {
         n_loops,

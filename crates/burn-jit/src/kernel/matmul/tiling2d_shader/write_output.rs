@@ -10,28 +10,32 @@ pub fn write_to_output(
 ) {
     let row = shader_state.row;
     let col = shader_state.col;
-    let dim_m = shader_state.dim_m;
-    let dim_n = shader_state.dim_n;
 
-    gpu!(
-        scope,
-        range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
-            |res_idx_m, scope| {
-                gpu!(
-                    scope,
-                    range(0u32, shader.config.tile_size_n as u32, shader.unroll).for_each(
-                        |res_idx_n, scope| {
-                            let row_index = scope.create_local(Elem::UInt);
-                            let col_index = scope.create_local(Elem::UInt);
-                            gpu!(scope, row_index = row + res_idx_m);
-                            gpu!(scope, col_index = col + res_idx_n);
+    let row_index = scope.create_local(Elem::UInt);
+    let col_index = scope.create_local(Elem::UInt);
 
-                            if shader.bounds_check_required {
-                                let within_output = scope.create_local(Elem::Bool);
-                                let within_output_tmp = scope.create_local(Elem::Bool);
+    if shader.bounds_check_required {
+        let dim_m = shader_state.dim_m;
+        let dim_n = shader_state.dim_n;
+
+        let within_output = scope.create_local(Elem::Bool);
+        let within_output_tmp = scope.create_local(Elem::Bool);
+
+        gpu!(
+            scope,
+            range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
+                |res_idx_m, scope| {
+                    gpu!(
+                        scope,
+                        range(0u32, shader.config.tile_size_n as u32, shader.unroll).for_each(
+                            |res_idx_n, scope| {
+                                gpu!(scope, row_index = row + res_idx_m);
+                                gpu!(scope, col_index = col + res_idx_n);
+
                                 gpu!(scope, within_output = row_index < dim_m);
                                 gpu!(scope, within_output_tmp = col_index < dim_n);
                                 gpu!(scope, within_output = within_output && within_output_tmp);
+
                                 gpu!(scope, if(within_output).then(|scope|{
                                     write_inner(
                                         scope,
@@ -43,7 +47,24 @@ pub fn write_to_output(
                                         col_index,
                                     );
                                 }));
-                            } else {
+                            }
+                        )
+                    );
+                }
+            )
+        );
+    } else {
+        gpu!(
+            scope,
+            range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
+                |res_idx_m, scope| {
+                    gpu!(
+                        scope,
+                        range(0u32, shader.config.tile_size_n as u32, shader.unroll).for_each(
+                            |res_idx_n, scope| {
+                                gpu!(scope, row_index = row + res_idx_m);
+                                gpu!(scope, col_index = col + res_idx_n);
+
                                 write_inner(
                                     scope,
                                     shader,
@@ -54,12 +75,12 @@ pub fn write_to_output(
                                     col_index,
                                 )
                             }
-                        }
-                    )
-                );
-            }
-        )
-    );
+                        )
+                    );
+                }
+            )
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -80,16 +101,17 @@ fn write_inner(
 
     let elem = results.item().elem();
     let results_position = scope.create_local(Elem::UInt);
+    let result = scope.create_local(elem);
+    let output_position = scope.create_local(Elem::UInt);
+
     gpu!(
         scope,
         results_position = res_idx_m * shader.config.tile_size_n
     );
     gpu!(scope, results_position += res_idx_n);
 
-    let result = scope.create_local(elem);
     gpu!(scope, result = results[results_position]);
 
-    let output_position = scope.create_local(Elem::UInt);
     gpu!(scope, row_index *= out_stride_row);
     gpu!(scope, col_index *= out_stride_col);
     gpu!(scope, output_position = row_index + col_index);

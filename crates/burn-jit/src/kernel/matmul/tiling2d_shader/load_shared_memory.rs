@@ -74,20 +74,26 @@ fn load_shared_memory_with_bound_check(
     let block_size_n: Variable = shader.config.block_size_n.into();
     let elem = input.item().elem();
 
+    let current = scope.create_local(Elem::UInt);
+    let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+    let sm_position = scope.create_local(Elem::UInt);
+    let within_input = scope.create_local(Elem::Bool);
+    let current_with_k = scope.create_local(Elem::UInt);
+    let remain_at_least_1 = scope.create_local(Elem::Bool);
+    let read_condition = scope.create_local(Elem::Bool);
+    let val_vec4 = scope.create_local(shared_memory.item());
+
     gpu!(
         scope,
         range(0_u32, 4u32, shader.unroll).for_each(|j, scope| {
-            let current = scope.create_local(Elem::UInt);
             gpu!(scope, current = thread_idx_1 + j);
 
-            let aligned_with_shared_memory = scope.create_local(Elem::Bool);
             gpu!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
             gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                 // Position in shared memory
-                let sm_position = scope.create_local(Elem::UInt);
                 match input_identifier {
                     InputIdentifier::Lhs => {
                         gpu!(scope, sm_position = thread_idx_2 / 4u32);
@@ -102,53 +108,53 @@ fn load_shared_memory_with_bound_check(
                 }
 
                 // To pad with zeros if outside lhs
-                let within_input = scope.create_local(Elem::Bool);
-                let current_with_k = scope.create_local(Elem::UInt);
-                let remain_at_least_1 = scope.create_local(Elem::Bool);
-                let read_condition = scope.create_local(Elem::Bool);
                 gpu!(scope, current_with_k = current + k);
                 gpu!(scope, within_input = current_with_k < dim_k);
                 gpu!(scope, remain_at_least_1 = remain >= 1u32);
                 gpu!(scope, read_condition = within_input && remain_at_least_1);
 
                 gpu!(scope, if(read_condition).then(|scope| {
-                    let position_0 = scope.create_local(Elem::UInt);
-                    gpu!(scope, position_0 = k + current);
-                    gpu!(scope, position_0 *= stride_1);
                     let tmp = scope.create_local(Elem::UInt);
-                    gpu!(scope, tmp = thread_idx_2 * stride_2);
-                    gpu!(scope, position_0 += tmp);
-                    gpu!(scope, position_0 += input_offset);
+                    let position_0 = scope.create_local(Elem::UInt);
                     let position_1 = scope.create_local(Elem::UInt);
                     let position_2 = scope.create_local(Elem::UInt);
                     let position_3 = scope.create_local(Elem::UInt);
-                    gpu!(scope, position_1 = position_0 + stride_2);
-                    gpu!(scope, position_2 = position_1 + stride_2);
-                    gpu!(scope, position_3 = position_2 + stride_2);
+                    let remain_n = scope.create_local(Elem::Bool);
 
                     let val_0 = scope.zero(elem);
                     let val_1 = scope.zero(elem);
                     let val_2 = scope.zero(elem);
                     let val_3 = scope.zero(elem);
 
-                    let remain_n = scope.create_local(Elem::Bool);
+                    gpu!(scope, position_0 = k + current);
+                    gpu!(scope, position_0 *= stride_1);
+                    gpu!(scope, tmp = thread_idx_2 * stride_2);
+                    gpu!(scope, position_0 += tmp);
+                    gpu!(scope, position_0 += input_offset);
+                    gpu!(scope, position_1 = position_0 + stride_2);
+                    gpu!(scope, position_2 = position_1 + stride_2);
+                    gpu!(scope, position_3 = position_2 + stride_2);
+
                     gpu!(scope, remain_n = remain >= 4u32);
                     gpu!(scope, if(remain_n).then(|scope|{
                         gpu!(scope, val_0 = input[position_0]);
                         gpu!(scope, val_1 = input[position_1]);
                         gpu!(scope, val_2 = input[position_2]);
                         gpu!(scope, val_3 = input[position_3]);
+
                     }).else(|scope|{
                         gpu!(scope, remain_n = remain == 3u32);
                         gpu!(scope, if(remain_n).then(|scope|{
                             gpu!(scope, val_0 = input[position_0]);
                             gpu!(scope, val_1 = input[position_1]);
                             gpu!(scope, val_2 = input[position_2]);
+
                         }).else(|scope|{
                             gpu!(scope, remain_n = remain == 2u32);
                             gpu!(scope, if(remain_n).then(|scope|{
                                 gpu!(scope, val_0 = input[position_0]);
                                 gpu!(scope, val_1 = input[position_1]);
+
                             }).else(|scope|{
                                 gpu!(scope, remain_n = remain == 1u32);
                                 gpu!(scope, if(remain_n).then(|scope|{
@@ -158,12 +164,11 @@ fn load_shared_memory_with_bound_check(
                         }));
                     }));
 
-                    let val_vec4 = scope.create_local(shared_memory.item());
                     gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
                     gpu!(scope, shared_memory[sm_position] = val_vec4);
+
                 }).else(|scope|{
                     let val_0 = scope.zero(elem);
-                    let val_vec4 = scope.create_local(shared_memory.item());
                     gpu!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
                     gpu!(scope, shared_memory[sm_position] = val_vec4);
                 }));
@@ -206,19 +211,31 @@ fn load_shared_memory_no_bound_check(
     let block_size_n: Variable = shader.config.block_size_n.into();
     let elem = input.item().elem();
 
+    let current = scope.create_local(Elem::UInt);
+    let aligned_with_shared_memory = scope.create_local(Elem::Bool);
+    let sm_position = scope.create_local(Elem::UInt);
+
+    let tmp = scope.create_local(Elem::UInt);
+    let position_0 = scope.create_local(Elem::UInt);
+    let position_1 = scope.create_local(Elem::UInt);
+    let position_2 = scope.create_local(Elem::UInt);
+    let position_3 = scope.create_local(Elem::UInt);
+    let val_0 = scope.create_local(elem);
+    let val_1 = scope.create_local(elem);
+    let val_2 = scope.create_local(elem);
+    let val_3 = scope.create_local(elem);
+    let val_vec4 = scope.create_local(shared_memory.item());
+
     gpu!(
         scope,
         range(0_u32, 4u32, shader.unroll).for_each(|j, scope| {
-            let current = scope.create_local(Elem::UInt);
             gpu!(scope, current = thread_idx_1 + j);
 
-            let aligned_with_shared_memory = scope.create_local(Elem::Bool);
             gpu!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
             gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
 
-                let sm_position = scope.create_local(Elem::UInt);
                 match input_identifier {
                     InputIdentifier::Lhs => {
                         gpu!(scope, sm_position = thread_idx_2 / 4u32);
@@ -232,30 +249,20 @@ fn load_shared_memory_no_bound_check(
                     }
                 }
 
-                let position_0 = scope.create_local(Elem::UInt);
                 gpu!(scope, position_0 = k + current);
                 gpu!(scope, position_0 *= stride_1);
-                let tmp = scope.create_local(Elem::UInt);
                 gpu!(scope, tmp = thread_idx_2 * stride_2);
                 gpu!(scope, position_0 += tmp);
                 gpu!(scope, position_0 += input_offset);
-                let position_1 = scope.create_local(Elem::UInt);
-                let position_2 = scope.create_local(Elem::UInt);
-                let position_3 = scope.create_local(Elem::UInt);
                 gpu!(scope, position_1 = position_0 + stride_2);
                 gpu!(scope, position_2 = position_1 + stride_2);
                 gpu!(scope, position_3 = position_2 + stride_2);
 
-                let val_0 = scope.create_local(elem);
-                let val_1 = scope.create_local(elem);
-                let val_2 = scope.create_local(elem);
-                let val_3 = scope.create_local(elem);
                 gpu!(scope, val_0 = input[position_0]);
                 gpu!(scope, val_1 = input[position_1]);
                 gpu!(scope, val_2 = input[position_2]);
                 gpu!(scope, val_3 = input[position_3]);
 
-                let val_vec4 = scope.create_local(shared_memory.item());
                 gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
                 gpu!(scope, shared_memory[sm_position] = val_vec4);
             }));
