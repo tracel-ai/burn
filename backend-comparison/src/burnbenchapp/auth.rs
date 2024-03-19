@@ -18,7 +18,7 @@ static GITHUB_API_VERSION: &str = "2022-11-28";
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Tokens {
     /// Token returned once the Burnbench Github app has been authorized by the user.
-    /// This token is used to authenticate the user to the Burn benchmark serfver.
+    /// This token is used to authenticate the user to the Burn benchmark server.
     /// This token is a short lived token (about 8 hours).
     pub access_token: String,
     /// Along with the access token, a refresh token is provided once the Burnbench
