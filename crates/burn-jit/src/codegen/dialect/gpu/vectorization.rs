@@ -1,7 +1,4 @@
-use super::{
-    AssignVec4Operator, BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator,
-    Variable,
-};
+use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
@@ -83,7 +80,6 @@ impl Operator {
             Operator::BitwiseXor(op) => Operator::BitwiseXor(op.vectorize(vectorization)),
             Operator::ShiftLeft(op) => Operator::ShiftLeft(op.vectorize(vectorization)),
             Operator::ShiftRight(op) => Operator::ShiftRight(op.vectorize(vectorization)),
-            Operator::AssignVec4(op) => Operator::AssignVec4(op.vectorize(vectorization)),
         }
     }
 }
@@ -114,18 +110,6 @@ impl ClampOperator {
             out: self.out.vectorize(vectorization),
             min_value: self.min_value.vectorize(vectorization),
             max_value: self.max_value.vectorize(vectorization),
-        }
-    }
-}
-
-impl AssignVec4Operator {
-    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            a: self.a,
-            b: self.b,
-            c: self.c,
-            d: self.d,
-            out: self.out.vectorize(vectorization),
         }
     }
 }

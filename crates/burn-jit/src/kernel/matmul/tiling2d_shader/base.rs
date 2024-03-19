@@ -49,7 +49,7 @@ impl MatmulTiling2dShader {
         gpu!(
             scope,
             range(0u32, shader_state.n_loops).for_each(|i, scope| {
-                // Equivalent of looping from 0 to K with steps block_size_k
+                // From 0 to K with steps block_size_k
                 let k = shader_state.k;
                 gpu!(scope, k = i * block_size_k);
 
