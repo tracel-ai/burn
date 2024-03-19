@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
 
-/// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
+/// Bool Tensor API for basic operations, see [tensor](Tensor)
 /// for documentation on each function.
 pub trait BoolTensorOps<B: Backend> {
     /// Converts from a dynamic tensor, which should contain booleans, into the backend's boolean

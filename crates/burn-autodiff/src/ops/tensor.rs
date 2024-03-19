@@ -765,13 +765,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroFlipDims<B: Backend, const D: usize> {
-            input_id: NodeID,
+            input_id: NodeId,
             axes: Vec<usize>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend, const D: usize> RetroForward for RetroFlipDims<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive<D>>(&self.input_id);
                 let out = B::float_flip(input, &self.axes);
                 states.save(out_node, out)
@@ -784,7 +784,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 _checkpointer: &mut Checkpointer,
             ) {
                 let axes = ops.state;
