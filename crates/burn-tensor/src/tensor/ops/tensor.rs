@@ -1363,7 +1363,7 @@ pub trait FloatTensorOps<B: Backend> {
         result
     }
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1385,7 +1385,7 @@ pub trait FloatTensorOps<B: Backend> {
         sort::<B, D, Float>(tensor, dim, descending)
     }
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1408,8 +1408,7 @@ pub trait FloatTensorOps<B: Backend> {
         sort_with_indices::<B, D, Float>(tensor, dim, descending)
     }
 
-    /// Returns the indices that sort the elements of the input `tensor` by value in ascending order
-    /// along a given dimension.
+    /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///

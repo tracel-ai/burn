@@ -1912,7 +1912,7 @@ where
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1940,7 +1940,7 @@ where
         descending: bool,
     ) -> Self::Primitive<D>;
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1970,8 +1970,7 @@ where
         descending: bool,
     ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>);
 
-    /// Returns the indices that sort the elements of the input `tensor` by value in ascending order
-    /// along a given dimension.
+    /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
