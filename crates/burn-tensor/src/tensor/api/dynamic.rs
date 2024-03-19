@@ -22,7 +22,7 @@ impl<B: Backend, CompatB: Backend<DynTensorPrimitive = B::DynTensorPrimitive>> D
 #[derive(Clone, Debug)]
 /// A dynamic tensor using a given underlying dynamic tensor primitive.
 ///
-/// This type is mainly designed for use in [TensorContainer], to store tensors of arbitrary rank and element type in the same container.
+/// This type is mainly designed for use in [TensorContainer](crate::container::TensorContainer), to store tensors of arbitrary rank and element type in the same container.
 pub struct DynTensor<P> {
     pub(crate) primitive: P,
 }

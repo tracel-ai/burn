@@ -5,7 +5,7 @@ use hashbrown::hash_map::{DefaultHashBuilder, Entry};
 
 use crate::{DynPrimBackend, DynTensor, Tensor};
 
-/// Contains tensors of arbitrary dimension, as [`DynTensor`]s.
+/// Contains tensors of arbitrary dimension, as [DynTensor]s.
 #[derive(Debug, Clone, Default)]
 pub struct TensorContainer<Id, P> {
     tensors: HashMap<Id, DynTensor<P>>,
@@ -54,12 +54,12 @@ where
         self.len() == 0
     }
 
-    /// Convert into the internal representation of the [`TensorContainer`].
+    /// Convert into the internal representation of the [TensorContainer].
     pub fn into_inner(self) -> HashMap<Id, DynTensor<P>> {
         self.tensors
     }
 
-    /// Creates a new [`TensorContainer`] from a [`HashMap`] of [`DynRankTensor`]s, which is the
+    /// Creates a new [TensorContainer] from a [HashMap] of [DynTensor]s, which is the
     /// internal representation of it.
     pub fn from_inner(tensors: HashMap<Id, DynTensor<P>>) -> Self {
         Self { tensors }

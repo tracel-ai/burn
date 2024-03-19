@@ -6,7 +6,7 @@ use crate::{tensor::Shape, Element, ElementConversion};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
-/// A version of [`DynRankData`] without an explicit element in its type. Used for serializing [`DynTensor`].
+/// A version of [DynRankData] without an explicit element in its type. Used for serializing [DynTensor](crate::DynTensor).
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum DynData<FElem: Element, IElem: Element> {
     /// An instance of [DynData] storing float elements.

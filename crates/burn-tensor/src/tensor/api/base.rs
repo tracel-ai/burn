@@ -1284,7 +1284,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For converting between [Tensor] and [DynTensor], users should prefer using the [From] trait.
+    /// For converting between [Tensor] and [DynTensor](crate::DynTensor), users should prefer using the [From] trait.
     fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> B::DynTensorPrimitive;
 
     /// Converts a dynamic tensor primitive into a tensor.
@@ -1303,7 +1303,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For converting between [Tensor] and [DynTensor], users should prefer using the [From] trait.
+    /// For converting between [Tensor] and [DynTensor](crate::DynTensor), users should prefer using the [From] trait.
     fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
