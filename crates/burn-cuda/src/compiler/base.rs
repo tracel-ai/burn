@@ -10,6 +10,11 @@ pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
     shared_memories: Vec<super::SharedMemory>,
+    invocation_id: (bool, bool, bool),
+    id: bool,
+    rank: bool,
+    invocation_index: bool,
+    global_invocation_id: (bool, bool, bool),
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
@@ -292,18 +297,45 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 }
                 super::Variable::SharedMemory(index, item, size)
             }
-            gpu::Variable::Id => super::Variable::Id,
-            gpu::Variable::Rank => super::Variable::Rank,
-            gpu::Variable::LocalInvocationIndex => super::Variable::LocalInvocationIndex,
-            gpu::Variable::LocalInvocationIdX => super::Variable::LocalInvocationIdX,
-            gpu::Variable::LocalInvocationIdY => super::Variable::LocalInvocationIdY,
-            gpu::Variable::LocalInvocationIdZ => super::Variable::LocalInvocationIdZ,
+            gpu::Variable::Id => {
+                self.id = true;
+                super::Variable::Id
+            }
+            gpu::Variable::Rank => {
+                self.rank = true;
+                super::Variable::Rank
+            }
+            gpu::Variable::LocalInvocationIndex => {
+                self.invocation_index = true;
+                super::Variable::LocalInvocationIndex
+            }
+            gpu::Variable::LocalInvocationIdX => {
+                self.invocation_id.0 = true;
+                super::Variable::LocalInvocationIdX
+            }
+            gpu::Variable::LocalInvocationIdY => {
+                self.invocation_id.1 = true;
+                super::Variable::LocalInvocationIdY
+            }
+            gpu::Variable::LocalInvocationIdZ => {
+                self.invocation_id.2 = true;
+                super::Variable::LocalInvocationIdZ
+            }
             gpu::Variable::WorkgroupIdX => super::Variable::WorkgroupIdX,
             gpu::Variable::WorkgroupIdY => super::Variable::WorkgroupIdY,
             gpu::Variable::WorkgroupIdZ => super::Variable::WorkgroupIdZ,
-            gpu::Variable::GlobalInvocationIdX => super::Variable::GlobalInvocationIdX,
-            gpu::Variable::GlobalInvocationIdY => super::Variable::GlobalInvocationIdY,
-            gpu::Variable::GlobalInvocationIdZ => super::Variable::GlobalInvocationIdZ,
+            gpu::Variable::GlobalInvocationIdX => {
+                self.global_invocation_id.0 = true;
+                super::Variable::GlobalInvocationIdX
+            }
+            gpu::Variable::GlobalInvocationIdY => {
+                self.global_invocation_id.1 = true;
+                super::Variable::GlobalInvocationIdY
+            }
+            gpu::Variable::GlobalInvocationIdZ => {
+                self.global_invocation_id.2 = true;
+                super::Variable::GlobalInvocationIdZ
+            }
             gpu::Variable::WorkgroupSizeX => super::Variable::WorkgroupSizeX,
             gpu::Variable::WorkgroupSizeY => super::Variable::WorkgroupSizeY,
             gpu::Variable::WorkgroupSizeZ => super::Variable::WorkgroupSizeZ,
