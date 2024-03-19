@@ -152,6 +152,9 @@ fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
             reqwest::header::AUTHORIZATION,
             format!("Bearer-Refresh {}", tokens.refresh_token),
         )
+        // it is important to explicitly add an empty body otherwise
+        // reqwest won't send the request in release build
+        .body(reqwest::blocking::Body::from(""))
         .send();
     response.ok()?.json::<Tokens>().ok().map(|new_tokens| {
         println!("✅ Token refreshed!");
