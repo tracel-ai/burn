@@ -20,4 +20,3 @@ pub mod padding;
 mod padding;
 
 pub use tiling2d::*;
-use tiling2d_shader::*;

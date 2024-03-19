@@ -13,8 +13,7 @@ use crate::{
 use std::marker::PhantomData;
 
 use super::{
-    padding::{crop, pad_round, PaddingOutput},
-    shape_out, tiling2d_launch_options, MatmulTiling2dShader, Tiling2dConfig,
+    padding::{crop, pad_round, PaddingOutput}, shape_out, tiling2d_launch_options, tiling2d_shader::MatmulTiling2dShader, Tiling2dConfig
 };
 
 #[derive(new, Debug)]
