@@ -1371,13 +1371,18 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn float_sort<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
-        sort::<B, D, Float>(tensor, dim)
+    fn float_sort<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> FloatTensor<B, D> {
+        sort::<B, D, Float>(tensor, dim, descending)
     }
 
     /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
@@ -1388,6 +1393,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
@@ -1397,8 +1403,9 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_sort_with_indices<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,
+        descending: bool,
     ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
-        sort_with_indices::<B, D, Float>(tensor, dim)
+        sort_with_indices::<B, D, Float>(tensor, dim, descending)
     }
 
     /// Returns the indices that sort the elements of the input `tensor` by value in ascending order
@@ -1410,12 +1417,17 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn float_argsort<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> IntTensor<B, D> {
-        argsort::<B, D, Float>(tensor, dim)
+    fn float_argsort<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        argsort::<B, D, Float>(tensor, dim, descending)
     }
 }

@@ -665,7 +665,16 @@ where
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn sort(self, dim: usize) -> Tensor<B, D, K> {
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
-        Tensor::new(K::sort(self.primitive, dim))
+        Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
+    }
+
+    /// Sort the elements by value in descending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn sort_descending(self, dim: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::sort_dim::<D>("Sort", dim));
+        Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
 
     /// Sort the elements by value in ascending order along a given dimension.
@@ -675,7 +684,19 @@ where
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn sort_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
-        let (values, indices) = K::sort_with_indices(self.primitive, dim);
+        let (values, indices) =
+            K::sort_with_indices(self.primitive, dim, /*descending*/ false);
+        (Tensor::new(values), Tensor::new(indices))
+    }
+
+    /// Sort the elements by value in descending order along a given dimension.
+    /// Also returns the indices.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn sort_descending_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+        let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
     }
 
@@ -685,7 +706,16 @@ where
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn argsort(self, dim: usize) -> Tensor<B, D, Int> {
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
-        Tensor::new(K::argsort(self.primitive, dim))
+        Tensor::new(K::argsort(self.primitive, dim, /*descending*/ false))
+    }
+
+    /// Returns the indices that sort the elements by value in descending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn argsort_descending(self, dim: usize) -> Tensor<B, D, Int> {
+        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+        Tensor::new(K::argsort(self.primitive, dim, /*descending*/ true))
     }
 }
 
@@ -1890,6 +1920,7 @@ where
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
@@ -1903,7 +1934,11 @@ where
     /// Users should prefer the [Tensor::sort](Tensor::sort) function,
     /// which is more high-level and designed for public use.
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn sort<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn sort<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> Self::Primitive<D>;
 
     /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
     ///
@@ -1913,6 +1948,7 @@ where
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
@@ -1931,6 +1967,7 @@ where
     fn sort_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>);
 
     /// Returns the indices that sort the elements of the input `tensor` by value in ascending order
@@ -1942,6 +1979,7 @@ where
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
@@ -1958,6 +1996,7 @@ where
     fn argsort<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive<D>;
 }
 
@@ -2272,24 +2311,30 @@ impl<B: Backend> Numeric<B> for Int {
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn sort<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::int_sort(tensor, dim)
+    fn sort<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> Self::Primitive<D> {
+        B::int_sort(tensor, dim, descending)
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn sort_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>) {
-        B::int_sort_with_indices(tensor, dim)
+        B::int_sort_with_indices(tensor, dim, descending)
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn argsort<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::int_argsort(tensor, dim)
+        B::int_argsort(tensor, dim, descending)
     }
 }
 
@@ -2607,24 +2652,30 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn sort<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::float_sort(tensor, dim)
+    fn sort<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> Self::Primitive<D> {
+        B::float_sort(tensor, dim, descending)
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn sort_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>) {
-        B::float_sort_with_indices(tensor, dim)
+        B::float_sort_with_indices(tensor, dim, descending)
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn argsort<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
+        descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::float_argsort(tensor, dim)
+        B::float_argsort(tensor, dim, descending)
     }
 }
 

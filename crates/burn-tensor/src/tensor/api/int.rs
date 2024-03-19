@@ -70,31 +70,36 @@ where
         Tensor::new(B::int_into_float(self.primitive))
     }
 
-    /// Sort the elements by value in ascending order along a given dimension.
+    /// Sort the elements by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort(self, dim: usize) -> Tensor<B, D, Int> {
-        Tensor::new(sort::<B, D, Int>(self.primitive, dim).await)
+    pub async fn sort(self, dim: usize, descending: bool) -> Tensor<B, D, Int> {
+        Tensor::new(sort::<B, D, Int>(self.primitive, dim, descending).await)
     }
 
-    /// Sort the elements by value in ascending order along a given dimension.
+    /// Sort the elements by value along a given dimension.
     /// Also returns the indices.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort_with_indices(self, dim: usize) -> (Tensor<B, D, Int>, Tensor<B, D, Int>) {
+    pub async fn sort_with_indices(
+        self,
+        dim: usize,
+        descending: bool,
+    ) -> (Tensor<B, D, Int>, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
-        let (values, indices) = sort_with_indices::<B, D, Int>(self.primitive, dim).await;
+        let (values, indices) =
+            sort_with_indices::<B, D, Int>(self.primitive, dim, descending).await;
         (Tensor::new(values), Tensor::new(indices))
     }
 
-    /// Returns the indices that sort the elements by value in ascending order along a given dimension.
+    /// Returns the indices that sort the elements by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn argsort(self, dim: usize) -> Tensor<B, D, Int> {
+    pub async fn argsort(self, dim: usize, descending: bool) -> Tensor<B, D, Int> {
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
-        Tensor::new(argsort::<B, D, Int>(self.primitive, dim).await)
+        Tensor::new(argsort::<B, D, Int>(self.primitive, dim, descending).await)
     }
 }

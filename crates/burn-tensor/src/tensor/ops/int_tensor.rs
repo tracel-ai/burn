@@ -1189,7 +1189,7 @@ pub trait IntTensorOps<B: Backend> {
         result
     }
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1197,16 +1197,21 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn int_sort<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
-        sort::<B, D, Int>(tensor, dim)
+    fn int_sort<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        sort::<B, D, Int>(tensor, dim, descending)
     }
 
-    /// Sort the elements of the input `tensor` by value in ascending order along a given dimension.
+    /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
     ///
@@ -1223,11 +1228,12 @@ pub trait IntTensorOps<B: Backend> {
     fn int_sort_with_indices<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
+        descending: bool,
     ) -> (IntTensor<B, D>, IntTensor<B, D>) {
-        sort_with_indices::<B, D, Int>(tensor, dim)
+        sort_with_indices::<B, D, Int>(tensor, dim, descending)
     }
 
-    /// Returns the indices that sort the elements of the input `tensor` by value in ascending order
+    /// Returns the indices that sort the elements of the input `tensor` by value
     /// along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
@@ -1236,12 +1242,17 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn int_argsort<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
-        argsort::<B, D, Int>(tensor, dim)
+    fn int_argsort<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        argsort::<B, D, Int>(tensor, dim, descending)
     }
 }

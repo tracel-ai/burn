@@ -28,6 +28,37 @@ mod tests {
     }
 
     #[test]
+    fn test_sort_with_indices_descending_int() {
+        // 1D
+        let tensor = TestTensorInt::from([1, 4, 7, 2, 5, 6, 3, 0, 9, 8, -10, 42, 1000]);
+
+        // Sort along dim=0
+        let (values, indices) = tensor.sort_descending_with_indices(0);
+        let values_actual = values.into_data();
+        let indices_actual = indices.into_data();
+
+        let values_expected = Data::from([1000, 42, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -10]);
+        assert_eq!(values_expected, values_actual);
+
+        let indices_expected = Data::from([12, 11, 8, 9, 2, 5, 4, 1, 6, 3, 0, 7, 10]);
+        assert_eq!(indices_expected, indices_actual);
+
+        // 2D
+        let tensor = TestTensorInt::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
+
+        // Sort along dim=1
+        let (values, indices) = tensor.sort_descending_with_indices(1);
+        let values_actual = values.into_data();
+        let indices_actual = indices.into_data();
+
+        let values_expected = Data::from([[[2, 5, 7], [1, 4, 6]], [[8, 2, 9], [3, 0, 8]]]);
+        assert_eq!(values_expected, values_actual);
+
+        let indices_expected = Data::from([[[1, 1, 0], [0, 0, 1]], [[1, 1, 0], [0, 0, 1]]]);
+        assert_eq!(indices_expected, indices_actual);
+    }
+
+    #[test]
     fn test_sort_int() {
         let tensor = TestTensorInt::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
 
@@ -156,6 +187,47 @@ mod tests {
         let indices_actual = indices.into_data();
 
         let indices_expected = Data::from([12, 6, 2, 3, 0, 5, 10, 1, 4, 7, 11, 9, 8]);
+        assert_eq!(indices_expected, indices_actual);
+    }
+
+    #[test]
+    fn test_sort_with_indices_descending_float() {
+        // 1D
+        let tensor = TestTensor::from([
+            0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 199.412, 4., 0.99, 3., -8.1,
+        ]);
+
+        // Sort along dim=0
+        let (values, indices) = tensor.sort_descending_with_indices(0);
+        let values_actual = values.into_data();
+        let indices_actual = indices.into_data();
+
+        let values_expected = Data::from([
+            199.412, 4., 3., 2.3, 2.1, 1.2, 0.99, 0.94, 0.5, 0., -0.21, -0.3, -8.1,
+        ]);
+        values_expected.assert_approx_eq(&values_actual, 5);
+
+        let indices_expected = Data::from([8, 9, 11, 7, 4, 1, 10, 5, 0, 3, 2, 6, 12]);
+        assert_eq!(indices_expected, indices_actual);
+
+        // 2D
+        let tensor = TestTensor::from([
+            [[-0.5, 1.2, -0.21], [0., 2.1, 0.94]],
+            [[-0.3, 2.3, 4.], [0.99, 3., -8.1]],
+        ]);
+
+        // Sort along dim=1
+        let (values, indices) = tensor.sort_descending_with_indices(1);
+        let values_actual = values.into_data();
+        let indices_actual = indices.into_data();
+
+        let values_expected = Data::from([
+            [[0., 2.1, 0.94], [-0.5, 1.2, -0.21]],
+            [[0.99, 3., 4.], [-0.3, 2.3, -8.1]],
+        ]);
+        values_expected.assert_approx_eq(&values_actual, 5);
+
+        let indices_expected = Data::from([[[1, 1, 1], [0, 0, 0]], [[1, 1, 0], [0, 0, 1]]]);
         assert_eq!(indices_expected, indices_actual);
     }
 
