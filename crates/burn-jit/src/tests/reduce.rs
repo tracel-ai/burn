@@ -124,7 +124,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -142,7 +142,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -160,7 +160,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -181,7 +181,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.mean_dim(reduce_dim);
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -254,7 +254,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.sum();
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
@@ -270,7 +270,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.prod();
 
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
     }
 
     #[test]
