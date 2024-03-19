@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 
 use super::{
     padding::{crop, pad_round, PaddingOutput},
-    shape_out, tiling2d_launch_options, MatmulTiling2dShader, Tiling2DAssumption, Tiling2dConfig,
+    shape_out, tiling2d_launch_options, MatmulTiling2dShader, Tiling2dConfig,
 };
 
 #[derive(new, Debug)]
@@ -25,7 +25,7 @@ struct MatmulTiling2d<E: JitElement> {
 #[derive(new, Debug)]
 struct MatmulTiling2dEagerKernel<R: Runtime> {
     config: Tiling2dConfig,
-    assumption: Tiling2DAssumption,
+    bounds_check_required: bool,
     _runtime: PhantomData<R>,
 }
 
@@ -41,7 +41,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
         MatmulTiling2dShader {
             variables: gpu::BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
-            assumption: self.assumption.clone(),
+            bounds_check_required: self.bounds_check_required,
             unroll: false,
         }
         .expand(&mut scope);
@@ -76,10 +76,10 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
 
     fn id(&self) -> String {
         format!(
-            "{:?}config={:?}assumption={:?}",
+            "{:?}config={:?}boundcheck={:?}",
             core::any::TypeId::of::<Self>(),
             self.config,
-            self.assumption
+            self.bounds_check_required
         )
     }
 }
@@ -92,9 +92,9 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
     out: JitTensor<R, E, D>,
     config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
-    let assumption = check_assumption(&lhs.shape, &rhs.shape, &config);
+    let bounds_check_required = check_bound_requirement(&lhs.shape, &rhs.shape, &config);
 
-    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), assumption);
+    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), bounds_check_required);
     let client = lhs.client.clone();
 
     let lhs = match lhs.batch_swapped_with_row_col() {
@@ -126,7 +126,7 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
     out: JitTensor<R, E, D>,
     config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
-    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), Tiling2DAssumption::Round);
+    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), false);
     let client = lhs.client.clone();
 
     // A tensor may need to be padded, in which case it will implicitly become contiguous
@@ -177,16 +177,12 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
     crop(rounded_output, out)
 }
 
-fn check_assumption<const D: usize>(
+fn check_bound_requirement<const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     config: &Tiling2dConfig,
-) -> Tiling2DAssumption {
-    let m_divisible = lhs_shape.dims[D - 2] % config.block_size_m == 0;
-    let k_divisible = lhs_shape.dims[D - 1] % config.block_size_k == 0;
-    let n_divisible = rhs_shape.dims[D - 1] % config.block_size_n == 0;
-    match m_divisible && k_divisible && n_divisible {
-        true => Tiling2DAssumption::Round,
-        false => Tiling2DAssumption::None,
-    }
+) -> bool {
+    !(lhs_shape.dims[D - 2] % config.block_size_m == 0)
+        || !(lhs_shape.dims[D - 1] % config.block_size_k == 0)
+        || !(rhs_shape.dims[D - 1] % config.block_size_n == 0)
 }

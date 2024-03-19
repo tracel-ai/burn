@@ -1,11 +1,11 @@
 use crate::gpu::{gpu, BinaryOperator, Elem, Item, Scope, Synchronization, Variable};
 
-use super::{Tiling2DAssumption, Tiling2dConfig};
+use super::Tiling2dConfig;
 
 pub(crate) struct MatmulTiling2dShader {
     pub variables: BinaryOperator,
     pub config: Tiling2dConfig,
-    pub assumption: Tiling2DAssumption,
+    pub bounds_check_required: bool,
     pub unroll: bool,
 }
 
@@ -140,20 +140,17 @@ impl MatmulTiling2dShader {
         );
 
         let n_loops = scope.create_local(Elem::UInt);
-        match self.assumption {
-            Tiling2DAssumption::Round => {
-                gpu!(scope, n_loops = dim_k / block_size_k);
-            }
-            Tiling2DAssumption::None => {
-                let dim_k_float = scope.create_local(elem);
-                let block_size_k_float = scope.create_local(elem);
-                let n_loops_float = scope.create_local(elem);
-                gpu!(scope, dim_k_float = dim_k);
-                gpu!(scope, block_size_k_float = block_size_k);
-                gpu!(scope, n_loops_float = dim_k_float / block_size_k_float);
-                gpu!(scope, n_loops_float = ceil(n_loops_float));
-                gpu!(scope, n_loops = n_loops_float);
-            }
+        if self.bounds_check_required {
+            let dim_k_float = scope.create_local(elem);
+            let block_size_k_float = scope.create_local(elem);
+            let n_loops_float = scope.create_local(elem);
+            gpu!(scope, dim_k_float = dim_k);
+            gpu!(scope, block_size_k_float = block_size_k);
+            gpu!(scope, n_loops_float = dim_k_float / block_size_k_float);
+            gpu!(scope, n_loops_float = ceil(n_loops_float));
+            gpu!(scope, n_loops = n_loops_float);
+        } else {
+            gpu!(scope, n_loops = dim_k / block_size_k);
         }
 
         gpu!(
@@ -163,71 +160,68 @@ impl MatmulTiling2dShader {
                 let k = scope.create_local(Elem::UInt);
                 gpu!(scope, k = i * block_size_k);
 
-                match self.assumption {
-                    Tiling2DAssumption::Round => {
-                        // LHS
-                        self.load_shared_memory(
-                            scope,
-                            k,
-                            thread_col,
-                            thread_row,
-                            lhs_stride_col,
-                            lhs_stride_row,
-                            lhs,
-                            offset_lhs,
-                            shared_lhs,
-                            true,
-                        );
+                if self.bounds_check_required {
+                    // LHS
+                    self.load_shared_memory_with_bound_check(
+                        scope,
+                        k,
+                        dim_k,
+                        thread_col,
+                        thread_row,
+                        lhs_stride_col,
+                        lhs_stride_row,
+                        dim_m,
+                        row,
+                        lhs,
+                        offset_lhs,
+                        shared_lhs,
+                        true,
+                    );
 
-                        // RHS
-                        self.load_shared_memory(
-                            scope,
-                            k,
-                            thread_row,
-                            thread_col,
-                            rhs_stride_row,
-                            rhs_stride_col,
-                            rhs,
-                            offset_rhs,
-                            shared_rhs,
-                            false,
-                        );
-                    }
-                    Tiling2DAssumption::None => {
-                        // LHS
-                        self.load_shared_memory_with_bound_check(
-                            scope,
-                            k,
-                            dim_k,
-                            thread_col,
-                            thread_row,
-                            lhs_stride_col,
-                            lhs_stride_row,
-                            dim_m,
-                            row,
-                            lhs,
-                            offset_lhs,
-                            shared_lhs,
-                            true,
-                        );
+                    // RHS
+                    self.load_shared_memory_with_bound_check(
+                        scope,
+                        k,
+                        dim_k,
+                        thread_row,
+                        thread_col,
+                        rhs_stride_row,
+                        rhs_stride_col,
+                        dim_n,
+                        col,
+                        rhs,
+                        offset_rhs,
+                        shared_rhs,
+                        false,
+                    );
+                } else {
+                    // LHS
+                    self.load_shared_memory(
+                        scope,
+                        k,
+                        thread_col,
+                        thread_row,
+                        lhs_stride_col,
+                        lhs_stride_row,
+                        lhs,
+                        offset_lhs,
+                        shared_lhs,
+                        true,
+                    );
 
-                        // RHS
-                        self.load_shared_memory_with_bound_check(
-                            scope,
-                            k,
-                            dim_k,
-                            thread_row,
-                            thread_col,
-                            rhs_stride_row,
-                            rhs_stride_col,
-                            dim_n,
-                            col,
-                            rhs,
-                            offset_rhs,
-                            shared_rhs,
-                            false,
-                        );
-                    }
+                    // RHS
+                    self.load_shared_memory(
+                        scope,
+                        k,
+                        thread_row,
+                        thread_col,
+                        rhs_stride_row,
+                        rhs_stride_col,
+                        rhs,
+                        offset_rhs,
+                        shared_rhs,
+                        false,
+                    );
                 }
 
                 scope.register(Synchronization::WorkgroupBarrier);
@@ -554,8 +548,28 @@ impl MatmulTiling2dShader {
                                 gpu!(scope, row_index = row + res_idx_m);
                                 gpu!(scope, col_index = col + res_idx_n);
 
-                                match self.assumption {
-                                    Tiling2DAssumption::Round => self.write_inner(
+                                if self.bounds_check_required {
+                                    let within_output = scope.create_local(Elem::Bool);
+                                    let within_output_tmp = scope.create_local(Elem::Bool);
+                                    gpu!(scope, within_output = row_index < dim_m);
+                                    gpu!(scope, within_output_tmp = col_index < dim_n);
+                                    gpu!(scope, within_output = within_output && within_output_tmp);
+                                    gpu!(scope, if(within_output).then(|scope|{
+                                        self.write_inner(
+                                            scope,
+                                            res_idx_m,
+                                            res_idx_n,
+                                            row_index,
+                                            col_index,
+                                            out_stride_row,
+                                            out_stride_col,
+                                            results,
+                                            offset_output,
+                                            out,
+                                        );
+                                    }));
+                                } else {
+                                    self.write_inner(
                                         scope,
                                         res_idx_m,
                                         res_idx_n,
@@ -566,31 +580,7 @@ impl MatmulTiling2dShader {
                                         results,
                                         offset_output,
                                         out,
-                                    ),
-                                    Tiling2DAssumption::None => {
-                                        let within_output = scope.create_local(Elem::Bool);
-                                        let within_output_tmp = scope.create_local(Elem::Bool);
-                                        gpu!(scope, within_output = row_index < dim_m);
-                                        gpu!(scope, within_output_tmp = col_index < dim_n);
-                                        gpu!(
-                                            scope,
-                                            within_output = within_output && within_output_tmp
-                                        );
-                                        gpu!(scope, if(within_output).then(|scope|{
-                                            self.write_inner(
-                                                scope,
-                                                res_idx_m,
-                                                res_idx_n,
-                                                row_index,
-                                                col_index,
-                                                out_stride_row,
-                                                out_stride_col,
-                                                results,
-                                                offset_output,
-                                                out,
-                                            );
-                                        }));
-                                    }
+                                    )
                                 }
                             }
                         )

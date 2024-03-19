@@ -9,14 +9,6 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) enum Tiling2DAssumption {
-    // Input shapes are divisible by their corresponding block sizes
-    Round,
-    // Bounds must be checked
-    None,
-}
-
-#[derive(Debug, Clone)]
 /// Tiling 2D parameters
 pub struct Tiling2dConfig {
     /// Number of invocations in x
