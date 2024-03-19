@@ -467,8 +467,8 @@ fn dim_indices<B: Backend, const D: usize>(dims: &[usize; D], dim: usize) -> Vec
 /// Compare two elements
 fn compare<E: ElementComparison>(a: &E, b: &E, descending: bool) -> Ordering {
     if descending {
-        b.cmp(&a)
+        b.cmp(a)
     } else {
-        a.cmp(&b)
+        a.cmp(b)
     }
 }
