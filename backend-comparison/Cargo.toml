@@ -55,7 +55,8 @@ name = "binary"
 harness = false
 
 [[bench]]
-name = "max_pool2d"
+name = "max-pool2d"
+path = "benches/max_pool2d.rs"
 harness = false
 
 [[bench]]
@@ -67,7 +68,8 @@ name = "data"
 harness = false
 
 [[bench]]
-name = "custom_gelu"
+name = "custom-gelu"
+path = "benches/custom_gelu.rs"
 harness = false
 
 [[bin]]

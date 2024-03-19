@@ -92,7 +92,7 @@ pub(crate) enum BackendValues {
 pub(crate) enum BenchmarkValues {
     #[strum(to_string = "binary")]
     Binary,
-    #[strum(to_string = "custom_gelu")]
+    #[strum(to_string = "custom-gelu")]
     CustomGelu,
     #[strum(to_string = "data")]
     Data,
@@ -100,7 +100,7 @@ pub(crate) enum BenchmarkValues {
     Matmul,
     #[strum(to_string = "unary")]
     Unary,
-    #[strum(to_string = "max_pool2d")]
+    #[strum(to_string = "max-pool2d")]
     MaxPool2d,
 }
 
