@@ -214,6 +214,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "sysinfo",
+ "wgpu",
 ]
 
 [[package]]
