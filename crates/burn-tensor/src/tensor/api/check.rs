@@ -803,6 +803,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn sort_dim<const D: usize>(ops: &str, dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't sort a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        check
+    }
+
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
     /// important when an error occurred, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.

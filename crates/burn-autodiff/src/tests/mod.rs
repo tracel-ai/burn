@@ -48,6 +48,7 @@ mod sign;
 mod sin;
 mod slice;
 mod softmax;
+mod sort;
 mod sqrt;
 mod sub;
 mod tanh;
@@ -118,5 +119,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_flip!();
         burn_autodiff::testgen_ad_nonzero!();
         burn_autodiff::testgen_ad_sign!();
+        burn_autodiff::testgen_ad_sort!();
     };
 }

@@ -368,4 +368,28 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         B::int_prod_dim(tensor, dim)
     }
+
+    fn int_sort<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<Self, D> {
+        B::int_sort(tensor, dim, descending)
+    }
+
+    fn int_sort_with_indices<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+        B::int_sort_with_indices(tensor, dim, descending)
+    }
+
+    fn int_argsort<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<Self, D> {
+        B::int_argsort(tensor, dim, descending)
+    }
 }

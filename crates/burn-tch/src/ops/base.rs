@@ -494,4 +494,20 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     pub fn sign<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
     }
+
+    pub fn sort<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
+    }
+
+    pub fn argsort<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> TchTensor<i64, D> {
+        TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
+    }
 }
