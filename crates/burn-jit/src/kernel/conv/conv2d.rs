@@ -11,15 +11,17 @@ use crate::{
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
-    ops::numeric::empty_device,
+    kernel::{into_contiguous, matmul::padding, DynamicKernelSource, SourceTemplate},
+    ops::{
+        numeric::{empty_device, zeros_device},
+        reshape,
+    },
     tensor::JitTensor,
     Runtime, RuntimeInt,
 };
 
 #[derive(new)]
 struct Conv2dEagerKernel<R: Runtime, E: JitElement> {
-    has_bias: bool,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -27,7 +29,7 @@ struct Conv2dEagerKernel<R: Runtime, E: JitElement> {
 struct Conv2dComputeShader<E: JitElement> {
     input: Variable,
     weight: Variable,
-    bias: Option<Variable>,
+    bias: Variable,
     output: Variable,
     _elem: PhantomData<E>,
 }
@@ -36,6 +38,7 @@ impl<E: JitElement> Conv2dComputeShader<E> {
     fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let weight = self.weight;
+        let bias = self.bias;
         let output = self.output;
         let id = Variable::Id;
 
@@ -98,8 +101,6 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
         let groups = Variable::GlobalScalar(6, Elem::UInt);
 
-        // let [kernel_size_0, kernel_size_1] = self.kernel_size;
-
         let b = scope.create_local(Elem::UInt);
         let oc = scope.create_local(Elem::UInt);
         let oh = scope.create_local(Elem::UInt);
@@ -128,15 +129,7 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         gpu!(scope, ic_end = ic_start + in_channels);
 
         let sum = scope.create_local(output.item());
-        match self.bias {
-            Some(bias) => {
-                gpu!(scope, sum = bias[oc]);
-            }
-            None => {
-                let z = scope.zero(output.item());
-                gpu!(scope, sum = z);
-            }
-        }
+        gpu!(scope, sum = bias[oc]);
 
         let ih_base = scope.create_local(Elem::UInt);
         let iw_base = scope.create_local(Elem::UInt);
@@ -145,7 +138,9 @@ impl<E: JitElement> Conv2dComputeShader<E> {
 
         let padding = scope.create_local(Elem::Bool);
         let padding_accumulator = scope.create_local(Elem::Bool);
+        let border_top = scope.create_local(Elem::UInt);
         let border_bottom = scope.create_local(Elem::UInt);
+        let border_left = scope.create_local(Elem::UInt);
         let border_right = scope.create_local(Elem::UInt);
 
         let ih_pad = scope.create_local(Elem::UInt);
@@ -170,6 +165,8 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         gpu!(scope, ih_base = oh * conv_stride_0);
         gpu!(scope, iw_base = ow * conv_stride_1);
 
+        gpu!(scope, border_top = padding_0);
+        gpu!(scope, border_left = padding_1);
         gpu!(scope, border_bottom = input_shape_2 + padding_0);
         gpu!(scope, border_right = input_shape_3 + padding_1);
 
@@ -195,10 +192,10 @@ impl<E: JitElement> Conv2dComputeShader<E> {
                                 gpu!(scope, iw = kw * dilation_1);
                                 gpu!(scope, iw += iw_base);
 
-                                gpu!(scope, padding_accumulator = ih >= padding_0);
+                                gpu!(scope, padding_accumulator = ih >= border_top);
                                 gpu!(scope, padding = ih < border_bottom);
                                 gpu!(scope, padding_accumulator = padding_accumulator && padding);
-                                gpu!(scope, padding = iw >= padding_1);
+                                gpu!(scope, padding = iw >= border_left);
                                 gpu!(scope, padding_accumulator = padding_accumulator && padding);
                                 gpu!(scope, padding = iw < border_right);
                                 gpu!(scope, padding_accumulator = padding_accumulator && padding);
@@ -244,10 +241,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dEagerKernel<R, E> 
 
         let input = Variable::GlobalInputArray(0, item);
         let weight = Variable::GlobalInputArray(1, item);
-        let bias = match self.has_bias {
-            true => Some(Variable::GlobalInputArray(2, item)),
-            false => None,
-        };
+        let bias = Variable::GlobalInputArray(2, item);
         let output = Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(output);
@@ -269,22 +263,19 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dEagerKernel<R, E> 
             item,
             visibility: Visibility::Read,
         };
+        let bias = InputInfo::Array {
+            item,
+            visibility: Visibility::Read,
+        };
         let scalars = InputInfo::Scalar {
             elem: Elem::UInt,
             size: 7,
         };
-        let mut inputs = vec![input, weight, scalars];
-        if bias.is_some() {
-            inputs.push(InputInfo::Array {
-                item,
-                visibility: Visibility::Read,
-            })
-        }
 
         let output = OutputInfo::Array { item };
 
         let info = CompilationInfo {
-            inputs,
+            inputs: vec![input, weight, bias, scalars],
             outputs: vec![output],
             scope,
         };
@@ -334,19 +325,24 @@ pub(crate) fn conv2d<R: Runtime, E: JitElement>(
         shape_out.clone(),
     );
 
-    let has_bias = bias.is_some();
-    let (bias_handle, bias_strides, bias_shape) = match bias {
-        Some(bias) => (bias.handle, bias.strides, bias.shape.dims),
-        None => (input.client.create(E::as_bytes(&[0.elem()])), [1], [1]),
+    let bias = match bias {
+        Some(bias) => {
+            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
+            reshape(bias, shape)
+        }
+        None => {
+            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
+            zeros_device(input.client.clone(), input.device.clone(), shape)
+        }
     };
 
-    let kernel = Conv2dEagerKernel::new(has_bias);
+    let kernel = Conv2dEagerKernel::new();
 
     execute_dynamic::<R, Conv2dEagerKernel<R, E>, RuntimeInt<R>>(
         &[
             EagerHandle::new(&input.handle, &input.strides, &input.shape.dims),
             EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            EagerHandle::new(&bias_handle, &bias_strides, &bias_shape),
+            EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
         ],
         &[EagerHandle::new(
             &output.handle,
@@ -354,13 +350,13 @@ pub(crate) fn conv2d<R: Runtime, E: JitElement>(
             &output.shape.dims,
         )],
         Some(&[
-            (options.stride[0] as i32).elem(),
-            (options.stride[1] as i32).elem(),
-            (options.padding[0] as i32).elem(),
-            (options.padding[1] as i32).elem(),
-            (options.dilation[0] as i32).elem(),
-            (options.dilation[1] as i32).elem(),
-            (options.groups as i32).elem(),
+            (options.stride[0] as u32).elem(),
+            (options.stride[1] as u32).elem(),
+            (options.dilation[0] as u32).elem(),
+            (options.dilation[1] as u32).elem(),
+            (options.padding[0] as u32).elem(),
+            (options.padding[1] as u32).elem(),
+            (options.groups as u32).elem(),
         ]),
         kernel,
         WorkgroupLaunch::Output { pos: 0 },
