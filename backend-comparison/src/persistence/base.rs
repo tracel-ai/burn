@@ -82,7 +82,8 @@ pub fn save<B: Backend>(
         serde_json::to_writer_pretty(file, &record)
             .expect("Benchmark file should be updated with benchmark results");
 
-        // Append the benchmark result filepath in the benchmark_results.tx file of  cache folder to be later picked by benchrun
+        // Append the benchmark result filepath in the benchmark_results.tx file of
+        // cache folder to be later picked by benchrun
         let benchmark_results_path = cache_dir.join("benchmark_results.txt");
         let mut benchmark_results_file = fs::OpenOptions::new()
             .append(true)
@@ -93,37 +94,37 @@ pub fn save<B: Backend>(
             .write_all(format!("{}\n", file_path.to_string_lossy()).as_bytes())
             .unwrap();
 
-        if url.is_some() {
-            println!("Sharing results...");
-            let client = reqwest::blocking::Client::new();
-            let mut headers = HeaderMap::new();
-            headers.insert(USER_AGENT, "burnbench".parse().unwrap());
-            headers.insert(ACCEPT, "application/json".parse().unwrap());
-            headers.insert(
-                AUTHORIZATION,
-                format!(
-                    "Bearer {}",
-                    token.expect("An auth token should be provided.")
-                )
-                .parse()
-                .unwrap(),
+        if let Some(upload_url) = url {
+            upload_record(
+                &record,
+                token.expect("An auth token should be provided."),
+                upload_url,
             );
-            // post the benchmark record
-            let response = client
-                .post(url.expect("A benchmark server URL should be provided."))
-                .headers(headers)
-                .json(&record)
-                .send()
-                .expect("Request should be sent successfully.");
-            if response.status().is_success() {
-                println!("Results shared successfully.");
-            } else {
-                println!("Failed to share results. Status: {}", response.status());
-            }
         }
     }
 
     Ok(records)
+}
+
+fn upload_record(record: &BenchmarkRecord, token: &str, url: &str) {
+    println!("Sharing results...");
+    let client = reqwest::blocking::Client::new();
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, "burnbench".parse().unwrap());
+    headers.insert(ACCEPT, "application/json".parse().unwrap());
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    // post the benchmark record
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(record)
+        .send()
+        .expect("Request should be sent successfully.");
+    if response.status().is_success() {
+        println!("Results shared successfully.");
+    } else {
+        println!("Failed to share results. Status: {}", response.status());
+    }
 }
 
 /// Macro to easily serialize each field in a flatten manner.
