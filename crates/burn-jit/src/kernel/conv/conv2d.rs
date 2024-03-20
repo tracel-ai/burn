@@ -11,7 +11,7 @@ use crate::{
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, matmul::padding, DynamicKernelSource, SourceTemplate},
+    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
