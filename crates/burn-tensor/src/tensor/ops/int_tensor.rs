@@ -1176,4 +1176,10 @@ pub trait IntTensorOps<B: Backend> {
         result = B::int_mask_fill(result, greater_than_zero, 1.0f32.elem());
         result
     }
+
+    /// Broadcasts the int `tensor` to the given `shape`.
+    fn int_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: IntTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<B, D2>;
 }

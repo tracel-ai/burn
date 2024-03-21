@@ -466,4 +466,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         out
     }
+    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
+        todo!()
+    }
 }

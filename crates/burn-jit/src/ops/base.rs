@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{element::JitElement, kernel, tensor::JitTensor, Runtime};
 use burn_tensor::{Data, Reader, Shape};
 
@@ -79,6 +81,50 @@ pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
     tensor.shape.dims = axes.map(|i| tensor.shape.dims[i]);
 
     tensor
+}
+
+pub(crate) fn broadcast_to<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
+    tensor: JitTensor<R, E, D>,
+    target_shape: Shape<D_OUT>,
+) -> JitTensor<R, E, D_OUT> {
+    // Initialize new strides and shapes with zeros or appropriate values
+    let mut new_strides = [0usize; D_OUT];
+
+    // Calculate the difference in dimensions
+    let dim_diff = if D_OUT > D { D_OUT - D } else { 0 };
+
+    // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
+    let mut tensor_dim_iter = tensor.shape.dims.iter().rev();
+    for i in (0..D_OUT).rev() {
+        if let Some(&tensor_dim) = tensor_dim_iter.next() {
+            if i >= dim_diff && (tensor_dim == target_shape.dims[i] || tensor_dim == 1) {
+                // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
+                new_strides[i] = if tensor_dim == target_shape.dims[i] {
+                    tensor.strides[i - dim_diff]
+                } else {
+                    0
+                };
+            } else {
+                // Error handling: Dimension mismatch for broadcasting
+                panic!(
+                    "Dimension mismatch: cannot broadcast dimension {} of tensor to target shape",
+                    tensor_dim
+                );
+            }
+        } else {
+            // For extra dimensions in the target shape, set stride to 0 (broadcasting)
+            new_strides[i] = 0;
+        }
+    }
+
+    JitTensor {
+        client: tensor.client,
+        device: tensor.device,
+        shape: target_shape,
+        strides: new_strides,
+        handle: tensor.handle,
+        elem: PhantomData,
+    }
 }
 
 pub(crate) fn reshape<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(

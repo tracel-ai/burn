@@ -364,4 +364,11 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         B::int_prod_dim(tensor, dim)
     }
+
+    fn int_broadcast_to<const D: usize, const D2: usize>(
+        tensor: IntTensor<B, D>,
+        shape: Shape<D2>,
+    ) -> IntTensor<B, D2> {
+        B::int_broadcast_to(tensor, shape)
+    }
 }

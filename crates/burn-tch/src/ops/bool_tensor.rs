@@ -155,4 +155,11 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
             .map(TchTensor::new)
             .collect()
     }
+
+    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D2> {
+        TchOps::broadcast_to(tensor, shape)
+    }
 }

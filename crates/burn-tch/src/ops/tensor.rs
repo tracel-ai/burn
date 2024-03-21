@@ -488,4 +488,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::sign(tensor)
     }
+
+    fn float_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::FloatTensor<Self, D2> {
+        TchOps::broadcast_to(tensor, shape)
+    }
 }

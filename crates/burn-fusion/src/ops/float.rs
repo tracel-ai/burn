@@ -1846,4 +1846,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn float_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        todo!()
+    }
 }

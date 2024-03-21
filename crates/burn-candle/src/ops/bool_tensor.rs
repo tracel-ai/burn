@@ -8,7 +8,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::permute;
+use super::base::{broadcast_to, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
@@ -134,5 +134,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         axes: [usize; D],
     ) -> BoolTensor<Self, D> {
         permute(tensor, axes)
+    }
+
+    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
+        broadcast_to(tensor, shape)
     }
 }

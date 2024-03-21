@@ -1350,4 +1350,10 @@ pub trait FloatTensorOps<B: Backend> {
         result = B::float_mask_fill(result, greater_than_zero, 1.0f32.elem());
         result
     }
+
+    /// Broadcasts the float `tensor` to the given `shape`.
+    fn float_broadcast_to<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<B, D2>;
 }

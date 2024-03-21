@@ -144,6 +144,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.all_dim(dim)`                 | `tensor.all(dim)`                    |
 | `tensor.any()`                        | `tensor.any()`                       |
 | `tensor.any_dim(dim)`                 | `tensor.any(dim)`                    |
+| `tensor.broadcast_to(shape)`          | `tensor.broadcast_to(shape)`         |
 | `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`      |
 | `tensor.device()`                     | `tensor.device`                      |
 | `tensor.dims()`                       | `tensor.size()`                      |

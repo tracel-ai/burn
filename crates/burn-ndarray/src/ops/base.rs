@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
+use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
+use ndarray::IntoDimension;
 use ndarray::Zip;
 use num_traits::Signed;
 
@@ -27,7 +29,7 @@ pub(crate) struct NdArrayMathOps<E> {
 
 impl<E> NdArrayOps<E>
 where
-    E: Copy,
+    E: Copy + Debug,
 {
     pub fn slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
@@ -110,6 +112,22 @@ where
         array.swap_axes(dim1, dim2);
 
         NdArrayTensor::new(array)
+    }
+
+    /// Broadcasts the tensor to the given shape
+    pub(crate) fn broadcast_to<const D1: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D1>,
+        shape: Shape<D2>,
+    ) -> NdArrayTensor<E, D2> {
+        let array = tensor
+            .array
+            .broadcast(shape.dims.into_dimension())
+            .expect("The shapes should be broadcastable")
+            // need to convert view to owned array because NdArrayTensor expects owned array
+            // and try_into_owned_nocopy() panics for broadcasted arrays (zero strides)
+            .into_owned()
+            .into_shared();
+        NdArrayTensor { array }
     }
 }
 

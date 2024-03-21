@@ -101,6 +101,7 @@ mod tests {
     burn_tensor::testgen_sub!();
     burn_tensor::testgen_tanh!();
     burn_tensor::testgen_transpose!();
+    burn_tensor::testgen_broadcast_to!();
 
     // test stats
     burn_tensor::testgen_var!();
@@ -156,4 +157,5 @@ mod tests {
     burn_autodiff::testgen_ad_sub!();
     burn_autodiff::testgen_ad_tanh!();
     burn_autodiff::testgen_ad_transpose!();
+    burn_autodiff::testgen_ad_broadcast_to!();
 }

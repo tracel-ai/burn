@@ -10,6 +10,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
+use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
@@ -723,6 +724,36 @@ where
         let data = self.into_data().await;
         data.value[0]
     }
+
+    /// Broadcast the tensor to the given shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape to broadcast the tensor to.
+    ///             Can contain -1 for dimensions that should be inferred.
+    ///             The number of elements in the shape must be greater or equal as
+    ///             the number of dimensions of the tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor cannot be broadcasted to the given shape.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given shape.
+    pub fn broadcast_to<const D2: usize, S: BroadcastArgs<D, D2>>(
+        self,
+        shape: S,
+    ) -> Tensor<B, D2, K> {
+        let shape = shape.into_shape(&self.shape());
+        check!(TensorCheck::broadcast_to(
+            "broadcast_to",
+            &self.shape(),
+            &shape,
+        ));
+
+        Tensor::<B, D2, K>::new(K::broastcast_to(self.primitive, shape))
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
@@ -1422,7 +1453,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all](Tensor::all) function,
     /// which is more high-level and designed for public use.
-
     fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
@@ -1442,8 +1472,22 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all_dim](Tensor::all_dim) function,
     /// which is more high-level and designed for public use.
-
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+
+    /// Broadcasts the given tensor to the specified shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to broadcast.
+    /// * `shape` - The shape to broadcast to.
+    ///
+    /// # Returns
+    ///
+    /// The broadcasted tensor.
+    fn broastcast_to<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -1452,6 +1496,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         B::float_empty(shape, device)
     }
+
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         B::float_shape(tensor)
     }
@@ -1557,6 +1602,13 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::float_permute(tensor, axes)
+    }
+
+    fn broastcast_to<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2> {
+        B::float_broadcast_to(tensor, shape)
     }
 }
 
@@ -1672,6 +1724,13 @@ impl<B: Backend> BasicOps<B> for Int {
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::int_permute(tensor, axes)
     }
+
+    fn broastcast_to<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2> {
+        B::int_broadcast_to(tensor, shape)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1786,6 +1845,13 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
         B::bool_permute(tensor, axes)
     }
+
+    fn broastcast_to<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2> {
+        B::bool_broadcast_to(tensor, shape)
+    }
 }
 
 /// Trait used for reshape arguments.
@@ -1869,6 +1935,55 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
 
         // Convert each element to usize
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
+
+        Shape::from(new_shape)
+    }
+}
+
+/// Trait used for broadcast arguments.
+pub trait BroadcastArgs<const D1: usize, const D2: usize> {
+    /// Converts to a shape.
+    fn into_shape(self, shape: &Shape<D1>) -> Shape<D2>;
+}
+
+impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape<D2> {
+    fn into_shape(self, _shape: &Shape<D1>) -> Shape<D2> {
+        self
+    }
+}
+impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
+    fn into_shape(self, _shape: &Shape<D1>) -> Shape<D2> {
+        Shape::from(self)
+    }
+}
+
+impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i32; D2] {
+    // Passing -1 as the size for a dimension means not changing the size of that dimension.
+    fn into_shape(self, shape: &Shape<D1>) -> Shape<D2> {
+        if self.len() < shape.dims.len() {
+            panic!("Broadcast arguments must be greater than the number of dimensions");
+        }
+
+        if self.iter().any(|&x| x < -1 || x == 0) {
+            panic!("Broadcast arguments must be positive or -1");
+        }
+
+        // Zip the two shapes in reverse order and replace -1 with the actual dimension value.
+        let new_shape: Vec<_> = self
+            .iter()
+            .rev()
+            .zip(shape.dims.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
+            .map(|(&x, &y)| if x == -1 { y } else { x as usize })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+
+        if new_shape.iter().any(|&x| x == 0) {
+            panic!("Cannot substitute -1 for a non-existing dimension");
+        }
+
+        let new_shape: [usize; D2] = new_shape.try_into().unwrap();
 
         Shape::from(new_shape)
     }
