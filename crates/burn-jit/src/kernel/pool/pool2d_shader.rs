@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Range};
+use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
@@ -11,8 +11,8 @@ use std::fmt::Debug;
 pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
     type Accumulator: Copy;
 
-    fn h_range(&self) -> Range<u32>;
-    fn w_range(&self) -> Range<u32>;
+    fn h_range(&self) -> std::ops::Range<u32>;
+    fn w_range(&self) -> std::ops::Range<u32>;
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator;
     fn process_result(
         &self,
