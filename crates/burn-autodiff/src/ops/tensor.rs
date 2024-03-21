@@ -21,6 +21,7 @@ use burn_tensor::{
 };
 
 use super::maxmin::MaxMinDim;
+use super::sort::SortDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
@@ -2434,6 +2435,64 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .retro_forward(RetroSign::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
             .stateless(B::float_sign(tensor.primitive))
+    }
+
+    fn float_sort<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> FloatTensor<Self, D> {
+        match SortDim
+            .prepare::<C>([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = B::float_shape(&tensor.primitive);
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                prep.finish((indices, shape), tensor)
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_sort(tensor.primitive, dim, descending))
+            }
+        }
+    }
+
+    fn float_sort_with_indices<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
+        match SortDim
+            .prepare::<C>([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = B::float_shape(&tensor.primitive);
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                let tensor = prep.finish((indices.clone(), shape), tensor);
+
+                (tensor, indices)
+            }
+            OpsKind::UnTracked(prep) => {
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                let tensor = prep.finish(tensor);
+
+                (tensor, indices)
+            }
+        }
+    }
+
+    fn float_argsort<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        B::float_argsort(tensor.primitive, dim, descending)
     }
 
     // TODO: Implement float_prod and float_sum

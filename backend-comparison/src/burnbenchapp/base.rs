@@ -1,31 +1,18 @@
-use super::{
-    auth::{save_token, CLIENT_ID},
-    App,
-};
-use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
-use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
-use arboard::Clipboard;
 use clap::{Parser, Subcommand, ValueEnum};
-use github_device_flow::{self, DeviceFlow};
-use serde_json;
-use std::fs;
-use std::io::{BufRead, BufReader, Result as ioResult};
+use std::process::ExitStatus;
 use std::{
-    process::{Command, ExitStatus, Stdio},
-    thread, time,
+    fs,
+    io::{BufRead, BufReader, Result as ioResult},
+    process::{Command, Stdio},
 };
-
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
-const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
-const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
-const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
-    // development
-    "http://localhost:8000/benchmarks"
-} else {
-    // production
-    "https://user-benchmark-server-gvtbw64teq-nn.a.run.app/benchmarks"
-};
+
+use crate::burnbenchapp::auth::Tokens;
+use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
+
+use super::auth::get_username;
+use super::{auth::get_tokens, App};
 
 /// Base trait to define an application
 pub(crate) trait Application {
@@ -105,7 +92,7 @@ pub(crate) enum BackendValues {
 pub(crate) enum BenchmarkValues {
     #[strum(to_string = "binary")]
     Binary,
-    #[strum(to_string = "custom_gelu")]
+    #[strum(to_string = "custom-gelu")]
     CustomGelu,
     #[strum(to_string = "data")]
     Data,
@@ -113,7 +100,7 @@ pub(crate) enum BenchmarkValues {
     Matmul,
     #[strum(to_string = "unary")]
     Unary,
-    #[strum(to_string = "max_pool2d")]
+    #[strum(to_string = "max-pool2d")]
     MaxPool2d,
 }
 
@@ -126,34 +113,17 @@ pub fn execute() {
     }
 }
 
-/// Create an access token from GitHub Burnbench application and store it
-/// to be used with the user benchmark backend.
+/// Create an access token from GitHub Burnbench application, store it,
+/// and display the name of the authenticated user.
 fn command_auth() {
-    let mut flow = match DeviceFlow::start(CLIENT_ID, None) {
-        Ok(flow) => flow,
-        Err(e) => {
-            eprintln!("Error authenticating: {}", e);
-            return;
-        }
-    };
-    println!("🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):");
-    println!("\n    {}\n", flow.verification_uri.clone().unwrap());
-    let user_code = flow.user_code.clone().unwrap();
-    println!("👉 And enter code: {}", &user_code);
-    if let Ok(mut clipboard) = Clipboard::new() {
-        if clipboard.set_text(user_code).is_ok() {
-            println!("📋 Code has been successfully copied to clipboard.")
-        };
-    };
-    // Wait for the minimum allowed interval to poll for authentication update
-    // see: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#step-3-app-polls-github-to-check-if-the-user-authorized-the-device
-    thread::sleep(FIVE_SECONDS);
-    match flow.poll(20) {
-        Ok(creds) => {
-            save_token(&creds.token);
-        }
-        Err(e) => eprint!("Authentication error: {}", e),
-    };
+    get_tokens()
+        .and_then(|t| get_username(&t.access_token))
+        .map(|user_info| {
+            println!("🔑 Your username is: {}", user_info.nickname);
+        })
+        .unwrap_or_else(|| {
+            println!("Failed to display your username.");
+        });
 }
 
 fn command_list() {
@@ -168,21 +138,9 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
-    let token = get_token_from_cache();
+    let mut tokens: Option<Tokens> = None;
     if run_args.share {
-        // Verify if a token is saved
-        if token.is_none() {
-            eprintln!("You need to be authenticated to be able to share benchmark results.");
-            eprintln!("Run the command 'burnbench auth' to authenticate.");
-            return;
-        }
-        // TODO refresh the token when it is expired
-        // Check for the validity of the saved token
-        if !verify_token(token.as_deref().unwrap()) {
-            eprintln!("Your access token is no longer valid.");
-            eprintln!("Run the command 'burnbench auth' again to get a new token.");
-            return;
-        }
+        tokens = get_tokens();
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
@@ -192,10 +150,11 @@ fn command_run(run_args: RunArgs) {
     let mut app = App::new();
     app.init();
     println!("Running benchmarks...\n");
+    let access_token = tokens.map(|t| t.access_token);
     app.run(
         &run_args.benches,
         &run_args.backends,
-        token.as_deref().filter(|_| run_args.share),
+        access_token.as_deref(),
     );
     app.cleanup();
 }
@@ -240,6 +199,7 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 "{}Benchmarking {} on {}{}",
                 filler, bench_str, backend_str, filler
             );
+            let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
             let mut args = vec![
                 "-p",
                 "backend-comparison",
@@ -248,12 +208,12 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 "--features",
                 &backend_str,
                 "--target-dir",
-                BENCHMARKS_TARGET_DIR,
+                super::BENCHMARKS_TARGET_DIR,
             ];
             if let Some(t) = token {
                 args.push("--");
                 args.push("--sharing-url");
-                args.push(USER_BENCHMARK_SERVER_URL);
+                args.push(url.as_str());
                 args.push("--sharing-token");
                 args.push(t);
             }
