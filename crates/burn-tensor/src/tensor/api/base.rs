@@ -741,16 +741,9 @@ where
     /// # Returns
     ///
     /// A new tensor with the given shape.
-    pub fn broadcast_to<const D2: usize, S: BroadcastArgs<D, D2>>(
-        self,
-        shape: S,
-    ) -> Tensor<B, D2, K> {
+    pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<B, D2, K> {
         let shape = shape.into_shape(&self.shape());
-        check!(TensorCheck::broadcast_to(
-            "broadcast_to",
-            &self.shape(),
-            &shape,
-        ));
+        check!(TensorCheck::expand("expand", &self.shape(), &shape,));
 
         Tensor::<B, D2, K>::new(K::broastcast_to(self.primitive, shape))
     }
@@ -1608,7 +1601,7 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::float_broadcast_to(tensor, shape)
+        B::float_expand(tensor, shape)
     }
 }
 
@@ -1729,7 +1722,7 @@ impl<B: Backend> BasicOps<B> for Int {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::int_broadcast_to(tensor, shape)
+        B::int_expand(tensor, shape)
     }
 }
 
@@ -1850,7 +1843,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::bool_broadcast_to(tensor, shape)
+        B::bool_expand(tensor, shape)
     }
 }
 

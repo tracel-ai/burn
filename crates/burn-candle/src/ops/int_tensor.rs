@@ -8,7 +8,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::{broadcast_to, permute};
+use super::base::{expand, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
@@ -428,11 +428,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         permute(tensor, axes)
     }
 
-    fn int_broadcast_to<const D1: usize, const D2: usize>(
+    fn int_expand<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        broadcast_to(tensor, shape)
+        expand(tensor, shape)
     }
 
     // TODO add sign operator once Candle supports it:

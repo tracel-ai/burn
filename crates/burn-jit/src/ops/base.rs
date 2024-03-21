@@ -83,7 +83,7 @@ pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
     tensor
 }
 
-pub(crate) fn broadcast_to<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
+pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
     tensor: JitTensor<R, E, D>,
     target_shape: Shape<D_OUT>,
 ) -> JitTensor<R, E, D_OUT> {

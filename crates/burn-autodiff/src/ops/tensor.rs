@@ -2380,7 +2380,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateless(B::float_sign(tensor.primitive))
     }
 
-    fn float_broadcast_to<const D1: usize, const D2: usize>(
+    fn float_expand<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
@@ -2397,7 +2397,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend, const D1: usize, const D2: usize> RetroForward for RetroBroadcast<B, D1, D2> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
                 let input = states.get_state::<B::FloatTensorPrimitive<D1>>(&self.input_id);
-                let out = B::float_broadcast_to(input, self.shape.clone());
+                let out = B::float_expand(input, self.shape.clone());
                 states.save(out_node, out)
             }
         }
@@ -2449,9 +2449,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (B::float_shape(&tensor.primitive), shape.clone()),
-                B::float_broadcast_to(tensor.primitive, shape),
+                B::float_expand(tensor.primitive, shape),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_broadcast_to(tensor.primitive, shape)),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_expand(tensor.primitive, shape)),
         }
     }
 

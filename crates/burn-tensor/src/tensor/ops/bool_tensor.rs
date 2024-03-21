@@ -437,7 +437,7 @@ pub trait BoolTensorOps<B: Backend> {
     }
 
     /// Broadcasts the bool `tensor` to the given `shape`.
-    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+    fn bool_expand<const D1: usize, const D2: usize>(
         tensor: BoolTensor<B, D1>,
         shape: Shape<D2>,
     ) -> BoolTensor<B, D2>;

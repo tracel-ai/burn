@@ -498,10 +498,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sign_op(tensor)
     }
 
-    fn float_broadcast_to<const D1: usize, const D2: usize>(
+    fn float_expand<const D1: usize, const D2: usize>(
         tensor: burn_tensor::ops::FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> burn_tensor::ops::FloatTensor<Self, D2> {
-        NdArrayOps::broadcast_to(tensor, shape)
+        NdArrayOps::expand(tensor, shape)
     }
 }

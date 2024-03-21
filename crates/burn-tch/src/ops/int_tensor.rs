@@ -480,10 +480,10 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::sign(tensor)
     }
 
-    fn int_broadcast_to<const D1: usize, const D2: usize>(
+    fn int_expand<const D1: usize, const D2: usize>(
         tensor: burn_tensor::ops::IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> burn_tensor::ops::IntTensor<Self, D2> {
-        TchOps::broadcast_to(tensor, shape)
+        TchOps::expand(tensor, shape)
     }
 }

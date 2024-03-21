@@ -4,7 +4,7 @@ use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
 
-use super::{broadcast_to, permute};
+use super::{expand, permute};
 
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
@@ -121,10 +121,10 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         permute(tensor, axes)
     }
 
-    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+    fn bool_expand<const D1: usize, const D2: usize>(
         tensor: BoolTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> BoolTensor<Self, D2> {
-        broadcast_to(tensor, shape)
+        expand(tensor, shape)
     }
 }

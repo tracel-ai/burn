@@ -115,7 +115,7 @@ where
     }
 
     /// Broadcasts the tensor to the given shape
-    pub(crate) fn broadcast_to<const D1: usize, const D2: usize>(
+    pub(crate) fn expand<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {

@@ -9,7 +9,6 @@ mod avgpool1d;
 mod avgpool2d;
 mod backward;
 mod broadcast;
-mod broadcast_to;
 mod cat;
 mod checkpoint;
 mod complex;
@@ -22,6 +21,7 @@ mod cross_entropy;
 mod div;
 mod erf;
 mod exp;
+mod expand;
 mod gather_scatter;
 mod gelu;
 mod gradients;
@@ -117,6 +117,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_permute!();
         burn_autodiff::testgen_ad_nonzero!();
         burn_autodiff::testgen_ad_sign!();
-        burn_autodiff::testgen_ad_broadcast_to!();
+        burn_autodiff::testgen_ad_expand!();
     };
 }

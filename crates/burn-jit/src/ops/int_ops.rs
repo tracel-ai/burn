@@ -1,4 +1,4 @@
-use super::{broadcast_to, numeric, permute};
+use super::{expand, numeric, permute};
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::{kernel, unary, JitBackend, Runtime};
@@ -344,10 +344,10 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         permute(tensor, axes)
     }
 
-    fn int_broadcast_to<const D1: usize, const D2: usize>(
+    fn int_expand<const D1: usize, const D2: usize>(
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        broadcast_to(tensor, shape)
+        expand(tensor, shape)
     }
 }

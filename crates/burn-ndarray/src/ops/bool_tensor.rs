@@ -138,10 +138,10 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         NdArrayTensor { array }
     }
 
-    fn bool_broadcast_to<const D1: usize, const D2: usize>(
+    fn bool_expand<const D1: usize, const D2: usize>(
         tensor: burn_tensor::ops::BoolTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> burn_tensor::ops::BoolTensor<Self, D2> {
-        NdArrayOps::broadcast_to(tensor, shape)
+        NdArrayOps::expand(tensor, shape)
     }
 }

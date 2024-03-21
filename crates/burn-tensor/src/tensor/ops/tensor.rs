@@ -1352,7 +1352,7 @@ pub trait FloatTensorOps<B: Backend> {
     }
 
     /// Broadcasts the float `tensor` to the given `shape`.
-    fn float_broadcast_to<const D1: usize, const D2: usize>(
+    fn float_expand<const D1: usize, const D2: usize>(
         tensor: FloatTensor<B, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<B, D2>;

@@ -489,7 +489,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
     }
 
-    pub fn broadcast_to<const D: usize, const D2: usize>(
+    pub fn expand<const D: usize, const D2: usize>(
         tensor: TchTensor<E, D>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {

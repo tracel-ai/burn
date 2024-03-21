@@ -1,4 +1,4 @@
-use super::{broadcast_to, numeric, permute};
+use super::{expand, numeric, permute};
 use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
@@ -528,10 +528,10 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         permute(tensor, axes)
     }
 
-    fn float_broadcast_to<const D1: usize, const D2: usize>(
+    fn float_expand<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
-        broadcast_to(tensor, shape)
+        expand(tensor, shape)
     }
 }
