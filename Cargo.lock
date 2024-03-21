@@ -199,6 +199,7 @@ dependencies = [
  "arboard",
  "burn",
  "burn-common",
+ "burn-wgpu",
  "clap 4.5.2",
  "crossterm",
  "derive-new",
