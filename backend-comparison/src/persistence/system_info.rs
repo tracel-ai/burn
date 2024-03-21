@@ -36,6 +36,7 @@ impl BenchmarkSystemInfo {
             .filter(|adapter| {
                 let info = adapter.get_info();
                 info.device_type == wgpu::DeviceType::DiscreteGpu
+                    || info.device_type == wgpu::DeviceType::IntegratedGpu
             })
             .collect();
         let gpu_names: HashSet<String> = adapters
