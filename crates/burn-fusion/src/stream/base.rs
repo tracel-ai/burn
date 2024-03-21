@@ -40,7 +40,7 @@ impl StreamId {
     #[cfg(feature = "std")]
     fn id() -> std::thread::ThreadId {
         std::thread_local! {
-            static ID: std::cell::OnceCell::<std::thread::ThreadId> = std::cell::OnceCell::new();
+            static ID: std::cell::OnceCell::<std::thread::ThreadId> = const { std::cell::OnceCell::new() };
         };
 
         // Getting the current thread is expensive, so we cache the value into a thread local
