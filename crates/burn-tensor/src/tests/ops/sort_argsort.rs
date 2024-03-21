@@ -359,4 +359,25 @@ mod tests {
         let values_expected = Data::from([[-0.5, 0.94], [-0.3, f32::NAN], [0., f32::NAN]]);
         values_expected.assert_approx_eq(&values_actual, 5);
     }
+
+    #[test]
+    fn test_sort_descending_1d() {
+        let tensor = TestTensorInt::from([1, 2, 3, 4, 5]);
+
+        // Sort along dim=0
+        let values = tensor.sort_descending(0);
+        let values_actual = values.into_data();
+
+        let values_expected = Data::from([5, 4, 3, 2, 1]);
+        assert_eq!(values_expected, values_actual);
+
+        let tensor = TestTensor::from([1., 2., 3., 4., 5.]);
+
+        // Sort along dim=0
+        let values = tensor.sort_descending(0);
+        let values_actual = values.into_data();
+
+        let values_expected = Data::from([5., 4., 3., 2., 1.]);
+        values_expected.assert_approx_eq(&values_actual, 5);
+    }
 }
