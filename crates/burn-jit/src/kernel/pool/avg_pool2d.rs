@@ -1,22 +1,74 @@
 use crate::{
-    compute::{Kernel, StaticKernel},
+    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
     element::JitElement,
-    kernel::{
-        self, elemwise_workgroup, pool::build_output_and_info_pool2d, KernelSettings,
-        StaticKernelSource, WORKGROUP_DEFAULT,
-    },
-    kernel_wgsl,
+    gpu::{gpu, Elem, Item, Scope},
+    ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    Runtime, RuntimeInt,
 };
+use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 
-kernel_wgsl!(AvgPool2dRaw, "../../template/pool/avg_pool2d.wgsl");
+use super::{Pool2dEagerKernel, PoolStrategy};
 
-struct AvgPool2d<const COUNT_INCLUDE_PAD: bool>;
+#[derive(new, Debug, Clone)]
+struct AvgPool {
+    kernel_size_h: usize,
+    kernel_size_w: usize,
+    count_include_pad: bool,
+}
+impl PoolStrategy for AvgPool {
+    type Accumulator = (Variable, Variable);
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLUDE_PAD> {
-    fn source() -> kernel::SourceTemplate {
-        AvgPool2dRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+    fn h_range(&self) -> std::ops::Range<u32> {
+        0..self.kernel_size_h as u32
+    }
+
+    fn w_range(&self) -> std::ops::Range<u32> {
+        0..self.kernel_size_w as u32
+    }
+
+    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
+        let sum = scope.create_local(item);
+        let count = scope.create_local(Elem::UInt);
+        if self.count_include_pad {
+            let kernel_size_h: Variable = self.kernel_size_h.into();
+            let kernel_size_w: Variable = self.kernel_size_w.into();
+            gpu!(scope, count = kernel_size_h * kernel_size_w);
+        } else {
+            let zero: Variable = 0u32.into();
+            gpu!(scope, count = zero);
+        }
+        (sum, count)
+    }
+
+    fn process_result(
+        &self,
+        scope: &mut Scope,
+        accumulator: Self::Accumulator,
+        result: Variable,
+    ) -> Self::Accumulator {
+        let (sum, count) = accumulator;
+        if !self.count_include_pad {
+            let one: Variable = 1u32.into();
+            gpu!(scope, count += one);
+        }
+        gpu!(scope, sum += result);
+        (sum, count)
+    }
+
+    fn assign(
+        &self,
+        scope: &mut Scope,
+        id: Variable,
+        output: Variable,
+        accumulator: Self::Accumulator,
+    ) {
+        let (sum, count) = accumulator;
+        let avg = scope.create_local(output.item());
+        let count_float = scope.create_local(output.item());
+        gpu!(scope, count_float = cast(count));
+        gpu!(scope, avg = sum / count_float);
+        gpu!(scope, output[id] = avg);
     }
 }
 
@@ -27,21 +79,49 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     padding: [usize; 2],
     count_include_pad: bool,
 ) -> JitTensor<R, E, 4> {
-    let (info_handle, output) =
-        build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
+    let [batch_size, channels, _, _] = x.shape.dims;
+    let dilation = 1;
 
-    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
-    let kernel: Box<dyn Kernel> = match count_include_pad {
-        true => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(workgroup)),
-        false => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(workgroup)),
-    };
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation,
+        x.shape.dims[2],
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation,
+        x.shape.dims[3],
+    );
 
-    x.client
-        .execute(kernel, &[&x.handle, &output.handle, &info_handle]);
+    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
+
+    let pool_strategy = AvgPool::new(kernel_size[0], kernel_size[1], count_include_pad);
+    let kernel = Pool2dEagerKernel::new(pool_strategy);
+
+    execute_dynamic::<R, Pool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
+        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        Some(&[
+            (stride[0] as u32).elem(),
+            (stride[1] as u32).elem(),
+            (dilation as u32).elem(),
+            (dilation as u32).elem(),
+            (padding[0] as u32).elem(),
+            (padding[1] as u32).elem(),
+        ]),
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        x.client,
+    );
 
     output
 }
