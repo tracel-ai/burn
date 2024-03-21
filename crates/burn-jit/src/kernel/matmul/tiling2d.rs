@@ -44,7 +44,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
             variables: gpu::BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
             bounds_check_required: self.bounds_check_required,
-            unroll: false,
+            unroll: true,
         }
         .expand(&mut scope);
 
