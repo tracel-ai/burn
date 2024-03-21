@@ -89,7 +89,8 @@ where
     let dims = data.shape.dims;
     if D == 1 {
         // 1D sort
-        data.value.sort_unstable_by(|&a, &b| a.cmp(&b));
+        data.value
+            .sort_unstable_by(|&a, &b| compare(&a, &b, descending));
     } else {
         sort_slice::<B, D, K>(&mut data.value, &dims, dim, None, false, descending);
     }
