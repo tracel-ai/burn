@@ -51,6 +51,7 @@ mod squeeze;
 mod stack;
 mod sub;
 mod tanh;
+mod topk;
 mod transpose;
 mod tri;
 mod tri_mask;
