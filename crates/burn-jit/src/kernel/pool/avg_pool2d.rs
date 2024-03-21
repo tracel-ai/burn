@@ -46,6 +46,7 @@ impl PoolStrategy for AvgPool {
         scope: &mut Scope,
         accumulator: Self::Accumulator,
         result: Variable,
+        _idx: Variable,
     ) -> Self::Accumulator {
         let (sum, count) = accumulator;
         if !self.count_include_pad {
@@ -61,6 +62,7 @@ impl PoolStrategy for AvgPool {
         scope: &mut Scope,
         id: Variable,
         output: Variable,
+        _indices: Option<Variable>,
         accumulator: Self::Accumulator,
     ) {
         let (sum, count) = accumulator;
@@ -69,6 +71,10 @@ impl PoolStrategy for AvgPool {
         gpu!(scope, count_float = cast(count));
         gpu!(scope, avg = sum / count_float);
         gpu!(scope, output[id] = avg);
+    }
+
+    fn with_indices() -> bool {
+        false
     }
 }
 

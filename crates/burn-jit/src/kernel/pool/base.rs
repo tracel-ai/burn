@@ -1,34 +1,5 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, Runtime};
+use crate::{element::JitElement, tensor::JitTensor, Runtime};
 use burn_compute::server::Handle;
-use burn_tensor::Shape;
-
-/// Build basic info to launch pool 2d kernels.
-pub fn build_output_and_info_pool2d<R: Runtime, E: JitElement>(
-    x: &JitTensor<R, E, 4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
-) -> (Handle<R::Server>, JitTensor<R, E, 4>) {
-    let [kernel_height, kernel_width] = kernel_size;
-    let [padding_height, padding_width] = padding;
-    let [stride_height, stride_width] = stride;
-    let [dilation_height, dilation_width] = dilation;
-    let [batch_size, channels, x_height, x_width] = x.shape.dims;
-
-    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
-        / stride_height)
-        + 1;
-    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
-        / stride_width)
-        + 1;
-    let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
-
-    let info_buffer = build_pool2d_info(x, &output, kernel_size, stride, padding, dilation);
-
-    (info_buffer, output)
-}
 
 pub fn build_pool2d_info<R: Runtime, E: JitElement>(
     input: &JitTensor<R, E, 4>,

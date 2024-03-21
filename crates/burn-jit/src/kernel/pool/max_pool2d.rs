@@ -12,7 +12,7 @@ use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shap
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
-#[derive(Default, Debug, Clone)]
+#[derive(new, Debug, Clone)]
 struct MaxPool<E: JitElement> {
     kernel_size: [usize; 2],
     _elem: PhantomData<E>,
@@ -42,6 +42,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         scope: &mut Scope,
         accumulator: Self::Accumulator,
         result: Variable,
+        _idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
         gpu!(scope, is_max = result > accumulator);
@@ -56,20 +57,25 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         scope: &mut Scope,
         id: Variable,
         output: Variable,
+        _indices: Option<Variable>,
         accumulator: Self::Accumulator,
     ) {
         gpu!(scope, output[id] = accumulator);
     }
+
+    fn with_indices() -> bool {
+        false
+    }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(new, Debug, Clone)]
 struct MaxPoolWithIndices<E: JitElement> {
     kernel_size: [usize; 2],
     _elem: PhantomData<E>,
 }
 
 impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
-    type Accumulator = Variable;
+    type Accumulator = (Variable, Variable);
 
     fn h_range(&self) -> std::ops::Range<u32> {
         0..self.kernel_size[0] as u32
@@ -84,21 +90,24 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
         gpu!(scope, max_val = max_initial);
-        max_val
+        let max_index = scope.create_local(Elem::UInt);
+        (max_val, max_index)
     }
 
     fn process_result(
         &self,
         scope: &mut Scope,
-        accumulator: Self::Accumulator,
+        (max_val, max_index): Self::Accumulator,
         result: Variable,
+        idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
-        gpu!(scope, is_max = result > accumulator);
+        gpu!(scope, is_max = result > max_val);
         gpu!(scope, if(is_max).then(|scope|{
-            gpu!(scope, accumulator = result);
+            gpu!(scope, max_val = result);
+            gpu!(scope, max_index = idx);
         }));
-        accumulator
+        (max_val, max_index)
     }
 
     fn assign(
@@ -106,9 +115,16 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         scope: &mut Scope,
         id: Variable,
         output: Variable,
-        accumulator: Self::Accumulator,
+        indices: Option<Variable>,
+        (max_val, max_index): Self::Accumulator,
     ) {
-        gpu!(scope, output[id] = accumulator);
+        let indices = indices.unwrap();
+        gpu!(scope, output[id] = max_val);
+        gpu!(scope, indices[id] = max_index);
+    }
+
+    fn with_indices() -> bool {
+        true
     }
 }
 
@@ -139,7 +155,7 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::new(MaxPool::default());
+    let kernel = Pool2dEagerKernel::new(MaxPool::new(kernel_size));
 
     execute_dynamic::<R, Pool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
@@ -192,7 +208,7 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
     let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::new(MaxPoolWithIndices::default());
+    let kernel = Pool2dEagerKernel::new(MaxPoolWithIndices::new(kernel_size));
 
     execute_dynamic::<R, Pool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],

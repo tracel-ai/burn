@@ -5,10 +5,10 @@ mod base;
 mod max_pool2d;
 mod max_pool2d_backward;
 mod pool2d_shader;
-pub use pool2d_shader::*;
+pub(crate) use pool2d_shader::*;
 
 pub(crate) use adaptive_avg_pool2d::*;
-pub use avg_pool2d::*;
+pub(crate) use avg_pool2d::*;
 pub use avg_pool2d_backward::*;
 pub(super) use base::*;
 

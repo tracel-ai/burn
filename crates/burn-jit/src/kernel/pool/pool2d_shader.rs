@@ -19,19 +19,23 @@ pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
         scope: &mut Scope,
         accumulator: Self::Accumulator,
         result: Variable,
+        idx: Variable,
     ) -> Self::Accumulator;
     fn assign(
         &self,
         scope: &mut Scope,
         id: Variable,
         output: Variable,
+        indices: Option<Variable>,
         accumulator: Self::Accumulator,
     );
+    fn with_indices() -> bool;
 }
 
 pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
     input: Variable,
     output: Variable,
+    indices: Option<Variable>,
     pool_strategy: P,
     _elem: PhantomData<E>,
     _runtime: PhantomData<R>,
@@ -120,6 +124,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
         let index_input_1 = scope.create_local(Elem::UInt);
         let index_input_2 = scope.create_local(Elem::UInt);
         let index_input_3 = scope.create_local(Elem::UInt);
+        let idx = scope.create_local(Elem::UInt);
 
         let within_padding_h = scope.create_local(Elem::Bool);
         let within_padding_w = scope.create_local(Elem::Bool);
@@ -133,7 +138,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
         gpu!(scope, index_input_0 = b * input_stride_0);
         gpu!(scope, index_input_1 = c * input_stride_1);
 
-        let accumulator = self.pool_strategy.initialize(scope, output.item());
+        let accumulator = self.pool_strategy.initialize(scope, input.item());
 
         self.pool_strategy.h_range().for_each(|kh| {
             gpu!(scope, ih = oh * pool_stride_0);
@@ -159,6 +164,8 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
                             gpu!(scope, iw_pad = iw - padding_1);
 
                             gpu!(scope, index_input_2 = ih_pad * input_stride_2);
+                            gpu!(scope, idx = index_input_2);
+                            gpu!(scope, idx += iw_pad);
                             gpu!(scope, index_input_3 = iw_pad * input_stride_3);
 
                             gpu!(scope, index_input = index_input_0);
@@ -168,13 +175,14 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
 
                             gpu!(scope, result = input[index_input]);
 
-                            self.pool_strategy.process_result(scope, accumulator, result);
+                            self.pool_strategy.process_result(scope, accumulator, result, idx);
                         }));
                     });
             }));
         });
 
-        self.pool_strategy.assign(scope, id, output, accumulator);
+        self.pool_strategy
+            .assign(scope, id, output, self.indices, accumulator);
     }
 }
 
@@ -194,12 +202,18 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
 
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
+        let indices = if P::with_indices() {
+            Some(Variable::GlobalOutputArray(1, Item::Scalar(Elem::Int)))
+        } else {
+            None
+        };
 
         scope.write_global_custom(output);
 
         Pool2dComputeShader {
             input,
             output,
+            indices,
             pool_strategy: self.pool_strategy.clone(),
             _elem: PhantomData::<E>,
             _runtime: PhantomData::<R>,
@@ -215,10 +229,20 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
             size: 6,
         };
         let output = OutputInfo::Array { item };
+        let outputs = if P::with_indices() {
+            vec![
+                output,
+                OutputInfo::Array {
+                    item: Item::Scalar(Elem::Int),
+                },
+            ]
+        } else {
+            vec![output]
+        };
 
         let info = CompilationInfo {
             inputs: vec![input, scalars],
-            outputs: vec![output],
+            outputs,
             scope,
         };
 
