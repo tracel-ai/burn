@@ -4,6 +4,7 @@ use burn_tensor::ElementConversion;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
+use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
 
@@ -108,6 +109,34 @@ where
     ) -> NdArrayTensor<E, D> {
         let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
+
+        NdArrayTensor::new(array)
+    }
+
+    pub fn flip<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        axes: &[usize],
+    ) -> NdArrayTensor<E, D> {
+        let slice_items: Vec<_> = (0..D)
+            .map(|i| {
+                if axes.contains(&i) {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: None,
+                        step: -1,
+                    }
+                } else {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: None,
+                        step: 1,
+                    }
+                }
+            })
+            .collect();
+        let slice_info =
+            SliceInfo::<Vec<SliceInfoElem>, IxDyn, IxDyn>::try_from(slice_items).unwrap();
+        let array = tensor.array.slice(slice_info).into_owned().into_shared();
 
         NdArrayTensor::new(array)
     }

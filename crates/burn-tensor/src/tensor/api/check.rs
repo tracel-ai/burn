@@ -349,6 +349,34 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn flip(rank: usize, axes: &[usize]) -> Self {
+        let check = Self::Ok;
+
+        // Check if the axes are within the tensor dimensions
+        if let Some(axis) = axes.iter().find(|&x| *x >= rank) {
+            return check.register(
+                "flip",
+                TensorError::new("The axes must be smaller than the tensor dimension.").details(
+                    format!("The '{axis}' axis is greater than {rank} dimensions."),
+                ),
+            );
+        }
+
+        // Check if the axes are unique
+        let mut dedup = axes.to_vec();
+        dedup.sort_unstable();
+        dedup.dedup();
+        if dedup.len() != axes.len() {
+            return check.register(
+                "flip",
+                TensorError::new("The axes must be unique.")
+                    .details(format!("The axes '{axes:?}' are not unique.")),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn matmul<B: Backend, const D: usize>(
         lhs: &Tensor<B, D>,
         rhs: &Tensor<B, D>,
@@ -768,6 +796,21 @@ impl TensorCheck {
                 ops,
                 TensorError::new(format!(
                     "Can't aggregate a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn sort_dim<const D: usize>(ops: &str, dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't sort a tensor with ({D}) dimensions on axis ({dim})"
                 )),
             );
         }

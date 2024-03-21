@@ -21,6 +21,7 @@ mod cross_entropy;
 mod div;
 mod erf;
 mod exp;
+mod flip;
 mod gather_scatter;
 mod gelu;
 mod gradients;
@@ -47,6 +48,7 @@ mod sign;
 mod sin;
 mod slice;
 mod softmax;
+mod sort;
 mod sqrt;
 mod sub;
 mod tanh;
@@ -114,7 +116,9 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sigmoid!();
         burn_autodiff::testgen_ad_transpose!();
         burn_autodiff::testgen_ad_permute!();
+        burn_autodiff::testgen_ad_flip!();
         burn_autodiff::testgen_ad_nonzero!();
         burn_autodiff::testgen_ad_sign!();
+        burn_autodiff::testgen_ad_sort!();
     };
 }

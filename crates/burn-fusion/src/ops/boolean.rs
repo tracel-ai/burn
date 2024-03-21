@@ -4,9 +4,9 @@ use crate::{
     ops::binary::binary_ops_shape,
     stream::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-        CatOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
-        ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription, StreamId,
-        SwapDimsDescription, UnaryOperationDescription,
+        CatOperationDescription, FlipOperationDescription, Operation, OperationDescription,
+        PermuteOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
+        SliceOperationDescription, StreamId, SwapDimsDescription, UnaryOperationDescription,
     },
     Fusion, FusionBackend,
 };
@@ -462,6 +462,41 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
             PermuteDimsOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        #[derive(new)]
+        struct FlipOps<const D: usize> {
+            desc: FlipOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for FlipOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let output = B::bool_flip(input, self.desc.axes.as_slice());
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+
+        let desc = FlipOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+            axes: axes.to_vec(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseBool(BaseOperationDescription::Flip(desc.clone())),
+            FlipOps::<D>::new(desc),
         );
 
         out

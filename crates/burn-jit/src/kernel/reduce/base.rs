@@ -7,7 +7,7 @@ use crate::{
     Runtime,
 };
 
-use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, SumDim};
+use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, ProdDim, SumDim};
 
 /// Specifies the reduce dim algorithm in use
 pub trait ReduceDimAlgorithm<E: JitElement>: Send + Sync + 'static {
@@ -145,5 +145,6 @@ macro_rules! reduce_operation {
 // Autotunable reduce operation variants
 reduce_operation!(sum_dim, SumDim);
 reduce_operation!(mean_dim, MeanDim);
+reduce_operation!(prod_dim, ProdDim);
 reduce_operation!(argmin, ArgMin);
 reduce_operation!(argmax, ArgMax);

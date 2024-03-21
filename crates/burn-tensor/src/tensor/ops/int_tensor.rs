@@ -1,10 +1,15 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
 use num_traits::ToPrimitive;
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use crate::{argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -299,7 +304,16 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The concatenated tensor.
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D>;
+    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
+        cat_with_slice_assign::<B, D, Int>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D, Int>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Element-wise equality comparison.
     ///
@@ -985,6 +999,16 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor with the dimensions permuted.
     fn int_permute<const D: usize>(tensor: IntTensor<B, D>, axes: [usize; D]) -> IntTensor<B, D>;
 
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn int_flip<const D: usize>(tensor: IntTensor<B, D>, axes: &[usize]) -> IntTensor<B, D>;
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments
@@ -1019,8 +1043,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A vectors of tensors
-    ///
+    /// A vector of tensors
     fn int_chunk<const D: usize>(
         tensor: IntTensor<B, D>,
         chunks: usize,
@@ -1112,7 +1135,6 @@ pub trait IntTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
-
     fn int_any_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
@@ -1175,5 +1197,72 @@ pub trait IntTensorOps<B: Backend> {
         let mut result = B::int_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
         result = B::int_mask_fill(result, greater_than_zero, 1.0f32.elem());
         result
+    }
+
+    /// Sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn int_sort<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        sort::<B, D, Int>(tensor, dim, descending)
+    }
+
+    /// Sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// the elements are sorted by value and the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn int_sort_with_indices<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (IntTensor<B, D>, IntTensor<B, D>) {
+        sort_with_indices::<B, D, Int>(tensor, dim, descending)
+    }
+
+    /// Returns the indices that sort the elements of the input `tensor` by value
+    /// along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn int_argsort<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        argsort::<B, D, Int>(tensor, dim, descending)
     }
 }

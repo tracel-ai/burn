@@ -1,29 +1,18 @@
-use arboard::Clipboard;
 use clap::{Parser, Subcommand, ValueEnum};
-use github_device_flow::{self, DeviceFlow};
+use std::process::ExitStatus;
 use std::{
+    fs,
+    io::{BufRead, BufReader, Result as ioResult},
     process::{Command, Stdio},
-    thread, time,
 };
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
+use crate::burnbenchapp::auth::Tokens;
+use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
 
-use super::{
-    auth::{save_token, CLIENT_ID},
-    App,
-};
-
-const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
-const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
-const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
-    // development
-    "http://localhost:8000/benchmarks"
-} else {
-    // production
-    "https://user-benchmark-server-gvtbw64teq-nn.a.run.app/benchmarks"
-};
+use super::auth::get_username;
+use super::{auth::get_tokens, App};
 
 /// Base trait to define an application
 pub(crate) trait Application {
@@ -103,7 +92,7 @@ pub(crate) enum BackendValues {
 pub(crate) enum BenchmarkValues {
     #[strum(to_string = "binary")]
     Binary,
-    #[strum(to_string = "custom_gelu")]
+    #[strum(to_string = "custom-gelu")]
     CustomGelu,
     #[strum(to_string = "data")]
     Data,
@@ -111,7 +100,7 @@ pub(crate) enum BenchmarkValues {
     Matmul,
     #[strum(to_string = "unary")]
     Unary,
-    #[strum(to_string = "max_pool2d")]
+    #[strum(to_string = "max-pool2d")]
     MaxPool2d,
 }
 
@@ -124,34 +113,17 @@ pub fn execute() {
     }
 }
 
-/// Create an access token from GitHub Burnbench application and store it
-/// to be used with the user benchmark backend.
+/// Create an access token from GitHub Burnbench application, store it,
+/// and display the name of the authenticated user.
 fn command_auth() {
-    let mut flow = match DeviceFlow::start(CLIENT_ID, None) {
-        Ok(flow) => flow,
-        Err(e) => {
-            eprintln!("Error authenticating: {}", e);
-            return;
-        }
-    };
-    println!("🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):");
-    println!("\n    {}\n", flow.verification_uri.clone().unwrap());
-    let user_code = flow.user_code.clone().unwrap();
-    println!("👉 And enter code: {}", &user_code);
-    if let Ok(mut clipboard) = Clipboard::new() {
-        if clipboard.set_text(user_code).is_ok() {
-            println!("📋 Code has been successfully copied to clipboard.")
-        };
-    };
-    // Wait for the minimum allowed interval to poll for authentication update
-    // see: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#step-3-app-polls-github-to-check-if-the-user-authorized-the-device
-    thread::sleep(FIVE_SECONDS);
-    match flow.poll(20) {
-        Ok(creds) => {
-            save_token(&creds.token);
-        }
-        Err(e) => eprint!("Authentication error: {}", e),
-    };
+    get_tokens()
+        .and_then(|t| get_username(&t.access_token))
+        .map(|user_info| {
+            println!("🔑 Your username is: {}", user_info.nickname);
+        })
+        .unwrap_or_else(|| {
+            println!("Failed to display your username.");
+        });
 }
 
 fn command_list() {
@@ -166,45 +138,29 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
-    let token = get_token_from_cache();
+    let mut tokens: Option<Tokens> = None;
     if run_args.share {
-        // Verify if a token is saved
-        if token.is_none() {
-            eprintln!("You need to be authenticated to be able to share benchmark results.");
-            eprintln!("Run the command 'burnbench auth' to authenticate.");
-            return;
-        }
-        // TODO refresh the token when it is expired
-        // Check for the validity of the saved token
-        if !verify_token(token.as_deref().unwrap()) {
-            eprintln!("Your access token is no longer valid.");
-            eprintln!("Run the command 'burnbench auth' again to get a new token.");
-            return;
-        }
+        tokens = get_tokens();
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
-        "Executing the following benchmark and backend combinations (Total: {}):",
+        "Executing benchmark and backend combinations in total: {}",
         total_combinations
     );
-    for backend in &run_args.backends {
-        for bench in &run_args.benches {
-            println!("- Benchmark: {}, Backend: {}", bench, backend);
-        }
-    }
     let mut app = App::new();
     app.init();
-    println!("Running benchmarks...");
+    println!("Running benchmarks...\n");
+    let access_token = tokens.map(|t| t.access_token);
     app.run(
         &run_args.benches,
         &run_args.backends,
-        token.as_deref().filter(|_| run_args.share),
+        access_token.as_deref(),
     );
     app.cleanup();
 }
 
 #[allow(unused)] // for tui as this is WIP
-pub(crate) fn run_cargo(command: &str, params: &[&str]) {
+pub(crate) fn run_cargo(command: &str, params: &[&str]) -> ioResult<ExitStatus> {
     let mut cargo = Command::new("cargo")
         .arg(command)
         .arg("--color=always")
@@ -213,10 +169,7 @@ pub(crate) fn run_cargo(command: &str, params: &[&str]) {
         .stderr(Stdio::inherit())
         .spawn()
         .expect("cargo process should run");
-    let status = cargo.wait().expect("");
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
+    cargo.wait()
 }
 
 pub(crate) fn run_backend_comparison_benchmarks(
@@ -224,11 +177,29 @@ pub(crate) fn run_backend_comparison_benchmarks(
     backends: &[BackendValues],
     token: Option<&str>,
 ) {
-    // Iterate over each combination of backend and bench
-    for backend in backends.iter() {
-        for bench in benches.iter() {
+    // Prefix and postfix for titles
+    let filler = ["="; 10].join("");
+
+    // Delete the file containing file paths to benchmark results, if existing
+    let benchmark_results_file = dirs::home_dir()
+        .expect("Home directory should exist")
+        .join(".cache")
+        .join("burn")
+        .join("backend-comparison")
+        .join("benchmark_results.txt");
+
+    fs::remove_file(benchmark_results_file.clone()).ok();
+
+    // Iterate through every combination of benchmark and backend
+    for bench in benches.iter() {
+        for backend in backends.iter() {
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
+            println!(
+                "{}Benchmarking {} on {}{}",
+                filler, bench_str, backend_str, filler
+            );
+            let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
             let mut args = vec![
                 "-p",
                 "backend-comparison",
@@ -237,16 +208,45 @@ pub(crate) fn run_backend_comparison_benchmarks(
                 "--features",
                 &backend_str,
                 "--target-dir",
-                BENCHMARKS_TARGET_DIR,
+                super::BENCHMARKS_TARGET_DIR,
             ];
             if let Some(t) = token {
                 args.push("--");
                 args.push("--sharing-url");
-                args.push(USER_BENCHMARK_SERVER_URL);
+                args.push(url.as_str());
                 args.push("--sharing-token");
                 args.push(t);
             }
-            run_cargo("bench", &args);
+            let status = run_cargo("bench", &args).unwrap();
+            if !status.success() {
+                println!(
+                    "Benchmark {} didn't ran successfully on the backend {}",
+                    bench_str, backend_str
+                );
+                continue;
+            }
         }
+    }
+
+    // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
+    // and print them in a single table.
+    let mut benchmark_results = BenchmarkCollection::default();
+    if let Ok(file) = fs::File::open(benchmark_results_file.clone()) {
+        let file_reader = BufReader::new(file);
+        for file in file_reader.lines() {
+            let file_path = file.unwrap();
+            if let Ok(br_file) = fs::File::open(file_path.clone()) {
+                let benchmarkrecord =
+                    serde_json::from_reader::<_, BenchmarkRecord>(br_file).unwrap();
+                benchmark_results.records.push(benchmarkrecord)
+            } else {
+                println!("Cannot find the benchmark-record file: {}", file_path);
+            };
+        }
+        println!(
+            "{}Benchmark Results{}\n\n{}",
+            filler, filler, benchmark_results
+        );
+        fs::remove_file(benchmark_results_file).ok();
     }
 }

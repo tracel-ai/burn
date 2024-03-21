@@ -474,9 +474,32 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn int_flip<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn int_sign<const D: usize>(
         tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
     ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
         TchOps::sign(tensor)
+    }
+
+    fn int_sort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::sort(tensor, dim, descending)
+    }
+
+    fn int_argsort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::argsort(tensor, dim, descending)
     }
 }

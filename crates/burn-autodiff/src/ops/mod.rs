@@ -7,6 +7,7 @@ mod module;
 mod tensor;
 
 pub(crate) mod maxmin;
+pub(crate) mod sort;
 
 pub use backward::*;
 pub use base::*;

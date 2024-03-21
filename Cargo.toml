@@ -43,7 +43,7 @@ js-sys = "0.3.69"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.21" }
 pretty_assertions = "1.4"
-proc-macro2 = "1.0.69"
+proc-macro2 = "1.0.79"
 protobuf = "3.3"
 protobuf-codegen = "3.3"
 quote = "1.0.33"
@@ -91,7 +91,7 @@ pollster = "0.3"
 wgpu = "0.18.0"
 
 # Burnbench
-arboard = "3.3.1"
+arboard = "3.3.2"
 github-device-flow = "0.2.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
