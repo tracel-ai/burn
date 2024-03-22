@@ -889,9 +889,8 @@ impl TensorCheck {
             false => self,
         }
     }
-    /// Checks if shapes are compatible for element-wise operations supporting broadcasting.
-    ///
-    /// Also checks if there is -1 in the shape which
+
+    /// Checks if expand operation is possible for the given shapes.
     pub fn expand<const D1: usize, const D2: usize>(
         ops: &str,
         shape: &Shape<D1>,
