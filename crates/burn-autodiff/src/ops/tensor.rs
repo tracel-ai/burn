@@ -2442,7 +2442,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
         #[derive(Debug)]
-        struct BroadcastDim<const D1: usize, const D2: usize>;
+        struct ExpandDim<const D1: usize, const D2: usize>;
 
         #[derive(new, Debug)]
         struct RetroBroadcast<B: Backend, const D1: usize, const D2: usize> {
@@ -2459,7 +2459,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for BroadcastDim<D1, D2> {
+        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for ExpandDim<D1, D2> {
             type State = Shape<D1>;
 
             fn backward(
@@ -2494,7 +2494,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        match BroadcastDim
+        match ExpandDim
             .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroBroadcast::<B, D1, D2>::new(
