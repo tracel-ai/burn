@@ -2460,7 +2460,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for BroadcastDim<D1, D2> {
-            type State = (Shape<D1>, Shape<D2>);
+            type State = Shape<D1>;
 
             fn backward(
                 self,
@@ -2468,7 +2468,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (shape_original, _shape_new) = ops.state;
+                let shape_original = ops.state;
 
                 let mut shape_expanded = [1; D2];
 
@@ -2505,7 +2505,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (B::float_shape(&tensor.primitive), shape.clone()),
+                B::float_shape(&tensor.primitive),
                 B::float_expand(tensor.primitive, shape),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_expand(tensor.primitive, shape)),
