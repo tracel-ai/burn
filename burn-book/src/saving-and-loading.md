@@ -10,8 +10,8 @@ serialize/deserialize models. By default, we use the `NamedMpkFileRecorder` whic
 // Save model in MessagePack format with full precision
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
-  .save_file(model_path, &recorder)
-  .expect("Should be able to save the model");
+    .save_file(model_path, &recorder)
+    .expect("Should be able to save the model");
 ```
 
 Note that the file extension is automatically handled by the recorder depending on the one you
@@ -23,8 +23,8 @@ Now that you have a trained model saved to your disk, you can easily load it in 
 // Load model in full precision from MessagePack file
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
-  .load_file(model_path, &recorder, device)
-  .expect("Should be able to load the model weights from the provided file");
+    .load_file(model_path, &recorder, device)
+    .expect("Should be able to load the model weights from the provided file");
 ```
 
 **Note:** models can be saved in different output formats, just make sure you are using the correct
@@ -44,7 +44,7 @@ model definition as a simple example.
 pub struct Model<B: Backend> {
     linear_in: Linear<B>,
     linear_out: Linear<B>,
-    activation: ReLU,
+    activation: Relu,
 }
 ```
 
@@ -59,7 +59,7 @@ impl<B: Backend> Model<B> {
         Model {
             linear_in: LinearConfig::new(10, 64).init_with(record.linear_in),
             linear_out: LinearConfig::new(64, 2).init_with(record.linear_out),
-            activation: ReLU::new(),
+            activation: Relu::new(),
         }
     }
 
@@ -70,7 +70,7 @@ impl<B: Backend> Model<B> {
         Model {
             linear_in: l1,
             linear_out: l2,
-            activation: ReLU::new(),
+            activation: Relu::new(),
         }
     }
 }
@@ -117,8 +117,8 @@ a model as part of your runtime application, first save the model to a binary fi
 // Save model in binary format with full precision
 let recorder = BinFileRecorder::<FullPrecisionSettings>::new();
 model
-  .save_file(model_path, &recorder)
-  .expect("Should be able to save the model");
+    .save_file(model_path, &recorder)
+    .expect("Should be able to save the model");
 ```
 
 Then, in your final application, include the model and use the `BinBytesRecorder` to load it.

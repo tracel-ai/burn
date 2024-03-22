@@ -1,16 +1,14 @@
 use crate::FloatTensor;
 
 use super::Backend;
-use burn::backend::wgpu::{
-    compute::{DynamicKernel, WorkGroup},
-    kernel::{
-        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+use burn::{
+    backend::wgpu::{
+        build_info, into_contiguous, kernel_wgsl, DynamicKernel, DynamicKernelSource, FloatElement,
+        GraphicsApi, IntElement, JitBackend, JitTensor, SourceTemplate, StaticKernelSource,
+        WgpuRuntime, WorkGroup,
     },
-    kernel_wgsl,
-    tensor::WgpuTensor,
-    FloatElement, GraphicsApi, IntElement, Wgpu,
+    tensor::Shape,
 };
-use burn::tensor::Shape;
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -43,12 +41,12 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime<G, F, I>> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
         bias: FloatTensor<Self, D>,
-    ) -> WgpuTensor<F, D> {
+    ) -> FloatTensor<Self, D> {
         // Define workgroup size, hardcoded for simplicity.
         let workgroup_size_x = 16;
         let workgroup_size_y = 16;
@@ -82,7 +80,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size_x, workgroup_size_y);

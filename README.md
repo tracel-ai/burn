@@ -6,7 +6,7 @@
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
-[![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
+[![Rust Version](https://img.shields.io/badge/Rust-1.75.0+-blue)](https://releases.rs/docs/1.75.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---
@@ -331,7 +331,7 @@ implementation details. It is fully optimized with the
 [performance characteristics mentioned earlier](#performance), as it serves as our research
 playground for a variety of optimizations.
 
-See the [WGPU Backend README](./burn-wgpu/README.md) for more details.
+See the [WGPU Backend README](./crates/burn-wgpu/README.md) for more details.
 
 </details>
 
@@ -345,7 +345,7 @@ Based on [Candle by Hugging Face](https://github.com/huggingface/candle), a mini
 for Rust with a focus on performance and ease of use, this backend can run on CPU with support for
 Web Assembly or on Nvidia GPUs using CUDA.
 
-See the [Candle Backend README](./burn-candle/README.md) for more details.
+See the [Candle Backend README](./crates/burn-candle/README.md) for more details.
 
 > _Disclaimer:_ This backend is not fully completed yet, but can work in some contexts like
 > inference.
@@ -362,7 +362,7 @@ PyTorch doesn't need an introduction in the realm of deep learning. This backend
 [PyTorch Rust bindings](https://github.com/LaurentMazare/tch-rs), enabling you to use LibTorch C++
 kernels on CPU, CUDA and Metal.
 
-See the [LibTorch Backend README](./burn-tch/README.md) for more details.
+See the [LibTorch Backend README](./crates/burn-tch/README.md) for more details.
 
 </details>
 
@@ -376,7 +376,7 @@ This CPU backend is admittedly not our fastest backend, but offers extreme porta
 
 It is our only backend supporting _no_std_.
 
-See the [NdArray Backend README](./burn-ndarray/README.md) for more details.
+See the [NdArray Backend README](./crates/burn-ndarray/README.md) for more details.
 
 </details>
 
@@ -416,7 +416,7 @@ Of note, it is impossible to make the mistake of calling backward on a model tha
 that does not support autodiff (for inference), as this method is only offered by an Autodiff
 backend.
 
-See the [Autodiff Backend README](./burn-autodiff/README.md) for more details.
+See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more details.
 
 </details>
 
@@ -455,7 +455,7 @@ Of note, we plan to implement automatic gradient checkpointing based on compute 
 bound operations, which will work gracefully with the fusion backend to make your code run even
 faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
 
-See the [Fusion Backend README](./burn-fusion/README.md) for more details.
+See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details.
 
 </details>
 
@@ -508,7 +508,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: nn::Linear<B>,
     linear_outer: nn::Linear<B>,
     dropout: nn::Dropout,
-    gelu: nn::GELU,
+    gelu: nn::Gelu,
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {

@@ -22,7 +22,7 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::new(None).forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
@@ -43,23 +43,23 @@ Moving forward, we will proceed with the implementation of both the training and
 for our model.
 
 ```rust , ignore
-impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> ClassificationOutput<B> {
+impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
 }
 ```
 
 Here we define the input and output types as generic arguments in the `TrainStep` and `ValidStep`.
-We will call them `MNISTBatch` and `ClassificationOutput`. In the training step, the computation of
+We will call them `MnistBatch` and `ClassificationOutput`. In the training step, the computation of
 gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
 that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
 returned by the backward pass, as such: `let gradients = loss.backward();`. The gradient of a
@@ -81,8 +81,8 @@ which is generic over the `Backend` trait as has been covered before. These trai
 `burn::train` and define a common `step` method that should be implemented for all structs. Since
 the trait is generic over the input and output types, the trait implementation must specify the
 concrete types used. This is where the additional type constraints appear
-`<MNISTBatch<B>, ClassificationOutput<B>>`. As we saw previously, the concrete input type for the
-batch is `MNISTBatch`, and the output of the forward pass is `ClassificationOutput`. The `step`
+`<MnistBatch<B>, ClassificationOutput<B>>`. As we saw previously, the concrete input type for the
+batch is `MnistBatch`, and the output of the forward pass is `ClassificationOutput`. The `step`
 method signature matches the concrete input and output types.
 
 For more details specific to constraints on generic types when defining methods, take a look at
@@ -118,20 +118,20 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     B::seed(config.seed);
 
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train_numeric(AccuracyMetric::new())
@@ -139,10 +139,10 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device])
+        .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .build(
-            config.model.init::<B>(),
+            config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
         );

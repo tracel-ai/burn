@@ -1,30 +1,30 @@
 # Data
 
 Typically, one trains a model on some dataset. Burn provides a library of very useful dataset
-sources and transformations. In particular, there are Hugging Face dataset utilities that allow to
-download and store data from Hugging Face into an SQLite database for extremely efficient data
-streaming and storage. For this guide, we will use the MNIST dataset provided by Hugging Face.
+sources and transformations, such as Hugging Face dataset utilities that allow to download and store
+data into an SQLite database for extremely efficient data streaming and storage. For this guide
+though, we will use the MNIST dataset from `burn::data::dataset::vision` which requires no external
+dependency.
 
 To iterate over a dataset efficiently, we will define a struct which will implement the `Batcher`
 trait. The goal of a batcher is to map individual dataset items into a batched tensor that can be
 used as input to our previously defined model.
 
-Let us start by defining our dataset functionalities in a file `src/data.rs`. We shall omit some of the imports for
-brevity,
-but the full code for following this guide can be found
-at `examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide).
+Let us start by defining our dataset functionalities in a file `src/data.rs`. We shall omit some of
+the imports for brevity, but the full code for following this guide can be found at
+`examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide).
 
 ```rust , ignore
 use burn::{
-    data::{dataloader::batcher::Batcher, dataset::vision::MNISTItem},
-    tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
+    data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+    prelude::*,
 };
 
-pub struct MNISTBatcher<B: Backend> {
+pub struct MnistBatcher<B: Backend> {
     device: B::Device,
 }
 
-impl<B: Backend> MNISTBatcher<B> {
+impl<B: Backend> MnistBatcher<B> {
     pub fn new(device: B::Device) -> Self {
         Self { device }
     }
@@ -42,13 +42,13 @@ Next, we need to actually implement the batching logic.
 
 ```rust , ignore
 #[derive(Clone, Debug)]
-pub struct MNISTBatch<B: Backend> {
+pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,
     pub targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
-    fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
+impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
+    fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
         let images = items
             .iter()
             .map(|item| Data::<f32, 2>::from(item.image))
@@ -71,7 +71,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
         let images = Tensor::cat(images, 0).to_device(&self.device);
         let targets = Tensor::cat(targets, 0).to_device(&self.device);
 
-        MNISTBatch { images, targets }
+        MnistBatch { images, targets }
     }
 }
 ```
@@ -81,7 +81,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 
 The iterator pattern allows you to perform some tasks on a sequence of items in turn.
 
-In this example, an iterator is created over the `MNISTItem`s in the vector `items` by calling the
+In this example, an iterator is created over the `MnistItem`s in the vector `items` by calling the
 `iter` method.
 
 _Iterator adaptors_ are methods defined on the `Iterator` trait that produce different iterators by
@@ -100,7 +100,7 @@ If we go back to the example, we can break down and comment the expression used 
 images.
 
 ```rust, ignore
-let images = items                                                       // take items Vec<MNISTItem>
+let images = items                                                       // take items Vec<MnistItem>
     .iter()                                                              // create an iterator over it
     .map(|item| Data::<f32, 2>::from(item.image))                        // for each item, convert the image to float32 data struct
     .map(|data| Tensor::<B, 2>::from_data(data.convert(), &self.device)) // for each data struct, create a tensor on the device
@@ -115,8 +115,8 @@ Book.
 
 </details><br>
 
-In the previous example, we implement the `Batcher` trait with a list of `MNISTItem` as input and a
-single `MNISTBatch` as output. The batch contains the images in the form of a 3D tensor, along with
+In the previous example, we implement the `Batcher` trait with a list of `MnistItem` as input and a
+single `MnistBatch` as output. The batch contains the images in the form of a 3D tensor, along with
 a targets tensor that contains the indexes of the correct digit class. The first step is to parse
 the image array into a `Data` struct. Burn provides the `Data` struct to encapsulate tensor storage
 information without being specific for a backend. When creating a tensor from data, we often need to

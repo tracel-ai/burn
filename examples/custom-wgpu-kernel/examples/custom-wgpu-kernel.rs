@@ -1,4 +1,7 @@
-use burn::tensor::{Distribution, Tensor};
+use burn::{
+    backend::wgpu::{AutoGraphicsApi, WgpuRuntime},
+    tensor::{Distribution, Tensor},
+};
 use custom_wgpu_kernel::{
     matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
 };
@@ -68,7 +71,7 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 }
 
 fn main() {
-    type MyBackend = burn::backend::Wgpu;
+    type MyBackend = burn::backend::wgpu::JitBackend<WgpuRuntime<AutoGraphicsApi, f32, i32>>;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
     let device = Default::default();
     inference::<MyBackend>(&device);

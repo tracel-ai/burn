@@ -5,15 +5,13 @@
 
 use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBatch};
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{AutodiffBackend, Backend},
-    tensor::{activation::softmax, Tensor},
+    prelude::*,
+    tensor::{activation::softmax, backend::AutodiffBackend},
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -96,7 +94,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let mask_pad = item.mask_pad.to_device(device);
 
         // Calculate token and position embeddings, and combine them
-        let index_positions = Tensor::arange(0..seq_length, device)
+        let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
@@ -136,7 +134,7 @@ impl<B: Backend> TextClassificationModel<B> {
         let mask_pad = item.mask_pad.to_device(device);
 
         // Calculate token and position embeddings, and combine them
-        let index_positions = Tensor::arange(0..seq_length, device)
+        let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);

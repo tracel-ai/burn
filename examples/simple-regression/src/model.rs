@@ -1,14 +1,11 @@
 use crate::dataset::DiabetesBatch;
-use burn::config::Config;
-use burn::nn::loss::Reduction::Mean;
-use burn::nn::ReLU;
 use burn::{
-    module::Module,
-    nn::{loss::MSELoss, Linear, LinearConfig},
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Tensor,
+    nn::{
+        loss::{MseLoss, Reduction::Mean},
+        Linear, LinearConfig, Relu,
     },
+    prelude::*,
+    tensor::backend::AutodiffBackend,
     train::{RegressionOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -16,7 +13,7 @@ use burn::{
 pub struct RegressionModel<B: Backend> {
     input_layer: Linear<B>,
     output_layer: Linear<B>,
-    activation: ReLU,
+    activation: Relu,
 }
 
 #[derive(Config)]
@@ -39,7 +36,7 @@ impl RegressionModelConfig {
         RegressionModel {
             input_layer,
             output_layer,
-            activation: ReLU::new(),
+            activation: Relu::new(),
         }
     }
 }
@@ -56,7 +53,7 @@ impl<B: Backend> RegressionModel<B> {
         let targets: Tensor<B, 2> = item.targets.unsqueeze();
         let output: Tensor<B, 2> = self.forward(item.inputs);
 
-        let loss = MSELoss::new().forward(output.clone(), targets.clone(), Mean);
+        let loss = MseLoss::new().forward(output.clone(), targets.clone(), Mean);
 
         RegressionOutput {
             loss,

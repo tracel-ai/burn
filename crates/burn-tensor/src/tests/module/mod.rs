@@ -1,0 +1,15 @@
+mod adaptive_avgpool1d;
+mod adaptive_avgpool2d;
+mod avgpool1d;
+mod avgpool2d;
+mod bicubic_interpolate;
+mod bilinear_interpolate;
+mod conv1d;
+mod conv2d;
+mod conv_transpose1d;
+mod conv_transpose2d;
+mod forward;
+mod maxpool1d;
+mod maxpool2d;
+mod nearest_interpolate;
+mod unfold4d;
