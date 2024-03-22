@@ -1853,11 +1853,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
         #[derive(new)]
-        struct BroadcastToOps<const D: usize, const D2: usize> {
+        struct ExpandOps<const D: usize, const D2: usize> {
             desc: ExpandOperationDescription,
         }
 
-        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for BroadcastToOps<D, D2> {
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&self.desc.input);
                 let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
@@ -1879,8 +1879,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream],
-            OperationDescription::BaseInt(BaseOperationDescription::Expand(desc.clone())),
-            BroadcastToOps::<D1, D2>::new(desc),
+            OperationDescription::BaseFloat(BaseOperationDescription::Expand(desc.clone())),
+            ExpandOps::<D1, D2>::new(desc),
         );
 
         out

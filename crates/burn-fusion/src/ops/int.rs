@@ -1558,11 +1558,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
         #[derive(new)]
-        struct BroadcastToOps<const D: usize, const D2: usize> {
+        struct ExpandOps<const D: usize, const D2: usize> {
             desc: ExpandOperationDescription,
         }
 
-        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for BroadcastToOps<D, D2> {
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_bool_tensor::<D>(&self.desc.input);
                 let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
@@ -1584,7 +1584,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Expand(desc.clone())),
-            BroadcastToOps::<D1, D2>::new(desc),
+            ExpandOps::<D1, D2>::new(desc),
         );
 
         out
