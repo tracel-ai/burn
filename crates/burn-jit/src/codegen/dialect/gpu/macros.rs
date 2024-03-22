@@ -293,6 +293,17 @@ macro_rules! gpu {
             gpu!(unary $input, $out)
         ));
     };
+    // out = vec4(a, b, c, d)
+    ($scope:expr, $out:ident = vec4($a:ident,$b:ident,$c:ident,$d:ident)) => {
+        let i = $scope.zero(Elem::UInt);
+        gpu!($scope, $out[i] = $a);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $b);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $c);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $d);
+    };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
         gpu!($scope, $out = cast($input))
@@ -326,9 +337,17 @@ macro_rules! gpu {
             out: $out.into(),
         });
     };
-    // range(start, end).for_each(|scope| { ... })
+    // range(start, end).for_each(|i, scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+    };
+    // range(start, end, unroll).for_each(|i, scope| { ... })
+    ($scope:expr, range($start:expr, $end:expr, $unroll:expr).for_each($arg:expr)) => {
+        if $unroll {
+            $crate::codegen::dialect::gpu::UnrolledRangeLoop::register($scope, $start.into(), $end.into(), $arg);
+        } else {
+            $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+        }
     };
     // loop(|scope| { ... })
     ($scope:expr, loop($arg:expr)) => {

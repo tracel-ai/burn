@@ -37,6 +37,7 @@ github-device-flow  = { workspace = true }
 rand = { workspace = true }
 ratatui = { workspace = true, optional = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
+serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
@@ -54,7 +55,8 @@ name = "binary"
 harness = false
 
 [[bench]]
-name = "max_pool2d"
+name = "max-pool2d"
+path = "benches/max_pool2d.rs"
 harness = false
 
 [[bench]]
@@ -66,7 +68,8 @@ name = "data"
 harness = false
 
 [[bench]]
-name = "custom_gelu"
+name = "custom-gelu"
+path = "benches/custom_gelu.rs"
 harness = false
 
 [[bin]]

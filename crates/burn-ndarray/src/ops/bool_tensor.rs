@@ -144,4 +144,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     ) -> burn_tensor::ops::BoolTensor<Self, D2> {
         NdArrayOps::expand(tensor, shape)
     }
+
+    fn bool_flip<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        NdArrayOps::flip(tensor, axes)
+    }
 }

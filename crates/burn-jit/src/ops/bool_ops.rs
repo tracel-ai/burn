@@ -73,13 +73,6 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         kernel::slice_assign(tensor, ranges, value)
     }
 
-    fn bool_cat<const D: usize>(
-        tensors: Vec<BoolTensor<Self, D>>,
-        dim: usize,
-    ) -> BoolTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn bool_equal<const D: usize>(
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
@@ -126,5 +119,12 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         shape: Shape<D2>,
     ) -> BoolTensor<Self, D2> {
         expand(tensor, shape)
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        kernel::flip(tensor, axes)
     }
 }

@@ -86,10 +86,14 @@ macro_rules! testgen_all {
         burn_tensor::testgen_any!();
         burn_tensor::testgen_all_op!();
         burn_tensor::testgen_permute!();
+        burn_tensor::testgen_flip!();
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_argwhere_nonzero!();
         burn_tensor::testgen_sign!();
         burn_tensor::testgen_expand!();
+        burn_tensor::testgen_tri_mask!();
+        burn_tensor::testgen_sort_argsort!();
+        burn_tensor::testgen_topk!();
 
         // test stats
         burn_tensor::testgen_var!();

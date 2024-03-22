@@ -133,7 +133,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         tensor: BoolTensor<Self, D>,
         axes: [usize; D],
     ) -> BoolTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        super::base::flip(tensor, axes)
     }
 
     fn bool_expand<const D1: usize, const D2: usize>(

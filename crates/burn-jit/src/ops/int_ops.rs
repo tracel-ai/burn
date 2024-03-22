@@ -109,10 +109,6 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::select_assign(tensor, dim, indices, value)
     }
 
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn int_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
@@ -349,5 +345,9 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
         expand(tensor, shape)
+    }
+
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        kernel::flip(tensor, axes)
     }
 }

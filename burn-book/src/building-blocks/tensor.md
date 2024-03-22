@@ -150,6 +150,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.dims()`                       | `tensor.size()`                      |
 | `tensor.equal(other)`                 | `x == y`                             |
 | `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)` |
+| `tensor.flip(axes)`                   | `tensor.flip(axes)`                  |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.into_primitive()`             | N/A                                  |
 | `tensor.into_scalar()`                | `tensor.item()`                      |
@@ -231,6 +232,14 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.sort(dim)`                                              | `tensor.sort(dim).values`                      |
+| `tensor.sort_descending(dim)`                                   | `tensor.sort(dim, descending=True).values`     |
+| `tensor.sort_with_indices(dim)`                                 | `tensor.sort(dim)`                             |
+| `tensor.sort_descending_with_indices(dim)`                      | `tensor.sort(dim, descending=True)`            |
+| `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
+| `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`         |
+| `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
+| `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 
 ### Float Operations
 
@@ -280,13 +289,16 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API            | PyTorch Equivalent              |
-| ------------------- | ------------------------------- |
-| `tensor.float()`    | `tensor.to(torch.float)`        |
-| `tensor.int()`      | `tensor.to(torch.long)`         |
-| `tensor.not()`      | `tensor.logical_not()`          |
-| `tensor.argwhere()` | `tensor.argwhere()`             |
-| `tensor.nonzero()`  | `tensor.nonzero(as_tuple=True)` |
+| Burn API                            | PyTorch Equivalent              |
+| ----------------------------------- | ------------------------------- |
+| `Tensor.diag_mask(shape, diagonal)` | N/A                             |
+| `Tensor.tril_mask(shape, diagonal)` | N/A                             |
+| `Tensor.triu_mask(shape, diagonal)` | N/A                             |
+| `tensor.argwhere()`                 | `tensor.argwhere()`             |
+| `tensor.float()`                    | `tensor.to(torch.float)`        |
+| `tensor.int()`                      | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                      | `tensor.logical_not()`          |
 
 ## Activation Functions
 

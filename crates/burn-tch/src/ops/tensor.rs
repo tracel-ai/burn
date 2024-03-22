@@ -483,6 +483,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn float_flip<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn float_sign<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
@@ -494,5 +501,21 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         shape: Shape<D2>,
     ) -> burn_tensor::ops::FloatTensor<Self, D2> {
         TchOps::expand(tensor, shape)
+    }
+
+    fn float_sort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
+        TchOps::sort(tensor, dim, descending)
+    }
+
+    fn float_argsort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::argsort(tensor, dim, descending)
     }
 }

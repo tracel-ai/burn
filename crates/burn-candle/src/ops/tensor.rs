@@ -522,7 +522,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         tensor: FloatTensor<Self, D>,
         axes: [usize; D],
     ) -> FloatTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        super::base::flip(tensor, axes)
     }
 
     fn float_expand<const D1: usize, const D2: usize>(
