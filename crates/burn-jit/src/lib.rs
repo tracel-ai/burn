@@ -25,8 +25,11 @@ pub use codegen::dialect::gpu;
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
-pub use backend::*;
+mod bridge;
 mod runtime;
+
+pub use backend::*;
+pub use bridge::*;
 pub use runtime::*;
 
 #[cfg(any(feature = "fusion", test))]

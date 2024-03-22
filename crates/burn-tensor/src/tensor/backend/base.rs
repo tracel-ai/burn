@@ -71,9 +71,6 @@ pub trait Backend:
     /// A bridge that can cast tensors to full precision.
     type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
-    /// Full precision float element type.
-    type FullPrecisionElem: Element;
-
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Float element type.
@@ -109,7 +106,6 @@ pub trait AutodiffBackend: Backend {
         Device = Self::Device,
         FloatElem = Self::FloatElem,
         IntElem = Self::IntElem,
-        FullPrecisionElem = Self::FullPrecisionElem,
     >;
 
     /// Gradients type.

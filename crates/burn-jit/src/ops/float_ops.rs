@@ -321,22 +321,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         reduce::prod_dim(tensor, dim, Default::default())
     }
 
-    fn float_into_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());
-        // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        let tensor = kernel::cast::<R::FullPrecisionRuntime, f32, FloatElem<Self>, D>(tensor);
-        // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
-    }
-
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Exp(UnaryOperator {

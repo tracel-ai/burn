@@ -21,7 +21,6 @@ pub struct Autodiff<B, C = NoCheckpointing> {
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type Device = B::Device;
 
-    type FullPrecisionElem = B::FullPrecisionElem;
     type FullPrecisionBridge = AutodiffBridge<B::FullPrecisionBridge>;
 
     type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
