@@ -3,37 +3,43 @@ use crate::{
     element::JitElement,
     kernel::{elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
-    ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
 };
 use burn_compute::server::Handle;
-use burn_tensor::Shape;
 
 kernel_wgsl!(
-    AdaptiveAvgPool2d,
-    "../../template/pool/adaptive_avg_pool2d.wgsl"
+    AdaptiveAvgPool2dBackward,
+    "../../template/pool/adaptive_avg_pool2d_backward.wgsl"
 );
 
-pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn adaptive_avg_pool2d_backward<R: Runtime, E: JitElement>(
     x: JitTensor<R, E, 4>,
-    output_size: [usize; 2],
+    out_grad: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
-
-    let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
-    let output = empty_device(x.client.clone(), x.device.clone(), output_shape);
+    let output_shape = x.shape.clone();
+    let num_elems = output_shape.num_elements();
+    let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
+    let output = JitTensor::new(
+        x.client.clone(),
+        x.device.clone(),
+        output_shape,
+        output_buffer,
+    );
 
     let kernel = StaticKernel::<
-        KernelSettings<AdaptiveAvgPool2d, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        KernelSettings<AdaptiveAvgPool2dBackward, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(
         output.shape.num_elements(),
         WORKGROUP_DEFAULT,
     ));
 
-    let info_handle = build_info(&x, &output);
-    x.client
-        .execute(Box::new(kernel), &[&x.handle, &output.handle, &info_handle]);
+    let info_handle = build_info(&x, &out_grad);
+
+    x.client.execute(
+        Box::new(kernel),
+        &[&out_grad.handle, &output.handle, &info_handle],
+    );
 
     output
 }

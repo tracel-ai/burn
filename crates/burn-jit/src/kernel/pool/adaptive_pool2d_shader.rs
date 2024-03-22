@@ -6,33 +6,10 @@ use crate::{
     kernel::{DynamicKernelSource, SourceTemplate},
     Compiler, JitElement, Runtime,
 };
-use std::fmt::Debug;
 
-pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
-    type Accumulator: Copy;
+use super::PoolStrategy;
 
-    fn h_range(&self) -> std::ops::Range<u32>;
-    fn w_range(&self) -> std::ops::Range<u32>;
-    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator;
-    fn process_result(
-        &self,
-        scope: &mut Scope,
-        accumulator: Self::Accumulator,
-        result: Variable,
-        idx: Variable,
-    ) -> Self::Accumulator;
-    fn assign(
-        &self,
-        scope: &mut Scope,
-        id: Variable,
-        output: Variable,
-        indices: Option<Variable>,
-        accumulator: Self::Accumulator,
-    );
-    fn with_indices() -> bool;
-}
-
-pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct StandardPool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
     input: Variable,
     output: Variable,
     indices: Option<Variable>,
@@ -41,7 +18,7 @@ pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement
     _runtime: PhantomData<R>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
+impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, R, E> {
     fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
@@ -187,14 +164,14 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
 }
 
 #[derive(new)]
-pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct StandardPool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
     pool_strategy: P,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
 impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
-    for Pool2dEagerKernel<P, R, E>
+    for StandardPool2dEagerKernel<P, R, E>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
@@ -210,7 +187,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
 
         scope.write_global_custom(output);
 
-        Pool2dComputeShader {
+        StandardPool2dComputeShader {
             input,
             output,
             indices,

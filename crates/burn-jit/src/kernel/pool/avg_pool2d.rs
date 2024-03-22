@@ -9,7 +9,7 @@ use crate::{
 use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 use std::fmt::Debug;
 
-use super::{Pool2dEagerKernel, PoolStrategy};
+use super::{PoolStrategy, StandardPool2dEagerKernel};
 
 #[derive(new, Debug, Clone)]
 struct AvgPool {
@@ -107,9 +107,9 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
-    let kernel = Pool2dEagerKernel::new(pool_strategy);
+    let kernel = StandardPool2dEagerKernel::new(pool_strategy);
 
-    execute_dynamic::<R, Pool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
+    execute_dynamic::<R, StandardPool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
         &[EagerHandle::new(
             &output.handle,
