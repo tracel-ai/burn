@@ -144,6 +144,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.all_dim(dim)`                 | `tensor.all(dim)`                    |
 | `tensor.any()`                        | `tensor.any()`                       |
 | `tensor.any_dim(dim)`                 | `tensor.any(dim)`                    |
+| `tensor.expand(shape)`                | `tensor.expand(shape)`               |
 | `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`      |
 | `tensor.device()`                     | `tensor.device`                      |
 | `tensor.dims()`                       | `tensor.size()`                      |
@@ -237,6 +238,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sort_descending_with_indices(dim)`                      | `tensor.sort(dim, descending=True)`            |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
 | `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`         |
+| `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
+| `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 
 ### Float Operations
 

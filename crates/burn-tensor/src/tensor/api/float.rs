@@ -273,6 +273,14 @@ where
         Tensor::new(sort::<B, D, Float>(self.primitive, dim, /*descending*/ false).await)
     }
 
+    /// Sort the elements by value in descending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn sort_descending(self, dim: usize) -> Tensor<B, D> {
+        Tensor::new(sort::<B, D, Float>(self.primitive, dim, /*descending*/ true).await)
+    }
+
     /// Sort the elements by value in ascending order along a given dimension.
     /// Also returns the indices.
     ///
@@ -285,6 +293,21 @@ where
         (Tensor::new(values), Tensor::new(indices))
     }
 
+    /// Sort the elements by value in descending order along a given dimension.
+    /// Also returns the indices.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn sort_descending_with_indices(
+        self,
+        dim: usize,
+    ) -> (Tensor<B, D>, Tensor<B, D, Int>) {
+        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
+        let (values, indices) =
+            sort_with_indices::<B, D, Float>(self.primitive, dim, /*descending*/ true).await;
+        (Tensor::new(values), Tensor::new(indices))
+    }
+
     /// Returns the indices that sort the elements by value in ascending order along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
@@ -292,5 +315,37 @@ where
     pub async fn argsort(self, dim: usize) -> Tensor<B, D, Int> {
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
         Tensor::new(argsort::<B, D, Float>(self.primitive, dim, /*descending*/ false).await)
+    }
+
+    /// Returns the indices that sort the elements by value in descending order along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn argsort_descending(self, dim: usize) -> Tensor<B, D, Int> {
+        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
+        Tensor::new(argsort::<B, D, Float>(self.primitive, dim, /*descending*/ true).await)
+    }
+
+    /// Returns the `k` largest elements of the given input tensor along a given dimension.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn topk(self, k: usize, dim: usize) -> Tensor<B, D> {
+        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        self.sort_descending(dim).await.select(dim, k_indices)
+    }
+
+    /// Returns the `k` largest elements of the given input tensor along a given dimension.
+    /// Also returns the indices.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn topk_with_indices(
+        self,
+        k: usize,
+        dim: usize,
+    ) -> (Tensor<B, D>, Tensor<B, D, Int>) {
+        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        let (values, indices) = self.sort_descending_with_indices(dim).await;
+        (
+            values.select(dim, k_indices.clone()),
+            indices.select(dim, k_indices),
+        )
     }
 }

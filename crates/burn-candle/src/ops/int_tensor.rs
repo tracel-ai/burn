@@ -8,6 +8,8 @@ use crate::{
     Candle, CandleTensor,
 };
 
+use super::base::{expand, permute};
+
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::base::empty(shape, device)
@@ -428,6 +430,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
         super::base::flip(tensor, axes)
+    }
+
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<Self, D2> {
+        expand(tensor, shape)
     }
 
     // TODO add sign operator once Candle supports it:
