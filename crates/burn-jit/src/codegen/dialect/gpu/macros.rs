@@ -275,6 +275,12 @@ macro_rules! gpu {
             gpu!(unary $input, $out)
         ));
     };
+    // out = floor(input)
+    ($scope:expr, $out:ident = floor($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Floor(
+            gpu!(unary $input, $out)
+        ));
+    };
     // out = ceil(input)
     ($scope:expr, $out:ident = ceil($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Ceil(

@@ -445,6 +445,14 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::Floor(op) => wgsl::Instruction::Floor {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Ceil(op) => wgsl::Instruction::Ceil {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Erf(op) => wgsl::Instruction::Erf {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),

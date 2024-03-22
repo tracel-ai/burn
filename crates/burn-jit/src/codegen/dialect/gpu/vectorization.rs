@@ -43,6 +43,8 @@ impl Operator {
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
             Operator::Mul(op) => Operator::Mul(op.vectorize(vectorization)),
             Operator::Div(op) => Operator::Div(op.vectorize(vectorization)),
+            Operator::Floor(op) => Operator::Floor(op.vectorize(vectorization)),
+            Operator::Ceil(op) => Operator::Ceil(op.vectorize(vectorization)),
             Operator::Abs(op) => Operator::Abs(op.vectorize(vectorization)),
             Operator::Exp(op) => Operator::Exp(op.vectorize(vectorization)),
             Operator::Log(op) => Operator::Log(op.vectorize(vectorization)),

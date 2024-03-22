@@ -321,6 +321,16 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::Floor(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Ceil(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     gpu::Operator::Modulo(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,

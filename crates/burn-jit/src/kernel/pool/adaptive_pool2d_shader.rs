@@ -77,11 +77,10 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         gpu!(scope, ow = id / output_stride_3);
         gpu!(scope, ow = ow % output_shape_3);
 
-        let ih_start = scope.create_local(Elem::UInt);
-        let ih_end = scope.create_local(Elem::UInt);
-        let iw_start = scope.create_local(Elem::UInt);
-        let iw_end = scope.create_local(Elem::UInt);
-        // TODO COMPUTE THEM ^
+        let ih_start = Self::start_index(scope, oh, output_shape_2, input_shape_2);
+        let ih_end = Self::end_index(scope, oh, output_shape_2, input_shape_2);
+        let iw_start = Self::start_index(scope, ow, output_shape_3, input_shape_3);
+        let iw_end = Self::end_index(scope, ow, output_shape_3, input_shape_3);
 
         let result = scope.create_local(input.item());
 
@@ -129,7 +128,55 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
 
         gpu!(scope, count_float = cast(count));
         gpu!(scope, avg = sum / count_float);
-        gpu!(scope, output[id] = sum);
+        gpu!(scope, output[id] = avg);
+    }
+
+    fn start_index(
+        scope: &mut Scope,
+        output_size_index: Variable,
+        output_size: Variable,
+        input_size: Variable,
+    ) -> Variable {
+        let numerator_float = scope.create_local(Elem::Float);
+        let div = scope.create_local(Elem::Float);
+        let index = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index = output_size_index * input_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(output_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = floor(div));
+        gpu!(scope, index = cast(div));
+        index
+    }
+
+    fn end_index(
+        scope: &mut Scope,
+        output_size_index: Variable,
+        output_size: Variable,
+        input_size: Variable,
+    ) -> Variable {
+        let numerator_float = scope.create_local(Elem::Float);
+        let div = scope.create_local(Elem::Float);
+        let index = scope.create_local(Elem::UInt);
+        let min = scope.create_local(Elem::Bool);
+        let end_index = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index = output_size_index + 1u32);
+        gpu!(scope, index *= input_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(output_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
+
+        gpu!(scope, min = input_size < index);
+        gpu!(scope, if(min).then(|scope|{
+            gpu!(scope, end_index = input_size);
+        }).else(|scope|{
+            gpu!(scope, end_index = index);
+        }));
+        end_index
     }
 }
 
