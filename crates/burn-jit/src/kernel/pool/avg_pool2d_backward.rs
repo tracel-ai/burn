@@ -109,7 +109,7 @@ impl AvgPool2dBackwardComputeShader {
         let result = scope.create_local(grad.item());
         let count = scope.create_local(grad.item());
 
-        let count_include_pad = self.count_include_pad.clone();
+        let count_include_pad = self.count_include_pad;
         if count_include_pad {
             let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();
             gpu!(scope, count = kernel_size);
