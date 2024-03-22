@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_tensor::backend::{Backend, BackendBridge};
+use burn_tensor::{
+    backend::{Backend, BackendBridge},
+    ops::FullPrecisionBackend,
+};
 
 use crate::{
     checkpoint::{
@@ -19,7 +22,7 @@ impl<B: Backend, C: CheckpointStrategy> BackendBridge<Autodiff<B, C>> for Precis
 
     fn into_target<const D: usize>(
         tensor: burn_tensor::ops::FloatTensor<Autodiff<B, C>, D>,
-        device: burn_tensor::Device<Self::Target>,
+        _device: Option<burn_tensor::Device<Self::Target>>,
     ) -> burn_tensor::ops::FloatTensor<Self::Target, D> {
         #[derive(Debug)]
         struct ToFullPrecision<B: Backend> {
@@ -43,10 +46,7 @@ impl<B: Backend, C: CheckpointStrategy> BackendBridge<Autodiff<B, C>> for Precis
             }
         }
 
-        impl<B: Backend, const D: usize>
-            Backward<<B::FullPrecisionBridge as BackendBridge<B>>::Target, D, 1>
-            for ToFullPrecision<B>
-        {
+        impl<B: Backend, const D: usize> Backward<FullPrecisionBackend<B>, D, 1> for ToFullPrecision<B> {
             type State = ();
 
             fn backward(
@@ -55,18 +55,17 @@ impl<B: Backend, C: CheckpointStrategy> BackendBridge<Autodiff<B, C>> for Precis
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                unary_different_backend::<
-                    B,
-                    <B::FullPrecisionBridge as BackendBridge<B>>::Target,
-                    D,
-                    D,
-                    _,
-                >(ops.parents, ops.node, grads, |grad| {
-                    <B::FullPrecisionBridge as BackendBridge<B>>::from_target(
-                        grad,
-                        Default::default(),
-                    )
-                });
+                unary_different_backend::<B, FullPrecisionBackend<B>, D, D, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        <B::FullPrecisionBridge as BackendBridge<B>>::from_target(
+                            grad,
+                            Default::default(),
+                        )
+                    },
+                );
             }
         }
 
@@ -86,8 +85,56 @@ impl<B: Backend, C: CheckpointStrategy> BackendBridge<Autodiff<B, C>> for Precis
 
     fn from_target<const D: usize>(
         tensor: burn_tensor::ops::FloatTensor<Self::Target, D>,
-        device: burn_tensor::Device<Autodiff<B, C>>,
+        _device: Option<burn_tensor::Device<Autodiff<B, C>>>,
     ) -> burn_tensor::ops::FloatTensor<Autodiff<B, C>, D> {
-        todo!()
+        #[derive(Debug)]
+        struct FromFullPrecision<B: Backend> {
+            phantom: PhantomData<B>,
+        }
+
+        #[derive(new, Debug)]
+        struct RetroFromFullPrecision<B: Backend, const D: usize> {
+            tensor_id: NodeID,
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D: usize> RetroForward for RetroFromFullPrecision<B, D> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let tensor = states
+                    .get_state::<<FullPrecisionBackend<B> as Backend>::FloatTensorPrimitive<D>>(
+                        &self.tensor_id,
+                    );
+                let out = B::float_from_full_precision(tensor);
+                states.save(out_node, out)
+            }
+        }
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<FullPrecisionBackend<B>> {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary_different_backend::<FullPrecisionBackend<B>, B, D, D, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| B::float_to_full_precision(grad),
+                );
+            }
+        }
+
+        let ops = FromFullPrecision::<FullPrecisionBackend<B>> {
+            phantom: PhantomData,
+        };
+
+        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroFromFullPrecision::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateless(B::float_from_full_precision(tensor.primitive))
     }
 }

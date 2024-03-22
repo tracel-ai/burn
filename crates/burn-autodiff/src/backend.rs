@@ -5,7 +5,10 @@ use crate::{
     tensor::AutodiffTensor,
     PrecisionBridge,
 };
-use burn_tensor::backend::{AutodiffBackend, Backend};
+use burn_tensor::{
+    backend::{AutodiffBackend, Backend},
+    ops::FullPrecisionBackend,
+};
 use core::marker::PhantomData;
 
 /// Enable auto-differentiation on a backend.
@@ -22,7 +25,6 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type Device = B::Device;
 
     type FullPrecisionElem = B::FullPrecisionElem;
-    type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
     type FullPrecisionBridge = PrecisionBridge;
 
     type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;

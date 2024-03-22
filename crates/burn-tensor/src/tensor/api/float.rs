@@ -3,6 +3,7 @@ use core::convert::TryInto;
 
 use crate::check;
 use crate::check::TensorCheck;
+use crate::ops::FullPrecisionBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Data, Distribution, Shape};
@@ -206,12 +207,12 @@ where
     }
 
     /// Returns a tensor with full precision based on the selected backend.
-    pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
-        Tensor::new(B::float_to_full_precision(&self.primitive))
+    pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
+        Tensor::new(B::float_to_full_precision(self.primitive))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.
-    pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
+    pub fn from_full_precision(tensor: Tensor<FullPrecisionBackend<B>, D>) -> Self {
         Self::new(B::float_from_full_precision(tensor.primitive))
     }
 

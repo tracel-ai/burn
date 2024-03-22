@@ -911,10 +911,9 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same values as `tensor` but with full precision.
     fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<B, D>,
+        tensor: FloatTensor<B, D>,
     ) -> FloatTensor<FullPrecisionBackend<B>, D> {
-        let device = B::float_device(&tensor);
-        <B::FullPrecisionBridge as BackendBridge<Self>>::into_target(tensor, device)
+        <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
     }
 
     /// Converts a tensor from full precision.
@@ -928,7 +927,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same values as `tensor` but with the precision of the backend.
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<B>, D>,
-    ) -> FloatTensor<B, D>;
+    ) -> FloatTensor<B, D> {
+        <B::FullPrecisionBridge as BackendBridge<B>>::from_target(tensor, None)
+    }
 
     /// Returns a new tensor with exponential values.
     ///

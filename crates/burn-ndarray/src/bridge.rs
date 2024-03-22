@@ -1,8 +1,6 @@
-use core::marker::PhantomData;
-
+use crate::{FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
 use burn_tensor::backend::BackendBridge;
-
-use crate::{FloatNdArrayElement, NdArray, NdArrayTensor};
+use core::marker::PhantomData;
 
 /// Handle precision conversion for the ndarray backend.
 pub struct PrecisionBridge<E: FloatNdArrayElement> {
@@ -19,7 +17,7 @@ where
 
     fn into_target<const D: usize>(
         tensor: burn_tensor::ops::FloatTensor<NdArray<OriginElement>, D>,
-        _device: burn_tensor::Device<Self::Target>,
+        _device: Option<NdArrayDevice>,
     ) -> burn_tensor::ops::FloatTensor<Self::Target, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
@@ -28,7 +26,7 @@ where
 
     fn from_target<const D: usize>(
         tensor: burn_tensor::ops::FloatTensor<Self::Target, D>,
-        _device: burn_tensor::Device<NdArray<OriginElement>>,
+        _device: Option<NdArrayDevice>,
     ) -> burn_tensor::ops::FloatTensor<NdArray<OriginElement>, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 

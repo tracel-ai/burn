@@ -10,12 +10,12 @@ pub trait BackendBridge<Origin: Backend> {
     /// Transfer the tensor to the target backend.
     fn into_target<const D: usize>(
         tensor: FloatTensor<Origin, D>,
-        device: Device<Self::Target>,
+        device: Option<Device<Self::Target>>,
     ) -> FloatTensor<Self::Target, D>;
 
     /// Transfer the tensor from the target backend.
     fn from_target<const D: usize>(
         tensor: FloatTensor<Self::Target, D>,
-        device: Device<Origin>,
+        device: Option<Device<Origin>>,
     ) -> FloatTensor<Origin, D>;
 }
