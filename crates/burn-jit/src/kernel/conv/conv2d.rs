@@ -180,7 +180,6 @@ impl<E: JitElement> Conv2dComputeShader<E> {
                 gpu!(scope, index_weight_1 = ic - ic_start);
                 gpu!(scope, index_weight_1 *= weight_stride_1);
 
-                // TODO add unrolling back
                 gpu!(
                     scope,
                     range(0u32, kernel_size_0).for_each(|kh, scope| {
