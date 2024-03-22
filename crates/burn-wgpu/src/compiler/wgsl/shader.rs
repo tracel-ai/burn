@@ -5,7 +5,6 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Location {
     Storage,
-    #[allow(dead_code)]
     Workgroup,
 }
 
@@ -42,12 +41,32 @@ impl SharedMemory {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct LocalArray {
+    pub index: u16,
+    item: Item,
+    name: u8,
+    size: u32,
+}
+
+impl LocalArray {
+    pub fn new(index: u16, item: Item, name: u8, size: u32) -> Self {
+        Self {
+            index,
+            item,
+            name,
+            size,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
     pub shared_memories: Vec<SharedMemory>,
+    pub local_arrays: Vec<LocalArray>,
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub local_invocation_index: bool,
@@ -72,10 +91,10 @@ impl Display for ComputeShader {
             )?;
         }
 
-        for shared_memory in self.shared_memories.iter() {
+        for array in self.shared_memories.iter() {
             f.write_fmt(format_args!(
                 "var<{}> shared_memory_{}: array<{}, {}>;\n\n",
-                shared_memory.location, shared_memory.index, shared_memory.item, shared_memory.size
+                array.location, array.index, array.item, array.size
             ))?;
         }
 
@@ -115,12 +134,22 @@ fn main(
             f.write_str("    @builtin(workgroup_id) workgroup_id: vec3<u32>,\n")?;
         }
 
-        f.write_fmt(format_args!(
-            ") {{
-    {}
-}}",
-            self.body
-        ))?;
+        // Open body
+        f.write_fmt(format_args!(") {{"))?;
+
+        // Local arrays
+        for array in self.local_arrays.iter() {
+            f.write_fmt(format_args!(
+                "var a_{}_{}: array<{}, {}>;\n\n",
+                array.name, array.index, array.item, array.size
+            ))?;
+        }
+
+        // Body
+        f.write_fmt(format_args!("{}", self.body))?;
+
+        // Close body
+        f.write_fmt(format_args!("}}"))?;
 
         for extension in self.extensions.iter() {
             f.write_fmt(format_args!("{extension}\n\n"))?;

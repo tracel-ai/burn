@@ -6,14 +6,14 @@ use crate::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
         EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
     },
-    compute::WorkGroup,
     element::JitElement,
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
-use burn_tensor::Shape;
 use std::marker::PhantomData;
+
+use super::simple_launch_options;
 
 #[derive(new, Debug)]
 struct MatmulEagerKernel<R: Runtime> {
@@ -213,11 +213,11 @@ pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    matmul_mem_coalescing::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_simple::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -228,7 +228,7 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let workgroup = launch_options(
+    let workgroup = simple_launch_options(
         &lhs.shape,
         &rhs.shape,
         &out.shape,
@@ -242,9 +242,8 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
         &[
             EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
             EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            EagerHandle::new(&out.handle, &out.strides, &out.shape.dims),
         ],
-        &[],
+        &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
         None,
         kernel,
         WorkgroupLaunch::Custom(workgroup),
@@ -252,25 +251,4 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     );
 
     out
-}
-
-fn launch_options<const D: usize>(
-    lhs_shape: &Shape<D>,
-    rhs_shape: &Shape<D>,
-    output_shape: &Shape<D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-) -> WorkGroup {
-    let num_rows = lhs_shape.dims[D - 2];
-    let num_cols = rhs_shape.dims[D - 1];
-
-    // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
-    let mut num_iter = 1;
-    for i in 0..D - 2 {
-        num_iter *= output_shape.dims[i];
-    }
-
-    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
