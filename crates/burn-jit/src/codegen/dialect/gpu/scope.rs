@@ -20,7 +20,8 @@ pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
-    shared: Vec<Variable>,
+    shared_memories: Vec<Variable>,
+    local_arrays: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
     index_offset_with_output_layout_position: Vec<usize>,
     writes_global: Vec<(Variable, Variable)>,
@@ -48,7 +49,8 @@ impl Scope {
             depth: 0,
             operations: Vec::new(),
             locals: Vec::new(),
-            shared: Vec::new(),
+            local_arrays: Vec::new(),
+            shared_memories: Vec::new(),
             reads_global: Vec::new(),
             index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
@@ -213,7 +215,8 @@ impl Scope {
             depth: self.depth + 1,
             operations: Vec::new(),
             locals: Vec::new(),
-            shared: Vec::new(),
+            shared_memories: Vec::new(),
+            local_arrays: Vec::new(),
             reads_global: Vec::new(),
             index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
@@ -308,7 +311,11 @@ impl Scope {
     }
 
     fn new_shared_index(&self) -> u16 {
-        self.shared.len() as u16
+        self.shared_memories.len() as u16
+    }
+
+    fn new_local_array_index(&self) -> u16 {
+        self.local_arrays.len() as u16
     }
 
     fn read_input_strategy(
@@ -339,7 +346,16 @@ impl Scope {
         let item = item.into();
         let index = self.new_shared_index();
         let shared_memory = Variable::SharedMemory(index, item, shared_memory_size);
-        self.shared.push(shared_memory);
+        self.shared_memories.push(shared_memory);
         shared_memory
+    }
+
+    /// Create a local array of the given [item type](Item).
+    pub fn create_local_array<I: Into<Item>>(&mut self, item: I, array_size: u32) -> Variable {
+        let item = item.into();
+        let index = self.new_local_array_index();
+        let local_array = Variable::LocalArray(index, item, self.depth, array_size);
+        self.local_arrays.push(local_array);
+        local_array
     }
 }

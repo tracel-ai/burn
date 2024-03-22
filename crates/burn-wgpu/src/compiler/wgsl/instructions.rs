@@ -109,6 +109,10 @@ pub enum Instruction {
         input: Variable,
         out: Variable,
     },
+    Ceil {
+        input: Variable,
+        out: Variable,
+    },
     Erf {
         input: Variable,
         out: Variable,
@@ -271,6 +275,9 @@ impl Display for Instruction {
             }
             Instruction::Sqrt { input, out } => {
                 f.write_fmt(format_args!("{out} = sqrt({input});\n"))
+            }
+            Instruction::Ceil { input, out } => {
+                f.write_fmt(format_args!("{out} = ceil({input});\n"))
             }
             Instruction::Log1p { input, out } => {
                 f.write_fmt(format_args!("{out} = log({input} + 1.0);\n"))
