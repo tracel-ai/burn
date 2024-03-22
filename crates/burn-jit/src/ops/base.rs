@@ -113,6 +113,7 @@ pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usi
                 }
             } else {
                 // If the input tensor has fewer dimensions, treat missing dimensions as 1
+                // and set stride to 0 (broadcasting)
                 new_strides[i] = 0;
             }
         } else {
