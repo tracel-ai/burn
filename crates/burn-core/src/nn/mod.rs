@@ -28,6 +28,7 @@ mod pos_encoding;
 mod prelu;
 mod relu;
 mod rnn;
+mod swiglu;
 mod unfold;
 
 pub use dropout::*;
@@ -43,3 +44,4 @@ pub use prelu::*;
 pub use relu::*;
 pub use rnn::*;
 pub use unfold::*;
+pub use swiglu::*;
