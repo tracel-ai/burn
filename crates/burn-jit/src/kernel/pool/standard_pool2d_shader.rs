@@ -13,6 +13,7 @@ pub(crate) struct StandardPool2dComputeShader<P: PoolStrategy, R: Runtime, E: Ji
     input: Variable,
     output: Variable,
     indices: Option<Variable>,
+    kernel_size: [usize; 2],
     pool_strategy: P,
     _elem: PhantomData<E>,
     _runtime: PhantomData<R>,
@@ -117,7 +118,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, 
 
         let accumulator = self.pool_strategy.initialize(scope, input.item());
 
-        self.pool_strategy.h_range().for_each(|kh| {
+        (0..self.kernel_size[0]).for_each(|kh| {
             gpu!(scope, ih = oh * pool_stride_0);
             gpu!(scope, dilated = kh * dilation_0);
             gpu!(scope, ih += dilated);
@@ -127,7 +128,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, 
             gpu!(scope, within_padding_h = within_padding_h && tmp_padding);
 
             gpu!(scope, if (within_padding_h).then(|scope| {
-                    self.pool_strategy.w_range().for_each(|kw| {
+                (0..self.kernel_size[1]).for_each(|kw| {
                         gpu!(scope, iw = ow * pool_stride_1);
                         gpu!(scope, dilated = kw * dilation_1);
                         gpu!(scope, iw += dilated);
@@ -165,6 +166,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, 
 
 #[derive(new)]
 pub(crate) struct StandardPool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
+    kernel_size: [usize; 2],
     pool_strategy: P,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -191,6 +193,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
             input,
             output,
             indices,
+            kernel_size: self.kernel_size,
             pool_strategy: self.pool_strategy.clone(),
             _elem: PhantomData::<E>,
             _runtime: PhantomData::<R>,
@@ -231,8 +234,9 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
 
     fn id(&self) -> String {
         format!(
-            "{:?}pool_strategy={:?}",
+            "{:?}k={:?}pool_strategy={:?}",
             core::any::TypeId::of::<Self>(),
+            self.kernel_size,
             self.pool_strategy
         )
     }

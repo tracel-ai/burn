@@ -12,22 +12,13 @@ use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shap
 
 use super::{PoolStrategy, StandardPool2dEagerKernel};
 
-#[derive(new, Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 struct MaxPool<E: JitElement> {
-    kernel_size: [usize; 2],
     _elem: PhantomData<E>,
 }
 
 impl<E: JitElement> PoolStrategy for MaxPool<E> {
     type Accumulator = Variable;
-
-    fn h_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[0] as u32
-    }
-
-    fn w_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[1] as u32
-    }
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
@@ -68,22 +59,13 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
     }
 }
 
-#[derive(new, Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 struct MaxPoolWithIndices<E: JitElement> {
-    kernel_size: [usize; 2],
     _elem: PhantomData<E>,
 }
 
 impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
     type Accumulator = (Variable, Variable);
-
-    fn h_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[0] as u32
-    }
-
-    fn w_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[1] as u32
-    }
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
@@ -155,7 +137,7 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = StandardPool2dEagerKernel::new(MaxPool::new(kernel_size));
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPool::default());
 
     execute_dynamic::<R, StandardPool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
@@ -208,7 +190,7 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
     let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = StandardPool2dEagerKernel::new(MaxPoolWithIndices::new(kernel_size));
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPoolWithIndices::default());
 
     execute_dynamic::<R, StandardPool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],

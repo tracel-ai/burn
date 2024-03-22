@@ -4,10 +4,6 @@ use std::fmt::Debug;
 pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
     type Accumulator: Copy;
 
-    fn h_range(&self) -> std::ops::Range<u32>;
-
-    fn w_range(&self) -> std::ops::Range<u32>;
-
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator;
 
     fn process_result(

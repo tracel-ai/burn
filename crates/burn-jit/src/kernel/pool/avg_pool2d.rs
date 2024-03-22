@@ -20,14 +20,6 @@ struct AvgPool {
 impl PoolStrategy for AvgPool {
     type Accumulator = (Variable, Variable);
 
-    fn h_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[0] as u32
-    }
-
-    fn w_range(&self) -> std::ops::Range<u32> {
-        0..self.kernel_size[1] as u32
-    }
-
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let sum = scope.create_local(item);
         let count = scope.create_local(Elem::UInt);
@@ -107,7 +99,7 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
-    let kernel = StandardPool2dEagerKernel::new(pool_strategy);
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, pool_strategy);
 
     execute_dynamic::<R, StandardPool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
