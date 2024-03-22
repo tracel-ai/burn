@@ -2445,13 +2445,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct ExpandDim<const D1: usize, const D2: usize>;
 
         #[derive(new, Debug)]
-        struct RetroBroadcast<B: Backend, const D1: usize, const D2: usize> {
+        struct RetroExpand<B: Backend, const D1: usize, const D2: usize> {
             input_id: NodeID,
             shape: Shape<D2>,
             _backend: PhantomData<B>,
         }
 
-        impl<B: Backend, const D1: usize, const D2: usize> RetroForward for RetroBroadcast<B, D1, D2> {
+        impl<B: Backend, const D1: usize, const D2: usize> RetroForward for RetroExpand<B, D1, D2> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
                 let input = states.get_state::<B::FloatTensorPrimitive<D1>>(&self.input_id);
                 let out = B::float_expand(input, self.shape.clone());
@@ -2497,7 +2497,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match ExpandDim
             .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
-            .retro_forward(RetroBroadcast::<B, D1, D2>::new(
+            .retro_forward(RetroExpand::<B, D1, D2>::new(
                 tensor.node.id.clone(),
                 shape.clone(),
             ))
