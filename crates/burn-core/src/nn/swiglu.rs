@@ -78,7 +78,6 @@ impl<B: Backend> SwiGLU<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input.clone());
         let x = silu(x);
-        let x = x.mul(self.linear_outer.forward(input));
-        x
+        x.mul(self.linear_outer.forward(input))
     }
 }
