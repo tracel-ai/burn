@@ -26,7 +26,10 @@ pub(crate) mod tensor;
 pub(crate) mod utils;
 
 mod backend;
+mod bridge;
+
 pub use backend::*;
+pub use bridge::*;
 
 #[cfg(feature = "export_tests")]
 mod tests;

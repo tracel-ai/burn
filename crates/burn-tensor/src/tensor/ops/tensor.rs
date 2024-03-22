@@ -1,5 +1,6 @@
 use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
+use crate::backend::BackendBridge;
 use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
@@ -911,7 +912,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same values as `tensor` but with full precision.
     fn float_to_full_precision<const D: usize>(
         tensor: &FloatTensor<B, D>,
-    ) -> FloatTensor<FullPrecisionBackend<B>, D>;
+    ) -> FloatTensor<FullPrecisionBackend<B>, D> {
+        let device = B::float_device(&tensor);
+        <B::FullPrecisionBridge as BackendBridge<Self>>::into_target(tensor, device)
+    }
 
     /// Converts a tensor from full precision.
     ///
