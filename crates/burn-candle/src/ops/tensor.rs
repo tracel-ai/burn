@@ -366,7 +366,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
     }
 
-    fn float_to_full_precision<const D: usize>(
+    fn float_into_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
         CandleTensor::new(tensor.tensor.to_dtype(candle_core::DType::F32).unwrap())

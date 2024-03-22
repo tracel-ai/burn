@@ -208,7 +208,7 @@ where
 
     /// Returns a tensor with full precision based on the selected backend.
     pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
-        Tensor::new(B::float_to_full_precision(self.primitive))
+        Tensor::new(B::float_into_full_precision(self.primitive))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.

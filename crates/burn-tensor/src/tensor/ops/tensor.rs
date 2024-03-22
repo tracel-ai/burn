@@ -910,7 +910,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same values as `tensor` but with full precision.
-    fn float_to_full_precision<const D: usize>(
+    fn float_into_full_precision<const D: usize>(
         tensor: FloatTensor<B, D>,
     ) -> FloatTensor<FullPrecisionBackend<B>, D> {
         <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)

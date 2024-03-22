@@ -7,7 +7,7 @@ use crate::{
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
-    ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
+    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
@@ -16,7 +16,7 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 

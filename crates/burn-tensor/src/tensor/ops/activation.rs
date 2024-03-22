@@ -126,7 +126,7 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        let tensor_full = B::float_to_full_precision(tensor);
+        let tensor_full = B::float_into_full_precision(tensor);
         let tensor_tmp =
             FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
                 FullPrecisionBackend::<B>::float_log(FullPrecisionBackend::<B>::float_add_scalar(

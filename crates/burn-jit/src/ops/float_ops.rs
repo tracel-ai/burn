@@ -321,7 +321,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         reduce::prod_dim(tensor, dim, Default::default())
     }
 
-    fn float_to_full_precision<const D: usize>(
+    fn float_into_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
         let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());

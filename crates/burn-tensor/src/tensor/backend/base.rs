@@ -69,7 +69,7 @@ pub trait Backend:
     type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
     /// A bridge that can cast tensors to full precision.
-    type FullPrecisionBridge: BackendBridge<Self>;
+    type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Full precision float element type.
     type FullPrecisionElem: Element;
