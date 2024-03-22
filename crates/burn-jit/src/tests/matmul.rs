@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::matmul::{matmul, MatmulStrategy};
+    use burn_jit::kernel::matmul::{matmul, MatmulStrategy, Tiling2dConfig};
     use burn_tensor::{Shape, Tensor};
 
     mod simple {
@@ -174,7 +174,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap,
                 swap,
                 shape_lhs,
@@ -189,7 +189,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -204,7 +204,7 @@ mod tests {
             let shape_lhs = [4, 4, 4, 4];
             let shape_rhs = [4, 4, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -212,10 +212,56 @@ mod tests {
             );
         }
 
+        #[test]
+        fn stable_test() {
+            let ref_tensor_device = Default::default();
+            let x = ReferenceTensor::from_floats([[0., 1., 2.], [3., 4., 5.]], &ref_tensor_device);
+            let y =
+                ReferenceTensor::from_floats([[0., 1.], [2., 3.], [4., 5.]], &ref_tensor_device);
+
+            let test_tensor_device = Default::default();
+            let x_jit = TestTensor::from_data(x.to_data(), &test_tensor_device);
+            let y_jit = TestTensor::from_data(y.to_data(), &test_tensor_device);
+
+            let z_reference = x.matmul(y);
+            let z = Tensor::<TestBackend, 2>::from_primitive(matmul(
+                x_jit.into_primitive(),
+                y_jit.into_primitive(),
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
+            ));
+
+            z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+        }
+
+        #[test]
+        fn stable_test_2() {
+            let ref_tensor_device = Default::default();
+            let x =
+                ReferenceTensor::from_floats([[0., 1.], [2., 3.], [4., 5.]], &ref_tensor_device);
+            let y = ReferenceTensor::from_floats([[0., 1., 2.], [3., 4., 5.]], &ref_tensor_device);
+
+            let test_tensor_device = Default::default();
+            let x_jit = TestTensor::from_data(x.to_data(), &test_tensor_device);
+            let y_jit = TestTensor::from_data(y.to_data(), &test_tensor_device);
+
+            let z_reference = x.matmul(y);
+            let z = Tensor::<TestBackend, 2>::from_primitive(matmul(
+                x_jit.into_primitive(),
+                y_jit.into_primitive(),
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
+            ));
+
+            z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+        }
+
         fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
             let shape_lhs = [batch_1, batch_2, m, k];
             let shape_rhs = [batch_1, batch_2, k, n];
-            same_as_reference(MatmulStrategy::Tiling2dPadded, shape_lhs, shape_rhs);
+            same_as_reference(
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
+                shape_lhs,
+                shape_rhs,
+            );
         }
     }
 
@@ -308,7 +354,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
                 swap,
                 swap,
                 shape_lhs,
@@ -323,7 +369,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d((Tiling2dConfig::default())),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -338,7 +384,7 @@ mod tests {
             let shape_lhs = [4, 4, 4, 4];
             let shape_rhs = [4, 4, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -349,7 +395,11 @@ mod tests {
         fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
             let shape_lhs = [batch_1, batch_2, m, k];
             let shape_rhs = [batch_1, batch_2, k, n];
-            same_as_reference(MatmulStrategy::Tiling2d, shape_lhs, shape_rhs);
+            same_as_reference(
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
+                shape_lhs,
+                shape_rhs,
+            );
         }
     }
 

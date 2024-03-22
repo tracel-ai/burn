@@ -52,6 +52,7 @@ impl Operator {
             Operator::Tanh(op) => Operator::Tanh(op.vectorize(vectorization)),
             Operator::Powf(op) => Operator::Powf(op.vectorize(vectorization)),
             Operator::Sqrt(op) => Operator::Sqrt(op.vectorize(vectorization)),
+            Operator::Ceil(op) => Operator::Ceil(op.vectorize(vectorization)),
             Operator::Erf(op) => Operator::Erf(op.vectorize(vectorization)),
             Operator::Recip(op) => Operator::Recip(op.vectorize(vectorization)),
             Operator::Equal(op) => Operator::Equal(op.vectorize(vectorization)),
@@ -128,6 +129,12 @@ impl Variable {
             Variable::SharedMemory(index, item, size) => Variable::SharedMemory(
                 *index,
                 item.vectorize(vectorize),
+                item.vectorized_size(vectorize, *size),
+            ),
+            Variable::LocalArray(index, item, name, size) => Variable::LocalArray(
+                *index,
+                item.vectorize(vectorize),
+                *name,
                 item.vectorized_size(vectorize, *size),
             ),
             Variable::ConstantScalar(_, _) => *self,

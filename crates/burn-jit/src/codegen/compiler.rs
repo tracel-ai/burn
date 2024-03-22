@@ -22,4 +22,6 @@ pub trait Compiler: Sync + Send + 'static + Clone + Default + core::fmt::Debug {
     fn compile(shader: gpu::ComputeShader) -> Self::Representation;
     /// The size of the given element in bytes.
     fn elem_size(elem: gpu::Elem) -> usize;
+    /// The maximal size of a shared memory
+    fn max_shared_memory_size() -> usize;
 }
