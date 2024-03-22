@@ -6,13 +6,13 @@ use crate::{
     scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{
         BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
-        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
+        ClampOperationDescription, ExpandOperationDescription, FloatOperationDescription,
+        GatherOperationDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
+        NumericOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
+        RandomOperationDescription, ReduceDimWithIndicesDescription, ReshapeDescription,
+        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        StreamId, SwapDimsDescription, UnaryOperationDescription,
     },
     unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
@@ -1851,6 +1851,36 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
-        todo!()
+        #[derive(new)]
+        struct BroadcastToOps<const D: usize, const D2: usize> {
+            desc: ExpandOperationDescription,
+        }
+
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for BroadcastToOps<D, D2> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
+                let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
+                let output = B::float_expand(input, shape.into());
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+
+        let desc = ExpandOperationDescription {
+            input: tensor.into_description(),
+            shape: shape.dims.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Expand(desc.clone())),
+            BroadcastToOps::<D1, D2>::new(desc),
+        );
+
+        out
     }
 }

@@ -6,9 +6,9 @@ use crate::{
     scalar_int_cmp_ops, scalar_int_ops,
     stream::{
         self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
-        MaskWhereOperationDescription, NumericOperationDescription, Operation,
-        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+        ClampOperationDescription, ExpandOperationDescription, GatherOperationDescription,
+        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
         ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
         ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
         SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
@@ -1557,6 +1557,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        todo!()
+        #[derive(new)]
+        struct BroadcastToOps<const D: usize, const D2: usize> {
+            desc: ExpandOperationDescription,
+        }
+
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for BroadcastToOps<D, D2> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
+                let output = B::bool_expand(input, shape.into());
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+
+        let desc = ExpandOperationDescription {
+            input: tensor.into_description(),
+            shape: shape.dims.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Expand(desc.clone())),
+            BroadcastToOps::<D1, D2>::new(desc),
+        );
+
+        out
     }
 }

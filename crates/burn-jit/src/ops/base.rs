@@ -82,34 +82,38 @@ pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
 
     tensor
 }
-
 pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
     tensor: JitTensor<R, E, D>,
     target_shape: Shape<D_OUT>,
 ) -> JitTensor<R, E, D_OUT> {
-    // Initialize new strides and shapes with zeros or appropriate values
+    // Initialize new strides with zeros
     let mut new_strides = [0usize; D_OUT];
 
     // Calculate the difference in dimensions
-    let dim_diff = if D_OUT > D { D_OUT - D } else { 0 };
+    let dim_diff = D_OUT.saturating_sub(D);
 
     // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
     let mut tensor_dim_iter = tensor.shape.dims.iter().rev();
     for i in (0..D_OUT).rev() {
-        if let Some(&tensor_dim) = tensor_dim_iter.next() {
-            if i >= dim_diff && (tensor_dim == target_shape.dims[i] || tensor_dim == 1) {
-                // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
-                new_strides[i] = if tensor_dim == target_shape.dims[i] {
-                    tensor.strides[i - dim_diff]
+        if i >= dim_diff {
+            if let Some(&tensor_dim) = tensor_dim_iter.next() {
+                if tensor_dim == target_shape.dims[i] || tensor_dim == 1 {
+                    // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
+                    new_strides[i] = if tensor_dim == target_shape.dims[i] {
+                        tensor.strides[i - dim_diff]
+                    } else {
+                        0
+                    };
                 } else {
-                    0
-                };
+                    // Error handling: Dimension mismatch for broadcasting
+                    panic!(
+                        "Dimension mismatch: cannot broadcast dimension {} of tensor to target shape",
+                        tensor_dim
+                    );
+                }
             } else {
-                // Error handling: Dimension mismatch for broadcasting
-                panic!(
-                    "Dimension mismatch: cannot broadcast dimension {} of tensor to target shape",
-                    tensor_dim
-                );
+                // If the input tensor has fewer dimensions, treat missing dimensions as 1
+                new_strides[i] = 0;
             }
         } else {
             // For extra dimensions in the target shape, set stride to 0 (broadcasting)

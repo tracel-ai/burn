@@ -141,6 +141,7 @@ pub enum BaseOperationDescription {
     /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
     Reshape(ReshapeDescription),
+
     /// Operation corresponding to:
     ///
     /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
@@ -154,6 +155,13 @@ pub enum BaseOperationDescription {
     /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
     /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
     Permute(PermuteOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [expand](burn_tensor::ops::FloatTensorOps::float_expand).
+    /// Int => [expand](burn_tensor::ops::IntTensorOps::int_expand).
+    /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
+    Expand(ExpandOperationDescription),
 
     /// Operation corresponding to:
     ///
@@ -456,6 +464,17 @@ pub struct PermuteOperationDescription {
     pub axes: Vec<usize>,
 }
 
+/// Expand operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct ExpandOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// Output tensor description.
+    pub out: TensorDescription,
+    /// The new shape.
+    pub shape: Vec<usize>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct RandomOperationDescription {
@@ -466,6 +485,13 @@ pub struct RandomOperationDescription {
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ExpandDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
@@ -1038,6 +1064,11 @@ impl BaseOperationDescription {
             BaseOperationDescription::Permute(desc) => {
                 vec![&desc.input, &desc.out]
             }
+
+            BaseOperationDescription::Expand(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+
             BaseOperationDescription::Slice(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
