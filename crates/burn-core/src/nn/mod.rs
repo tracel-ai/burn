@@ -43,5 +43,5 @@ pub use pos_encoding::*;
 pub use prelu::*;
 pub use relu::*;
 pub use rnn::*;
-pub use unfold::*;
 pub use swiglu::*;
+pub use unfold::*;
