@@ -128,4 +128,11 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
         B::bool_nonzero(tensor)
     }
+
+    fn bool_expand<const D: usize, const D2: usize>(
+        tensor: BoolTensor<B, D>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<B, D2> {
+        B::bool_expand(tensor, shape)
+    }
 }

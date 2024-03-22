@@ -142,3 +142,10 @@ pub fn chunk<E: CandleElement, const D: usize>(
         Err(e) => panic!("error chunk from Candle"),
     }
 }
+
+pub fn expand<E: CandleElement, const D1: usize, const D2: usize>(
+    tensor: CandleTensor<E, D1>,
+    shape: Shape<D2>,
+) -> CandleTensor<E, D2> {
+    CandleTensor::new(tensor.tensor.broadcast_as(&shape.dims).unwrap())
+}
