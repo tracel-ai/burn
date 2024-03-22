@@ -237,6 +237,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sort_descending_with_indices(dim)`                      | `tensor.sort(dim, descending=True)`            |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
 | `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`         |
+| `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
+| `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 
 ### Float Operations
 
