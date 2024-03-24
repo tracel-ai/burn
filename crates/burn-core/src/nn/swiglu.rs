@@ -20,7 +20,7 @@ pub struct SwiGLUConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-    default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -91,8 +91,7 @@ mod tests {
     fn test_swiglu_forward_no_bias() {
         TestBackend::seed(0);
         let device = Default::default();
-        let config = SwiGLUConfig::new(3, 3)
-            .with_initializer(Initializer::Constant { value: 0.5 });
+        let config = SwiGLUConfig::new(3, 3).with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
         let input =
             Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
