@@ -20,7 +20,7 @@ pub struct SwiGLUConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+    default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -79,5 +79,50 @@ impl<B: Backend> SwiGLU<B> {
         let x = self.linear_inner.forward(input.clone());
         let x = silu(x);
         x.mul(self.linear_outer.forward(input))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn test_swiglu_forward_no_bias() {
+        TestBackend::seed(0);
+        let device = Default::default();
+        let config = SwiGLUConfig::new(3, 3)
+            .with_initializer(Initializer::Constant { value: 0.5 });
+        let swiglu = config.init(&device);
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let output = swiglu.forward(input);
+        let expected_output = Tensor::<TestBackend, 2>::from_data(
+            [[8.5732, 8.5732, 8.5732], [56.2189, 56.2189, 56.2189]],
+            &device,
+        );
+        output
+            .to_data()
+            .assert_approx_eq(&expected_output.to_data(), 4);
+    }
+
+    #[test]
+    fn test_swiglu_forward_with_bias() {
+        TestBackend::seed(0);
+        let device = Default::default();
+        let config = SwiGLUConfig::new(3, 3)
+            .with_bias(true)
+            .with_initializer(Initializer::Constant { value: 0.5 });
+        let swiglu = config.init(&device);
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let output = swiglu.forward(input);
+        let expected_output = Tensor::<TestBackend, 2>::from_data(
+            [[11.8909, 11.8909, 11.8909], [63.9785, 63.9785, 63.9785]],
+            &device,
+        );
+        output
+            .to_data()
+            .assert_approx_eq(&expected_output.to_data(), 4);
     }
 }
