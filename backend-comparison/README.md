@@ -147,7 +147,7 @@ Then it must be registered in the `BenchmarkValues` enumeration:
 ```rs
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
-pub(crate) enum BackendValues {
+pub(crate) enum BenchmarkValues {
     // ...
     #[strum(to_string = "mybench")]
     MyBench,
