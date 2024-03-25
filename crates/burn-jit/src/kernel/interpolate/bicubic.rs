@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use rand::seq::index;
-
 use crate::{
     codegen::{
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
@@ -270,20 +268,6 @@ impl InterpolateBicubicShader {
         let res = scope.create_local(a.item());
 
         gpu!(scope, cond = a < b);
-        gpu!(scope, if(cond).then(|scope|{
-            gpu!(scope, res = a);
-        }).else(|scope|{
-            gpu!(scope, res = b);
-        }));
-
-        res
-    }
-
-    fn max(scope: &mut Scope, a: Variable, b: Variable) -> Variable {
-        let cond = scope.create_local(Elem::Bool);
-        let res = scope.create_local(a.item());
-
-        gpu!(scope, cond = a > b);
         gpu!(scope, if(cond).then(|scope|{
             gpu!(scope, res = a);
         }).else(|scope|{

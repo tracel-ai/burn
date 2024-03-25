@@ -5,6 +5,3 @@ mod nearest;
 mod nearest_backward;
 
 pub use base::*;
-
-mod old;
-pub use old::*;
