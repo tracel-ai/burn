@@ -1,4 +1,4 @@
-use crate::{kernel, tensor::JitTensor, FloatElement, JitBackend, Runtime};
+use crate::{kernel, ops::to_device, tensor::JitTensor, JitBackend, Runtime};
 use burn_tensor::{
     backend::BackendBridge,
     ops::{FloatElem, FloatTensor},
@@ -31,7 +31,13 @@ where
         >(tensor);
 
         // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
+        let tensor = JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+
+        if let Some(device) = &device {
+            to_device(tensor, device)
+        } else {
+            tensor
+        }
     }
 
     fn from_target<const D: usize>(
@@ -45,6 +51,12 @@ where
             D,
         >(tensor);
         // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
+        let tensor = JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+
+        if let Some(device) = &device {
+            to_device(tensor, device)
+        } else {
+            tensor
+        }
     }
 }

@@ -3,12 +3,9 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryO
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
-use crate::tensor::JitTensor;
 use crate::Runtime;
 use crate::{unary, JitBackend};
-use burn_tensor::ops::{
-    BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
-};
+use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
