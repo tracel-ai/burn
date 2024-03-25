@@ -92,22 +92,23 @@ impl InterpolateNearestShader {
         gpu!(scope, factor_float = cast(h));
         gpu!(scope, numerator_float = cast(input_shape_2));
         gpu!(scope, denominator_float = cast(output_shape_2));
-        gpu!(scope, x = factor_float * numerator_float);
-        gpu!(scope, x = x / denominator_float);
-        gpu!(scope, x = floor(x));
-        gpu!(scope, xu = cast(x));
-
-        gpu!(scope, factor_float = cast(w));
-        gpu!(scope, numerator_float = cast(input_shape_3));
-        gpu!(scope, denominator_float = cast(output_shape_3));
         gpu!(scope, y = factor_float * numerator_float);
         gpu!(scope, y = y / denominator_float);
         gpu!(scope, y = floor(y));
         gpu!(scope, yu = cast(y));
 
+        gpu!(scope, factor_float = cast(w));
+        gpu!(scope, numerator_float = cast(input_shape_3));
+        gpu!(scope, denominator_float = cast(output_shape_3));
+        gpu!(scope, x = factor_float * numerator_float);
+        gpu!(scope, x = x / denominator_float);
+        gpu!(scope, x = floor(x));
+        gpu!(scope, xu = cast(x));
+
         let index = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
         let val = scope.create_local(output.item());
+
         gpu!(scope, index = b * input_stride_0);
         gpu!(scope, index_tmp = c * input_stride_1);
         gpu!(scope, index += index_tmp);
