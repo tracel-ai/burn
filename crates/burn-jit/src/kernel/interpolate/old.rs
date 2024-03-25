@@ -20,7 +20,7 @@ kernel_wgsl!(
 kernel_wgsl!(Bilinear, "../../template/interpolate/bilinear.wgsl");
 kernel_wgsl!(Bicubic, "../../template/interpolate/bicubic.wgsl");
 
-pub(crate) fn interpolate___<R: Runtime, E: JitElement + Element>(
+pub(crate) fn interpolate_<R: Runtime, E: JitElement + Element>(
     input: JitTensor<R, E, 4>,
     output_size: [usize; 2],
     options: InterpolateOptions,

@@ -118,7 +118,7 @@ impl InterpolateBilinearShader {
 
         gpu!(scope, numerator_int = input_shape_3 - 1u32);
         gpu!(scope, denominator_int = output_shape_3 - 1u32);
-        gpu!(scope, factor_float = cast(h));
+        gpu!(scope, factor_float = cast(w));
         gpu!(scope, numerator_float = cast(numerator_int));
         gpu!(scope, denominator_float = cast(denominator_int));
         gpu!(scope, frac = factor_float * numerator_float);
@@ -182,6 +182,7 @@ impl InterpolateBilinearShader {
         gpu!(scope, sum = p_a + p_b);
         gpu!(scope, sum += p_c);
         gpu!(scope, sum += p_d);
+        gpu!(scope, output[id] = sum);
     }
 }
 
