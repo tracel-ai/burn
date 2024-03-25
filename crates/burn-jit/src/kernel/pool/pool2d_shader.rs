@@ -9,7 +9,7 @@ use crate::{
 
 use super::PoolStrategy;
 
-pub(crate) struct StandardPool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
     input: Variable,
     output: Variable,
     indices: Option<Variable>,
@@ -19,7 +19,7 @@ pub(crate) struct StandardPool2dComputeShader<P: PoolStrategy, R: Runtime, E: Ji
     _runtime: PhantomData<R>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, R, E> {
+impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
     fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
@@ -165,7 +165,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> StandardPool2dComputeShader<P, 
 }
 
 #[derive(new)]
-pub(crate) struct StandardPool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
     kernel_size: [usize; 2],
     pool_strategy: P,
     _runtime: PhantomData<R>,
@@ -173,7 +173,7 @@ pub(crate) struct StandardPool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitE
 }
 
 impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
-    for StandardPool2dEagerKernel<P, R, E>
+    for Pool2dEagerKernel<P, R, E>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
@@ -189,7 +189,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
 
         scope.write_global_custom(output);
 
-        StandardPool2dComputeShader {
+        Pool2dComputeShader {
             input,
             output,
             indices,
@@ -234,7 +234,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
 
     fn id(&self) -> String {
         format!(
-            "{:?}k={:?}pool_strategy={:?}",
+            "{:?}k={:?}pl={:?}",
             core::any::TypeId::of::<Self>(),
             self.kernel_size,
             self.pool_strategy

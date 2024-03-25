@@ -10,7 +10,7 @@ use crate::{
 };
 use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 
-use super::{PoolStrategy, StandardPool2dEagerKernel};
+use super::{Pool2dEagerKernel, PoolStrategy};
 
 #[derive(Default, Debug, Clone)]
 struct MaxPool<E: JitElement> {
@@ -137,9 +137,9 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPool::default());
+    let kernel = Pool2dEagerKernel::new(kernel_size, MaxPool::default());
 
-    execute_dynamic::<R, StandardPool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
+    execute_dynamic::<R, Pool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
         &[EagerHandle::new(
             &output.handle,
@@ -190,9 +190,9 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
     let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPoolWithIndices::default());
+    let kernel = Pool2dEagerKernel::new(kernel_size, MaxPoolWithIndices::default());
 
-    execute_dynamic::<R, StandardPool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
+    execute_dynamic::<R, Pool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
         &[
             EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
