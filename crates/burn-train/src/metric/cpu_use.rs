@@ -1,7 +1,7 @@
 use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
 use std::time::{Duration, Instant};
-use sysinfo::{CpuExt, CpuRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 /// General CPU Usage metric
 pub struct CpuUse {

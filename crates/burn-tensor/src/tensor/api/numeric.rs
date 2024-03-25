@@ -717,6 +717,25 @@ where
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ true))
     }
+
+    /// Returns the `k` largest elements of the given input tensor along a given dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn topk(self, k: usize, dim: usize) -> Tensor<B, D, K> {
+        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        self.sort_descending(dim).select(dim, k_indices)
+    }
+
+    /// Returns the `k` largest elements of the given input tensor along a given dimension.
+    /// Also returns the indices.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        let (values, indices) = self.sort_descending_with_indices(dim);
+        (
+            values.select(dim, k_indices.clone()),
+            indices.select(dim, k_indices),
+        )
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>

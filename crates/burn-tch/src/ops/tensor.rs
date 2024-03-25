@@ -496,6 +496,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::sign(tensor)
     }
 
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::FloatTensor<Self, D2> {
+        TchOps::expand(tensor, shape)
+    }
+
     fn float_sort<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
         dim: usize,

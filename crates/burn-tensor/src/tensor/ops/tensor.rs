@@ -1378,6 +1378,12 @@ pub trait FloatTensorOps<B: Backend> {
         result
     }
 
+    /// Broadcasts the float `tensor` to the given `shape`.
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<B, D2>;
+
     /// Sort the elements of the input `tensor` by value in along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

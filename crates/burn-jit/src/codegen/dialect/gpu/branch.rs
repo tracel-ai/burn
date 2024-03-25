@@ -119,3 +119,15 @@ impl Loop {
         parent_scope.register(Branch::Loop(op));
     }
 }
+
+#[allow(missing_docs)]
+pub struct UnrolledRangeLoop;
+
+impl UnrolledRangeLoop {
+    /// Registers an unrolled range loop to the given scope.
+    pub fn register<F: Fn(Variable, &mut Scope)>(scope: &mut Scope, start: u32, end: u32, func: F) {
+        for i in start..end {
+            func(i.into(), scope);
+        }
+    }
+}

@@ -176,7 +176,7 @@ where
         for d in 0..D {
             let stride = self.strides[D - 1 - d];
 
-            if stride < current_stride {
+            if stride <= current_stride {
                 return false;
             }
 
