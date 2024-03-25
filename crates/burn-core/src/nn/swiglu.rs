@@ -7,9 +7,9 @@ use crate::tensor::{backend::Backend, Tensor};
 
 use super::{Initializer, Linear, LinearConfig};
 
-/// Configuration to create a [SwiGLU](SwiGLU) activation layer.
+/// Configuration to create a [SwiGlu](SwiGlu) activation layer.
 #[derive(Config, Debug)]
-pub struct SwiGLUConfig {
+pub struct SwiGluConfig {
     /// The size of the input features.
     pub d_input: usize,
     /// The size of the output features.
@@ -20,7 +20,7 @@ pub struct SwiGLUConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+    default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -36,15 +36,15 @@ pub struct SwiGLUConfig {
 /// - linear outer: Outer Linear layer for element wise multiplication
 /// with `d_input` input features and `d_output` output features.
 #[derive(Module, Debug)]
-pub struct SwiGLU<B: Backend> {
+pub struct SwiGlu<B: Backend> {
     linear_inner: Linear<B>,
     linear_outer: Linear<B>,
 }
 
-impl SwiGLUConfig {
-    /// Initialize a new [SwiGLU](SwiGLU) activation layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> SwiGLU<B> {
-        SwiGLU {
+impl SwiGluConfig {
+    /// Initialize a new [SwiGLU](SwiGlu) activation layer.
+    pub fn init<B: Backend>(&self, device: &B::Device) -> SwiGlu<B> {
+        SwiGlu {
             linear_inner: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
                 .with_initializer(self.initializer.clone())
@@ -55,9 +55,9 @@ impl SwiGLUConfig {
                 .init(device),
         }
     }
-    /// Initialize a new [SwiGLU](SwiGLU) activation layer with a [record](SwiGLU).
-    pub fn init_with<B: Backend>(&self, record: SwiGLURecord<B>) -> SwiGLU<B> {
-        SwiGLU {
+    /// Initialize a new [SwiGlu](SwiGlu) activation layer with a [record](SwiGlu).
+    pub fn init_with<B: Backend>(&self, record: SwiGluRecord<B>) -> SwiGlu<B> {
+        SwiGlu {
             linear_inner: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
                 .init_with(record.linear_inner),
@@ -68,7 +68,7 @@ impl SwiGLUConfig {
     }
 }
 
-impl<B: Backend> SwiGLU<B> {
+impl<B: Backend> SwiGlu<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -91,7 +91,7 @@ mod tests {
     fn test_swiglu_forward_no_bias() {
         TestBackend::seed(0);
         let device = Default::default();
-        let config = SwiGLUConfig::new(3, 3).with_initializer(Initializer::Constant { value: 0.5 });
+        let config = SwiGluConfig::new(3, 3).with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
         let input =
             Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
@@ -109,7 +109,7 @@ mod tests {
     fn test_swiglu_forward_with_bias() {
         TestBackend::seed(0);
         let device = Default::default();
-        let config = SwiGLUConfig::new(3, 3)
+        let config = SwiGluConfig::new(3, 3)
             .with_bias(true)
             .with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
