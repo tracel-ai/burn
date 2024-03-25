@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
-use burn_tensor::{backend::BackendBridge, ops::FloatTensor, Device};
-
 use crate::{
     element::{FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
 };
+use burn_tensor::{backend::BackendBridge, ops::FloatTensor, Device};
+use std::marker::PhantomData;
 
 /// Handle precision conversion for the candle backend.
 #[derive(Debug)]
