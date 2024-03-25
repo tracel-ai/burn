@@ -1,35 +1,72 @@
 use crate::{
-    compute::{Kernel, StaticKernel},
+    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
     element::JitElement,
-    kernel::{
-        self, elemwise_workgroup,
-        pool::{build_output_and_info_pool2d, build_pool2d_info},
-        KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT,
-    },
-    kernel_wgsl,
+    gpu::{gpu, Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    Runtime, RuntimeInt,
 };
+use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
+use std::fmt::Debug;
 
-kernel_wgsl!(AvgPool2dRaw, "../../template/pool/avg_pool2d.wgsl");
-kernel_wgsl!(
-    AvgPool2dBackwardRaw,
-    "../../template/pool/avg_pool2d_backward.wgsl"
-);
+use super::{PoolStrategy, StandardPool2dEagerKernel};
 
-struct AvgPool2dBackward<const COUNT_INCLUDE_PAD: bool>;
-struct AvgPool2d<const COUNT_INCLUDE_PAD: bool>;
-
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2dBackward<COUNT_INCLUDE_PAD> {
-    fn source() -> kernel::SourceTemplate {
-        AvgPool2dBackwardRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
-    }
+#[derive(new, Debug, Clone)]
+struct AvgPool {
+    kernel_size: [usize; 2],
+    count_include_pad: bool,
 }
 
-impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLUDE_PAD> {
-    fn source() -> kernel::SourceTemplate {
-        AvgPool2dRaw::source().register("count_include_pad", format!("{COUNT_INCLUDE_PAD}"))
+impl PoolStrategy for AvgPool {
+    type Accumulator = (Variable, Variable);
+
+    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
+        let sum = scope.create_local(item);
+        let count = scope.create_local(Elem::UInt);
+        if self.count_include_pad {
+            let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();
+            gpu!(scope, count = kernel_size);
+        } else {
+            let zero: Variable = 0u32.into();
+            gpu!(scope, count = zero);
+        }
+        (sum, count)
+    }
+
+    fn process_result(
+        &self,
+        scope: &mut Scope,
+        accumulator: Self::Accumulator,
+        result: Variable,
+        _idx: Variable,
+    ) -> Self::Accumulator {
+        let (sum, count) = accumulator;
+        if !self.count_include_pad {
+            let one: Variable = 1u32.into();
+            gpu!(scope, count += one);
+        }
+        gpu!(scope, sum += result);
+        (sum, count)
+    }
+
+    fn assign(
+        &self,
+        scope: &mut Scope,
+        id: Variable,
+        output: Variable,
+        _indices: Option<Variable>,
+        accumulator: Self::Accumulator,
+    ) {
+        let (sum, count) = accumulator;
+        let avg = scope.create_local(output.item());
+        let count_float = scope.create_local(output.item());
+        gpu!(scope, count_float = cast(count));
+        gpu!(scope, avg = sum / count_float);
+        gpu!(scope, output[id] = avg);
+    }
+
+    fn with_indices() -> bool {
+        false
     }
 }
 
@@ -40,63 +77,49 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     padding: [usize; 2],
     count_include_pad: bool,
 ) -> JitTensor<R, E, 4> {
-    let (info_handle, output) =
-        build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
+    let [batch_size, channels, _, _] = x.shape.dims;
+    let dilation = 1;
 
-    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
-    let kernel: Box<dyn Kernel> = match count_include_pad {
-        true => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(workgroup)),
-        false => Box::new(StaticKernel::<
-            KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(workgroup)),
-    };
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation,
+        x.shape.dims[2],
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation,
+        x.shape.dims[3],
+    );
 
-    x.client
-        .execute(kernel, &[&x.handle, &output.handle, &info_handle]);
+    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    output
-}
+    let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, pool_strategy);
 
-pub(crate) fn avg_pool2d_backward<R: Runtime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
-    grad: JitTensor<R, E, 4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    count_include_pad: bool,
-) -> JitTensor<R, E, 4> {
-    let grad = kernel::into_contiguous(grad);
-    let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
-    let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
-    let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
-
-    let kernel: Box<dyn Kernel> = match count_include_pad {
-        true => Box::new(StaticKernel::<
-            KernelSettings<
-                AvgPool2dBackward<true>,
-                E,
-                i32,
-                WORKGROUP_DEFAULT,
-                WORKGROUP_DEFAULT,
-                1,
-            >,
-        >::new(workgroup)),
-        false => Box::new(StaticKernel::<
-            KernelSettings<
-                AvgPool2dBackward<false>,
-                E,
-                i32,
-                WORKGROUP_DEFAULT,
-                WORKGROUP_DEFAULT,
-                1,
-            >,
-        >::new(workgroup)),
-    };
-
-    x.client
-        .execute(kernel, &[&grad.handle, &output.handle, &info_handle]);
+    execute_dynamic::<R, StandardPool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
+        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        Some(&[
+            (stride[0] as u32).elem(),
+            (stride[1] as u32).elem(),
+            (dilation as u32).elem(),
+            (dilation as u32).elem(),
+            (padding[0] as u32).elem(),
+            (padding[1] as u32).elem(),
+        ]),
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        x.client,
+    );
 
     output
 }

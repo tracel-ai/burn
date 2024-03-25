@@ -1,302 +1,165 @@
-use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
-    },
+    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime, RuntimeInt,
 };
+use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 
-#[derive(new)]
-struct MaxPool2dEagerKernel<R: Runtime, E: JitElement> {
-    kernel_size: [usize; 2],
-    _runtime: PhantomData<R>,
+use super::{PoolStrategy, StandardPool2dEagerKernel};
+
+#[derive(Default, Debug, Clone)]
+struct MaxPool<E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-#[derive(new)]
-struct MaxPool2dWithIndicesEagerKernel<R: Runtime, E: JitElement> {
-    kernel_size: [usize; 2],
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
+impl<E: JitElement> PoolStrategy for MaxPool<E> {
+    type Accumulator = Variable;
 
-struct MaxPool2dComputeShader<E: JitElement> {
-    x: Variable,
-    output: Variable,
-    kernel_size: [usize; 2],
-    indices: Option<Variable>,
-    _elem: PhantomData<E>,
-}
-
-impl<E: JitElement> MaxPool2dComputeShader<E> {
-    fn expand(self, scope: &mut Scope) {
-        let x = self.x;
-        let output = self.output;
-        let id = Variable::Id;
-
-        let input_stride_0 = scope.create_local(Elem::UInt);
-        let input_stride_1 = scope.create_local(Elem::UInt);
-        let input_stride_2 = scope.create_local(Elem::UInt);
-        let input_stride_3 = scope.create_local(Elem::UInt);
-
-        let input_shape_2 = scope.create_local(Elem::UInt);
-        let input_shape_3 = scope.create_local(Elem::UInt);
-
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
-
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
-
-        gpu!(scope, input_stride_0 = stride(x, 0u32));
-        gpu!(scope, input_stride_1 = stride(x, 1u32));
-        gpu!(scope, input_stride_2 = stride(x, 2u32));
-        gpu!(scope, input_stride_3 = stride(x, 3u32));
-
-        gpu!(scope, input_shape_2 = shape(x, 2u32));
-        gpu!(scope, input_shape_3 = shape(x, 3u32));
-
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
-
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
-
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
-
-        let [kernel_size_0, kernel_size_1] = self.kernel_size;
-
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let oh = scope.create_local(Elem::UInt);
-        let ow = scope.create_local(Elem::UInt);
-
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
-
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
-
-        gpu!(scope, oh = id / output_stride_2);
-        gpu!(scope, oh = oh % output_shape_2);
-
-        gpu!(scope, ow = id / output_stride_3);
-        gpu!(scope, ow = ow % output_shape_3);
-
-        let tmp = scope.create_local(Elem::UInt);
-        let ih = scope.create_local(Elem::UInt);
-        let iw = scope.create_local(Elem::UInt);
-
-        let ih_pad = scope.create_local(Elem::UInt);
-        let iw_pad = scope.create_local(Elem::UInt);
-        let result = scope.create_local(x.item());
-
-        let cond = scope.create_local(Elem::Bool);
-        let cond_tmp = scope.create_local(Elem::Bool);
-
-        let index_input = scope.create_local(Elem::UInt);
-        let index_input_1 = scope.create_local(Elem::UInt);
-        let index_input_2 = scope.create_local(Elem::UInt);
-        let index_input_3 = scope.create_local(Elem::UInt);
-        let index_input_4 = scope.create_local(Elem::UInt);
-
-        let is_max = scope.create_local(Elem::Bool);
-        let max_index = self.indices.map(|_| scope.create_local(Elem::UInt));
-
-        let max_val = scope.create_local(x.item());
+    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
+        let max_val = scope.create_local(item);
         let max_initial =
-            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), x.item().elem());
+            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
         gpu!(scope, max_val = max_initial);
+        max_val
+    }
 
-        (0..kernel_size_0).for_each(|kh| {
-            gpu!(scope, ih = oh * pool_stride_0);
-            gpu!(scope, tmp = kh * dilation_0);
-            gpu!(scope, ih += tmp);
+    fn process_result(
+        &self,
+        scope: &mut Scope,
+        accumulator: Self::Accumulator,
+        result: Variable,
+        _idx: Variable,
+    ) -> Self::Accumulator {
+        let is_max = scope.create_local(Elem::Bool);
+        gpu!(scope, is_max = result > accumulator);
+        gpu!(scope, if(is_max).then(|scope|{
+            gpu!(scope, accumulator = result);
+        }));
+        accumulator
+    }
 
-            // Up
-            gpu!(scope, cond = ih < padding_0);
-            // Down
-            gpu!(scope, tmp = input_shape_2 + padding_0);
-            gpu!(scope, cond_tmp = ih >= tmp);
-            gpu!(scope, cond = cond || cond_tmp);
-            gpu!(scope, cond = !cond);
+    fn assign(
+        &self,
+        scope: &mut Scope,
+        id: Variable,
+        output: Variable,
+        _indices: Option<Variable>,
+        accumulator: Self::Accumulator,
+    ) {
+        gpu!(scope, output[id] = accumulator);
+    }
 
-            gpu!(scope, if (cond).then(|scope| {
-                (0..kernel_size_1).for_each(|kw| {
-                    gpu!(scope, iw = ow * pool_stride_1);
-                    gpu!(scope, tmp = kw * dilation_1);
-                    gpu!(scope, iw = iw + tmp);
+    fn with_indices() -> bool {
+        false
+    }
+}
 
-                    // Left
-                    gpu!(scope, cond = iw < padding_1);
-                    // Right
-                    gpu!(scope, tmp = input_shape_3 + padding_1);
-                    gpu!(scope, cond_tmp = iw >= tmp);
-                    gpu!(scope, cond = cond || cond_tmp);
-                    gpu!(scope, cond = !cond);
+#[derive(Default, Debug, Clone)]
+struct MaxPoolWithIndices<E: JitElement> {
+    _elem: PhantomData<E>,
+}
 
-                    gpu!(scope, if (cond).then(|scope| {
-                        gpu!(scope, ih_pad = ih - padding_0);
-                        gpu!(scope, iw_pad = iw - padding_1);
+impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
+    type Accumulator = (Variable, Variable);
 
-                        gpu!(scope, index_input_1 = b * input_stride_0);
-                        gpu!(scope, index_input_2 = c * input_stride_1);
-                        gpu!(scope, index_input_3 = ih_pad * input_stride_2);
-                        gpu!(scope, index_input_4 = iw_pad * input_stride_3);
+    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
+        let max_val = scope.create_local(item);
+        let max_initial =
+            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
+        gpu!(scope, max_val = max_initial);
+        let max_index = scope.create_local(Elem::UInt);
+        (max_val, max_index)
+    }
 
-                        gpu!(scope, index_input = index_input_1);
-                        gpu!(scope, index_input += index_input_2);
-                        gpu!(scope, index_input += index_input_3);
-                        gpu!(scope, index_input += index_input_4);
+    fn process_result(
+        &self,
+        scope: &mut Scope,
+        (max_val, max_index): Self::Accumulator,
+        result: Variable,
+        idx: Variable,
+    ) -> Self::Accumulator {
+        let is_max = scope.create_local(Elem::Bool);
+        gpu!(scope, is_max = result > max_val);
+        gpu!(scope, if(is_max).then(|scope|{
+            gpu!(scope, max_val = result);
+            gpu!(scope, max_index = idx);
+        }));
+        (max_val, max_index)
+    }
 
-                        gpu!(scope, result = x[index_input]);
-
-                        gpu!(scope, is_max = result > max_val);
-
-                        gpu!(scope, if(is_max).then(|scope|{
-                            gpu!(scope, max_val = result);
-                            if let Some(max_index) = max_index {
-                                gpu!(scope, max_index = ih_pad * input_shape_2);
-                                gpu!(scope, max_index += iw_pad);
-                            }
-                        }));
-                    }));
-                });
-            }));
-        });
-
+    fn assign(
+        &self,
+        scope: &mut Scope,
+        id: Variable,
+        output: Variable,
+        indices: Option<Variable>,
+        (max_val, max_index): Self::Accumulator,
+    ) {
+        let indices = indices.unwrap();
         gpu!(scope, output[id] = max_val);
+        gpu!(scope, indices[id] = max_index);
+    }
 
-        if let Some(indices) = self.indices {
-            let max_index = max_index.unwrap();
-            gpu!(scope, indices[id] = max_index);
-        }
+    fn with_indices() -> bool {
+        true
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
+    x: JitTensor<R, E, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    dilation: [usize; 2],
+) -> JitTensor<R, E, 4> {
+    let [batch_size, channels, _, _] = x.shape.dims;
 
-        let x = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation[0],
+        x.shape.dims[2],
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation[1],
+        x.shape.dims[3],
+    );
 
-        scope.write_global_custom(output);
+    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-        MaxPool2dComputeShader {
-            x,
-            output,
-            kernel_size: self.kernel_size,
-            indices: None,
-            _elem: PhantomData::<E>,
-        }
-        .expand(&mut scope);
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPool::default());
 
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let scalars = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 6,
-        };
-        let output = OutputInfo::Array { item };
+    execute_dynamic::<R, StandardPool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
+        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        Some(&[
+            (stride[0] as u32).elem(),
+            (stride[1] as u32).elem(),
+            (dilation[0] as u32).elem(),
+            (dilation[1] as u32).elem(),
+            (padding[0] as u32).elem(),
+            (padding[1] as u32).elem(),
+        ]),
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        x.client,
+    );
 
-        let info = CompilationInfo {
-            inputs: vec![input, scalars],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-        )
-    }
-}
-
-impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dWithIndicesEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-
-        let x = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
-        let indices = Variable::GlobalOutputArray(1, Item::Scalar(Elem::Int));
-
-        scope.write_global_custom(output);
-
-        MaxPool2dComputeShader {
-            x,
-            output,
-            kernel_size: self.kernel_size,
-            indices: Some(indices),
-            _elem: PhantomData::<E>,
-        }
-        .expand(&mut scope);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let scalars = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 6,
-        };
-        let output = OutputInfo::Array { item };
-        let indices = OutputInfo::Array {
-            item: Item::Scalar(Elem::Int),
-        };
-
-        let info = CompilationInfo {
-            inputs: vec![input, scalars],
-            outputs: vec![output, indices],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-        )
-    }
+    output
 }
 
 pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
@@ -327,8 +190,9 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
     let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = MaxPool2dWithIndicesEagerKernel::new(kernel_size);
-    execute_dynamic::<R, MaxPool2dWithIndicesEagerKernel<R, E>, I>(
+    let kernel = StandardPool2dEagerKernel::new(kernel_size, MaxPoolWithIndices::default());
+
+    execute_dynamic::<R, StandardPool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
         &[
             EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
@@ -348,56 +212,4 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     );
 
     (output, indices)
-}
-
-pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
-) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
-
-    let size_0 = calculate_pool_output_size(
-        kernel_size[0],
-        stride[0],
-        padding[0],
-        dilation[0],
-        x.shape.dims[2],
-    );
-    let size_1 = calculate_pool_output_size(
-        kernel_size[1],
-        stride[1],
-        padding[1],
-        dilation[1],
-        x.shape.dims[3],
-    );
-
-    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
-
-    let kernel = MaxPool2dEagerKernel::new(kernel_size);
-
-    execute_dynamic::<R, MaxPool2dEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
-        &[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as i32).elem(),
-            (stride[1] as i32).elem(),
-            (dilation[0] as i32).elem(),
-            (dilation[1] as i32).elem(),
-            (padding[0] as i32).elem(),
-            (padding[1] as i32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
-
-    output
 }
