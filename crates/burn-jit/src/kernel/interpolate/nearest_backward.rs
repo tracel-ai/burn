@@ -5,7 +5,7 @@ use crate::{
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{Scope, Variable, Visibility},
+    gpu::{gpu, Elem, Scope, Variable, Visibility},
     kernel::{DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Compiler, JitElement, Runtime,
@@ -23,10 +23,157 @@ struct InterpolateNearestBackwardShader {
 }
 
 impl InterpolateNearestBackwardShader {
-    pub(crate) fn expand(self, scope: &mut Scope) {
-        let out_grad = self.out_grad;
+    fn expand(self, scope: &mut Scope) {
+        let grad = self.out_grad;
         let output = self.output;
         let id = Variable::Id;
+
+        let grad_stride_0 = scope.create_local(Elem::UInt);
+        let grad_stride_1 = scope.create_local(Elem::UInt);
+        let grad_stride_2 = scope.create_local(Elem::UInt);
+        let grad_stride_3 = scope.create_local(Elem::UInt);
+
+        let grad_shape_0 = scope.create_local(Elem::UInt);
+        let grad_shape_1 = scope.create_local(Elem::UInt);
+        let grad_shape_2 = scope.create_local(Elem::UInt);
+        let grad_shape_3 = scope.create_local(Elem::UInt);
+
+        let output_stride_0 = scope.create_local(Elem::UInt);
+        let output_stride_1 = scope.create_local(Elem::UInt);
+        let output_stride_2 = scope.create_local(Elem::UInt);
+        let output_stride_3 = scope.create_local(Elem::UInt);
+
+        let output_shape_0 = scope.create_local(Elem::UInt);
+        let output_shape_1 = scope.create_local(Elem::UInt);
+        let output_shape_2 = scope.create_local(Elem::UInt);
+        let output_shape_3 = scope.create_local(Elem::UInt);
+
+        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
+        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
+        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
+        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
+
+        gpu!(scope, grad_shape_0 = shape(grad, 0u32));
+        gpu!(scope, grad_shape_1 = shape(grad, 1u32));
+        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
+        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
+
+        gpu!(scope, output_stride_0 = stride(output, 0u32));
+        gpu!(scope, output_stride_1 = stride(output, 1u32));
+        gpu!(scope, output_stride_2 = stride(output, 2u32));
+        gpu!(scope, output_stride_3 = stride(output, 3u32));
+
+        gpu!(scope, output_shape_0 = shape(output, 0u32));
+        gpu!(scope, output_shape_1 = shape(output, 1u32));
+        gpu!(scope, output_shape_2 = shape(output, 2u32));
+        gpu!(scope, output_shape_3 = shape(output, 3u32));
+
+        let b = scope.create_local(Elem::UInt);
+        let c = scope.create_local(Elem::UInt);
+        let oh = scope.create_local(Elem::UInt);
+        let ow = scope.create_local(Elem::UInt);
+
+        gpu!(scope, b = id / output_stride_0);
+        gpu!(scope, b = b % output_shape_0);
+
+        gpu!(scope, c = id / output_stride_1);
+        gpu!(scope, c = c % output_shape_1);
+
+        gpu!(scope, oh = id / output_stride_2);
+        gpu!(scope, oh = oh % output_shape_2);
+
+        gpu!(scope, ow = id / output_stride_3);
+        gpu!(scope, ow = ow % output_shape_3);
+
+        let gh_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
+        let gh_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
+        let gw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
+        let gw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
+
+        let result = scope.create_local(grad.item());
+
+        let index_grad = scope.create_local(Elem::UInt);
+        let index_grad_0 = scope.create_local(Elem::UInt);
+        let index_grad_1 = scope.create_local(Elem::UInt);
+        let index_grad_2 = scope.create_local(Elem::UInt);
+        let index_grad_3 = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index_grad_0 = b * grad_stride_0);
+        gpu!(scope, index_grad_1 = c * grad_stride_1);
+
+        let sum = scope.zero(output.item());
+
+        gpu!(
+            scope,
+            range(gh_start, gh_end).for_each(|gh, scope| {
+                gpu!(
+                    scope,
+                    range(gw_start, gw_end).for_each(|gw, scope| {
+                        gpu!(scope, index_grad_2 = gh * grad_stride_2);
+                        gpu!(scope, index_grad_3 = gw * grad_stride_3);
+
+                        gpu!(scope, index_grad = index_grad_0);
+                        gpu!(scope, index_grad += index_grad_1);
+                        gpu!(scope, index_grad += index_grad_2);
+                        gpu!(scope, index_grad += index_grad_3);
+
+                        gpu!(scope, result = grad[index_grad]);
+
+                        gpu!(scope, sum += result);
+                    })
+                );
+            })
+        );
+
+        gpu!(scope, output[id] = sum);
+    }
+
+    fn start_index(
+        scope: &mut Scope,
+        input_index: Variable,
+        output_size: Variable,
+        input_size: Variable,
+    ) -> Variable {
+        let numerator_float = scope.create_local(Elem::Float);
+        let div = scope.create_local(Elem::Float);
+        let index = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index = input_index * output_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(input_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
+        index
+    }
+
+    fn end_index(
+        scope: &mut Scope,
+        input_index: Variable,
+        output_size: Variable,
+        input_size: Variable,
+    ) -> Variable {
+        let numerator_float = scope.create_local(Elem::Float);
+        let div = scope.create_local(Elem::Float);
+        let index = scope.create_local(Elem::UInt);
+        let min = scope.create_local(Elem::Bool);
+        let end_index = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index = input_index + 1u32);
+        gpu!(scope, index *= output_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(input_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
+
+        gpu!(scope, min = output_size < index);
+        gpu!(scope, if(min).then(|scope|{
+            gpu!(scope, end_index = output_size);
+        }).else(|scope|{
+            gpu!(scope, end_index = index);
+        }));
+        end_index
     }
 }
 
