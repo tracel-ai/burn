@@ -50,7 +50,7 @@ quote = "1.0.33"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
 rayon = "1.10.0"
-regex = "1.10.2"
+regex = "1.10.4"
 reqwest = "0.11.25"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
