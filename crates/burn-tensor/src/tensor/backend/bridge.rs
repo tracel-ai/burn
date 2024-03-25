@@ -2,7 +2,7 @@ use crate::{ops::FloatTensor, Device};
 
 use super::Backend;
 
-/// Allows tensors to be transfered between backends efficiently.
+/// Allows tensors to be transferred between backends efficiently.
 pub trait BackendBridge<Origin: Backend>: Send + Sync + core::fmt::Debug {
     /// The target backend
     type Target: Backend;

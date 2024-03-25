@@ -14,11 +14,8 @@ pub struct PrecisionBridge<R> {
 impl<ROrigin, RTarget> BackendBridge<JitBackend<ROrigin>> for PrecisionBridge<RTarget>
 where
     ROrigin: Runtime,
-    RTarget: Runtime<
-        Device = ROrigin::Device,
-        Server = ROrigin::Server,
-        Channel = ROrigin::Channel,
-    >,
+    RTarget:
+        Runtime<Device = ROrigin::Device, Server = ROrigin::Server, Channel = ROrigin::Channel>,
 {
     type Target = JitBackend<RTarget>;
 
