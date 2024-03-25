@@ -1,10 +1,14 @@
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{execute_dynamic, EagerHandle, WorkgroupLaunch},
+    codegen::{
+        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
+    },
+    gpu::{Scope, Variable, Visibility},
     kernel::{DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
-    JitElement, Runtime,
+    Compiler, JitElement, Runtime,
 };
 
 #[derive(new)]
@@ -13,11 +17,50 @@ struct InterpolateNearestBackwardEagerKernel<R, E> {
     _elem: PhantomData<E>,
 }
 
+struct InterpolateNearestBackwardShader {
+    out_grad: Variable,
+    output: Variable,
+}
+
+impl InterpolateNearestBackwardShader {
+    pub(crate) fn expand(self, scope: &mut Scope) {
+        let out_grad = self.out_grad;
+        let output = self.output;
+        let id = Variable::Id;
+    }
+}
+
 impl<R: Runtime, E: JitElement> DynamicKernelSource
     for InterpolateNearestBackwardEagerKernel<R, E>
 {
     fn source(&self) -> SourceTemplate {
-        todo!()
+        let mut scope = Scope::root();
+        let item = E::gpu_elem().into();
+
+        let out_grad = Variable::GlobalInputArray(0, item);
+        let output = Variable::GlobalOutputArray(0, item);
+
+        InterpolateNearestBackwardShader { out_grad, output }.expand(&mut scope);
+
+        scope.write_global_custom(output);
+
+        let input = InputInfo::Array {
+            item,
+            visibility: Visibility::Read,
+        };
+
+        let out = OutputInfo::Array { item };
+
+        let info = CompilationInfo {
+            inputs: vec![input],
+            outputs: vec![out],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
     }
 
     fn id(&self) -> String {
