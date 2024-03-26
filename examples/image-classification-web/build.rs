@@ -1,11 +1,12 @@
 /// This build script generates the model code from the ONNX file and the labels from the text file.
-use std::env;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::{
+    env,
+    fs::File,
+    io::{BufRead, BufReader, Write},
+    path::Path,
+};
 
-use burn_import::burn::graph::RecordType;
-use burn_import::onnx::ModelGen;
+use burn_import::{burn::graph::RecordType, onnx::ModelGen};
 
 const LABEL_SOURCE_FILE: &str = "src/model/label.txt";
 const LABEL_DEST_FILE: &str = "model/label.rs";

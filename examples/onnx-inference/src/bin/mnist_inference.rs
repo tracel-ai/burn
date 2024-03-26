@@ -1,10 +1,10 @@
 use std::env::args;
 
-use burn::backend::ndarray::NdArray;
-use burn::tensor::Tensor;
-
-use burn::data::dataset::source::huggingface::MNISTDataset;
-use burn::data::dataset::Dataset;
+use burn::{
+    backend::ndarray::NdArray,
+    data::dataset::{vision::MnistDataset, Dataset},
+    tensor::Tensor,
+};
 
 use onnx_inference::mnist::Model;
 
@@ -34,7 +34,7 @@ fn main() {
     let model: Model<Backend> = Model::default();
 
     // Load the MNIST dataset and get an item
-    let dataset = MNISTDataset::test();
+    let dataset = MnistDataset::test();
     let item = dataset.get(image_index).unwrap();
 
     // Create a tensor from the image data
@@ -49,7 +49,7 @@ fn main() {
     let output = model.forward(input);
 
     // Get the index of the maximum value
-    let arg_max = output.argmax(1).into_scalar() as usize;
+    let arg_max = output.argmax(1).into_scalar() as u8;
 
     // Check if the index matches the label
     assert!(arg_max == item.label);

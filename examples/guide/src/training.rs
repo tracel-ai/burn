@@ -1,23 +1,17 @@
 use crate::{
-    data::{MNISTBatch, MNISTBatcher},
+    data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
-use burn::data::dataset::source::huggingface::MNISTDataset;
-use burn::train::{
-    metric::{AccuracyMetric, LossMetric},
-    ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
-};
 use burn::{
-    self,
-    config::Config,
-    data::dataloader::DataLoaderBuilder,
-    module::Module,
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
+    prelude::*,
     record::CompactRecorder,
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Int, Tensor,
+    tensor::backend::AutodiffBackend,
+    train::{
+        metric::{AccuracyMetric, LossMetric},
+        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
 
@@ -36,16 +30,16 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> ClassificationOutput<B> {
+impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
 }
@@ -74,20 +68,20 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     B::seed(config.seed);
 
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train_numeric(AccuracyMetric::new())
