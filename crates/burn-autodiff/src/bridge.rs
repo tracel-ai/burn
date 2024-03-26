@@ -15,7 +15,7 @@ use crate::{
     Autodiff, NodeID,
 };
 
-/// Make a [backend bridge](BackendBridge) supports autodiff.
+/// Enable autodiff on a [backend bridge](BackendBridge).
 #[derive(Debug)]
 pub struct AutodiffBridge<Bridge> {
     _p: PhantomData<Bridge>,

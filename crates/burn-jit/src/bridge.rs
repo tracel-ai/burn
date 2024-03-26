@@ -30,7 +30,7 @@ where
             D,
         >(tensor);
 
-        // The line bellow does the backend type cast.
+        // The line below does the backend type cast.
         let tensor = JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
 
         if let Some(device) = &device {
@@ -50,7 +50,7 @@ where
             FloatElem<JitBackend<ROrigin>>,
             D,
         >(tensor);
-        // The line bellow does the backend type cast.
+        // The line below does the backend type cast.
         let tensor = JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
 
         if let Some(device) = &device {
