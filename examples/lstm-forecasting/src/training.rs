@@ -18,7 +18,7 @@ use burn::{
     },
 };
 
-static ARTIFACT_DIR: &str = "/tmp/timeseries-forecasting";
+static ARTIFACT_DIR: &str = "/tmp/burn-lstm-forecasting";
 
 #[derive(Config)]
 pub struct ExpConfig {
@@ -52,9 +52,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let config = ExpConfig::new(optimizer);
 
+    // Add one time step for next day prediction
+    let window_size = config.window_size + 1;
+
     // Define train/test datasets and dataloaders
-    let train_dataset = StockDataset::train(config.window_size, config.dataset_size);
-    let test_dataset = StockDataset::test(config.window_size, config.dataset_size);
+    let train_dataset = StockDataset::train(window_size, config.dataset_size);
+    let test_dataset = StockDataset::test(window_size, config.dataset_size);
 
     println!("Train Dataset Size: {}", train_dataset.len());
     println!("Test Dataset Size: {}", test_dataset.len());
