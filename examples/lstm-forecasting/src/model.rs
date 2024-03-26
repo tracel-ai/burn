@@ -66,7 +66,7 @@ impl<B: Backend> ForecastingModel<B> {
         // Initialize hidden state
         let h = Tensor::zeros([batch_size, self.hidden_size], &<B>::Device::default());
 
-        // Run inputs through LSTM
+        // Feed input into LSTM
         let x = self.lstm.forward(x, Some((s.detach(), h.detach())));
 
         let hidden = x.1;
