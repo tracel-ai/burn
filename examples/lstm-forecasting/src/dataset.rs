@@ -65,9 +65,9 @@ impl StockDataset {
 
         let len = hugging_face_dataset.len();
 
-        let limit = match dataset_size{
+        let limit = match dataset_size {
             0 => 0,
-            _ => len - dataset_size- window_size,
+            _ => len - dataset_size - window_size,
         };
 
         let dataset: WindowedDataset = WindowedDataset {
