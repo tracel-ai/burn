@@ -9,6 +9,7 @@ use super::{
     protos::tensor_proto::DataType,
 };
 
+/// Infer the dimension of each output tensor and update them.
 pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
