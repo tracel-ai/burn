@@ -45,12 +45,12 @@ pub struct ExpConfig {
 
 pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Config
-    let optimizer = AdamConfig::new()
-        .with_beta_1(0.9)
-        .with_beta_2(0.98)
-        .with_epsilon(1e-9);
-
-    let config = ExpConfig::new(optimizer);
+    let config = ExpConfig::new(
+        AdamConfig::new()
+            .with_beta_1(0.9)
+            .with_beta_2(0.98)
+            .with_epsilon(1e-9),
+    );
 
     // Add one time step for next day prediction
     let window_size = config.window_size + 1;
