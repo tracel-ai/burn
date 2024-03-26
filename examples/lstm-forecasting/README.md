@@ -5,7 +5,7 @@ The example shows you how to:
 - Define a custom dataset for timeseries prediction. We implement the [timeseries-1d-stocks Dataset](https://huggingface.co/datasets/edarchimbaud/timeseries-1d-stocks) 
 from HuggingFace hub.
 - Create a data pipeline from a raw dataset to a batched fast DataLoader with time step windows and min-max feature scaling.
-- Define a Simple NN model for time series prediction using Burn Modules.
+- Define a LSTM network for time series prediction using Burn Modules.
 
 > **Note**  
 > This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)

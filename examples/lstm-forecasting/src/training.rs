@@ -2,19 +2,19 @@ use crate::{
     dataset::{StockBatcher, StockDataset},
     model::ForecastingModelConfig,
 };
-use burn::data::dataloader::Dataset;
-use burn::module::Module;
-use burn::optim::AdamConfig;
-use burn::record::{CompactRecorder, NoStdTrainingRecorder};
-use burn::train::metric::store::{Aggregate, Direction, Split};
-use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
-    data::dataloader::DataLoaderBuilder,
+    data::dataloader::{DataLoaderBuilder, Dataset},
+    module::Module,
+    optim::AdamConfig,
+    record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{CpuMemory, CpuTemperature, CpuUse, LossMetric},
-        LearnerBuilder,
+        metric::{
+            store::{Aggregate, Direction, Split},
+            CpuMemory, CpuTemperature, CpuUse, LossMetric,
+        },
+        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
     },
 };
 
@@ -58,7 +58,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     println!("Train Dataset Size: {}", train_dataset.len());
     println!("Test Dataset Size: {}", test_dataset.len());
-
 
     let model = ForecastingModelConfig::new(config.input_feature_len).init(&device);
 
