@@ -2,7 +2,7 @@
 use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry};
 use std::time::{Duration, Instant};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 
 /// Memory information
 pub struct CpuMemory {

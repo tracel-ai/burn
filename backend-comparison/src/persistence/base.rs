@@ -1,3 +1,4 @@
+use super::system_info::BenchmarkSystemInfo;
 use burn::{
     serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize, Serializer},
     tensor::backend::Backend,
@@ -9,10 +10,12 @@ use serde_json;
 use std::fmt::Display;
 use std::time::Duration;
 use std::{fs, io::Write};
+
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
     backend: String,
     device: String,
+    system_info: BenchmarkSystemInfo,
     pub results: BenchmarkResult,
 }
 
@@ -26,18 +29,19 @@ pub struct BenchmarkRecord {
 ///    {
 ///      "backend": "backend name",
 ///      "device": "device name",
-///      "git_hash": "hash",
+///      "gitHash": "hash",
+///      "max": "duration in microseconds",
+///      "mean": "duration in microseconds",
+///      "median": "duration in microseconds",
+///      "min": "duration in microseconds",
 ///      "name": "benchmark name",
-///      "operation": "operation name",
-///      "shapes": ["shape dimension", "shape dimension", ...],
-///      "timestamp": "timestamp",
 ///      "numSamples": "number of samples",
-///      "min": "duration in seconds",
-///      "max": "duration in seconds",
-///      "median": "duration in seconds",
-///      "mean": "duration in seconds",
-///      "variance": "duration in seconds"
-///      "rawDurations": ["duration 1", "duration 2", ...],
+///      "operation": "operation name",
+///      "rawDurations": [{"secs": "number of seconds", "nanos": "number of nanons"}, ...],
+///      "shapes": [[shape 1], [shape 2], ...],
+///      "systemInfo": { "cpus": ["cpu1", "cpu2", ...], "gpus": ["gpu1", "gpu2", ...]}
+///      "timestamp": "timestamp",
+///      "variance": "duration in microseconds",
 ///    },
 ///    { ... }
 /// ]
@@ -67,6 +71,7 @@ pub fn save<B: Backend>(
         .map(|bench| BenchmarkRecord {
             backend: B::name().to_string(),
             device: format!("{:?}", device),
+            system_info: BenchmarkSystemInfo::new(),
             results: bench,
         })
         .collect();
@@ -161,6 +166,7 @@ impl Serialize for BenchmarkRecord {
             ("numSamples", &self.results.raw.durations.len()),
             ("options", &self.results.options),
             ("rawDurations", &self.results.raw.durations),
+            ("systemInfo", &self.system_info),
             ("shapes", &self.results.shapes),
             ("timestamp", &self.results.timestamp),
             ("variance", &self.results.computed.variance.as_micros())
@@ -202,16 +208,16 @@ impl<'de> Visitor<'de> for BenchmarkRecordVisitor {
                     let value = map.next_value::<u64>()?;
                     br.results.computed.min = Duration::from_micros(value);
                 }
+                "numSamples" => _ = map.next_value::<usize>()?,
                 "options" => br.results.options = map.next_value::<Option<String>>()?,
                 "rawDurations" => br.results.raw.durations = map.next_value::<Vec<Duration>>()?,
                 "shapes" => br.results.shapes = map.next_value::<Vec<Vec<usize>>>()?,
+                "systemInfo" => br.system_info = map.next_value::<BenchmarkSystemInfo>()?,
                 "timestamp" => br.results.timestamp = map.next_value::<u128>()?,
                 "variance" => {
                     let value = map.next_value::<u64>()?;
                     br.results.computed.variance = Duration::from_micros(value)
                 }
-
-                "numSamples" => _ = map.next_value::<usize>()?,
                 _ => panic!("Unexpected Key: {}", key),
             }
         }

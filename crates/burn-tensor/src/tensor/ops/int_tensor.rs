@@ -1199,6 +1199,12 @@ pub trait IntTensorOps<B: Backend> {
         result
     }
 
+    /// Broadcasts the int `tensor` to the given `shape`.
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: IntTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<B, D2>;
+
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

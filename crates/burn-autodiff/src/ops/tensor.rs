@@ -2437,6 +2437,81 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateless(B::float_sign(tensor.primitive))
     }
 
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        #[derive(Debug)]
+        struct ExpandDim<const D1: usize, const D2: usize>;
+
+        #[derive(new, Debug)]
+        struct RetroExpand<B: Backend, const D1: usize, const D2: usize> {
+            input_id: NodeID,
+            shape: Shape<D2>,
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize> RetroForward for RetroExpand<B, D1, D2> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let input = states.get_state::<B::FloatTensorPrimitive<D1>>(&self.input_id);
+                let out = B::float_expand(input, self.shape.clone());
+                states.save(out_node, out)
+            }
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for ExpandDim<D1, D2> {
+            type State = Shape<D1>;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let shape_original = ops.state;
+
+                let mut shape_expanded = [1; D2];
+
+                debug_assert!(D2 >= D1);
+
+                for i in 0..D1 {
+                    shape_expanded[i + (D2 - D1)] = shape_original.dims[i];
+                }
+
+                unary::<B, D2, D1, _>(ops.parents, ops.node, grads, |grad| {
+                    let shape_grad = B::float_shape(&grad);
+                    let mut grad = grad;
+
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..D2 {
+                        if shape_expanded[i] == 1 && shape_grad.dims[i] != 1 {
+                            grad = B::float_sum_dim(grad, i);
+                        }
+                    }
+
+                    B::float_reshape(grad, shape_original)
+                });
+            }
+        }
+
+        match ExpandDim
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroExpand::<B, D1, D2>::new(
+                tensor.node.id.clone(),
+                shape.clone(),
+            ))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                B::float_shape(&tensor.primitive),
+                B::float_expand(tensor.primitive, shape),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_expand(tensor.primitive, shape)),
+        }
+    }
+
     fn float_sort<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,

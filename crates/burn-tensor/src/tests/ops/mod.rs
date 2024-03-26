@@ -18,6 +18,7 @@ mod create_like;
 mod div;
 mod erf;
 mod exp;
+mod expand;
 mod flatten;
 mod flip;
 mod full;

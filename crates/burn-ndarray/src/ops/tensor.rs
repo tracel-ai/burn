@@ -504,4 +504,11 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_sign<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sign_op(tensor)
     }
+
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::FloatTensor<Self, D2> {
+        NdArrayOps::expand(tensor, shape)
+    }
 }

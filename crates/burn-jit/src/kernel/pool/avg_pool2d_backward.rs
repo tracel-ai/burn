@@ -2,7 +2,7 @@ use burn_tensor::ElementConversion;
 
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
@@ -10,29 +10,29 @@ use crate::{
     kernel::{self, DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    Runtime, RuntimeInt,
 };
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct MaxPool2dWithIndicesBackwardEagerKernel<R: Runtime, E: JitElement> {
+struct AvgPool2dBackwardEagerKernel<R: Runtime, E: JitElement> {
     kernel_size: [usize; 2],
+    count_include_pad: bool,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-struct MaxPool2dBackwardComputeShader {
-    indices: Variable,
+struct AvgPool2dBackwardComputeShader {
     grad: Variable,
     output: Variable,
     kernel_size: [usize; 2],
+    count_include_pad: bool,
 }
 
-impl MaxPool2dBackwardComputeShader {
+impl AvgPool2dBackwardComputeShader {
     fn expand(self, scope: &mut Scope) {
         let grad = self.grad;
         let output = self.output;
-        let indices = self.indices;
         let id = Variable::Id;
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
@@ -71,6 +71,12 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, output_shape_2 = shape(output, 2u32));
         gpu!(scope, output_shape_3 = shape(output, 3u32));
 
+        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
+        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
+        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
+        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let [kernel_size_0, kernel_size_1] = self.kernel_size;
+
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let ih = scope.create_local(Elem::UInt);
@@ -95,17 +101,19 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, index_current_tmp = iw * output_stride_3);
         gpu!(scope, index_current += index_current_tmp);
 
-        let index_select = scope.create_local(Elem::Int);
-
-        let index_max = scope.create_local(Elem::UInt);
-        let is_max = scope.create_local(Elem::Bool);
-
         let index = scope.create_local(Elem::UInt);
-        let index_base = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
+        let index_base = scope.create_local(Elem::UInt);
 
         let grad_accumulation = scope.zero(grad.item());
         let result = scope.create_local(grad.item());
+        let count = scope.create_local(grad.item());
+
+        let count_include_pad = self.count_include_pad;
+        if count_include_pad {
+            let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();
+            gpu!(scope, count = kernel_size);
+        }
 
         let (oh_start, oh_end, ow_start, ow_end) = self.loop_ranges(
             scope,
@@ -121,9 +129,44 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, index_tmp = c * grad_stride_1);
         gpu!(scope, index_base += index_tmp);
 
+        let border_bottom = scope.create_local(Elem::UInt);
+        let border_right = scope.create_local(Elem::UInt);
+        let begin_h = scope.create_local(Elem::UInt);
+        let begin_w = scope.create_local(Elem::UInt);
+        let iw_start = scope.create_local(Elem::UInt);
+        let iw_end = scope.create_local(Elem::UInt);
+        let ih_start = scope.create_local(Elem::UInt);
+        let ih_end = scope.create_local(Elem::UInt);
+        let after_start = scope.create_local(Elem::Bool);
+        let before_end = scope.create_local(Elem::Bool);
+        let contributed_h = scope.create_local(Elem::Bool);
+        let contributed_w = scope.create_local(Elem::Bool);
+        gpu!(scope, border_bottom = output_shape_2 + padding_0);
+        gpu!(scope, border_right = output_shape_3 + padding_1);
+        gpu!(scope, begin_h = ih + padding_0);
+        gpu!(scope, begin_w = iw + padding_1);
+
+        let ih_diff = scope.create_local(Elem::UInt);
+        let iw_diff = scope.create_local(Elem::UInt);
+        let count_int = scope.create_local(Elem::UInt);
+
         gpu!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
+                // Contributed h
+                gpu!(scope, ih_start = oh * pool_stride_0);
+                gpu!(scope, ih_end = ih_start + kernel_size_0);
+                gpu!(scope, ih_start = max(ih_start, padding_0));
+                gpu!(scope, ih_end = min(ih_end, border_bottom));
+                gpu!(scope, after_start = begin_h >= ih_start);
+                gpu!(scope, before_end = ih < ih_end);
+                gpu!(scope, contributed_h = after_start && before_end);
+
+                if !count_include_pad {
+                    gpu!(scope, ih_diff = ih_end - ih_start);
+                }
+
+                gpu!(scope, if(contributed_h).then(|scope|{
                 gpu!(
                     scope,
                     range(ow_start, ow_end).for_each(|ow, scope| {
@@ -133,17 +176,28 @@ impl MaxPool2dBackwardComputeShader {
                         gpu!(scope, index_tmp = ow * grad_stride_3);
                         gpu!(scope, index += index_tmp);
 
-                        gpu!(scope, index_select = indices[index]);
-                        gpu!(scope, index_max = cast(index_select));
+                        // Contributed w
+                        gpu!(scope, iw_start = ow * pool_stride_1);
+                        gpu!(scope, iw_end = iw_start + kernel_size_1);
+                        gpu!(scope, iw_start = max(iw_start, padding_1));
+                        gpu!(scope, iw_end = min(iw_end, border_right));
+                        gpu!(scope, after_start = begin_w >= iw_start);
+                        gpu!(scope, before_end = iw < iw_end);
+                        gpu!(scope, contributed_w = after_start && before_end);
 
-                        gpu!(scope, is_max = index_max == index_current);
+                        gpu!(scope, if(contributed_w).then(|scope|{
+                            if !count_include_pad {
+                                gpu!(scope, iw_diff = iw_end - iw_start);
+                                gpu!(scope, count_int = ih_diff * iw_diff);
+                                gpu!(scope, count = cast(count_int));
+                            }
 
-                        gpu!(scope, if(is_max).then(|scope|{
                             gpu!(scope, result = grad[index]);
+                            gpu!(scope, result = result / count);
                             gpu!(scope, grad_accumulation += result);
                         }));
-                    })
-                );
+                    }));
+                }));
             })
         );
 
@@ -262,31 +316,23 @@ impl MaxPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource
-    for MaxPool2dWithIndicesBackwardEagerKernel<R, E>
-{
+impl<R: Runtime, E: JitElement> DynamicKernelSource for AvgPool2dBackwardEagerKernel<R, E> {
     fn source(&self) -> kernel::SourceTemplate {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
-        let indices = Variable::GlobalInputArray(0, Item::Scalar(Elem::Int));
-        let grad = Variable::GlobalInputArray(1, item);
+        let grad = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(output);
 
-        MaxPool2dBackwardComputeShader {
-            indices,
+        AvgPool2dBackwardComputeShader {
             grad,
             output,
             kernel_size: self.kernel_size,
+            count_include_pad: self.count_include_pad,
         }
         .expand(&mut scope);
-
-        let indices = InputInfo::Array {
-            item: Item::Scalar(Elem::Int),
-            visibility: Visibility::Read,
-        };
 
         let grad = InputInfo::Array {
             item,
@@ -299,7 +345,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource
         let output = OutputInfo::Array { item };
 
         let info = CompilationInfo {
-            inputs: vec![indices, grad, scalars],
+            inputs: vec![grad, scalars],
             outputs: vec![output],
             scope,
         };
@@ -312,33 +358,34 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource
 
     fn id(&self) -> String {
         format!(
-            "{:?}k={:?}",
+            "{:?}k={:?}count_include_pad={:?}",
             core::any::TypeId::of::<Self>(),
             self.kernel_size,
+            self.count_include_pad
         )
     }
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: JitElement, I: JitElement>(
+pub(crate) fn avg_pool2d_backward<R: Runtime, E: JitElement>(
     x: JitTensor<R, E, 4>,
     grad: JitTensor<R, E, 4>,
-    indices: JitTensor<R, I, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
-    dilation: [usize; 2],
+    count_include_pad: bool,
 ) -> JitTensor<R, E, 4> {
     let grad = kernel::into_contiguous(grad);
-    let indices = kernel::into_contiguous(indices);
+    let dilation = 1;
 
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
-    let kernel = MaxPool2dWithIndicesBackwardEagerKernel::new(kernel_size);
+    let kernel = AvgPool2dBackwardEagerKernel::new(kernel_size, count_include_pad);
 
-    execute_dynamic::<R, MaxPool2dWithIndicesBackwardEagerKernel<R, E>, I>(
-        &[
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            EagerHandle::new(&grad.handle, &grad.strides, &grad.shape.dims),
-        ],
+    execute_dynamic::<R, AvgPool2dBackwardEagerKernel<R, E>, RuntimeInt<R>>(
+        &[EagerHandle::new(
+            &grad.handle,
+            &grad.strides,
+            &grad.shape.dims,
+        )],
         &[EagerHandle::new(
             &output.handle,
             &output.strides,
@@ -347,8 +394,8 @@ pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: JitElement, I: Jit
         Some(&[
             (stride[0] as i32).elem(),
             (stride[1] as i32).elem(),
-            (dilation[0] as i32).elem(),
-            (dilation[1] as i32).elem(),
+            dilation.elem(),
+            dilation.elem(),
             (padding[0] as i32).elem(),
             (padding[1] as i32).elem(),
         ]),
