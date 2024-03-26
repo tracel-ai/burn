@@ -38,12 +38,9 @@ impl EmbeddingConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> Embedding<B> {
         let weight = self
             .initializer
-            .init([self.n_embedding, self.d_model], device)
-            .require_grad();
+            .init_param([self.n_embedding, self.d_model], device);
 
-        Embedding {
-            weight: Param::from(weight),
-        }
+        Embedding { weight }
     }
 
     /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).

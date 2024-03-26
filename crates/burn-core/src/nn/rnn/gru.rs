@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
-use crate::nn::LinearConfig;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::activation;
@@ -205,12 +204,12 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+                weight: Param::from_data(Data::from([[weights]]), device),
+                bias: Some(Param::from_data(Data::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+                weight: Param::from_data(Data::from([[weights]]), device),
+                bias: Some(Param::from_data(Data::from([biases]), device)),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,

@@ -3,6 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -21,18 +22,10 @@ impl RmsNormConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
 
-        let gamma = Tensor::ones([self.d_model], device);
+        let gamma = Initializer::Ones.init_param([self.d_model], device);
 
         RmsNorm {
             gamma: Param::from(gamma),
-            epsilon: self.epsilon,
-        }
-    }
-
-    /// Initialize a new [RMS Norm](RmsNorm) module with a [record](RmsNormRecord).
-    pub fn init_with<B: Backend>(&self, record: RmsNormRecord<B>) -> RmsNorm<B> {
-        RmsNorm {
-            gamma: record.gamma,
             epsilon: self.epsilon,
         }
     }

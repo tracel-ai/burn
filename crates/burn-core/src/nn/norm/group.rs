@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::Initializer;
 
 use crate::config::Config;
 use crate::module::Module;
@@ -46,8 +47,8 @@ impl GroupNormConfig {
         );
 
         let (gamma, beta) = if self.affine {
-            let gamma = Tensor::ones([self.num_channels], device).into();
-            let beta = Tensor::zeros([self.num_channels], device).into();
+            let gamma = Initializer::Ones.init_param([self.num_channels], device);
+            let beta = Initializer::Zeros.init_param([self.num_channels], device);
 
             (Some(gamma), Some(beta))
         } else {
@@ -59,18 +60,6 @@ impl GroupNormConfig {
             num_channels: self.num_channels,
             gamma,
             beta,
-            epsilon: self.epsilon,
-            affine: self.affine,
-        }
-    }
-
-    /// Initialize a new [group norm](GroupNorm) module with a [record](GroupNormRecord).
-    pub fn init_with<B: Backend>(&self, record: GroupNormRecord<B>) -> GroupNorm<B> {
-        GroupNorm {
-            num_groups: self.num_groups,
-            num_channels: self.num_channels,
-            gamma: record.gamma,
-            beta: record.beta,
             epsilon: self.epsilon,
             affine: self.affine,
         }

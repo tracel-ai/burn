@@ -75,32 +75,21 @@ impl Conv1dConfig {
         let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
         let weight = self
             .initializer
-            .init_with(shape, Some(fan_in), None, device);
+            .init_param_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
-            bias =
-                Some(
-                    self.initializer
-                        .init_with([self.channels_out], Some(fan_in), None, device),
-                );
+            bias = Some(self.initializer.init_param_with(
+                [self.channels_out],
+                Some(fan_in),
+                None,
+                device,
+            ));
         }
 
         Conv1d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
-            stride: self.stride,
-            kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
-            dilation: self.dilation,
-            groups: self.groups,
-        }
-    }
-    /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv1dRecord<B>) -> Conv1d<B> {
-        Conv1d {
-            weight: record.weight,
-            bias: record.bias,
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),

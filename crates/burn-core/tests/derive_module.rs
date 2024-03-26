@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use burn::module::{Module, Param};
+use burn::nn::Initializer;
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Int, Shape, Tensor};
 use burn_core as burn;
@@ -21,9 +22,12 @@ struct ModuleTensorConstInt<B: Backend> {
 
 impl<B: Backend> ModuleBasic<B> {
     fn new(device: &B::Device) -> Self {
-        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Default, device);
         Self {
-            weight_basic: Param::from(weight_basic),
+            weight_basic: Initializer::Normal {
+                std: 1.0,
+                mean: 0.0,
+            }
+            .init_param([20, 20], device),
         }
     }
 }
@@ -60,7 +64,12 @@ pub struct ModuleComposed<B: Backend> {
 
 impl<B: Backend> ModuleComposed<B> {
     fn new(device: &B::Device) -> Self {
-        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Default, device);
+        let weight = Initializer::Normal {
+            std: 1.0,
+            mean: 0.0,
+        }
+        .init_param([20, 20], device);
+
         Self {
             weight: Param::from(weight),
             basic: ModuleBasic::new(device),

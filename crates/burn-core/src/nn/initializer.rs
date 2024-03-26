@@ -115,7 +115,7 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         device: &B::Device,
@@ -131,7 +131,7 @@ impl Initializer {
     /// - shape: Shape of the initiated tensor.
     /// - fan_in: `Option<usize>`, the fan in to use in initialization formula, if needed
     /// - fan_out: `Option<usize>`, the fan out to use in initialization formula, if needed
-    pub fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         fan_in: Option<usize>,

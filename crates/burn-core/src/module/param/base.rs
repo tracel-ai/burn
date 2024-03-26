@@ -4,17 +4,41 @@ use burn_common::stub::RwLock;
 use core::ops::Deref;
 use once_cell::sync::OnceCell;
 
-/// Define a parameter.
+/// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
+/// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
+/// training, and loaded during inference. If you don't want to save the tensors with a record
+/// and/or don't want to update it during training, you don't need this type to wrap your tensor.
+///
+/// # Lazyness
+///
+/// The initialization of parameters can be lazy when created using
+/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::nn::Initializer).
+///
+/// This reduces the amount of allocations done when loading a model for inference without having
+/// to create a custom initialization function only for inference.
+///
+/// ## Example
+///
+/// ```rust, ignore
+/// let device = Device::default();
+/// let config = ModuleConfig::default();
+/// let record = Recorder::new().load("/path/to/module", &device);
+///
+/// // No tensor allocation
+/// let module = config.init(device);
+/// // Will use the tensor allocated for the record if the same device is used.
+/// let module = module.load_record(record);
+/// ```
 pub struct Param<T: Parameter> {
     pub(crate) id: ParamId,
     state: OnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
-    /// Because of once cell, we have a garantie that the initialization will only be called once,
+    /// Because of [once cell](OnceCell), we have a garanty that the initialization will only be called once,
     /// but it may be called at the same time as `lazy_device` and `lazy_is_require_grad`, which is
     /// when the lock is actually useful, waiting the the initialization to be completed before
     /// returning the value.
-    init: RwLock<Option<Uninitialized<T>>>,
+    initialization: RwLock<Option<Uninitialized<T>>>,
 }
 
 impl<T: Parameter> core::fmt::Display for Param<T> {
@@ -59,7 +83,7 @@ impl<T: Parameter> Param<T> {
         Self {
             id,
             state: OnceCell::with_value(value),
-            init: RwLock::new(None),
+            initialization: RwLock::new(None),
         }
     }
 
@@ -71,7 +95,7 @@ impl<T: Parameter> Param<T> {
         Self {
             id,
             state: OnceCell::new(),
-            init: RwLock::new(Some(Uninitialized {
+            initialization: RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
                 is_require_grad,
@@ -87,7 +111,7 @@ impl<T: Parameter> Param<T> {
     pub fn val(&self) -> T {
         self.state
             .get_or_init(|| {
-                let mut result = self.init.write().unwrap();
+                let mut result = self.initialization.write().unwrap();
                 let state = result.as_ref().expect("Should be something.");
                 let tensor = state.initialize();
 
@@ -108,7 +132,7 @@ impl<T: Parameter> Param<T> {
         let tensor = match state {
             Some(tensor) => tensor,
             None => {
-                let val = self.init.write();
+                let val = self.initialization.write();
                 val.unwrap().as_ref().unwrap().initialize()
             }
         };
@@ -124,13 +148,24 @@ impl<T: Parameter> Param<T> {
         Self {
             id,
             state: OnceCell::with_value(tensor),
-            init: RwLock::new(None),
+            initialization: RwLock::new(None),
         }
     }
 
     /// The device on which the parameter is or will be initialized.
+    ///
+    /// This should be used instead of [crate::tensor::Tensor::device], since using the tensor
+    /// function requires a dereference, which triggers the initialization. This is only useful
+    /// when the device is used for updating the tensor value, which has potentially not been
+    /// initialized yet like loading a record.
+    ///
+    /// # Notes
+    ///
+    /// This is a crate private function, since users are not expected to use the device of an
+    /// uninitialized module to then override its value. All low level functions should be provided
+    /// by burn and should handle those details.
     pub(crate) fn lazy_device(&self) -> T::Device {
-        let init = self.init.read().unwrap();
+        let init = self.initialization.read().unwrap();
 
         match init.as_ref() {
             Some(value) => value.device.clone(),
@@ -139,8 +174,19 @@ impl<T: Parameter> Param<T> {
     }
 
     /// The gradient requirement on which the parameter is or will be initialized.
+    ///
+    /// This should be used instead of [crate::tensor::Tensor::is_require_grad], since using the tensor
+    /// function requires a dereference, which triggers the initialization. This is only useful
+    /// when the boolean is used for updating the tensor value, which has potentially not been
+    /// initialized yet like loading a record.
+    ///
+    /// # Notes
+    ///
+    /// This is a crate private function, since users are not expected to use `is_require_grad` of an
+    /// uninitialized module to then override its value. All low level functions should be provided
+    /// by burn and should handle those details.
     pub(crate) fn lazy_is_require_grad(&self) -> bool {
-        let init = self.init.read().unwrap();
+        let init = self.initialization.read().unwrap();
 
         match init.as_ref() {
             Some(value) => value.is_require_grad,
@@ -160,7 +206,7 @@ impl<T: Parameter> Deref for Param<T> {
 
     fn deref(&self) -> &Self::Target {
         self.state.get_or_init(|| {
-            let mut result = self.init.write().unwrap();
+            let mut result = self.initialization.write().unwrap();
             let state = result.as_ref().expect("Should be something.");
             let tensor = state.initialize();
 

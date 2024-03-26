@@ -78,36 +78,24 @@ impl ConvTranspose2dConfig {
         let fan_in = self.channels[1] / self.groups * self.kernel_size.iter().product::<usize>();
         let weight = self
             .initializer
-            .init_with(shape, Some(fan_in), None, device);
+            .init_param_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(
-                self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None, device),
-            );
+            bias = Some(self.initializer.init_param_with(
+                [self.channels[1]],
+                Some(fan_in),
+                None,
+                device,
+            ));
         }
 
         ConvTranspose2d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            groups: self.groups,
-            padding: self.padding,
-            padding_out: self.padding_out,
-        }
-    }
-
-    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module with a [record](ConvTranspose2dRecord).
-    pub fn init_with<B: Backend>(&self, record: ConvTranspose2dRecord<B>) -> ConvTranspose2d<B> {
-        ConvTranspose2d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            dilation: self.dilation,
-            kernel_size: self.kernel_size,
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,

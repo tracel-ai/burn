@@ -78,11 +78,11 @@ impl Conv2dConfig {
 
         let weight = self
             .initializer
-            .init_with(shape, Some(fan_in), Some(fan_out), device);
+            .init_param_with(shape, Some(fan_in), Some(fan_out), device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(self.initializer.init_with(
+            bias = Some(self.initializer.init_param_with(
                 [self.channels[1]],
                 Some(fan_in),
                 Some(fan_out),
@@ -91,24 +91,11 @@ impl Conv2dConfig {
         }
 
         Conv2d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: self.padding.clone(),
-            groups: self.groups,
-        }
-    }
-
-    /// Initialize a new [conv2d](Conv2d) module with a [record](Conv2dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv2dRecord<B>) -> Conv2d<B> {
-        Conv2d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            dilation: self.dilation,
-            kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             groups: self.groups,
         }

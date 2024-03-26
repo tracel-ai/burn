@@ -5,7 +5,7 @@ use crate::tensor::{
     Tensor,
 };
 use alloc::vec::Vec;
-use burn_tensor::{Bool, Float, Int};
+use burn_tensor::{Bool, Data, Float, Int};
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     type Device = B::Device;
@@ -43,23 +43,29 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
     }
 }
 
-impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
-    fn from(value: Tensor<B, D>) -> Self {
+impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
+    /// Create a new parameter from a float tensor.
+    ///
+    /// # Warnings
+    ///
+    /// We strongly recommand using [Param::uninitialized] if you are using this method to initilize
+    /// parameters inside a module, since the tensor initialization will be lazy, making the
+    /// loading of weights more performant.
+    // pub fn from_tensor(value: Tensor<B, D>) -> Self {
+    //     // When creating a parameter from a float tensor, we automatically mark it as requiring
+    //     // gradients, so that it can be updated by an optimizer.
+    //     Param::initialized(ParamId::new(), value.require_grad())
+    // }
+
+    /// Create a new parameter from data.
+    pub fn from_data<T>(data: T, device: &B::Device) -> Self
+    where
+        T: Into<Data<B::FloatElem, D>>,
+    {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
+        let value = Tensor::from_data(data, device);
         Param::initialized(ParamId::new(), value.require_grad())
-    }
-}
-
-impl<B: Backend, const D: usize> From<Tensor<B, D, Int>> for Param<Tensor<B, D, Int>> {
-    fn from(value: Tensor<B, D, Int>) -> Self {
-        Param::initialized(ParamId::new(), value)
-    }
-}
-
-impl<B: Backend, const D: usize> From<Tensor<B, D, Bool>> for Param<Tensor<B, D, Bool>> {
-    fn from(value: Tensor<B, D, Bool>) -> Self {
-        Param::initialized(ParamId::new(), value)
     }
 }
 
@@ -71,7 +77,6 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        println!("Map");
         let (id, tensor) = self.consume();
         let value = mapper.map_float(&id, tensor);
 
@@ -272,15 +277,18 @@ mod tests {
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
-            .record(Param::from(tensor.clone()).into_record(), ())
+            .record(
+                Param::initialized(ParamId::new(), tensor.clone()).into_record(),
+                (),
+            )
             .unwrap();
 
-        let no_grad_is_require_grad = Param::from(tensor.clone())
+        let no_grad_is_require_grad = Param::initialized(ParamId::new(), tensor.clone())
             .no_grad()
             .load_record(byte_recorder.load(bytes.clone(), &device).unwrap())
             .is_require_grad();
 
-        let with_default_is_require_grad = Param::from(tensor)
+        let with_default_is_require_grad = Param::initialized(ParamId::new(), tensor)
             .load_record(byte_recorder.load(bytes, &device).unwrap())
             .is_require_grad();
 
