@@ -463,4 +463,16 @@ pub trait BoolTensorOps<B: Backend> {
         tensor: BoolTensor<B, D1>,
         shape: Shape<D2>,
     ) -> BoolTensor<B, D2>;
+
+    /// Creates a tensor of the given `shape` filled with the given `value`.
+    fn bool_full<const D: usize>(
+        shape: Shape<D>,
+        value: bool,
+        device: &Device<B>,
+    ) -> BoolTensor<B, D> {
+        B::int_equal_elem(
+            B::int_zeros(shape, device),
+            if value { 0.elem() } else { 1.elem() },
+        )
+    }
 }

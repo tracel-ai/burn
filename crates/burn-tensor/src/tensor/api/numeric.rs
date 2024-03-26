@@ -6,8 +6,6 @@ use crate::{
 };
 use num_traits::Zero;
 
-use alloc::vec::Vec;
-
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -738,170 +736,48 @@ where
             indices.select(dim, k_indices),
         )
     }
-    /// Pads the tensor according to the specified padding configuration and mode.
-    ///
-    /// Pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
-    /// Currently, only constant padding mode is implemented, which pads the tensor with a constant value.
+
+    /// Pad the tensor with the given value on the last two dimensions.
     ///
     /// # Arguments
     ///
-    /// * `pad_size` - A `PadSize` struct specifying the size of padding in each dimension.
-    /// * `pad_mode` - The padding mode, determining how the padding is applied.
+    /// * `pads` - A tuple of four integers representing the padding on the left, right, top, and bottom.
+    /// * `value` - The value to pad the tensor with.
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D, K>` instance with the specified padding applied.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Data,PadMode,PadSize,Shape,Tensor};
-    ///
-    /// fn pad_example<B: Backend>()
-    /// where
-    ///     B::FloatElem: From<f32>,
-    /// {
-    ///    let pad_const = 1.1;
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 4>::ones(Shape::new([2, 3, 4, 5]),&device);
-    ///
-    ///    let padded_tensor = tensor.pad(PadSize::uniform(2), PadMode::Constant::<f32>(pad_const.into()));
-    /// }    
-    ///
-    ///
-    /// ```
+    /// A new tensor with the given padding.
+    pub fn pad(self, pads: (usize, usize, usize, usize), value: K::Elem) -> Tensor<B, D, K> {
+        let (left, right, top, bottom) = pads;
 
-    pub fn pad<E: Element>(self, pad_size: PadSize, pad_mode: PadMode<E>) -> Tensor<B, D, K> {
-        match pad_mode {
-            PadMode::Constant(value) => {
-                let mut padded_dims: [usize; D] = self.dims();
+        let mut padded_dims: [usize; D] = self.dims();
 
-                // Update the last two dimensions with padding
-                padded_dims[D - 2] += pad_size.top + pad_size.bottom;
-                padded_dims[D - 1] += pad_size.left + pad_size.right;
+        // Update the last two dimensions with padding
+        padded_dims[D - 2] += top + bottom;
+        padded_dims[D - 1] += left + right;
 
-                // Create the ranges for the padded tensor
-                let ranges: [core::ops::Range<usize>; D] = padded_dims
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &dim)| {
-                        if i == D - 2 {
-                            pad_size.top..dim - pad_size.bottom
-                        } else if i == D - 1 {
-                            pad_size.left..dim - pad_size.right
-                        } else {
-                            0..dim
-                        }
-                    })
-                    .collect::<Vec<core::ops::Range<usize>>>()
-                    .try_into()
-                    .unwrap();
+        // Create the ranges for the padded tensor
+        let ranges: [core::ops::Range<usize>; D] = padded_dims
+            .iter()
+            .enumerate()
+            .map(|(i, &dim)| {
+                if i == D - 2 {
+                    top..dim - bottom
+                } else if i == D - 1 {
+                    left..dim - right
+                } else {
+                    0..dim
+                }
+            })
+            .collect::<Vec<core::ops::Range<usize>>>()
+            .try_into()
+            .unwrap();
 
-                // Create the padded tensor
-                let padded_shape = Shape::from(padded_dims);
-                let padded_tensor = Tensor::full(padded_shape, value, &self.device());
+        // Create the padded tensor
+        let padded_tensor = Tensor::full(padded_dims, value, &self.device());
 
-                // Assign the original tensor data to the appropriate slice of the padded tensor
-                padded_tensor.slice_assign(ranges, self)
-            }
-        }
-    }
-}
-
-/// Represents the different modes of padding that can be applied to a tensor.
-pub enum PadMode<E>
-where
-    E: Element,
-{
-    /// Pads the tensor with a constant value.
-    Constant(E),
-    // Other modes can be added here
-}
-
-/// Represents padding quantity for a tensor.
-pub struct PadSize {
-    /// The number of padding elements at the top of the tensor (beginning of 1st dimension of padding).
-    pub top: usize,
-    /// The number of padding elements at the bottom of the tensor (end of 1st dimension of padding).
-    pub bottom: usize,
-    /// The number of padding elements at the left of the tensor (beginning of 2nd dimension of padding).
-    pub left: usize,
-    /// The number of padding elements at the right of the tensor (end of 2nd dimension of padding).
-    pub right: usize,
-}
-
-impl PadSize {
-    /// Creates a padding configuration with uniform padding on all sides.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The number of elements to pad on all sides.
-    ///
-    /// # Returns
-    ///
-    /// A `Padding` configuration with uniform padding on all sides.
-    pub fn uniform(value: usize) -> Self {
-        Self {
-            top: value,
-            bottom: value,
-            left: value,
-            right: value,
-        }
-    }
-
-    /// Creates a padding configuration with asymmetric padding on each side.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - An array of size 4 representing the padding values for top, bottom, left, and right sides respectively.
-    ///
-    /// # Returns
-    ///
-    /// A `Padding` configuration with asymmetric padding on each side.
-    pub fn asymmetric(value: [usize; 4]) -> Self {
-        Self {
-            top: value[0],
-            bottom: value[1],
-            left: value[2],
-            right: value[3],
-        }
-    }
-
-    /// Creates a padding configuration with padding applied only to the height dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - An array of size 2 representing the padding values for the top and bottom sides respectively.
-    ///
-    /// # Returns
-    ///
-    /// A `Padding` configuration with padding applied only to the height dimension.
-    pub fn height(value: [usize; 2]) -> Self {
-        Self {
-            top: value[0],
-            bottom: value[1],
-            left: 0,
-            right: 0,
-        }
-    }
-
-    /// Creates a padding configuration with padding applied only to the width dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - An array of size 2 representing the padding values for the left and right sides respectively.
-    ///
-    /// # Returns
-    ///
-    /// A `Padding` configuration with padding applied only to the width dimension.
-    pub fn width(value: [usize; 2]) -> Self {
-        Self {
-            top: 0,
-            bottom: 0,
-            left: value[0],
-            right: value[1],
-        }
+        // Assign the original tensor data to the appropriate slice of the padded tensor
+        padded_tensor.slice_assign(ranges, self)
     }
 }
 
