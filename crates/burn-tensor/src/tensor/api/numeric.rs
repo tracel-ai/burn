@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::alloc::borrow::ToOwned;
 
 use crate::{
