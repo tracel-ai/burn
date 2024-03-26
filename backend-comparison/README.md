@@ -47,6 +47,7 @@ Available Benchmarks:
 - custom-gelu
 - data
 - matmul
+- resnet50
 - unary
 ```
 
