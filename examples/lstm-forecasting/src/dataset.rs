@@ -28,7 +28,6 @@ pub struct WindowedDataset {
 
 impl Dataset<Vec<StockItem>> for WindowedDataset {
     fn get(&self, index: usize) -> Option<Vec<StockItem>> {
-        // Return window with timesteps
         (index..index + self.window_size)
             .map(|x| self.dataset.get(x))
             .collect()
