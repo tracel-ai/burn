@@ -1,29 +1,65 @@
-use super::{Param, ParamId};
+use super::{Param, ParamId, Parameter};
 use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
 };
 use alloc::vec::Vec;
-use burn_tensor::{Bool, Int};
+use burn_tensor::{Bool, Float, Int};
+
+impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
+    type Device = B::Device;
+
+    fn device(&self) -> Self::Device {
+        Tensor::device(self)
+    }
+
+    fn is_require_grad(&self) -> bool {
+        Tensor::is_require_grad(self)
+    }
+}
+
+impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Int> {
+    type Device = B::Device;
+
+    fn device(&self) -> Self::Device {
+        Tensor::device(self)
+    }
+
+    fn is_require_grad(&self) -> bool {
+        false
+    }
+}
+
+impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
+    type Device = B::Device;
+
+    fn device(&self) -> Self::Device {
+        Tensor::device(self)
+    }
+
+    fn is_require_grad(&self) -> bool {
+        false
+    }
+}
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
     fn from(value: Tensor<B, D>) -> Self {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
-        Param::new(ParamId::new(), value.require_grad())
+        Param::initialized(ParamId::new(), value.require_grad())
     }
 }
 
 impl<B: Backend, const D: usize> From<Tensor<B, D, Int>> for Param<Tensor<B, D, Int>> {
     fn from(value: Tensor<B, D, Int>) -> Self {
-        Param::new(ParamId::new(), value)
+        Param::initialized(ParamId::new(), value)
     }
 }
 
 impl<B: Backend, const D: usize> From<Tensor<B, D, Bool>> for Param<Tensor<B, D, Bool>> {
     fn from(value: Tensor<B, D, Bool>) -> Self {
-        Param::new(ParamId::new(), value)
+        Param::initialized(ParamId::new(), value)
     }
 }
 
@@ -31,12 +67,15 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_float(&self.id, &self.value)
+        visitor.visit_float(&self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_float(&self.id, self.value);
-        Self::new(self.id, value)
+        println!("Map");
+        let (id, tensor) = self.consume();
+        let value = mapper.map_float(&id, tensor);
+
+        Self::initialized(id, value)
     }
 
     fn into_record(self) -> Self::Record {
@@ -44,18 +83,20 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let mut tensor = record.value.detach();
-        let device = self.device();
+        let (new_id, mut new_value) = record.consume();
+
+        let expected_device = self.lazy_device();
+        let expected_require_grad = self.lazy_is_require_grad();
 
         // Make sure we load the record into the same module device.
-        if tensor.device() != device {
-            tensor = tensor.to_device(&device).detach();
+        if new_value.device() != expected_device {
+            new_value = new_value.to_device(&expected_device).detach();
         }
 
         // Make sure we load the record with the same autodiff setting.
-        tensor = tensor.set_require_grad(self.is_require_grad());
+        new_value = new_value.set_require_grad(expected_require_grad);
 
-        Self::new(record.id, tensor)
+        Self::initialized(new_id, new_value)
     }
 
     fn to_device(self, device: &<B as Backend>::Device) -> Self {
@@ -79,7 +120,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         &self,
         mut devices: Vec<<B as Backend>::Device>,
     ) -> Vec<<B as Backend>::Device> {
-        let device = self.device();
+        let device = self.val().device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -93,12 +134,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     type Record = Param<Tensor<B, D, Int>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_int(&self.id, &self.value)
+        visitor.visit_int(&self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_int(&self.id, self.value);
-        Self::new(self.id, value)
+        let value = mapper.map_int(&self.id, self.val());
+        Self::initialized(self.id, value)
     }
 
     fn into_record(self) -> Self::Record {
@@ -106,15 +147,16 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let mut tensor = record.value;
-        let device = self.device();
+        let (new_id, mut new_value) = record.consume();
+
+        let expected_device = self.lazy_device();
 
         // Make sure we load the record into the same module device.
-        if tensor.device() != device {
-            tensor = tensor.to_device(&device);
+        if new_value.device() != expected_device {
+            new_value = new_value.to_device(&expected_device);
         }
 
-        Self::new(record.id, tensor)
+        Self::initialized(new_id, new_value)
     }
 
     fn to_device(self, device: &<B as Backend>::Device) -> Self {
@@ -129,7 +171,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
         &self,
         mut devices: Vec<<B as Backend>::Device>,
     ) -> Vec<<B as Backend>::Device> {
-        let device = self.device();
+        let device = self.val().device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -143,12 +185,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     type Record = Param<Tensor<B, D, Bool>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_bool(&self.id, &self.value)
+        visitor.visit_bool(&self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_bool(&self.id, self.value);
-        Self::new(self.id, value)
+        let value = mapper.map_bool(&self.id, self.val());
+        Self::initialized(self.id, value)
     }
 
     fn into_record(self) -> Self::Record {
@@ -156,15 +198,16 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let mut tensor = record.value;
-        let device = self.device();
+        let (new_id, mut new_value) = record.consume();
+
+        let expected_device = self.lazy_device();
 
         // Make sure we load the record into the same module device.
-        if tensor.device() != device {
-            tensor = tensor.to_device(&device);
+        if new_value.device() != expected_device {
+            new_value = new_value.to_device(&expected_device);
         }
 
-        Self::new(record.id, tensor)
+        Self::initialized(new_id, new_value)
     }
 
     fn to_device(self, device: &<B as Backend>::Device) -> Self {
@@ -179,7 +222,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
         &self,
         mut devices: Vec<<B as Backend>::Device>,
     ) -> Vec<<B as Backend>::Device> {
-        let device = self.device();
+        let device = self.val().device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -193,10 +236,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::new(
-            self.id.clone(),
-            self.value.clone().inner().set_require_grad(false),
-        )
+        Param::initialized(self.id.clone(), self.val().inner().set_require_grad(false))
     }
 }
 
@@ -204,7 +244,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D, Int>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::new(self.id.clone(), self.value.clone().inner())
+        Param::initialized(self.id.clone(), self.val().inner())
     }
 }
 
@@ -212,7 +252,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D, Bool>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::new(self.id.clone(), self.value.clone().inner())
+        Param::initialized(self.id.clone(), self.val().inner())
     }
 }
 
@@ -221,7 +261,6 @@ mod tests {
     use super::*;
     use crate::{
         module::Module,
-        nn::LinearConfig,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestAutodiffBackend,
     };
@@ -239,30 +278,13 @@ mod tests {
         let no_grad_is_require_grad = Param::from(tensor.clone())
             .no_grad()
             .load_record(byte_recorder.load(bytes.clone(), &device).unwrap())
-            .value
             .is_require_grad();
 
         let with_default_is_require_grad = Param::from(tensor)
             .load_record(byte_recorder.load(bytes, &device).unwrap())
-            .value
             .is_require_grad();
 
         assert!(!no_grad_is_require_grad);
         assert!(with_default_is_require_grad);
-    }
-
-    #[test]
-    fn test_init_with_record_setting() {
-        let config = LinearConfig::new(32, 32);
-        let device = Default::default();
-        let module_init = config.init::<TestAutodiffBackend>(&device);
-
-        let record = module_init.clone().into_record();
-        let module_init_with = config.init_with::<TestAutodiffBackend>(record);
-
-        assert_eq!(
-            module_init.weight.is_require_grad(),
-            module_init_with.weight.is_require_grad()
-        );
     }
 }

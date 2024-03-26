@@ -77,33 +77,6 @@ impl LstmConfig {
             d_hidden: self.d_hidden,
         }
     }
-
-    /// Initialize a new [lstm](Lstm) module with a [record](LstmRecord).
-    pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
-        let linear_config = LinearConfig {
-            d_input: self.d_input,
-            d_output: self.d_hidden,
-            bias: self.bias,
-            initializer: self.initializer.clone(),
-        };
-
-        Lstm {
-            input_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.input_gate,
-            ),
-            forget_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.forget_gate,
-            ),
-            output_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.output_gate,
-            ),
-            cell_gate: gate_controller::GateController::new_with(&linear_config, record.cell_gate),
-            d_hidden: self.d_hidden,
-        }
-    }
 }
 
 impl<B: Backend> Lstm<B> {

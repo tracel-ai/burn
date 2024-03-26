@@ -80,6 +80,9 @@ hound = "3.5.1"
 image = "0.24.9"
 zip = "0.6.6"
 
+# Once cell is useful when we need OnceCell and Lazy with no_std support.
+once_cell = { version = "1.19.0", default-features = false }
+
 # Terminal UI
 ratatui = "0.25"
 crossterm = "0.27"

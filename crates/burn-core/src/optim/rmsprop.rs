@@ -516,7 +516,9 @@ mod tests {
             bias: Some(Param::from(Tensor::from_data(bias, &device))),
         };
 
-        nn::LinearConfig::new(6, 6).init_with(record)
+        nn::LinearConfig::new(6, 6)
+            .init(&device)
+            .load_record(record)
     }
 
     #[allow(dead_code)]

@@ -434,6 +434,7 @@ dependencies = [
  "libm",
  "log",
  "num-traits",
+ "once_cell",
  "rand",
  "regex",
  "rmp-serde",

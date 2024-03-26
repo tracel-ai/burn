@@ -129,6 +129,9 @@ thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 num-traits = {workspace = true, optional = true }
 
+once_cell = { workspace = true, default-features = false }
+
+
 [dev-dependencies]
 tempfile = { workspace = true }
 burn-dataset = { path = "../burn-dataset", version = "0.13.0", features = [

@@ -40,11 +40,14 @@ impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
         let shape = [self.d_input, self.d_output];
-        let weight =
-            self.initializer
-                .init_with(shape, Some(self.d_input), Some(self.d_output), device);
+        let weight = self.initializer.init_param_with(
+            shape,
+            Some(self.d_input),
+            Some(self.d_output),
+            device,
+        );
         let bias = if self.bias {
-            Some(self.initializer.init_with(
+            Some(self.initializer.init_param_with(
                 [self.d_output],
                 Some(self.d_input),
                 Some(self.d_output),
@@ -54,18 +57,7 @@ impl LinearConfig {
             None
         };
 
-        Linear {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
-        }
-    }
-
-    /// Initialize a new [linear](Linear) module with a [record](LinearRecord).
-    pub fn init_with<B: Backend>(&self, record: LinearRecord<B>) -> Linear<B> {
-        Linear {
-            weight: record.weight,
-            bias: record.bias,
-        }
+        Linear { weight, bias }
     }
 }
 

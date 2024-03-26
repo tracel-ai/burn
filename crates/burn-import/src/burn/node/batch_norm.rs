@@ -80,19 +80,19 @@ macro_rules! batch_norm_serialize {
     (record $self:expr) => {{
         let device = Default::default();
         BatchNormRecord {
-            gamma: Param::new(
+            gamma: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.gamma.clone().convert(), &device),
             ),
-            beta: Param::new(
+            beta: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.beta.clone().convert(), &device),
             ),
-            running_mean: Param::new(
+            running_mean: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.running_mean.clone().convert(), &device),
             ),
-            running_var: Param::new(
+            running_var: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.running_var.clone().convert(), &device),
             ),

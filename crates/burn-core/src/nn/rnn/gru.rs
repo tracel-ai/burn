@@ -68,29 +68,6 @@ impl GruConfig {
             d_hidden: self.d_hidden,
         }
     }
-
-    /// Initialize a new [gru](Gru) module.
-    pub fn init_with<B: Backend>(self, record: GruRecord<B>) -> Gru<B> {
-        let linear_config = LinearConfig {
-            d_input: self.d_input,
-            d_output: self.d_hidden,
-            bias: self.bias,
-            initializer: self.initializer.clone(),
-        };
-
-        Gru {
-            update_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.update_gate,
-            ),
-            reset_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.reset_gate,
-            ),
-            new_gate: gate_controller::GateController::new_with(&linear_config, record.new_gate),
-            d_hidden: self.d_hidden,
-        }
-    }
 }
 
 impl<B: Backend> Gru<B> {

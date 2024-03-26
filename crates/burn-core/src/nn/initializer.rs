@@ -2,6 +2,7 @@ use burn_tensor::Shape;
 use libm::sqrt;
 
 use crate::config::Config;
+use crate::module::{Param, ParamId};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -68,6 +69,47 @@ pub enum Initializer {
 }
 
 impl Initializer {
+    /// Inits a tensor parameter of given shape with values depending on initializer kind.
+    ///
+    /// # Params
+    ///
+    /// - shape: Shape of the initiated tensor.
+    pub fn init_param<B: Backend, const D: usize, S: Into<Shape<D>>>(
+        &self,
+        shape: S,
+        device: &B::Device,
+    ) -> Param<Tensor<B, D>> {
+        self.init_param_with(shape, None, None, device)
+    }
+
+    /// Inits a tensor parameter of given shape with values depending on initializer kind.
+    ///
+    /// # Params
+    ///
+    /// - shape: Shape of the initiated tensor.
+    pub fn init_param_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+        &self,
+        shape: S,
+        fan_in: Option<usize>,
+        fan_out: Option<usize>,
+        device: &B::Device,
+    ) -> Param<Tensor<B, D>> {
+        let device = device.clone();
+        let shape: Shape<D> = shape.into();
+        let config = self.clone();
+
+        Param::uninitialized(
+            ParamId::new(),
+            move |device| {
+                config
+                    .init_with(shape.clone(), fan_in, fan_out, device)
+                    .require_grad()
+            },
+            device,
+            true,
+        )
+    }
+
     /// Inits a tensor of given shape with values depending on initializer kind.
     ///
     /// # Params

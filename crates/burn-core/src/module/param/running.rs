@@ -68,12 +68,12 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self.sync();
         let tensor = self.value.read().unwrap();
 
-        Param::new(self.id, tensor.clone())
+        Param::initialized(self.id, tensor.clone())
     }
 
     fn load_record(mut self, record: Self::Record) -> Self {
         let mut tensor = self.value.write().unwrap();
-        *tensor = record.value.to_device(&tensor.device());
+        *tensor = record.val().to_device(&tensor.device());
         self.id = record.id;
 
         core::mem::drop(tensor);
@@ -130,10 +130,11 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
 
     /// Create a new running state from a record.
     pub fn from_record(record: Param<Tensor<B, D>>) -> Self {
+        let tensor = record.val();
         Self {
             id: record.id,
             values: Arc::new(Mutex::new(HashMap::new())),
-            value: Arc::new(RwLock::new(record.value)),
+            value: Arc::new(RwLock::new(tensor)),
         }
     }
 
