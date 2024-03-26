@@ -2667,6 +2667,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lstm-forecasting"
+version = "0.13.0"
+dependencies = [
+ "burn",
+ "log",
+ "serde",
+]
+
+[[package]]
 name = "macro_rules_attribute"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
