@@ -889,6 +889,56 @@ impl TensorCheck {
             false => self,
         }
     }
+
+    /// Checks if expand operation is possible for the given shapes.
+    pub fn expand<const D1: usize, const D2: usize>(
+        ops: &str,
+        shape: &Shape<D1>,
+        to: &Shape<D2>,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let max_dims = core::cmp::max(D1, D2);
+
+        // Calculate the starting indices for each shape array, ensuring alignment from the right.
+        let start_index_shape = max_dims.saturating_sub(D1);
+        let start_index_to = max_dims.saturating_sub(D2);
+
+        for i in 0..max_dims {
+            // Use 1 as the default dimension size for dimensions beyond the tensor's rank.
+            let d_shape = if i >= start_index_shape {
+                shape.dims[i - start_index_shape]
+            } else {
+                1
+            };
+            let d_to = if i >= start_index_to {
+                to.dims[i - start_index_to]
+            } else {
+                1
+            };
+
+            if d_shape != d_to && d_shape != 1 && d_to != 1 {
+                // Register an incompatibility error.
+                check = check.register(
+                    ops,
+                    TensorError::new(
+                        "The provided tensor can't be broadcasted to the target shape.",
+                    )
+                    .details(format!(
+                        "Incompatible size at dimension '{}' => '{} != {}', which can't be \
+                         broadcasted. Tensor shape {:?}, Target shape {:?}.",
+                        max_dims - i - 1,
+                        d_shape,
+                        d_to,
+                        shape.dims,
+                        to.dims,
+                    )),
+                );
+                break; // Incompatibility found, no need to check further.
+            }
+        }
+
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {

@@ -487,6 +487,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::sign(tensor)
     }
 
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::IntTensor<Self, D2> {
+        TchOps::expand(tensor, shape)
+    }
+
     fn int_sort<const D: usize>(
         tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
         dim: usize,

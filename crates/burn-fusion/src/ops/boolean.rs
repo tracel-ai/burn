@@ -4,9 +4,10 @@ use crate::{
     ops::binary::binary_ops_shape,
     stream::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-        CatOperationDescription, FlipOperationDescription, Operation, OperationDescription,
-        PermuteOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
-        SliceOperationDescription, StreamId, SwapDimsDescription, UnaryOperationDescription,
+        CatOperationDescription, ExpandOperationDescription, FlipOperationDescription, Operation,
+        OperationDescription, PermuteOperationDescription, ReshapeDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        UnaryOperationDescription,
     },
     Fusion, FusionBackend,
 };
@@ -462,6 +463,44 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
             PermuteDimsOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
+        #[derive(new)]
+        struct ExpandOps<const D: usize, const D2: usize> {
+            desc: ExpandOperationDescription,
+        }
+
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
+                let output = B::bool_expand(input, shape.into());
+
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+
+        let desc = ExpandOperationDescription {
+            input: tensor.into_description(),
+            shape: shape.dims.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseBool(BaseOperationDescription::Expand(desc.clone())),
+            ExpandOps::<D1, D2>::new(desc),
         );
 
         out

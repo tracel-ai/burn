@@ -101,6 +101,7 @@ impl MaxPool2dBackwardComputeShader {
         let is_max = scope.create_local(Elem::Bool);
 
         let index = scope.create_local(Elem::UInt);
+        let index_base = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
 
         let grad_accumulation = scope.zero(grad.item());
@@ -116,20 +117,19 @@ impl MaxPool2dBackwardComputeShader {
             output_stride_3,
         );
 
+        gpu!(scope, index_base = b * grad_stride_0);
+        gpu!(scope, index_tmp = c * grad_stride_1);
+        gpu!(scope, index_base += index_tmp);
+
         gpu!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
                 gpu!(
                     scope,
                     range(ow_start, ow_end).for_each(|ow, scope| {
-                        gpu!(scope, index = b * grad_stride_0);
-
-                        gpu!(scope, index_tmp = c * grad_stride_1);
-                        gpu!(scope, index += index_tmp);
-
+                        gpu!(scope, index = index_base);
                         gpu!(scope, index_tmp = oh * grad_stride_2);
                         gpu!(scope, index += index_tmp);
-
                         gpu!(scope, index_tmp = ow * grad_stride_3);
                         gpu!(scope, index += index_tmp);
 
