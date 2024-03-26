@@ -250,8 +250,6 @@ fn main() {
     }
 
     // Delete cloned repository contents
+    fs::remove_dir_all(models_dir.join(".git")).unwrap();
     fs::remove_dir_all(models_dir).unwrap();
-
-    // Re-run the build script only if its content change
-    println!("cargo:rerun-if-changed=benches/resnet.rs");
 }
