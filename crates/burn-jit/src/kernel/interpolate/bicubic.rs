@@ -114,9 +114,12 @@ impl InterpolateBicubicShader {
         gpu!(scope, if(not_zero).then(|scope|{
             gpu!(scope, y0 = y_in - 1u32);
         }));
+
         let y1 = y_in;
+
         gpu!(scope, y_tmp = y_in + 1u32);
         let y2 = Self::min(scope, y_tmp, input_height);
+
         gpu!(scope, y_tmp = y_in + 2u32);
         let y3 = Self::min(scope, y_tmp, input_height);
 
@@ -140,10 +143,13 @@ impl InterpolateBicubicShader {
         gpu!(scope, if(not_zero).then(|scope|{
             gpu!(scope, x0 = x_in - 1u32);
         }));
+
         gpu!(scope, x_tmp = x_in - 1u32);
         let x1 = x_in;
+
         gpu!(scope, x_tmp = x_in + 1u32);
         let x2 = Self::min(scope, x_tmp, input_width);
+
         gpu!(scope, x_tmp = x_in + 2u32);
         let x3 = Self::min(scope, x_tmp, input_width);
 
@@ -195,6 +201,7 @@ impl InterpolateBicubicShader {
         gpu!(scope, index_3 += y0_stride);
         gpu!(scope, index_3 += x3_stride);
         gpu!(scope, inp_3 = input[index_3]);
+
         let coefficients0 = Self::cubic_interp1d(scope, inp_0, inp_1, inp_2, inp_3, xw);
 
         gpu!(scope, index_0 = index_base);
@@ -213,6 +220,7 @@ impl InterpolateBicubicShader {
         gpu!(scope, index_3 += y1_stride);
         gpu!(scope, index_3 += x3_stride);
         gpu!(scope, inp_3 = input[index_3]);
+
         let coefficients1 = Self::cubic_interp1d(scope, inp_0, inp_1, inp_2, inp_3, xw);
 
         gpu!(scope, index_0 = index_base);
@@ -231,6 +239,7 @@ impl InterpolateBicubicShader {
         gpu!(scope, index_3 += y2_stride);
         gpu!(scope, index_3 += x3_stride);
         gpu!(scope, inp_3 = input[index_3]);
+
         let coefficients2 = Self::cubic_interp1d(scope, inp_0, inp_1, inp_2, inp_3, xw);
 
         gpu!(scope, index_0 = index_base);
@@ -249,6 +258,7 @@ impl InterpolateBicubicShader {
         gpu!(scope, index_3 += y3_stride);
         gpu!(scope, index_3 += x3_stride);
         gpu!(scope, inp_3 = input[index_3]);
+
         let coefficients3 = Self::cubic_interp1d(scope, inp_0, inp_1, inp_2, inp_3, xw);
 
         let val = Self::cubic_interp1d(
@@ -290,16 +300,20 @@ impl InterpolateBicubicShader {
         let a: Variable = scope.create_with_value(-0.75, item);
         let one: Variable = scope.create_with_value(1, item);
         let two: Variable = scope.create_with_value(2, item);
+        let cubic = scope.create_local(item);
+        let cubic_tmp = scope.create_local(item);
+
         gpu!(scope, x = t + one);
         let coeffs0 = Self::cubic_convolution2(scope, x, a);
+
         let coeffs1 = Self::cubic_convolution1(scope, t, a);
+
         gpu!(scope, x = one - t);
         let coeffs2 = Self::cubic_convolution1(scope, x, a);
+
         gpu!(scope, x = two - t);
         let coeffs3 = Self::cubic_convolution2(scope, x, a);
 
-        let cubic = scope.create_local(item);
-        let cubic_tmp = scope.create_local(item);
         gpu!(scope, cubic = x0 * coeffs0);
         gpu!(scope, cubic_tmp = x1 * coeffs1);
         gpu!(scope, cubic += cubic_tmp);
@@ -307,6 +321,7 @@ impl InterpolateBicubicShader {
         gpu!(scope, cubic += cubic_tmp);
         gpu!(scope, cubic_tmp = x3 * coeffs3);
         gpu!(scope, cubic += cubic_tmp);
+
         cubic
     }
 

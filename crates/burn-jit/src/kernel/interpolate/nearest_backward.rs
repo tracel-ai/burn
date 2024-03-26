@@ -144,6 +144,7 @@ impl InterpolateNearestBackwardShader {
         gpu!(scope, div = numerator_float / div);
         gpu!(scope, div = ceil(div));
         gpu!(scope, index = cast(div));
+
         index
     }
 
@@ -173,6 +174,7 @@ impl InterpolateNearestBackwardShader {
         }).else(|scope|{
             gpu!(scope, end_index = index);
         }));
+
         end_index
     }
 }
