@@ -38,7 +38,7 @@ impl EmbeddingConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> Embedding<B> {
         let weight = self
             .initializer
-            .init_param([self.n_embedding, self.d_model], device);
+            .init([self.n_embedding, self.d_model], device);
 
         Embedding { weight }
     }

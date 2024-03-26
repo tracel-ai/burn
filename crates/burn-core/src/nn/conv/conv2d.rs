@@ -78,11 +78,11 @@ impl Conv2dConfig {
 
         let weight = self
             .initializer
-            .init_param_with(shape, Some(fan_in), Some(fan_out), device);
+            .init_with(shape, Some(fan_in), Some(fan_out), device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(self.initializer.init_param_with(
+            bias = Some(self.initializer.init_with(
                 [self.channels[1]],
                 Some(fan_in),
                 Some(fan_out),

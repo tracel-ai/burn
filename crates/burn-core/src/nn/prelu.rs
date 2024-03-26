@@ -27,8 +27,7 @@ impl PReluConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> PRelu<B> {
         PRelu {
             // alpha is a tensor of length num_parameters
-            alpha: Initializer::Constant { value: self.alpha }
-                .init_param([self.num_parameters], device),
+            alpha: Initializer::Constant { value: self.alpha }.init([self.num_parameters], device),
         }
     }
 }

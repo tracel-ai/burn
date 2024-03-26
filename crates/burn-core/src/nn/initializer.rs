@@ -74,12 +74,12 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init_param<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         device: &B::Device,
     ) -> Param<Tensor<B, D>> {
-        self.init_param_with(shape, None, None, device)
+        self.init_with(shape, None, None, device)
     }
 
     /// Inits a tensor parameter of given shape with values depending on initializer kind.
@@ -87,7 +87,7 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init_param_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    pub fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
@@ -102,7 +102,7 @@ impl Initializer {
             ParamId::new(),
             move |device| {
                 config
-                    .init_with(shape.clone(), fan_in, fan_out, device)
+                    .init_tensor(shape.clone(), fan_in, fan_out, device)
                     .require_grad()
             },
             device,
@@ -110,28 +110,7 @@ impl Initializer {
         )
     }
 
-    /// Inits a tensor of given shape with values depending on initializer kind.
-    ///
-    /// # Params
-    ///
-    /// - shape: Shape of the initiated tensor.
-    fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
-        &self,
-        shape: S,
-        device: &B::Device,
-    ) -> Tensor<B, D> {
-        self.init_with(shape, None, None, device)
-    }
-
-    /// Inits a tensor of given shape with values depending on initializer kind, with the possibility
-    /// of specifying fan in and fan out
-    ///
-    /// # Params
-    ///
-    /// - shape: Shape of the initiated tensor.
-    /// - fan_in: `Option<usize>`, the fan in to use in initialization formula, if needed
-    /// - fan_out: `Option<usize>`, the fan out to use in initialization formula, if needed
-    fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    fn init_tensor<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
@@ -243,7 +222,7 @@ mod tests {
 
         let (min, max) = (0.0, 1.0);
         let uniform = Initializer::Uniform { min, max };
-        let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default());
+        let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default()).into_value();
 
         tensor.into_data().assert_within_range(min..max);
     }
@@ -253,8 +232,9 @@ mod tests {
         // seed random generator
         TB::seed(0);
         let (mean, std) = (0.0, 1.0);
-        let normal: Tensor<TB, 1> =
-            Initializer::Normal { mean, std }.init([1000], &Default::default());
+        let normal: Tensor<TB, 1> = Initializer::Normal { mean, std }
+            .init([1000], &Default::default())
+            .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
         let var_act: f32 = var_act.into_scalar().elem();
@@ -273,8 +253,9 @@ mod tests {
     #[test]
     fn initializer_constant_init() {
         let value = 5.0;
-        let constants: Tensor<TB, 4> =
-            Initializer::Constant { value }.init([2, 2, 2, 2], &Default::default());
+        let constants: Tensor<TB, 4> = Initializer::Constant { value }
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         constants
             .sum()
             .to_data()
@@ -283,7 +264,9 @@ mod tests {
 
     #[test]
     fn initializer_zeros_init() {
-        let zeros: Tensor<TB, 4> = Initializer::Zeros.init([2, 2, 2, 2], &Default::default());
+        let zeros: Tensor<TB, 4> = Initializer::Zeros
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         zeros
             .sum()
             .to_data()
@@ -292,7 +275,9 @@ mod tests {
 
     #[test]
     fn initializer_ones_init() {
-        let ones: Tensor<TB, 4> = Initializer::Ones.init([2, 2, 2, 2], &Default::default());
+        let ones: Tensor<TB, 4> = Initializer::Ones
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         ones.sum()
             .to_data()
             .assert_approx_eq(&Data::from([16.0]), 3);
@@ -310,7 +295,8 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default());
+        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -327,7 +313,8 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default());
+        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
 
@@ -344,7 +331,8 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with(shape, Some(fan_in), None, &Default::default());
+        .init_with(shape, Some(fan_in), None, &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -360,7 +348,8 @@ mod tests {
             gain,
             fan_out_only: true,
         }
-        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default());
+        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -376,7 +365,8 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init([fan_out, fan_in], &Default::default());
+        .init([fan_out, fan_in], &Default::default())
+        .into_value();
     }
 
     #[test]
@@ -386,12 +376,14 @@ mod tests {
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
-        let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }.init_with(
-            [fan_out, fan_in],
-            Some(fan_in),
-            Some(fan_out),
-            &Default::default(),
-        );
+        let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }
+            .init_with(
+                [fan_out, fan_in],
+                Some(fan_in),
+                Some(fan_out),
+                &Default::default(),
+            )
+            .into_value();
 
         tensor.into_data().assert_within_range(-bound..bound);
     }
@@ -405,12 +397,14 @@ mod tests {
         let expected_mean = 0_f64;
 
         let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
-        let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }.init_with(
-            [fan_out, fan_in],
-            Some(fan_in),
-            Some(fan_out),
-            &Default::default(),
-        );
+        let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }
+            .init_with(
+                [fan_out, fan_in],
+                Some(fan_in),
+                Some(fan_out),
+                &Default::default(),
+            )
+            .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
 
@@ -421,7 +415,8 @@ mod tests {
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let _: Tensor<TB, 2> =
-            Initializer::XavierUniform { gain }.init([fan_out, fan_in], &Default::default());
+        let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
+            .init([fan_out, fan_in], &Default::default())
+            .into_value();
     }
 }

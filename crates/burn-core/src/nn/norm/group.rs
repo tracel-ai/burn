@@ -47,8 +47,8 @@ impl GroupNormConfig {
         );
 
         let (gamma, beta) = if self.affine {
-            let gamma = Initializer::Ones.init_param([self.num_channels], device);
-            let beta = Initializer::Zeros.init_param([self.num_channels], device);
+            let gamma = Initializer::Ones.init([self.num_channels], device);
+            let beta = Initializer::Zeros.init([self.num_channels], device);
 
             (Some(gamma), Some(beta))
         } else {

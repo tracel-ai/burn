@@ -75,16 +75,15 @@ impl Conv1dConfig {
         let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
         let weight = self
             .initializer
-            .init_param_with(shape, Some(fan_in), None, device);
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(self.initializer.init_param_with(
-                [self.channels_out],
-                Some(fan_in),
-                None,
-                device,
-            ));
+            bias =
+                Some(
+                    self.initializer
+                        .init_with([self.channels_out], Some(fan_in), None, device),
+                );
         }
 
         Conv1d {

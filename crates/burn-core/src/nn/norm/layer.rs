@@ -30,8 +30,8 @@ pub struct LayerNorm<B: Backend> {
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
-        let gamma = Initializer::Ones.init_param([self.d_model], device);
-        let beta = Initializer::Zeros.init_param([self.d_model], device);
+        let gamma = Initializer::Ones.init([self.d_model], device);
+        let beta = Initializer::Zeros.init([self.d_model], device);
 
         LayerNorm {
             gamma,

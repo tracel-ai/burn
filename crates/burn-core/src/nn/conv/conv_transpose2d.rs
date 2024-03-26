@@ -78,16 +78,14 @@ impl ConvTranspose2dConfig {
         let fan_in = self.channels[1] / self.groups * self.kernel_size.iter().product::<usize>();
         let weight = self
             .initializer
-            .init_param_with(shape, Some(fan_in), None, device);
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(self.initializer.init_param_with(
-                [self.channels[1]],
-                Some(fan_in),
-                None,
-                device,
-            ));
+            bias = Some(
+                self.initializer
+                    .init_with([self.channels[1]], Some(fan_in), None, device),
+            );
         }
 
         ConvTranspose2d {

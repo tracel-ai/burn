@@ -127,6 +127,15 @@ impl<T: Parameter> Param<T> {
     /// # Returns
     ///
     /// The parameter value.
+    pub fn into_value(self) -> T {
+        self.consume().1
+    }
+
+    /// Gets the parameter id and value while consuming the parameter.
+    ///
+    /// # Returns
+    ///
+    /// The parameter value.
     pub fn consume(self) -> (ParamId, T) {
         let state = self.state.into_inner();
         let tensor = match state {

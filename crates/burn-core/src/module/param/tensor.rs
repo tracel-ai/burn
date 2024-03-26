@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn test_load_record_setting() {
         let device = Default::default();
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device).require_grad();
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder

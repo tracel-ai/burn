@@ -22,7 +22,7 @@ impl RmsNormConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
 
-        let gamma = Initializer::Ones.init_param([self.d_model], device);
+        let gamma = Initializer::Ones.init([self.d_model], device);
 
         RmsNorm {
             gamma: Param::from(gamma),

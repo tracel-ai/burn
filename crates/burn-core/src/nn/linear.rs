@@ -40,14 +40,11 @@ impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
         let shape = [self.d_input, self.d_output];
-        let weight = self.initializer.init_param_with(
-            shape,
-            Some(self.d_input),
-            Some(self.d_output),
-            device,
-        );
+        let weight =
+            self.initializer
+                .init_with(shape, Some(self.d_input), Some(self.d_output), device);
         let bias = if self.bias {
-            Some(self.initializer.init_param_with(
+            Some(self.initializer.init_with(
                 [self.d_output],
                 Some(self.d_input),
                 Some(self.d_output),

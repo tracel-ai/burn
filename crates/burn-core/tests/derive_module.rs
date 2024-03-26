@@ -27,7 +27,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init_param([20, 20], device),
+            .init([20, 20], device),
         }
     }
 }
@@ -68,7 +68,7 @@ impl<B: Backend> ModuleComposed<B> {
             std: 1.0,
             mean: 0.0,
         }
-        .init_param([20, 20], device);
+        .init([20, 20], device);
 
         Self {
             weight: Param::from(weight),

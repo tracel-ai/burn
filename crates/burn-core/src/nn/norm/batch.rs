@@ -36,8 +36,8 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 impl BatchNormConfig {
     /// Initialize a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
-        let gamma = Initializer::Ones.init_param([self.num_features], device);
-        let beta = Initializer::Zeros.init_param([self.num_features], device);
+        let gamma = Initializer::Ones.init([self.num_features], device);
+        let beta = Initializer::Zeros.init([self.num_features], device);
 
         let running_mean = Tensor::zeros([self.num_features], device);
         let running_var = Tensor::ones([self.num_features], device);
