@@ -13,42 +13,20 @@ pub trait ActivationOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `alpha` - The alpha value that values smaller than 0 are multiplied with.
+    /// * `negative_slope` - The negative_slope value that values smaller than 0 are multiplied with.
     ///
     /// # Returns
     ///
     /// The output tensor.
     fn leaky_relu<const D: usize>(
         tensor: FloatTensor<B, D>,
-        alpha: super::FloatElem<B>,
+        negative_slope: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
-        let scaled_tensor = B::float_mul_scalar(tensor.clone(), alpha.elem());
+        let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope.elem());
 
-        // Update the tensor where the values are `> 0` by `tensor * alpha`.
+        // Update the tensor where the values are `> 0` by `tensor * negative_slope`.
         B::float_mask_where(tensor, mask, scaled_tensor)
-    }
-
-    /// Applies the LeakyReLU activation function backward.
-    ///
-    /// # Arguments
-    ///
-    /// * `output` - The output tensor.
-    /// * `alpha` - The alpha value that values smaller than 0 are multiplied with.
-    ///
-    /// # Returns
-    ///
-    /// The gradient.
-    fn leaky_relu_backward<const D: usize>(
-        output: FloatTensor<B, D>,
-        grad: FloatTensor<B, D>,
-        alpha: super::FloatElem<B>,
-    ) -> FloatTensor<B, D> {
-        let mask = B::float_lower_elem(output.clone(), 0.elem());
-        let scaled_tensor = B::float_mul_scalar(grad.clone(), alpha.elem());
-
-        // Update the tensor where the values are `> 0` by `tensor * alpha`.
-        B::float_mask_where(grad, mask, scaled_tensor)
     }
 
     /// Applies the ReLU activation function.
