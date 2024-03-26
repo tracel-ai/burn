@@ -102,6 +102,8 @@ pub(crate) enum BenchmarkValues {
     Unary,
     #[strum(to_string = "max-pool2d")]
     MaxPool2d,
+    #[strum(to_string = "resnet50")]
+    Resnet50,
 }
 
 pub fn execute() {
@@ -220,7 +222,7 @@ pub(crate) fn run_backend_comparison_benchmarks(
             let status = run_cargo("bench", &args).unwrap();
             if !status.success() {
                 println!(
-                    "Benchmark {} didn't ran successfully on the backend {}",
+                    "Benchmark {} didn't run successfully on the backend {}",
                     bench_str, backend_str
                 );
                 continue;
