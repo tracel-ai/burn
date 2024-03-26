@@ -90,9 +90,11 @@ text_placeholder = "0.5.0"
 pollster = "0.3"
 wgpu = "0.18.0"
 
-# Burnbench
+# Benchmarks and Burnbench
 arboard = "3.3.2"
 github-device-flow = "0.2.0"
+os_info = "3.8.2"
+wsl = "0.1.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
