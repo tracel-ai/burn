@@ -3,12 +3,9 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryO
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
-use crate::tensor::JitTensor;
 use crate::Runtime;
 use crate::{unary, JitBackend};
-use burn_tensor::ops::{
-    BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
-};
+use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
@@ -319,22 +316,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         dim: usize,
     ) -> FloatTensor<Self, D> {
         reduce::prod_dim(tensor, dim, Default::default())
-    }
-
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());
-        // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        let tensor = kernel::cast::<R::FullPrecisionRuntime, f32, FloatElem<Self>, D>(tensor);
-        // The line bellow does the backend type cast.
-        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
