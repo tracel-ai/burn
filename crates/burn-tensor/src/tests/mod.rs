@@ -1,5 +1,4 @@
 mod activation;
-mod api;
 mod clone_invariance;
 mod module;
 mod ops;
