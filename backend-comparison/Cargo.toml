@@ -34,7 +34,8 @@ clap = { workspace = true }
 crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
-github-device-flow  = { workspace = true }
+github-device-flow = { workspace = true }
+os_info = { workspace = true }
 rand = { workspace = true }
 ratatui = { workspace = true, optional = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
@@ -44,6 +45,7 @@ strum = { workspace = true }
 strum_macros = { workspace = true }
 sysinfo = { workspace = true, features = ["serde"] }
 wgpu = { workspace = true }
+wsl = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
