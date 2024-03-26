@@ -56,13 +56,13 @@ impl<B: Backend> Benchmark for ConvTranspose2dBenchmark<B> {
 #[allow(dead_code)]
 fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
     // Shapes
-    let batch_size = 32;
-    let channels_in = 32;
-    let channels_out = 32;
-    let height_in = 512;
-    let width_in = 512;
-    let kernel_size_0 = 5;
-    let kernel_size_1 = 5;
+    let batch_size = 16;
+    let channels_in = 16;
+    let channels_out = 16;
+    let height_in = 64;
+    let width_in = 64;
+    let kernel_size_0 = 4;
+    let kernel_size_1 = 4;
 
     // Options
     let strides = [1, 1];
