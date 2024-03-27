@@ -10,16 +10,15 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 use burn::{
-    config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
-    module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
+        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
 };
@@ -30,7 +29,7 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 256)]
+    #[config(default = 512)]
     pub max_seq_length: usize,
     #[config(default = 32)]
     pub batch_size: usize,
@@ -68,31 +67,31 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init();
+    .init(&devices[0]);
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 50_000));
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 5_000));
 
     // Initialize optimizer
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLrSchedulerConfig::new(0.25)
+    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
         .init();
 
     // Initialize learner
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train(CUDAMetric::new())
-        .metric_valid(CUDAMetric::new())
+        .metric_train(CudaMetric::new())
+        .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())

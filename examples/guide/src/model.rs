@@ -1,12 +1,10 @@
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         conv::{Conv2d, Conv2dConfig},
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
-        Dropout, DropoutConfig, Linear, LinearConfig, ReLU,
+        Dropout, DropoutConfig, Linear, LinearConfig, Relu,
     },
-    tensor::{backend::Backend, Tensor},
+    prelude::*,
 };
 
 #[derive(Module, Debug)]
@@ -17,7 +15,7 @@ pub struct Model<B: Backend> {
     dropout: Dropout,
     linear1: Linear<B>,
     linear2: Linear<B>,
-    activation: ReLU,
+    activation: Relu,
 }
 
 #[derive(Config, Debug)]
@@ -30,14 +28,14 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self) -> Model<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
         Model {
-            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(),
-            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(),
+            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
+            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
-            activation: ReLU::new(),
-            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(),
-            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(),
+            activation: Relu::new(),
+            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
+            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
         }
     }
@@ -47,7 +45,7 @@ impl ModelConfig {
             conv1: Conv2dConfig::new([1, 8], [3, 3]).init_with(record.conv1),
             conv2: Conv2dConfig::new([8, 16], [3, 3]).init_with(record.conv2),
             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
-            activation: ReLU::new(),
+            activation: Relu::new(),
             linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init_with(record.linear1),
             linear2: LinearConfig::new(self.hidden_size, self.num_classes)
                 .init_with(record.linear2),

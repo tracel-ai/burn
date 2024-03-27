@@ -10,11 +10,9 @@ use crate::{
     training::ExperimentConfig,
 };
 use burn::{
-    config::Config,
     data::dataloader::batcher::Batcher,
-    module::Module,
+    prelude::*,
     record::{CompactRecorder, Recorder},
-    tensor::backend::Backend,
 };
 use std::sync::Arc;
 
@@ -44,7 +42,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     // Load pre-trained model weights
     println!("Loading weights ...");
     let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into())
+        .load(format!("{artifact_dir}/model").into(), &device)
         .expect("Trained model weights");
 
     // Create model using loaded weights
@@ -55,8 +53,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init_with::<B>(record) // Initialize model with loaded weights
-    .to_device(&device); // Move model to computation device
+    .init_with::<B>(record); // Initialize model with loaded weights
 
     // Run inference on the given text samples
     println!("Running inference ...");
@@ -72,6 +69,9 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         let class = D::class_name(class_index as usize); // Get class name
 
         // Print sample text, predicted logits and predicted class
-        println!("\n=== Item {i} ===\n- Text: {text}\n- Logits: {logits}\n- Prediction: {class}\n================");
+        println!(
+            "\n=== Item {i} ===\n- Text: {text}\n- Logits: {logits}\n- Prediction: \
+             {class}\n================"
+        );
     }
 }

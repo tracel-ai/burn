@@ -1,0 +1,14 @@
+[package]
+name = "onnx-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dev-dependencies]
+burn = { path = "../../burn" }
+burn-ndarray = { path = "../../burn-ndarray" }
+serde = { workspace = true }
+float-cmp = { workspace = true }
+
+[build-dependencies]
+burn-import = { path = "../" }

@@ -1,7 +1,8 @@
-use burn::backend::wgpu::AutoGraphicsApi;
-use burn::backend::{Autodiff, Wgpu};
-use burn::data::dataset::Dataset;
-use burn::optim::AdamConfig;
+use burn::{
+    backend::{wgpu::AutoGraphicsApi, Autodiff, Wgpu},
+    data::dataset::Dataset,
+    optim::AdamConfig,
+};
 use guide::{model::ModelConfig, training::TrainingConfig};
 
 fn main() {
@@ -18,7 +19,7 @@ fn main() {
     guide::inference::infer::<MyBackend>(
         artifact_dir,
         device,
-        burn::data::dataset::source::huggingface::MNISTDataset::test()
+        burn::data::dataset::vision::MnistDataset::test()
             .get(42)
             .unwrap(),
     );

@@ -1,19 +1,15 @@
 use std::marker::PhantomData;
 
-use burn::data::dataset::source::huggingface::MNISTDataset;
 use burn::{
-    config::Config,
-    data::dataloader::DataLoaderBuilder,
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
     optim::{AdamConfig, GradientsParams, Optimizer},
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        ElementConversion, Int, Tensor,
-    },
+    prelude::*,
+    tensor::backend::AutodiffBackend,
 };
 use guide::{
-    data::{MNISTBatch, MNISTBatcher},
+    data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
 
@@ -42,32 +38,33 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init();
+    let mut model = config.model.init(&device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
         // Implement our training loop.
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             let output = model.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
@@ -92,7 +89,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our validation loop.
         for (iteration, batch) in dataloader_test.iter().enumerate() {
             let output = model_valid.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
@@ -143,7 +141,7 @@ where
     B: AutodiffBackend,
     O: Optimizer<Model<B>, B>,
 {
-    pub fn step1(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step1(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
@@ -154,14 +152,14 @@ where
     B: AutodiffBackend,
     O: Optimizer<Model<B>, B>,
 {
-    pub fn step2(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step2(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
 
 #[allow(dead_code)]
 impl<M, O> Learner2<M, O> {
-    pub fn step3<B: AutodiffBackend>(&mut self, _batch: MNISTBatch<B>)
+    pub fn step3<B: AutodiffBackend>(&mut self, _batch: MnistBatch<B>)
     where
         B: AutodiffBackend,
         M: AutodiffModule<B>,

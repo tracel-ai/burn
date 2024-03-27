@@ -1,0 +1,20 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Derive crate for the Burn framework"
+edition.workspace = true
+keywords = []
+license.workspace = true
+name = "burn-derive"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-derive"
+version.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+derive-new = { workspace = true }

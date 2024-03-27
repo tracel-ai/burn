@@ -27,7 +27,7 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: &B::Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -36,25 +36,25 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init();
+    let mut model = config.model.init(device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     ...
 }
@@ -140,7 +140,7 @@ Note that after each epoch, we include a validation loop to assess our model's p
 previously unseen data. To disable gradient tracking during this validation step, we can invoke
 `model.valid()`, which provides a model on the inner backend without autodiff capabilities. It's
 important to emphasize that we've declared our validation batcher to be on the inner backend,
-specifically `MNISTBatcher<B::InnerBackend>`; not using `model.valid()` will result in a compilation
+specifically `MnistBatcher<B::InnerBackend>`; not using `model.valid()` will result in a compilation
 error.
 
 You can find the code above available as an
@@ -195,7 +195,7 @@ where
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
 {
-    pub fn step(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
@@ -214,7 +214,7 @@ the backend and add your trait constraint within its definition:
 ```rust, ignore
 #[allow(dead_code)]
 impl<M, O> Learner2<M, O> {
-    pub fn step<B: AutodiffBackend>(&mut self, _batch: MNISTBatch<B>)
+    pub fn step<B: AutodiffBackend>(&mut self, _batch: MnistBatch<B>)
     where
         B: AutodiffBackend,
         M: AutodiffModule<B>,

@@ -3,9 +3,8 @@
 // Originally copied from the burn/examples/mnist package
 
 use burn::{
-    module::Module,
-    nn::{self, BatchNorm, PaddingConfig2d},
-    tensor::{backend::Backend, Tensor},
+    nn::{BatchNorm, PaddingConfig2d},
+    prelude::*,
 };
 
 #[derive(Module, Debug)]
@@ -16,23 +15,23 @@ pub struct Model<B: Backend> {
     dropout: nn::Dropout,
     fc1: nn::Linear<B>,
     fc2: nn::Linear<B>,
-    activation: nn::GELU,
+    activation: nn::Gelu,
 }
 
 const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
-    pub fn new() -> Self {
-        let conv1 = ConvBlock::new([1, 8], [3, 3]); // out: [Batch,8,26,26]
-        let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,16,24x24]
-        let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,24,22x22]
+    pub fn new(device: &B::Device) -> Self {
+        let conv1 = ConvBlock::new([1, 8], [3, 3], device); // out: [Batch,8,26,26]
+        let conv2 = ConvBlock::new([8, 16], [3, 3], device); // out: [Batch,16,24x24]
+        let conv3 = ConvBlock::new([16, 24], [3, 3], device); // out: [Batch,24,22x22]
         let hidden_size = 24 * 22 * 22;
         let fc1 = nn::LinearConfig::new(hidden_size, 32)
             .with_bias(false)
-            .init();
+            .init(device);
         let fc2 = nn::LinearConfig::new(32, NUM_CLASSES)
             .with_bias(false)
-            .init();
+            .init(device);
 
         let dropout = nn::DropoutConfig::new(0.5).init();
 
@@ -43,7 +42,7 @@ impl<B: Backend> Model<B> {
             fc1,
             fc2,
             dropout,
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
         }
     }
 
@@ -70,20 +69,20 @@ impl<B: Backend> Model<B> {
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     norm: BatchNorm<B, 2>,
-    activation: nn::GELU,
+    activation: nn::Gelu,
 }
 
 impl<B: Backend> ConvBlock<B> {
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &B::Device) -> Self {
         let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
-            .init();
-        let norm = nn::BatchNormConfig::new(channels[1]).init();
+            .init(device);
+        let norm = nn::BatchNormConfig::new(channels[1]).init(device);
 
         Self {
             conv,
             norm,
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
         }
     }
 

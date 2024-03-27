@@ -102,15 +102,16 @@ Here's how to use the imported model in your application:
 mod model;
 
 use burn::tensor;
-use burn_ndarray::NdArray;
+use burn_ndarray::{NdArray, NdArrayDevice};
 use model::mnist::Model;
 
 fn main() {
     // Initialize a new model instance
-    let model: Model<NdArray<f32>> = Model::new();
+    let device = NdArrayDevice::default();
+    let model: Model<NdArray<f32>> = Model::new(&device);
 
     // Create a sample input tensor (zeros for demonstration)
-    let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28]);
+    let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28], &device);
 
     // Perform inference
     let output = model.forward(input);

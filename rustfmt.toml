@@ -1,0 +1,5 @@
+max_width = 100
+
+# uncomment and run `cargo +nightly fmt --all` to find and fix lines that are too long (and therefore break autoformatting)
+# error_on_line_overflow = true
+# format_strings = true

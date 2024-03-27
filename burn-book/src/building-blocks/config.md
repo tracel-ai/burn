@@ -11,7 +11,6 @@ to your types, allowing you to define default values with ease. Additionally, al
 serialized, reducing potential bugs when upgrading versions and improving reproducibility.
 
 ```rust , ignore
-#[derive(Config)]
 use burn::config::Config;
 
 #[derive(Config)]
@@ -47,9 +46,9 @@ config. Therefore, initialization methods should be implemented on the config st
 ```rust, ignore
 impl MyModuleConfig {
     /// Create a module with random weights.
-    pub fn init(&self) -> MyModule {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> MyModule {
         MyModule {
-            linear: LinearConfig::new(self.d_model, self.d_ff).init(),
+            linear: LinearConfig::new(self.d_model, self.d_ff).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
         }
     }
@@ -70,5 +69,7 @@ impl MyModuleConfig {
 Then we could add this line to the above `main`:
 
 ```rust, ignore
-let my_module = config.init();
+use burn::backend::Wgpu;
+let device = Default::default();
+let my_module = config.init::<Wgpu>(&device);
 ```

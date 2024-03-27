@@ -15,8 +15,14 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
         // Samples from the test dataset, but you are free to test with your own text.
         vec![
             " Magnus Eriksson is a Swedish former footballer who played as a forward.".to_string(),
-            "Crossbeam Systems is headquartered in Boxborough Massachusetts and has offices in Europe Latin America and Asia Pacific. Crossbeam Systems was acquired by Blue Coat Systems in December 2012 and the Crossbeam brand has been fully absorbed into Blue Coat.".to_string(),
-            " Zia is the sequel to the award-winning Island of the Blue Dolphins by Scott O'Dell. It was published in 1976 sixteen years after the publication of the first novel.".to_string(),
+            "Crossbeam Systems is headquartered in Boxborough Massachusetts and has offices in \
+             Europe Latin America and Asia Pacific. Crossbeam Systems was acquired by Blue Coat \
+             Systems in December 2012 and the Crossbeam brand has been fully absorbed into Blue \
+             Coat."
+                .to_string(),
+            " Zia is the sequel to the award-winning Island of the Blue Dolphins by Scott O'Dell. \
+             It was published in 1976 sixteen years after the publication of the first novel."
+                .to_string(),
         ],
     );
 }
@@ -28,8 +34,10 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        ndarray::{NdArray, NdArrayDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -40,8 +48,10 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        libtorch::{LibTorch, LibTorchDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -57,8 +67,10 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::tch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        tch::{LibTorch, LibTorchDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -69,8 +81,10 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 

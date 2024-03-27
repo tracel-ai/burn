@@ -3,6 +3,11 @@
 This project provides an example implementation for training and inferencing text classification
 models on AG News and DbPedia datasets using the Rust-based Burn Deep Learning Library.
 
+> **Note**  
+> This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)
+> library to download the datasets. Make sure you have [Python](https://www.python.org/downloads/)
+> installed on your computer.
+
 ## Dataset Details
 
 - AG News: The AG News dataset is a collection of news articles from more than 2000 news sources.
@@ -24,7 +29,7 @@ cd burn
 # Use the --release flag to really speed up training.
 # Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device.
 
-export TORCH_CUDA_VERSION=cu117  # Set the cuda version (CUDA users)
+export TORCH_CUDA_VERSION=cu121  # Set the cuda version (CUDA users)
 
 # AG News
 cargo run --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset

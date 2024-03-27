@@ -5,7 +5,15 @@ on:
     - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*' # Run when a new version is being published
+
+env:
+  #
+  # Dependency versioning
+  #
+
+  # Udeps version
+  UDEPS_VERSION: "0.1.143"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +29,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Audit Rust dependencies
+        # If a vulnerability is found, a new issue will automatically be opened
+        # since this action runs on main branch
         uses: actions-rust-lang/audit@v1
 
       - name: Detect multiple versions of the same crate
@@ -37,9 +47,8 @@ jobs:
       - name: Install cargo-udeps
         env:
           UDEPS_LINK: https://github.com/est31/cargo-udeps/releases/download
-          UDEPS_VERSION: v0.1.43
         run: |
-          curl -L "$UDEPS_LINK/$UDEPS_VERSION/cargo-udeps-$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
+          curl -L "$UDEPS_LINK/v$UDEPS_VERSION/cargo-udeps-v$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
           tar xz -C $HOME/.cargo/bin --strip-components 2
 
       - name: Run cargo-udeps
