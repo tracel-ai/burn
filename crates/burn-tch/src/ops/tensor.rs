@@ -334,20 +334,6 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::prod_dim(tensor, dim)
     }
 
-    fn float_to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(tch::Kind::Float);
-
-        TchTensor::from_existing(tensor, storage)
-    }
-
-    fn float_from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(E::KIND);
-
-        TchTensor::from_existing(tensor, storage)
-    }
-
     fn float_argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::argmax(tensor, dim)
     }

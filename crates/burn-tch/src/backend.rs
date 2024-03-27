@@ -1,3 +1,5 @@
+use crate::PrecisionBridge;
+
 use super::element::TchElement;
 use super::TchTensor;
 use burn_tensor::backend::Backend;
@@ -77,8 +79,7 @@ pub struct LibTorch<E = f32> {
 
 impl<E: TchElement> Backend for LibTorch<E> {
     type Device = LibTorchDevice;
-    type FullPrecisionElem = f32;
-    type FullPrecisionBackend = LibTorch<f32>;
+    type FullPrecisionBridge = PrecisionBridge<f32>;
 
     type FloatTensorPrimitive<const D: usize> = TchTensor<E, D>;
     type FloatElem = E;

@@ -1,7 +1,7 @@
 use crate::{
     client::FusionClient,
     stream::{Context, OperationDescription},
-    FusionClientLocator, FusionTensor,
+    FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
 use serde::{de::DeserializeOwned, Serialize};
@@ -22,9 +22,7 @@ pub struct Fusion<B> {
 impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
-    // TODO: Find a better way to handle full precision.
-    type FullPrecisionBackend = Self;
-    type FullPrecisionElem = B::FloatElem;
+    type FullPrecisionBridge = PrecisionBridge;
 
     type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 

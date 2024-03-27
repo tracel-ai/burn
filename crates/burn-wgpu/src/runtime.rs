@@ -20,6 +20,7 @@ use wgpu::{AdapterInfo, DeviceDescriptor};
 ///
 /// The [graphics api](GraphicsApi), the [float element](FloatElement) and the
 /// [int element](IntElement) types are passed as generic.
+#[derive(Debug)]
 pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,
     _f: PhantomData<F>,

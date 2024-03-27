@@ -1,4 +1,4 @@
-use crate::backend::Backend;
+use crate::backend::{Backend, BackendBridge};
 
 // We provide some type aliases to improve the readability of using associated types without
 // having to use the disambiguation syntax.
@@ -11,7 +11,8 @@ pub type FloatElem<B> = <B as Backend>::FloatElem;
 /// Integer element type used by backend.
 pub type IntElem<B> = <B as Backend>::IntElem;
 /// Full precision float element type used by the backend.
-pub type FullPrecisionBackend<B> = <B as Backend>::FullPrecisionBackend;
+pub type FullPrecisionBackend<B> =
+    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target;
 
 /// Float tensor primitive type used by the backend.
 pub type FloatTensor<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;

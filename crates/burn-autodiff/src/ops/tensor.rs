@@ -7,7 +7,7 @@ use crate::{
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
-    ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
+    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
@@ -16,7 +16,7 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 
@@ -1619,107 +1619,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_sum_dim(tensor.primitive, dim)),
         }
-    }
-
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        #[derive(Debug)]
-        struct ToFullPrecision<B: Backend> {
-            phantom: PhantomData<B>,
-        }
-
-        #[derive(new, Debug)]
-        struct RetroToFullPrecision<B: Backend, const D: usize> {
-            tensor_id: NodeID,
-            _backend: PhantomData<B>,
-        }
-
-        impl<B: Backend, const D: usize> RetroForward for RetroToFullPrecision<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor = states.get_state::<B::FloatTensorPrimitive<D>>(&self.tensor_id);
-                let out = B::float_to_full_precision(&tensor);
-                states.save(out_node, out)
-            }
-        }
-
-        impl<B: Backend, const D: usize> Backward<B::FullPrecisionBackend, D, 1> for ToFullPrecision<B> {
-            type State = ();
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                unary_different_backend::<B, B::FullPrecisionBackend, D, D, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| B::float_from_full_precision(grad),
-                );
-            }
-        }
-
-        let ops = ToFullPrecision::<B> {
-            phantom: PhantomData,
-        };
-        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
-            .memory_bound()
-            .retro_forward(RetroToFullPrecision::<B, D>::new(tensor.node.id.clone()))
-            .parents([tensor])
-            .stateless(B::float_to_full_precision(&tensor.primitive))
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        #[derive(Debug)]
-        struct FromFullPrecision<B: Backend> {
-            phantom: PhantomData<B>,
-        }
-
-        #[derive(new, Debug)]
-        struct RetroFromFullPrecision<B: Backend, const D: usize> {
-            tensor_id: NodeID,
-            _backend: PhantomData<B>,
-        }
-
-        impl<B: Backend, const D: usize> RetroForward for RetroFromFullPrecision<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor = states.get_state::<<<B as Backend>::FullPrecisionBackend as Backend>::FloatTensorPrimitive<D>>(&self.tensor_id);
-                let out = B::float_from_full_precision(tensor);
-                states.save(out_node, out)
-            }
-        }
-
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<B::FullPrecisionBackend> {
-            type State = ();
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                unary_different_backend::<B::FullPrecisionBackend, B, D, D, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| B::float_to_full_precision(&grad),
-                );
-            }
-        }
-
-        let ops = FromFullPrecision::<B::FullPrecisionBackend> {
-            phantom: PhantomData,
-        };
-
-        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
-            .memory_bound()
-            .retro_forward(RetroFromFullPrecision::<B, D>::new(tensor.node.id.clone()))
-            .parents([&tensor])
-            .stateless(B::float_from_full_precision(tensor.primitive))
     }
 
     fn float_argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {

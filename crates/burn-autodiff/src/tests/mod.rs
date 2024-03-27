@@ -8,6 +8,7 @@ mod aggregation;
 mod avgpool1d;
 mod avgpool2d;
 mod backward;
+mod bridge;
 mod broadcast;
 mod cat;
 mod checkpoint;
@@ -64,6 +65,7 @@ macro_rules! testgen_all {
         // Behavior
         burn_autodiff::testgen_ad_broadcast!();
         burn_autodiff::testgen_gradients!();
+        burn_autodiff::testgen_bridge!();
         burn_autodiff::testgen_checkpoint!();
 
         // Activation
