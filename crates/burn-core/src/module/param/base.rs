@@ -1,6 +1,6 @@
 use super::ParamId;
-use alloc::format;
 use alloc::boxed::Box;
+use alloc::format;
 use burn_common::stub::RwLock;
 use core::ops::Deref;
 use once_cell::sync::OnceCell;
@@ -42,7 +42,7 @@ pub struct Param<T: Parameter> {
     ///
     /// To avoid creating locks on already initialized parameter, we wrap the lock inside an
     /// Option, the inner option is required for resetting the state onced initialized.
-    /// TLDR: RwLock(None) only happens on the param refernce that is lazy, but was initialized,
+    /// TLDR: RwLock(None) only happens on the param reference that is lazy, but was initialized,
     /// all other parameters
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
 }
