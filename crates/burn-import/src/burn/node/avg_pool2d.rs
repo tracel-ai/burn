@@ -135,7 +135,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let avg_pool2d = AvgPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
