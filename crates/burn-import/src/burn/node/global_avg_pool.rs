@@ -50,7 +50,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
 
         let tokens = match self.input.dim {

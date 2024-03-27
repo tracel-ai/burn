@@ -17,6 +17,10 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     fn is_require_grad(&self) -> bool {
         Tensor::is_require_grad(self)
     }
+
+    fn set_require_grad(self, require_grad: bool) -> Self {
+        Tensor::set_require_grad(self, require_grad)
+    }
 }
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Int> {
@@ -29,6 +33,10 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Int> {
     fn is_require_grad(&self) -> bool {
         false
     }
+
+    fn set_require_grad(self, _require_grad: bool) -> Self {
+        self
+    }
 }
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
@@ -40,6 +48,10 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
 
     fn is_require_grad(&self) -> bool {
         false
+    }
+
+    fn set_require_grad(self, _require_grad: bool) -> Self {
+        self
     }
 }
 

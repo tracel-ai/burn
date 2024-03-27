@@ -429,7 +429,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         self.nodes
             .iter()
-            .map(|node| node.field_init(false))
+            .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
         let fields = self

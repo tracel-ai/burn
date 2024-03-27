@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
@@ -66,15 +66,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
 
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = Conv2dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
@@ -82,7 +73,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)

@@ -46,23 +46,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
-
-        let init_line = quote! {
-            init();
-        };
-
         let tokens = quote! {
             let #name = MaxPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
                 .with_dilation(#dilation)
-                .#init_line
+                .init();
         };
 
         Some(tokens)

@@ -62,6 +62,8 @@ pub trait Parameter: Clone + core::fmt::Debug + Send + Sync {
     fn device(&self) -> Self::Device;
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
+    /// Set the gradient requirement.
+    fn set_require_grad(self, require_grad: bool) -> Self;
 }
 
 struct Uninitialized<P: Parameter> {
@@ -201,6 +203,25 @@ impl<T: Parameter> Param<T> {
             Some(value) => value.is_require_grad,
             None => self.is_require_grad(),
         }
+    }
+
+    /// Override the gradient requirement for the current parameter.
+    pub fn set_require_grad(self, require_grad: bool) -> Self {
+        let mut init = self.initialization.write().unwrap();
+        let mut is_lazy = false;
+
+        if let Some(value) = init.as_mut() {
+            is_lazy = true;
+            value.is_require_grad = require_grad;
+        };
+
+        core::mem::drop(init);
+
+        if is_lazy {
+            return self;
+        }
+
+        self.map(|tensor| tensor.set_require_grad(require_grad))
     }
 }
 

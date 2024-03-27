@@ -25,7 +25,7 @@ impl RmsNormConfig {
         let gamma = Initializer::Ones.init([self.d_model], device);
 
         RmsNorm {
-            gamma: Param::from(gamma),
+            gamma,
             epsilon: self.epsilon,
         }
     }

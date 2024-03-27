@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn::module::{Module, Param};
 use burn::nn::Initializer;
 use burn::tensor::backend::Backend;
-use burn::tensor::{Distribution, Int, Shape, Tensor};
+use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
@@ -71,7 +71,7 @@ impl<B: Backend> ModuleComposed<B> {
         .init([20, 20], device);
 
         Self {
-            weight: Param::from(weight),
+            weight: weight,
             basic: ModuleBasic::new(device),
             tuple: (ModuleBasic::new(device), ModuleBasic::new(device)),
         }
