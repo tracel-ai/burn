@@ -14,6 +14,7 @@ extern crate derive_new;
 extern crate blas_src;
 
 mod backend;
+mod bridge;
 mod element;
 mod ops;
 mod parallel;
@@ -21,6 +22,7 @@ mod sharing;
 mod tensor;
 
 pub use backend::*;
+pub use bridge::*;
 pub use element::FloatNdArrayElement;
 pub(crate) use sharing::*;
 pub use tensor::*;

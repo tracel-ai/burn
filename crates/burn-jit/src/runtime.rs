@@ -5,7 +5,7 @@ use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::Compu
 pub type RuntimeInt<R> = <<R as Runtime>::Compiler as Compiler>::Int;
 
 /// Runtime for the [just-in-time backend](crate::JitBackend).
-pub trait Runtime: Send + Sync + 'static {
+pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     /// The compiler used to compile the inner representation into tokens.
     type Compiler: Compiler;
     /// The compute server used to run kernels and perform autotuning.

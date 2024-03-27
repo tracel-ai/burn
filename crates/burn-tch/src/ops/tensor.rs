@@ -318,26 +318,20 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::sum(tensor)
     }
 
-    fn float_mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        TchOps::mean_dim(tensor, dim)
-    }
-
     fn float_sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::sum_dim(tensor, dim)
     }
 
-    fn float_to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(tch::Kind::Float);
-
-        TchTensor::from_existing(tensor, storage)
+    fn float_mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchOps::mean_dim(tensor, dim)
     }
 
-    fn float_from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(E::KIND);
+    fn float_prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
+        TchOps::prod(tensor)
+    }
 
-        TchTensor::from_existing(tensor, storage)
+    fn float_prod_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchOps::prod_dim(tensor, dim)
     }
 
     fn float_argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
@@ -475,9 +469,39 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn float_flip<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn float_sign<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::sign(tensor)
+    }
+
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::FloatTensor<Self, D2> {
+        TchOps::expand(tensor, shape)
+    }
+
+    fn float_sort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
+        TchOps::sort(tensor, dim, descending)
+    }
+
+    fn float_argsort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::argsort(tensor, dim, descending)
     }
 }

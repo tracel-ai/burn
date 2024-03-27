@@ -1,10 +1,16 @@
+use super::cat::cat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
+use crate::backend::BackendBridge;
+use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
 use num_traits::ToPrimitive;
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use crate::{argsort, sort, sort_with_indices};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -447,6 +453,16 @@ pub trait FloatTensorOps<B: Backend> {
         axes: [usize; D],
     ) -> FloatTensor<B, D>;
 
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn float_flip<const D: usize>(tensor: FloatTensor<B, D>, axes: &[usize]) -> FloatTensor<B, D>;
+
     /// Reshapes a tensor.
     ///
     /// # Arguments
@@ -831,6 +847,34 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Product of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the product of all elements in `tensor`.
+    fn float_prod<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+        // Product of all elements in a tensor
+        B::float_exp(B::float_sum(B::float_log(tensor)))
+    }
+
+    /// Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the product of all elements in `tensor` along `dim`.
+    fn float_prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+        // Product of all elements in a tensor along a dimension
+        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
+    }
+
     /// Mean of all elements in a tensor.
     ///
     /// # Arguments
@@ -866,9 +910,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same values as `tensor` but with full precision.
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<B, D>,
-    ) -> FloatTensor<FullPrecisionBackend<B>, D>;
+    fn float_into_full_precision<const D: usize>(
+        tensor: FloatTensor<B, D>,
+    ) -> FloatTensor<FullPrecisionBackend<B>, D> {
+        <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
+    }
 
     /// Converts a tensor from full precision.
     ///
@@ -881,7 +927,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same values as `tensor` but with the precision of the backend.
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<B>, D>,
-    ) -> FloatTensor<B, D>;
+    ) -> FloatTensor<B, D> {
+        <B::FullPrecisionBridge as BackendBridge<B>>::from_target(tensor, None)
+    }
 
     /// Returns a new tensor with exponential values.
     ///
@@ -1046,17 +1094,26 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with error function values.
     fn float_erf<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Catcatenates tensors along a dimension.
+    /// Concatenates tensors along a dimension.
     ///
     /// # Arguments
     ///
-    /// * `tensors` - The tensors to catcatenate.
-    /// * `dim` - The dimension along which to catcatenate.
+    /// * `tensors` - The tensors to concatenate.
+    /// * `dim` - The dimension along which to concatenate.
     ///
     /// # Returns
     ///
-    /// A tensor with the catcatenated tensors along `dim`.
-    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D>;
+    /// A tensor with the concatenated tensors along `dim`.
+    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
+        cat_with_slice_assign::<B, D, Float>(
+            tensors
+                .into_iter()
+                .map(Tensor::<B, D>::from_primitive)
+                .collect(),
+            dim,
+        )
+        .into_primitive()
+    }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -1220,8 +1277,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A vectors of tensors
-    ///
+    /// A vector of tensors
     fn float_chunk<const D: usize>(
         tensor: FloatTensor<B, D>,
         chunks: usize,
@@ -1258,7 +1314,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
-
     fn float_any_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
@@ -1321,5 +1376,78 @@ pub trait FloatTensorOps<B: Backend> {
         let mut result = B::float_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
         result = B::float_mask_fill(result, greater_than_zero, 1.0f32.elem());
         result
+    }
+
+    /// Broadcasts the float `tensor` to the given `shape`.
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<B, D2>;
+
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn float_sort<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> FloatTensor<B, D> {
+        sort::<B, D, Float>(tensor, dim, descending)
+    }
+
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// the elements are sorted by value and the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn float_sort_with_indices<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
+        sort_with_indices::<B, D, Float>(tensor, dim, descending)
+    }
+
+    /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn float_argsort<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        argsort::<B, D, Float>(tensor, dim, descending)
     }
 }

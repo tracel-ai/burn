@@ -7,7 +7,7 @@ use crate::{
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
-    ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
+    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
@@ -16,11 +16,12 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 
 use super::maxmin::MaxMinDim;
+use super::sort::SortDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
@@ -735,6 +736,62 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => prep.finish(axes, B::float_permute(tensor.primitive, axes)),
             OpsKind::UnTracked(prep) => prep.finish(B::float_permute(tensor.primitive, axes)),
+        }
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct FlipDim;
+
+        #[derive(new, Debug)]
+        struct RetroFlipDims<B: Backend, const D: usize> {
+            input_id: NodeID,
+            axes: Vec<usize>,
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D: usize> RetroForward for RetroFlipDims<B, D> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let input = states.get_state::<B::FloatTensorPrimitive<D>>(&self.input_id);
+                let out = B::float_flip(input, &self.axes);
+                states.save(out_node, out)
+            }
+        }
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for FlipDim {
+            type State = Vec<usize>;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let axes = ops.state;
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_flip(grad, &axes)
+                });
+            }
+        }
+
+        match FlipDim
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroFlipDims::<B, D>::new(
+                tensor.node.id.clone(),
+                axes.to_vec(),
+            ))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                prep.finish(axes.to_vec(), B::float_flip(tensor.primitive, axes))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_flip(tensor.primitive, axes)),
         }
     }
 
@@ -1564,107 +1621,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        #[derive(Debug)]
-        struct ToFullPrecision<B: Backend> {
-            phantom: PhantomData<B>,
-        }
-
-        #[derive(new, Debug)]
-        struct RetroToFullPrecision<B: Backend, const D: usize> {
-            tensor_id: NodeID,
-            _backend: PhantomData<B>,
-        }
-
-        impl<B: Backend, const D: usize> RetroForward for RetroToFullPrecision<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor = states.get_state::<B::FloatTensorPrimitive<D>>(&self.tensor_id);
-                let out = B::float_to_full_precision(&tensor);
-                states.save(out_node, out)
-            }
-        }
-
-        impl<B: Backend, const D: usize> Backward<B::FullPrecisionBackend, D, 1> for ToFullPrecision<B> {
-            type State = ();
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                unary_different_backend::<B, B::FullPrecisionBackend, D, D, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| B::float_from_full_precision(grad),
-                );
-            }
-        }
-
-        let ops = ToFullPrecision::<B> {
-            phantom: PhantomData,
-        };
-        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
-            .memory_bound()
-            .retro_forward(RetroToFullPrecision::<B, D>::new(tensor.node.id.clone()))
-            .parents([tensor])
-            .stateless(B::float_to_full_precision(&tensor.primitive))
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        #[derive(Debug)]
-        struct FromFullPrecision<B: Backend> {
-            phantom: PhantomData<B>,
-        }
-
-        #[derive(new, Debug)]
-        struct RetroFromFullPrecision<B: Backend, const D: usize> {
-            tensor_id: NodeID,
-            _backend: PhantomData<B>,
-        }
-
-        impl<B: Backend, const D: usize> RetroForward for RetroFromFullPrecision<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor = states.get_state::<<<B as Backend>::FullPrecisionBackend as Backend>::FloatTensorPrimitive<D>>(&self.tensor_id);
-                let out = B::float_from_full_precision(tensor);
-                states.save(out_node, out)
-            }
-        }
-
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<B::FullPrecisionBackend> {
-            type State = ();
-
-            fn backward(
-                self,
-                ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
-            ) {
-                unary_different_backend::<B::FullPrecisionBackend, B, D, D, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| B::float_to_full_precision(&grad),
-                );
-            }
-        }
-
-        let ops = FromFullPrecision::<B::FullPrecisionBackend> {
-            phantom: PhantomData,
-        };
-
-        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
-            .memory_bound()
-            .retro_forward(RetroFromFullPrecision::<B, D>::new(tensor.node.id.clone()))
-            .parents([&tensor])
-            .stateless(B::float_from_full_precision(tensor.primitive))
-    }
-
     fn float_argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
         B::float_argmax(tensor.primitive, dim)
     }
@@ -2379,6 +2335,142 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .parents([&tensor])
             .stateless(B::float_sign(tensor.primitive))
     }
+
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        #[derive(Debug)]
+        struct ExpandDim<const D1: usize, const D2: usize>;
+
+        #[derive(new, Debug)]
+        struct RetroExpand<B: Backend, const D1: usize, const D2: usize> {
+            input_id: NodeID,
+            shape: Shape<D2>,
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize> RetroForward for RetroExpand<B, D1, D2> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let input = states.get_state::<B::FloatTensorPrimitive<D1>>(&self.input_id);
+                let out = B::float_expand(input, self.shape.clone());
+                states.save(out_node, out)
+            }
+        }
+
+        impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for ExpandDim<D1, D2> {
+            type State = Shape<D1>;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let shape_original = ops.state;
+
+                let mut shape_expanded = [1; D2];
+
+                debug_assert!(D2 >= D1);
+
+                for i in 0..D1 {
+                    shape_expanded[i + (D2 - D1)] = shape_original.dims[i];
+                }
+
+                unary::<B, D2, D1, _>(ops.parents, ops.node, grads, |grad| {
+                    let shape_grad = B::float_shape(&grad);
+                    let mut grad = grad;
+
+                    #[allow(clippy::needless_range_loop)]
+                    for i in 0..D2 {
+                        if shape_expanded[i] == 1 && shape_grad.dims[i] != 1 {
+                            grad = B::float_sum_dim(grad, i);
+                        }
+                    }
+
+                    B::float_reshape(grad, shape_original)
+                });
+            }
+        }
+
+        match ExpandDim
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroExpand::<B, D1, D2>::new(
+                tensor.node.id.clone(),
+                shape.clone(),
+            ))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                B::float_shape(&tensor.primitive),
+                B::float_expand(tensor.primitive, shape),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_expand(tensor.primitive, shape)),
+        }
+    }
+
+    fn float_sort<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> FloatTensor<Self, D> {
+        match SortDim
+            .prepare::<C>([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = B::float_shape(&tensor.primitive);
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                prep.finish((indices, shape), tensor)
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_sort(tensor.primitive, dim, descending))
+            }
+        }
+    }
+
+    fn float_sort_with_indices<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
+        match SortDim
+            .prepare::<C>([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let shape = B::float_shape(&tensor.primitive);
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                let tensor = prep.finish((indices.clone(), shape), tensor);
+
+                (tensor, indices)
+            }
+            OpsKind::UnTracked(prep) => {
+                let (tensor, indices) =
+                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                let tensor = prep.finish(tensor);
+
+                (tensor, indices)
+            }
+        }
+    }
+
+    fn float_argsort<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<B, D> {
+        B::float_argsort(tensor.primitive, dim, descending)
+    }
+
+    // TODO: Implement float_prod and float_sum
+    // https://github.com/tracel-ai/burn/issues/1458
 }
 
 #[derive(Debug, Clone)]

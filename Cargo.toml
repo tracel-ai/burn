@@ -43,14 +43,14 @@ js-sys = "0.3.69"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.21" }
 pretty_assertions = "1.4"
-proc-macro2 = "1.0.69"
+proc-macro2 = "1.0.79"
 protobuf = "3.3"
 protobuf-codegen = "3.3"
 quote = "1.0.33"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
-rayon = "1.9.0"
-regex = "1.10.2"
+rayon = "1.10.0"
+regex = "1.10.4"
 reqwest = "0.11.25"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
@@ -64,7 +64,7 @@ strum = "0.25.0"
 strum_macros = "0.25.3"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 tempfile = "3.10.1"
-thiserror = "1.0.57"
+thiserror = "1.0.58"
 tokio = { version = "1.36.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.32"
@@ -90,9 +90,11 @@ text_placeholder = "0.5.0"
 pollster = "0.3"
 wgpu = "0.18.0"
 
-# Burnbench
-arboard = "3.3.1"
+# Benchmarks and Burnbench
+arboard = "3.3.2"
 github-device-flow = "0.2.0"
+os_info = "3.8.2"
+wsl = "0.1.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
@@ -130,7 +132,7 @@ uuid = { version = "1.5.0", default-features = false }
 libc = "0.2.153"
 tch = "0.15.0"
 nvml-wrapper = "0.9.0"
-sysinfo = "0.29.10"
+sysinfo = "0.30.7"
 systemstat = "0.2.3"
 
 

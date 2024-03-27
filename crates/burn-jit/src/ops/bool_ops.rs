@@ -4,7 +4,7 @@ use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
 
-use super::permute;
+use super::{expand, permute};
 
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
@@ -73,13 +73,6 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         kernel::slice_assign(tensor, ranges, value)
     }
 
-    fn bool_cat<const D: usize>(
-        tensors: Vec<BoolTensor<Self, D>>,
-        dim: usize,
-    ) -> BoolTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn bool_equal<const D: usize>(
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
@@ -119,5 +112,19 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         axes: [usize; D],
     ) -> BoolTensor<Self, D> {
         permute(tensor, axes)
+    }
+
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
+        expand(tensor, shape)
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        kernel::flip(tensor, axes)
     }
 }

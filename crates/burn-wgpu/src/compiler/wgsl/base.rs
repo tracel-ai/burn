@@ -18,6 +18,7 @@ pub enum Variable {
         scope_depth: u8,
     },
     SharedMemory(u16, Item, u32),
+    LocalArray(u16, Item, u8, u32),
     Id,
     LocalInvocationIndex,
     LocalInvocationIdX,
@@ -79,6 +80,7 @@ impl Variable {
             Variable::GlobalInputArray(_, _) => false,
             Variable::GlobalOutputArray(_, _) => false,
             Variable::SharedMemory(_, _, _) => false,
+            Variable::LocalArray(_, _, _, _) => false,
             Variable::Local {
                 index: _,
                 item: _,
@@ -110,6 +112,7 @@ impl Variable {
             Self::GlobalInputArray(_, e) => *e,
             Self::GlobalOutputArray(_, e) => *e,
             Self::SharedMemory(_, e, _) => *e,
+            Self::LocalArray(_, e, _, _) => *e,
             Self::Local {
                 index: _,
                 item,
@@ -221,6 +224,9 @@ impl Display for Variable {
             },
             Variable::SharedMemory(number, _, _) => {
                 f.write_fmt(format_args!("shared_memory_{number}"))
+            }
+            Variable::LocalArray(number, _, scope_depth, _) => {
+                f.write_fmt(format_args!("a_{scope_depth}_{number}"))
             }
             Variable::Id => f.write_str("id"),
             Variable::LocalInvocationIndex => f.write_str("local_idx"),

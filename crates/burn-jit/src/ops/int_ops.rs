@@ -1,4 +1,4 @@
-use super::{numeric, permute};
+use super::{expand, numeric, permute};
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::{kernel, unary, JitBackend, Runtime};
@@ -107,10 +107,6 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
         kernel::select_assign(tensor, dim, indices, value)
-    }
-
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
-        kernel::cat(tensors, dim)
     }
 
     fn int_equal<const D: usize>(
@@ -255,6 +251,14 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         kernel::reduce::sum_dim(tensor, dim, Default::default())
     }
 
+    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+        kernel::reduce::prod(tensor, Default::default())
+    }
+
+    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        kernel::reduce::prod_dim(tensor, dim, Default::default())
+    }
+
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         kernel::reduce::mean_dim(tensor, dim, Default::default())
     }
@@ -334,5 +338,16 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         axes: [usize; D],
     ) -> IntTensor<Self, D> {
         permute(tensor, axes)
+    }
+
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<Self, D2> {
+        expand(tensor, shape)
+    }
+
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        kernel::flip(tensor, axes)
     }
 }

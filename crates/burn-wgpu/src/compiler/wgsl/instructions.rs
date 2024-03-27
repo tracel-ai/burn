@@ -210,6 +210,14 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Floor {
+        input: Variable,
+        out: Variable,
+    },
+    Ceil {
+        input: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -460,6 +468,12 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::ShiftRight { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} >> {rhs};\n"))
+            }
+            Instruction::Floor { input, out } => {
+                f.write_fmt(format_args!("{out} = floor({input});\n"))
+            }
+            Instruction::Ceil { input, out } => {
+                f.write_fmt(format_args!("{out} = ceil({input});\n"))
             }
         }
     }

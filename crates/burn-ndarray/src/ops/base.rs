@@ -1,9 +1,12 @@
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
+use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
+use ndarray::IntoDimension;
+use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
 
@@ -14,7 +17,7 @@ use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
 use crate::element::NdArrayElement;
-use crate::ops::macros::{keepdim, mean_dim, sum_dim};
+use crate::ops::macros::{keepdim, mean_dim, prod_dim, sum_dim};
 use crate::{reshape, tensor::NdArrayTensor};
 
 pub struct NdArrayOps<E> {
@@ -27,7 +30,7 @@ pub(crate) struct NdArrayMathOps<E> {
 
 impl<E> NdArrayOps<E>
 where
-    E: Copy,
+    E: Copy + Debug,
 {
     pub fn slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
@@ -108,6 +111,50 @@ where
     ) -> NdArrayTensor<E, D> {
         let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
+
+        NdArrayTensor::new(array)
+    }
+
+    /// Broadcasts the tensor to the given shape
+    pub(crate) fn expand<const D1: usize, const D2: usize>(
+        tensor: NdArrayTensor<E, D1>,
+        shape: Shape<D2>,
+    ) -> NdArrayTensor<E, D2> {
+        let array = tensor
+            .array
+            .broadcast(shape.dims.into_dimension())
+            .expect("The shapes should be broadcastable")
+            // need to convert view to owned array because NdArrayTensor expects owned array
+            // and try_into_owned_nocopy() panics for broadcasted arrays (zero strides)
+            .into_owned()
+            .into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub fn flip<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        axes: &[usize],
+    ) -> NdArrayTensor<E, D> {
+        let slice_items: Vec<_> = (0..D)
+            .map(|i| {
+                if axes.contains(&i) {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: None,
+                        step: -1,
+                    }
+                } else {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: None,
+                        step: 1,
+                    }
+                }
+            })
+            .collect();
+        let slice_info =
+            SliceInfo::<Vec<SliceInfoElem>, IxDyn, IxDyn>::try_from(slice_items).unwrap();
+        let array = tensor.array.slice(slice_info).into_owned().into_shared();
 
         NdArrayTensor::new(array)
     }
@@ -202,6 +249,11 @@ where
         NdArrayTensor::from_data(data)
     }
 
+    pub fn prod<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        let data = Data::from([tensor.array.product()]);
+        NdArrayTensor::from_data(data)
+    }
+
     pub fn mean_dim<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
@@ -225,6 +277,21 @@ where
             4 => keepdim!(3, dim, tensor, sum),
             5 => keepdim!(4, dim, tensor, sum),
             6 => keepdim!(5, dim, tensor, sum),
+            _ => panic!("Dim not supported {D}"),
+        }
+    }
+
+    pub fn prod_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
+        match D {
+            1 => keepdim!(0, dim, tensor, prod),
+            2 => keepdim!(1, dim, tensor, prod),
+            3 => keepdim!(2, dim, tensor, prod),
+            4 => keepdim!(3, dim, tensor, prod),
+            5 => keepdim!(4, dim, tensor, prod),
+            6 => keepdim!(5, dim, tensor, prod),
             _ => panic!("Dim not supported {D}"),
         }
     }

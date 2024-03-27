@@ -7,7 +7,7 @@ use crate::tensor::{backend::Backend, Tensor};
 use super::{GroupNorm, GroupNormConfig};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer.
-#[derive(Config)]
+#[derive(Debug, Config)]
 pub struct InstanceNormConfig {
     /// The number of channels expected in the input
     num_channels: usize,

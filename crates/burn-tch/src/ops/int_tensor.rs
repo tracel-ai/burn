@@ -263,6 +263,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::sum_dim(tensor, dim)
     }
 
+    fn int_prod<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
+        TchOps::prod(tensor)
+    }
+
+    fn int_prod_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::prod_dim(tensor, dim)
+    }
+
     fn int_mean<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
         let tensor: TchTensor<f64, D> =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
@@ -466,9 +474,39 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn int_flip<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+        axes: &[usize],
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn int_sign<const D: usize>(
         tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
     ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
         TchOps::sign(tensor)
+    }
+
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::IntTensor<Self, D2> {
+        TchOps::expand(tensor, shape)
+    }
+
+    fn int_sort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::sort(tensor, dim, descending)
+    }
+
+    fn int_argsort<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        descending: bool,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::argsort(tensor, dim, descending)
     }
 }

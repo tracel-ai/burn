@@ -141,6 +141,7 @@ pub enum BaseOperationDescription {
     /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
     Reshape(ReshapeDescription),
+
     /// Operation corresponding to:
     ///
     /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
@@ -154,6 +155,19 @@ pub enum BaseOperationDescription {
     /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
     /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
     Permute(PermuteOperationDescription),
+
+    /// Operation corresponding to:
+    /// Float => [flip](burn_tensor::ops::FloatTensorOps::float_flip).
+    /// Int => [flip](burn_tensor::ops::IntTensorOps::int_flip).
+    /// Bool => [flip](burn_tensor::ops::BoolTensorOps::bool_flip).
+    Flip(FlipOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [expand](burn_tensor::ops::FloatTensorOps::float_expand).
+    /// Int => [expand](burn_tensor::ops::IntTensorOps::int_expand).
+    /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
+    Expand(ExpandOperationDescription),
 
     /// Operation corresponding to:
     ///
@@ -300,6 +314,19 @@ pub enum NumericOperationDescription<E> {
     /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
     SumDim(ScalarOperationDescription<usize>),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
+    /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
+    Prod(UnaryOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
+    /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
+    ProdDim(ScalarOperationDescription<usize>),
+
     /// Operation corresponding to:
     ///
     /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
@@ -443,6 +470,28 @@ pub struct PermuteOperationDescription {
     pub axes: Vec<usize>,
 }
 
+/// Expand operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct ExpandOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// Output tensor description.
+    pub out: TensorDescription,
+    /// The new shape.
+    pub shape: Vec<usize>,
+}
+
+/// Flip operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct FlipOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// Output tensor description.
+    pub out: TensorDescription,
+    /// The dimensions to flip.
+    pub axes: Vec<usize>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct RandomOperationDescription {
@@ -453,6 +502,13 @@ pub struct RandomOperationDescription {
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ExpandDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
@@ -1021,8 +1077,15 @@ impl BaseOperationDescription {
             BaseOperationDescription::SwapDims(desc) => {
                 vec![&desc.input, &desc.out]
             }
-
             BaseOperationDescription::Permute(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+
+            BaseOperationDescription::Expand(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+
+            BaseOperationDescription::Flip(desc) => {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::Slice(desc) => {
@@ -1139,6 +1202,12 @@ impl<E: Element> NumericOperationDescription<E> {
                 vec![&desc.input, &desc.out]
             }
             NumericOperationDescription::SumDim(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            NumericOperationDescription::Prod(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+            NumericOperationDescription::ProdDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
             NumericOperationDescription::Max(desc) => {
@@ -1358,6 +1427,8 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::Mean(desc) => desc.hash(state),
             NumericOperationDescription::Sum(desc) => desc.hash(state),
             NumericOperationDescription::SumDim(desc) => desc.hash(state),
+            NumericOperationDescription::Prod(desc) => desc.hash(state),
+            NumericOperationDescription::ProdDim(desc) => desc.hash(state),
             NumericOperationDescription::EqualElem(desc) => desc.hash(state),
             NumericOperationDescription::Greater(desc) => desc.hash(state),
             NumericOperationDescription::GreaterElem(desc) => desc.hash(state),

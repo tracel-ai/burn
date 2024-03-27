@@ -29,17 +29,23 @@ wgpu-fusion = ["wgpu", "burn/fusion"]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.13.0" }
+burn-wgpu = { path = "../crates/burn-wgpu", version = "0.13.0" }
 clap = { workspace = true }
 crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
-github-device-flow  = { workspace = true }
+github-device-flow = { workspace = true }
+os_info = { workspace = true }
 rand = { workspace = true }
 ratatui = { workspace = true, optional = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
+serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
+sysinfo = { workspace = true, features = ["serde"] }
+wgpu = { workspace = true }
+wsl = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
@@ -54,7 +60,8 @@ name = "binary"
 harness = false
 
 [[bench]]
-name = "max_pool2d"
+name = "max-pool2d"
+path = "benches/max_pool2d.rs"
 harness = false
 
 [[bench]]
@@ -66,7 +73,8 @@ name = "data"
 harness = false
 
 [[bench]]
-name = "custom_gelu"
+name = "custom-gelu"
+path = "benches/custom_gelu.rs"
 harness = false
 
 [[bin]]
