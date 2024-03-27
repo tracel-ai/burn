@@ -60,9 +60,9 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     ///
     /// # Warnings
     ///
-    /// We strongly recommand using [Param::uninitialized] if you are using this method to initilize
-    /// parameters inside a module, since the tensor initialization will be lazy, making the
-    /// loading of weights more performant.
+    /// We strongly recommend using [Param::uninitialized] if you are using this method to
+    /// initialize parameters inside a module, since the tensor initialization will be lazy,
+    /// making the loading of weights more performant.
     pub fn from_tensor(value: Tensor<B, D>) -> Self {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.

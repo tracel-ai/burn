@@ -71,7 +71,7 @@ impl<B: Backend> ModuleComposed<B> {
         .init([20, 20], device);
 
         Self {
-            weight: weight,
+            weight,
             basic: ModuleBasic::new(device),
             tuple: (ModuleBasic::new(device), ModuleBasic::new(device)),
         }

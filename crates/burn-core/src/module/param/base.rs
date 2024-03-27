@@ -9,7 +9,7 @@ use once_cell::sync::OnceCell;
 /// training, and loaded during inference. If you don't want to save the tensors with a record
 /// and/or don't want to update it during training, you don't need this type to wrap your tensor.
 ///
-/// # Lazyness
+/// # Laziness
 ///
 /// The initialization of parameters can be lazy when created using
 /// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::nn::Initializer).
@@ -34,11 +34,14 @@ pub struct Param<T: Parameter> {
     state: OnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
-    /// Because of [once cell](OnceCell), we have a garanty that the initialization will only be called once,
+    /// Because of [OnceCell](OnceCell), we have a guarantee that the initialization will only be called once,
     /// but it may be called at the same time as `lazy_device` and `lazy_is_require_grad`, which is
-    /// when the lock is actually useful, waiting the the initialization to be completed before
+    /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
-    initialization: RwLock<Option<Uninitialized<T>>>,
+    ///
+    /// To avoid creating locks on already initialized parameter, we wrap the lock inside an
+    /// Option, the inner option is required for resetting the state onced initialized.
+    initialization: Option<RwLock<Option<Uninitialized<T>>>>,
 }
 
 impl<T: Parameter> core::fmt::Display for Param<T> {
@@ -53,19 +56,22 @@ impl<T: Parameter> core::fmt::Debug for Param<T> {
     }
 }
 
-/// Trait that defines that is necessary for a type to be a parameter.
+/// Trait that defines what is necessary for a type to be a parameter.
 pub trait Parameter: Clone + core::fmt::Debug + Send + Sync {
     /// The device type to be used.
     type Device: Clone;
 
     /// Fetch the device.
     fn device(&self) -> Self::Device;
+
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
+
     /// Set the gradient requirement.
     fn set_require_grad(self, require_grad: bool) -> Self;
 }
 
+#[allow(clippy::type_complexity)]
 struct Uninitialized<P: Parameter> {
     init: Box<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
     device: P::Device,
@@ -80,16 +86,16 @@ impl<P: Parameter> Uninitialized<P> {
 }
 
 impl<T: Parameter> Param<T> {
-    /// Create a new parameter the is already initialized.
+    /// Create a new parameter that is already initialized.
     pub fn initialized(id: ParamId, value: T) -> Self {
         Self {
             id,
             state: OnceCell::with_value(value),
-            initialization: RwLock::new(None),
+            initialization: None,
         }
     }
 
-    /// Create a new parameter the is not initialized.
+    /// Create a new parameter that is not already initialized.
     pub fn uninitialized<F>(id: ParamId, init: F, device: T::Device, is_require_grad: bool) -> Self
     where
         F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
@@ -97,24 +103,25 @@ impl<T: Parameter> Param<T> {
         Self {
             id,
             state: OnceCell::new(),
-            initialization: RwLock::new(Some(Uninitialized {
+            initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
                 is_require_grad,
-            })),
+            }))),
         }
     }
 
     /// Gets the parameter value.
-    ///
-    /// # Returns
-    ///
-    /// The parameter value.
     pub fn val(&self) -> T {
         self.state
             .get_or_init(|| {
-                let mut result = self.initialization.write().unwrap();
-                let state = result.as_ref().expect("Should be something.");
+                let mut result = self
+                    .initialization
+                    .as_ref()
+                    .expect("Should have an initialization when no state provided.")
+                    .write()
+                    .unwrap();
+                let state = result.as_ref().expect("Should exist when not initialized");
                 let tensor = state.initialize();
 
                 *result = None;
@@ -124,26 +131,22 @@ impl<T: Parameter> Param<T> {
             .clone()
     }
 
-    /// Gets the parameter value while consuming the parameter.
-    ///
-    /// # Returns
-    ///
-    /// The parameter value.
+    /// Gets the parameter's value while consuming the parameter.
     pub fn into_value(self) -> T {
         self.consume().1
     }
 
     /// Gets the parameter id and value while consuming the parameter.
-    ///
-    /// # Returns
-    ///
-    /// The parameter value.
     pub fn consume(self) -> (ParamId, T) {
         let state = self.state.into_inner();
         let tensor = match state {
             Some(tensor) => tensor,
             None => {
-                let val = self.initialization.write();
+                let val = self
+                    .initialization
+                    .as_ref()
+                    .expect("Should have an initialization when no state provided.")
+                    .write();
                 val.unwrap().as_ref().unwrap().initialize()
             }
         };
@@ -159,7 +162,7 @@ impl<T: Parameter> Param<T> {
         Self {
             id,
             state: OnceCell::with_value(tensor),
-            initialization: RwLock::new(None),
+            initialization: None,
         }
     }
 
@@ -168,15 +171,20 @@ impl<T: Parameter> Param<T> {
     /// This should be used instead of [crate::tensor::Tensor::device], since using the tensor
     /// function requires a dereference, which triggers the initialization. This is only useful
     /// when the device is used for updating the tensor value, which has potentially not been
-    /// initialized yet like loading a record.
+    /// initialized yet, like loading a record.
     ///
     /// # Notes
     ///
-    /// This is a crate private function, since users are not expected to use the device of an
-    /// uninitialized module to then override its value. All low level functions should be provided
-    /// by burn and should handle those details.
+    /// This is a crate-private function, since users are not expected to use the device of an
+    /// uninitialized module to then override its value. All low-level functions should be provided
+    /// by `burn` and should handle those details.
     pub(crate) fn lazy_device(&self) -> T::Device {
-        let init = self.initialization.read().unwrap();
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.device(),
+        };
+
+        let init = initialization.read().unwrap();
 
         match init.as_ref() {
             Some(value) => value.device.clone(),
@@ -189,15 +197,20 @@ impl<T: Parameter> Param<T> {
     /// This should be used instead of [crate::tensor::Tensor::is_require_grad], since using the tensor
     /// function requires a dereference, which triggers the initialization. This is only useful
     /// when the boolean is used for updating the tensor value, which has potentially not been
-    /// initialized yet like loading a record.
+    /// initialized yet, like loading a record.
     ///
     /// # Notes
     ///
-    /// This is a crate private function, since users are not expected to use `is_require_grad` of an
-    /// uninitialized module to then override its value. All low level functions should be provided
-    /// by burn and should handle those details.
+    /// This is a crate-private function, since users are not expected to use `is_require_grad` of an
+    /// uninitialized module to then override its value. All low-level functions should be provided
+    /// by `burn` and should handle those details.
     pub(crate) fn lazy_is_require_grad(&self) -> bool {
-        let init = self.initialization.read().unwrap();
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.is_require_grad(),
+        };
+
+        let init = initialization.read().unwrap();
 
         match init.as_ref() {
             Some(value) => value.is_require_grad,
@@ -207,7 +220,12 @@ impl<T: Parameter> Param<T> {
 
     /// Override the gradient requirement for the current parameter.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        let mut init = self.initialization.write().unwrap();
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.map(|tensor| tensor.set_require_grad(require_grad)),
+        };
+
+        let mut init = initialization.write().unwrap();
         let mut is_lazy = false;
 
         if let Some(value) = init.as_mut() {
@@ -236,8 +254,14 @@ impl<T: Parameter> Deref for Param<T> {
 
     fn deref(&self) -> &Self::Target {
         self.state.get_or_init(|| {
-            let mut result = self.initialization.write().unwrap();
-            let state = result.as_ref().expect("Should be something.");
+            let mut result = self
+                .initialization
+                .as_ref()
+                .expect("Should have an initialization when no state provided.")
+                .write()
+                .unwrap();
+
+            let state = result.as_ref().expect("Should exist when not initialized");
             let tensor = state.initialize();
 
             *result = None;
