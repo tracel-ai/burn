@@ -19,6 +19,8 @@ pub use unary::*;
 
 /// Convolution kernels
 pub mod conv;
+/// Fourier kernels
+pub mod fft;
 /// Interpolation kernels
 pub mod interpolate;
 /// Matmul kernels

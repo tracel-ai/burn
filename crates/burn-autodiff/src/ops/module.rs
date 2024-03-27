@@ -1034,9 +1034,9 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     fn fft(
         _x: AutodiffTensor<B, 3>,
     ) -> AutodiffTensor<B, 3> {
-        // This should be doable.
-        //  FFT is just a linear operation so can just FFT the grads?
-        todo!();
+        // Imaginary gradients = not practical. People use FFT for feature 
+        //  extraction.
+        panic!("Can't differentiate forwards FFT.");
     }
 
     fn fft_backward(

@@ -12,6 +12,18 @@ mod tests {
     }
 
     #[test]
+    fn test_fft_1d_delta() {
+        // Delta function -> Flat frequency spectrum: this is a helpful case for debugging
+        let x = TestTensor::from([[[1., 0.], [0., 0.]], [[0., 1.], [0., 0.]]]);
+        let x_hat = TestTensor::from([[[1., 0.], [1., 0.]], [[0., 1.], [0., 1.]]]);
+        
+        println!("{:?}", fft(x.clone()).into_data());
+        println!("{:?}", x_hat.clone().into_data());
+
+        assert_output(fft(x), x_hat);
+    }
+
+    #[test]
     fn test_fft_1d() {
         let x = TestTensor::from([[[1., 3.], [2.3, -1.]], [[-1., 0.], [-1., 0.]]]);
         let x_hat = TestTensor::from([[[3.3, 2.0], [-1.3, 4.0]], [[-2.0, 0.0], [0.0, 0.0]]]);
@@ -58,6 +70,7 @@ mod tests {
             [1.33188949, -3.48565032],
             [-5.82027771, -0.41122816],
         ]]);
+
         assert_output(fft(x), x_hat);
     }
 
@@ -205,6 +218,8 @@ mod tests {
                 [1.21945188, -0.61938535],
             ],
         ]);
+
+        assert_output(fft(x), x_hat);
     }
 
     fn assert_output(x: TestTensor<3>, y: TestTensor<3>) {

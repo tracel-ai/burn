@@ -2,7 +2,7 @@ use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
-    fft::{fft1d},
+    fft::fft1d,
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
