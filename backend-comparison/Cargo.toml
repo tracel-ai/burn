@@ -10,7 +10,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
 version.workspace = true
 
 [features]
-default = ["burn/std", "burn/autodiff"]
+# we depend on wgpu and autotune by default because we use the burn-wgpu crate to get system information
+default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
 candle-cpu = ["burn/candle"]
 candle-cuda = ["burn/candle", "burn/cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
@@ -29,7 +30,7 @@ wgpu-fusion = ["wgpu", "burn/fusion"]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.13.0" }
-burn-wgpu = { path = "../crates/burn-wgpu", version = "0.13.0" }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.13.0" }
 clap = { workspace = true }
 crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
