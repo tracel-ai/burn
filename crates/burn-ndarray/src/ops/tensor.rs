@@ -332,22 +332,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
-    fn float_to_full_precision<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<f32, D> {
-        let array = tensor.array.mapv(|a| a.elem()).into_shared();
-
-        NdArrayTensor::new(array)
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: NdArrayTensor<f32, D>,
-    ) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.elem()).into_shared();
-
-        NdArrayTensor::new(array)
-    }
-
     fn float_argmax<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,

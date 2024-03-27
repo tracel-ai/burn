@@ -2,7 +2,7 @@ use crate::tensor::ops::tensor::FloatTensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
-use super::FloatTensor;
+use super::{FloatTensor, FullPrecisionBackend};
 
 /// Activation function operations.
 ///
@@ -147,13 +147,16 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        let tensor_full = B::float_to_full_precision(&tensor);
-        let tensor_tmp = B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(
-            B::FullPrecisionBackend::float_log(B::FullPrecisionBackend::float_add_scalar(
-                B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(tensor_full)),
-                1.0.elem(),
-            )),
-        ));
+        let tensor_full = B::float_into_full_precision(tensor);
+        let tensor_tmp =
+            FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                FullPrecisionBackend::<B>::float_log(FullPrecisionBackend::<B>::float_add_scalar(
+                    FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                        tensor_full,
+                    )),
+                    1.0.elem(),
+                )),
+            ));
 
         B::float_from_full_precision(tensor_tmp)
     }
