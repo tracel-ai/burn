@@ -92,6 +92,7 @@ represent the corresponding Burn Op.
 | [LRN][92]                        |       ❌       |      ❌      |
 | [LSTM][93]                       |       ❌       |      ✅      |
 | [LayerNormalization][82]         |       ❌       |      ✅      |
+| [LeakyRelu][83]                  |       ✅       |      ✅      |
 | [LeakyRelu][83]                  |       ❌       |      ❌      |
 | [LessOrEqual][85]                |       ❌       |      ✅      |
 | [Less][84]                       |       ❌       |      ✅      |
