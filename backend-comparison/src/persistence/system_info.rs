@@ -8,6 +8,23 @@ use wgpu;
 pub(crate) struct BenchmarkSystemInfo {
     cpus: Vec<String>,
     gpus: Vec<String>,
+    os: BenchmarkOSInfo,
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub(crate) struct BenchmarkOSInfo {
+    name: String,
+    #[serde(rename = "wsl")]
+    windows_linux_subsystem: bool,
+}
+
+impl From<os_info::Info> for BenchmarkOSInfo {
+    fn from(info: os_info::Info) -> Self {
+        BenchmarkOSInfo {
+            name: format!("{}", info),
+            windows_linux_subsystem: wsl::is_wsl(),
+        }
+    }
 }
 
 impl BenchmarkSystemInfo {
@@ -15,6 +32,7 @@ impl BenchmarkSystemInfo {
         Self {
             cpus: BenchmarkSystemInfo::enumerate_cpus(),
             gpus: BenchmarkSystemInfo::enumerate_gpus(),
+            os: BenchmarkOSInfo::from(os_info::get()),
         }
     }
 

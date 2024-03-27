@@ -14,6 +14,7 @@ pub mod client;
 pub mod stream;
 
 mod backend;
+mod bridge;
 mod fusion;
 mod handle;
 mod ops;
@@ -23,6 +24,7 @@ mod tensor;
 pub(crate) use server::*;
 
 pub use backend::*;
+pub use bridge::*;
 pub use fusion::*;
 pub use handle::*;
 pub use tensor::*;
