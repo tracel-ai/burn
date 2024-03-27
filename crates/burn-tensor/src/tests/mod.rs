@@ -12,6 +12,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_gelu!();
         burn_tensor::testgen_mish!();
         burn_tensor::testgen_relu!();
+        burn_tensor::testgen_leaky_relu!();
         burn_tensor::testgen_softmax!();
         burn_tensor::testgen_softplus!();
         burn_tensor::testgen_sigmoid!();

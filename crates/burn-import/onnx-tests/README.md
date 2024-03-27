@@ -18,7 +18,7 @@ Here is the directory structure of this crate:
 
 ## Setting up your python environment
 
-You need to install `onnx==1.15.0` and `torch-2.1.1` in your python environment to add a new test
+You need to install `onnx==1.15.0` and `torch==2.1.1` in your python environment to add a new test
 
 ## Adding new tests
 

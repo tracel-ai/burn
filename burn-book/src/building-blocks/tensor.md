@@ -303,17 +303,18 @@ Those operations are only available for `Bool` tensors.
 
 ## Activation Functions
 
-| Burn API                                 | PyTorch Equivalent                         |
-| ---------------------------------------- | ------------------------------------------ |
-| `activation::gelu(tensor)`               | `nn.functional.gelu(tensor)`               |
-| `activation::log_sigmoid(tensor)`        | `nn.functional.log_sigmoid(tensor)`        |
-| `activation::log_softmax(tensor, dim)`   | `nn.functional.log_softmax(tensor, dim)`   |
-| `activation::mish(tensor)`               | `nn.functional.mish(tensor)`               |
-| `activation::prelu(tensor,alpha)`        | `nn.functional.prelu(tensor,weight)`       |
-| `activation::quiet_softmax(tensor, dim)` | `nn.functional.quiet_softmax(tensor, dim)` |
-| `activation::relu(tensor)`               | `nn.functional.relu(tensor)`               |
-| `activation::sigmoid(tensor)`            | `nn.functional.sigmoid(tensor)`            |
-| `activation::silu(tensor)`               | `nn.functional.silu(tensor)`               |
-| `activation::softmax(tensor, dim)`       | `nn.functional.softmax(tensor, dim)`       |
-| `activation::softplus(tensor, beta)`     | `nn.functional.softplus(tensor, beta)`     |
-| `activation::tanh(tensor)`               | `nn.functional.tanh(tensor)`               |
+| Burn API                                         | PyTorch Equivalent                                 |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
+| `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
+| `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
+| `activation::mish(tensor)`                       | `nn.functional.mish(tensor)`                       |
+| `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
+| `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
+| `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
+| `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
+| `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
+| `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
+| `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
+| `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
