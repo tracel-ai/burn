@@ -25,7 +25,7 @@ pub trait ActivationOps<B: Backend> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
         let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope.elem());
 
-        // Update the tensor where the values are `> 0` by `tensor * negative_slope`.
+        // Update the tensor where the values are `< 0` by `tensor * negative_slope`.
         B::float_mask_where(tensor, mask, scaled_tensor)
     }
 
