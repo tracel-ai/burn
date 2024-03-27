@@ -168,14 +168,14 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv1d = Conv1dConfig::new(3, 3, 3)
                         .with_stride(1)
                         .with_padding(PaddingConfig1d::Valid)
                         .with_dilation(1)
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv1d);
+                        .init(device);
 
                     Self {
                         conv1d,

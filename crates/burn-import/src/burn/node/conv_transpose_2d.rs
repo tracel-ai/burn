@@ -164,14 +164,14 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv_transpose_2d = ConvTranspose2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding([0, 0])
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv_transpose_2d);
+                        .init(device);
 
                     Self {
                         conv_transpose_2d,

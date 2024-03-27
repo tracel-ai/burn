@@ -192,11 +192,11 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let norm = BatchNormConfig::new(128)
                         .with_epsilon(0.00001f64)
                         .with_momentum(0.1f64)
-                        .init_with(record.norm);
+                        .init(device);
 
                     Self {
                         norm,

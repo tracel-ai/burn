@@ -236,7 +236,7 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
                     }
@@ -290,14 +290,14 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,
@@ -366,14 +366,14 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,

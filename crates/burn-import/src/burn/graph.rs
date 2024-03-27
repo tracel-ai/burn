@@ -440,7 +440,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .collect::<Vec<_>>();
 
         quote! {
-            #[allow(dead_code, unused_variables)]
+            #[allow(unused_variables)]
             pub fn new(device: &B::Device) -> Self {
                 #body
 
