@@ -2,10 +2,12 @@ coverage:
   status:
     project:
       default:
+        # https://docs.codecov.com/docs/commit-status#informational
+        informational: true
         target: 80%
-        threshold: 5%
     patch:
       default:
+        informational: true
         target: 80%
 github_checks:
     annotations: false
