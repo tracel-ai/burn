@@ -71,8 +71,9 @@ name = "data"
 harness = false
 
 [[bench]]
-name = "load_record"
+name = "load-record"
 harness = false
+path = "benches/load_record.rs"
 
 [[bench]]
 name = "custom-gelu"
