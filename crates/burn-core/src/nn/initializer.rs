@@ -100,10 +100,14 @@ impl Initializer {
 
         Param::uninitialized(
             ParamId::new(),
-            move |device| {
-                config
-                    .init_tensor(shape.clone(), fan_in, fan_out, device)
-                    .require_grad()
+            move |device, require_grad| {
+                let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+
+                if require_grad {
+                    tensor = tensor.require_grad();
+                }
+
+                tensor
             },
             device,
             true,

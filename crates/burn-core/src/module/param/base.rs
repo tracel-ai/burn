@@ -67,7 +67,7 @@ pub trait Parameter: Clone + core::fmt::Debug + Send + Sync {
 }
 
 struct Uninitialized<P: Parameter> {
-    init: Box<dyn Fn(&P::Device) -> P + Send + Sync>,
+    init: Box<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
     device: P::Device,
     is_require_grad: bool,
 }
@@ -75,7 +75,7 @@ struct Uninitialized<P: Parameter> {
 impl<P: Parameter> Uninitialized<P> {
     fn initialize(&self) -> P {
         let init = &self.init;
-        init(&self.device)
+        init(&self.device, self.is_require_grad)
     }
 }
 
@@ -92,7 +92,7 @@ impl<T: Parameter> Param<T> {
     /// Create a new parameter the is not initialized.
     pub fn uninitialized<F>(id: ParamId, init: F, device: T::Device, is_require_grad: bool) -> Self
     where
-        F: Fn(&T::Device) -> T + Send + Sync + 'static,
+        F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
