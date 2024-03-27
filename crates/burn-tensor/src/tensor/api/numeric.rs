@@ -743,14 +743,14 @@ where
     ///
     /// # Arguments
     ///
-    /// * `pads` - A tuple of four integers representing the padding on the left, right, top, and bottom.
+    /// * `padding` - A tuple of four integers representing the padding on the left, right, top, and bottom.
     /// * `value` - The value to pad the tensor with.
     ///
     /// # Returns
     ///
     /// A new tensor with the given padding.
-    pub fn pad(self, pads: (usize, usize, usize, usize), value: K::Elem) -> Tensor<B, D, K> {
-        let (left, right, top, bottom) = pads;
+    pub fn pad(self, padding: (usize, usize, usize, usize), value: K::Elem) -> Tensor<B, D, K> {
+        let (left, right, top, bottom) = padding;
 
         let mut padded_dims: [usize; D] = self.dims();
 
