@@ -104,5 +104,8 @@ macro_rules! testgen_all {
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
+
+        // test padding
+        burn_tensor::testgen_padding!();
     };
 }
