@@ -61,8 +61,8 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
     let channels_out = 16;
     let height_in = 64;
     let width_in = 64;
-    let kernel_size_0 = 4;
-    let kernel_size_1 = 4;
+    let kernel_size_0 = 8;
+    let kernel_size_1 = 8;
 
     // Options
     let strides = [1, 1];

@@ -17,10 +17,6 @@ use crate::{
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
 
-use super::conv_transpose2d_wgsl;
-
-const WGSL: bool = false;
-
 #[derive(new)]
 struct Conv2dTransposeEagerKernel<R, E> {
     _runtime: PhantomData<R>,
@@ -189,81 +185,95 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         gpu!(scope, tmp_u = cast(tmp_i));
         gpu!(scope, iw_end = min(tmp_u, input_shape_3));
 
-        let tmp1 = scope.create_local(Elem::UInt);
-        let tmp2 = scope.create_local(Elem::UInt);
-        let padding_cond_accumulator = scope.create_local(Elem::Bool);
-        let padding_cond_tmp = scope.create_local(Elem::Bool);
-
         let index_input = scope.create_local(Elem::UInt);
-        let index_input_tmp = scope.create_local(Elem::UInt);
         let index_weight = scope.create_local(Elem::UInt);
-        let index_weight_tmp = scope.create_local(Elem::UInt);
+
+        let index_input_b = scope.create_local(Elem::UInt);
+        let index_input_ic = scope.create_local(Elem::UInt);
+        let index_input_ih = scope.create_local(Elem::UInt);
+        let index_input_iw = scope.create_local(Elem::UInt);
+        let index_weight_ic = scope.create_local(Elem::UInt);
+        let index_weight_oc = scope.create_local(Elem::UInt);
+        let index_weight_kh = scope.create_local(Elem::UInt);
+        let index_weight_kw = scope.create_local(Elem::UInt);
+
+        gpu!(scope, index_input_b = b * input_stride_0);
+        gpu!(scope, index_weight_oc = oc * weight_stride_1);
 
         let prod = scope.create_local(output.item());
         let prod_tmp = scope.create_local(output.item());
         let sum = scope.create_local(output.item());
         gpu!(scope, sum = bias[oc_out]);
 
+        let kh = scope.create_local(Elem::UInt);
+        let kw = scope.create_local(Elem::UInt);
+        let numer_h_base = scope.create_local(Elem::UInt);
+        let numer_h = scope.create_local(Elem::UInt);
+        let numer_w_base = scope.create_local(Elem::UInt);
+        let numer_w = scope.create_local(Elem::UInt);
+        let numer_tmp = scope.create_local(Elem::UInt);
+        let numer_mod = scope.create_local(Elem::UInt);
+        let zero = scope.zero(Elem::UInt);
+        let divisible = scope.create_local(Elem::Bool);
+        let not_neg = scope.create_local(Elem::Bool);
+        let cond = scope.create_local(Elem::Bool);
+
+        gpu!(scope, numer_h_base = oh + padding_0);
+        gpu!(scope, numer_w_base = ow + padding_1);
+
         gpu!(
             scope,
             range(ic_start, ic_end).for_each(|ic, scope| {
+                gpu!(scope, index_input_ic = ic * input_stride_1);
+                gpu!(scope, index_weight_ic = ic * weight_stride_0);
+
                 gpu!(
                     scope,
                     range(ih_start, ih_end).for_each(|ih, scope| {
-                        gpu!(
-                            scope,
-                            range(iw_start, iw_end).for_each(|iw, scope| {
-                                gpu!(
-                                    scope,
-                                    range(0u32, kernel_size_0).for_each(|kh, scope| {
-                                        gpu!(
-                                            scope,
-                                            range(0u32, kernel_size_1).for_each(|kw, scope| {
-                                                gpu!(scope, tmp1 = ih * conv_stride_0);
-                                                gpu!(scope, tmp2 = kh * dilation_0);
-                                                gpu!(scope, tmp1 += tmp2);
-                                                gpu!(scope, tmp2 = tmp1 - padding_0);
-                                                gpu!(scope, padding_cond_accumulator = tmp1 >= padding_0);
-                                                gpu!(scope, padding_cond_tmp = tmp2 == oh);
-                                                gpu!(scope, padding_cond_accumulator = padding_cond_accumulator && padding_cond_tmp);
+                        gpu!(scope, numer_tmp = ih * conv_stride_0);
+                        gpu!(scope, not_neg = numer_h_base >= numer_tmp);
+                        gpu!(scope, numer_h = numer_h_base - numer_tmp);
+                        gpu!(scope, numer_mod = numer_h % dilation_0);
+                        gpu!(scope, divisible = numer_mod == zero);
+                        gpu!(scope, cond = not_neg && divisible);
+                        gpu!(scope, if(cond).then(|scope|{
+                            gpu!(scope, kh = numer_h / dilation_0);
+                            gpu!(scope, index_input_ih = ih * input_stride_2);
+                            gpu!(scope, index_weight_kh = kh * weight_stride_2);
 
-                                                gpu!(scope, tmp1 = iw * conv_stride_1);
-                                                gpu!(scope, tmp2 = kw * dilation_1);
-                                                gpu!(scope, tmp1 += tmp2);
-                                                gpu!(scope, tmp2 = tmp1 - padding_1);
-                                                gpu!(scope, padding_cond_tmp = tmp1 >= padding_1);
-                                                gpu!(scope, padding_cond_accumulator = padding_cond_accumulator && padding_cond_tmp);
-                                                gpu!(scope, padding_cond_tmp = tmp2 == ow);
-                                                gpu!(scope, padding_cond_accumulator = padding_cond_accumulator && padding_cond_tmp);
+                            gpu!(
+                                scope,
+                                range(iw_start, iw_end).for_each(|iw, scope| {
+                                    gpu!(scope, numer_tmp = iw * conv_stride_1);
+                                    gpu!(scope, not_neg = numer_w_base >= numer_tmp);
+                                    gpu!(scope, numer_w = numer_w_base - numer_tmp);
+                                    gpu!(scope, numer_mod = numer_w % dilation_1);
+                                    gpu!(scope, divisible = numer_mod == zero);
+                                    gpu!(scope, cond = not_neg && divisible);
+                                    gpu!(scope, if(cond).then(|scope|{
+                                        gpu!(scope, kw = numer_w / dilation_1);
+                                        gpu!(scope, index_input_iw = iw * input_stride_3);
+                                        gpu!(scope, index_weight_kw = kw * weight_stride_3);
 
-                                                gpu!(scope, if(padding_cond_accumulator).then(|scope|{
-                                                    gpu!(scope, index_input = b * input_stride_0);
-                                                    gpu!(scope, index_input_tmp = ic * input_stride_1);
-                                                    gpu!(scope, index_input += index_input_tmp);
-                                                    gpu!(scope, index_input_tmp = ih * input_stride_2);
-                                                    gpu!(scope, index_input += index_input_tmp);
-                                                    gpu!(scope, index_input_tmp = iw * input_stride_3);
-                                                    gpu!(scope, index_input += index_input_tmp);
+                                        gpu!(scope, index_input = index_input_b);
+                                        gpu!(scope, index_input += index_input_ic);
+                                        gpu!(scope, index_input += index_input_ih);
+                                        gpu!(scope, index_input += index_input_iw);
 
-                                                    gpu!(scope, index_weight = ic * weight_stride_0);
-                                                    gpu!(scope, index_weight_tmp = oc * weight_stride_1);
-                                                    gpu!(scope, index_weight += index_weight_tmp);
-                                                    gpu!(scope, index_weight_tmp = kh * weight_stride_2);
-                                                    gpu!(scope, index_weight += index_weight_tmp);
-                                                    gpu!(scope, index_weight_tmp = kw * weight_stride_3);
-                                                    gpu!(scope, index_weight += index_weight_tmp);
+                                        gpu!(scope, index_weight = index_weight_ic);
+                                        gpu!(scope, index_weight += index_weight_oc);
+                                        gpu!(scope, index_weight += index_weight_kh);
+                                        gpu!(scope, index_weight += index_weight_kw);
 
-                                                    gpu!(scope, prod = input[index_input]);
-                                                    gpu!(scope, prod_tmp = weight[index_weight]);
-                                                    gpu!(scope, prod *= prod_tmp);
-                                                    gpu!(scope, sum += prod);
-                                                }));
-                                            })
-                                        );
-                                    })
-                                );
-                            })
-                        );
+                                        gpu!(scope, prod = input[index_input]);
+                                        gpu!(scope, prod_tmp = weight[index_weight]);
+                                        gpu!(scope, prod *= prod_tmp);
+                                        gpu!(scope, sum += prod);
+                                    }));
+                                })
+                            );
+
+                        }));
                     })
                 );
             })
@@ -336,10 +346,6 @@ pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
     bias: Option<JitTensor<R, E, 1>>,
     options: ConvTransposeOptions<2>,
 ) -> JitTensor<R, E, 4> {
-    if WGSL {
-        return conv_transpose2d_wgsl(input, weight, bias, options);
-    }
-
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
