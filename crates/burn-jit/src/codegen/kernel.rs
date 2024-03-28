@@ -34,27 +34,8 @@ pub fn execute_static<R, K, E>(
     R: Runtime,
     E: JitElement,
 {
-    execute_static_::<R, K, E, E, E>(inputs, outputs, scalar_elems, None, None, launch, client)
-}
-
-fn execute_static_<R, K, E1, E2, E3>(
-    inputs: &[EagerHandle<R>],
-    outputs: &[EagerHandle<R>],
-    scalars_1: Option<&[E1]>,
-    scalars_2: Option<&[E2]>,
-    scalars_3: Option<&[E3]>,
-    launch: WorkgroupLaunch,
-    client: ComputeClient<R::Server, R::Channel>,
-) where
-    K: StaticKernelSource + 'static,
-    R: Runtime,
-    E1: JitElement,
-    E2: JitElement,
-    E3: JitElement,
-{
-    let settings = execute_settings(
-        inputs, outputs, scalars_1, scalars_2, scalars_3, launch, &client,
-    );
+    let settings =
+        execute_settings::<R, E, E, E>(inputs, outputs, scalar_elems, None, None, launch, &client);
     let mut handles = settings.handles_tensors;
     let workgroup = settings.workgroup;
 
@@ -64,7 +45,7 @@ fn execute_static_<R, K, E1, E2, E3>(
     }
 
     let kernel = Box::new(StaticKernel::<K>::new(workgroup));
-    // let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
+
     client.execute(kernel, &handles);
 }
 
