@@ -1,7 +1,7 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
@@ -125,27 +125,23 @@ pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     shape_output.dims[dim] = indices.shape.dims[0];
 
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    let kernel = SelectEagerKernel::new(dim);
+    let kernel = SelectEagerKernel::<R, E>::new(dim);
 
-    execute_dynamic::<R, SelectEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+    Execution::start(kernel, tensor.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
             EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
-        ],
-        &[EagerHandle::new(
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

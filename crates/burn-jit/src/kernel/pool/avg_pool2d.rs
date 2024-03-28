@@ -1,12 +1,12 @@
 use crate::{
-    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
+    codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     gpu::{gpu, Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
+use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use std::fmt::Debug;
 
 use super::{Pool2dEagerKernel, PoolStrategy};
@@ -99,27 +99,24 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
-    let kernel = Pool2dEagerKernel::new(kernel_size, pool_strategy);
+    let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
 
-    execute_dynamic::<R, Pool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
-        &[EagerHandle::new(
+    Execution::start(kernel, x.client)
+        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as u32).elem(),
-            (stride[1] as u32).elem(),
-            (dilation as u32).elem(),
-            (dilation as u32).elem(),
-            (padding[0] as u32).elem(),
-            (padding[1] as u32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        )])
+        .with_scalars(&[
+            stride[0] as u32,
+            stride[1] as u32,
+            dilation as u32,
+            dilation as u32,
+            padding[0] as u32,
+            padding[1] as u32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
     gpu::{gpu, Elem, Scope, Variable, Visibility},
@@ -221,24 +221,20 @@ pub(crate) fn interpolate_nearest_backward_launch<R: Runtime, E: JitElement>(
     out_grad: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {
-    let kernel = InterpolateNearestBackwardEagerKernel::new();
+    let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, InterpolateNearestBackwardEagerKernel<R, E>, u32>(
-        &[EagerHandle::new(
+    Execution::start(kernel, out_grad.client)
+        .inputs(&[EagerHandle::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        out_grad.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

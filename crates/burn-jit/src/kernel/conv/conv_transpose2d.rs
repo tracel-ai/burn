@@ -15,7 +15,7 @@ use crate::{
     tensor::JitTensor,
     Compiler, Runtime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
+use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
 #[derive(new)]
 struct Conv2dTransposeEagerKernel<R, E> {
@@ -399,13 +399,13 @@ pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
             &output.shape.dims,
         )])
         .with_scalars(&[
-            (options.stride[0] as u32).elem::<u32>(),
-            (options.stride[1] as u32).elem(),
-            (options.dilation[0] as u32).elem(),
-            (options.dilation[1] as u32).elem(),
-            (options.padding[0] as u32).elem(),
-            (options.padding[1] as u32).elem(),
-            (options.groups as u32).elem(),
+            options.stride[0] as u32,
+            options.stride[1] as u32,
+            options.dilation[0] as u32,
+            options.dilation[1] as u32,
+            options.padding[0] as u32,
+            options.padding[1] as u32,
+            options.groups as u32,
         ])
         .execute(WorkgroupLaunch::Output { pos: 0 });
 

@@ -1,7 +1,7 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
@@ -126,23 +126,20 @@ pub(crate) fn repeat<R: Runtime, E: JitElement, const D1: usize>(
         handle,
     );
 
-    let kernel = RepeatEagerKernel::new(dim, D1);
+    let kernel = RepeatEagerKernel::<R, E>::new(dim, D1);
 
-    execute_dynamic::<R, RepeatEagerKernel<R, E>, E>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
+
     output
 }

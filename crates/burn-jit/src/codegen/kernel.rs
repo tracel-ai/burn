@@ -64,6 +64,7 @@ fn execute_static_<R, K, E1, E2, E3>(
     }
 
     let kernel = Box::new(StaticKernel::<K>::new(workgroup));
+    // let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
     client.execute(kernel, &handles);
 }
 
@@ -128,7 +129,7 @@ where
     /// Execute a dynamic kernel.
     #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
-        execute_dynamic_::<R, K, f32, f32, f32>(
+        execute_dynamic::<R, K, f32, f32, f32>(
             self.inputs,
             self.outputs,
             None,
@@ -163,7 +164,7 @@ where
     /// Execute a dynamic kernel.
     #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
-        execute_dynamic_::<R, K, E, f32, f32>(
+        execute_dynamic::<R, K, E, f32, f32>(
             self.inputs,
             self.outputs,
             Some(self.scalars.0),
@@ -203,7 +204,7 @@ where
         K: DynamicKernelSource + 'static,
         R: Runtime,
     {
-        execute_dynamic_::<R, K, E1, E2, f32>(
+        execute_dynamic::<R, K, E1, E2, f32>(
             self.inputs,
             self.outputs,
             Some(self.scalars.0),
@@ -227,7 +228,7 @@ where
     /// Execute a dynamic kernel.
     #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
-        execute_dynamic_::<R, K, E1, E2, E3>(
+        execute_dynamic::<R, K, E1, E2, E3>(
             self.inputs,
             self.outputs,
             Some(self.scalars.0),
@@ -240,33 +241,8 @@ where
     }
 }
 
-/// Execute a dynamic kernel.
-pub fn execute_dynamic<R, K, E>(
-    inputs: &[EagerHandle<R>],
-    outputs: &[EagerHandle<R>],
-    scalar_elems: Option<&[E]>,
-    kernel: K,
-    launch: WorkgroupLaunch,
-    client: ComputeClient<R::Server, R::Channel>,
-) where
-    K: DynamicKernelSource + 'static,
-    R: Runtime,
-    E: JitElement,
-{
-    execute_dynamic_::<R, K, E, E, E>(
-        inputs,
-        outputs,
-        scalar_elems,
-        None,
-        None,
-        kernel,
-        launch,
-        client,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
-fn execute_dynamic_<R, K, E1, E2, E3>(
+fn execute_dynamic<R, K, E1, E2, E3>(
     inputs: &[EagerHandle<R>],
     outputs: &[EagerHandle<R>],
     scalars_1: Option<&[E1]>,
