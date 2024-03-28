@@ -3,6 +3,7 @@ mod base;
 mod fake;
 mod in_memory;
 mod iterator;
+mod time_series;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 mod sqlite;
 
