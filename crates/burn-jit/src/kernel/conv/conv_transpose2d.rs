@@ -283,9 +283,7 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
             })
         );
 
-        let skr = scope.create_local(Elem::UInt);
-        gpu!(scope, skr = ih_end - ih_start);
-        gpu!(scope, output[id] = skr);
+        gpu!(scope, output[id] = sum);
     }
 }
 
