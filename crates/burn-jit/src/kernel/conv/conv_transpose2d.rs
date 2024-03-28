@@ -207,19 +207,19 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
 
         let kh = scope.create_local(Elem::UInt);
         let kw = scope.create_local(Elem::UInt);
-        let numer_h_base = scope.create_local(Elem::UInt);
-        let numer_h = scope.create_local(Elem::UInt);
-        let numer_w_base = scope.create_local(Elem::UInt);
-        let numer_w = scope.create_local(Elem::UInt);
-        let numer_tmp = scope.create_local(Elem::UInt);
-        let numer_mod = scope.create_local(Elem::UInt);
+        let numerator_h_base = scope.create_local(Elem::UInt);
+        let numerator_h = scope.create_local(Elem::UInt);
+        let numerator_w_base = scope.create_local(Elem::UInt);
+        let numerator_w = scope.create_local(Elem::UInt);
+        let numerator_tmp = scope.create_local(Elem::UInt);
+        let numerator_mod = scope.create_local(Elem::UInt);
         let zero = scope.zero(Elem::UInt);
         let divisible = scope.create_local(Elem::Bool);
         let not_neg = scope.create_local(Elem::Bool);
         let cond = scope.create_local(Elem::Bool);
 
-        gpu!(scope, numer_h_base = oh + padding_0);
-        gpu!(scope, numer_w_base = ow + padding_1);
+        gpu!(scope, numerator_h_base = oh + padding_0);
+        gpu!(scope, numerator_w_base = ow + padding_1);
 
         gpu!(
             scope,
@@ -230,28 +230,32 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
                 gpu!(
                     scope,
                     range(ih_start, ih_end).for_each(|ih, scope| {
-                        gpu!(scope, numer_tmp = ih * conv_stride_0);
-                        gpu!(scope, not_neg = numer_h_base >= numer_tmp);
-                        gpu!(scope, numer_h = numer_h_base - numer_tmp);
-                        gpu!(scope, numer_mod = numer_h % dilation_0);
-                        gpu!(scope, divisible = numer_mod == zero);
+                        gpu!(scope, numerator_tmp = ih * conv_stride_0);
+                        gpu!(scope, not_neg = numerator_h_base >= numerator_tmp);
+                        gpu!(scope, numerator_h = numerator_h_base - numerator_tmp);
+
+                        gpu!(scope, numerator_mod = numerator_h % dilation_0);
+                        gpu!(scope, divisible = numerator_mod == zero);
                         gpu!(scope, cond = not_neg && divisible);
+
                         gpu!(scope, if(cond).then(|scope|{
-                            gpu!(scope, kh = numer_h / dilation_0);
+                            gpu!(scope, kh = numerator_h / dilation_0);
                             gpu!(scope, index_input_ih = ih * input_stride_2);
                             gpu!(scope, index_weight_kh = kh * weight_stride_2);
 
                             gpu!(
                                 scope,
                                 range(iw_start, iw_end).for_each(|iw, scope| {
-                                    gpu!(scope, numer_tmp = iw * conv_stride_1);
-                                    gpu!(scope, not_neg = numer_w_base >= numer_tmp);
-                                    gpu!(scope, numer_w = numer_w_base - numer_tmp);
-                                    gpu!(scope, numer_mod = numer_w % dilation_1);
-                                    gpu!(scope, divisible = numer_mod == zero);
+                                    gpu!(scope, numerator_tmp = iw * conv_stride_1);
+                                    gpu!(scope, not_neg = numerator_w_base >= numerator_tmp);
+                                    gpu!(scope, numerator_w = numerator_w_base - numerator_tmp);
+
+                                    gpu!(scope, numerator_mod = numerator_w % dilation_1);
+                                    gpu!(scope, divisible = numerator_mod == zero);
                                     gpu!(scope, cond = not_neg && divisible);
+
                                     gpu!(scope, if(cond).then(|scope|{
-                                        gpu!(scope, kw = numer_w / dilation_1);
+                                        gpu!(scope, kw = numerator_w / dilation_1);
                                         gpu!(scope, index_input_iw = iw * input_stride_3);
                                         gpu!(scope, index_weight_kw = kw * weight_stride_3);
 
@@ -279,7 +283,9 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
             })
         );
 
-        gpu!(scope, output[id] = sum);
+        let skr = scope.create_local(Elem::UInt);
+        gpu!(scope, skr = ih_end - ih_start);
+        gpu!(scope, output[id] = skr);
     }
 }
 
