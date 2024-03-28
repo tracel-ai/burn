@@ -1,9 +1,8 @@
 use super::ParamId;
 use alloc::boxed::Box;
 use alloc::format;
-use burn_common::stub::RwLock;
+use burn_common::stub::{RwLock, SyncOnceCell};
 use core::ops::Deref;
-use once_cell::sync::OnceCell;
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
 /// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
@@ -32,7 +31,7 @@ use once_cell::sync::OnceCell;
 /// ```
 pub struct Param<T: Parameter> {
     pub(crate) id: ParamId,
-    state: OnceCell<T>,
+    state: SyncOnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
     /// Because of [OnceCell](OnceCell), we have a guarantee that the initialization will only be called once,
@@ -93,7 +92,7 @@ impl<T: Parameter> Param<T> {
     pub fn initialized(id: ParamId, value: T) -> Self {
         Self {
             id,
-            state: OnceCell::with_value(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
         }
     }
@@ -105,7 +104,7 @@ impl<T: Parameter> Param<T> {
     {
         Self {
             id,
-            state: OnceCell::new(),
+            state: SyncOnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
@@ -141,18 +140,9 @@ impl<T: Parameter> Param<T> {
 
     /// Gets the parameter id and value while consuming the parameter.
     pub fn consume(self) -> (ParamId, T) {
-        let state = self.state.into_inner();
-        let tensor = match state {
-            Some(tensor) => tensor,
-            None => {
-                let val = self
-                    .initialization
-                    .as_ref()
-                    .expect("Should have an initialization when no state provided.")
-                    .write();
-                val.unwrap().as_ref().unwrap().initialize()
-            }
-        };
+        let tensor = self.val();
+
+        core::mem::drop(self.state);
 
         (self.id, tensor)
     }
@@ -164,7 +154,7 @@ impl<T: Parameter> Param<T> {
 
         Self {
             id,
-            state: OnceCell::with_value(tensor),
+            state: SyncOnceCell::initialized(tensor),
             initialization: None,
         }
     }

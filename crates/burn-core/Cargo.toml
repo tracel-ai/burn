@@ -35,7 +35,6 @@ std = [
     "rmp-serde",
     "serde/std",
     "serde_json/std",
-    "once_cell/std"
 ]
 doc = [
     "std",
@@ -129,9 +128,6 @@ serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 num-traits = {workspace = true, optional = true }
-
-once_cell = { workspace = true, default-features = false, features=["critical-section"] }
-
 
 [dev-dependencies]
 tempfile = { workspace = true }

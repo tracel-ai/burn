@@ -1,5 +1,12 @@
+#[cfg(not(feature = "std"))]
 use spin::{
-    Mutex as MutexImported, MutexGuard, RwLock as RwLockImported, RwLockReadGuard, RwLockWriteGuard,
+    Mutex as MutexImported, MutexGuard, Once as OnceImported, RwLock as RwLockImported,
+    RwLockReadGuard, RwLockWriteGuard,
+};
+#[cfg(feature = "std")]
+use std::sync::{
+    Mutex as MutexImported, MutexGuard, OnceLock as OnceImported, RwLock as RwLockImported,
+    RwLockReadGuard, RwLockWriteGuard,
 };
 
 /// A mutual exclusion primitive useful for protecting shared data
@@ -25,7 +32,15 @@ impl<T> Mutex<T> {
     /// Locks the mutex blocking the current thread until it is able to do so.
     #[inline(always)]
     pub fn lock(&self) -> Result<MutexGuard<T>, alloc::string::String> {
-        Ok(self.inner.lock())
+        #[cfg(not(feature = "std"))]
+        {
+            Ok(self.inner.lock())
+        }
+
+        #[cfg(feature = "std")]
+        {
+            self.inner.lock().map_err(|err| err.to_string())
+        }
     }
 }
 
@@ -51,14 +66,29 @@ impl<T> RwLock<T> {
     /// until it can be acquired.
     #[inline(always)]
     pub fn read(&self) -> Result<RwLockReadGuard<T>, alloc::string::String> {
-        Ok(self.inner.read())
+        #[cfg(not(feature = "std"))]
+        {
+            Ok(self.inner.read())
+        }
+        #[cfg(feature = "std")]
+        {
+            self.inner.read().map_err(|err| err.to_string())
+        }
     }
 
     /// Locks this rwlock with exclusive write access, blocking the current thread
     /// until it can be acquired.
     #[inline(always)]
     pub fn write(&self) -> Result<RwLockWriteGuard<T>, alloc::string::String> {
-        Ok(self.inner.write())
+        #[cfg(not(feature = "std"))]
+        {
+            Ok(self.inner.write())
+        }
+
+        #[cfg(feature = "std")]
+        {
+            self.inner.write().map_err(|err| err.to_string())
+        }
     }
 }
 
@@ -67,3 +97,49 @@ impl<T> RwLock<T> {
 /// This module is a stub when no std is available to swap with std::thread::ThreadId.
 #[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
 pub struct ThreadId(core::num::NonZeroU64);
+
+/// A cell that provides lazy one-time initialization that implements [Sync] and [Send].
+///
+/// This module is a stub when no std is available to swap with [std::sync::OnceLock].
+pub struct SyncOnceCell<T>(OnceImported<T>);
+
+impl<T: core::fmt::Debug> SyncOnceCell<T> {
+    /// Create a new once.
+    pub fn new() -> Self {
+        Self(OnceImported::new())
+    }
+
+    /// Initialize the cell with a value.
+    pub fn initialized(value: T) -> Self {
+        #[cfg(not(feature = "std"))]
+        {
+            let cell = OnceImported::initialized(value);
+            Self(cell)
+        }
+
+        #[cfg(feature = "std")]
+        {
+            let cell = OnceImported::new();
+            cell.set(value).unwrap();
+
+            Self(cell)
+        }
+    }
+
+    /// Gets the contents of the cell, initializing it with `f` if the cell
+    /// was empty.
+    pub fn get_or_init<F>(&self, f: F) -> &T
+    where
+        F: FnOnce() -> T,
+    {
+        #[cfg(not(feature = "std"))]
+        {
+            self.0.call_once(f)
+        }
+
+        #[cfg(feature = "std")]
+        {
+            self.0.get_or_init(f)
+        }
+    }
+}
