@@ -103,13 +103,21 @@ pub struct ThreadId(core::num::NonZeroU64);
 /// This module is a stub when no std is available to swap with [std::sync::OnceLock].
 pub struct SyncOnceCell<T>(OnceImported<T>);
 
+impl<T: core::fmt::Debug> Default for SyncOnceCell<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: core::fmt::Debug> SyncOnceCell<T> {
     /// Create a new once.
+    #[inline(always)]
     pub fn new() -> Self {
         Self(OnceImported::new())
     }
 
     /// Initialize the cell with a value.
+    #[inline(always)]
     pub fn initialized(value: T) -> Self {
         #[cfg(not(feature = "std"))]
         {
@@ -128,6 +136,7 @@ impl<T: core::fmt::Debug> SyncOnceCell<T> {
 
     /// Gets the contents of the cell, initializing it with `f` if the cell
     /// was empty.
+    #[inline(always)]
     pub fn get_or_init<F>(&self, f: F) -> &T
     where
         F: FnOnce() -> T,
