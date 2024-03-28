@@ -66,6 +66,11 @@ path = "benches/max_pool2d.rs"
 harness = false
 
 [[bench]]
+name = "conv-transpose2d"
+path = "benches/conv_transpose2d.rs"
+harness = false
+
+[[bench]]
 name = "matmul"
 harness = false
 
