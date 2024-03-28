@@ -5,7 +5,7 @@ use crate::{
         dialect::gpu::{
             gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
@@ -259,7 +259,7 @@ pub fn reduce_dim_shared<
     let divisible_shape =
         n_invocation_per_workgroup as u32 * n_input_values_per_thread == reduce_group_size as u32;
 
-    let kernel = SharedReduceDimEagerKernel::new(
+    let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
         WORKGROUP_DEFAULT,
         WORKGROUP_DEFAULT,
@@ -267,22 +267,18 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    execute_dynamic::<R, SharedReduceDimEagerKernel<RD, R, EI, EO>, EI>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(grid),
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Custom(grid));
 
     output
 }

@@ -1,10 +1,11 @@
 use crate::codegen::dialect::gpu::{
     gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
 };
+use crate::codegen::Execution;
 use crate::{
     codegen::{
-        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
@@ -236,19 +237,15 @@ pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
         workgroup_size_y,
     );
 
-    let kernel = MatmulEagerKernel::new(workgroup_size_x, workgroup_size_y);
+    let kernel = MatmulEagerKernel::<R>::new(workgroup_size_x, workgroup_size_y);
 
-    execute_dynamic::<R, MatmulEagerKernel<R>, E>(
-        &[
-            EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+    Execution::start(kernel, rhs.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
             EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-        ],
-        &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        rhs.client,
-    );
+        ])
+        .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
+        .execute(WorkgroupLaunch::Custom(workgroup));
 
     out
 }
