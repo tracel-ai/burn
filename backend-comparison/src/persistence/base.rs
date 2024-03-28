@@ -242,20 +242,33 @@ pub(crate) struct BenchmarkCollection {
 
 impl Display for BenchmarkCollection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Compute the max length for each column
+        let mut max_name_len = 0;
+        let mut max_backend_len = 0;
+        for record in self.records.iter() {
+            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
+            max_name_len = max_name_len.max(record.results.name.len());
+            max_backend_len = max_backend_len.max(backend_name.len());
+        }
+        // Header
         writeln!(
             f,
-            "| {0:<15}| {1:<35}| {2:<15}|\n|{3:-<16}|{4:-<36}|{5:-<16}|",
-            "Benchmark", "Backend", "Median", "", "", ""
+            "| {:<width_name$} | {:<width_backend$} | Median         |\n|{:->width_name$}--|{:->width_backend$}--|----------------|",
+            "Benchmark", "Backend", "", "", width_name = max_name_len, width_backend = max_backend_len
         )?;
+        // Table entries
         for record in self.records.iter() {
-            let backend = [record.backend.clone(), record.device.clone()].join("-");
+            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
             writeln!(
                 f,
-                "| {0:<15}| {1:<35}| {2:<15.3?}|",
-                record.results.name, backend, record.results.computed.median
+                "| {:<width_name$} | {:<width_backend$} | {:<15.3?}|",
+                record.results.name,
+                backend_name,
+                record.results.computed.median,
+                width_name = max_name_len,
+                width_backend = max_backend_len
             )?;
         }
-
         Ok(())
     }
 }

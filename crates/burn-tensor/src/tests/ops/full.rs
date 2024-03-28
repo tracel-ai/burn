@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(full)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int, Shape, Tensor};
+    use burn_tensor::{Bool, Data, Int, Shape, Tensor};
 
     #[test]
     fn test_data_full() {
@@ -22,5 +22,15 @@ mod tests {
         let int_tensor = Tensor::<TestBackend, 2, Int>::full([2, 2], 2, &device);
         let data_expected = Data::from([[2, 2], [2, 2]]);
         assert_eq!(data_expected, int_tensor.into_data());
+
+        // TODO enable after adding support for bool
+        // // Test full with bool
+        // let bool_tensor = Tensor::<TestBackend, 2, Bool>::full([2, 2], true, &device);
+        // let data_expected = Data::from([[true, true], [true, true]]);
+        // assert_eq!(data_expected, bool_tensor.into_data());
+
+        // let bool_tensor = Tensor::<TestBackend, 2, Bool>::full([2, 2], false, &device);
+        // let data_expected = Data::from([[false, false], [false, false]]);
+        // assert_eq!(data_expected, bool_tensor.into_data());
     }
 }

@@ -18,7 +18,7 @@ use crate::{
     unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
@@ -1281,18 +1281,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         );
 
         out
-    }
-
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        tensor.clone()
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        tensor
     }
 
     fn float_exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

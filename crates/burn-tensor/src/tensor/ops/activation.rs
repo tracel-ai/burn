@@ -2,12 +2,33 @@ use crate::tensor::ops::tensor::FloatTensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
-use super::FloatTensor;
+use super::{FloatTensor, FullPrecisionBackend};
 
 /// Activation function operations.
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
+    /// Applies the LeakyReLU activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `negative_slope` - The negative_slope value that values smaller than 0 are multiplied with.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn leaky_relu<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        negative_slope: super::FloatElem<B>,
+    ) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(tensor.clone(), 0.elem());
+        let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope.elem());
+
+        // Update the tensor where the values are `< 0` by `tensor * negative_slope`.
+        B::float_mask_where(tensor, mask, scaled_tensor)
+    }
+
     /// Applies the ReLU activation function.
     ///
     /// # Arguments
@@ -126,13 +147,16 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        let tensor_full = B::float_to_full_precision(&tensor);
-        let tensor_tmp = B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(
-            B::FullPrecisionBackend::float_log(B::FullPrecisionBackend::float_add_scalar(
-                B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(tensor_full)),
-                1.0.elem(),
-            )),
-        ));
+        let tensor_full = B::float_into_full_precision(tensor);
+        let tensor_tmp =
+            FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                FullPrecisionBackend::<B>::float_log(FullPrecisionBackend::<B>::float_add_scalar(
+                    FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                        tensor_full,
+                    )),
+                    1.0.elem(),
+                )),
+            ));
 
         B::float_from_full_precision(tensor_tmp)
     }

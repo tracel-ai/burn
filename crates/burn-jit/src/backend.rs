@@ -1,4 +1,4 @@
-use crate::{codegen::Compiler, tensor::JitTensor, Runtime};
+use crate::{codegen::Compiler, tensor::JitTensor, PrecisionBridge, Runtime};
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
@@ -13,9 +13,8 @@ pub struct JitBackend<R: Runtime> {
 
 impl<R: Runtime> Backend for JitBackend<R> {
     type Device = R::Device;
-    type FullPrecisionBackend = JitBackend<R::FullPrecisionRuntime>;
 
-    type FullPrecisionElem = f32;
+    type FullPrecisionBridge = PrecisionBridge<R::FullPrecisionRuntime>;
     type FloatElem = <R::Compiler as Compiler>::Float;
     type IntElem = <R::Compiler as Compiler>::Int;
 

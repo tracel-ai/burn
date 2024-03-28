@@ -1,4 +1,6 @@
 pub(crate) mod gelu;
+pub(crate) mod leaky_relu;
+pub(crate) mod log_sigmoid;
 pub(crate) mod mish;
 pub(crate) mod prelu;
 pub(crate) mod relu;

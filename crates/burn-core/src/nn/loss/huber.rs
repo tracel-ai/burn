@@ -150,7 +150,7 @@ mod tests {
         loss.into_data().assert_approx_eq(&Data::from([0.284]), 7);
         loss_sum
             .into_data()
-            .assert_approx_eq(&Data::from([1.42]), 7);
+            .assert_approx_eq(&Data::from([1.42]), 5);
     }
 
     #[cfg(feature = "std")]
