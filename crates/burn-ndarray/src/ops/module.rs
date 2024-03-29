@@ -137,11 +137,4 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
     ) -> NdArrayTensor<E, 3> {
         fft1d(x)
     }
-
-    fn fft_backward(
-        _x: NdArrayTensor<E, 3>,
-        _grad: NdArrayTensor<E, 3>,
-    ) -> NdArrayTensor<E, 3> {
-        todo!();
-    }
 }

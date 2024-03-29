@@ -94,6 +94,7 @@ where
 
 /// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d<B>(
+
     x: Tensor<B, 3>,
     kernel_size: usize,
     stride: usize,
@@ -232,12 +233,18 @@ where
     Tensor::new(B::interpolate(x.primitive, output_size, options))
 }
 
-/// Applies a [1D fast fourier transform](crate::ops::ModuleOps::fft).
-pub fn fft<B>(
-    x: Tensor<B, 3>,
-) -> Tensor<B, 3>
+/// Applies a [1D fast fourier transform (FFT)](crate::ops::ModuleOps::fft).
+pub fn fft<B>(x: Tensor<B, 3>) -> Tensor<B, 3>
 where
     B: Backend,
 {
     Tensor::new(B::fft(x.primitive))
+}
+
+/// Applies an [inverse 1D fast fourier transform (FFT)](crate::ops::ModuleOps::ifft).
+pub fn ifft<B>(x: Tensor<B, 3>) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::ifft(x.primitive))
 }

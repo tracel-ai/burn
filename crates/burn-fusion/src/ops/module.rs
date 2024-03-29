@@ -1,4 +1,3 @@
-use crate::stream::InterpolateBackwardDescription;
 use crate::{
     client::FusionClient,
     stream::{
@@ -6,10 +5,11 @@ use crate::{
         AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
         AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
         AvgPool2dDescription, Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription,
-        ConvTranspose2dDescription, InterpolateDescription, MaxPool1dDescription,
-        MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
-        MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
-        MaxPool2dWithIndicesDescription, Operation, OperationDescription,
+        ConvTranspose2dDescription, InterpolateBackwardDescription, InterpolateDescription,
+        MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+        MaxPool1dWithIndicesDescription, MaxPool2dDescription,
+        MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription, Operation,
+        OperationDescription,
     },
     Fusion, FusionBackend, HandleContainer,
 };
@@ -1055,16 +1055,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
-    fn fft(
-        _x: FloatTensor<Self, 3>,
-    ) -> FloatTensor<Self, 3> {
+    fn fft(_x: FloatTensor<Self, 3>) -> FloatTensor<Self, 3> {
         todo!();
-    }
-
-    fn fft_backward(
-        _x: FloatTensor<Self, 3>,
-        _grad: FloatTensor<Self, 3>,
-    ) -> FloatTensor<Self, 3> {
-        todo!()
     }
 }

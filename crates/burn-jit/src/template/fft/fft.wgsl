@@ -129,20 +129,16 @@ fn main(
 }
 
 fn reverse_bits(x_: u32, num_bits: u32) -> u32 {
-    // TODO there is actually a reverse bits function built in to WGSL
-
-    var result = 0u;
-    var x = x_;
-
-    for(var i = 0u; i < num_bits; i = i + 1u) {
-        // Self-explanatory >:I
-        //  ...
-        //  just kidding.
-        //  Think about it - we're pulling bits from left to right.
-        //  One gets bigger whilst the other gets smaller.
-        result <<= 1u;
-        result |= x & 1u;
-        x >>= 1u;
-    }
-    return result;
+    // For input:
+    // 00000000000000000000000000011011
+    //  num_bits = 1 gives:
+    // 00000000000000000000000000000001
+    //  num_bits = 2:
+    // 00000000000000000000000000000011
+    //  num_bits = 3:
+    // 00000000000000000000000000000110
+    //  num_bits = 4:
+    // 00000000000000000000000000001101
+    //  etc...
+    return reverseBits(x_) >> (32u - min(32u, num_bits));
 }

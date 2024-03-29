@@ -124,11 +124,4 @@ impl<R: Runtime> ModuleOps<Self> for JitBackend<R> {
     ) -> FloatTensor<Self, 3> {
         kernel::fft::fft(x)
     }
-
-    fn fft_backward(
-        _x: FloatTensor<Self, 3>,
-        _grad: FloatTensor<Self, 3>
-    ) -> FloatTensor<Self, 3> {
-        panic!("Can't compute backward pass for FFT");
-    }
 }

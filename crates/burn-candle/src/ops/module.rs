@@ -272,11 +272,4 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     ) -> FloatTensor<Self, 3> {
         panic!("fft is not supported by Candle")
     }
-    
-    fn fft_backward(
-        _x: FloatTensor<Self, 3>,
-        _grad: FloatTensor<Self, 3>,
-    ) -> FloatTensor<Self, 3> {
-        panic!("fft_backward is not supported by Candle")
-    }
 }
