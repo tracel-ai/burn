@@ -43,7 +43,7 @@ pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
     info.push(0u32); // 0th iteration
     for fft_iter in 0..num_fft_iters {
 
-        println!("FFT INFO: {:?}", (num_fft_iters, fft_iter));
+        // println!("FFT INFO: {:?}", (num_fft_iters, fft_iter));
 
         info.pop();
         info.push(fft_iter as u32);
