@@ -1,5 +1,3 @@
-use std::process::Output;
-
 use crate::{
     compute::StaticKernel,
     element::JitElement,
@@ -9,7 +7,7 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
+use burn_tensor::Element;
 
 kernel_wgsl!(FFT, "../../template/fft/fft.wgsl");
 
@@ -22,10 +20,13 @@ pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
     let [_, num_samples, complex] = input.shape.dims;
 
     if complex != 2 {
-        panic!("Last dimension must have exactly 2");
+        panic!("Last dimension must have size exactly 2");
     }
 
-    // TODO non pow 2 panic
+    // Power of 2 => only 1 bit set => x & (x - 1) == 0
+    if num_samples == 0 || (num_samples & (num_samples - 1)) != 0 {
+        panic!("Fourier transform dimension must have a power of 2 size, consider zero padding")
+    };
 
     let output: JitTensor<R, E, 3> = empty_device(
         input.client.clone(),
@@ -42,8 +43,6 @@ pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
     // Run the FFT
     info.push(0u32); // 0th iteration
     for fft_iter in 0..num_fft_iters {
-
-        // println!("FFT INFO: {:?}", (num_fft_iters, fft_iter));
 
         info.pop();
         info.push(fft_iter as u32);

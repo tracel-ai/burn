@@ -10,23 +10,8 @@ var<storage, read_write> output: array<{{ elem }}>;
 @binding(2)
 var<storage, read> info: array<u32, 32>;
 
-///////////////
-// Constants //
-///////////////
-
-// const BLOCK_SIZE: u32 = {{ workgroup_size_x }}u;
 const WORKGROUP_SIZE_X = {{ workgroup_size_x }}u;
-
-// Shape = [NUM_ROWS, NUM_COLS] = [num_y_values, num_x_values]
-//  Note 1D FFT done along the X direction, operation cloned along Y.
-// const NUM_ROWS: u32 = {{ num_rows }}u;
-// const NUM_COLS: u32 = {{ num_cols }}u;
-// const num_fft_iters: u32 = {{ num_fft_iters }}u;
-// const fft_iter: u32 = {{ fft_iter }}u;
-
-////////////////////////////////////
-// Single parameterised FFT stage //
-////////////////////////////////////
+const PI: f32 = 3.141592653589793115997963468544185161590576171875;
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
@@ -36,6 +21,10 @@ fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>,
 ) {
+    //////////////////////////////////////////////////
+    // Single FFT stage at a single (x, y) position //
+    //////////////////////////////////////////////////
+
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
     let input_stride_0 = info[1];
@@ -61,7 +50,6 @@ fn main(
     let oy = id / output_stride_0 % output_shape_0;
     let ox = id / output_stride_1 % output_shape_1;
     let oc = id / output_stride_2 % output_shape_2;
-
     let iy = oy;
     
     // Only ever 0 or 1 (real or imaginary). Arbitrarily choose the real index
@@ -70,91 +58,62 @@ fn main(
         return;
     }
 
+    // Number of independent FFTs at this stage (starts at x_width/2, halves each time)
+    let num_transforms: u32 = input_shape_1 >> (fft_iter + 1u);
 
-    let NUM_ROWS = input_shape_0;
-    let NUM_COLS = input_shape_1;
-
-    let DFT_SIZE: u32 = 2u << fft_iter;
-    let NUM_DFTS: u32 = NUM_COLS >> (fft_iter + 1u);
-    let EVEN_MASK: u32 = NUM_DFTS ^ 0xFFFFu;
-
-    let PI: f32 = 3.1415926535898;
-    let TWIDDLE_ANGLE_BASE: f32 = - 2. * PI / f32(DFT_SIZE);
-
-
-    // let x: u32 = workgroup_id.x * BLOCK_SIZE + (local_idx / BLOCK_SIZE);
-    // let y: u32 = workgroup_id.y * BLOCK_SIZE + (local_idx % BLOCK_SIZE);
-
-    let x = ox;
-    let y = oy;
+    // Binary mask for extracting the index of E_k
+    let even_mask: u32 = num_transforms ^ 0xFFFFu;
 
     // Returns if outside the output dimension
-    if x >= NUM_COLS || y >= NUM_ROWS {
+    if oy >= output_shape_0 || ox >= output_shape_1 {
         return;
     }
 
-    ///////////////////////////////////////
-    // Position-dependant FFT Parameters //
-    ///////////////////////////////////////
+    // Position-dependent FFT Parameters
+    let ix_even: u32 = ox & even_mask;
+    let ix_odd: u32 = ix_even + num_transforms;
+    let exponent: u32 = reverse_bits(ox >> (num_fft_iters - fft_iter), fft_iter);
+    let negative_instead_of_plus: bool = (ox & num_transforms) > 0u;
 
-    let x_even: u32 = x & EVEN_MASK;
-    let x_odd: u32 = x_even + NUM_DFTS;
-    let exponent: u32 = reverse_bits(x >> (num_fft_iters - fft_iter), fft_iter);
-    let negative_instead_of_plus: bool = (x & NUM_DFTS) > 0u;
-
-    /////////////
-    // Indices //
-    /////////////
+    // Indices
+    let i_even_re: u32 = iy * input_stride_0 + ix_even * input_stride_1 + 0u * input_stride_2;
+    let i_even_im: u32 = iy * input_stride_0 + ix_even * input_stride_1 + 1u * input_stride_2;
     
-    // Indices for this stage. Note that index y are just constant - 
-    //  we just duplicate it across all rows.
-    // let i_even: u32 = y * NUM_COLS + x_even;
-    // let i_odd: u32 = y * NUM_COLS + x_odd;
-    // var i_out: u32 = y * NUM_COLS + x;
-
-    let i_even_re: u32 = oy * input_stride_0 + x_even * input_stride_1 + 0u * input_stride_2;
-    let i_even_im: u32 = oy * input_stride_0 + x_even * input_stride_1 + 1u * input_stride_2;
-    
-    let i_odd_re: u32 = oy * input_stride_0 + x_odd * input_stride_1 + 0u * input_stride_2;
-    let i_odd_im: u32 = oy * input_stride_0 + x_odd * input_stride_1 + 1u * input_stride_2;
+    let i_odd_re: u32 = iy * input_stride_0 + ix_odd * input_stride_1 + 0u * input_stride_2;
+    let i_odd_im: u32 = iy * input_stride_0 + ix_odd * input_stride_1 + 1u * input_stride_2;
 
     // Running the FFT algorithm like this results in a bit-reversed ordered
     //  output. i.e. the element 000, 001, ..., 110, 111 are now sorted if
     //  they were actually 000, 100, ..., 011, 111. On the last step, undo this
-    //  mapping. 
+    //  mapping, by choosing ox differently.
 
-    var i_out_re = 0u;
-    var i_out_im = 0u;
-    
+    var ox_r = 0u;
     if is_final_iter {
-        let remapped_x = reverse_bits(x, num_fft_iters);
-        i_out_re = oy * output_stride_0 + remapped_x * output_stride_1 + 0u * output_stride_2;
-        i_out_im = oy * output_stride_0 + remapped_x * output_stride_1 + 1u * output_stride_2;
+        ox_r = reverse_bits(ox, num_fft_iters);
     } else {
-        i_out_re = oy * output_stride_0 + x * output_stride_1 + 0u * output_stride_2;
-        i_out_im = oy * output_stride_0 + x * output_stride_1 + 1u * output_stride_2;
+        ox_r = ox;
     }
+    
+    let i_out_re: u32 = oy * output_stride_0 + ox_r * output_stride_1 + 0u * output_stride_2;
+    let i_out_im: u32 = oy * output_stride_0 + ox_r * output_stride_1 + 1u * output_stride_2;
 
-    ///////////////////////////////////////////
-    // Calculate weights ("Twiddle Factors") //
-    ///////////////////////////////////////////
+    // Here we compute the main computation step for each index.
+    //  See the last two equations of:
+    //  https://en.wikipedia.org/wiki/Cooley-Tukey_FFT_algorithm#The_radix-2_DIT_case
+    // X_k = E_k + w_k * O_k
+    //  Where w_k is the +/- exp(-2 pi i k / n) term. Note the plus / minus 
+    //  is included in the value of the weight.
 
     var pm1: f32 = 1.;
     if(negative_instead_of_plus) {
         pm1 = -1.;
     }
 
-    
-    // Here we compute the main computation step for each index.
-    //  See the last two equations of:
-    //  https://en.wikipedia.org/wiki/Cooley-Tukey_FFT_algorithm#The_radix-2_DIT_case
-    // X_k = E_k + w_k * O_k
-    //  Where w_k is the +/- exp(-2 pi i k / N) term. Note the plus / minus 
-    //  is included in the value of the weight.
-    
-    let twiddle_angle: f32 = TWIDDLE_ANGLE_BASE * f32(exponent);
-    let w_k_re: f32 = pm1 * cos(twiddle_angle);
-    let w_k_im: f32 = pm1 * sin(twiddle_angle);
+    // Width of the FFT at this stage (starts at 2, doubles each time)
+    let n: u32 = 2u << fft_iter;
+    let w_k_theta: f32 = - 2. * PI * f32(exponent) / f32(n);
+    let w_k_re: f32 = pm1 * cos(w_k_theta);
+    let w_k_im: f32 = pm1 * sin(w_k_theta);
 
     let e_k_re = input[i_even_re];
     let e_k_im = input[i_even_im];
