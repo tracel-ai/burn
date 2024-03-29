@@ -16,10 +16,6 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
         "unary".into()
     }
 
-    fn backend_config_name(&self) -> Option<String> {
-        B::config_name(&self.device)
-    }
-
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape.dims.into()]
     }

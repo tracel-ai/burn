@@ -17,10 +17,6 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
         "matmul".into()
     }
 
-    fn backend_config_name(&self) -> Option<String> {
-        B::config_name(&self.device)
-    }
-
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape_lhs.dims.into(), self.shape_rhs.dims.into()]
     }

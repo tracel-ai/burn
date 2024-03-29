@@ -21,18 +21,6 @@ impl Default for NdArrayDevice {
     }
 }
 
-fn config_name() -> String {
-    if cfg!(feature = "blas-netlib") {
-        String::from("ndarray-blas-netlib")
-    } else if cfg!(feature = "blas-openblas") {
-        String::from("ndarray-blas-openblas")
-    } else if cfg!(feature = "blas-openblas-system") {
-        String::from("ndarray-blas-openblas-system")
-    } else {
-        String::from("ndarray")
-    }
-}
-
 /// Tensor backend that uses the [ndarray](ndarray) crate for executing tensor operations.
 ///
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
@@ -60,10 +48,6 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
 
     fn name() -> String {
         String::from("ndarray")
-    }
-
-    fn config_name(_: &Self::Device) -> Option<String> {
-        Some(config_name())
     }
 
     fn seed(seed: u64) {

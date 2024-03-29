@@ -18,10 +18,6 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
         "max_pool2d".into()
     }
 
-    fn backend_config_name(&self) -> Option<String> {
-        B::config_name(&self.device)
-    }
-
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape.dims.into()]
     }

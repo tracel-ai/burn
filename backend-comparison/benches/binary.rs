@@ -14,10 +14,6 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
         "binary".into()
     }
 
-    fn backend_config_name(&self) -> Option<String> {
-        B::config_name(&self.device)
-    }
-
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape.dims.into()]
     }

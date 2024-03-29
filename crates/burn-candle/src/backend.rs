@@ -87,13 +87,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         "candle".to_string()
     }
 
-    fn config_name(device: &Self::Device) -> Option<String> {
-        match device {
-            CandleDevice::Cpu => Some(String::from("candle-cpu")),
-            CandleDevice::Cuda(_) | CandleDevice::Metal(_) => Some(String::from("candle-gpu")),
-        }
-    }
-
     fn seed(seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
