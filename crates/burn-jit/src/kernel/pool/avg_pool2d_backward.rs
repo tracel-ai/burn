@@ -1,16 +1,14 @@
-use burn_tensor::ElementConversion;
-
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{self, DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 use std::marker::PhantomData;
 
@@ -378,31 +376,28 @@ pub(crate) fn avg_pool2d_backward<R: Runtime, E: JitElement>(
     let dilation = 1;
 
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
-    let kernel = AvgPool2dBackwardEagerKernel::new(kernel_size, count_include_pad);
+    let kernel = AvgPool2dBackwardEagerKernel::<R, E>::new(kernel_size, count_include_pad);
 
-    execute_dynamic::<R, AvgPool2dBackwardEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(
+    Execution::start(kernel, x.client)
+        .inputs(&[EagerHandle::<R>::new(
             &grad.handle,
             &grad.strides,
             &grad.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as i32).elem(),
-            (stride[1] as i32).elem(),
-            dilation.elem(),
-            dilation.elem(),
-            (padding[0] as i32).elem(),
-            (padding[1] as i32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        )])
+        .with_scalars(&[
+            stride[0] as i32,
+            stride[1] as i32,
+            dilation,
+            dilation,
+            padding[0] as i32,
+            padding[1] as i32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

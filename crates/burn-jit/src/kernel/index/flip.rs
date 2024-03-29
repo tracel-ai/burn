@@ -1,14 +1,14 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
@@ -128,30 +128,27 @@ pub(crate) fn flip_on_output<R: Runtime, E: JitElement, const D: usize>(
     output: JitTensor<R, E, D>,
     indices: &[usize],
 ) -> JitTensor<R, E, D> {
-    let mut scalars = Vec::with_capacity(D);
+    let mut scalars: Vec<u32> = Vec::with_capacity(D);
 
     for i in 0..D {
         scalars.push((indices.contains(&i) as u32).elem());
     }
 
-    let kernel = FlipEagerKernel::new(D);
+    let kernel = FlipEagerKernel::<R, E>::new(D);
 
-    execute_dynamic::<R, FlipEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(
+    Execution::start(kernel, tensor.client)
+        .inputs(&[EagerHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&scalars),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .with_scalars(&scalars)
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

@@ -12,9 +12,11 @@ macro_rules! testgen_all {
         burn_tensor::testgen_gelu!();
         burn_tensor::testgen_mish!();
         burn_tensor::testgen_relu!();
+        burn_tensor::testgen_leaky_relu!();
         burn_tensor::testgen_softmax!();
         burn_tensor::testgen_softplus!();
         burn_tensor::testgen_sigmoid!();
+        burn_tensor::testgen_log_sigmoid!();
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
 
@@ -104,5 +106,8 @@ macro_rules! testgen_all {
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
+
+        // test padding
+        burn_tensor::testgen_padding!();
     };
 }

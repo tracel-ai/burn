@@ -52,7 +52,7 @@ the `Module` derive, you need to be careful to achieve the behavior you want.
 These methods are available for all modules.
 
 | Burn API                                | PyTorch Equivalent                       |
-|-----------------------------------------|------------------------------------------|
+| --------------------------------------- | ---------------------------------------- |
 | `module.devices()`                      | N/A                                      |
 | `module.fork(device)`                   | Similar to `module.to(device).detach()`  |
 | `module.to_device(device)`              | `module.to(device)`                      |
@@ -69,7 +69,7 @@ Similar to the backend trait, there is also the `AutodiffModule` trait to signif
 autodiff support.
 
 | Burn API         | PyTorch Equivalent |
-|------------------|--------------------|
+| ---------------- | ------------------ |
 | `module.valid()` | `module.eval()`    |
 
 ## Visitor & Mapper
@@ -107,25 +107,25 @@ Burn comes with built-in modules that you can use to build your own modules.
 ### General
 
 | Burn API       | PyTorch Equivalent                            |
-|----------------|-----------------------------------------------|
+| -------------- | --------------------------------------------- |
 | `BatchNorm`    | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
-| `LayerNorm`    | `nn.LayerNorm`                                |
+| `Dropout`      | `nn.Dropout`                                  |
+| `Embedding`    | `nn.Embedding`                                |
+| `Gelu`         | `nn.Gelu`                                     |
 | `GroupNorm`    | `nn.GroupNorm`                                |
 | `InstanceNorm` | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
-| `RmsNorm`      | _No direct equivalent_                        |  
-| `Dropout`      | `nn.Dropout`                                  |
-| `Gelu`         | `nn.Gelu`                                     |
-| `Prelu`        | `nn.PReLu`                                    |
-| `LeakyRelu`    | `nn.LeakyReLu`                                |
+| `LayerNorm`    | `nn.LayerNorm`                                |
+| `LeakyRelu`    | `nn.LeakyReLU`                                |
 | `Linear`       | `nn.Linear`                                   |
-| `Embedding`    | `nn.Embedding`                                |
+| `Prelu`        | `nn.PReLu`                                    |
 | `Relu`         | `nn.ReLU`                                     |
+| `RmsNorm`      | _No direct equivalent_                        |
 | `SwiGlu`       | _No direct equivalent_                        |
 
 ### Convolutions
 
 | Burn API          | PyTorch Equivalent   |
-|-------------------|----------------------|
+| ----------------- | -------------------- |
 | `Conv1d`          | `nn.Conv1d`          |
 | `Conv2d`          | `nn.Conv2d`          |
 | `ConvTranspose1d` | `nn.ConvTranspose1d` |
@@ -134,7 +134,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 ### Pooling
 
 | Burn API            | PyTorch Equivalent     |
-|---------------------|------------------------|
+| ------------------- | ---------------------- |
 | `AdaptiveAvgPool1d` | `nn.AdaptiveAvgPool1d` |
 | `AdaptiveAvgPool2d` | `nn.AdaptiveAvgPool2d` |
 | `AvgPool1d`         | `nn.AvgPool1d`         |
@@ -145,7 +145,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 ### RNNs
 
 | Burn API         | PyTorch Equivalent     |
-|------------------|------------------------|
+| ---------------- | ---------------------- |
 | `Gru`            | `nn.GRU`               |
 | `Lstm`           | `nn.LSTM`              |
 | `GateController` | _No direct equivalent_ |
@@ -153,7 +153,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 ### Transformer
 
 | Burn API             | PyTorch Equivalent      |
-|----------------------|-------------------------|
+| -------------------- | ----------------------- |
 | `MultiHeadAttention` | `nn.MultiheadAttention` |
 | `TransformerDecoder` | `nn.TransformerDecoder` |
 | `TransformerEncoder` | `nn.TransformerEncoder` |
@@ -162,7 +162,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 ### Loss
 
 | Burn API           | PyTorch Equivalent    |
-|--------------------|-----------------------|
+| ------------------ | --------------------- |
 | `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
 | `MseLoss`          | `nn.MSELoss`          |
 | `HuberLoss`        | `nn.HuberLoss`        |

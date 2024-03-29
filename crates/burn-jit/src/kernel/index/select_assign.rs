@@ -1,7 +1,7 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Branch, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, WorkgroupLaunch,
     },
     element::JitElement,
@@ -205,23 +205,18 @@ pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: u
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
 
-    let kernel = SelectAssignEagerKernel::new(dim);
+    let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
     let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
 
-    execute_dynamic::<R, SelectAssignEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+    Execution::start(kernel, indices.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
             EagerHandle::new(&indices.handle, &strides, &strides),
-        ],
-        &[],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        indices.client,
-    );
+        ])
+        .execute(WorkgroupLaunch::Custom(workgroup));
 
     tensor
 }
