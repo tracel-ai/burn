@@ -16,6 +16,7 @@ use crate::{
     element::{FloatElement, IntElement},
 };
 
+#[derive(Debug)]
 pub struct CudaRuntime<F: FloatElement, I: IntElement> {
     _f: PhantomData<F>,
     _i: PhantomData<I>,

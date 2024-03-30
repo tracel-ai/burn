@@ -52,8 +52,8 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         if !self.module_names.contains_key(&kernel_id) {
             let name = format!("m{}", self.module_names.len());
             let source = kernel.source().complete();
-            // println!("{source}");
-            // println!("compiled {name}");
+            println!("compiled {name}:");
+            println!("{source}");
             let kernel = compile_ptx(source).unwrap();
 
             self.device.load_ptx(kernel, &name, &["kernel"]).unwrap();

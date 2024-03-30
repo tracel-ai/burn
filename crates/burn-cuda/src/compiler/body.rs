@@ -9,27 +9,48 @@ use std::fmt::Display;
 pub struct Body {
     pub instructions: Vec<Instruction>,
     pub shared_memories: Vec<super::SharedMemory>,
-    pub rank: bool,
-    pub id: bool,
     pub stride: bool,
     pub shape: bool,
+    pub id: bool,
+    pub rank: bool,
+    pub invocation_index: bool,
+    pub global_invocation_id: (bool, bool, bool),
 }
 
 impl Display for Body {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.id {
+        if self.id
+            || self.global_invocation_id.0
+            || self.global_invocation_id.1
+            || self.global_invocation_id.2
+        {
             f.write_str(
                 "
-    const uint WORKGROUP_SIZE_X = 32;
-    const uint WORKGROUP_SIZE_Y = 32;
-    const uint WORKGROUP_SIZE_Z = 1;
-    uint globalIdx_x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint globalIdx_y = blockIdx.y * blockDim.y + threadIdx.y;
-    uint globalIdx_z = 1;
-    uint id = globalIdx_y * (blockDim.x * WORKGROUP_SIZE_X) + globalIdx_x;
+    int3 globalInvocationId = make_int3(
+        blockIdx.x * blockDim.x + threadIdx.x,
+        blockIdx.y * blockDim.y + threadIdx.y,
+        blockIdx.z * blockDim.z + threadIdx.z
+    );
 ",
             )?;
         }
+
+        if self.id {
+            f.write_str(
+                "
+    uint id = globalInvocationId.y * (blockDim.x * gridDim.x) + globalInvocationId.x;
+",
+            )?;
+        }
+
+        if self.invocation_index {
+            f.write_str(
+                "
+    int invocationIndex = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * (blockDim.x * blockDim.y);
+            ",
+            )?;
+        }
+
         if self.rank || self.stride || self.shape {
             f.write_str("uint rank = info[0];\n")?;
         }
@@ -40,7 +61,7 @@ impl Display for Body {
 
         for shared in self.shared_memories.iter() {
             f.write_fmt(format_args!(
-                "__shared__ {}* shared_{}[{}];",
+                "__shared__ {} shared_memory_{}[{}];\n",
                 shared.item, shared.index, shared.size
             ))?;
         }

@@ -10,7 +10,6 @@ pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
     shared_memories: Vec<super::SharedMemory>,
-    invocation_id: (bool, bool, bool),
     id: bool,
     rank: bool,
     invocation_index: bool,
@@ -34,6 +33,11 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
     fn elem_size(elem: burn_jit::gpu::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
+
+    fn max_shared_memory_size() -> usize {
+        // TODO: Find out this value.
+        usize::MAX
+    }
 }
 
 impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
@@ -44,11 +48,13 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
         let instructions = self.compile_scope(&mut value.body);
         let body = super::Body {
             instructions,
-            rank: true,
-            id: true,
             stride: true,
             shape: true,
             shared_memories: self.shared_memories,
+            rank: self.rank,
+            id: self.id,
+            invocation_index: self.invocation_index,
+            global_invocation_id: self.global_invocation_id,
         };
 
         super::ComputeShader {
@@ -247,6 +253,8 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 rhs: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             }),
+            gpu::Operator::Floor(_) => todo!(),
+            gpu::Operator::Ceil(_) => todo!(),
         }
     }
 
@@ -309,18 +317,9 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 self.invocation_index = true;
                 super::Variable::LocalInvocationIndex
             }
-            gpu::Variable::LocalInvocationIdX => {
-                self.invocation_id.0 = true;
-                super::Variable::LocalInvocationIdX
-            }
-            gpu::Variable::LocalInvocationIdY => {
-                self.invocation_id.1 = true;
-                super::Variable::LocalInvocationIdY
-            }
-            gpu::Variable::LocalInvocationIdZ => {
-                self.invocation_id.2 = true;
-                super::Variable::LocalInvocationIdZ
-            }
+            gpu::Variable::LocalInvocationIdX => super::Variable::LocalInvocationIdX,
+            gpu::Variable::LocalInvocationIdY => super::Variable::LocalInvocationIdY,
+            gpu::Variable::LocalInvocationIdZ => super::Variable::LocalInvocationIdZ,
             gpu::Variable::WorkgroupIdX => super::Variable::WorkgroupIdX,
             gpu::Variable::WorkgroupIdY => super::Variable::WorkgroupIdY,
             gpu::Variable::WorkgroupIdZ => super::Variable::WorkgroupIdZ,
@@ -342,6 +341,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Variable::NumWorkgroupsX => super::Variable::NumWorkgroupsX,
             gpu::Variable::NumWorkgroupsY => super::Variable::NumWorkgroupsY,
             gpu::Variable::NumWorkgroupsZ => super::Variable::NumWorkgroupsZ,
+            gpu::Variable::LocalArray(_, _, _, _) => todo!(),
         }
     }
 

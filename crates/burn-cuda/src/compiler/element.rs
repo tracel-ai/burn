@@ -171,23 +171,23 @@ impl Display for Variable {
                 f.write_fmt(format_args!("shared_memory_{number}"))
             }
             Variable::Id => f.write_str("id"),
-            Variable::LocalInvocationIndex => f.write_str("id"), // TODO: Fix
-            Variable::LocalInvocationIdX => f.write_str("local_invocation_id.x"),
-            Variable::LocalInvocationIdY => f.write_str("local_invocation_id.y"),
-            Variable::LocalInvocationIdZ => f.write_str("local_invocation_id.z"),
+            Variable::LocalInvocationIndex => f.write_str("invocationIndex"),
+            Variable::LocalInvocationIdX => f.write_str("threadIdx.x"),
+            Variable::LocalInvocationIdY => f.write_str("threadIdx.y"),
+            Variable::LocalInvocationIdZ => f.write_str("threadIdx.z"),
             Variable::Rank => f.write_str("rank"),
             Variable::WorkgroupIdX => f.write_str("blockIdx.x"),
             Variable::WorkgroupIdY => f.write_str("blockIdx.y"),
             Variable::WorkgroupIdZ => f.write_str("blockIdx.z"),
-            Variable::GlobalInvocationIdX => f.write_str("globalIdx_x"),
-            Variable::GlobalInvocationIdY => f.write_str("globalIdx_y"),
-            Variable::GlobalInvocationIdZ => f.write_str("globalIdx_z"),
             Variable::WorkgroupSizeX => f.write_str("blockDim.x"),
             Variable::WorkgroupSizeY => f.write_str("blockDim.y"),
             Variable::WorkgroupSizeZ => f.write_str("blockDim.z"),
             Variable::NumWorkgroupsX => f.write_str("gridDim.x"),
             Variable::NumWorkgroupsY => f.write_str("gridDim.y"),
             Variable::NumWorkgroupsZ => f.write_str("gridDim.z"),
+            Variable::GlobalInvocationIdX => f.write_str("globalInvocationId.x"),
+            Variable::GlobalInvocationIdY => f.write_str("globalInvocationId.y"),
+            Variable::GlobalInvocationIdZ => f.write_str("globalInvocationId.z"),
         }
     }
 }
