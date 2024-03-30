@@ -23,7 +23,6 @@ pub fn from_data<E: CandleElement, const D: usize>(
 ) -> CandleTensor<E, D> {
     CandleTensor::from_data(data, *device)
 }
-
 pub fn into_data<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> Data<E, D> {
     Data::new(
         tensor.tensor.flatten_all().unwrap().to_vec1().unwrap(),
@@ -58,6 +57,26 @@ pub fn permute<E: CandleElement, const D: usize>(
     axes: [usize; D],
 ) -> CandleTensor<E, D> {
     CandleTensor::new(tensor.tensor.permute(axes).unwrap())
+}
+
+pub fn flip<E: CandleElement, const D: usize>(
+    tensor: CandleTensor<E, D>,
+    axes: &[usize],
+) -> CandleTensor<E, D> {
+    // FIXME: Replace with an appropriate method when Candle provides one.
+    let mut tensor = tensor.tensor;
+    for &axis in axes {
+        let indexes = candle_core::Tensor::arange_step(
+            tensor.dim(axis).unwrap() as i64 - 1,
+            -1,
+            -1,
+            tensor.device(),
+        )
+        .unwrap();
+        tensor = tensor.index_select(&indexes, axis).unwrap();
+    }
+
+    CandleTensor::new(tensor)
 }
 
 pub fn reshape<E: CandleElement, const D1: usize, const D2: usize>(
@@ -122,4 +141,11 @@ pub fn chunk<E: CandleElement, const D: usize>(
             .collect(),
         Err(e) => panic!("error chunk from Candle"),
     }
+}
+
+pub fn expand<E: CandleElement, const D1: usize, const D2: usize>(
+    tensor: CandleTensor<E, D1>,
+    shape: Shape<D2>,
+) -> CandleTensor<E, D2> {
+    CandleTensor::new(tensor.tensor.broadcast_as(&shape.dims).unwrap())
 }

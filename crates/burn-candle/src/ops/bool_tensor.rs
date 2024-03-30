@@ -8,7 +8,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::permute;
+use super::base::{expand, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
@@ -133,6 +133,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         tensor: BoolTensor<Self, D>,
         axes: [usize; D],
     ) -> BoolTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn bool_flip<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: &[usize],
+    ) -> BoolTensor<Self, D> {
+        super::base::flip(tensor, axes)
+    }
+
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<Self, D2> {
+        expand(tensor, shape)
     }
 }

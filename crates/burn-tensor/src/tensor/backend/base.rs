@@ -3,6 +3,8 @@ use alloc::string::String;
 use crate::ops::*;
 use crate::tensor::Element;
 
+use super::BackendBridge;
+
 /// This trait defines all types and functions needed for a backend to be used with burn.
 ///
 /// ## Design
@@ -66,10 +68,8 @@ pub trait Backend:
     /// Device type.
     type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
-    /// Pointer to another backend that have a full precision float element type
-    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
-    /// Full precision float element type.
-    type FullPrecisionElem: Element;
+    /// A bridge that can cast tensors to full precision.
+    type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
@@ -106,7 +106,6 @@ pub trait AutodiffBackend: Backend {
         Device = Self::Device,
         FloatElem = Self::FloatElem,
         IntElem = Self::IntElem,
-        FullPrecisionElem = Self::FullPrecisionElem,
     >;
 
     /// Gradients type.

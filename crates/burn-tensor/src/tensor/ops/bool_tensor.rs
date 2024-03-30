@@ -1,10 +1,13 @@
 use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{
-    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
+    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use crate::argwhere;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -300,6 +303,16 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_permute<const D: usize>(tensor: BoolTensor<B, D>, axes: [usize; D])
         -> BoolTensor<B, D>;
 
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn bool_flip<const D: usize>(tensor: BoolTensor<B, D>, axes: &[usize]) -> BoolTensor<B, D>;
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments
@@ -334,7 +347,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A vectors of tensors
+    /// A vector of tensors
     fn bool_chunk<const D: usize>(
         tensor: BoolTensor<B, D>,
         chunks: usize,
@@ -444,4 +457,10 @@ pub trait BoolTensorOps<B: Backend> {
             .map(|t| B::int_reshape(t, Shape::new([dims[0]])))
             .collect()
     }
+
+    /// Broadcasts the bool `tensor` to the given `shape`.
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: BoolTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> BoolTensor<B, D2>;
 }

@@ -353,6 +353,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_permute(tensor, axes)
     }
 
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        B::int_flip(tensor, axes)
+    }
+
     fn int_sign<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         B::int_sign(tensor)
     }
@@ -363,5 +367,36 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         B::int_prod_dim(tensor, dim)
+    }
+
+    fn int_expand<const D: usize, const D2: usize>(
+        tensor: IntTensor<B, D>,
+        shape: Shape<D2>,
+    ) -> IntTensor<B, D2> {
+        B::int_expand(tensor, shape)
+    }
+
+    fn int_sort<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<Self, D> {
+        B::int_sort(tensor, dim, descending)
+    }
+
+    fn int_sort_with_indices<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+        B::int_sort_with_indices(tensor, dim, descending)
+    }
+
+    fn int_argsort<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        descending: bool,
+    ) -> IntTensor<Self, D> {
+        B::int_argsort(tensor, dim, descending)
     }
 }

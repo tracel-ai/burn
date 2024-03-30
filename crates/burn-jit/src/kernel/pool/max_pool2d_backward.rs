@@ -1,9 +1,7 @@
-use burn_tensor::ElementConversion;
-
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
@@ -101,6 +99,7 @@ impl MaxPool2dBackwardComputeShader {
         let is_max = scope.create_local(Elem::Bool);
 
         let index = scope.create_local(Elem::UInt);
+        let index_base = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
 
         let grad_accumulation = scope.zero(grad.item());
@@ -116,20 +115,19 @@ impl MaxPool2dBackwardComputeShader {
             output_stride_3,
         );
 
+        gpu!(scope, index_base = b * grad_stride_0);
+        gpu!(scope, index_tmp = c * grad_stride_1);
+        gpu!(scope, index_base += index_tmp);
+
         gpu!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
                 gpu!(
                     scope,
                     range(ow_start, ow_end).for_each(|ow, scope| {
-                        gpu!(scope, index = b * grad_stride_0);
-
-                        gpu!(scope, index_tmp = c * grad_stride_1);
-                        gpu!(scope, index += index_tmp);
-
+                        gpu!(scope, index = index_base);
                         gpu!(scope, index_tmp = oh * grad_stride_2);
                         gpu!(scope, index += index_tmp);
-
                         gpu!(scope, index_tmp = ow * grad_stride_3);
                         gpu!(scope, index += index_tmp);
 
@@ -332,30 +330,27 @@ pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: JitElement, I: Jit
     let indices = kernel::into_contiguous(indices);
 
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
-    let kernel = MaxPool2dWithIndicesBackwardEagerKernel::new(kernel_size);
+    let kernel = MaxPool2dWithIndicesBackwardEagerKernel::<R, E>::new(kernel_size);
 
-    execute_dynamic::<R, MaxPool2dWithIndicesBackwardEagerKernel<R, E>, I>(
-        &[
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+    Execution::start(kernel, x.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
             EagerHandle::new(&grad.handle, &grad.strides, &grad.shape.dims),
-        ],
-        &[EagerHandle::new(
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as i32).elem(),
-            (stride[1] as i32).elem(),
-            (dilation[0] as i32).elem(),
-            (dilation[1] as i32).elem(),
-            (padding[0] as i32).elem(),
-            (padding[1] as i32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        )])
+        .with_scalars(&[
+            stride[0] as i32,
+            stride[1] as i32,
+            dilation[0] as i32,
+            dilation[1] as i32,
+            padding[0] as i32,
+            padding[1] as i32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

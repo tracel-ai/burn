@@ -6,13 +6,13 @@ use crate::{
     scalar_int_cmp_ops, scalar_int_ops,
     stream::{
         self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
-        MaskWhereOperationDescription, NumericOperationDescription, Operation,
-        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
+        ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
+        GatherOperationDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
+        NumericOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
+        RandomOperationDescription, ReduceDimWithIndicesDescription, ReshapeDescription,
+        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        StreamId, SwapDimsDescription, UnaryOperationDescription,
     },
     unary_int_ops, Fusion, FusionBackend, TensorDescription,
 };
@@ -1548,6 +1548,77 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
             PermuteDimsOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: IntTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> IntTensor<Self, D2> {
+        #[derive(new)]
+        struct ExpandOps<const D: usize, const D2: usize> {
+            desc: ExpandOperationDescription,
+        }
+
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
+                let output = B::bool_expand(input, shape.into());
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+
+        let desc = ExpandOperationDescription {
+            input: tensor.into_description(),
+            shape: shape.dims.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Expand(desc.clone())),
+            ExpandOps::<D1, D2>::new(desc),
+        );
+
+        out
+    }
+
+    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+        #[derive(new)]
+        struct FlipDimsOps<const D: usize> {
+            desc: FlipOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for FlipDimsOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&self.desc.input);
+                let axes = &self.desc.axes;
+                let output = B::int_flip(input, axes);
+                handles.register_int_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+
+        let desc = FlipOperationDescription {
+            input: tensor.into_description(),
+            axes: axes.to_vec(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Flip(desc.clone())),
+            FlipDimsOps::<D>::new(desc),
         );
 
         out

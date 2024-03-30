@@ -5,7 +5,7 @@ use crate::{
         dialect::gpu::{
             gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
@@ -171,32 +171,35 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         );
 
         // Load to shared memory, unrolled
-        for i in 0..self.n_input_values_per_thread {
-            let nth = scope.create_local(Elem::UInt);
-            gpu!(scope, nth = i * n_threads);
-            gpu!(scope, nth += local_id);
+        gpu!(
+            scope,
+            range(0u32, self.n_input_values_per_thread).for_each(|i, scope| {
+                let nth = scope.create_local(Elem::UInt);
+                gpu!(scope, nth = i * n_threads);
+                gpu!(scope, nth += local_id);
 
-            let within_shape = scope.create_local(Elem::Bool);
+                let within_shape = scope.create_local(Elem::Bool);
 
-            if self.divisible_shape {
-                let current_position = scope.create_local(Elem::UInt);
-                gpu!(scope, current_position = nth * stride_reduce_dim_input);
-                gpu!(scope, current_position += index_offset);
-
-                let new_value = RD::read_from_input(scope, tensor, current_position, nth);
-                RD::write_to_shared(scope, shared_memory, local_id, new_value);
-            } else {
-                gpu!(scope, within_shape = nth < shape_reduce_dim_input);
-                gpu!(scope, if(within_shape).then(|scope|{
+                if self.divisible_shape {
                     let current_position = scope.create_local(Elem::UInt);
                     gpu!(scope, current_position = nth * stride_reduce_dim_input);
                     gpu!(scope, current_position += index_offset);
 
                     let new_value = RD::read_from_input(scope, tensor, current_position, nth);
                     RD::write_to_shared(scope, shared_memory, local_id, new_value);
-                }));
-            }
-        }
+                } else {
+                    gpu!(scope, within_shape = nth < shape_reduce_dim_input);
+                    gpu!(scope, if(within_shape).then(|scope|{
+                        let current_position = scope.create_local(Elem::UInt);
+                        gpu!(scope, current_position = nth * stride_reduce_dim_input);
+                        gpu!(scope, current_position += index_offset);
+
+                        let new_value = RD::read_from_input(scope, tensor, current_position, nth);
+                        RD::write_to_shared(scope, shared_memory, local_id, new_value);
+                    }));
+                }
+            })
+        );
 
         scope.register(Synchronization::WorkgroupBarrier);
 
@@ -256,7 +259,7 @@ pub fn reduce_dim_shared<
     let divisible_shape =
         n_invocation_per_workgroup as u32 * n_input_values_per_thread == reduce_group_size as u32;
 
-    let kernel = SharedReduceDimEagerKernel::new(
+    let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
         WORKGROUP_DEFAULT,
         WORKGROUP_DEFAULT,
@@ -264,22 +267,18 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    execute_dynamic::<R, SharedReduceDimEagerKernel<RD, R, EI, EO>, EI>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(grid),
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Custom(grid));
 
     output
 }

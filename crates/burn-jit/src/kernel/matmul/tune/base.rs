@@ -4,7 +4,10 @@ use burn_tensor::{Element, ElementConversion};
 use crate::{
     compute::JitAutotuneKey,
     element::JitElement,
-    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
+    kernel::{
+        matmul::{utils::init_matmul_output, Tiling2dConfig},
+        prng::random_like_uniform,
+    },
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -50,22 +53,14 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
         );
 
         vec![
-            Box::new(MemoryCoalescingMatmulDefault::new(
+            Box::new(SimpleMatmul::new(lhs.clone(), rhs.clone(), out.clone())),
+            Box::new(SimpleMatmul16x16::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(MemoryCoalescingMatmulW16x16::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Vec4TilingMatmulDefault::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Vec4TilingMatmulUnpaddedDefault::new(
+            Box::new(Tiling2dMatmul::new(lhs.clone(), rhs.clone(), out.clone())),
+            Box::new(Tiling2dMatmulPadded::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
@@ -75,16 +70,10 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         match fastest_index {
-            0 => Box::new(MemoryCoalescingMatmulDefault::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            1 => Box::new(MemoryCoalescingMatmulW16x16::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            2 => Box::new(Vec4TilingMatmulDefault::new(self.lhs, self.rhs, self.out)),
-            3 => Box::new(Vec4TilingMatmulUnpaddedDefault::new(
-                self.lhs, self.rhs, self.out,
-            )),
+            0 => Box::new(SimpleMatmul::new(self.lhs, self.rhs, self.out)),
+            1 => Box::new(SimpleMatmul16x16::new(self.lhs, self.rhs, self.out)),
+            2 => Box::new(Tiling2dMatmul::new(self.lhs, self.rhs, self.out)),
+            3 => Box::new(Tiling2dMatmulPadded::new(self.lhs, self.rhs, self.out)),
             _ => panic!("Fastest index is out of bound"),
         }
     }
@@ -134,23 +123,21 @@ macro_rules! matmul_tune_ops {
 
 // Potentially better for small matrices.
 matmul_tune_ops!(
-    MemoryCoalescingMatmulDefault,
+    SimpleMatmul,
     crate::kernel::matmul::matmul_mem_coalescing_default
 );
 
 // Potentially better for small matrices.
-matmul_tune_ops!(MemoryCoalescingMatmulW16x16, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_mem_coalescing(lhs, rhs, out, 16, 16)
+matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_simple(lhs, rhs, out, 16, 16)
 });
 
 // Probably the fastest when fixed sizes.
-matmul_tune_ops!(
-    Vec4TilingMatmulDefault,
-    crate::kernel::matmul::vec4::matmul_tiling_2d_vec4
-);
+matmul_tune_ops!(Tiling2dMatmulPadded, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, Tiling2dConfig::default())
+});
 
-// Probably the fastest otherwise.
-matmul_tune_ops!(
-    Vec4TilingMatmulUnpaddedDefault,
-    crate::kernel::matmul::unpadded::matmul_tiling_2d_unpadded
-);
+// Probably the fastest in the general case
+matmul_tune_ops!(Tiling2dMatmul, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, Tiling2dConfig::default())
+});

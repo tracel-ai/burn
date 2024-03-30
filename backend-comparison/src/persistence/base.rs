@@ -1,3 +1,4 @@
+use super::system_info::BenchmarkSystemInfo;
 use burn::{
     serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize, Serializer},
     tensor::backend::Backend,
@@ -9,10 +10,12 @@ use serde_json;
 use std::fmt::Display;
 use std::time::Duration;
 use std::{fs, io::Write};
+
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
     backend: String,
     device: String,
+    system_info: BenchmarkSystemInfo,
     pub results: BenchmarkResult,
 }
 
@@ -26,18 +29,19 @@ pub struct BenchmarkRecord {
 ///    {
 ///      "backend": "backend name",
 ///      "device": "device name",
-///      "git_hash": "hash",
+///      "gitHash": "hash",
+///      "max": "duration in microseconds",
+///      "mean": "duration in microseconds",
+///      "median": "duration in microseconds",
+///      "min": "duration in microseconds",
 ///      "name": "benchmark name",
-///      "operation": "operation name",
-///      "shapes": ["shape dimension", "shape dimension", ...],
-///      "timestamp": "timestamp",
 ///      "numSamples": "number of samples",
-///      "min": "duration in seconds",
-///      "max": "duration in seconds",
-///      "median": "duration in seconds",
-///      "mean": "duration in seconds",
-///      "variance": "duration in seconds"
-///      "rawDurations": ["duration 1", "duration 2", ...],
+///      "operation": "operation name",
+///      "rawDurations": [{"secs": "number of seconds", "nanos": "number of nanons"}, ...],
+///      "shapes": [[shape 1], [shape 2], ...],
+///      "systemInfo": { "cpus": ["cpu1", "cpu2", ...], "gpus": ["gpu1", "gpu2", ...]}
+///      "timestamp": "timestamp",
+///      "variance": "duration in microseconds",
 ///    },
 ///    { ... }
 /// ]
@@ -67,6 +71,7 @@ pub fn save<B: Backend>(
         .map(|bench| BenchmarkRecord {
             backend: B::name().to_string(),
             device: format!("{:?}", device),
+            system_info: BenchmarkSystemInfo::new(),
             results: bench,
         })
         .collect();
@@ -82,7 +87,8 @@ pub fn save<B: Backend>(
         serde_json::to_writer_pretty(file, &record)
             .expect("Benchmark file should be updated with benchmark results");
 
-        // Append the benchmark result filepath in the benchmark_results.tx file of  cache folder to be later picked by benchrun
+        // Append the benchmark result filepath in the benchmark_results.tx file of
+        // cache folder to be later picked by benchrun
         let benchmark_results_path = cache_dir.join("benchmark_results.txt");
         let mut benchmark_results_file = fs::OpenOptions::new()
             .append(true)
@@ -93,37 +99,37 @@ pub fn save<B: Backend>(
             .write_all(format!("{}\n", file_path.to_string_lossy()).as_bytes())
             .unwrap();
 
-        if url.is_some() {
-            println!("Sharing results...");
-            let client = reqwest::blocking::Client::new();
-            let mut headers = HeaderMap::new();
-            headers.insert(USER_AGENT, "burnbench".parse().unwrap());
-            headers.insert(ACCEPT, "application/json".parse().unwrap());
-            headers.insert(
-                AUTHORIZATION,
-                format!(
-                    "Bearer {}",
-                    token.expect("An auth token should be provided.")
-                )
-                .parse()
-                .unwrap(),
+        if let Some(upload_url) = url {
+            upload_record(
+                &record,
+                token.expect("An auth token should be provided."),
+                upload_url,
             );
-            // post the benchmark record
-            let response = client
-                .post(url.expect("A benchmark server URL should be provided."))
-                .headers(headers)
-                .json(&record)
-                .send()
-                .expect("Request should be sent successfully.");
-            if response.status().is_success() {
-                println!("Results shared successfully.");
-            } else {
-                println!("Failed to share results. Status: {}", response.status());
-            }
         }
     }
 
     Ok(records)
+}
+
+fn upload_record(record: &BenchmarkRecord, token: &str, url: &str) {
+    println!("Sharing results...");
+    let client = reqwest::blocking::Client::new();
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, "burnbench".parse().unwrap());
+    headers.insert(ACCEPT, "application/json".parse().unwrap());
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    // post the benchmark record
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(record)
+        .send()
+        .expect("Request should be sent successfully.");
+    if response.status().is_success() {
+        println!("Results shared successfully.");
+    } else {
+        println!("Failed to share results. Status: {}", response.status());
+    }
 }
 
 /// Macro to easily serialize each field in a flatten manner.
@@ -160,6 +166,7 @@ impl Serialize for BenchmarkRecord {
             ("numSamples", &self.results.raw.durations.len()),
             ("options", &self.results.options),
             ("rawDurations", &self.results.raw.durations),
+            ("systemInfo", &self.system_info),
             ("shapes", &self.results.shapes),
             ("timestamp", &self.results.timestamp),
             ("variance", &self.results.computed.variance.as_micros())
@@ -201,16 +208,16 @@ impl<'de> Visitor<'de> for BenchmarkRecordVisitor {
                     let value = map.next_value::<u64>()?;
                     br.results.computed.min = Duration::from_micros(value);
                 }
+                "numSamples" => _ = map.next_value::<usize>()?,
                 "options" => br.results.options = map.next_value::<Option<String>>()?,
                 "rawDurations" => br.results.raw.durations = map.next_value::<Vec<Duration>>()?,
                 "shapes" => br.results.shapes = map.next_value::<Vec<Vec<usize>>>()?,
+                "systemInfo" => br.system_info = map.next_value::<BenchmarkSystemInfo>()?,
                 "timestamp" => br.results.timestamp = map.next_value::<u128>()?,
                 "variance" => {
                     let value = map.next_value::<u64>()?;
                     br.results.computed.variance = Duration::from_micros(value)
                 }
-
-                "numSamples" => _ = map.next_value::<usize>()?,
                 _ => panic!("Unexpected Key: {}", key),
             }
         }
@@ -235,20 +242,33 @@ pub(crate) struct BenchmarkCollection {
 
 impl Display for BenchmarkCollection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Compute the max length for each column
+        let mut max_name_len = 0;
+        let mut max_backend_len = 0;
+        for record in self.records.iter() {
+            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
+            max_name_len = max_name_len.max(record.results.name.len());
+            max_backend_len = max_backend_len.max(backend_name.len());
+        }
+        // Header
         writeln!(
             f,
-            "| {0:<15}| {1:<35}| {2:<15}|\n|{3:-<16}|{4:-<36}|{5:-<16}|",
-            "Benchmark", "Backend", "Median", "", "", ""
+            "| {:<width_name$} | {:<width_backend$} | Median         |\n|{:->width_name$}--|{:->width_backend$}--|----------------|",
+            "Benchmark", "Backend", "", "", width_name = max_name_len, width_backend = max_backend_len
         )?;
+        // Table entries
         for record in self.records.iter() {
-            let backend = [record.backend.clone(), record.device.clone()].join("-");
+            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
             writeln!(
                 f,
-                "| {0:<15}| {1:<35}| {2:<15.3?}|",
-                record.results.name, backend, record.results.computed.median
+                "| {:<width_name$} | {:<width_backend$} | {:<15.3?}|",
+                record.results.name,
+                backend_name,
+                record.results.computed.median,
+                width_name = max_name_len,
+                width_backend = max_backend_len
             )?;
         }
-
         Ok(())
     }
 }

@@ -11,7 +11,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::permute;
+use super::base::{expand, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
@@ -368,18 +368,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
     }
 
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        CandleTensor::new(tensor.tensor.to_dtype(candle_core::DType::F32).unwrap())
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
-    }
-
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.exp().unwrap())
     }
@@ -522,7 +510,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         tensor: FloatTensor<Self, D>,
         axes: [usize; D],
     ) -> FloatTensor<Self, D> {
-        permute(tensor, axes)
+        super::base::permute(tensor, axes)
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        super::base::flip(tensor, axes)
+    }
+
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        expand(tensor, shape)
     }
 
     // TODO add sign operator once Candle supports it:

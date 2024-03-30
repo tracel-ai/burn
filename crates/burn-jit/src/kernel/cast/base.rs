@@ -2,7 +2,7 @@ use std::{any::TypeId, marker::PhantomData};
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
     gpu::{gpu, Scope, Variable, Visibility},
@@ -21,7 +21,7 @@ pub fn cast<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
         return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
     }
 
-    let kernel = CastEagerKernel::new();
+    let kernel = CastEagerKernel::<R, EI, EO>::new();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
     let output = JitTensor::new(
@@ -31,22 +31,18 @@ pub fn cast<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
         buffer,
     );
 
-    execute_dynamic::<R, CastEagerKernel<R, EI, EO>, u32>(
-        &[EagerHandle::new(
+    Execution::start(kernel, tensor.client)
+        .inputs(&[EagerHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

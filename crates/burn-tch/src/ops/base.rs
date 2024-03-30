@@ -446,6 +446,12 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor)
     }
 
+    pub fn flip<const D: usize>(tensor: TchTensor<E, D>, axes: &[usize]) -> TchTensor<E, D> {
+        let dims = axes.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let tensor = tensor.tensor.flip(dims);
+        TchTensor::new(tensor)
+    }
+
     pub fn narrow<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
@@ -487,5 +493,29 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
 
     pub fn sign<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
+    }
+
+    pub fn expand<const D: usize, const D2: usize>(
+        tensor: TchTensor<E, D>,
+        shape: Shape<D2>,
+    ) -> TchTensor<E, D2> {
+        let tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
+        TchTensor::new(tensor)
+    }
+
+    pub fn sort<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
+    }
+
+    pub fn argsort<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> TchTensor<i64, D> {
+        TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
     }
 }

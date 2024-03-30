@@ -4,11 +4,12 @@ use super::{
     AvgPool2dBackwardDescription, AvgPool2dDescription, BaseOperationDescription,
     BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
     Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
-    EmbeddingBackwardDescription, EmbeddingDescription, FloatOperationDescription,
-    GatherOperationDescription, IntOperationDescription, InterpolateBackwardDescription,
-    InterpolateDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
-    MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
-    MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
+    EmbeddingBackwardDescription, EmbeddingDescription, ExpandOperationDescription,
+    FlipOperationDescription, FloatOperationDescription, GatherOperationDescription,
+    IntOperationDescription, InterpolateBackwardDescription, InterpolateDescription,
+    MaskFillOperationDescription, MaskWhereOperationDescription, MaxPool1dDescription,
+    MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription, MaxPool2dDescription,
+    MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
     ModuleOperationDescription, NumericOperationDescription, OperationDescription,
     PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
     ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
@@ -793,6 +794,20 @@ impl BaseOperationDescription {
             }
             BaseOperationDescription::Permute(desc) => {
                 BaseOperationDescription::Permute(PermuteOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    axes: desc.axes.clone(),
+                })
+            }
+            BaseOperationDescription::Expand(desc) => {
+                BaseOperationDescription::Expand(ExpandOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    shape: desc.shape.clone(),
+                })
+            }
+            BaseOperationDescription::Flip(desc) => {
+                BaseOperationDescription::Flip(FlipOperationDescription {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                     axes: desc.axes.clone(),

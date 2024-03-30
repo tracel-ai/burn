@@ -10,6 +10,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
     seq_length: usize,
     device: &B::Device,
 ) -> Tensor<B, 3, Bool> {
+    // TODO replace with more efficient op of `triu_mask` and `expand`
     let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length], device);
 
     for i in 0..(seq_length - 1) {

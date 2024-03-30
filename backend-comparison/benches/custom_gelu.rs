@@ -27,10 +27,9 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
 
     fn name(&self) -> String {
         match self.autodiff {
-            true => "gelu_autodiff",
-            false => "gelu",
+            true => format!("gelu_autodiff_{:?}", self.kind),
+            false => format!("gelu_{:?}", self.kind),
         }
-        .into()
     }
 
     fn options(&self) -> Option<String> {

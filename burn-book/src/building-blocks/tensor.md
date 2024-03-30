@@ -148,7 +148,9 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.device()`                     | `tensor.device`                      |
 | `tensor.dims()`                       | `tensor.size()`                      |
 | `tensor.equal(other)`                 | `x == y`                             |
+| `tensor.expand(shape)`                | `tensor.expand(shape)`               |
 | `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)` |
+| `tensor.flip(axes)`                   | `tensor.flip(axes)`                  |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.into_primitive()`             | N/A                                  |
 | `tensor.into_scalar()`                | `tensor.item()`                      |
@@ -183,6 +185,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.all_close(other, atol, rtol)`                           | `torch.allclose(tensor, other, atol, rtol)`    |
 | `tensor.argmax(dim)`                                            | `tensor.argmax(dim)`                           |
 | `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                           |
+| `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
+| `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`         |
 | `tensor.bool()`                                                 | `tensor.bool()`                                |
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`        |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
@@ -216,6 +220,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
+| `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
 | `tensor.prod()`                                                 | `tensor.prod()`                                |
@@ -224,10 +229,16 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
 | `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
 | `tensor.sign()`                                                 | `tensor.sign()`                                |
+| `tensor.sort(dim)`                                              | `tensor.sort(dim).values`                      |
+| `tensor.sort_descending(dim)`                                   | `tensor.sort(dim, descending=True).values`     |
+| `tensor.sort_descending_with_indices(dim)`                      | `tensor.sort(dim, descending=True)`            |
+| `tensor.sort_with_indices(dim)`                                 | `tensor.sort(dim)`                             |
 | `tensor.sub(other)` or `tensor - other`                         | `tensor - other`                               |
 | `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
+| `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
+| `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
 
@@ -279,27 +290,31 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API            | PyTorch Equivalent              |
-| ------------------- | ------------------------------- |
-| `tensor.float()`    | `tensor.to(torch.float)`        |
-| `tensor.int()`      | `tensor.to(torch.long)`         |
-| `tensor.not()`      | `tensor.logical_not()`          |
-| `tensor.argwhere()` | `tensor.argwhere()`             |
-| `tensor.nonzero()`  | `tensor.nonzero(as_tuple=True)` |
+| Burn API                            | PyTorch Equivalent              |
+| ----------------------------------- | ------------------------------- |
+| `Tensor.diag_mask(shape, diagonal)` | N/A                             |
+| `Tensor.tril_mask(shape, diagonal)` | N/A                             |
+| `Tensor.triu_mask(shape, diagonal)` | N/A                             |
+| `tensor.argwhere()`                 | `tensor.argwhere()`             |
+| `tensor.float()`                    | `tensor.to(torch.float)`        |
+| `tensor.int()`                      | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                      | `tensor.logical_not()`          |
 
 ## Activation Functions
 
-| Burn API                                 | PyTorch Equivalent                         |
-| ---------------------------------------- | ------------------------------------------ |
-| `activation::gelu(tensor)`               | `nn.functional.gelu(tensor)`               |
-| `activation::log_sigmoid(tensor)`        | `nn.functional.log_sigmoid(tensor)`        |
-| `activation::log_softmax(tensor, dim)`   | `nn.functional.log_softmax(tensor, dim)`   |
-| `activation::mish(tensor)`               | `nn.functional.mish(tensor)`               |
-| `activation::prelu(tensor,alpha)`        | `nn.functional.prelu(tensor,weight)`       |
-| `activation::quiet_softmax(tensor, dim)` | `nn.functional.quiet_softmax(tensor, dim)` |
-| `activation::relu(tensor)`               | `nn.functional.relu(tensor)`               |
-| `activation::sigmoid(tensor)`            | `nn.functional.sigmoid(tensor)`            |
-| `activation::silu(tensor)`               | `nn.functional.silu(tensor)`               |
-| `activation::softmax(tensor, dim)`       | `nn.functional.softmax(tensor, dim)`       |
-| `activation::softplus(tensor, beta)`     | `nn.functional.softplus(tensor, beta)`     |
-| `activation::tanh(tensor)`               | `nn.functional.tanh(tensor)`               |
+| Burn API                                         | PyTorch Equivalent                                 |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
+| `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
+| `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
+| `activation::mish(tensor)`                       | `nn.functional.mish(tensor)`                       |
+| `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
+| `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
+| `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
+| `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
+| `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
+| `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
+| `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
+| `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |

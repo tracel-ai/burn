@@ -139,6 +139,10 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::permute(tensor, axes)
     }
 
+    fn bool_flip<const D: usize>(tensor: TchTensor<bool, D>, axes: &[usize]) -> TchTensor<bool, D> {
+        TchOps::flip(tensor, axes)
+    }
+
     fn bool_argwhere<const D: usize>(
         tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> TchTensor<i64, 2> {
@@ -154,5 +158,12 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
             .into_iter()
             .map(TchTensor::new)
             .collect()
+    }
+
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D2> {
+        TchOps::expand(tensor, shape)
     }
 }

@@ -6,9 +6,10 @@ use crate::{
     scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{
         BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
-        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+        ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
+        FloatOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
+        MaskWhereOperationDescription, NumericOperationDescription, Operation,
+        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
         ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
         ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
         SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
@@ -17,7 +18,7 @@ use crate::{
     unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
@@ -1282,18 +1283,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        tensor.clone()
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
-    ) -> FloatTensor<Self, D> {
-        tensor
-    }
-
     fn float_exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(ExpOps, B::float_exp);
 
@@ -1842,6 +1831,79 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
             PermuteDimsOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_expand<const D1: usize, const D2: usize>(
+        tensor: FloatTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> FloatTensor<Self, D2> {
+        #[derive(new)]
+        struct ExpandOps<const D: usize, const D2: usize> {
+            desc: ExpandOperationDescription,
+        }
+
+        impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
+                let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
+                let output = B::float_expand(input, shape.into());
+
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+
+        let desc = ExpandOperationDescription {
+            input: tensor.into_description(),
+            shape: shape.dims.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::Expand(desc.clone())),
+            ExpandOps::<D1, D2>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_flip<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: &[usize],
+    ) -> FloatTensor<Self, D> {
+        #[derive(new)]
+        struct FlipOps<const D: usize> {
+            desc: FlipOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for FlipOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
+                let output = B::float_flip(input, &self.desc.axes);
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+
+        let desc = FlipOperationDescription {
+            input: tensor.into_description(),
+            axes: axes.to_vec(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Flip(desc.clone())),
+            FlipOps::<D>::new(desc),
         );
 
         out
