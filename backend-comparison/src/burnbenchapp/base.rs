@@ -222,7 +222,7 @@ pub(crate) fn run_backend_comparison_benchmarks(
             let status = run_cargo("bench", &args).unwrap();
             if !status.success() {
                 println!(
-                    "Benchmark {} didn't ran successfully on the backend {}",
+                    "Benchmark {} didn't run successfully on the backend {}",
                     bench_str, backend_str
                 );
                 continue;

@@ -246,6 +246,7 @@ impl OnnxGraph {
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
                 NodeType::Log => graph.register(Self::log_conversion(node)),
+                NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
@@ -392,6 +393,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::erf(input, output)
+    }
+
+    fn leaky_relu_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let alpha = leaky_relu_config(&node);
+
+        UnaryNode::leaky_relu(input, output, alpha)
     }
 
     fn relu_conversion(node: Node) -> UnaryNode {

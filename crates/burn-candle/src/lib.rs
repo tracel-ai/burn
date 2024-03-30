@@ -7,10 +7,13 @@
 extern crate derive_new;
 
 mod backend;
+mod bridge;
 mod element;
 mod ops;
 mod tensor;
+
 pub use backend::*;
+pub use bridge::*;
 pub use tensor::*;
 
 #[cfg(test)]

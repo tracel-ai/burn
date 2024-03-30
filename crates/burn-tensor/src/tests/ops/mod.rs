@@ -35,6 +35,7 @@ mod mul;
 mod narrow;
 mod neg;
 mod one_hot;
+mod padding;
 mod permute;
 mod powf;
 mod powf_scalar;

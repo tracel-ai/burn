@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::alloc::borrow::ToOwned;
 
 use crate::{
@@ -735,6 +737,49 @@ where
             values.select(dim, k_indices.clone()),
             indices.select(dim, k_indices),
         )
+    }
+
+    /// Pad the tensor with the given value on the last two dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - A tuple of four integers representing the padding on the left, right, top, and bottom.
+    /// * `value` - The value to pad the tensor with.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given padding.
+    pub fn pad(self, padding: (usize, usize, usize, usize), value: K::Elem) -> Tensor<B, D, K> {
+        let (left, right, top, bottom) = padding;
+
+        let mut padded_dims: [usize; D] = self.dims();
+
+        // Update the last two dimensions with padding
+        padded_dims[D - 2] += top + bottom;
+        padded_dims[D - 1] += left + right;
+
+        // Create the ranges for the padded tensor
+        let ranges: [core::ops::Range<usize>; D] = padded_dims
+            .iter()
+            .enumerate()
+            .map(|(i, &dim)| {
+                if i == D - 2 {
+                    top..dim - bottom
+                } else if i == D - 1 {
+                    left..dim - right
+                } else {
+                    0..dim
+                }
+            })
+            .collect::<Vec<core::ops::Range<usize>>>()
+            .try_into()
+            .unwrap();
+
+        // Create the padded tensor
+        let padded_tensor = Tensor::full(padded_dims, value, &self.device());
+
+        // Assign the original tensor data to the appropriate slice of the padded tensor
+        padded_tensor.slice_assign(ranges, self)
     }
 }
 

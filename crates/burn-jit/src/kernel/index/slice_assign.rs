@@ -1,13 +1,13 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
         InputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
@@ -130,26 +130,22 @@ pub(crate) fn slice_assign<R: Runtime, E: JitElement, const D1: usize, const D2:
         true => tensor,
         false => tensor.copy(),
     };
-    let mut scalars = Vec::with_capacity(D1);
+    let mut scalars: Vec<i32> = Vec::with_capacity(D1);
 
     for i in 0..D1 {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
         scalars.push((start as i32).elem());
     }
 
-    let kernel = SliceAssignEagerKernel::new(D1);
+    let kernel = SliceAssignEagerKernel::<R, E>::new(D1);
 
-    execute_dynamic::<R, SliceAssignEagerKernel<R, E>, RuntimeInt<R>>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+    Execution::start(kernel, value.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
-        ],
-        &[],
-        Some(&scalars),
-        kernel,
-        WorkgroupLaunch::Input { pos: 0 },
-        value.client,
-    );
+        ])
+        .with_scalars(&scalars)
+        .execute(WorkgroupLaunch::Input { pos: 0 });
 
     tensor
 }
