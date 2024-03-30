@@ -40,26 +40,15 @@ fn main() {
 
 ## Good practices
 
-By using the Config pattern it is easy to create instances from this
-config. Therefore, initialization methods should be implemented on the config struct.
+By using the config type it is easy to create new module instances from it. The initialization
+method should be implemented on the config type with the device as argument.
 
 ```rust, ignore
 impl MyModuleConfig {
-    /// Create a module with random weights.
+    /// Create a module on the given device.
     pub fn init<B: Backend>(&self, device: &B::Device) -> MyModule {
         MyModule {
             linear: LinearConfig::new(self.d_model, self.d_ff).init(device),
-            dropout: DropoutConfig::new(self.dropout).init(),
-        }
-    }
-
-    /// Create a module with a record, for inference and fine-tuning.
-    pub fn init_with(&self, record: MyModuleRecord<B>) -> MyModule {
-        MyModule {
-            linear: LinearConfig::new(
-                self.d_model,
-                self.d_ff,
-            ).init_with(record.linear),
             dropout: DropoutConfig::new(self.dropout).init(),
         }
     }
