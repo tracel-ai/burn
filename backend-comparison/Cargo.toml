@@ -22,7 +22,6 @@ ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-tui = ["ratatui", "crossterm"]
 wgpu = ["burn/wgpu", "burn/autotune"]
 wgpu-fusion = ["wgpu", "burn/fusion"]
 
@@ -32,13 +31,11 @@ burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.13.0" }
 burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.13.0" }
 clap = { workspace = true }
-crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
 github-device-flow = { workspace = true }
 os_info = { workspace = true }
 rand = { workspace = true }
-ratatui = { workspace = true, optional = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
 serde = { workspace = true }
 serde_json = { workspace = true }
