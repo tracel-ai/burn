@@ -31,10 +31,12 @@ burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.13.0" }
 burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.13.0" }
 clap = { workspace = true }
+colored = { workspace = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
 github-device-flow = { workspace = true }
 os_info = { workspace = true }
+indicatif = { workspace = true }
 rand = { workspace = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
 serde = { workspace = true }

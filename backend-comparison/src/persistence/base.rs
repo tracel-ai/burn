@@ -7,16 +7,15 @@ use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde_json;
-use std::fmt::Display;
 use std::time::Duration;
 use std::{fs, io::Write};
 
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
-    backend: String,
-    device: String,
-    feature: String,
-    system_info: BenchmarkSystemInfo,
+    pub backend: String,
+    pub device: String,
+    pub feature: String,
+    pub system_info: BenchmarkSystemInfo,
     pub results: BenchmarkResult,
 }
 
@@ -238,55 +237,6 @@ impl<'de> Deserialize<'de> for BenchmarkRecord {
         D: burn::serde::Deserializer<'de>,
     {
         deserializer.deserialize_map(BenchmarkRecordVisitor)
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct BenchmarkCollection {
-    pub records: Vec<BenchmarkRecord>,
-}
-
-impl Display for BenchmarkCollection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Compute the max length for each column
-        let mut max_name_len = "Benchmark".len();
-        let mut max_backend_len = "Backend".len();
-        let mut max_device_len = "Device".len();
-        let mut max_feature_len = "Feature".len();
-        for record in self.records.iter() {
-            max_name_len = max_name_len.max(record.results.name.len());
-            // + 2 because if the added backticks
-            max_backend_len = max_backend_len.max(record.backend.len() + 2);
-            max_device_len = max_device_len.max(record.device.len());
-            max_feature_len = max_feature_len.max(record.feature.len());
-        }
-        // Header
-        writeln!(
-            f,
-            "| {:<width_name$} | {:<width_feature$} | {:<width_backend$} | {:<width_device$} | Median         |\n|{:->width_name$}--|{:->width_feature$}--|{:->width_backend$}--|{:->width_device$}--|----------------|",
-            "Benchmark", "Feature", "Backend", "Device", "", "", "", "",
-            width_name = max_name_len,
-            width_feature = max_feature_len,
-            width_backend = max_backend_len,
-            width_device = max_device_len
-        )?;
-        // Table entries
-        for record in self.records.iter() {
-            writeln!(
-                f,
-                "| {:<width_name$} | {:<width_feature$} | {:<width_backend$} | {:<width_device$} | {:<15.3?}|",
-                record.results.name,
-                record.feature,
-                format!("`{}`", record.backend),
-                record.device,
-                record.results.computed.median,
-                width_name = max_name_len,
-                width_feature = max_feature_len,
-                width_backend = max_backend_len,
-                width_device = max_device_len
-            )?;
-        }
-        Ok(())
     }
 }
 

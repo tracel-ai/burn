@@ -5,7 +5,7 @@ use sysinfo;
 use wgpu;
 
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub(crate) struct BenchmarkSystemInfo {
+pub struct BenchmarkSystemInfo {
     cpus: Vec<String>,
     gpus: Vec<String>,
     os: BenchmarkOSInfo,

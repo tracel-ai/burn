@@ -1,10 +1,10 @@
 mod auth;
 mod base;
+mod progressbar;
+mod reports;
+mod runner;
 
 pub use base::*;
-
-mod term;
-use term::TermApplication as App;
 
 const BENCHMARKS_TARGET_DIR: &str = "target/benchmarks";
 const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
