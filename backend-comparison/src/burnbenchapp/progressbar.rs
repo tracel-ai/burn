@@ -18,11 +18,11 @@ impl RunnerProgressBar {
         let pb = ProgressBar::new(total);
         pb.set_style(
             ProgressStyle::with_template(
-                "\n{msg}\n{wide_bar:.yellow/red}  {pos}/{len}  ({counter})",
+                "\n{msg}\n{wide_bar:.yellow/red}  {pos}/{len}  ({counter})\n ",
             )
             .unwrap()
             .with_key("counter", thread_safe_tracker.clone())
-            .progress_chars("▬▶―"),
+            .progress_chars("▬▬―"),
         );
         Self {
             pb,
@@ -55,7 +55,7 @@ impl RunnerProgressBar {
         self.pb.set_style(
             ProgressStyle::with_template(&msg)
                 .unwrap()
-                .progress_chars("▬▶―"),
+                .progress_chars("▬▬―"),
         );
         self.pb.finish_with_message(if success {
             "Benchmarks Complete!"
