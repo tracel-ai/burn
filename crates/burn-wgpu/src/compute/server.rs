@@ -151,6 +151,7 @@ where
 
         let source = match kernel {
             Kernel::Jit(jit_kernel) => {
+                // TODO generic over F, I
                 let shader = <WgslCompiler<f32, i32> as Compiler>::compile(jit_kernel.to_shader());
                 shader.to_string()
             }
