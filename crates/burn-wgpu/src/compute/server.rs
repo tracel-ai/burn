@@ -1,10 +1,15 @@
+use crate::compiler::wgsl::WgslCompiler;
+
 use super::WgpuStorage;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
+use burn_jit::{
+    compute::{JitAutotuneKey, Kernel, WorkGroup},
+    Compiler,
+};
 use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
@@ -138,13 +143,21 @@ where
         self.tasks.clear();
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Kernel) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
         }
 
-        let source = kernel.source().complete();
+        let source = match kernel {
+            Kernel::Jit(jit_kernel) => {
+                let shader = <WgslCompiler<f32, i32> as Compiler>::compile(jit_kernel.to_shader());
+                shader.to_string()
+            }
+            #[cfg(feature = "extension")]
+            Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
+        };
+
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
@@ -242,7 +255,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn Kernel>;
+    type Kernel = Kernel;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;

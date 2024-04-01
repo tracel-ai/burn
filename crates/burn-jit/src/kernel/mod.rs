@@ -6,7 +6,6 @@ mod comparison;
 mod contiguous;
 mod index;
 mod mask;
-mod source;
 mod unary;
 
 pub use base::*;
@@ -14,7 +13,6 @@ pub use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
-pub use source::*;
 pub use unary::*;
 
 /// Convolution kernels
@@ -33,7 +31,3 @@ pub mod reduce;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
-
-#[cfg(feature = "extension")]
-/// Module for compiling custom non-jit kernels
-pub mod template;

@@ -1,9 +1,7 @@
 use crate::compute::{DynamicKernel, Kernel, StaticKernel, WorkGroup};
 use crate::element::JitElement;
 use crate::gpu::Elem;
-use crate::kernel::{
-    elemwise_workgroup, DynamicKernelSource, StaticKernelSource, WORKGROUP_DEFAULT,
-};
+use crate::kernel::{elemwise_workgroup, DynamicJitKernel, StaticJitKernel, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
@@ -30,7 +28,7 @@ pub fn execute_static<R, K, E>(
     launch: WorkgroupLaunch,
     client: ComputeClient<R::Server, R::Channel>,
 ) where
-    K: StaticKernelSource + 'static,
+    K: StaticJitKernel + 'static,
     R: Runtime,
     E: JitElement,
 {
@@ -44,7 +42,7 @@ pub fn execute_static<R, K, E>(
         handles.push(handle);
     }
 
-    let kernel = Box::new(StaticKernel::<K>::new(workgroup));
+    let kernel = Kernel::Jit(Box::new(StaticKernel::<K>::new(workgroup)));
 
     client.execute(kernel, &handles);
 }
@@ -95,7 +93,7 @@ impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
 
 impl<'h, K, R> Execution<'h, K, R, ()>
 where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
     R: Runtime,
 {
     pub fn with_scalars<E>(self, scalars: &[E]) -> Execution<'h, K, R, (&[E],)> {
@@ -125,7 +123,7 @@ where
 
 impl<'h, 'a, K, R, E> Execution<'h, K, R, (&'a [E],)>
 where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
     R: Runtime,
     E: JitElement,
 {
@@ -160,7 +158,7 @@ where
 
 impl<'h, 'a, 'b, K, R, E1, E2> Execution<'h, K, R, (&'a [E1], &'b [E2])>
 where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
     R: Runtime,
     E1: JitElement,
     E2: JitElement,
@@ -182,7 +180,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn execute(self, launch: WorkgroupLaunch)
     where
-        K: DynamicKernelSource + 'static,
+        K: DynamicJitKernel + 'static,
         R: Runtime,
     {
         execute_dynamic::<R, K, E1, E2, f32>(
@@ -200,7 +198,7 @@ where
 
 impl<'h, 'a, 'b, 'c, K, R, E1, E2, E3> Execution<'h, K, R, (&'a [E1], &'b [E2], &'c [E3])>
 where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
     R: Runtime,
     E1: JitElement,
     E2: JitElement,
@@ -233,7 +231,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     launch: WorkgroupLaunch,
     client: ComputeClient<R::Server, R::Channel>,
 ) where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
     R: Runtime,
     E1: JitElement,
     E2: JitElement,
@@ -250,7 +248,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         handles.push(handle);
     }
 
-    let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
+    let kernel: Kernel = Kernel::Jit(Box::new(DynamicKernel::new(kernel, workgroup)));
 
     client.execute(kernel, &handles);
 }

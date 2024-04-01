@@ -5,7 +5,8 @@ use crate::{
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::DynamicJitKernel,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -69,8 +70,8 @@ impl SelectComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> DynamicJitKernel for SelectEagerKernel<R, E> {
+    fn to_shader(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
         let item_indices: Item = Elem::Int.into();
@@ -106,9 +107,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectEagerKernel<R, E> 
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

@@ -5,8 +5,8 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
+    kernel::DynamicJitKernel,
     tensor::JitTensor,
     Compiler, JitElement, Runtime,
 };
@@ -57,8 +57,8 @@ pub(crate) struct BoolCastEagerKernel<R: Runtime, EO: JitElement> {
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: Runtime, EO: JitElement> DynamicKernelSource for BoolCastEagerKernel<R, EO> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, EO: JitElement> DynamicJitKernel for BoolCastEagerKernel<R, EO> {
+    fn to_shader(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = Item::Scalar(Elem::Bool);
         let item_output = EO::gpu_elem().into();
@@ -84,9 +84,7 @@ impl<R: Runtime, EO: JitElement> DynamicKernelSource for BoolCastEagerKernel<R, 
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

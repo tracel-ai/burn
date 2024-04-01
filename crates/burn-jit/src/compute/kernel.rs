@@ -1,23 +1,47 @@
-use crate::kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource};
+#[cfg(feature = "extension")]
+use crate::template::SourceableKernel;
+use crate::{
+    gpu::ComputeShader,
+    kernel::{DynamicJitKernel, StaticJitKernel},
+};
 use alloc::sync::Arc;
 use core::marker::PhantomData;
 
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
-/// provided id.
-///
-/// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send + Sync {
-    /// Source template for the kernel.
-    fn source(&self) -> SourceTemplate;
-    /// Identifier for the kernel, used for caching kernel compilation.
+pub enum Kernel {
+    Jit(Box<dyn JitKernel>),
+    #[cfg(feature = "extension")]
+    Custom(Box<dyn SourceableKernel>),
+}
+
+impl Kernel {
+    pub fn id(&self) -> String {
+        match self {
+            Kernel::Jit(shader) => shader.id(),
+            #[cfg(feature = "extension")]
+            Kernel::Custom(sourceable_kernel) => sourceable_kernel.id(),
+        }
+    }
+
+    pub fn workgroup(&self) -> WorkGroup {
+        match self {
+            Kernel::Jit(shader) => shader.workgroup(),
+            #[cfg(feature = "extension")]
+            Kernel::Custom(sourceable_kernel) => sourceable_kernel.workgroup(),
+        }
+    }
+}
+
+pub trait JitKernel: Send + Sync {
+    fn to_shader(&self) -> ComputeShader;
+
     fn id(&self) -> String;
-    /// Launch information.
+
     fn workgroup(&self) -> WorkGroup;
 }
 
-impl Kernel for Arc<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
+impl JitKernel for Arc<dyn JitKernel> {
+    fn to_shader(&self) -> ComputeShader {
+        self.as_ref().to_shader()
     }
 
     fn id(&self) -> String {
@@ -29,9 +53,9 @@ impl Kernel for Arc<dyn Kernel> {
     }
 }
 
-impl Kernel for Box<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
+impl JitKernel for Box<dyn JitKernel> {
+    fn to_shader(&self) -> ComputeShader {
+        self.as_ref().to_shader()
     }
 
     fn id(&self) -> String {
@@ -61,7 +85,7 @@ impl WorkGroup {
     }
 }
 
-/// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](Kernel) with launch
+/// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [kernel](Kernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
 pub struct DynamicKernel<K> {
@@ -69,7 +93,7 @@ pub struct DynamicKernel<K> {
     workgroup: WorkGroup,
 }
 
-/// Wraps a [static kernel source](StaticKernelSource) into a [kernel](Kernel) with launch
+/// Wraps a [static jit kernel](StaticJitKernel) into a [kernel](Kernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
 pub struct StaticKernel<K> {
@@ -77,12 +101,12 @@ pub struct StaticKernel<K> {
     _kernel: PhantomData<K>,
 }
 
-impl<K> Kernel for DynamicKernel<K>
+impl<K> JitKernel for DynamicKernel<K>
 where
-    K: DynamicKernelSource + 'static,
+    K: DynamicJitKernel + 'static,
 {
-    fn source(&self) -> SourceTemplate {
-        self.kernel.source()
+    fn to_shader(&self) -> ComputeShader {
+        self.kernel.to_shader()
     }
 
     fn id(&self) -> String {
@@ -94,12 +118,12 @@ where
     }
 }
 
-impl<K> Kernel for StaticKernel<K>
+impl<K> JitKernel for StaticKernel<K>
 where
-    K: StaticKernelSource + 'static,
+    K: StaticJitKernel + 'static,
 {
-    fn source(&self) -> SourceTemplate {
-        K::source()
+    fn to_shader(&self) -> ComputeShader {
+        K::to_shader()
     }
 
     fn id(&self) -> String {

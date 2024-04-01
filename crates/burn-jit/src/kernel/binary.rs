@@ -52,7 +52,7 @@ macro_rules! binary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, I, O>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
+        ) -> $crate::gpu::ComputeShader
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
@@ -81,34 +81,31 @@ macro_rules! binary {
                 outputs: vec![out],
                 scope,
             };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
+            $crate::codegen::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
+        impl<C, I, O> $crate::kernel::StaticJitKernel for Ops<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<C, I, O>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource
+        impl<C, I, O> $crate::kernel::StaticJitKernel
             for OpsInplaceLhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -120,14 +117,14 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource
+        impl<C, I, O> $crate::kernel::StaticJitKernel
             for OpsInplaceRhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
@@ -147,9 +144,9 @@ pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D
     inplace_enabled: bool,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: crate::kernel::StaticKernelSource,
-    KernelInplaceLhs: crate::kernel::StaticKernelSource,
-    KernelInplaceRhs: crate::kernel::StaticKernelSource,
+    Kernel: crate::kernel::StaticJitKernel,
+    KernelInplaceLhs: crate::kernel::StaticJitKernel,
+    KernelInplaceRhs: crate::kernel::StaticJitKernel,
     E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {

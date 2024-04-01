@@ -5,7 +5,8 @@ use crate::{
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::DynamicJitKernel,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -63,8 +64,8 @@ impl SliceComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SliceEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> DynamicJitKernel for SliceEagerKernel<R, E> {
+    fn to_shader(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -97,9 +98,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for SliceEagerKernel<R, E> {
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

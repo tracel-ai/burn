@@ -15,11 +15,12 @@ mod fusion;
 
 #[cfg(feature = "extension")]
 pub use burn_jit::{
-    kernel::{
-        into_contiguous, template::build_info, DynamicKernelSource, SourceTemplate,
-        StaticKernelSource,
-    },
+    compute::Kernel,
+    kernel::{into_contiguous, DynamicJitKernel, StaticJitKernel},
     kernel_wgsl,
+    template::{
+        build_info, DynamicKernelSource, SourceTemplate, SourceKernel, StaticKernelSource,
+    },
 };
 
 pub use device::*;

@@ -1,6 +1,7 @@
 use crate::{
     codegen::{compiler::Compiler, dialect::gpu},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::DynamicJitKernel,
 };
 use std::{marker::PhantomData, sync::Arc};
 
@@ -20,10 +21,9 @@ impl<C: Compiler> GpuKernelSource<C> {
     }
 }
 
-impl<C: Compiler> DynamicKernelSource for Arc<GpuKernelSource<C>> {
-    fn source(&self) -> SourceTemplate {
-        let compiled = C::compile(self.shader.clone());
-        SourceTemplate::new(compiled.to_string())
+impl<C: Compiler> DynamicJitKernel for Arc<GpuKernelSource<C>> {
+    fn to_shader(&self) -> ComputeShader {
+        self.shader.clone()
     }
 
     fn id(&self) -> String {

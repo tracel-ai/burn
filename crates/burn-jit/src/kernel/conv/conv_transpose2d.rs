@@ -6,8 +6,8 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::{self, DynamicJitKernel},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
@@ -287,8 +287,8 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dTransposeEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> DynamicJitKernel for Conv2dTransposeEagerKernel<R, E> {
+    fn to_shader(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -334,9 +334,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dTransposeEagerKern
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

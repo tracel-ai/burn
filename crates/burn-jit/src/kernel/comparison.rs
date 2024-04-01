@@ -2,7 +2,7 @@ use crate::{
     binary,
     codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
     element::JitElement,
-    kernel::StaticKernelSource,
+    kernel::StaticJitKernel,
     kernel::{binary::binary, unary::unary},
     tensor::JitTensor,
     unary, Runtime,
@@ -211,9 +211,9 @@ fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, cons
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplaceLhs: StaticKernelSource,
-    KernelInplaceRhs: StaticKernelSource,
+    Kernel: StaticJitKernel,
+    KernelInplaceLhs: StaticJitKernel,
+    KernelInplaceRhs: StaticJitKernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
@@ -233,8 +233,8 @@ fn launch_unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     scalars: E,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplace: StaticKernelSource,
+    Kernel: StaticJitKernel,
+    KernelInplace: StaticJitKernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();

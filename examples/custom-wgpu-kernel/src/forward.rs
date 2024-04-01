@@ -4,8 +4,8 @@ use super::Backend;
 use burn::{
     backend::wgpu::{
         build_info, into_contiguous, kernel_wgsl, DynamicKernel, DynamicKernelSource, FloatElement,
-        GraphicsApi, IntElement, JitBackend, JitTensor, SourceTemplate, StaticKernelSource,
-        WgpuRuntime, WorkGroup,
+        GraphicsApi, IntElement, JitBackend, JitTensor, Kernel, SourceKernel, SourceTemplate,
+        StaticKernelSource, WgpuRuntime, WorkGroup,
     },
     tensor::Shape,
 };
@@ -33,10 +33,6 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("elem", E::type_name())
             .register("int", "i32")
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", self)
     }
 }
 
@@ -96,7 +92,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Box::new(DynamicKernel::new(kernel, workgroup)),
+            Kernel::Custom(Box::new(SourceKernel::new(kernel, workgroup))),
             &[
                 &lhs.handle,
                 &rhs.handle,

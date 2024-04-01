@@ -1,12 +1,12 @@
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
-use crate::codegen::Compiler;
+use crate::compute::JitKernel;
 use crate::compute::Kernel;
 use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
-use crate::kernel::SourceTemplate;
+use crate::gpu::ComputeShader;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -44,7 +44,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
-    kernel: Box<dyn Kernel>,
+    kernel: Box<dyn JitKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -57,7 +57,7 @@ pub struct ExecutableKernel<R: Runtime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
-    kernel: Arc<dyn Kernel>,
+    kernel: Arc<dyn JitKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -72,15 +72,17 @@ pub enum OutputRuntimeInfo {
 impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
+        self.client.execute(
+            Kernel::Jit(self.kernel),
+            &self.handles.iter().collect::<Vec<_>>(),
+        )
     }
 }
 
 impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
         self.client.execute(
-            Box::new(self.kernel),
+            Kernel::Jit(Box::new(self.kernel)),
             &self.handles.iter().collect::<Vec<_>>(),
         )
     }
@@ -220,13 +222,10 @@ impl<R: Runtime> FusionKernel<R> {
     }
 }
 
-impl<R: Runtime> Kernel for FusionKernel<R> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime> JitKernel for FusionKernel<R> {
+    fn to_shader(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
-        let compiled = Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone());
-        let compiled = <R::Compiler as Compiler>::compile(compiled);
-
-        SourceTemplate::new(compiled.to_string())
+        Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
     }
 
     fn id(&self) -> String {

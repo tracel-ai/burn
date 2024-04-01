@@ -5,7 +5,8 @@ use crate::{
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::{self, DynamicJitKernel},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -314,8 +315,8 @@ impl AvgPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for AvgPool2dBackwardEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> DynamicJitKernel for AvgPool2dBackwardEagerKernel<R, E> {
+    fn to_shader(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -349,9 +350,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for AvgPool2dBackwardEagerKe
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

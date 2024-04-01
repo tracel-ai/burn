@@ -1,4 +1,4 @@
-use super::StaticKernelSource;
+use super::StaticJitKernel;
 use crate::{
     codegen::{execute_static, EagerHandle, WorkgroupLaunch},
     element::JitElement,
@@ -58,7 +58,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
+        ) -> $crate::gpu::ComputeShader
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement
@@ -83,31 +83,28 @@ macro_rules! unary {
                 outputs: vec![out],
                 scope,
             };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
+            $crate::codegen::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
+        impl<C, E> $crate::kernel::StaticJitKernel for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<C, E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::StaticJitKernel for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -135,7 +132,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
+        ) -> $crate::gpu::ComputeShader
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement
@@ -164,31 +161,28 @@ macro_rules! unary {
                 outputs: vec![out],
                 scope,
             };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
+            $crate::codegen::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
+        impl<C, E> $crate::kernel::StaticJitKernel for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<C, E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::StaticJitKernel for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn to_shader() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -208,8 +202,8 @@ pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     inplace_enabled: bool,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplace: StaticKernelSource,
+    Kernel: StaticJitKernel,
+    KernelInplace: StaticJitKernel,
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {

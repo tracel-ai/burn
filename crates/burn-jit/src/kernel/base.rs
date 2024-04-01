@@ -1,21 +1,18 @@
-use super::SourceTemplate;
-use crate::compute::WorkGroup;
+use crate::{compute::WorkGroup, gpu::ComputeShader};
 
 #[cfg(target_family = "wasm")]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
-/// Static jit kernel to create a [source template](SourceTemplate).
-pub trait StaticKernelSource: Send + 'static + Sync {
-    /// Source template for the kernel.
-    fn source() -> SourceTemplate;
+/// Static jit kernel to create a [compute shader](ComputeShader).
+pub trait StaticJitKernel: Send + 'static + Sync {
+    fn to_shader() -> ComputeShader;
 }
 
-/// Dynamic jit kernel to create a [source template](SourceTemplate).
-pub trait DynamicKernelSource: Send + Sync {
-    /// Source template for the kernel.
-    fn source(&self) -> SourceTemplate;
+/// Dynamic jit kernel to create a [compute shader](ComputeShader).
+pub trait DynamicJitKernel: Send + Sync {
+    fn to_shader(&self) -> ComputeShader;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
 }
