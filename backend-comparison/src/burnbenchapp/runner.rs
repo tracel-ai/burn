@@ -130,6 +130,6 @@ impl<'a> CargoRunner<'a> {
             .join()
             .expect("The stderr thread should not panic");
         self.stderr_processor.finish();
-        cargo.wait().map_err(|e| e.into())
+        cargo.wait()
     }
 }

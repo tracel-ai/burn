@@ -1,6 +1,11 @@
-use core::fmt;
-use std::{fmt::Display, fs, path::PathBuf, io::{BufReader, BufRead}};
 use colored::*;
+use core::fmt;
+use std::{
+    fmt::Display,
+    fs,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+};
 
 use crate::persistence::BenchmarkRecord;
 
@@ -126,4 +131,3 @@ impl Display for BenchmarkCollection {
         Ok(())
     }
 }
-

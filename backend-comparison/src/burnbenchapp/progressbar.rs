@@ -38,8 +38,8 @@ impl RunnerProgressBar {
         self.pb.inc(1);
     }
 
-    pub(crate) fn successed_inc(&mut self) {
-        self.tracker.inner.lock().unwrap().successed += 1;
+    pub(crate) fn succeeded_inc(&mut self) {
+        self.tracker.inner.lock().unwrap().succeeded += 1;
     }
 
     pub(crate) fn failed_inc(&mut self) {
@@ -68,7 +68,7 @@ impl RunnerProgressBar {
 #[derive(Clone, Default)]
 struct CountTracker {
     pub failed: u64,
-    pub successed: u64,
+    pub succeeded: u64,
 }
 
 #[derive(Clone)]
@@ -97,6 +97,6 @@ impl ProgressTracker for ThreadSafeTracker {
 
     fn write(&self, _state: &ProgressState, w: &mut dyn fmt::Write) {
         let tracker = self.inner.lock().unwrap();
-        write!(w, "{}✅ {}❌", tracker.successed, tracker.failed).unwrap();
+        write!(w, "{}✅ {}❌", tracker.succeeded, tracker.failed).unwrap();
     }
 }

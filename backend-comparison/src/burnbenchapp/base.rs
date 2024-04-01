@@ -95,7 +95,6 @@ enum BenchmarkValues {
     LoadRecord,
 }
 
-
 pub fn execute() {
     let args = Args::parse();
     match args.command {
@@ -178,15 +177,13 @@ fn run_backend_comparison_benchmarks(
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
             let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
-            let pb_processor: Option<Arc<NiceProcessor>> = if let Some(pb) = runner_pb.clone() {
-                Some(Arc::new(NiceProcessor::new(
+            let pb_processor: Option<Arc<NiceProcessor>> = runner_pb.clone().map(|pb| {
+                Arc::new(NiceProcessor::new(
                     bench_str.clone(),
                     backend_str.clone(),
                     pb,
-                )))
-            } else {
-                None
-            };
+                ))
+            });
             let mut args = vec![
                 "-p",
                 "backend-comparison",
@@ -223,7 +220,7 @@ fn run_backend_comparison_benchmarks(
             let success = status.success();
             if success {
                 if let Some(pb) = runner_pb.clone() {
-                    pb.lock().unwrap().successed_inc();
+                    pb.lock().unwrap().succeeded_inc();
                 }
             } else {
                 if let Some(pb) = runner_pb.clone() {
