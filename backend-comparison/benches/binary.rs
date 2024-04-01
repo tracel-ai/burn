@@ -36,13 +36,25 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     let benchmark = BinaryBenchmark::<B, 3> {
         shape: [32, 512, 1024].into(),
         device: device.clone(),
     };
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {
