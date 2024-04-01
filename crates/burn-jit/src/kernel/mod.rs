@@ -33,3 +33,7 @@ pub mod reduce;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
+
+#[cfg(feature = "extension")]
+/// Module for compiling custom non-jit kernels
+pub mod template;

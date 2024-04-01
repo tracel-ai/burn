@@ -76,6 +76,7 @@ openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 autotune = ["burn-wgpu?/autotune"]
+extension = ["burn-wgpu?/extension"]
 
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -127,7 +128,7 @@ rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-num-traits = {workspace = true, optional = true }
+num-traits = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
