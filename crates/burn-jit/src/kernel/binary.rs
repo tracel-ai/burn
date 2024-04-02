@@ -50,11 +50,10 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        fn compile<C, I, O>(
+        fn compile<I, O>(
             settings: $crate::codegen::CompilationSettings,
         ) -> $crate::gpu::ComputeShader
         where
-            C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
@@ -93,7 +92,7 @@ macro_rules! binary {
         {
             fn to_shader() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, I, O>(settings)
+                compile::<I, O>(settings)
             }
         }
 
@@ -112,7 +111,7 @@ macro_rules! binary {
                 };
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(vec![mapping]);
-                compile::<C, I, O>(settings)
+                compile::<I, O>(settings)
             }
         }
 
@@ -131,7 +130,7 @@ macro_rules! binary {
                 };
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(vec![mapping]);
-                compile::<C, I, O>(settings)
+                compile::<I, O>(settings)
             }
         }
     };
