@@ -40,10 +40,11 @@ mod tests {
     #[rstest]
     pub fn get_windows() {
         let dataset = InMemDataset::new([1, 2, 3, 4, 5].to_vec());
-        let windows_dataset = dataset.windows(3);
         let expected = [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
             .map(|x| x.to_vec())
             .to_vec();
+
+        let windows_dataset = dataset.windows(3);
 
         assert_eq!(windows_dataset.len(), 3);
         assert_eq!(windows_dataset.iter().collect::<Vec<Vec<i32>>>(), expected);
