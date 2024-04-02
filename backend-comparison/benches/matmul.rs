@@ -42,7 +42,12 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
     let batch_size = 3;
     let m = 1024;
@@ -53,7 +58,14 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {
