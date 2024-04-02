@@ -56,11 +56,10 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        fn compile<C, E>(
+        fn compile<E>(
             settings: $crate::codegen::CompilationSettings,
         ) -> $crate::gpu::ComputeShader
         where
-            C: $crate::codegen::Compiler,
             E: $crate::element::JitElement
         {
 
@@ -94,7 +93,7 @@ macro_rules! unary {
         {
             fn to_shader() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
 
@@ -111,7 +110,7 @@ macro_rules! unary {
                 };
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(vec![mapping]);
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
     };
