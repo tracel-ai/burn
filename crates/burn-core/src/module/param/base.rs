@@ -34,15 +34,10 @@ pub struct Param<T: Parameter> {
     state: SyncOnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
-    /// Because of [OnceCell](OnceCell), we have a guarantee that the initialization will only be called once,
+    /// Because of once cell, we have a guarantee that the initialization will only be called once,
     /// but it may be called at the same time as `lazy_device` and `lazy_is_require_grad`, which is
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
-    ///
-    /// To avoid creating locks on already initialized parameter, we wrap the lock inside an
-    /// Option, the inner option is required for resetting the state onced initialized.
-    /// TLDR: RwLock(None) only happens on the param reference that is lazy, but was initialized,
-    /// all other parameters
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
 }
 

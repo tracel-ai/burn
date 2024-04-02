@@ -2,12 +2,12 @@
 
 Now that we have trained our model, the next natural step is to use it for inference.
 
-You need two things in order to load weights for a model: the model's weights and the model's
-config. Since parameters in Burn are lazy initialized, no allocation and GPU/CPU kernels are executed by
-the `ModelConfig::init` function. The weights are initialized when used for the first time, therefore
-you can safely use `config.init(device).load_record(record)` without any meaningful performance cost.
-Let's create a simple `infer` method in a new file `src/inference.rs` which we will use to load our
-trained model.
+You need two things in order to load weights for a model: the model's record and the model's config.
+Since parameters in Burn are lazy initialized, no allocation and GPU/CPU kernels are executed by the
+`ModelConfig::init` function. The weights are initialized when used for the first time, therefore
+you can safely use `config.init(device).load_record(record)` without any meaningful performance
+cost. Let's create a simple `infer` method in a new file `src/inference.rs` which we will use to
+load our trained model.
 
 ```rust , ignore
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {

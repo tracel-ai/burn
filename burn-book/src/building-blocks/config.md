@@ -40,8 +40,8 @@ fn main() {
 
 ## Good practices
 
-By using the config type it is easy to create new module instances from it. The initialization
-method should be implemented on the config type with the device as argument.
+By using the config type it is easy to create new module instances. The initialization method should
+be implemented on the config type with the device as argument.
 
 ```rust, ignore
 impl MyModuleConfig {
