@@ -1,14 +1,14 @@
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
+use crate::compute::DynamicKernel;
 use crate::compute::JitKernel;
 use crate::compute::Kernel;
-use crate::compute::ShaderInformation;
 use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::gpu::ComputeShader;
-use crate::Compiler;
+use crate::kernel::DynamicJitKernel;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -220,31 +220,26 @@ impl<R: Runtime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        ExecutableKernel::new(Box::new(fusion_kernel), handles, client)
+        let workgroup = fusion_kernel.workgroup.clone();
+        ExecutableKernel::new(
+            Box::new(DynamicKernel::<FusionKernel<R>, R::Compiler>::new(
+                fusion_kernel,
+                workgroup,
+            )),
+            handles,
+            client,
+        )
     }
 }
 
-impl<R: Runtime> FusionKernel<R> {
+impl<R: Runtime> DynamicJitKernel for FusionKernel<R> {
     fn to_shader(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
         Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
     }
-}
-
-impl<R: Runtime> JitKernel for FusionKernel<R> {
-    fn source(&self) -> String {
-        <R::Compiler as Compiler>::compile(self.to_shader()).to_string()
-    }
 
     fn id(&self) -> String {
         format!("{}", self.settings) + self.id.as_str()
-    }
-
-    fn shader_information(&self) -> ShaderInformation {
-        ShaderInformation::new(
-            self.workgroup.clone(),
-            Some(self.to_shader().workgroup_size),
-        )
     }
 }
 

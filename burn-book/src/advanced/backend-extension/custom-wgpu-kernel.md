@@ -256,7 +256,10 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Kernel::Custom(Box::new(SourceKernel::new(kernel, workgroup))),
+            Kernel::Custom(Box::new(SourceKernel::new(
+                kernel,
+                ShaderInformation::new(workgroup, None),
+            ))),
             &[
                 &lhs.handle,
                 &rhs.handle,

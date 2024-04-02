@@ -26,7 +26,7 @@ pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_jit::compute::{DynamicKernel, WorkGroup};
+pub use burn_jit::compute::WorkGroup;
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]
