@@ -350,7 +350,11 @@ impl ImageFolderDataset {
             ))
         }
 
-        Self::with_items(items, &classes.iter().collect::<Vec<_>>())
+        // Sort class names
+        let mut classes = classes.into_iter().collect::<Vec<_>>();
+        classes.sort();
+
+        Self::with_items(items, &classes)
     }
 
     /// Create an image classification dataset with the specified items.
@@ -431,8 +435,7 @@ impl ImageFolderDataset {
         let dataset = InMemDataset::new(items);
 
         // Class names to index map
-        let mut classes = classes.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
-        classes.sort();
+        let classes = classes.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
         let classes_map: HashMap<_, _> = classes
             .into_iter()
             .enumerate()
