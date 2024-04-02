@@ -57,11 +57,13 @@ impl TryFrom<PixelDepth> for f32 {
     }
 }
 
-/// Image target for different tasks.
+/// Annotation type for different tasks.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Annotation {
     /// Image-level label.
     Label(usize),
+    /// Multiple image-level labels.
+    MultiLabel(Vec<usize>),
     /// Object bounding boxes.
     BoundingBoxes(Vec<BoundingBox>),
     /// Segmentation mask.
@@ -97,14 +99,47 @@ pub struct ImageDatasetItem {
     pub annotation: Annotation,
 }
 
+/// Raw annotation types.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+enum AnnotationRaw {
+    Label(String),
+    MultiLabel(Vec<String>),
+    // TODO: bounding boxes and segmentation mask
+}
+
+impl AnnotationRaw {
+    fn bin_config() -> bincode::config::Configuration {
+        bincode::config::standard()
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        bincode::serde::encode_to_vec(self, Self::bin_config()).unwrap()
+    }
+
+    fn decode(annotation: &[u8]) -> Self {
+        let (annotation, _): (AnnotationRaw, usize) =
+            bincode::serde::decode_from_slice(&annotation, Self::bin_config()).unwrap();
+        annotation
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct ImageDatasetItemRaw {
     /// Image path.
-    pub image_path: PathBuf,
+    image_path: PathBuf,
 
     /// Image annotation.
     /// The annotation bytes can represent a string (category name) or path to annotation file.
-    pub annotation: Vec<u8>,
+    annotation: Vec<u8>,
+}
+
+impl ImageDatasetItemRaw {
+    fn new<P: AsRef<Path>>(image_path: P, annotation: AnnotationRaw) -> ImageDatasetItemRaw {
+        ImageDatasetItemRaw {
+            image_path: image_path.as_ref().to_path_buf(),
+            annotation: annotation.encode(),
+        }
+    }
 }
 
 struct PathToImageDatasetItem {
@@ -118,9 +153,18 @@ fn parse_image_annotation(annotation: &[u8], classes: &HashMap<String, usize>) -
     // - [ ] Segmentation mask
     // For now, only image classification labels are supported.
 
+    let annotation = AnnotationRaw::decode(annotation);
+
     // Map class string to label id
-    let name = std::str::from_utf8(annotation).unwrap();
-    Annotation::Label(*classes.get(name).unwrap())
+    match annotation {
+        AnnotationRaw::Label(name) => Annotation::Label(*classes.get(&name).unwrap()),
+        AnnotationRaw::MultiLabel(names) => Annotation::MultiLabel(
+            names
+                .iter()
+                .map(|name| *classes.get(name).unwrap())
+                .collect(),
+        ),
+    }
 }
 
 impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
@@ -212,7 +256,7 @@ pub enum ImageLoaderError {
 type ImageDatasetMapper =
     MapperDataset<InMemDataset<ImageDatasetItemRaw>, PathToImageDatasetItem, ImageDatasetItemRaw>;
 
-/// A generic dataset to load classification images from disk.
+/// A generic dataset to load images from disk.
 pub struct ImageFolderDataset {
     dataset: ImageDatasetMapper,
 }
@@ -259,18 +303,6 @@ impl ImageFolderDataset {
         P: AsRef<Path>,
         S: AsRef<str>,
     {
-        /// Check if extension is supported.
-        fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
-            let extension = extension.as_ref();
-            if !SUPPORTED_FILES.contains(&extension) {
-                Err(ImageLoaderError::InvalidFileExtensionError(
-                    extension.to_string(),
-                ))
-            } else {
-                Ok(extension.to_string())
-            }
-        }
-
         // Glob all images with extensions
         let walker = globwalk::GlobWalkerBuilder::from_patterns(
             root.as_ref(),
@@ -278,7 +310,7 @@ impl ImageFolderDataset {
                 "*.{{{}}}", // "*.{ext1,ext2,ext3}
                 extensions
                     .iter()
-                    .map(check_extension)
+                    .map(Self::check_extension)
                     .collect::<Result<Vec<_>, _>>()?
                     .join(",")
             )],
@@ -312,21 +344,99 @@ impl ImageFolderDataset {
 
             classes.insert(label.clone());
 
-            items.push(ImageDatasetItemRaw {
-                image_path: image_path.to_path_buf(),
-                annotation: label.into_bytes(),
-            })
+            items.push(ImageDatasetItemRaw::new(
+                image_path,
+                AnnotationRaw::Label(label),
+            ))
         }
 
+        Self::with_items(items, &classes.iter().collect::<Vec<_>>())
+    }
+
+    /// Create an image classification dataset with the specified items.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - List of dataset items, each item represented by a tuple `(image path, label)`.
+    /// * `classes` - Dataset class names.
+    ///
+    /// # Returns
+    /// A new dataset instance.
+    pub fn new_classification_with_items<P: AsRef<Path>, S: AsRef<str>>(
+        items: Vec<(P, String)>,
+        classes: &[S],
+    ) -> Result<Self, ImageLoaderError> {
+        // Parse items and check valid image extension types
+        let items = items
+            .into_iter()
+            .map(|(path, label)| {
+                // Map image path and label
+                let path = path.as_ref();
+                let label = AnnotationRaw::Label(label);
+
+                Self::check_extension(&path.extension().unwrap().to_str().unwrap())?;
+
+                Ok(ImageDatasetItemRaw::new(path, label))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Self::with_items(items, classes)
+    }
+
+    /// Create a multi-label image classification dataset with the specified items.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - List of dataset items, each item represented by a tuple `(image path, labels)`.
+    /// * `classes` - Dataset class names.
+    ///
+    /// # Returns
+    /// A new dataset instance.
+    pub fn new_multilabel_classification_with_items<P: AsRef<Path>, S: AsRef<str>>(
+        items: Vec<(P, Vec<String>)>,
+        classes: &[S],
+    ) -> Result<Self, ImageLoaderError> {
+        // Parse items and check valid image extension types
+        let items = items
+            .into_iter()
+            .map(|(path, labels)| {
+                // Map image path and multi-label
+                let path = path.as_ref();
+                let labels = AnnotationRaw::MultiLabel(labels);
+
+                Self::check_extension(&path.extension().unwrap().to_str().unwrap())?;
+
+                Ok(ImageDatasetItemRaw::new(path, labels))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Self::with_items(items, classes)
+    }
+
+    /// Create an image dataset with the specified items.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - Raw dataset items.
+    /// * `classes` - Dataset class names.
+    ///
+    /// # Returns
+    /// A new dataset instance.
+    fn with_items<S: AsRef<str>>(
+        items: Vec<ImageDatasetItemRaw>,
+        classes: &[S],
+    ) -> Result<Self, ImageLoaderError> {
+        // NOTE: right now we don't need to validate the supported image files since
+        // the method is private. We assume it's already validated.
         let dataset = InMemDataset::new(items);
 
         // Class names to index map
-        let mut classes = classes.into_iter().collect::<Vec<_>>();
+        let mut classes = classes.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
         classes.sort();
         let classes_map: HashMap<_, _> = classes
             .into_iter()
             .enumerate()
-            .map(|(idx, cls)| (cls, idx))
+            .map(|(idx, cls)| (cls.to_string(), idx))
             .collect();
 
         let mapper = PathToImageDatasetItem {
@@ -335,6 +445,18 @@ impl ImageFolderDataset {
         let dataset = MapperDataset::new(dataset, mapper);
 
         Ok(Self { dataset })
+    }
+
+    /// Check if extension is supported.
+    fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
+        let extension = extension.as_ref();
+        if !SUPPORTED_FILES.contains(&extension) {
+            Err(ImageLoaderError::InvalidFileExtensionError(
+                extension.to_string(),
+            ))
+        } else {
+            Ok(extension.to_string())
+        }
     }
 }
 
@@ -417,11 +539,26 @@ mod tests {
     }
 
     #[test]
-    pub fn parse_image_annotation_string() {
+    pub fn parse_image_annotation_label_string() {
         let classes = HashMap::from([("0".to_string(), 0_usize), ("1".to_string(), 1_usize)]);
+        let anno = AnnotationRaw::Label("0".to_string()).encode();
         assert_eq!(
-            parse_image_annotation(&"0".to_string().into_bytes(), &classes),
+            parse_image_annotation(&anno, &classes),
             Annotation::Label(0)
+        );
+    }
+
+    #[test]
+    pub fn parse_image_annotation_multilabel_string() {
+        let classes = HashMap::from([
+            ("0".to_string(), 0_usize),
+            ("1".to_string(), 1_usize),
+            ("2".to_string(), 2_usize),
+        ]);
+        let anno = AnnotationRaw::MultiLabel(vec!["0".to_string(), "2".to_string()]).encode();
+        assert_eq!(
+            parse_image_annotation(&anno, &classes),
+            Annotation::MultiLabel(vec![0, 2])
         );
     }
 }
