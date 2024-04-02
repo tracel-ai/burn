@@ -97,7 +97,12 @@ impl<B: Backend> Benchmark for LoadRecordBenchmark<B> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     let config = BenchmarkConfig::new(nn::LinearConfig::new(2048, 2048), 12);
 
     let benchmark_lazy = LoadRecordBenchmark::<B>::new(config.clone(), device.clone(), Kind::Lazy);
@@ -105,9 +110,30 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
     let benchmark_manual =
         LoadRecordBenchmark::<B>::new(config.clone(), device.clone(), Kind::Manual);
 
-    save::<B>(vec![run_benchmark(benchmark_lazy)], device, url, token).unwrap();
-    save::<B>(vec![run_benchmark(benchmark_manual)], device, url, token).unwrap();
-    save::<B>(vec![run_benchmark(benchmark_sync)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark_lazy)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark_manual)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark_sync)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {
