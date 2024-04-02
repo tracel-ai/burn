@@ -90,7 +90,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match ToDevice
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -137,10 +137,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Add
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroAdd::<B, D>::new(
                 lhs.node.id.clone(),
@@ -183,7 +180,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         AddScalar
-            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -221,10 +218,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Sub
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroSub::<B, D>::new(
                 lhs.node.id.clone(),
@@ -267,7 +261,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         SubScalar
-            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroSubScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -317,10 +311,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Mul
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroMul::<B, D>::new(
                 lhs.node.id.clone(),
@@ -367,7 +358,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match MulScalar
-            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -429,10 +420,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Div
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroDiv::<B, D>::new(
                 lhs.node.id.clone(),
@@ -480,7 +468,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match DivScalar
-            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroDivScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -536,10 +524,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Matmul
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -574,7 +559,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        Neg.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        Neg.prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroNeg::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -607,7 +592,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Recip
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroRecip::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -663,7 +648,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match SwapDim
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSwapDims::<B, D>::new(
                 tensor.node.id.clone(),
@@ -728,7 +713,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match PermuteDim
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroPermuteDims::<B, D>::new(tensor.node.id.clone(), axes))
             .parents([&tensor])
@@ -779,7 +764,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match FlipDim
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroFlipDims::<B, D>::new(
                 tensor.node.id.clone(),
@@ -844,7 +829,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match ReshapeDim
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroReshape::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -888,7 +873,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Gather
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -945,7 +930,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Scatter
-            .prepare::<C>([tensor.node, value.node], [tensor.graph, value.graph])
+            .prepare::<C>([tensor.node, value.node])
             .compute_bound()
             .stateful()
         {
@@ -1010,7 +995,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Select
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSelect::<B, D>::new(
                 tensor.node.id.clone(),
@@ -1090,10 +1075,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match IndexSelectDimAssign::<D>
-            .prepare::<C>(
-                [tensor.node.clone(), value.node.clone()],
-                [tensor.graph.clone(), value.graph.clone()],
-            )
+            .prepare::<C>([tensor.node.clone(), value.node.clone()])
             .memory_bound()
             .retro_forward(RetroSelectAssign::<B, D>::new(
                 tensor.node.id.clone(),
@@ -1164,7 +1146,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Index
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSlice::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -1236,10 +1218,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match SliceAssign
-            .prepare::<C>(
-                [tensor.node.clone(), value.node.clone()],
-                [tensor.graph.clone(), value.graph.clone()],
-            )
+            .prepare::<C>([tensor.node.clone(), value.node.clone()])
             .memory_bound()
             .retro_forward(RetroSliceAssign::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -1306,7 +1285,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match MaskWhere
-            .prepare::<C>([tensor.node, source.node], [tensor.graph, source.graph])
+            .prepare::<C>([tensor.node, source.node])
             .compute_bound()
             .stateful()
         {
@@ -1351,7 +1330,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match MaskFill
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -1489,11 +1468,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        match Mean
-            .prepare::<C>([tensor.node], [tensor.graph])
-            .compute_bound()
-            .stateful()
-        {
+        match Mean.prepare::<C>([tensor.node]).compute_bound().stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 B::float_shape(&tensor.primitive),
                 B::float_mean(tensor.primitive),
@@ -1526,11 +1501,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        match Sum
-            .prepare::<C>([tensor.node], [tensor.graph])
-            .compute_bound()
-            .stateful()
-        {
+        match Sum.prepare::<C>([tensor.node]).compute_bound().stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 B::float_shape(&tensor.primitive),
                 B::float_sum(tensor.primitive),
@@ -1569,7 +1540,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match MeanDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -1609,7 +1580,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match SumDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -1653,7 +1624,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Exp
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroExp::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1691,7 +1662,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Log
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroLog::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1731,7 +1702,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Log1P
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroLog1P::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1789,7 +1760,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match PowfScalar
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id.clone(), value))
             .parents([&tensor])
@@ -1828,7 +1799,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Sqrt
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSqrt::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1868,7 +1839,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Abs
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroAbs::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1907,7 +1878,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Cos
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroCos::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1945,7 +1916,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Sin
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSin::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1987,7 +1958,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Tanh
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroTanh::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -2029,7 +2000,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match Erf
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroErf::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -2074,17 +2045,30 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let mut ranges = ranges.clone();
                         ranges[self.dim] = current_index..dim_size + current_index;
                         current_index += dim_size;
-                        grads.register::<B, D>(node, B::float_slice(grad.clone(), ranges));
+                        grads.register::<B, D>(
+                            node.id.clone(),
+                            B::float_slice(grad.clone(), ranges),
+                        );
                     });
             }
 
-            fn node(&self) -> NodeRef {
-                self.output.clone()
+            fn node(&self) -> NodeID {
+                self.output.id.clone()
+            }
+
+            fn parents(&self) -> Vec<NodeID> {
+                self.nodes
+                    .iter()
+                    .filter_map(|node| node.clone())
+                    .map(|node| node.id.clone())
+                    .collect()
+            }
+            fn order(&self) -> usize {
+                self.output.order
             }
         }
 
         let mut nodes = Vec::with_capacity(tensors.len());
-        let mut graphs = Vec::with_capacity(tensors.len());
         let mut primitives = Vec::with_capacity(tensors.len());
         let mut dim_sizes = Vec::with_capacity(tensors.len());
 
@@ -2092,7 +2076,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             dim_sizes.push(B::float_shape(&tensor.primitive).dims[dim]);
             nodes.push(tensor.node);
             primitives.push(tensor.primitive);
-            graphs.push(tensor.graph);
         });
 
         let requirement = Requirement::from_nodes(&nodes);
@@ -2106,28 +2089,20 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             return AutodiffTensor::from_parents(
                 output,
                 &nodes,
-                graphs.into_iter(),
                 requirement,
                 cat_computing_property,
-                checkpointer_builder,
             );
         }
 
-        let output = AutodiffTensor::from_parents(
-            output,
-            &nodes,
-            graphs.into_iter(),
-            requirement,
-            cat_computing_property,
-            checkpointer_builder,
-        );
+        let output =
+            AutodiffTensor::from_parents(output, &nodes, requirement, cat_computing_property);
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
 
         let ops = CatStep::<B, D>::new(nodes, dim_sizes, output.node.clone(), dim);
-        output.register_step(ops)
+        output.register_step(ops, checkpointer_builder)
     }
 
     fn float_max_dim<const D: usize>(
@@ -2135,7 +2110,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
     ) -> FloatTensor<Self, D> {
         match MaxMinDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -2152,7 +2127,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -2176,7 +2151,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
     ) -> FloatTensor<Self, D> {
         match MaxMinDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -2193,7 +2168,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -2283,10 +2258,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match PowF
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
             .retro_forward(RetroPowf::<B, D>::new(
                 lhs.node.id.clone(),
@@ -2329,7 +2301,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        Sign.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        Sign.prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSign::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -2394,7 +2366,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match ExpandDim
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroExpand::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -2417,7 +2389,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         descending: bool,
     ) -> FloatTensor<Self, D> {
         match SortDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {
@@ -2439,7 +2411,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         descending: bool,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match SortDim
-            .prepare::<C>([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
         {

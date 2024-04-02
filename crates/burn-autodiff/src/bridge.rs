@@ -84,7 +84,7 @@ where
             _backend: PhantomData,
             _bridge: PhantomData,
         }
-        .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        .prepare::<C>([tensor.node.clone()])
         .memory_bound()
         .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
         .parents([&tensor])
@@ -146,7 +146,7 @@ where
             _backend: PhantomData,
             _bridge: PhantomData,
         }
-        .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        .prepare::<C>([tensor.node.clone()])
         .memory_bound()
         .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
         .parents([&tensor])

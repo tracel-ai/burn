@@ -3,6 +3,7 @@ use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
 use crate::{
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
+    NodeID,
 };
 
 /// Gradient identifier.
@@ -25,7 +26,7 @@ impl Gradients {
             container: TensorContainer::new(),
         };
         gradients.register::<B, D>(
-            root_node,
+            root_node.id.clone(),
             B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
         );
         gradients
@@ -76,15 +77,15 @@ impl Gradients {
     /// If the tensor already exists, add both tensors together before saving the result.
     pub fn register<B: Backend, const D: usize>(
         &mut self,
-        node: NodeRef,
+        node_id: NodeID,
         value: TensorPrimitive<B, D>,
     ) {
-        if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
+        if let Some(tensor_old) = self.container.remove::<B, D>(&node_id.value) {
             self.container
-                .register(node.id.value, Tensor::from_primitive(value).add(tensor_old));
+                .register(node_id.value, Tensor::from_primitive(value).add(tensor_old));
         } else {
             self.container
-                .register::<B, D>(node.id.value, Tensor::from_primitive(value));
+                .register::<B, D>(node_id.value, Tensor::from_primitive(value));
         }
     }
 }

@@ -1,16 +1,15 @@
-use burn_tensor::backend::Backend;
-
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
+    runtime::{AutodiffClient, MutexClient},
 };
+use burn_tensor::backend::Backend;
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
-    pub graph: Graph,
 }
 
 #[derive(new, Debug)]
@@ -23,8 +22,16 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeRef {
-        self.node.clone()
+    fn node(&self) -> NodeID {
+        self.node.id.clone()
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        self.node.parents.clone()
+    }
+
+    fn order(&self) -> usize {
+        self.node.order
     }
 }
 
@@ -38,14 +45,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             id,
             Requirement::None,
             ComputingProperty::Ambiguous,
+            MutexClient,
         )
         .into();
 
-        Self {
-            primitive,
-            node,
-            graph: Graph::new(),
-        }
+        Self { primitive, node }
     }
 
     pub fn is_tracked(&self) -> bool {
@@ -70,30 +74,23 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                     self.node.id.clone(),
                     Requirement::Grad,
                     self.node.properties.clone(),
+                    self.node.client.clone(),
                 )
                 .into();
                 let ops = RootStep::new(self.node.clone());
 
-                self.register_step(ops)
+                self.register_step(ops, CheckpointerBuilder::default())
             }
         }
     }
 
     /// Create a tensor from parent infos.
-    pub fn from_parents<I: Iterator<Item = Graph>>(
+    pub fn from_parents(
         primitive: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
-        parent_graphs: I,
         requirement: Requirement,
         computing_properties: ComputingProperty,
-        checkpointer_builder: CheckpointerBuilder,
     ) -> Self {
-        let graph = parent_graphs
-            .reduce(|acc, graph| acc.merge(graph))
-            .unwrap_or_else(Graph::new);
-
-        graph.extend_checkpointer_builder(checkpointer_builder);
-
         let order = parent_nodes
             .iter()
             .map(|node| node.order)
@@ -101,25 +98,33 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             .unwrap_or(0)
             + 1;
 
+        let client = parent_nodes
+            .first()
+            .map(|node| node.client.clone())
+            .unwrap_or_else(|| MutexClient);
+
         let node: NodeRef = Node::new(
             parent_nodes.iter().map(|node| node.id.clone()).collect(),
             order,
             NodeID::new(),
             requirement,
             computing_properties,
+            client,
         )
         .into();
 
-        Self {
-            primitive,
-            node,
-            graph,
-        }
+        Self { primitive, node }
     }
 
     /// Register a step into a graph for that tensor.
-    pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
-        self.graph = self.graph.register(&self.node.id, Box::new(ops));
+    pub fn register_step<O: Step + 'static>(self, ops: O, actions: CheckpointerBuilder) -> Self {
+        self.node
+            .client
+            .register(self.node.id.clone(), Box::new(ops), actions);
         self
+    }
+
+    pub fn into_primitive(self) -> B::FloatTensorPrimitive<D> {
+        self.primitive
     }
 }

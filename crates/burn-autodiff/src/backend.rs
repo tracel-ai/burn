@@ -1,7 +1,7 @@
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
-    graph::backward::backward,
+    runtime::AutodiffClient,
     tensor::AutodiffTensor,
     AutodiffBridge,
 };
@@ -53,7 +53,9 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type Gradients = Gradients;
 
     fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
-        backward(tensor)
+        let client = tensor.node.client.clone();
+
+        AutodiffClient::backward(&client, tensor)
     }
 
     fn grad<const D: usize>(
@@ -83,7 +85,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         grad: B::FloatTensorPrimitive<D>,
     ) {
         grads.remove(tensor);
-        grads.register::<B, D>(tensor.node.clone(), grad);
+        grads.register::<B, D>(tensor.node.id.clone(), grad);
     }
 
     fn int_inner<const D: usize>(

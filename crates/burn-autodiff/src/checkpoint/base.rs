@@ -10,13 +10,13 @@ use super::{
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]
 pub(crate) struct NodeTree {
-    map: HashMap<NodeID, NodeRef>,
+    map: HashMap<NodeID, Vec<NodeID>>,
 }
 
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
     pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
-        self.map.get(node_id).map(|node| node.parents.clone())
+        self.map.get(node_id).map(Clone::clone)
     }
 }
 

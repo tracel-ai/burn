@@ -254,7 +254,7 @@ impl CheckpointerBuilder {
     fn make_tree(&self, graph: &NodeSteps) -> NodeTree {
         let mut tree = HashMap::default();
         for (id, step) in graph {
-            tree.insert(id.clone(), step.node());
+            tree.insert(id.clone(), step.parents());
         }
         NodeTree::new(tree)
     }
