@@ -7,6 +7,7 @@ use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::gpu::ComputeShader;
+use crate::Compiler;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -226,6 +227,10 @@ impl<R: Runtime> JitKernel for FusionKernel<R> {
     fn to_shader(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
         Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
+    }
+
+    fn source(&self) -> String {
+        <R::Compiler as Compiler>::compile(self.to_shader()).to_string()
     }
 
     fn id(&self) -> String {

@@ -1,15 +1,10 @@
-use crate::compiler::wgsl::WgslCompiler;
-
 use super::WgpuStorage;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_jit::{
-    compute::{JitAutotuneKey, Kernel, WorkGroup},
-    Compiler,
-};
+use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
 use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
@@ -150,11 +145,7 @@ where
         }
 
         let source = match kernel {
-            Kernel::Jit(jit_kernel) => {
-                // TODO generic over F, I
-                let shader = <WgslCompiler<f32, i32> as Compiler>::compile(jit_kernel.to_shader());
-                shader.to_string()
-            }
+            Kernel::Jit(jit_kernel) => jit_kernel.source(),
             #[cfg(feature = "extension")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
         };

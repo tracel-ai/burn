@@ -18,9 +18,7 @@ pub use burn_jit::{
     compute::Kernel,
     kernel::{into_contiguous, DynamicJitKernel, StaticJitKernel},
     kernel_wgsl,
-    template::{
-        build_info, DynamicKernelSource, SourceTemplate, SourceKernel, StaticKernelSource,
-    },
+    template::{build_info, DynamicKernelSource, SourceKernel, SourceTemplate, StaticKernelSource},
 };
 
 pub use device::*;

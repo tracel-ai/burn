@@ -42,7 +42,7 @@ pub fn execute_static<R, K, E>(
         handles.push(handle);
     }
 
-    let kernel = Kernel::Jit(Box::new(StaticKernel::<K>::new(workgroup)));
+    let kernel = Kernel::Jit(Box::new(StaticKernel::<K, R::Compiler>::new(workgroup)));
 
     client.execute(kernel, &handles);
 }
@@ -248,7 +248,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         handles.push(handle);
     }
 
-    let kernel: Kernel = Kernel::Jit(Box::new(DynamicKernel::new(kernel, workgroup)));
+    let kernel = Kernel::Jit(Box::new(DynamicKernel::<K, R::Compiler>::new(
+        kernel, workgroup,
+    )));
 
     client.execute(kernel, &handles);
 }

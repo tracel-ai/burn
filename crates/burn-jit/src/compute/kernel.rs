@@ -3,6 +3,7 @@ use crate::template::SourceableKernel;
 use crate::{
     gpu::ComputeShader,
     kernel::{DynamicJitKernel, StaticJitKernel},
+    Compiler,
 };
 use alloc::sync::Arc;
 use core::marker::PhantomData;
@@ -45,8 +46,10 @@ impl Kernel {
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
 pub trait JitKernel: Send + Sync {
-    /// Convert to [source](SourceTemplate)
+    /// Convert to [shader](ComputeShader)
     fn to_shader(&self) -> ComputeShader;
+    /// Convert to source as string
+    fn source(&self) -> String;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
@@ -56,6 +59,10 @@ pub trait JitKernel: Send + Sync {
 impl JitKernel for Arc<dyn JitKernel> {
     fn to_shader(&self) -> ComputeShader {
         self.as_ref().to_shader()
+    }
+
+    fn source(&self) -> String {
+        self.as_ref().source()
     }
 
     fn id(&self) -> String {
@@ -70,6 +77,10 @@ impl JitKernel for Arc<dyn JitKernel> {
 impl JitKernel for Box<dyn JitKernel> {
     fn to_shader(&self) -> ComputeShader {
         self.as_ref().to_shader()
+    }
+
+    fn source(&self) -> String {
+        self.as_ref().source()
     }
 
     fn id(&self) -> String {
@@ -102,25 +113,31 @@ impl WorkGroup {
 /// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
-pub struct DynamicKernel<K> {
+pub struct DynamicKernel<K, C> {
     kernel: K,
     workgroup: WorkGroup,
+    _compiler: PhantomData<C>,
 }
 
 /// Wraps a [static jit kernel](StaticJitKernel) into a [Jit kernel](JitKernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
-pub struct StaticKernel<K> {
+pub struct StaticKernel<K, C> {
     workgroup: WorkGroup,
     _kernel: PhantomData<K>,
+    _compiler: PhantomData<C>,
 }
 
-impl<K> JitKernel for DynamicKernel<K>
+impl<K, C: Compiler> JitKernel for DynamicKernel<K, C>
 where
     K: DynamicJitKernel + 'static,
 {
     fn to_shader(&self) -> ComputeShader {
         self.kernel.to_shader()
+    }
+
+    fn source(&self) -> String {
+        C::compile(self.to_shader()).to_string()
     }
 
     fn id(&self) -> String {
@@ -132,12 +149,16 @@ where
     }
 }
 
-impl<K> JitKernel for StaticKernel<K>
+impl<K, C: Compiler> JitKernel for StaticKernel<K, C>
 where
     K: StaticJitKernel + 'static,
 {
     fn to_shader(&self) -> ComputeShader {
         K::to_shader()
+    }
+
+    fn source(&self) -> String {
+        C::compile(self.to_shader()).to_string()
     }
 
     fn id(&self) -> String {
