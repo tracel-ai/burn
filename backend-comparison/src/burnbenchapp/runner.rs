@@ -40,6 +40,7 @@ pub struct NiceProcessor {
 pub(crate) enum NiceProcessorState {
     Compiling,
     Running,
+    Uploading,
 }
 
 impl NiceProcessor {
@@ -50,10 +51,13 @@ impl NiceProcessor {
     pub fn format_pb_message(&self, state: NiceProcessorState) -> String {
         match state {
             NiceProcessorState::Compiling => {
-                format!("🔨 Compiling: {} 🠆  {}", self.bench, self.backend)
+                format!("🔨 Compiling: {} ▶️{}", self.bench, self.backend)
             }
             NiceProcessorState::Running => {
-                format!("🔥 Running: {} 🠆  {}", self.bench, self.backend)
+                format!("🔥 Running: {} ▶ {}", self.bench, self.backend)
+            }
+            NiceProcessorState::Uploading => {
+                format!("💾 Uploading: {} ▶ {}", self.bench, self.backend)
             }
         }
     }
@@ -66,6 +70,8 @@ impl OutputProcessor for NiceProcessor {
             pb.message(self.format_pb_message(NiceProcessorState::Compiling));
         } else if line.contains("Running") {
             pb.message(self.format_pb_message(NiceProcessorState::Running));
+        } else if line.contains("Sharing") {
+            pb.message(self.format_pb_message(NiceProcessorState::Uploading));
         }
     }
 
@@ -77,21 +83,15 @@ impl OutputProcessor for NiceProcessor {
 /// Benchmark runner using cargo bench.
 pub struct CargoRunner<'a> {
     params: &'a [&'a str],
-    stdout_processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
-    stderr_processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
+    processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
 }
 
 impl<'a> CargoRunner<'a> {
     pub fn new(
         params: &'a [&'a str],
-        stdout_processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
-        stderr_processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
+        processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
     ) -> Self {
-        Self {
-            params,
-            stdout_processor,
-            stderr_processor,
-        }
+        Self { params, processor }
     }
 
     pub fn run(&mut self) -> io::Result<ExitStatus> {
@@ -105,7 +105,7 @@ impl<'a> CargoRunner<'a> {
             .expect("Cargo command should start successfully");
         // stdout
         let stdout = BufReader::new(cargo.stdout.take().expect("stdout should be captured"));
-        let stdout_processor = Arc::clone(&self.stdout_processor);
+        let stdout_processor = Arc::clone(&self.processor);
         let stdout_thread = thread::spawn(move || {
             for line in stdout.lines() {
                 let line = line.expect("A line from stdout should be read");
@@ -114,7 +114,7 @@ impl<'a> CargoRunner<'a> {
         });
         // stderr
         let stderr = BufReader::new(cargo.stderr.take().expect("stderr should be captured"));
-        let stderr_processor = Arc::clone(&self.stderr_processor);
+        let stderr_processor = Arc::clone(&self.processor);
         let stderr_thread = thread::spawn(move || {
             for line in stderr.lines() {
                 let line = line.expect("A line from stderr should be read");
@@ -125,11 +125,10 @@ impl<'a> CargoRunner<'a> {
         stdout_thread
             .join()
             .expect("The stderr thread should not panic");
-        self.stdout_processor.finish();
         stderr_thread
             .join()
             .expect("The stderr thread should not panic");
-        self.stderr_processor.finish();
+        self.processor.finish();
         cargo.wait()
     }
 }

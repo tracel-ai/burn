@@ -9,7 +9,7 @@ use super::auth::get_tokens;
 use super::auth::get_username;
 use super::progressbar::RunnerProgressBar;
 use super::reports::{BenchmarkCollection, FailedBenchmark};
-use super::runner::{CargoRunner, NiceProcessor, SinkProcessor, VerboseProcessor};
+use super::runner::{CargoRunner, NiceProcessor, VerboseProcessor};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -177,7 +177,7 @@ fn run_backend_comparison_benchmarks(
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
             let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
-            let pb_processor: Option<Arc<NiceProcessor>> = runner_pb.clone().map(|pb| {
+            let nice_processor: Option<Arc<NiceProcessor>> = runner_pb.clone().map(|pb| {
                 Arc::new(NiceProcessor::new(
                     bench_str.clone(),
                     backend_str.clone(),
@@ -206,12 +206,7 @@ fn run_backend_comparison_benchmarks(
                 if verbose {
                     Arc::new(VerboseProcessor)
                 } else {
-                    Arc::new(SinkProcessor)
-                },
-                if verbose {
-                    Arc::new(VerboseProcessor)
-                } else {
-                    pb_processor
+                    nice_processor
                         .clone()
                         .expect("A nice processor should be available")
                 },
