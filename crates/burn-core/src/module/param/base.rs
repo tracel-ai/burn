@@ -54,7 +54,7 @@ impl<T: Parameter> core::fmt::Debug for Param<T> {
 }
 
 /// Trait that defines what is necessary for a type to be a parameter.
-pub trait Parameter: Clone + core::fmt::Debug + Send + Sync {
+pub trait Parameter: Clone + core::fmt::Debug + Send {
     /// The device type to be used.
     type Device: Clone;
 
@@ -70,7 +70,7 @@ pub trait Parameter: Clone + core::fmt::Debug + Send + Sync {
 
 #[allow(clippy::type_complexity)]
 struct Uninitialized<P: Parameter> {
-    init: Box<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
+    init: Box<dyn Fn(&P::Device, bool) -> P + Send>,
     device: P::Device,
     is_require_grad: bool,
 }
@@ -95,7 +95,7 @@ impl<T: Parameter> Param<T> {
     /// Create a new parameter that is not already initialized.
     pub fn uninitialized<F>(id: ParamId, init: F, device: T::Device, is_require_grad: bool) -> Self
     where
-        F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
+        F: Fn(&T::Device, bool) -> T + Send + 'static,
     {
         Self {
             id,

@@ -45,6 +45,9 @@ pub struct RunningState<V> {
     value: Arc<RwLock<V>>,
 }
 
+// TODO: Remove at some point.
+unsafe impl<V: Send> Send for RunningState<V> {}
+
 impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 

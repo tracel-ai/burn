@@ -1,5 +1,5 @@
 /// A strategy to batch items.
-pub trait BatchStrategy<I>: Send + Sync {
+pub trait BatchStrategy<I>: Send {
     /// Adds an item to the strategy.
     ///
     /// # Arguments
@@ -50,7 +50,7 @@ impl<I> FixBatchStrategy<I> {
     }
 }
 
-impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
+impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     fn add(&mut self, item: I) {
         self.items.push(item);
     }

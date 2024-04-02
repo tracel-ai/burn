@@ -3,6 +3,7 @@ use burn::{
     prelude::*,
 };
 
+#[derive(Clone)]
 pub struct MnistBatcher<B: Backend> {
     device: B::Device,
 }
@@ -41,5 +42,9 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
         let targets = Tensor::cat(targets, 0);
 
         MnistBatch { images, targets }
+    }
+
+    fn new_like(&self) -> Box<dyn Batcher<MnistItem, MnistBatch<B>>> {
+        Box::new(self.clone())
     }
 }

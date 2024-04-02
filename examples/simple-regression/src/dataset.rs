@@ -109,6 +109,7 @@ impl DiabetesDataset {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DiabetesBatcher<B: Backend> {
     device: B::Device,
 }
@@ -167,5 +168,9 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
         let targets = self.min_max_norm(targets);
 
         DiabetesBatch { inputs, targets }
+    }
+
+    fn new_like(&self) -> Box<dyn Batcher<DiabetesItem, DiabetesBatch<B>>> {
+        Box::new(self.clone())
     }
 }

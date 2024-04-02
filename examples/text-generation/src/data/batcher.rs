@@ -2,7 +2,7 @@ use super::{dataset::TextGenerationItem, tokenizer::Tokenizer};
 use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
 use std::sync::Arc;
 
-#[derive(new)]
+#[derive(Clone, new)]
 pub struct TextGenerationBatcher {
     tokenizer: Arc<dyn Tokenizer>,
     max_seq_length: usize,
@@ -41,6 +41,10 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
             mask_pad: mask.mask,
         }
     }
+
+    fn new_like(&self) -> Box<dyn Batcher<TextGenerationItem, TextGenerationBatch<B>>> {
+        Box::new(self.clone())
+    }
 }
 
 impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
@@ -58,5 +62,9 @@ impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
         let mask_pad = item.mask_pad.slice([0..batch_size, 0..seq_length - 1]);
 
         TrainingTextGenerationBatch::new(inputs, targets, mask_pad)
+    }
+
+    fn new_like(&self) -> Box<dyn Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>> {
+        Box::new(self.clone())
     }
 }

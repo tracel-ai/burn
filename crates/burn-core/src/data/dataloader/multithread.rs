@@ -1,12 +1,12 @@
 use super::{DataLoader, DataLoaderIterator, Progress};
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
 
 /// A multi-threaded data loader that can be used to iterate over a dataset.
 pub struct MultiThreadDataLoader<O> {
-    dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>,
+    dataloaders: Vec<Box<dyn DataLoader<O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -36,7 +36,7 @@ impl<O> MultiThreadDataLoader<O> {
     /// # Returns
     ///
     /// The multi-threaded data loader.
-    pub fn new(dataloaders: Vec<Arc<dyn DataLoader<O> + Send + Sync>>) -> Self {
+    pub fn new(dataloaders: Vec<Box<dyn DataLoader<O>>>) -> Self {
         Self { dataloaders }
     }
 }
@@ -52,11 +52,10 @@ where
 
         let handlers: Vec<_> = self
             .dataloaders
-            .clone()
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(index, dataloader)| {
-                let dataloader_cloned = dataloader;
+                let dataloader_cloned = dataloader.new_dyn();
                 let sender_cloned = sender.clone();
                 progresses.push(Progress::new(0, dataloader_cloned.num_items()));
 
@@ -85,6 +84,10 @@ where
 
     fn num_items(&self) -> usize {
         self.dataloaders.iter().map(|dl| dl.num_items()).sum()
+    }
+
+    fn new_dyn(&self) -> Box<dyn DataLoader<O>> {
+        todo!()
     }
 }
 
