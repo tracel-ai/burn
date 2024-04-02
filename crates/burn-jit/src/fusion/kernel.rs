@@ -3,6 +3,7 @@ use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
 use crate::compute::JitKernel;
 use crate::compute::Kernel;
+use crate::compute::ShaderInformation;
 use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
@@ -223,12 +224,14 @@ impl<R: Runtime> FusionKernel<R> {
     }
 }
 
-impl<R: Runtime> JitKernel for FusionKernel<R> {
+impl<R: Runtime> FusionKernel<R> {
     fn to_shader(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
         Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
     }
+}
 
+impl<R: Runtime> JitKernel for FusionKernel<R> {
     fn source(&self) -> String {
         <R::Compiler as Compiler>::compile(self.to_shader()).to_string()
     }
@@ -237,8 +240,11 @@ impl<R: Runtime> JitKernel for FusionKernel<R> {
         format!("{}", self.settings) + self.id.as_str()
     }
 
-    fn workgroup(&self) -> crate::compute::WorkGroup {
-        self.workgroup.clone()
+    fn shader_information(&self) -> ShaderInformation {
+        ShaderInformation::new(
+            self.workgroup.clone(),
+            Some(self.to_shader().workgroup_size),
+        )
     }
 }
 

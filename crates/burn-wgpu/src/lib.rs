@@ -15,7 +15,7 @@ mod fusion;
 
 #[cfg(feature = "extension")]
 pub use burn_jit::{
-    compute::Kernel,
+    compute::{Kernel, ShaderInformation},
     kernel::{into_contiguous, DynamicJitKernel, StaticJitKernel},
     kernel_wgsl,
     template::{build_info, DynamicKernelSource, SourceKernel, SourceTemplate, StaticKernelSource},

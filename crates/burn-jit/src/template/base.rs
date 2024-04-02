@@ -1,4 +1,4 @@
-use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
+use crate::{compute::ShaderInformation, element::JitElement, tensor::JitTensor, Runtime};
 
 use super::SourceTemplate;
 
@@ -24,7 +24,7 @@ pub trait SourceableKernel: 'static + Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
-    fn workgroup(&self) -> WorkGroup;
+    fn shader_information(&self) -> ShaderInformation;
 }
 
 #[derive(new)]
@@ -32,7 +32,7 @@ pub trait SourceableKernel: 'static + Send + Sync {
 /// information such as [workgroup](WorkGroup).
 pub struct SourceKernel<K> {
     kernel_source: K,
-    workgroup: WorkGroup,
+    shader_information: ShaderInformation,
 }
 
 impl<K> SourceableKernel for SourceKernel<K>
@@ -47,8 +47,8 @@ where
         format!("{:?}", core::any::TypeId::of::<K>())
     }
 
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
+    fn shader_information(&self) -> ShaderInformation {
+        self.shader_information.clone()
     }
 }
 

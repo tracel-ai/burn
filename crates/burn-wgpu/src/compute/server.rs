@@ -144,12 +144,7 @@ where
             return pipeline.clone();
         }
 
-        let source = match kernel {
-            Kernel::Jit(jit_kernel) => jit_kernel.source(),
-            #[cfg(feature = "extension")]
-            Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
-        };
-
+        let source = kernel.source();
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
@@ -295,7 +290,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
-        let work_group = kernel.workgroup();
+        let work_group = kernel.launch_information().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
