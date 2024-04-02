@@ -17,7 +17,7 @@ pub trait DynamicKernelSource: Send + 'static + Sync {
 /// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
 /// provided id.
 ///
-/// The kernel will be launched with the given [workgroup](WorkGroup).
+/// The kernel will be launched with the given [shader information](ShaderInformation)
 pub trait SourceableKernel: 'static + Send + Sync {
     /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;

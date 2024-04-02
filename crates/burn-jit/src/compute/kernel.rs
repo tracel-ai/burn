@@ -53,7 +53,7 @@ impl Kernel {
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
 /// provided id.
 ///
-/// The kernel will be launched with the given [workgroup](WorkGroup).
+/// The kernel will be launched with the given [shader information](ShaderInformation).
 pub trait JitKernel: Send + Sync {
     /// Convert to source as string
     fn source(&self) -> String;
