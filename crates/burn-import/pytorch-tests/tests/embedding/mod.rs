@@ -10,9 +10,9 @@ pub struct Net<B: Backend> {
 }
 
 impl<B: Backend> Net<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let embed = EmbeddingConfig::new(10, 3).init_with(record.embed);
+    /// Create a new model.
+    pub fn init(device: &B::Device) -> Self {
+        let embed = EmbeddingConfig::new(10, 3).init(device);
         Self { embed }
     }
 
@@ -33,7 +33,7 @@ mod tests {
     fn embedding(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<Backend>::init(&device).load_record(record);
 
         let input = Tensor::<Backend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 

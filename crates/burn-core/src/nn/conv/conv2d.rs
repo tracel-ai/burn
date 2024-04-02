@@ -91,24 +91,11 @@ impl Conv2dConfig {
         }
 
         Conv2d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: self.padding.clone(),
-            groups: self.groups,
-        }
-    }
-
-    /// Initialize a new [conv2d](Conv2d) module with a [record](Conv2dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv2dRecord<B>) -> Conv2d<B> {
-        Conv2d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            dilation: self.dilation,
-            kernel_size: self.kernel_size,
             padding: self.padding.clone(),
             groups: self.groups,
         }

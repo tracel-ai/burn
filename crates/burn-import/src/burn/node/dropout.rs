@@ -46,18 +46,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
-
         let prob = self.config.prob.to_tokens();
-
-        let init_line = quote! {
-            init();
-        };
-
         let tokens = quote! {
-            let #name = DropoutConfig::new(#prob)
-                .#init_line
+            let #name = DropoutConfig::new(#prob).init();
         };
 
         Some(tokens)
@@ -122,7 +115,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let dropout = DropoutConfig::new(0.5)
                         .init();
 
