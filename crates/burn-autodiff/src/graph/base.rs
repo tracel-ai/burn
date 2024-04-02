@@ -9,7 +9,7 @@ use crate::{
 use super::{NodeID, NodeRef};
 
 /// Backward step for reverse mode autodiff.
-pub trait Step: Send + Sync + std::fmt::Debug {
+pub trait Step: Send + std::fmt::Debug {
     /// Executes the step and consumes it.
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer);
     /// The node associated to the step.

@@ -14,6 +14,12 @@ pub enum ComputingProperty {
     Ambiguous, // Maybe autotune someday
 }
 
+// TODO: Remove that when proper client server.
+unsafe impl Send for ComputingProperty {}
+unsafe impl Sync for ComputingProperty {}
+unsafe impl Send for Node {}
+unsafe impl Sync for Node {}
+
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {

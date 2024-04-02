@@ -7,7 +7,7 @@ use super::state::{BackwardStates, State};
 /// Definition of the forward function of a node, called during retropropagation only.
 /// This is different from the normal forward function because it reads and writes from
 /// the [InnerStates] map instead of having a clear function signature.
-pub trait RetroForward: Debug + Send + Sync + 'static {
+pub trait RetroForward: Debug + Send + 'static {
     fn forward(&self, states: &mut BackwardStates, out_node: NodeID);
 }
 
@@ -48,7 +48,7 @@ macro_rules! retro_unary_scalar {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct $name<B: Backend, const D: usize> {
             lhs_id: NodeID,
             rhs: FloatElem<B>,
@@ -72,7 +72,7 @@ macro_rules! retro_unary {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct $name<B: Backend, const D: usize> {
             input_id: NodeID,
             _backend: PhantomData<B>,
@@ -95,7 +95,7 @@ macro_rules! retro_binary {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct $name<B: Backend, const D: usize> {
             lhs_id: NodeID,
             rhs_id: NodeID,

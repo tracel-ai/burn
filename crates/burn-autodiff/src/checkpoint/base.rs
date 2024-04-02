@@ -33,7 +33,7 @@ impl Checkpointer {
     /// or give their pre-computed tensors.
     pub fn retrieve_node_output<T>(&mut self, node_id: NodeID) -> T
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
         self.topological_sort(node_id.clone())
             .into_iter()

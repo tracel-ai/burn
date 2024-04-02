@@ -39,7 +39,7 @@ where
             _bridge: PhantomData<Bridge>,
         }
 
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct RetroIntoTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,
@@ -101,7 +101,7 @@ where
             _bridge: PhantomData<Bridge>,
         }
 
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct RetroFromTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,

@@ -146,7 +146,7 @@ where
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
@@ -175,7 +175,7 @@ where
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, UnTracked>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
@@ -200,7 +200,7 @@ where
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Tracked>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
@@ -257,7 +257,7 @@ struct OpsStep<B, T, SB, const D: usize, const N: usize>
 where
     B: Backend,
     T: Backward<B, D, N, State = SB>,
-    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+    SB: Clone + Send + std::fmt::Debug + 'static,
 {
     ops: Ops<SB, N>,
     backward: T,
@@ -268,7 +268,7 @@ impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
 where
     B: Backend,
     T: Backward<B, D, N, State = SB>,
-    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+    SB: Clone + Send + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
         self.backward.backward(self.ops, grads, checkpointer);

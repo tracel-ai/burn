@@ -22,7 +22,7 @@ pub enum CheckpointingAction {
         /// The node
         node_ref: NodeRef,
         /// The node's output
-        state_content: Box<dyn Any + Send + Sync>,
+        state_content: Box<dyn Any + Send>,
     },
     /// The node should recompute itself when asked
     Recompute {
@@ -32,6 +32,9 @@ pub enum CheckpointingAction {
         retro_forward: Arc<dyn RetroForward>,
     },
 }
+
+// TODO: Remove that when proper client server.
+unsafe impl Send for CheckpointingAction {}
 
 impl CheckpointingAction {
     /// Utilitary function to access the id of the node of the checkpointing action
@@ -288,7 +291,7 @@ impl CheckpointerBuilder {
         &self,
         backward_states_map: &mut HashMap<NodeID, State>,
         node_id: NodeID,
-        state_content: Box<dyn Any + Send + Sync>,
+        state_content: Box<dyn Any + Send>,
         n_required: usize,
     ) {
         backward_states_map.insert(
