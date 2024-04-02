@@ -72,7 +72,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
                     }

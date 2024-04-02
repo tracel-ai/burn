@@ -50,7 +50,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
 
         let tokens = match self.input.dim {
@@ -143,7 +143,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let global_avg_pool1 = AdaptiveAvgPool2dConfig::new([1, 1])
                         .init();
 
@@ -192,7 +192,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let global_avg_pool1 = AdaptiveAvgPool1dConfig::new(1)
                         .init();
 

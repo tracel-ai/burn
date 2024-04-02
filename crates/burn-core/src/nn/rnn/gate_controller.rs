@@ -48,17 +48,6 @@ impl<B: Backend> GateController<B> {
         }
     }
 
-    /// Initialize a new [gate_controller](GateController) module with a [record](GateControllerRecord).
-    pub fn new_with(linear_config: &LinearConfig, record: GateControllerRecord<B>) -> Self {
-        let l1 = LinearConfig::init_with(linear_config, record.input_transform);
-        let l2 = LinearConfig::init_with(linear_config, record.hidden_transform);
-
-        Self {
-            input_transform: l1,
-            hidden_transform: l2,
-        }
-    }
-
     /// Used to initialize a gate controller with known weight layers,
     /// allowing for predictable behavior. Used only for testing in
     /// lstm.
@@ -77,14 +66,17 @@ impl<B: Backend> GateController<B> {
             bias,
             initializer: initializer.clone(),
         }
-        .init_with(input_record);
+        .init(&input_record.weight.device())
+        .load_record(input_record);
         let l2 = LinearConfig {
             d_input,
             d_output,
             bias,
             initializer,
         }
-        .init_with(hidden_record);
+        .init(&hidden_record.weight.device())
+        .load_record(hidden_record);
+
         Self {
             input_transform: l1,
             hidden_transform: l2,

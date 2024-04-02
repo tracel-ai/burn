@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings, B: Backend> BurnModuleAdapter for PyTorchAdapter<PS,
             .expect("Failed to deserialize weight");
 
         // Transpose the weight tensor.
-        let weight_transposed = Param::from(weight.val().transpose());
+        let weight_transposed = Param::from_tensor(weight.val().transpose());
 
         // Insert the transposed weight tensor back into the map.
         map.insert(

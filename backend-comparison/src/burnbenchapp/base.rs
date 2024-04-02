@@ -106,6 +106,8 @@ pub(crate) enum BenchmarkValues {
     Unary,
     #[strum(to_string = "max-pool2d")]
     MaxPool2d,
+    #[strum(to_string = "load-record")]
+    LoadRecord,
 }
 
 pub fn execute() {

@@ -55,17 +55,6 @@ impl SwiGluConfig {
                 .init(device),
         }
     }
-    /// Initialize a new [SwiGlu](SwiGlu) activation layer with a [record](SwiGlu).
-    pub fn init_with<B: Backend>(&self, record: SwiGluRecord<B>) -> SwiGlu<B> {
-        SwiGlu {
-            linear_inner: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_inner),
-            linear_outer: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_outer),
-        }
-    }
 }
 
 impl<B: Backend> SwiGlu<B> {

@@ -59,13 +59,13 @@ something like this:
    }
 
    impl<B: Backend> Net<B> {
-       /// Create a new model from the given record.
-       pub fn new_with(record: NetRecord<B>) -> Self {
+       /// Create a new model.
+       pub fn init(device: &B::Device) -> Self {
            let conv1 = Conv2dConfig::new([2, 2], [2, 2])
-               .init_with(record.conv1);
+               .init(device);
            let conv2 = Conv2dConfig::new([2, 2], [2, 2])
                .with_bias(false)
-               .init_with(record.conv2);
+               .init(device);
            Self { conv1, conv2 }
        }
 
@@ -95,7 +95,7 @@ something like this:
            .load("./conv2d.pt".into(), &device)
            .expect("Should decode state successfully");
 
-       let model = model::Net::<Backend>::new_with(record);
+       let model = model::Net::<Backend>::init(&device).load_record(record);
    }
    ```
 
@@ -134,7 +134,7 @@ something like this:
            .load("./MY_FILE_OUTPUT_PATH".into(), &device)
            .expect("Should decode state successfully");
 
-       Net::<Backend>::new_with(record)
+       Net::<Backend>::init(&device).load_record(record)
    }
    ```
 
@@ -243,7 +243,7 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 
-let model = Net::<Backend>::new_with(record);
+let model = Net::<Backend>::init(&device).load_record(record);
 ```
 
 ### Printing the source model keys and tensor information
@@ -261,7 +261,7 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 
-let model = Net::<Backend>::new_with(record);
+let model = Net::<Backend>::init(&device).load_record(record);
 ```
 
 Here is an example of the output:
