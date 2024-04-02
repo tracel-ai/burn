@@ -1,6 +1,7 @@
 use crate as burn;
 
 use crate::{config::Config, module::Module};
+use alloc::vec::Vec;
 use burn_tensor::activation::log_sigmoid;
 use burn_tensor::{backend::Backend, Int, Tensor};
 
