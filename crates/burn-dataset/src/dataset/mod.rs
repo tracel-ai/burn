@@ -3,9 +3,9 @@ mod base;
 mod fake;
 mod in_memory;
 mod iterator;
-mod windows;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 mod sqlite;
+mod windows;
 
 #[cfg(any(test, feature = "fake"))]
 pub use self::fake::*;
