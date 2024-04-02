@@ -7,7 +7,7 @@ use crate::{
     },
     gpu::{gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 use super::DynamicJitKernel;

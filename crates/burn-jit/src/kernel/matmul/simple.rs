@@ -5,8 +5,8 @@ use crate::codegen::Execution;
 use crate::gpu::ComputeShader;
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{into_contiguous, DynamicJitKernel, WORKGROUP_DEFAULT},

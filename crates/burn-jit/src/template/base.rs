@@ -2,11 +2,15 @@ use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime}
 
 use super::SourceTemplate;
 
+/// Static kernel source to create a [source](SourceTemplate)
 pub trait StaticKernelSource: Send + 'static + Sync {
+    /// Convert to [source](SourceTemplate)
     fn source() -> SourceTemplate;
 }
 
+/// Dynamic kernel source to create a [source](SourceTemplate)
 pub trait DynamicKernelSource: Send + 'static + Sync {
+    /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;
 }
 
@@ -15,6 +19,7 @@ pub trait DynamicKernelSource: Send + 'static + Sync {
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
 pub trait SourceableKernel: 'static + Send + Sync {
+    /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
@@ -23,6 +28,8 @@ pub trait SourceableKernel: 'static + Send + Sync {
 }
 
 #[derive(new)]
+/// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](SourceableKernel) with launch
+/// information such as [workgroup](WorkGroup).
 pub struct SourceKernel<K> {
     kernel_source: K,
     workgroup: WorkGroup,

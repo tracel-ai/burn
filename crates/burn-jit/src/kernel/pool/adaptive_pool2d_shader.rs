@@ -4,7 +4,7 @@ use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::DynamicJitKernel,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 pub(crate) struct AdaptivePool2dComputeShader<R: Runtime, E: JitElement> {

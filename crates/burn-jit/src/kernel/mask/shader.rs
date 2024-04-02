@@ -6,7 +6,7 @@ use crate::{
         gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
     },
     kernel::DynamicJitKernel,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {

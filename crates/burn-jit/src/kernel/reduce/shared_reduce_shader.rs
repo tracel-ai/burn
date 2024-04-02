@@ -5,8 +5,8 @@ use crate::{
         dialect::gpu::{
             gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
-        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
     element::JitElement,

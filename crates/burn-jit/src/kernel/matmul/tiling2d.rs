@@ -2,8 +2,8 @@ use burn_tensor::{Element, Shape};
 
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        Execution, InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
+        InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     gpu::ComputeShader,

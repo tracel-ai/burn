@@ -3,11 +3,11 @@ use crate::codegen::Execution;
 use crate::gpu::ComputeShader;
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicJitKernel},
+    kernel::DynamicJitKernel,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,

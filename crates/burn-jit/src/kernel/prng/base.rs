@@ -9,7 +9,7 @@ use crate::{
     gpu::{gpu, ComputeShader, Elem, Scope, Variable},
     kernel::{DynamicJitKernel, WORKGROUP_DEFAULT},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime, SEED,
+    JitElement, Runtime, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;

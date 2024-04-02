@@ -4,7 +4,7 @@ use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
     kernel::DynamicJitKernel,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 use super::PoolStrategy;

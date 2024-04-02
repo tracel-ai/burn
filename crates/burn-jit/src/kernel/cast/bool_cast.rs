@@ -8,7 +8,7 @@ use crate::{
     gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
     kernel::DynamicJitKernel,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 /// Cast a bool tensor to the given element type.

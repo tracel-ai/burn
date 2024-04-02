@@ -9,7 +9,7 @@ use crate::{
     gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::DynamicJitKernel,
     tensor::JitTensor,
-    Compiler, Runtime,
+    Runtime,
 };
 
 #[derive(new)]

@@ -8,7 +8,7 @@ use crate::{
     gpu::{gpu, ComputeShader, Scope, Variable, Visibility},
     kernel::DynamicJitKernel,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 /// Cast a tensor to the given element type.

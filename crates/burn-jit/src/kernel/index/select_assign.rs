@@ -1,8 +1,8 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Branch, Elem, Item, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
-        InputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        WorkgroupLaunch,
     },
     element::JitElement,
     gpu::ComputeShader,

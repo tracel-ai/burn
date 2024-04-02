@@ -13,7 +13,7 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    Compiler, Runtime,
+    Runtime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 

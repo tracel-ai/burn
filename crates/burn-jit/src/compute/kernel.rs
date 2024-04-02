@@ -7,13 +7,21 @@ use crate::{
 use alloc::sync::Arc;
 use core::marker::PhantomData;
 
+/// Kernel for JIT backends
+///
+/// Notes: by default, only Jit variant exists,
+/// but users can add more from source by activating the
+/// extension feature flag.
 pub enum Kernel {
+    /// A JIT GPU compute shader
     Jit(Box<dyn JitKernel>),
     #[cfg(feature = "extension")]
+    /// A kernel created from source
     Custom(Box<dyn SourceableKernel>),
 }
 
 impl Kernel {
+    /// ID of the kernel, for caching
     pub fn id(&self) -> String {
         match self {
             Kernel::Jit(shader) => shader.id(),
@@ -22,6 +30,7 @@ impl Kernel {
         }
     }
 
+    /// Launch information of the kernel
     pub fn workgroup(&self) -> WorkGroup {
         match self {
             Kernel::Jit(shader) => shader.workgroup(),
@@ -31,11 +40,16 @@ impl Kernel {
     }
 }
 
+/// Kernel trait with the ComputeShader that will be compiled and cached based on the
+/// provided id.
+///
+/// The kernel will be launched with the given [workgroup](WorkGroup).
 pub trait JitKernel: Send + Sync {
+    /// Convert to [source](SourceTemplate)
     fn to_shader(&self) -> ComputeShader;
-
+    /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
-
+    /// Launch information.
     fn workgroup(&self) -> WorkGroup;
 }
 
@@ -85,7 +99,7 @@ impl WorkGroup {
     }
 }
 
-/// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [kernel](Kernel) with launch
+/// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
 pub struct DynamicKernel<K> {
@@ -93,7 +107,7 @@ pub struct DynamicKernel<K> {
     workgroup: WorkGroup,
 }
 
-/// Wraps a [static jit kernel](StaticJitKernel) into a [kernel](Kernel) with launch
+/// Wraps a [static jit kernel](StaticJitKernel) into a [Jit kernel](JitKernel) with launch
 /// information such as [workgroup](WorkGroup).
 #[derive(new)]
 pub struct StaticKernel<K> {
