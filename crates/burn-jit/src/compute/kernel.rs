@@ -110,7 +110,7 @@ impl WorkGroup {
 }
 
 /// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
-/// information such as [workgroup](WorkGroup).
+/// information
 pub struct DynamicKernel<K, C> {
     shader: ComputeShader,
     id: String,
@@ -147,7 +147,7 @@ impl<K: DynamicJitKernel + 'static, C: Compiler> JitKernel for DynamicKernel<K, 
 }
 
 /// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
-/// information such as [workgroup](WorkGroup).
+/// information
 pub struct StaticKernel<K, C> {
     shader: ComputeShader,
     id: String,

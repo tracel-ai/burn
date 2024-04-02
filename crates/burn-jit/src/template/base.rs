@@ -29,7 +29,7 @@ pub trait SourceableKernel: 'static + Send + Sync {
 
 #[derive(new)]
 /// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](SourceableKernel) with launch
-/// information such as [workgroup](WorkGroup).
+/// information. 
 pub struct SourceKernel<K> {
     kernel_source: K,
     shader_information: ShaderInformation,
