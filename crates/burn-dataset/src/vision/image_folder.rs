@@ -493,6 +493,48 @@ mod tests {
     }
 
     #[test]
+    pub fn image_folder_dataset_multilabel() {
+        let root = Path::new(DATASET_ROOT);
+        let items = vec![
+            (
+                root.join("orange").join("dot.jpg"),
+                vec!["dot".to_string(), "orange".to_string()],
+            ),
+            (
+                root.join("red").join("dot.jpg"),
+                vec!["dot".to_string(), "red".to_string()],
+            ),
+            (
+                root.join("red").join("dot.png"),
+                vec!["dot".to_string(), "red".to_string()],
+            ),
+        ];
+        let dataset = ImageFolderDataset::new_multilabel_classification_with_items(
+            items,
+            &["dot", "orange", "red"],
+        )
+        .unwrap();
+
+        // Dataset has 3 elements
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.get(3), None);
+
+        // Dataset elements should be: [dot, orange] (0, 1), [dot, red] (0, 2), [dot, red] (0, 2)
+        assert_eq!(
+            dataset.get(0).unwrap().annotation,
+            Annotation::MultiLabel(vec![0, 1])
+        );
+        assert_eq!(
+            dataset.get(1).unwrap().annotation,
+            Annotation::MultiLabel(vec![0, 2])
+        );
+        assert_eq!(
+            dataset.get(2).unwrap().annotation,
+            Annotation::MultiLabel(vec![0, 2])
+        );
+    }
+
+    #[test]
     #[should_panic]
     pub fn image_folder_dataset_invalid_extension() {
         // Some invalid file extension
