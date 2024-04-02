@@ -255,7 +255,8 @@ impl Display for BenchmarkCollection {
         let mut max_feature_len = "Feature".len();
         for record in self.records.iter() {
             max_name_len = max_name_len.max(record.results.name.len());
-            max_backend_len = max_backend_len.max(record.backend.len());
+            // + 2 because if the added backticks
+            max_backend_len = max_backend_len.max(record.backend.len() + 2);
             max_device_len = max_device_len.max(record.device.len());
             max_feature_len = max_feature_len.max(record.feature.len());
         }
@@ -276,7 +277,7 @@ impl Display for BenchmarkCollection {
                 "| {:<width_name$} | {:<width_feature$} | {:<width_backend$} | {:<width_device$} | {:<15.3?}|",
                 record.results.name,
                 record.feature,
-                record.backend,
+                format!("`{}`", record.backend),
                 record.device,
                 record.results.computed.median,
                 width_name = max_name_len,
