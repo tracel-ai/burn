@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::DatasetIterator;
 
+use super::windows::WindowsDataset;
+
 /// The dataset trait defines a basic collection of items with a predefined size.
 pub trait Dataset<I>: Send + Sync {
     /// Gets the item at the given index.
@@ -21,6 +23,14 @@ pub trait Dataset<I>: Send + Sync {
         Self: Sized,
     {
         DatasetIterator::new(self)
+    }
+
+    /// Returns a windowed dataset.
+    fn windows(&self, window_size: usize) -> WindowsDataset<'_, I>
+    where
+        Self: Sized,
+    {
+        WindowsDataset::new(self, window_size)
     }
 }
 
