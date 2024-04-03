@@ -24,6 +24,21 @@ pub trait DataLoader<O>: Send {
     /// The number of items (not the number of batches nor the number of iterations),
     /// corresponding to the items_total of the progress returned by the iterator.
     fn num_items(&self) -> usize;
-    /// Create a new dataloader.
-    fn new_dyn(&self) -> Box<dyn DataLoader<O>>;
+}
+
+/// A super trait for [dataloader](DataLoader) that allows it to be cloned dynamically.
+///
+/// Any dataloader that implements [Clone] should also implement this automatically.
+pub trait DynDataLoader<O>: DataLoader<O> {
+    /// Clone the dataloader and returns a new one.
+    fn clone_dyn(&self) -> Box<dyn DynDataLoader<O>>;
+}
+
+impl<D, O> DynDataLoader<O> for D
+where
+    D: DataLoader<O> + Clone + 'static,
+{
+    fn clone_dyn(&self) -> Box<dyn DynDataLoader<O>> {
+        Box::new(self.clone())
+    }
 }

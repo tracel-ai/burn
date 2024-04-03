@@ -23,7 +23,7 @@ pub trait BatchStrategy<I>: Send {
     /// # Returns
     ///
     /// The new strategy.
-    fn new_like(&self) -> Box<dyn BatchStrategy<I>>;
+    fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>>;
 }
 
 /// A strategy to batch items with a fixed batch size.
@@ -70,7 +70,7 @@ impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
         Some(items)
     }
 
-    fn new_like(&self) -> Box<dyn BatchStrategy<I>> {
+    fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
         Box::new(Self::new(self.batch_size))
     }
 }

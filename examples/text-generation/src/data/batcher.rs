@@ -41,10 +41,6 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
             mask_pad: mask.mask,
         }
     }
-
-    fn new_like(&self) -> Box<dyn Batcher<TextGenerationItem, TextGenerationBatch<B>>> {
-        Box::new(self.clone())
-    }
 }
 
 impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
@@ -62,9 +58,5 @@ impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
         let mask_pad = item.mask_pad.slice([0..batch_size, 0..seq_length - 1]);
 
         TrainingTextGenerationBatch::new(inputs, targets, mask_pad)
-    }
-
-    fn new_like(&self) -> Box<dyn Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>> {
-        Box::new(self.clone())
     }
 }

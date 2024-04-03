@@ -43,8 +43,4 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
 
         MnistBatch { images, targets }
     }
-
-    fn new_like(&self) -> Box<dyn Batcher<MnistItem, MnistBatch<B>>> {
-        Box::new(self.clone())
-    }
 }

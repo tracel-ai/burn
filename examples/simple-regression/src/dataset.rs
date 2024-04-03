@@ -169,8 +169,4 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
 
         DiabetesBatch { inputs, targets }
     }
-
-    fn new_like(&self) -> Box<dyn Batcher<DiabetesItem, DiabetesBatch<B>>> {
-        Box::new(self.clone())
-    }
 }

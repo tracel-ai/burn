@@ -1,4 +1,4 @@
-use super::memory_management::GraphsMemoryManagement;
+use super::memory_management::GraphMemoryManagement;
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub struct AutodiffServer {
     steps: HashMap<NodeID, StepBoxed>,
     actions_builder: HashMap<NodeID, CheckpointerBuilder>,
-    memory_management: GraphsMemoryManagement,
+    memory_management: GraphMemoryManagement,
 }
 
 impl AutodiffServer {

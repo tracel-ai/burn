@@ -37,6 +37,7 @@ impl<B: Backend> Normalizer<B> {
     }
 }
 
+#[derive(Clone)]
 pub struct ClassificationBatcher<B: Backend> {
     normalizer: Normalizer<B>,
     device: B::Device,
@@ -97,9 +98,5 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
         let images = self.normalizer.normalize(images);
 
         ClassificationBatch { images, targets }
-    }
-
-    fn new_like(&self) -> Box<dyn Batcher<ImageDatasetItem, ClassificationBatch<B>>> {
-        todo!()
     }
 }

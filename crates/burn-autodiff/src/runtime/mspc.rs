@@ -9,6 +9,13 @@ use crate::{
 use burn_tensor::backend::Backend;
 use std::sync::mpsc::Sender;
 
+static INSTANCE: spin::Lazy<ChannelClient> = spin::Lazy::new(ChannelClient::init);
+
+#[derive(Debug, Clone)]
+pub struct ChannelClient {
+    sender: Sender<Message>,
+}
+
 enum Message {
     Register {
         node_id: NodeRefCount,
@@ -21,17 +28,9 @@ enum Message {
         callback: Sender<Gradients>,
     },
 }
-
-#[derive(Debug, Clone)]
-pub struct ChannelClient {
-    sender: Sender<Message>,
-}
-
-static AUTODIFF: spin::Lazy<ChannelClient> = spin::Lazy::new(ChannelClient::init);
-
 impl ChannelClient {
     pub(crate) fn new() -> Self {
-        AUTODIFF.clone()
+        INSTANCE.clone()
     }
 
     fn init() -> Self {

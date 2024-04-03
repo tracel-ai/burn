@@ -1,4 +1,4 @@
-use super::{batcher::Batcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy};
+use super::{batcher::DynBatcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy};
 use burn_dataset::Dataset;
 use rand::{rngs::StdRng, SeedableRng};
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 /// A builder for data loaders.
 pub struct DataLoaderBuilder<I, O> {
     strategy: Option<Box<dyn BatchStrategy<I>>>,
-    batcher: Box<dyn Batcher<I, O>>,
+    batcher: Box<dyn DynBatcher<I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
 }
@@ -27,7 +27,7 @@ where
     /// The data loader builder.
     pub fn new<B>(batcher: B) -> Self
     where
-        B: Batcher<I, O> + 'static,
+        B: DynBatcher<I, O> + 'static,
     {
         Self {
             batcher: Box::new(batcher),

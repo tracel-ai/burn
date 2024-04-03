@@ -4,6 +4,15 @@ use std::{
     sync::Arc,
 };
 
+/// Keeps a version on the graphs created during autodiff with the reference count of each node.
+///
+/// When all nodes in a graph have only one reference, the graph can be freed.
+#[derive(Default, Debug)]
+pub struct GraphMemoryManagement {
+    graphs: HashMap<GraphId, GraphState>,
+    owned: HashSet<GraphId>,
+}
+
 #[derive(new, Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub struct GraphId {
     node: NodeID,
@@ -15,43 +24,13 @@ enum GraphState {
     Owned(Vec<NodeRefCount>),
 }
 
-#[derive(Default, Debug)]
-pub struct GraphsMemoryManagement {
-    graphs: HashMap<GraphId, GraphState>,
-    owned: HashSet<GraphId>,
-}
-
-impl core::fmt::Display for GraphsMemoryManagement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "Graphs Memory Management with {} owned graphs and total of {} graphs\n",
-            self.owned.len(),
-            self.graphs.len()
-        ))?;
-        for (id, state) in self.graphs.iter() {
-            f.write_fmt(format_args!("Graph {} => ", id.node.value))?;
-            match state {
-                GraphState::Merged(id) => f.write_fmt(format_args!("Merged {}", id.node.value))?,
-                GraphState::Owned(nodes) => {
-                    f.write_str("Owned")?;
-                    for node in nodes {
-                        f.write_fmt(format_args!(" {}", node.value))?;
-                    }
-                }
-            }
-            f.write_str("\n")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl GraphsMemoryManagement {
-    pub fn register(&mut self, rc: NodeRefCount, parents: Vec<NodeID>) {
-        let node_id = *rc.as_ref();
+impl GraphMemoryManagement {
+    /// Register a new node with its parent.
+    pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
+        let node_id = *node.as_ref();
         let graph_id = GraphId::new(node_id);
 
-        self.insert_owned_graph(graph_id, vec![rc.clone()]);
+        self.insert_owned_graph(graph_id, vec![node.clone()]);
 
         if !parents.is_empty() {
             let graph_ids = parents.into_iter().map(GraphId::new);
@@ -61,6 +40,7 @@ impl GraphsMemoryManagement {
         }
     }
 
+    /// Free the given graph calling the given function for each node deleted.
     pub fn free_graph<F>(&mut self, graph_id: GraphId, mut func: F)
     where
         F: FnMut(&NodeID),
@@ -84,6 +64,9 @@ impl GraphsMemoryManagement {
         }
     }
 
+    /// Find the graphs where all nodes are orphan.
+    ///
+    /// The returned graphs can be safely freed.
     pub fn find_orphan_graphs(&self) -> Vec<GraphId> {
         self.owned
             .iter()
@@ -176,6 +159,31 @@ impl GraphsMemoryManagement {
     }
 }
 
+impl core::fmt::Display for GraphMemoryManagement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Graphs Memory Management with {} owned graphs and total of {} graphs\n",
+            self.owned.len(),
+            self.graphs.len()
+        ))?;
+        for (id, state) in self.graphs.iter() {
+            f.write_fmt(format_args!("Graph {} => ", id.node.value))?;
+            match state {
+                GraphState::Merged(id) => f.write_fmt(format_args!("Merged {}", id.node.value))?,
+                GraphState::Owned(nodes) => {
+                    f.write_str("Owned")?;
+                    for node in nodes {
+                        f.write_fmt(format_args!(" {}", node.value))?;
+                    }
+                }
+            }
+            f.write_str("\n")?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -183,8 +191,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_graph_memory_management() {
-        let mut graph_mm = GraphsMemoryManagement::default();
+    fn test_graph_memory_management_connect_graphs() {
+        let mut graph_mm = GraphMemoryManagement::default();
 
         let node_1 = Arc::new(NodeID::new());
         let node_2 = Arc::new(NodeID::new());
@@ -192,21 +200,72 @@ mod tests {
         let node_4 = Arc::new(NodeID::new());
         let node_5 = Arc::new(NodeID::new());
 
-        // node_1 is root
         graph_mm.register(node_1.clone(), vec![]);
         graph_mm.register(node_2.clone(), vec![*node_1]);
+        assert_eq!(graph_mm.owned.len(), 1, "A single connected graph.");
+
         graph_mm.register(node_3.clone(), vec![]);
         graph_mm.register(node_4.clone(), vec![*node_3]);
+        assert_eq!(graph_mm.owned.len(), 2, "Two connected graphs.");
+
         graph_mm.register(node_5.clone(), vec![*node_1, *node_3]);
+        assert_eq!(
+            graph_mm.owned.len(),
+            1,
+            "Two connected graphs are merged into one."
+        );
+    }
+
+    #[test]
+    fn test_graph_memory_management_find_orphans() {
+        let mut graph_mm = GraphMemoryManagement::default();
+
+        let node_1 = Arc::new(NodeID::new());
+        let node_2 = Arc::new(NodeID::new());
+
+        graph_mm.register(node_1.clone(), vec![]);
+        graph_mm.register(node_2.clone(), vec![*node_1]);
 
         core::mem::drop(node_1);
+        assert_eq!(
+            graph_mm.find_orphan_graphs().len(),
+            0,
+            "Not all nodes are droped"
+        );
+
         core::mem::drop(node_2);
-        core::mem::drop(node_3);
-        core::mem::drop(node_4);
-        core::mem::drop(node_5);
+        assert_eq!(
+            graph_mm.find_orphan_graphs().len(),
+            1,
+            "All nodes are droped"
+        );
+    }
 
-        let disconected_graphs = graph_mm.find_orphan_graphs();
+    #[test]
+    fn test_graph_memory_management_free_graph_from_any_node() {
+        let mut graph_mm = GraphMemoryManagement::default();
 
-        assert_eq!(disconected_graphs.len(), 1);
+        // Create a graph and free(node_1)
+        let node_1 = Arc::new(NodeID::new());
+        let node_2 = Arc::new(NodeID::new());
+
+        graph_mm.register(node_1.clone(), vec![]);
+        graph_mm.register(node_2.clone(), vec![*node_1]);
+
+        let mut node_ids = Vec::new();
+        graph_mm.free_graph(GraphId::new(*node_1.as_ref()), |id| node_ids.push(*id));
+
+        assert!(node_ids.contains(&node_1));
+        assert!(node_ids.contains(&node_2));
+
+        // Same but with free(node_2);
+        graph_mm.register(node_1.clone(), vec![]);
+        graph_mm.register(node_2.clone(), vec![*node_1]);
+
+        let mut node_ids = Vec::new();
+        graph_mm.free_graph(GraphId::new(*node_2.as_ref()), |id| node_ids.push(*id));
+
+        assert!(node_ids.contains(&node_1));
+        assert!(node_ids.contains(&node_2));
     }
 }

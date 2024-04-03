@@ -70,12 +70,6 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationTrainingBatch
             mask_pad: mask.mask,
         }
     }
-
-    fn new_like(
-        &self,
-    ) -> Box<dyn Batcher<TextClassificationItem, TextClassificationTrainingBatch<B>>> {
-        Box::new(self.clone())
-    }
 }
 
 /// Implement Batcher trait for TextClassificationBatcher struct for inference
@@ -104,9 +98,5 @@ impl<B: Backend> Batcher<String, TextClassificationInferenceBatch<B>>
             tokens: mask.tensor.to_device(&self.device),
             mask_pad: mask.mask.to_device(&self.device),
         }
-    }
-
-    fn new_like(&self) -> Box<dyn Batcher<String, TextClassificationInferenceBatch<B>>> {
-        Box::new(self.clone())
     }
 }

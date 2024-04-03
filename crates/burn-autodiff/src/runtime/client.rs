@@ -6,13 +6,18 @@ use crate::{
 };
 use burn_tensor::backend::Backend;
 
+/// Client used to communicate with the autodiff server.
 pub trait AutodiffClient: Send + Clone {
-    fn register(&self, node_id: NodeRefCount, ops: StepBoxed, actions: CheckpointerBuilder);
-    fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients;
+    /// Register a new step.
+    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
+    /// Call back propagation from the given tensor.
+    fn backward<B: Backend, const D: usize>(&self, tensor: AutodiffTensor<B, D>) -> Gradients;
 }
 
+/// Client implementation in used.
 #[cfg(feature = "std")]
 pub type AutodiffClientImpl = super::mspc::ChannelClient;
 
+/// Client implementation in used.
 #[cfg(not(feature = "std"))]
 pub type AutodiffClientImpl = super::mutex::MutexClient;
