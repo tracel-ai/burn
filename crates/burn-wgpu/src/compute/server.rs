@@ -144,7 +144,7 @@ where
             return pipeline.clone();
         }
 
-        let source = kernel.source();
+        let source = kernel.compile().source;
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 

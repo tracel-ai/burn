@@ -90,7 +90,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<I, O>(settings)
             }
@@ -104,7 +104,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -123,7 +123,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,

@@ -1,4 +1,10 @@
-use crate::{compute::ShaderInformation, element::JitElement, tensor::JitTensor, Runtime};
+use crate::{
+    compute::{CompiledKernel, LaunchSettings, WorkGroup},
+    element::JitElement,
+    gpu::WorkgroupSize,
+    tensor::JitTensor,
+    Runtime,
+};
 
 use super::SourceTemplate;
 
@@ -18,13 +24,13 @@ pub trait DynamicKernelSource: Send + 'static + Sync {
 /// provided id.
 ///
 /// The kernel will be launched with the given [shader information](ShaderInformation)
-pub trait SourceableKernel: 'static + Send + Sync {
+pub trait TemplateKernel: 'static + Send + Sync {
     /// Convert to [source](SourceTemplate)
-    fn source(&self) -> SourceTemplate;
+    fn compile(&self) -> CompiledKernel;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
-    fn shader_information(&self) -> ShaderInformation;
+    fn launch_settings(&self) -> LaunchSettings;
 }
 
 #[derive(new)]
@@ -32,23 +38,31 @@ pub trait SourceableKernel: 'static + Send + Sync {
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
-    shader_information: ShaderInformation,
+    workgroup: WorkGroup,
+    workgroup_size: WorkgroupSize,
 }
 
-impl<K> SourceableKernel for SourceKernel<K>
+impl<K> TemplateKernel for SourceKernel<K>
 where
     K: DynamicKernelSource + 'static,
 {
-    fn source(&self) -> SourceTemplate {
-        self.kernel_source.source()
+    fn compile(&self) -> CompiledKernel {
+        let source_template = self.kernel_source.source();
+        let source = source_template.complete();
+        CompiledKernel {
+            source,
+            workgroup_size: self.workgroup_size,
+        }
     }
 
     fn id(&self) -> String {
         format!("{:?}", core::any::TypeId::of::<K>())
     }
 
-    fn shader_information(&self) -> ShaderInformation {
-        self.shader_information.clone()
+    fn launch_settings(&self) -> LaunchSettings {
+        LaunchSettings {
+            workgroup: self.workgroup.clone(),
+        }
     }
 }
 

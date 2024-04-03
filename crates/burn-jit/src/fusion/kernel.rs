@@ -2,7 +2,7 @@ use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
 use crate::compute::DynamicJitGpuKernel;
-use crate::compute::JitKernel;
+use crate::compute::JitGpuKernel;
 use crate::compute::Kernel;
 use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
@@ -46,7 +46,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
-    kernel: Box<dyn JitKernel>,
+    kernel: Box<dyn JitGpuKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -59,7 +59,7 @@ pub struct ExecutableKernel<R: Runtime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
-    kernel: Arc<dyn JitKernel>,
+    kernel: Arc<dyn JitGpuKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -222,7 +222,10 @@ impl<R: Runtime> FusionKernel<R> {
 
         let workgroup = fusion_kernel.workgroup.clone();
         ExecutableKernel::new(
-            DynamicJitGpuKernel::<R::Compiler>::from_dynamic(fusion_kernel, workgroup),
+            Box::new(DynamicJitGpuKernel::<R::Compiler, FusionKernel<R>>::new(
+                fusion_kernel,
+                workgroup,
+            )),
             handles,
             client,
         )

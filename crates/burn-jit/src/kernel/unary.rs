@@ -91,7 +91,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -103,7 +103,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -168,7 +168,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -180,7 +180,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn to_shader() -> $crate::gpu::ComputeShader {
+            fn compile() -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
