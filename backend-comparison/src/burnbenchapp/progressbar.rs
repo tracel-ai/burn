@@ -1,36 +1,32 @@
 use core::fmt;
-use std::{
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
-};
+use std::{time::{Duration, Instant}, sync::{atomic::{AtomicU64, Ordering}, Arc}};
 
 use indicatif::{style::ProgressTracker, ProgressBar, ProgressState, ProgressStyle};
 
 pub(crate) struct RunnerProgressBar {
     pb: ProgressBar,
-    tracker: ThreadSafeTracker,
+    succeeded: Arc<AtomicU64>,
+    failed: Arc<AtomicU64>,
 }
 
 impl RunnerProgressBar {
     pub(crate) fn new(total: u64) -> Self {
-        let tracker = CountTracker::default();
-        let thread_safe_tracker = ThreadSafeTracker::new(tracker);
         let pb = ProgressBar::new(total);
+        let succeeded = Arc::new(AtomicU64::new(0));
+        let failed = Arc::new(AtomicU64::new(0));
         pb.set_style(
             ProgressStyle::default_spinner()
-                .template("\n{msg}\n{spinner}{wide_bar:.yellow/red} {pos}/{len} {counter}\n ")
+                .template("\n{msg}\n{spinner}{wide_bar:.yellow/red} {pos}/{len} {succeeded} {failed}\n ")
                 .unwrap()
-                .with_key("counter", thread_safe_tracker.clone())
+                .with_key("succeeded", CountTracker::new(succeeded.clone(), '✅'))
+                .with_key("failed", CountTracker::new(failed.clone(), '❌'))
                 .progress_chars("▬▬―")
                 .tick_strings(&[
                     "🕛 ", "🕐 ", "🕑 ", "🕒 ", "🕓 ", "🕔 ", "🕕 ", "🕖 ", "🕗 ", "🕘 ", "🕙 ",
                     "🕚 ",
                 ]),
         );
-        Self {
-            pb,
-            tracker: thread_safe_tracker,
-        }
+        Self { pb, succeeded: succeeded.clone(), failed: failed.clone() }
     }
 
     pub(crate) fn message(&self, msg: String) {
@@ -56,15 +52,15 @@ impl RunnerProgressBar {
     }
 
     pub(crate) fn succeeded_inc(&mut self) {
-        self.tracker.inner.lock().unwrap().succeeded += 1;
+        self.succeeded.fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn failed_inc(&mut self) {
-        self.tracker.inner.lock().unwrap().failed += 1;
+        self.failed.fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn finish(&self) {
-        let success = self.tracker.inner.lock().unwrap().failed == 0;
+        let success = self.failed.load(Ordering::SeqCst) == 0;
         let msg = format!(
             "\n{{msg}}\n{{wide_bar:.{}}}",
             if success { "green" } else { "red" }
@@ -82,37 +78,29 @@ impl RunnerProgressBar {
     }
 }
 
-#[derive(Clone, Default)]
-struct CountTracker {
-    pub failed: u64,
-    pub succeeded: u64,
-}
-
 #[derive(Clone)]
-struct ThreadSafeTracker {
-    inner: Arc<Mutex<CountTracker>>,
+struct CountTracker {
+    count: Arc<AtomicU64>,
+    icon: char,
 }
 
-impl ThreadSafeTracker {
-    pub fn new(tracker: CountTracker) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(tracker)),
-        }
-    }
+impl CountTracker {
+    pub fn new(count: Arc<AtomicU64>, icon: char) -> Self {
+       Self { count, icon }
+   }
 }
 
-impl ProgressTracker for ThreadSafeTracker {
+impl ProgressTracker for CountTracker {
     fn clone_box(&self) -> Box<dyn ProgressTracker> {
-        Box::new(Self {
-            inner: Arc::clone(&self.inner),
-        })
+        Box::new(self.clone())
     }
 
-    fn tick(&mut self, _: &ProgressState, _: Instant) {}
+    fn tick(&mut self, _: &ProgressState, _: Instant) {
+    }
+
     fn reset(&mut self, _: &ProgressState, _: Instant) {}
 
     fn write(&self, _state: &ProgressState, w: &mut dyn fmt::Write) {
-        let tracker = self.inner.lock().unwrap();
-        write!(w, "{}✅ {}❌", tracker.succeeded, tracker.failed).unwrap();
+        write!(w, "{}{}", self.count.load(Ordering::Relaxed), self.icon).unwrap();
     }
 }
