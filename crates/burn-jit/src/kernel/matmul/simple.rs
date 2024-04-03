@@ -152,7 +152,7 @@ impl MatmulComputeShader {
 }
 
 impl<R: Runtime> DynamicJitKernel for MatmulEagerKernel<R> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
             "Only square grid is supported."

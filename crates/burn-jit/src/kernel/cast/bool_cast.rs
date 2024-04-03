@@ -58,7 +58,7 @@ pub(crate) struct BoolCastEagerKernel<R: Runtime, EO: JitElement> {
 }
 
 impl<R: Runtime, EO: JitElement> DynamicJitKernel for BoolCastEagerKernel<R, EO> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = Item::Scalar(Elem::Bool);
         let item_output = EO::gpu_elem().into();

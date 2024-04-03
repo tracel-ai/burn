@@ -187,7 +187,7 @@ pub(crate) struct AdaptivePool2dEagerKernel<R: Runtime, E: JitElement> {
 }
 
 impl<R: Runtime, E: JitElement> DynamicJitKernel for AdaptivePool2dEagerKernel<R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 

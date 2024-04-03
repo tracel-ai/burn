@@ -1,7 +1,7 @@
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
-use crate::compute::JitGpuKernel;
+use crate::compute::DynamicJitGpuKernel;
 use crate::compute::JitKernel;
 use crate::compute::Kernel;
 use crate::compute::WorkGroup;
@@ -222,7 +222,7 @@ impl<R: Runtime> FusionKernel<R> {
 
         let workgroup = fusion_kernel.workgroup.clone();
         ExecutableKernel::new(
-            JitGpuKernel::<R::Compiler>::from_dynamic(fusion_kernel, workgroup),
+            DynamicJitGpuKernel::<R::Compiler>::from_dynamic(fusion_kernel, workgroup),
             handles,
             client,
         )
@@ -230,7 +230,7 @@ impl<R: Runtime> FusionKernel<R> {
 }
 
 impl<R: Runtime> DynamicJitKernel for FusionKernel<R> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
         Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
     }

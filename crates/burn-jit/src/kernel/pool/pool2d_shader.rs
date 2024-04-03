@@ -173,7 +173,7 @@ pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> 
 }
 
 impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicJitKernel for Pool2dEagerKernel<P, R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 

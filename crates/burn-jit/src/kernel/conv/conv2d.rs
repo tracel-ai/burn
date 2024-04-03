@@ -235,7 +235,7 @@ impl<E: JitElement> Conv2dComputeShader<E> {
 }
 
 impl<R: Runtime, E: JitElement> DynamicJitKernel for Conv2dEagerKernel<R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 

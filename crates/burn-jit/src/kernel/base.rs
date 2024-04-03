@@ -8,13 +8,13 @@ pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 /// Static jit kernel to create a [compute shader](ComputeShader).
 pub trait StaticJitKernel: Send + 'static + Sync {
     /// Convert to compute shader
-    fn to_shader() -> ComputeShader;
+    fn compile() -> ComputeShader;
 }
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).
 pub trait DynamicJitKernel: Send + Sync {
     /// Convert to compute shader
-    fn to_shader(&self) -> ComputeShader;
+    fn compile(&self) -> ComputeShader;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
 }

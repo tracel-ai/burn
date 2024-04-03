@@ -33,7 +33,7 @@ struct MatmulTiling2dEagerKernel<R: Runtime> {
 }
 
 impl<R: Runtime> DynamicJitKernel for MatmulTiling2dEagerKernel<R> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
         let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());

@@ -77,7 +77,7 @@ impl GatherComputeShader {
 }
 
 impl<R: Runtime, E: JitElement> DynamicJitKernel for GatherEagerKernel<R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::gpu_elem().into();
         let item_indices: gpu::Item = gpu::Elem::Int.into();

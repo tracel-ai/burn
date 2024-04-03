@@ -76,7 +76,7 @@ impl SliceAssignComputeShader {
 }
 
 impl<R: Runtime, E: JitElement> DynamicJitKernel for SliceAssignEagerKernel<R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 

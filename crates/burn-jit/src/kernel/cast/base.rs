@@ -60,7 +60,7 @@ pub(crate) struct CastEagerKernel<R: Runtime, EI: JitElement, EO: JitElement> {
 }
 
 impl<R: Runtime, EI: JitElement, EO: JitElement> DynamicJitKernel for CastEagerKernel<R, EI, EO> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = EI::gpu_elem().into();
         let item_output = EO::gpu_elem().into();

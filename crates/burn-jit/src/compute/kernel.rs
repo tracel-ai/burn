@@ -35,7 +35,7 @@ impl Kernel {
     /// Source of the shader, as string
     pub fn source(&self) -> String {
         match self {
-            Kernel::JitGpu(shader) => shader.source(),
+            Kernel::JitGpu(shader) => shader.compile(),
             #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
         }
@@ -44,11 +44,20 @@ impl Kernel {
     /// Launch information of the kernel
     pub fn launch_information(&self) -> ShaderInformation {
         match self {
-            Kernel::JitGpu(shader) => shader.shader_information(),
+            Kernel::JitGpu(shader) => shader.workgroup(),
             #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.shader_information(),
         }
     }
+}
+
+pub struct CompiledKernel {
+    pub source: String,
+    pub workgroup_size: WorkgroupSize,
+}
+
+pub struct LaunchSettings {
+    pub workgroup: WorkGroup,
 }
 
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
@@ -56,90 +65,90 @@ impl Kernel {
 ///
 /// The kernel will be launched with the given [shader information](ShaderInformation).
 pub trait JitKernel: Send + Sync {
-    /// Convert to source as string
-    fn source(&self) -> String;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
-    /// Launch information.
-    fn shader_information(&self) -> ShaderInformation;
+    /// TODO:
+    fn compile(&self) -> CompiledKernel;
+    /// Launch settings.
+    fn launch_settings(&self) -> LaunchSettings;
 }
 
 /// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
-pub struct JitGpuKernel<C: Compiler> {
+#[derive(new)]
+pub struct DynamicJitGpuKernel<C: Compiler, K: DynamicJitKernel> {
     id: String,
     info: ShaderInformation,
-    shader: ComputeShader,
+    kernel: K,
     _compiler: PhantomData<C>,
 }
 
-impl<C: Compiler> JitGpuKernel<C> {
-    /// Create a boxed [JitGpuKernel](JitGpuKernel) from a static kernel
-    pub fn from_static<K: StaticJitKernel + 'static>(workgroup: WorkGroup) -> Box<Self> {
-        Box::new(Self::new(
-            format!("{:?}", core::any::TypeId::of::<K>()),
-            K::to_shader(),
-            workgroup,
-        ))
-    }
-
-    /// Create a boxed [JitGpuKernel](JitGpuKernel) from a dynamic kernel
-    pub fn from_dynamic<K: DynamicJitKernel + 'static>(
-        kernel: K,
-        workgroup: WorkGroup,
-    ) -> Box<Self> {
-        Box::new(Self::new(kernel.id(), kernel.to_shader(), workgroup))
-    }
-
-    fn new(id: String, shader: ComputeShader, workgroup: WorkGroup) -> Self {
-        let info = ShaderInformation::new(workgroup, Some(shader.workgroup_size));
-        Self {
-            id,
-            shader,
-            info,
-            _compiler: PhantomData,
-        }
-    }
+/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
+#[derive(new)]
+pub struct StaticJitGpuKernel<C: Compiler, K: StaticJitKernel> {
+    workgroup: WorkGroup,
+    _kernel: PhantomData<K>,
+    _compiler: PhantomData<C>,
 }
 
-impl<C: Compiler> JitKernel for JitGpuKernel<C> {
-    fn source(&self) -> String {
-        C::compile(self.shader.clone()).to_string()
+impl<C: Compiler, K: DynamicJitKernel> JitKernel for DynamicJitGpuKernel<C, K> {
+    fn compile(&self) -> String {
+        let gpu_ir = self.kernel.compile();
+        let lower_level_ir = C::compile(gpu_ir);
+
+        lower_level_ir.to_string()
     }
 
     fn id(&self) -> String {
         self.id.clone()
     }
 
-    fn shader_information(&self) -> ShaderInformation {
+    fn workgroup(&self) -> ShaderInformation {
+        self.info.clone()
+    }
+}
+
+impl<C: Compiler, K: StaticJitKernel> JitKernel for StaticJitGpuKernel<C, K> {
+    fn compile(&self) -> String {
+        let gpu_ir = K::compile();
+        let lower_level_ir = C::compile(gpu_ir);
+
+        lower_level_ir.to_string()
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}", core::any::TypeId::of::<Self>())
+    }
+
+    fn workgroup(&self) -> ShaderInformation {
         self.info.clone()
     }
 }
 
 impl JitKernel for Arc<dyn JitKernel> {
-    fn source(&self) -> String {
-        self.as_ref().source()
+    fn compile(&self) -> String {
+        self.as_ref().compile()
     }
 
     fn id(&self) -> String {
         self.as_ref().id()
     }
 
-    fn shader_information(&self) -> ShaderInformation {
-        self.as_ref().shader_information()
+    fn workgroup(&self) -> ShaderInformation {
+        self.as_ref().workgroup()
     }
 }
 
 impl JitKernel for Box<dyn JitKernel> {
-    fn source(&self) -> String {
-        self.as_ref().source()
+    fn compile(&self) -> String {
+        self.as_ref().compile()
     }
 
     fn id(&self) -> String {
         self.as_ref().id()
     }
 
-    fn shader_information(&self) -> ShaderInformation {
-        self.as_ref().shader_information()
+    fn workgroup(&self) -> ShaderInformation {
+        self.as_ref().workgroup()
     }
 }
 

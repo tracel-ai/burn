@@ -99,7 +99,7 @@ pub(crate) struct MaskReadOnlyEagerKernel<
 impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicJitKernel
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let tensor_item = EI::gpu_elem().into();
         let mask_item = EM::gpu_elem().into();
@@ -173,7 +173,7 @@ pub(crate) struct MaskInplaceEagerKernel<
 impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicJitKernel
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let tensor_item = EI::gpu_elem().into();
         let mask_item = EM::gpu_elem().into();

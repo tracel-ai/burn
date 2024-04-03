@@ -58,7 +58,7 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
 }
 
 impl<R: Runtime, E: JitElement> DynamicJitKernel for IntoContiguousEagerKernel<R, E> {
-    fn to_shader(&self) -> ComputeShader {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
