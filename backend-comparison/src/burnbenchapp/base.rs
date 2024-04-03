@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use std::io;
 use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
@@ -6,12 +7,14 @@ use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
 use crate::burnbenchapp::auth::Tokens;
+use crate::persistence::system_info::BenchmarkSystemInfo;
 
 use super::auth::get_tokens;
 use super::auth::get_username;
 use super::progressbar::RunnerProgressBar;
 use super::reports::{BenchmarkCollection, FailedBenchmark};
 use super::runner::{CargoRunner, NiceProcessor, OutputProcessor, VerboseProcessor};
+use super::USER_BENCHMARK_WEBSITE_URL;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -199,6 +202,9 @@ fn run_backend_comparison_benchmarks(
         pb.lock().unwrap().finish();
     }
     println!("{}", report_collection.load_records());
+    if let Some(url) = web_results_url(token) {
+        println!("📊 Browse results at {}", url);
+    }
 }
 
 fn run_cargo(
@@ -236,4 +242,24 @@ fn run_cargo(
     }
     let mut runner = CargoRunner::new(&args, processor);
     runner.run()
+}
+
+fn web_results_url(token: Option<&str>) -> Option<String> {
+    if let Some(t) = token {
+        if let Some(user) = get_username(t) {
+            let sysinfo = BenchmarkSystemInfo::new();
+            let encoded_os = utf8_percent_encode(&sysinfo.os.name, NON_ALPHANUMERIC).to_string();
+            let output = std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap();
+            let git_hash = String::from_utf8(output.stdout).unwrap().trim().to_string();
+
+            return Some(format!(
+                "{}benchmarks/community-benchmarks?user={}&os={}&version1={}&version2={}&search=true",
+                USER_BENCHMARK_WEBSITE_URL, user.nickname, encoded_os, git_hash, git_hash
+            ));
+        }
+    }
+    None
 }

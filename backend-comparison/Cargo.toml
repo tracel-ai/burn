@@ -37,6 +37,7 @@ dirs = { workspace = true }
 github-device-flow = { workspace = true }
 os_info = { workspace = true }
 indicatif = { workspace = true }
+percent-encoding = { workspace = true }
 rand = { workspace = true }
 reqwest = {workspace = true, features = ["blocking", "json"]}
 serde = { workspace = true }

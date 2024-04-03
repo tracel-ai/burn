@@ -14,3 +14,11 @@ const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
     // production
     "https://user-benchmark-server-gvtbw64teq-nn.a.run.app/"
 };
+
+const USER_BENCHMARK_WEBSITE_URL: &str = if cfg!(debug_assertions) {
+    // development
+    "http://localhost:4321/"
+} else {
+    // production
+    "https://burn.dev/"
+};
