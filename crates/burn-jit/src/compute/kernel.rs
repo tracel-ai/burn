@@ -72,7 +72,7 @@ pub struct LaunchSettings {
 pub trait JitGpuKernel: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
-    /// TODO:
+    /// Compile the kernel into source
     fn compile(&self) -> CompiledKernel;
     /// Launch settings.
     fn launch_settings(&self) -> LaunchSettings;
