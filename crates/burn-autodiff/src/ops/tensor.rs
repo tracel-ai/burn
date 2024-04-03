@@ -139,10 +139,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Add
             .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroAdd::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .retro_forward(RetroAdd::<B, D>::new(lhs.node.id, rhs.node.id))
             .parents([&lhs, &rhs])
             .stateful()
         {
@@ -182,7 +179,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         AddScalar
             .prepare::<C>([lhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .retro_forward(RetroAddScalar::<B, D>::new(lhs.node.id, rhs))
             .parents([&lhs])
             .stateless(B::float_add_scalar(lhs.primitive, rhs))
     }
@@ -220,10 +217,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Sub
             .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSub::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .retro_forward(RetroSub::<B, D>::new(lhs.node.id, rhs.node.id))
             .parents([&lhs, &rhs])
             .stateful()
         {
@@ -263,7 +257,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         SubScalar
             .prepare::<C>([lhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSubScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .retro_forward(RetroSubScalar::<B, D>::new(lhs.node.id, rhs))
             .parents([&lhs])
             .stateless(B::float_sub_scalar(lhs.primitive, rhs))
     }
@@ -313,10 +307,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Mul
             .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroMul::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .retro_forward(RetroMul::<B, D>::new(lhs.node.id, rhs.node.id))
             .parents([&lhs, &rhs])
             .stateful()
         {
@@ -360,7 +351,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match MulScalar
             .prepare::<C>([lhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .retro_forward(RetroMulScalar::<B, D>::new(lhs.node.id, rhs))
             .parents([&lhs])
             .stateful()
         {
@@ -422,10 +413,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Div
             .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroDiv::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .retro_forward(RetroDiv::<B, D>::new(lhs.node.id, rhs.node.id))
             .parents([&lhs, &rhs])
             .stateful()
         {
@@ -470,7 +458,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match DivScalar
             .prepare::<C>([lhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroDivScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .retro_forward(RetroDivScalar::<B, D>::new(lhs.node.id, rhs))
             .parents([&lhs])
             .stateful()
         {
@@ -561,7 +549,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         Neg.prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroNeg::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroNeg::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateless(B::float_neg(tensor.primitive))
     }
@@ -594,7 +582,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Recip
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroRecip::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroRecip::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -650,11 +638,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match SwapDim
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSwapDims::<B, D>::new(
-                tensor.node.id.clone(),
-                dim1,
-                dim2,
-            ))
+            .retro_forward(RetroSwapDims::<B, D>::new(tensor.node.id, dim1, dim2))
             .parents([&tensor])
             .stateful()
         {
@@ -715,7 +699,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match PermuteDim
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroPermuteDims::<B, D>::new(tensor.node.id.clone(), axes))
+            .retro_forward(RetroPermuteDims::<B, D>::new(tensor.node.id, axes))
             .parents([&tensor])
             .stateful()
         {
@@ -766,10 +750,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match FlipDim
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroFlipDims::<B, D>::new(
-                tensor.node.id.clone(),
-                axes.to_vec(),
-            ))
+            .retro_forward(RetroFlipDims::<B, D>::new(tensor.node.id, axes.to_vec()))
             .parents([&tensor])
             .stateful()
         {
@@ -832,7 +813,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroReshape::<B, D1, D2>::new(
-                tensor.node.id.clone(),
+                tensor.node.id,
                 shape.clone(),
             ))
             .parents([&tensor])
@@ -998,7 +979,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroSelect::<B, D>::new(
-                tensor.node.id.clone(),
+                tensor.node.id,
                 dim,
                 indices.clone(),
             ))
@@ -1078,10 +1059,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .prepare::<C>([tensor.node.clone(), value.node.clone()])
             .memory_bound()
             .retro_forward(RetroSelectAssign::<B, D>::new(
-                tensor.node.id.clone(),
+                tensor.node.id,
                 dim,
                 indices.clone(),
-                value.node.id.clone(),
+                value.node.id,
             ))
             .parents([&tensor, &value])
             .stateful()
@@ -1148,10 +1129,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Index
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSlice::<B, D1, D2>::new(
-                tensor.node.id.clone(),
-                ranges.clone(),
-            ))
+            .retro_forward(RetroSlice::<B, D1, D2>::new(tensor.node.id, ranges.clone()))
             .parents([&tensor])
             .stateful()
         {
@@ -1221,9 +1199,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .prepare::<C>([tensor.node.clone(), value.node.clone()])
             .memory_bound()
             .retro_forward(RetroSliceAssign::<B, D1, D2>::new(
-                tensor.node.id.clone(),
+                tensor.node.id,
                 ranges.clone(),
-                value.node.id.clone(),
+                value.node.id,
             ))
             .parents([&tensor, &value])
             .stateful()
@@ -1626,7 +1604,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Exp
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroExp::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroExp::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1664,7 +1642,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Log
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroLog::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroLog::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1704,7 +1682,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Log1P
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroLog1P::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroLog1P::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1762,7 +1740,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match PowfScalar
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id.clone(), value))
+            .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id, value))
             .parents([&tensor])
             .stateful()
         {
@@ -1801,7 +1779,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Sqrt
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSqrt::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroSqrt::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1841,7 +1819,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Abs
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroAbs::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroAbs::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1880,7 +1858,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Cos
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroCos::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroCos::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1918,7 +1896,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Sin
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSin::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroSin::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -1960,7 +1938,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Tanh
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroTanh::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroTanh::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -2002,7 +1980,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match Erf
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroErf::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroErf::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -2045,22 +2023,19 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let mut ranges = ranges.clone();
                         ranges[self.dim] = current_index..dim_size + current_index;
                         current_index += dim_size;
-                        grads.register::<B, D>(
-                            node.id.clone(),
-                            B::float_slice(grad.clone(), ranges),
-                        );
+                        grads.register::<B, D>(node.id, B::float_slice(grad.clone(), ranges));
                     });
             }
 
             fn node(&self) -> NodeID {
-                self.output.id.clone()
+                self.output.id
             }
 
             fn parents(&self) -> Vec<NodeID> {
                 self.nodes
                     .iter()
                     .filter_map(|node| node.clone())
-                    .map(|node| node.id.clone())
+                    .map(|node| node.id)
                     .collect()
             }
             fn order(&self) -> usize {
@@ -2260,10 +2235,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match PowF
             .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
             .memory_bound()
-            .retro_forward(RetroPowf::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .retro_forward(RetroPowf::<B, D>::new(lhs.node.id, rhs.node.id))
             .parents([&lhs, &rhs])
             .stateful()
         {
@@ -2303,7 +2275,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         Sign.prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSign::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroSign::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateless(B::float_sign(tensor.primitive))
     }
@@ -2368,10 +2340,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         match ExpandDim
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroExpand::<B, D1, D2>::new(
-                tensor.node.id.clone(),
-                shape.clone(),
-            ))
+            .retro_forward(RetroExpand::<B, D1, D2>::new(tensor.node.id, shape.clone()))
             .parents([&tensor])
             .stateful()
         {

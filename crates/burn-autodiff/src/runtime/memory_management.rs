@@ -88,7 +88,7 @@ impl GraphsMemoryManagement {
         self.owned
             .iter()
             .filter(|id| self.is_orphan(id))
-            .map(|id| *id)
+            .copied()
             .collect()
     }
 
@@ -121,14 +121,13 @@ impl GraphsMemoryManagement {
         let graph_ids = graph_ids.into_iter();
         let graph_ids = graph_ids.collect::<Vec<_>>();
 
-        let mut intermediates = HashSet::new();
-        let mut immediates = HashSet::new();
+        let mut merged = HashSet::new();
 
         let mut updated_nodes = Vec::new();
         let mut updated_graph_id = None;
 
         for id in graph_ids {
-            let graph_id = match self.find_owned_graph(id, &mut intermediates) {
+            let graph_id = match self.find_owned_graph(id) {
                 Some(val) => val,
                 None => continue,
             };
@@ -137,7 +136,7 @@ impl GraphsMemoryManagement {
                 updated_graph_id = Some(graph_id);
             }
 
-            immediates.insert(graph_id);
+            merged.insert(graph_id);
         }
 
         let updated_graph_id = match updated_graph_id {
@@ -145,13 +144,7 @@ impl GraphsMemoryManagement {
             None => return None,
         };
 
-        for merged in intermediates {
-            self.owned.remove(&merged);
-            self.graphs
-                .insert(merged, GraphState::Merged(updated_graph_id));
-        }
-
-        for id in immediates {
+        for id in merged {
             let mut updated_state = GraphState::Merged(updated_graph_id);
             let state = self.graphs.get_mut(&id).unwrap();
             self.owned.remove(&id);
@@ -168,11 +161,7 @@ impl GraphsMemoryManagement {
         Some(updated_graph_id)
     }
 
-    fn find_owned_graph(
-        &mut self,
-        graph_id: GraphId,
-        merged: &mut HashSet<GraphId>,
-    ) -> Option<GraphId> {
+    fn find_owned_graph(&mut self, graph_id: GraphId) -> Option<GraphId> {
         let graph = match self.graphs.get(&graph_id) {
             Some(val) => val,
             None => return None,
@@ -183,7 +172,7 @@ impl GraphsMemoryManagement {
             GraphState::Owned(_) => return Some(graph_id),
         };
 
-        self.find_owned_graph(*merged_graph_id, merged)
+        self.find_owned_graph(*merged_graph_id)
     }
 }
 

@@ -28,7 +28,7 @@ impl Step for RootStep {
     }
 
     fn node(&self) -> NodeID {
-        self.node.id.clone()
+        self.node.id
     }
 
     fn parents(&self) -> Vec<NodeID> {
@@ -80,7 +80,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 self.node = Node::new(
                     vec![],
                     0,
-                    self.node.id.clone(),
+                    self.node.id,
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
@@ -110,10 +110,10 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         let client = parent_nodes
             .first()
             .map(|node| node.client.clone())
-            .unwrap_or_else(|| AutodiffClientImpl::new());
+            .unwrap_or_else(AutodiffClientImpl::new);
 
         let node: NodeRef = Node::new(
-            parent_nodes.iter().map(|node| node.id.clone()).collect(),
+            parent_nodes.iter().map(|node| node.id).collect(),
             order,
             NodeID::new(),
             requirement,

@@ -86,7 +86,7 @@ where
         }
         .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
+        .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::into_target(tensor.primitive, None))
     }
@@ -148,7 +148,7 @@ where
         }
         .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
+        .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::from_target(tensor.primitive, None))
     }

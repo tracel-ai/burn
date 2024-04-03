@@ -63,12 +63,12 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
 
     if let Some(node) = node_lhs {
         let grad = func_lhs(grad_4lhs.unwrap());
-        grads.register::<B, D_LHS>(node.id.clone(), grad)
+        grads.register::<B, D_LHS>(node.id, grad)
     }
 
     if let Some(node) = node_rhs {
         let grad = func_rhs(grad_4rhs.unwrap());
-        grads.register::<B, D_RHS>(node.id.clone(), grad)
+        grads.register::<B, D_RHS>(node.id, grad)
     }
 }
 
@@ -87,7 +87,7 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
 
     if let Some(node) = parent_node {
         let grad = func(grad);
-        grads.register::<B, D_IN>(node.id.clone(), grad)
+        grads.register::<B, D_IN>(node.id, grad)
     }
 }
 
@@ -108,6 +108,6 @@ pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize,
 
     if let Some(node) = parent_node {
         let grad = func(grad);
-        grads.register::<BIn, D_IN>(node.id.clone(), grad)
+        grads.register::<BIn, D_IN>(node.id, grad)
     }
 }

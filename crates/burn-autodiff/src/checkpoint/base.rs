@@ -33,12 +33,10 @@ impl Checkpointer {
     where
         T: Clone + Send + 'static,
     {
-        self.topological_sort(node_id.clone())
-            .into_iter()
-            .for_each(|node| {
-                self.retro_forwards
-                    .execute_retro_forward(node, &mut self.backward_states)
-            });
+        self.topological_sort(node_id).into_iter().for_each(|node| {
+            self.retro_forwards
+                .execute_retro_forward(node, &mut self.backward_states)
+        });
 
         self.backward_states.get_state::<T>(&node_id)
     }

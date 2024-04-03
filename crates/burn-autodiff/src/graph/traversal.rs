@@ -20,7 +20,7 @@ impl BreadthFirstSearch {
         let mut visited = HashSet::with_capacity(root_order);
         let mut parents = Vec::with_capacity(root_order);
 
-        visited.insert(root_id.clone());
+        visited.insert(root_id);
         parents.append(&mut root_step.parents());
         callback(root_id, root_step);
 
@@ -37,11 +37,11 @@ impl BreadthFirstSearch {
                 continue;
             }
 
-            visited.insert(step_node.clone());
+            visited.insert(step_node);
 
             for id in step_parents.iter() {
                 if !visited.contains(id) {
-                    parents.push(id.clone());
+                    parents.push(*id);
                 }
             }
 

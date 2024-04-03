@@ -26,7 +26,7 @@ impl Gradients {
             container: TensorContainer::new(),
         };
         gradients.register::<B, D>(
-            root_node.id.clone(),
+            root_node.id,
             B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
         );
         gradients

@@ -33,7 +33,7 @@ impl AutodiffServer {
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
-        let (tape, builder) = self.build_tape(node_id.clone(), step, builder);
+        let (tape, builder) = self.build_tape(node_id, step, builder);
         let checkpointer = builder.build(&self.steps);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);

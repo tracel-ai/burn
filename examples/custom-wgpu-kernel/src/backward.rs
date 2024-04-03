@@ -87,13 +87,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
-                    grads.register::<B, D>(node.id.clone(), grad_bias);
+                    grads.register::<B, D>(node.id, grad_bias);
                 }
                 if let Some(node) = node_lhs {
-                    grads.register::<B, D>(node.id.clone(), grad_lhs);
+                    grads.register::<B, D>(node.id, grad_lhs);
                 }
                 if let Some(node) = node_rhs {
-                    grads.register::<B, D>(node.id.clone(), grad_rhs);
+                    grads.register::<B, D>(node.id, grad_rhs);
                 }
             }
         }

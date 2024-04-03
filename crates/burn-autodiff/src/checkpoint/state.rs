@@ -97,7 +97,7 @@ impl BackwardStates {
                 .unwrap()
                 .clone();
 
-            self.insert_state(node_id.clone(), new_stored_state);
+            self.insert_state(*node_id, new_stored_state);
 
             downcasted
         } else {

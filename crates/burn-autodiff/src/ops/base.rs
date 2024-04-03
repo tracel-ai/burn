@@ -217,7 +217,7 @@ where
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
-        tensor.node.id.clone()
+        tensor.node.id
     }
 }
 
@@ -264,7 +264,7 @@ where
     }
 
     fn node(&self) -> NodeID {
-        self.ops.node.id.clone()
+        self.ops.node.id
     }
 
     fn parents(&self) -> Vec<NodeID> {
@@ -287,7 +287,7 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
     }
 
     fn node(&self) -> NodeID {
-        self.ops.node.id.clone()
+        self.ops.node.id
     }
 
     fn parents(&self) -> Vec<NodeID> {

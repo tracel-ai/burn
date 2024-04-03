@@ -85,7 +85,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         grad: B::FloatTensorPrimitive<D>,
     ) {
         grads.remove(tensor);
-        grads.register::<B, D>(tensor.node.id.clone(), grad);
+        grads.register::<B, D>(tensor.node.id, grad);
     }
 
     fn int_inner<const D: usize>(
