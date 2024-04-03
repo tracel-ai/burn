@@ -146,9 +146,6 @@ fn command_run(run_args: RunArgs) {
             .filter(|b| b != &BenchmarkValues::All)
             .collect();
     }
-
-    // let total_combinations = backends.len() * benches.len();
-    // println!("Running {} benchmark(s)...\n", total_combinations);
     let access_token = tokens.map(|t| t.access_token);
     run_backend_comparison_benchmarks(
         &benches,

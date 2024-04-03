@@ -36,7 +36,7 @@ impl OutputProcessor for SinkProcessor {
     fn finish(&self) {}
 }
 
-/// A processor for a nice and compact outtput experience using a progress bar
+/// A processor for a nice and compact output experience using a progress bar
 pub struct NiceProcessor {
     bench: String,
     backend: String,
