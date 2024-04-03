@@ -14,7 +14,7 @@ pub(crate) struct NodeTree {
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
     pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
-        self.map.get(node_id).map(Clone::clone)
+        self.map.get(node_id).cloned()
     }
 }
 
