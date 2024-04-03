@@ -32,13 +32,11 @@ impl AutodiffClient for MutexClient {
         *server = Some(server_new);
     }
     fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients {
-        println!("HERE");
         let mut server = SERVER.lock();
         let node_id = root.node.id.clone();
         let grads = Gradients::new::<B, D>(root.node, root.primitive);
 
         if let Some(server) = server.as_mut() {
-            println!("Server exist.");
             return server.backward(grads, node_id);
         }
 

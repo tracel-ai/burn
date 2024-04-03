@@ -15,10 +15,9 @@ mod tests {
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().log());
         let tensor_4 = tensor_3.matmul(tensor_2.clone());
         let grads = tensor_4.backward();
-        println!("Backward.");
+
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
-        println!("After b.");
 
         grad_1
             .to_data()
