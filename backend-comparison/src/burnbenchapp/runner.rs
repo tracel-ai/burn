@@ -58,7 +58,7 @@ impl NiceProcessor {
     pub fn format_pb_message(&self, state: NiceProcessorState) -> String {
         match state {
             NiceProcessorState::Default | NiceProcessorState::Compiling => {
-                format!("🔨 Compiling: {} ▶️{}", self.bench, self.backend)
+                format!("🔨 Compiling: {} ▶ {}", self.bench, self.backend)
             }
             NiceProcessorState::Running => {
                 format!("🔥 Running: {} ▶ {}", self.bench, self.backend)
