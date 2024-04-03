@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::checkpoint::retro_forward::RetroForward;
-use crate::runtime::MutexClient;
+use crate::runtime::AutodiffClientImpl;
 
 use super::Requirement;
 
@@ -32,7 +32,7 @@ pub struct Node {
     pub id: NodeID,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
-    pub client: MutexClient,
+    pub client: AutodiffClientImpl,
 }
 pub type NodeRef = Arc<Node>;
 

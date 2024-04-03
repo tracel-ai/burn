@@ -1,12 +1,11 @@
-use super::memory_management::{GraphId, GraphsMemoryManagement};
+use super::memory_management::GraphsMemoryManagement;
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
     graph::{traversal::BreadthFirstSearch, StepBoxed},
-    tensor::{AutodiffTensor, NodeRefCount},
+    tensor::NodeRefCount,
     NodeID,
 };
-use burn_tensor::backend::Backend;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -27,18 +26,17 @@ impl AutodiffServer {
         self.actions_builder.insert(node_id, actions);
     }
 
-    pub fn backward<B: Backend, const D: usize>(
-        &mut self,
-        root: AutodiffTensor<B, D>,
-    ) -> Gradients {
-        let step = self.steps.remove(&root.node.id).expect(
+    pub fn backward(&mut self, grads: Gradients, node_id: NodeID) -> Gradients {
+        println!("Backward.");
+        let step = self.steps.remove(&node_id).expect(
             "Root node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
         );
-        let builder = self.actions_builder.remove(&root.node.id).unwrap();
+        let builder = self.actions_builder.remove(&node_id).unwrap();
+        println!("Builder");
 
-        let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
-        let (tape, builder) = self.build_tape(root.node.id.clone(), step, builder);
+        let (tape, builder) = self.build_tape(node_id.clone(), step, builder);
+        println!("Tape {:?}", tape.len());
         let checkpointer = builder.build(&self.steps);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
@@ -53,6 +51,7 @@ impl AutodiffServer {
             self.memory_management
                 .free_graph(graph_id, &mut on_free_graph);
         }
+        println!("Gradients ");
 
         gradients
     }

@@ -4,7 +4,7 @@ use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
     graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
-    runtime::{AutodiffClient, MutexClient},
+    runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use burn_tensor::backend::Backend;
 
@@ -50,7 +50,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             id,
             Requirement::None,
             ComputingProperty::Ambiguous,
-            MutexClient,
+            AutodiffClientImpl::new(),
         )
         .into();
 
@@ -80,7 +80,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 let node = Node::new(
                     vec![],
                     0,
-                    NodeID::new(),
+                    self.node.id, // TODO: Check
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
@@ -111,7 +111,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         let client = parent_nodes
             .first()
             .map(|node| node.client.clone())
-            .unwrap_or_else(|| MutexClient);
+            .unwrap_or_else(|| AutodiffClientImpl::new());
 
         let node: NodeRef = Node::new(
             parent_nodes.iter().map(|node| node.id.clone()).collect(),
