@@ -27,16 +27,13 @@ impl AutodiffServer {
     }
 
     pub fn backward(&mut self, grads: Gradients, node_id: NodeID) -> Gradients {
-        println!("Backward.");
         let step = self.steps.remove(&node_id).expect(
             "Root node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
-        println!("Builder");
 
         let (tape, builder) = self.build_tape(node_id.clone(), step, builder);
-        println!("Tape {:?}", tape.len());
         let checkpointer = builder.build(&self.steps);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
@@ -51,7 +48,6 @@ impl AutodiffServer {
             self.memory_management
                 .free_graph(graph_id, &mut on_free_graph);
         }
-        println!("Gradients ");
 
         gradients
     }

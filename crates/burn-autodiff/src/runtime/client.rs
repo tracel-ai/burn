@@ -11,8 +11,8 @@ pub trait AutodiffClient: Send + Clone {
     fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients;
 }
 
-// #[cfg(feature = "std")]
-// pub type AutodiffClientImpl = super::mspc::ChannelClient;
+#[cfg(feature = "std")]
+pub type AutodiffClientImpl = super::mspc::ChannelClient;
 
-// #[cfg(not(feature = "std"))]
+#[cfg(not(feature = "std"))]
 pub type AutodiffClientImpl = super::mutex::MutexClient;

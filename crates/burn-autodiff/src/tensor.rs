@@ -77,17 +77,16 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 panic!("Can't convert a non leaf tensor into a tracked tensor")
             }
             Requirement::None => {
-                let node = Node::new(
+                self.node = Node::new(
                     vec![],
                     0,
-                    self.node.id, // TODO: Check
+                    self.node.id.clone(),
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
-                );
-                self.rc = Arc::new(node.id);
-
-                let step = RootStep::new(Arc::new(node));
+                )
+                .into();
+                let step = RootStep::new(self.node.clone());
 
                 self.register_step(step, CheckpointerBuilder::default())
             }
