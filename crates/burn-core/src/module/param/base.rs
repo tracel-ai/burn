@@ -1,7 +1,8 @@
 use super::ParamId;
 use alloc::boxed::Box;
 use alloc::format;
-use burn_common::stub::{RwLock, SyncOnceCell};
+use burn_common::stub::RwLock;
+use core::cell::OnceCell;
 use core::ops::Deref;
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
@@ -31,7 +32,7 @@ use core::ops::Deref;
 /// ```
 pub struct Param<T: Parameter> {
     pub(crate) id: ParamId,
-    state: SyncOnceCell<T>,
+    state: OnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
     /// Because of once cell, we have a guarantee that the initialization will only be called once,
@@ -87,7 +88,7 @@ impl<T: Parameter> Param<T> {
     pub fn initialized(id: ParamId, value: T) -> Self {
         Self {
             id,
-            state: SyncOnceCell::initialized(value),
+            state: OnceCell::from(value),
             initialization: None,
         }
     }
@@ -99,7 +100,7 @@ impl<T: Parameter> Param<T> {
     {
         Self {
             id,
-            state: SyncOnceCell::new(),
+            state: OnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
@@ -149,7 +150,7 @@ impl<T: Parameter> Param<T> {
 
         Self {
             id,
-            state: SyncOnceCell::initialized(tensor),
+            state: OnceCell::from(tensor),
             initialization: None,
         }
     }
