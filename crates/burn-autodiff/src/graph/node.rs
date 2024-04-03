@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::checkpoint::retro_forward::RetroForward;
-use crate::runtime::{AutodiffClient, MutexClient};
+use crate::runtime::MutexClient;
 
 use super::Requirement;
 

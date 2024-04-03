@@ -4,14 +4,12 @@ use crate::{
     grads::Gradients,
     graph::StepBoxed,
     tensor::{AutodiffTensor, NodeRefCount},
-    NodeID,
 };
 use burn_tensor::backend::Backend;
 
 pub trait AutodiffClient: Send + Clone {
     fn register(&self, node_id: NodeRefCount, ops: StepBoxed, actions: CheckpointerBuilder);
     fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients;
-    fn drop_node(&self, node_id: NodeID);
 }
 
 #[derive(Clone)]
@@ -50,6 +48,4 @@ impl AutodiffClient for MutexClient {
 
         gradients
     }
-
-    fn drop_node(&self, node_id: NodeID) {}
 }
