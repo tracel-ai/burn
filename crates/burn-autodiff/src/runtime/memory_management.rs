@@ -230,14 +230,14 @@ mod tests {
         assert_eq!(
             graph_mm.find_orphan_graphs().len(),
             0,
-            "Not all nodes are droped"
+            "Not all nodes are dropped"
         );
 
         core::mem::drop(node_2);
         assert_eq!(
             graph_mm.find_orphan_graphs().len(),
             1,
-            "All nodes are droped"
+            "All nodes are dropped"
         );
     }
 

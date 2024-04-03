@@ -16,7 +16,7 @@ pub enum ComputingProperty {
 }
 
 /// This is safe only because we only call RetroForward on the autodiff server.
-/// Thefore, the trait will never be used by multiple threads at the same time.
+/// Therefore, the trait will never be used by multiple threads at the same time.
 ///
 /// TODO: Find a way to avoid cloning the compute property, which will remove the need to add the
 /// Arc, which will make (dyn RetroForward) safely implement Send.
