@@ -19,7 +19,7 @@ impl SingleIterParams {
     fn new(iteration: usize, required_iterations: usize) -> Self {
         let remaining_iterations = required_iterations - iteration;
 
-        // Some of these expressions look a litle crazy - much easier to see how they
+        // Some of these expressions look a little crazy - much easier to see how they
         //  work if inspecting these numbers as binary strings (most have only 1 bit).
         SingleIterParams {
             iteration,
@@ -31,9 +31,7 @@ impl SingleIterParams {
     }
 }
 
-pub(crate) fn fft1d<E: FloatNdArrayElement>(
-    input: NdArrayTensor<E, 3>,
-) -> NdArrayTensor<E, 3> {
+pub(crate) fn fft1d<E: FloatNdArrayElement>(input: NdArrayTensor<E, 3>) -> NdArrayTensor<E, 3> {
     let [batch_size, num_samples, complex] = input.shape().dims;
 
     // Require complex input - an extra dimension is used that is always size 2, for complex.

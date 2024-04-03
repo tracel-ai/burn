@@ -1,3 +1,3 @@
-mod fft;
+mod fft1d;
 
-pub use fft::*;
+pub use fft1d::*;

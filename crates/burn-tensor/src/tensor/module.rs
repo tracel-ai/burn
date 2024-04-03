@@ -94,7 +94,6 @@ where
 
 /// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d<B>(
-
     x: Tensor<B, 3>,
     kernel_size: usize,
     stride: usize,

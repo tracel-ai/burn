@@ -1031,10 +1031,8 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate interpolate backward.");
     }
 
-    fn fft(
-        _x: AutodiffTensor<B, 3>,
-    ) -> AutodiffTensor<B, 3> {
-        // Imaginary gradients = not practical. People use FFT for feature 
+    fn fft(_x: AutodiffTensor<B, 3>) -> AutodiffTensor<B, 3> {
+        // Imaginary gradients = not practical. People use FFT for feature
         //  extraction.
         panic!("Can't differentiate FFT.");
     }

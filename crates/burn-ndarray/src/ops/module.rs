@@ -132,9 +132,7 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
         }
     }
 
-    fn fft(
-        x: NdArrayTensor<E, 3>,
-    ) -> NdArrayTensor<E, 3> {
+    fn fft(x: NdArrayTensor<E, 3>) -> NdArrayTensor<E, 3> {
         fft1d(x)
     }
 }

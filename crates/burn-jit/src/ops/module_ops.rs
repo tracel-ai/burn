@@ -119,9 +119,7 @@ impl<R: Runtime> ModuleOps<Self> for JitBackend<R> {
         kernel::interpolate::interpolate_backward(x, grad, output_size, options)
     }
 
-    fn fft(
-        x: FloatTensor<Self, 3>,
-    ) -> FloatTensor<Self, 3> {
+    fn fft(x: FloatTensor<Self, 3>) -> FloatTensor<Self, 3> {
         kernel::fft::fft(x)
     }
 }

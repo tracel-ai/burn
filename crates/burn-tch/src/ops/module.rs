@@ -345,9 +345,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn fft(
-        _x: TchTensor<E, 3>,
-    ) -> TchTensor<E, 3> {
+    fn fft(_x: TchTensor<E, 3>) -> TchTensor<E, 3> {
         todo!();
     }
 }
