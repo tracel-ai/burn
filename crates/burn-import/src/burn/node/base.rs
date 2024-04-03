@@ -57,10 +57,10 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
         None
     }
 
-    /// (Optional) Declare how the parameters are initialized with and without a record.
+    /// (Optional) Declare how the parameters are initialized.
     ///
     /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         None
     }
 
@@ -175,11 +175,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         match_all!(self, NodeCodegen::<PS>::field_type)
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_init(
-            node,
-            with_record
-        ))
+    fn field_init(&self) -> Option<TokenStream> {
+        match_all!(self, |node| NodeCodegen::<PS>::field_init(node,))
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -239,7 +236,7 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
                     }
@@ -293,14 +290,14 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,
@@ -369,14 +366,14 @@ pub(crate) mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,

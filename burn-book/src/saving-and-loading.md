@@ -34,55 +34,16 @@ and saved to another format, just as long as you load it back with the new recor
 
 ## Initialization from Recorded Weights
 
-While the first approach is very straightforward, it does require the model to already be
-initialized. If instead you would like to skip the initialization and directly load the weights into
-the modules of your model, you can create a new initialization function. Let's take the following
-model definition as a simple example.
-
-```rust, ignore
-#[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    linear_in: Linear<B>,
-    linear_out: Linear<B>,
-    activation: Relu,
-}
-```
-
-Similar to the [basic workflow inference example](../basic-workflow/inference.md), we can define a
-new initialization function which initializes the different parts of our model with the record
-values.
-
-```rust, ignore
-impl<B: Backend> Model<B> {
-    /// Returns the initialized model using the recorded weights.
-    pub fn init_with(record: ModelRecord<B>) -> Model<B> {
-        Model {
-            linear_in: LinearConfig::new(10, 64).init_with(record.linear_in),
-            linear_out: LinearConfig::new(64, 2).init_with(record.linear_out),
-            activation: Relu::new(),
-        }
-    }
-
-    /// Returns the dummy model with randomly initialized weights.
-    pub fn new(device: &Device<B>) -> Model<B> {
-        let l1 = LinearConfig::new(10, 64).init(device);
-        let l2 = LinearConfig::new(64, 2).init(device);
-        Model {
-            linear_in: l1,
-            linear_out: l2,
-            activation: Relu::new(),
-        }
-    }
-}
-```
-
-Now, let's save a model that we can load later. In the following snippets, we use
-`type MyBackend = NdArray<f32>` but you can use whatever backend you like.
+The most straightforward way to load weights for a module is simply by using the generated method
+[load_record](https://burn.dev/docs/burn/module/trait.Module.html#tymethod.load_record). Note that
+parameter initialization is lazy, therefore no actual tensor allocation and GPU/CPU kernels are
+executed before the module is used. This means that you can use `init(device)` followed by
+`load_record(record)` without any meaningful performance cost.
 
 ```rust, ignore
 // Create a dummy initialized model to save
 let device = Default::default();
-let model = Model::<MyBackend>::new(&device);
+let model = Model::<MyBackend>::init(&device);
 
 // Save model in MessagePack format with full precision
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
@@ -96,11 +57,11 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 ```rust, ignore
 // Load model record on the backend's default device
 let record: ModelRecord<MyBackend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
-    .load(model_path.into(), device)
+    .load(model_path.into(), &device)
     .expect("Should be able to load the model weights from the provided file");
 
-// Directly initialize a new model with the loaded record/weights
-let model = Model::init_with(record);
+// Initialize a new model with the loaded record/weights
+let model = Model::init(&device).load_record(record);
 ```
 
 ## No Storage, No Problem!

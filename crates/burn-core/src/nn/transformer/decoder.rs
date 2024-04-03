@@ -68,24 +68,6 @@ impl TransformerDecoderConfig {
 
         TransformerDecoder { layers }
     }
-
-    /// Initialize a new [Transformer Decoder](TransformerDecoder) module with a record.
-    ///
-    /// # Params
-    ///
-    /// - record: the record to initialize the module with.
-    pub fn init_with<B: Backend>(
-        &self,
-        record: TransformerDecoderRecord<B>,
-    ) -> TransformerDecoder<B> {
-        TransformerDecoder {
-            layers: record
-                .layers
-                .into_iter()
-                .map(|record| TransformerDecoderLayer::new_with(self, record))
-                .collect(),
-        }
-    }
 }
 
 /// [Transformer Decoder](TransformerDecoder) forward pass input argument.
@@ -209,40 +191,6 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_dropout(config.dropout)
             .init(device);
-
-        Self {
-            cross_attn,
-            self_attn,
-            norm_1,
-            norm_2,
-            norm_3,
-            pwff,
-            dropout,
-            norm_first: config.norm_first,
-        }
-    }
-
-    fn new_with(
-        config: &TransformerDecoderConfig,
-        record: TransformerDecoderLayerRecord<B>,
-    ) -> Self {
-        let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .with_quiet_softmax(config.quiet_softmax)
-            .init_with(record.self_attn);
-        let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .with_quiet_softmax(config.quiet_softmax)
-            .init_with(record.cross_attn);
-        let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
-        let norm_2 = LayerNormConfig::new(config.d_model).init_with(record.norm_2);
-        let norm_3 = LayerNormConfig::new(config.d_model).init_with(record.norm_3);
-        let dropout = DropoutConfig::new(config.dropout).init();
-        let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
-            .with_dropout(config.dropout)
-            .init_with(record.pwff);
 
         Self {
             cross_attn,

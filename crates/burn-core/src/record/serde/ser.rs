@@ -344,7 +344,7 @@ mod tests {
 
         let tensor: Tensor<Backend, 2> = Tensor::ones([2, 2], &device);
 
-        let param = Param::new(ParamId::new(), tensor);
+        let param = Param::initialized(ParamId::new(), tensor);
 
         let param_item = param.into_item::<FullPrecisionSettings>();
 

@@ -80,19 +80,19 @@ macro_rules! batch_norm_serialize {
     (record $self:expr) => {{
         let device = Default::default();
         BatchNormRecord {
-            gamma: Param::new(
+            gamma: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.gamma.clone().convert(), &device),
             ),
-            beta: Param::new(
+            beta: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.beta.clone().convert(), &device),
             ),
-            running_mean: Param::new(
+            running_mean: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.running_mean.clone().convert(), &device),
             ),
-            running_var: Param::new(
+            running_var: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data($self.running_var.clone().convert(), &device),
             ),
@@ -113,26 +113,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
         let momentum = self.config.momentum;
 
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = BatchNormConfig::new(#num_features)
                 .with_epsilon(#epsilon)
                 .with_momentum(#momentum)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)
@@ -201,11 +192,11 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let norm = BatchNormConfig::new(128)
                         .with_epsilon(0.00001f64)
                         .with_momentum(0.1f64)
-                        .init_with(record.norm);
+                        .init(device);
 
                     Self {
                         norm,
