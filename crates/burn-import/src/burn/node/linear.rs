@@ -57,25 +57,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
-
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = LinearConfig::new(#d_input, #d_output)
                 .with_bias(#bias)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)
@@ -84,12 +74,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
         let record = LinearRecord::<SerializationBackend> {
-            weight: Param::new(
+            weight: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data(self.data_weights.clone().convert(), &device),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
-                Param::new(
+                Param::initialized(
                     ParamId::new(),
                     Tensor::from_data(bias.clone().convert(), &device),
                 )
@@ -157,10 +147,10 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let linear = LinearConfig::new(128, 128)
                         .with_bias(true)
-                        .init_with(record.linear);
+                        .init(device);
 
                     Self {
                         linear,

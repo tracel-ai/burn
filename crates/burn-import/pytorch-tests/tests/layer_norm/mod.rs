@@ -10,9 +10,9 @@ pub struct Net<B: Backend> {
 }
 
 impl<B: Backend> Net<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let norm1 = LayerNormConfig::new(4).init_with(record.norm1);
+    /// Create a new model.
+    pub fn init(device: &B::Device) -> Self {
+        let norm1 = LayerNormConfig::new(4).init(device);
         Self { norm1 }
     }
 
@@ -34,7 +34,7 @@ mod tests {
     fn layer_norm(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<Backend>::init(&device).load_record(record);
 
         let input = Tensor::<Backend, 4>::from_data(
             [[

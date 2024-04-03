@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::Initializer;
 
 use crate::config::Config;
 use crate::module::Module;
@@ -29,21 +30,12 @@ pub struct LayerNorm<B: Backend> {
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
-        let gamma = Tensor::ones([self.d_model], device);
-        let beta = Tensor::zeros([self.d_model], device);
+        let gamma = Initializer::Ones.init([self.d_model], device);
+        let beta = Initializer::Zeros.init([self.d_model], device);
 
         LayerNorm {
-            gamma: Param::from(gamma),
-            beta: Param::from(beta),
-            epsilon: self.epsilon,
-        }
-    }
-
-    /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
-    pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
-        LayerNorm {
-            gamma: record.gamma,
-            beta: record.beta,
+            gamma,
+            beta,
             epsilon: self.epsilon,
         }
     }

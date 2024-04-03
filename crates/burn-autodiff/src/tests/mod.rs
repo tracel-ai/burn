@@ -29,6 +29,7 @@ mod gelu;
 mod gradients;
 mod log;
 mod log1p;
+mod log_sigmoid;
 mod mask;
 mod matmul;
 mod maxmin;
@@ -117,6 +118,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sub!();
         burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_sigmoid!();
+        burn_autodiff::testgen_ad_log_sigmoid!();
         burn_autodiff::testgen_ad_transpose!();
         burn_autodiff::testgen_ad_permute!();
         burn_autodiff::testgen_ad_flip!();

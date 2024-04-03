@@ -4,6 +4,7 @@ use std::path::Path;
 use burn::{
     backend::ndarray::NdArray,
     data::dataset::{vision::MnistDataset, Dataset},
+    module::Module,
     record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
     tensor::Tensor,
 };
@@ -39,7 +40,7 @@ fn main() {
         .expect("Failed to decode state");
 
     // Create a new model and load the state
-    let model: Model<Backend> = Model::new_with(record);
+    let model: Model<Backend> = Model::init(&device).load_record(record);
 
     // Load the MNIST dataset and get an item
     let dataset = MnistDataset::test();

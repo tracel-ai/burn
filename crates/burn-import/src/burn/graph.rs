@@ -44,7 +44,6 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     top_comment: Option<String>,
     default: Option<TokenStream>,
     blank_spaces: bool,
-    gen_new_fn: bool,
     graph_input_types: Vec<Type>,
     graph_output_types: Vec<Type>,
 }
@@ -62,14 +61,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let node = node.into_node();
         log::debug!("Registering node => '{}'", node.name());
         self.nodes.push(node);
-    }
-
-    /// Generate a function `Model::new()` without any argument when `gen_new_fn` is `true`.
-    ///
-    /// This is useful if you intend to train the model generated.
-    pub fn with_new_fn(mut self, gen_new_fn: bool) -> Self {
-        self.gen_new_fn = gen_new_fn;
-        self
     }
 
     /// Save the state of each node in a record file.
@@ -215,23 +206,13 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         let codegen_imports = self.imports.codegen();
         let codegen_struct = self.codegen_struct();
-        let codegen_new_record = self.codegen_new_record();
+        let codegen_new = self.codegen_new();
         let codegen_forward = self.codegen_forward();
 
         let maybe_blank = match self.blank_spaces {
             true => quote! {
                 _blank_!();
             },
-            false => quote! {},
-        };
-        let codegen_new = match self.gen_new_fn {
-            true => {
-                let new_fn = self.codegen_new();
-                quote! {
-                    #new_fn
-                    #maybe_blank
-                }
-            }
             false => quote! {},
         };
         let codegen_default = match self.default {
@@ -261,10 +242,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             #codegen_default
 
             impl<B: Backend> Model<B> {
-                #codegen_new_record
+                #codegen_new
+
                 #maybe_blank
 
-                #codegen_new
                 #codegen_forward
             }
         }
@@ -369,7 +350,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     let record = #recorder_ty::new()
                         .load(file.into(), device)
                         .expect("Record file to exist.");
-                    Self::new_with(record)
+                    Self::new(device).load_record(record)
                 }
             }
         });
@@ -402,7 +383,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .load(EMBEDDED_STATES.to_vec(), device)
                     .expect("Should decode state successfully");
 
-                    Self::new_with(record)
+                    Self::new(device).load_record(record)
                 }
             }
 
@@ -448,34 +429,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         self.nodes
             .iter()
-            .map(|node| node.field_init(false))
-            .for_each(|code| body.extend(code));
-
-        let fields = self
-            .nodes
-            .iter()
-            .flat_map(|node| node.field_type())
-            .map(|field| field.name().clone())
-            .collect::<Vec<_>>();
-
-        quote! {
-            #[allow(dead_code, unused_variables)]
-            pub fn new(device: &B::Device) -> Self {
-                #body
-
-                Self {
-                    #(#fields,)*
-                    phantom: core::marker::PhantomData,
-                }
-            }
-        }
-    }
-    fn codegen_new_record(&self) -> TokenStream {
-        let mut body = quote! {};
-
-        self.nodes
-            .iter()
-            .map(|node| node.field_init(true))
+            .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
         let fields = self
@@ -487,7 +441,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         quote! {
             #[allow(unused_variables)]
-            pub fn new_with(record: ModelRecord<B>) -> Self {
+            pub fn new(device: &B::Device) -> Self {
                 #body
 
                 Self {

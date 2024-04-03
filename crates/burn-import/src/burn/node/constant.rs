@@ -121,26 +121,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
         }
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         match &self.value {
             ConstantValue::Tensor(tensor_type, _) => {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
                 let shape = tensor_type.clone().shape.unwrap().to_tokens();
-                let dim = tensor_type.clone().dim.to_tokens();
 
-                if with_record {
-                    Some(quote! {
-                        let #name = record.#name.map(|tensor| tensor.set_require_grad(false));
-                    })
-                } else {
-                    Some(quote! {
-                        let #name: burn::module::Param<#ty> = burn::module::Param::new(
-                            burn::module::ParamId::new(),
-                            Tensor::<B, #dim>::zeros(#shape, device).set_require_grad(false),
-                        );
-                    })
-                }
+                Some(quote! {
+                    let #name: burn::module::Param<#ty> = burn::nn::Initializer::Zeros.init(#shape, device).set_require_grad(false);
+                })
             }
             _ => None,
         }
