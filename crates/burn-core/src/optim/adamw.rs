@@ -355,11 +355,13 @@ mod tests {
     ) -> nn::Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = nn::LinearRecord {
-            weight: Param::from(Tensor::from_data(weight, &device)),
-            bias: Some(Param::from(Tensor::from_data(bias, &device))),
+            weight: Param::from_data(weight, &device),
+            bias: Some(Param::from_data(bias, &device)),
         };
 
-        nn::LinearConfig::new(6, 6).init_with(record)
+        nn::LinearConfig::new(6, 6)
+            .init(&device)
+            .load_record(record)
     }
 
     fn create_adamw(

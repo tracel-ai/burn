@@ -1,7 +1,6 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
 use crate::{check, Tensor};
-use crate::{ElementPrecision, Precision};
 
 /// Applies the rectified linear unit function.
 pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
@@ -125,39 +124,7 @@ pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D>
 
 /// Applies the log sigmoid function.
 pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    /// To avoid overflow, we use the log-sum-exp trick.
-    ///
-    /// ```ignore
-    /// log(sigmoid(x)) = log(1/(1 + exp(-x)))
-    ///                 = log(1) - log(1 + exp(-x))
-    ///                 = -log(1 + exp(-x))
-    ///                 = -log(exp(0) + exp(-x))
-    /// ```
-    /// The `exp(t)` of even a moderate-magnitude positive number can be astronomically huge, so we
-    /// subtract the `max(t, 0)` of each value (where `t = -x` in this case). This results in the
-    /// following equivalence:
-    /// ```ignore
-    /// log(sigmoid(x)) = -(max(-x, 0) + log(exp(-max(-x, 0)) + exp(-x - max(-x, 0))))
-    /// ```
-    ///
-    /// This extends the range of values for which we obtain accurate results.
-    fn numerically_stable_log_sigmoid<const D: usize, B: Backend>(x: Tensor<B, D>) -> Tensor<B, D> {
-        // max(-x, 0)
-        let max_elem = x.clone().neg().max_pair(x.zeros_like());
-
-        // log(exp(-max(-x, 0)) + exp(-x - max(-x, 0)))
-        let z = (max_elem.clone().neg().exp() + (x.neg() - max_elem.clone()).exp()).log();
-
-        z.neg() - max_elem
-    }
-    match B::FloatElem::precision() {
-        Precision::Half => {
-            let tensor_full = tensor.into_full_precision();
-            let tensor_tmp = numerically_stable_log_sigmoid(tensor_full);
-            Tensor::from_full_precision(tensor_tmp)
-        }
-        _ => numerically_stable_log_sigmoid(tensor),
-    }
+    Tensor::from_primitive(B::log_sigmoid(tensor.primitive))
 }
 
 /// Applies the silu function

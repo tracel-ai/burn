@@ -181,4 +181,98 @@ pub trait ActivationOps<B: Backend> {
         );
         B::float_mul(value, grad)
     }
+
+    /// Applies the LogSigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn log_sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        // To avoid overflow, we use the log-sum-exp trick.
+        //
+        // ```ignore
+        // log(sigmoid(x)) = log(1/(1 + exp(-x)))
+        //                 = log(1) - log(1 + exp(-x))
+        //                 = -log(1 + exp(-x))
+        //                 = -log(exp(0) + exp(-x))
+        // ```
+        // The `exp(t)` of even a moderate-magnitude positive number can be astronomically huge, so we
+        // subtract the `max(t, 0)` of each value (where `t = -x` in this case). This results in the
+        // following equivalence:
+        // ```ignore
+        // log(sigmoid(x)) = -(max(-x, 0) + log(exp(-max(-x, 0)) + exp(-x - max(-x, 0))))
+        // ```
+        //
+        // This extends the range of values for which we obtain accurate results.
+
+        // max(-x, 0)
+        let tensor_neg = B::float_neg(tensor);
+        let mask = B::float_lower_elem(tensor_neg.clone(), 0.elem());
+        let max_elem = B::float_mask_fill(tensor_neg.clone(), mask, 0.elem());
+        let max_elem_neg = B::float_neg(max_elem.clone());
+
+        // z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        let z = B::float_add(
+            B::float_exp(max_elem_neg.clone()),
+            B::float_exp(B::float_sub(tensor_neg, max_elem.clone())),
+        );
+
+        // -max(-x, 0) - log(-z)
+        B::float_sub(max_elem_neg, B::float_log(z))
+    }
+
+    /// Applies the LogSigmoid activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input tensor.
+    /// * `grad` - The gradient.
+    ///
+    /// # Returns
+    ///
+    /// The output gradient.
+    fn log_sigmoid_backward<const D: usize>(
+        x: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        // Derivative of -max(-x, 0) - log(exp(-max(-x, 0)) - exp(-x - max(-x, 0)))) is
+        // -max_derive - (-max_derive * exp(-max(-x, 0)) + (-1 - max_derive) * exp(-x - max(-x, 0))) / z
+        // where z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        //
+        // This simplifies to:
+        // -max_derive - (z-1)/z if x is >= 0
+        // -max_derive + (z-1)/z if x is < 0
+
+        let shape = B::float_shape(&x);
+        let device = B::float_device(&x);
+
+        // max(-x, 0)
+        let x_neg = B::float_neg(x);
+        let mask = B::float_lower_elem(x_neg.clone(), 0.elem()); // -x < 0 or x >= 0
+        let max_elem = B::float_mask_fill(x_neg.clone(), mask.clone(), 0.elem());
+
+        // z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        let z = B::float_add(
+            B::float_exp(B::float_neg(max_elem.clone())),
+            B::float_exp(B::float_sub(x_neg, max_elem)),
+        );
+
+        // Derivative of max(-x, 0) is 1 if x < 0 or 0 if x >= 0
+        let ones = B::float_ones(shape, &device);
+        let max_derive = B::float_mask_fill(ones.clone(), mask.clone(), 0.elem());
+        let sign = B::float_mask_fill(ones.clone(), mask, (-1).elem());
+
+        // grad * (max_derive - sign * (1 - (1 / z)))
+        B::float_mul(
+            grad,
+            B::float_sub(
+                max_derive,
+                B::float_mul(sign, B::float_sub(ones, B::float_recip(z))),
+            ),
+        )
+    }
 }

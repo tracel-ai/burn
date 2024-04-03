@@ -10,10 +10,10 @@ pub struct Net<B: Backend> {
 }
 
 impl<B: Backend> Net<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let norm1 = BatchNormConfig::new(4).init_with(record.norm1);
-        Self { norm1 }
+    pub fn new(device: &B::Device) -> Self {
+        Self {
+            norm1: BatchNormConfig::new(4).init(device),
+        }
     }
 
     /// Forward pass of the model.
@@ -38,7 +38,7 @@ mod tests {
             .load("tests/batch_norm/batch_norm2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<Backend>::new(&device).load_record(record);
 
         let input = Tensor::<Backend, 4>::ones([1, 5, 2, 2], &device) - 0.3;
 

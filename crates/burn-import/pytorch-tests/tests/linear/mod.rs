@@ -12,10 +12,10 @@ pub struct Net<B: Backend> {
 }
 
 impl<B: Backend> Net<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let fc1 = LinearConfig::new(2, 3).init_with(record.fc1);
-        let fc2 = LinearConfig::new(3, 4).init_with(record.fc2);
+    /// Create a new model.
+    pub fn init(device: &B::Device) -> Self {
+        let fc1 = LinearConfig::new(2, 3).init(device);
+        let fc2 = LinearConfig::new(3, 4).init(device);
         let relu = Relu::default();
 
         Self { fc1, fc2, relu }
@@ -36,9 +36,9 @@ struct NetWithBias<B: Backend> {
 }
 
 impl<B: Backend> NetWithBias<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetWithBiasRecord<B>) -> Self {
-        let fc1 = LinearConfig::new(2, 3).init_with(record.fc1);
+    /// Create a new model.
+    pub fn init(device: &B::Device) -> Self {
+        let fc1 = LinearConfig::new(2, 3).init(device);
 
         Self { fc1 }
     }
@@ -61,7 +61,7 @@ mod tests {
 
     fn linear_test(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<Backend>::init(&device).load_record(record);
 
         let input = Tensor::<Backend, 4>::from_data(
             [[
@@ -118,7 +118,7 @@ mod tests {
             .load("tests/linear/linear_with_bias.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = NetWithBias::<Backend>::new_with(record);
+        let model = NetWithBias::<Backend>::init(&device).load_record(record);
 
         let input = Tensor::<Backend, 4>::from_data(
             [[
