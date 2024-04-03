@@ -1,12 +1,15 @@
 use super::server::AutodiffServer;
 use crate::{
-    checkpoint::builder::CheckpointerBuilder, grads::Gradients, graph::StepBoxed,
-    tensor::AutodiffTensor, NodeID,
+    checkpoint::builder::CheckpointerBuilder,
+    grads::Gradients,
+    graph::StepBoxed,
+    tensor::{AutodiffTensor, NodeRefCount},
+    NodeID,
 };
 use burn_tensor::backend::Backend;
 
 pub trait AutodiffClient: Send + Clone {
-    fn register(&self, node_id: NodeID, ops: StepBoxed, actions: CheckpointerBuilder);
+    fn register(&self, node_id: NodeRefCount, ops: StepBoxed, actions: CheckpointerBuilder);
     fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients;
     fn drop_node(&self, node_id: NodeID);
 }
@@ -23,7 +26,7 @@ impl core::fmt::Debug for MutexClient {
 static SERVER: spin::Mutex<Option<AutodiffServer>> = spin::Mutex::new(None);
 
 impl AutodiffClient for MutexClient {
-    fn register(&self, node_id: NodeID, step: StepBoxed, actions: CheckpointerBuilder) {
+    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let mut server = SERVER.lock();
 
         if let Some(server) = server.as_mut() {

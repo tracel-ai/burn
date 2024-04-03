@@ -15,8 +15,13 @@ pub enum ComputingProperty {
     Ambiguous, // Maybe autotune someday
 }
 
-// TODO: Remove that when proper client server.
+/// This is safe only because we only call RetroForward on the autodiff server.
+/// Thefore, the trait will never be used by multiple threads at the same time.
+///
+/// TODO: Find a way to avoid cloning the compute property, which will remove the need to add the
+/// Arc, which will make (dyn RetroForward) safely implement Send.
 unsafe impl Send for ComputingProperty {}
+/// unsafe Sync is required because Send is only implemented for Arc<Sync>, not Arc<Send>.
 unsafe impl Sync for ComputingProperty {}
 
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
@@ -42,7 +47,7 @@ impl Node {
 }
 
 /// Unique identifier generated for each node.
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy)]
 pub struct NodeID {
     /// The integer representation of the id
     pub value: u64,
@@ -63,11 +68,5 @@ impl NodeID {
 impl Default for NodeID {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for Node {
-    fn drop(&mut self) {
-        self.client.drop_node(self.id.clone());
     }
 }

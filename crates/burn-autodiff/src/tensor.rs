@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
@@ -10,7 +12,10 @@ use burn_tensor::backend::Backend;
 pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
+    pub rc: NodeRefCount,
 }
+
+pub type NodeRefCount = Arc<NodeID>;
 
 #[derive(new, Debug)]
 struct RootStep {
@@ -49,7 +54,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         )
         .into();
 
-        Self { primitive, node }
+        Self {
+            rc: Arc::new(node.id),
+            primitive,
+            node,
+        }
     }
 
     pub fn is_tracked(&self) -> bool {
@@ -113,14 +122,18 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         )
         .into();
 
-        Self { primitive, node }
+        Self {
+            rc: Arc::new(node.id),
+            primitive,
+            node,
+        }
     }
 
     /// Register a step into a graph for that tensor.
     pub fn register_step<O: Step + 'static>(self, ops: O, actions: CheckpointerBuilder) -> Self {
         self.node
             .client
-            .register(self.node.id.clone(), Box::new(ops), actions);
+            .register(self.rc.clone(), Box::new(ops), actions);
         self
     }
 

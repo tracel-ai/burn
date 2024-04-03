@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
-use crate::graph::{NodeID, NodeRef};
-
 use super::{
     retro_forward::RetroForwards,
     state::{BackwardStates, State},
 };
+use crate::graph::NodeID;
+use std::collections::HashMap;
 
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]

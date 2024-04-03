@@ -1,12 +1,6 @@
-use spin::Mutex;
-use std::{collections::HashMap, sync::Arc};
-
-use crate::{
-    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
-    grads::Gradients,
-};
-
 use super::NodeID;
+use crate::{checkpoint::base::Checkpointer, grads::Gradients};
+use std::collections::HashMap;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + std::fmt::Debug {
