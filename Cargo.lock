@@ -200,13 +200,8 @@ dependencies = [
  "burn",
  "burn-common",
  "burn-wgpu",
-<<<<<<< HEAD
  "clap 4.5.4",
- "crossterm",
-=======
- "clap 4.5.2",
  "colored",
->>>>>>> [backend-comparison] Add nice and compact burnbench output
  "derive-new",
  "dirs 5.0.1",
  "github-device-flow",

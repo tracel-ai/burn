@@ -1,4 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use std::io;
+use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
@@ -9,7 +11,7 @@ use super::auth::get_tokens;
 use super::auth::get_username;
 use super::progressbar::RunnerProgressBar;
 use super::reports::{BenchmarkCollection, FailedBenchmark};
-use super::runner::{CargoRunner, NiceProcessor, VerboseProcessor};
+use super::runner::{CargoRunner, NiceProcessor, OutputProcessor, VerboseProcessor};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -174,48 +176,16 @@ fn run_backend_comparison_benchmarks(
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
             let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
-            let nice_processor: Option<Arc<NiceProcessor>> = runner_pb.clone().map(|pb| {
-                Arc::new(NiceProcessor::new(
-                    bench_str.clone(),
-                    backend_str.clone(),
-                    pb,
-                ))
-            });
-            let mut args = vec![
-                "-p",
-                "backend-comparison",
-                "--bench",
-                &bench_str,
-                "--features",
-                &backend_str,
-                "--target-dir",
-                super::BENCHMARKS_TARGET_DIR,
-            ];
-            if let Some(t) = token {
-                args.push("--");
-                args.push("--sharing-url");
-                args.push(&url);
-                args.push("--sharing-token");
-                args.push(t);
-            }
-            let mut runner = CargoRunner::new(
-                &args,
-                if verbose {
-                    Arc::new(VerboseProcessor)
-                } else {
-                    nice_processor
-                        .clone()
-                        .expect("A nice processor should be available")
-                },
-            );
-            let status = runner.run().unwrap();
-            let success = status.success();
+
+            let status = run_cargo(&bench_str, &backend_str, &url, token, &runner_pb);
+            let success = status.unwrap().success();
+
             if success {
-                if let Some(pb) = runner_pb.clone() {
+                if let Some(ref pb) = runner_pb {
                     pb.lock().unwrap().succeeded_inc();
                 }
             } else {
-                if let Some(pb) = runner_pb.clone() {
+                if let Some(ref pb) = runner_pb {
                     pb.lock().unwrap().failed_inc();
                 }
                 report_collection.push_failed_benchmark(FailedBenchmark {
@@ -229,4 +199,41 @@ fn run_backend_comparison_benchmarks(
         pb.lock().unwrap().finish();
     }
     println!("{}", report_collection.load_records());
+}
+
+fn run_cargo(
+    bench: &String,
+    backend: &String,
+    url: &str,
+    token: Option<&str>,
+    progress_bar: &Option<Arc<Mutex<RunnerProgressBar>>>,
+) -> io::Result<ExitStatus> {
+    let processor: Arc<dyn OutputProcessor> = if let Some(pb) = progress_bar {
+        Arc::new(NiceProcessor::new(
+            bench.clone(),
+            backend.clone(),
+            pb.clone(),
+        ))
+    } else {
+        Arc::new(VerboseProcessor)
+    };
+    let mut args = vec![
+        "-p",
+        "backend-comparison",
+        "--bench",
+        bench,
+        "--features",
+        backend,
+        "--target-dir",
+        super::BENCHMARKS_TARGET_DIR,
+    ];
+    if let Some(t) = token {
+        args.push("--");
+        args.push("--sharing-url");
+        args.push(url);
+        args.push("--sharing-token");
+        args.push(t);
+    }
+    let mut runner = CargoRunner::new(&args, processor);
+    runner.run()
 }

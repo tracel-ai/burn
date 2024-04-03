@@ -104,10 +104,7 @@ pub struct CargoRunner<'a> {
 }
 
 impl<'a> CargoRunner<'a> {
-    pub fn new(
-        params: &'a [&'a str],
-        processor: Arc<dyn OutputProcessor>,
-    ) -> Self {
+    pub fn new(params: &'a [&'a str], processor: Arc<dyn OutputProcessor>) -> Self {
         Self { params, processor }
     }
 

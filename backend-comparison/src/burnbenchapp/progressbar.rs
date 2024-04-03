@@ -1,5 +1,11 @@
 use core::fmt;
-use std::{time::{Duration, Instant}, sync::{atomic::{AtomicU64, Ordering}, Arc}};
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
 
 use indicatif::{style::ProgressTracker, ProgressBar, ProgressState, ProgressStyle};
 
@@ -16,7 +22,9 @@ impl RunnerProgressBar {
         let failed = Arc::new(AtomicU64::new(0));
         pb.set_style(
             ProgressStyle::default_spinner()
-                .template("\n{msg}\n{spinner}{wide_bar:.yellow/red} {pos}/{len} {succeeded} {failed}\n ")
+                .template(
+                    "\n{msg}\n{spinner}{wide_bar:.yellow/red} {pos}/{len} {succeeded} {failed}\n ",
+                )
                 .unwrap()
                 .with_key("succeeded", CountTracker::new(succeeded.clone(), '✅'))
                 .with_key("failed", CountTracker::new(failed.clone(), '❌'))
@@ -26,7 +34,11 @@ impl RunnerProgressBar {
                     "🕚 ",
                 ]),
         );
-        Self { pb, succeeded: succeeded.clone(), failed: failed.clone() }
+        Self {
+            pb,
+            succeeded: succeeded.clone(),
+            failed: failed.clone(),
+        }
     }
 
     pub(crate) fn message(&self, msg: String) {
@@ -86,8 +98,8 @@ struct CountTracker {
 
 impl CountTracker {
     pub fn new(count: Arc<AtomicU64>, icon: char) -> Self {
-       Self { count, icon }
-   }
+        Self { count, icon }
+    }
 }
 
 impl ProgressTracker for CountTracker {
@@ -95,8 +107,7 @@ impl ProgressTracker for CountTracker {
         Box::new(self.clone())
     }
 
-    fn tick(&mut self, _: &ProgressState, _: Instant) {
-    }
+    fn tick(&mut self, _: &ProgressState, _: Instant) {}
 
     fn reset(&mut self, _: &ProgressState, _: Instant) {}
 
