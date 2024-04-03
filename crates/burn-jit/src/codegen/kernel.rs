@@ -1,4 +1,4 @@
-use crate::compute::{DynamicKernel, Kernel, StaticKernel, WorkGroup};
+use crate::compute::{JitGpuKernel, Kernel, WorkGroup};
 use crate::element::JitElement;
 use crate::gpu::Elem;
 use crate::kernel::{elemwise_workgroup, DynamicJitKernel, StaticJitKernel, WORKGROUP_DEFAULT};
@@ -42,7 +42,7 @@ pub fn execute_static<R, K, E>(
         handles.push(handle);
     }
 
-    let kernel = Kernel::Jit(Box::new(StaticKernel::<K, R::Compiler>::new(workgroup)));
+    let kernel = Kernel::JitGpu(JitGpuKernel::<R::Compiler>::from_static::<K>(workgroup));
 
     client.execute(kernel, &handles);
 }
@@ -248,9 +248,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         handles.push(handle);
     }
 
-    let kernel = Kernel::Jit(Box::new(DynamicKernel::<K, R::Compiler>::new(
-        kernel, workgroup,
-    )));
+    let kernel = Kernel::JitGpu(JitGpuKernel::<R::Compiler>::from_dynamic(kernel, workgroup));
 
     client.execute(kernel, &handles);
 }

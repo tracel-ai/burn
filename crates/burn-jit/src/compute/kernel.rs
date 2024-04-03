@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 #[cfg(feature = "template")]
 use crate::template::SourceableKernel;
 use crate::{
@@ -6,7 +8,6 @@ use crate::{
     Compiler,
 };
 use alloc::sync::Arc;
-use core::marker::PhantomData;
 
 /// Kernel for JIT backends
 ///
@@ -15,7 +16,7 @@ use core::marker::PhantomData;
 /// template feature flag.
 pub enum Kernel {
     /// A JIT GPU compute shader
-    Jit(Box<dyn JitKernel>),
+    JitGpu(Box<dyn JitKernel>),
     #[cfg(feature = "template")]
     /// A kernel created from source
     Custom(Box<dyn SourceableKernel>),
@@ -25,7 +26,7 @@ impl Kernel {
     /// ID of the kernel, for caching
     pub fn id(&self) -> String {
         match self {
-            Kernel::Jit(shader) => shader.id(),
+            Kernel::JitGpu(shader) => shader.id(),
             #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.id(),
         }
@@ -34,7 +35,7 @@ impl Kernel {
     /// Source of the shader, as string
     pub fn source(&self) -> String {
         match self {
-            Kernel::Jit(shader) => shader.source(),
+            Kernel::JitGpu(shader) => shader.source(),
             #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
         }
@@ -43,7 +44,7 @@ impl Kernel {
     /// Launch information of the kernel
     pub fn launch_information(&self) -> ShaderInformation {
         match self {
-            Kernel::Jit(shader) => shader.shader_information(),
+            Kernel::JitGpu(shader) => shader.shader_information(),
             #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.shader_information(),
         }
@@ -61,6 +62,57 @@ pub trait JitKernel: Send + Sync {
     fn id(&self) -> String;
     /// Launch information.
     fn shader_information(&self) -> ShaderInformation;
+}
+
+/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
+pub struct JitGpuKernel<C: Compiler> {
+    id: String,
+    info: ShaderInformation,
+    shader: ComputeShader,
+    _compiler: PhantomData<C>,
+}
+
+impl<C: Compiler> JitGpuKernel<C> {
+    /// Create a boxed [JitGpuKernel](JitGpuKernel) from a static kernel
+    pub fn from_static<K: StaticJitKernel + 'static>(workgroup: WorkGroup) -> Box<Self> {
+        Box::new(Self::new(
+            format!("{:?}", core::any::TypeId::of::<K>()),
+            K::to_shader(),
+            workgroup,
+        ))
+    }
+
+    /// Create a boxed [JitGpuKernel](JitGpuKernel) from a dynamic kernel
+    pub fn from_dynamic<K: DynamicJitKernel + 'static>(
+        kernel: K,
+        workgroup: WorkGroup,
+    ) -> Box<Self> {
+        Box::new(Self::new(kernel.id(), kernel.to_shader(), workgroup))
+    }
+
+    fn new(id: String, shader: ComputeShader, workgroup: WorkGroup) -> Self {
+        let info = ShaderInformation::new(workgroup, Some(shader.workgroup_size));
+        Self {
+            id,
+            shader,
+            info,
+            _compiler: PhantomData,
+        }
+    }
+}
+
+impl<C: Compiler> JitKernel for JitGpuKernel<C> {
+    fn source(&self) -> String {
+        C::compile(self.shader.clone()).to_string()
+    }
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn shader_information(&self) -> ShaderInformation {
+        self.info.clone()
+    }
 }
 
 impl JitKernel for Arc<dyn JitKernel> {
@@ -91,6 +143,15 @@ impl JitKernel for Box<dyn JitKernel> {
     }
 }
 
+#[derive(new, Clone)]
+/// Launch information for a shader
+pub struct ShaderInformation {
+    /// Number of workgroups
+    pub workgroup: WorkGroup,
+    /// Size of a workgroup. Necessary for some runtimes
+    pub workgroup_size: Option<WorkgroupSize>,
+}
+
 /// Provides launch information specifying the number of work groups to be used by a compute shader.
 #[derive(new, Clone, Debug)]
 pub struct WorkGroup {
@@ -107,87 +168,4 @@ impl WorkGroup {
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize
     }
-}
-
-/// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
-/// information
-pub struct DynamicKernel<K, C> {
-    shader: ComputeShader,
-    id: String,
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-    _compiler: PhantomData<C>,
-}
-
-impl<K: DynamicJitKernel + 'static, C: Compiler> DynamicKernel<K, C> {
-    /// Create a dynamic kernel
-    pub fn new(kernel: K, workgroup: WorkGroup) -> Self {
-        Self {
-            shader: kernel.to_shader(),
-            id: kernel.id(),
-            workgroup,
-            _kernel: PhantomData,
-            _compiler: PhantomData,
-        }
-    }
-}
-
-impl<K: DynamicJitKernel + 'static, C: Compiler> JitKernel for DynamicKernel<K, C> {
-    fn source(&self) -> String {
-        C::compile(self.shader.clone()).to_string()
-    }
-
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-
-    fn shader_information(&self) -> ShaderInformation {
-        ShaderInformation::new(self.workgroup.clone(), Some(self.shader.workgroup_size))
-    }
-}
-
-/// Wraps a [dynamic jit kernel](DynamicJitKernel) into a [Jit kernel](JitKernel) with launch
-/// information
-pub struct StaticKernel<K, C> {
-    shader: ComputeShader,
-    id: String,
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-    _compiler: PhantomData<C>,
-}
-
-impl<K: StaticJitKernel + 'static, C: Compiler> StaticKernel<K, C> {
-    /// Create a static kernel
-    pub fn new(workgroup: WorkGroup) -> Self {
-        Self {
-            shader: K::to_shader(),
-            id: format!("{:?}", core::any::TypeId::of::<K>()),
-            workgroup,
-            _kernel: PhantomData,
-            _compiler: PhantomData,
-        }
-    }
-}
-
-impl<K: StaticJitKernel + 'static, C: Compiler> JitKernel for StaticKernel<K, C> {
-    fn source(&self) -> String {
-        C::compile(self.shader.clone()).to_string()
-    }
-
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-
-    fn shader_information(&self) -> ShaderInformation {
-        ShaderInformation::new(self.workgroup.clone(), Some(self.shader.workgroup_size))
-    }
-}
-
-#[derive(new, Clone)]
-/// Launch information for a shader
-pub struct ShaderInformation {
-    /// Number of workgroups
-    pub workgroup: WorkGroup,
-    /// Size of a workgroup. Necessary for some runtimes
-    pub workgroup_size: Option<WorkgroupSize>,
 }

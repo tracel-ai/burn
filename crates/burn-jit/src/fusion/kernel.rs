@@ -1,7 +1,7 @@
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
-use crate::compute::DynamicKernel;
+use crate::compute::JitGpuKernel;
 use crate::compute::JitKernel;
 use crate::compute::Kernel;
 use crate::compute::WorkGroup;
@@ -75,7 +75,7 @@ impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
         self.client.execute(
-            Kernel::Jit(self.kernel),
+            Kernel::JitGpu(self.kernel),
             &self.handles.iter().collect::<Vec<_>>(),
         )
     }
@@ -84,7 +84,7 @@ impl<R: Runtime> ExecutableKernel<R> {
 impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
         self.client.execute(
-            Kernel::Jit(Box::new(self.kernel)),
+            Kernel::JitGpu(Box::new(self.kernel)),
             &self.handles.iter().collect::<Vec<_>>(),
         )
     }
@@ -222,10 +222,7 @@ impl<R: Runtime> FusionKernel<R> {
 
         let workgroup = fusion_kernel.workgroup.clone();
         ExecutableKernel::new(
-            Box::new(DynamicKernel::<FusionKernel<R>, R::Compiler>::new(
-                fusion_kernel,
-                workgroup,
-            )),
+            JitGpuKernel::<R::Compiler>::from_dynamic(fusion_kernel, workgroup),
             handles,
             client,
         )
