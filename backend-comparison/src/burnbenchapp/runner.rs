@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 /// Processor for standard output of cargo process
-pub trait OutputProcessor {
+pub trait OutputProcessor: Send + Sync + 'static {
     /// Process a line
     fn process_line(&self, line: &str);
     /// To be called to indicate progress has been made
@@ -100,13 +100,13 @@ impl OutputProcessor for NiceProcessor {
 /// Benchmark runner using cargo bench.
 pub struct CargoRunner<'a> {
     params: &'a [&'a str],
-    processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
+    processor: Arc<dyn OutputProcessor>,
 }
 
 impl<'a> CargoRunner<'a> {
     pub fn new(
         params: &'a [&'a str],
-        processor: Arc<dyn OutputProcessor + Send + Sync + 'static>,
+        processor: Arc<dyn OutputProcessor>,
     ) -> Self {
         Self { params, processor }
     }
