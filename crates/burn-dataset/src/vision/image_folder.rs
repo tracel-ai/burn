@@ -496,6 +496,27 @@ mod tests {
     }
 
     #[test]
+    pub fn image_folder_dataset_with_items() {
+        let root = Path::new(DATASET_ROOT);
+        let items = vec![
+            (root.join("orange").join("dot.jpg"), "orange".to_string()),
+            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.png"), "red".to_string()),
+        ];
+        let dataset =
+            ImageFolderDataset::new_classification_with_items(items, &["orange", "red"]).unwrap();
+
+        // Dataset has 3 elements
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.get(3), None);
+
+        // Dataset elements should be: orange (0), red (1), red (1)
+        assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
+        assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
+        assert_eq!(dataset.get(2).unwrap().annotation, Annotation::Label(1));
+    }
+
+    #[test]
     pub fn image_folder_dataset_multilabel() {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
