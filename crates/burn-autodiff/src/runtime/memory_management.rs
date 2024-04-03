@@ -87,12 +87,12 @@ impl GraphsMemoryManagement {
     pub fn find_orphan_graphs(&self) -> Vec<GraphId> {
         self.owned
             .iter()
-            .filter(|id| self.is_disconected(id))
+            .filter(|id| self.is_orphan(id))
             .map(|id| *id)
             .collect()
     }
 
-    fn is_disconected(&self, id: &GraphId) -> bool {
+    fn is_orphan(&self, id: &GraphId) -> bool {
         let graph = match self.graphs.get(id) {
             Some(val) => val,
             None => return false,
@@ -217,8 +217,6 @@ mod tests {
         core::mem::drop(node_5);
 
         let disconected_graphs = graph_mm.find_orphan_graphs();
-        println!("{graph_mm}");
-        println!("{disconected_graphs:?}");
 
         assert_eq!(disconected_graphs.len(), 1);
     }

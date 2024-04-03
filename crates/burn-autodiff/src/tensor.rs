@@ -77,18 +77,19 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 panic!("Can't convert a non leaf tensor into a tracked tensor")
             }
             Requirement::None => {
-                self.node = Node::new(
+                let node = Node::new(
                     vec![],
                     0,
-                    self.node.id.clone(),
+                    NodeID::new(),
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
-                )
-                .into();
-                let ops = RootStep::new(self.node.clone());
+                );
+                self.rc = Arc::new(node.id);
 
-                self.register_step(ops, CheckpointerBuilder::default())
+                let step = RootStep::new(Arc::new(node));
+
+                self.register_step(step, CheckpointerBuilder::default())
             }
         }
     }
@@ -130,10 +131,20 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     }
 
     /// Register a step into a graph for that tensor.
-    pub fn register_step<O: Step + 'static>(self, ops: O, actions: CheckpointerBuilder) -> Self {
-        self.node
-            .client
-            .register(self.rc.clone(), Box::new(ops), actions);
+    ///
+    /// # Warning
+    ///
+    /// This should be called only onced per tensor.
+    pub fn register_step<S: Step + 'static>(
+        self,
+        step_that_created_the_tensor: S,
+        actions: CheckpointerBuilder,
+    ) -> Self {
+        self.node.client.register(
+            self.rc.clone(),
+            Box::new(step_that_created_the_tensor),
+            actions,
+        );
         self
     }
 

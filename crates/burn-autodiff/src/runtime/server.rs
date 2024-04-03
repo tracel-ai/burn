@@ -1,3 +1,4 @@
+use super::memory_management::{GraphId, GraphsMemoryManagement};
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
@@ -7,7 +8,6 @@ use crate::{
 };
 use burn_tensor::backend::Backend;
 use std::collections::HashMap;
-use super::memory_management::GraphsMemoryManagement;
 
 #[derive(Default)]
 pub struct AutodiffServer {
@@ -20,6 +20,7 @@ impl AutodiffServer {
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let parents = step.parents();
         let node_id = *rc.as_ref();
+
         self.memory_management.register(rc, parents);
 
         self.steps.insert(node_id, step);
