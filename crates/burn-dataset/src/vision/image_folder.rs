@@ -118,7 +118,7 @@ impl AnnotationRaw {
 
     fn decode(annotation: &[u8]) -> Self {
         let (annotation, _): (AnnotationRaw, usize) =
-            bincode::serde::decode_from_slice(&annotation, Self::bin_config()).unwrap();
+            bincode::serde::decode_from_slice(annotation, Self::bin_config()).unwrap();
         annotation
     }
 }

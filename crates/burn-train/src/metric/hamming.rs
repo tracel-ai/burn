@@ -39,9 +39,10 @@ impl<B: Backend> HammingScore<B> {
 
     /// Creates a new metric instance with default values.
     fn default() -> Self {
-        let mut instance: Self = Default::default();
-        instance.threshold = 0.5;
-        instance
+        Self {
+            threshold: 0.5,
+            ..Default::default()
+        }
     }
 }
 
