@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use indicatif::{style::ProgressTracker, ProgressBar, ProgressState, ProgressStyle};
@@ -17,12 +17,15 @@ impl RunnerProgressBar {
         let thread_safe_tracker = ThreadSafeTracker::new(tracker);
         let pb = ProgressBar::new(total);
         pb.set_style(
-            ProgressStyle::with_template(
-                "\n{msg}\n{wide_bar:.yellow/red}  {pos}/{len}  ({counter})\n ",
-            )
-            .unwrap()
-            .with_key("counter", thread_safe_tracker.clone())
-            .progress_chars("▬▬―"),
+            ProgressStyle::default_spinner()
+                .template("\n{msg}\n{spinner}{wide_bar:.yellow/red} {pos}/{len} {counter}\n ")
+                .unwrap()
+                .with_key("counter", thread_safe_tracker.clone())
+                .progress_chars("▬▬―")
+                .tick_strings(&[
+                    "🕛 ", "🕐 ", "🕑 ", "🕒 ", "🕓 ", "🕔 ", "🕕 ", "🕖 ", "🕗 ", "🕘 ", "🕙 ",
+                    "🕚 ",
+                ]),
         );
         Self {
             pb,
@@ -32,6 +35,20 @@ impl RunnerProgressBar {
 
     pub(crate) fn message(&self, msg: String) {
         self.pb.set_message(msg);
+    }
+
+    pub(crate) fn advance_spinner(&self) {
+        self.pb.tick();
+    }
+
+    /// make the spinner to spin automatically
+    pub(crate) fn start_spinner(&self) {
+        self.pb.enable_steady_tick(Duration::from_millis(100));
+    }
+
+    /// stop the spinner to spin automatically
+    pub(crate) fn stop_spinner(&self) {
+        self.pb.disable_steady_tick();
     }
 
     pub(crate) fn inc_by_one(&self) {
@@ -92,7 +109,6 @@ impl ProgressTracker for ThreadSafeTracker {
     }
 
     fn tick(&mut self, _: &ProgressState, _: Instant) {}
-
     fn reset(&mut self, _: &ProgressState, _: Instant) {}
 
     fn write(&self, _state: &ProgressState, w: &mut dyn fmt::Write) {

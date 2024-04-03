@@ -6,7 +6,11 @@ use std::thread;
 
 /// Processor for standard output of cargo process
 pub trait OutputProcessor {
+    /// Process a line
     fn process_line(&self, line: &str);
+    /// To be called to indicate progress has been made
+    fn progress(&self);
+    /// To be called whent the processor has finished processing
     fn finish(&self);
 }
 
@@ -18,6 +22,7 @@ impl OutputProcessor for VerboseProcessor {
     fn process_line(&self, line: &str) {
         println!("{}", line);
     }
+    fn progress(&self) {}
     fn finish(&self) {}
 }
 
@@ -27,6 +32,7 @@ pub struct SinkProcessor;
 
 impl OutputProcessor for SinkProcessor {
     fn process_line(&self, _line: &str) {}
+    fn progress(&self) {}
     fn finish(&self) {}
 }
 
@@ -38,6 +44,7 @@ pub struct NiceProcessor {
 }
 
 pub(crate) enum NiceProcessorState {
+    Default,
     Compiling,
     Running,
     Uploading,
@@ -50,7 +57,7 @@ impl NiceProcessor {
 
     pub fn format_pb_message(&self, state: NiceProcessorState) -> String {
         match state {
-            NiceProcessorState::Compiling => {
+            NiceProcessorState::Default | NiceProcessorState::Compiling => {
                 format!("🔨 Compiling: {} ▶️{}", self.bench, self.backend)
             }
             NiceProcessorState::Running => {
@@ -66,13 +73,23 @@ impl NiceProcessor {
 impl OutputProcessor for NiceProcessor {
     fn process_line(&self, line: &str) {
         let pb = self.pb.lock().unwrap();
-        if line.contains("Compiling") {
-            pb.message(self.format_pb_message(NiceProcessorState::Compiling));
+        let state = if line.contains("Compiling") {
+            pb.stop_spinner();
+            NiceProcessorState::Compiling
         } else if line.contains("Running") {
-            pb.message(self.format_pb_message(NiceProcessorState::Running));
+            pb.stop_spinner();
+            NiceProcessorState::Running
         } else if line.contains("Sharing") {
-            pb.message(self.format_pb_message(NiceProcessorState::Uploading));
-        }
+            pb.start_spinner();
+            NiceProcessorState::Uploading
+        } else {
+            NiceProcessorState::Default
+        };
+        pb.message(self.format_pb_message(state));
+    }
+
+    fn progress(&self) {
+        self.pb.lock().unwrap().advance_spinner();
     }
 
     fn finish(&self) {
@@ -110,6 +127,7 @@ impl<'a> CargoRunner<'a> {
             for line in stdout.lines() {
                 let line = line.expect("A line from stdout should be read");
                 stdout_processor.process_line(&line);
+                stdout_processor.progress();
             }
         });
         // stderr
@@ -119,6 +137,7 @@ impl<'a> CargoRunner<'a> {
             for line in stderr.lines() {
                 let line = line.expect("A line from stderr should be read");
                 stderr_processor.process_line(&line);
+                stderr_processor.progress();
             }
         });
         // wait for process completion
