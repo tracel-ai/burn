@@ -164,7 +164,7 @@ Now, let's move on to the next step, which involves implementing the remaining c
 kernel. The initial part entails loading the template and populating it with the appropriate
 variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the
 above WGSL code with some other string before it is compilated. In order to use templating
-utilities, you will have to activate the `extension` feature of Burn in your `cargo.toml`.
+utilities, you will have to activate the `template` feature of Burn in your `cargo.toml`.
 
 ```rust, ignore
 // Source the kernel written in WGSL.

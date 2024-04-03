@@ -13,7 +13,7 @@ mod runtime;
 #[cfg(feature = "fusion")]
 mod fusion;
 
-#[cfg(feature = "extension")]
+#[cfg(feature = "template")]
 pub use burn_jit::{
     compute::{Kernel, ShaderInformation},
     kernel::{into_contiguous, DynamicJitKernel, StaticJitKernel},

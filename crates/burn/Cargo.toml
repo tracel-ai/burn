@@ -48,7 +48,7 @@ openblas = ["burn-core/openblas"]
 openblas-system = ["burn-core/openblas-system"]
 blas-netlib = ["burn-core/blas-netlib"]
 autotune = ["burn-core/autotune"]
-extension = ["burn-core/extension"]
+template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]

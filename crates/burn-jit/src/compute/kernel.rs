@@ -1,4 +1,4 @@
-#[cfg(feature = "extension")]
+#[cfg(feature = "template")]
 use crate::template::SourceableKernel;
 use crate::{
     gpu::{ComputeShader, WorkgroupSize},
@@ -12,11 +12,11 @@ use core::marker::PhantomData;
 ///
 /// Notes: by default, only Jit variant exists,
 /// but users can add more kernels from source by activating the
-/// extension feature flag.
+/// template feature flag.
 pub enum Kernel {
     /// A JIT GPU compute shader
     Jit(Box<dyn JitKernel>),
-    #[cfg(feature = "extension")]
+    #[cfg(feature = "template")]
     /// A kernel created from source
     Custom(Box<dyn SourceableKernel>),
 }
@@ -26,7 +26,7 @@ impl Kernel {
     pub fn id(&self) -> String {
         match self {
             Kernel::Jit(shader) => shader.id(),
-            #[cfg(feature = "extension")]
+            #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.id(),
         }
     }
@@ -35,7 +35,7 @@ impl Kernel {
     pub fn source(&self) -> String {
         match self {
             Kernel::Jit(shader) => shader.source(),
-            #[cfg(feature = "extension")]
+            #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.source().complete(),
         }
     }
@@ -44,7 +44,7 @@ impl Kernel {
     pub fn launch_information(&self) -> ShaderInformation {
         match self {
             Kernel::Jit(shader) => shader.shader_information(),
-            #[cfg(feature = "extension")]
+            #[cfg(feature = "template")]
             Kernel::Custom(sourceable_kernel) => sourceable_kernel.shader_information(),
         }
     }

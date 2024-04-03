@@ -76,7 +76,7 @@ openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 autotune = ["burn-wgpu?/autotune"]
-extension = ["burn-wgpu?/extension"]
+template = ["burn-wgpu?/template"]
 
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]

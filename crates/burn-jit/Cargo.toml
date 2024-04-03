@@ -15,7 +15,7 @@ default = ["autotune", "std", "burn-compute/default", "fusion"]
 std = []
 doc = ["default"]
 autotune = []
-extension = []
+template = []
 fusion = ["burn-fusion"]
 export_tests = [
   "burn-tensor-testgen",
