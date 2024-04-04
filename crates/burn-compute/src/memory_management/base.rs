@@ -10,7 +10,9 @@ pub trait MemoryHandle: Clone + Send + Sync + core::fmt::Debug {
     fn can_mut(&self) -> bool;
 }
 
+/// TODO:
 pub trait MemoryId<Handle>: Clone + Send + Sync + core::fmt::Debug {
+    /// Fetch the id from the memory id.
     fn from_handle(handle: &Handle) -> Self;
 }
 
@@ -22,10 +24,11 @@ pub trait MemoryId<Handle>: Clone + Send + Sync + core::fmt::Debug {
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// The associated type Handle must implement MemoryHandle
     type Handle: MemoryHandle;
-    type Id: MemoryId<Self::Handle>;
+    /// Handle id.
+    type HandleId: MemoryId<Self::Handle>;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, id: Self::Id) -> Storage::Resource;
+    fn get(&mut self, id: Self::HandleId) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
     fn reserve(&mut self, size: usize) -> Self::Handle;
@@ -42,7 +45,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, id: Self::Id);
+    fn dealloc(&mut self, id: Self::HandleId);
 
     /// Fetch the storage used by the memory manager.
     ///

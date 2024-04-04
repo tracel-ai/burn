@@ -55,7 +55,7 @@ pub struct Handle<Server: ComputeServer> {
 #[derive(new)]
 pub struct HandleId<Server: ComputeServer> {
     /// Handle for the memory in use.
-    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Id,
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::HandleId,
 }
 
 impl<Server: ComputeServer> Handle<Server> {

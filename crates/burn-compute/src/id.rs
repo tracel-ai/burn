@@ -23,12 +23,6 @@ macro_rules! storage_id_type {
             }
         }
 
-        impl From<u64> for $name {
-            fn from(value: u64) -> Self {
-                Self { value }
-            }
-        }
-
         impl Default for $name {
             fn default() -> Self {
                 Self::new()

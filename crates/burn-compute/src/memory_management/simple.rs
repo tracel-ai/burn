@@ -26,7 +26,7 @@ impl ChunkHandle {
 impl SliceHandle {
     /// A slice is free if it is only referred by the slice hashmap and the chunk it is in.
     fn is_free(&self) -> bool {
-        Arc::strong_count(&self.id) <= 2
+        Arc::strong_count(&self.id) <= 1
     }
 }
 
@@ -145,7 +145,11 @@ struct Chunk {
 struct Slice {
     storage: StorageHandle,
     handle: SliceHandle,
-    chunk_id: ChunkId,
+    // It is important to keep the chunk handle inside the slice, since it increases the ref count
+    // on the chunk id and make the `is_free` method returns false until the slice is freed.
+    //
+    // TL;DR we can't only store the chunk id.
+    chunk: ChunkHandle,
 }
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
@@ -174,25 +178,21 @@ impl MemoryHandle for SimpleHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
-        // One reference in the chunk hashmap, another owned by one tensor.
-        const REFERENCE_LIMIT_CHUNK: usize = 2;
-        // One reference in the chunk hashmap (for the chunk on which this slice is built),
-        // another in the slice hashmap for this slice, and another owned by one tensor.
-        const REFERENCE_LIMIT_SLICE: usize = 3;
+        const REFERENCE_LIMIT: usize = 2;
 
         match &self {
-            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT_CHUNK,
-            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT_SLICE,
+            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT,
+            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT,
         }
     }
 }
 
 impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
     type Handle = SimpleHandle;
-    type Id = SimpleId;
+    type HandleId = SimpleId;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, id: Self::Id) -> Storage::Resource {
+    fn get(&mut self, id: Self::HandleId) -> Storage::Resource {
         let resource = match id {
             SimpleId::Chunk(id) => &self.chunks.get(&id).unwrap().storage,
             SimpleId::Slice(id) => &self.slices.get(&id).unwrap().storage,
@@ -221,7 +221,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, id: Self::Id) {
+    fn dealloc(&mut self, id: Self::HandleId) {
         match id {
             SimpleId::Chunk(id) => {
                 if let Some(chunk) = self.chunks.remove(&id) {
@@ -278,24 +278,24 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
-        for (chunk_id, chunk) in self.chunks.iter() {
+        for chunk in self.chunks.values() {
             // If chunk is already used, we do not choose it
-            if !chunk.slices.is_empty() || !chunk.handle.is_free() {
+            if !chunk.handle.is_free() {
                 continue;
             }
 
-            let resource_size = chunk.storage.size();
+            let storage_size = chunk.storage.size();
 
             // If we find a chunk of exactly the right size, we stop searching altogether
-            if size == resource_size {
+            if size == storage_size {
                 current = Some(chunk);
                 break;
             }
 
             // Finds the smallest of the large enough chunks that can accept a slice
             // of the given size
-            if self.slice_strategy.can_use_chunk(resource_size, size) {
-                let size_diff = resource_size - size;
+            if self.slice_strategy.can_use_chunk(storage_size, size) {
+                let size_diff = storage_size - size;
 
                 if size_diff < size_diff_current {
                     current = Some(chunk);
@@ -315,14 +315,14 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let slice_handle = SliceHandle::new();
 
         let storage = StorageHandle {
-            id: chunk.handle.id.value.into(),
+            id: chunk.storage.id.clone(),
             utilization: StorageUtilization::Slice(0, size),
         };
 
         if chunk.slices.is_empty() {
             self.slices.insert(
                 slice_handle.id(),
-                Slice::new(storage, slice_handle.clone(), handle.id()),
+                Slice::new(storage, slice_handle.clone(), handle.clone()),
             );
         } else {
             panic!("Can't have more than 1 slice yet.");
@@ -335,13 +335,11 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
     /// Creates a chunk of given size by allocating on the storage.
     fn create_chunk(&mut self, size: usize) -> SimpleHandle {
-        let resource = self.storage.alloc(size);
+        let storage = self.storage.alloc(size);
         let handle = ChunkHandle::new();
 
-        self.chunks.insert(
-            handle.id(),
-            Chunk::new(resource, handle.clone(), Vec::new()),
-        );
+        self.chunks
+            .insert(handle.id(), Chunk::new(storage, handle.clone(), Vec::new()));
 
         SimpleHandle::Chunk(handle)
     }
@@ -378,7 +376,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             .iter()
             .map(|slice_id| self.slices.remove(slice_id).unwrap())
             .for_each(|slice| {
-                let chunk = self.chunks.get_mut(&slice.chunk_id).unwrap();
+                let chunk = self.chunks.get_mut(&slice.chunk.id()).unwrap();
                 chunk.slices.retain(|id| id != &slice.handle.id());
             });
     }
