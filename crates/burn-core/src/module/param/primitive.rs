@@ -5,7 +5,7 @@ use core::fmt::Debug;
 
 impl<T, B> Module<B> for Option<T>
 where
-    T: Module<B> + Debug + Send + Sync + Clone,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = Option<T::Record>;
@@ -48,7 +48,7 @@ where
 
 impl<T, B> AutodiffModule<B> for Option<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    T: AutodiffModule<B> + Debug + Send + Clone,
     B: AutodiffBackend,
 {
     type InnerModule = Option<T::InnerModule>;
@@ -60,7 +60,7 @@ where
 
 impl<T, B> Module<B> for Vec<T>
 where
-    T: Module<B> + Debug + Send + Sync + Clone,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = Vec<T::Record>;
@@ -116,7 +116,7 @@ where
 
 impl<T, B> AutodiffModule<B> for Vec<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    T: AutodiffModule<B> + Debug + Send + Clone,
     B: AutodiffBackend,
 {
     type InnerModule = Vec<T::InnerModule>;
@@ -128,7 +128,7 @@ where
 
 impl<const N: usize, T, B> Module<B> for [T; N]
 where
-    T: Module<B> + Debug + Send + Sync + Clone + Copy,
+    T: Module<B> + Debug + Send + Clone + Copy,
     T::Record: Debug,
     B: Backend,
 {
@@ -185,7 +185,7 @@ where
 
 impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone + Copy,
+    T: AutodiffModule<B> + Debug + Send + Clone + Copy,
     T::InnerModule: Copy + Debug,
     <T::InnerModule as Module<B::InnerBackend>>::Record: Debug,
     <T as Module<B>>::Record: Debug,
@@ -210,7 +210,7 @@ macro_rules! impl_module_tuple {
         impl<B, $($l,)*> Module<B> for ($($l,)*)
         where
             B: Backend,
-            $($l: Module<B> + Debug + Send + Sync + Clone,)*
+            $($l: Module<B> + Debug + Send + Clone,)*
         {
             type Record = ($($l::Record),*);
 
@@ -247,7 +247,7 @@ macro_rules! impl_module_tuple {
         impl<B, $($l,)*> AutodiffModule<B> for ($($l,)*)
         where
             B: AutodiffBackend,
-            $($l: AutodiffModule<B> + Debug + Send + Sync + Clone,)*
+            $($l: AutodiffModule<B> + Debug + Send + Clone,)*
         {
             type InnerModule = ($($l::InnerModule,)*);
 

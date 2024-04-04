@@ -109,6 +109,7 @@ impl DiabetesDataset {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DiabetesBatcher<B: Backend> {
     device: B::Device,
 }

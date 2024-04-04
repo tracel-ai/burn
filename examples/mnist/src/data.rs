@@ -3,6 +3,7 @@ use burn::{
     prelude::*,
 };
 
+#[derive(Clone, Debug)]
 pub struct MnistBatcher<B: Backend> {
     device: B::Device,
 }

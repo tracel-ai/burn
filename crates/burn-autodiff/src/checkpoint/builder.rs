@@ -1,11 +1,9 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
-
-use burn_tensor::backend::Backend;
-
 use crate::{
-    graph::{ComputingProperty, NodeID, NodeRef, NodeSteps},
+    graph::{ComputingProperty, NodeID, NodeSteps},
     tensor::AutodiffTensor,
 };
+use burn_tensor::backend::Backend;
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use super::{
     base::{Checkpointer, NodeTree},
@@ -20,31 +18,34 @@ pub enum CheckpointingAction {
     /// The node's already computed output should be saved
     Computed {
         /// The node
-        node_ref: NodeRef,
+        node_id: NodeID,
         /// The node's output
-        state_content: Box<dyn Any + Send + Sync>,
+        state_content: Box<dyn Any + Send>,
     },
     /// The node should recompute itself when asked
     Recompute {
         /// The node
-        node_ref: NodeRef,
+        node_id: NodeID,
         /// How the node should recompute itself
         retro_forward: Arc<dyn RetroForward>,
     },
 }
+
+// TODO: Remove that when proper client server.
+unsafe impl Send for CheckpointingAction {}
 
 impl CheckpointingAction {
     /// Utilitary function to access the id of the node of the checkpointing action
     pub fn id(&self) -> NodeID {
         match self {
             CheckpointingAction::Computed {
-                node_ref,
+                node_id: node_ref,
                 state_content: _,
-            } => node_ref.id.clone(),
+            } => *node_ref,
             CheckpointingAction::Recompute {
-                node_ref,
+                node_id: node_ref,
                 retro_forward: _,
-            } => node_ref.id.clone(),
+            } => *node_ref,
         }
     }
 }
@@ -83,13 +84,13 @@ impl CheckpointerBuilder {
         match &tensor.node.properties {
             ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
                 action_list.push(CheckpointingAction::Computed {
-                    node_ref: tensor.node.clone(),
+                    node_id: tensor.node.id,
                     state_content: Box::new(tensor.primitive.clone()),
                 })
             }
             ComputingProperty::MemoryBound { retro_forward } => {
                 action_list.push(CheckpointingAction::Recompute {
-                    node_ref: tensor.node.clone(),
+                    node_id: tensor.node.id,
                     retro_forward: retro_forward.clone(),
                 })
             }
@@ -103,10 +104,6 @@ impl CheckpointerBuilder {
         for other_unsure in other.backup_actions {
             self.backup_actions.push(other_unsure)
         }
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.explicit_actions.len() + self.backup_actions.len()
     }
 
     pub(crate) fn build(self, graph: &NodeSteps) -> Checkpointer {
@@ -143,11 +140,11 @@ impl CheckpointerBuilder {
         {
             match action {
                 CheckpointingAction::Computed {
-                    node_ref,
+                    node_id: node_ref,
                     state_content: _,
-                } => stop_nodes.push(node_ref.id.clone()),
+                } => stop_nodes.push(*node_ref),
                 CheckpointingAction::Recompute {
-                    node_ref: _,
+                    node_id: _,
                     retro_forward: _,
                 } => {}
             }
@@ -165,10 +162,10 @@ impl CheckpointerBuilder {
         for action in self.explicit_actions.iter() {
             match action {
                 CheckpointingAction::Computed {
-                    node_ref,
+                    node_id: node_ref,
                     state_content: _,
                 } => {
-                    let id = node_ref.id.clone();
+                    let id = *node_ref;
                     match n_required_map.remove(&id) {
                         Some(n) => {
                             n_required_map.insert(id, n + 1);
@@ -179,10 +176,10 @@ impl CheckpointerBuilder {
                     };
                 }
                 CheckpointingAction::Recompute {
-                    node_ref,
+                    node_id: node_ref,
                     retro_forward: _,
                 } => {
-                    let id = node_ref.id.clone();
+                    let id = *node_ref;
                     Self::update_n_required_of_parents(
                         id,
                         &mut n_required_map,
@@ -229,13 +226,13 @@ impl CheckpointerBuilder {
 
             match action {
                 CheckpointingAction::Computed {
-                    node_ref: _,
+                    node_id: _,
                     state_content,
                 } => {
                     self.checkpoint_compute(backward_states_map, node_id, state_content, n_required)
                 }
                 CheckpointingAction::Recompute {
-                    node_ref: _,
+                    node_id: _,
                     retro_forward,
                 } => self.checkpoint_lazy(
                     backward_states_map,
@@ -251,7 +248,7 @@ impl CheckpointerBuilder {
     fn make_tree(&self, graph: &NodeSteps) -> NodeTree {
         let mut tree = HashMap::default();
         for (id, step) in graph {
-            tree.insert(id.clone(), step.node());
+            tree.insert(*id, step.parents());
         }
         NodeTree::new(tree)
     }
@@ -267,7 +264,7 @@ impl CheckpointerBuilder {
                 n_required_map.insert(id, n + 1);
             }
             None => {
-                n_required_map.insert(id.clone(), 1);
+                n_required_map.insert(id, 1);
                 if !stop_nodes.contains(&id) {
                     if let Some(parents) = node_tree.parents(&id) {
                         for p in parents {
@@ -288,7 +285,7 @@ impl CheckpointerBuilder {
         &self,
         backward_states_map: &mut HashMap<NodeID, State>,
         node_id: NodeID,
-        state_content: Box<dyn Any + Send + Sync>,
+        state_content: Box<dyn Any + Send>,
         n_required: usize,
     ) {
         backward_states_map.insert(
@@ -308,7 +305,7 @@ impl CheckpointerBuilder {
         retro_forward: Arc<dyn RetroForward>,
         n_required: usize,
     ) {
-        retro_forward_map.insert(node_id.clone(), retro_forward);
-        backward_states_map.insert(node_id.clone(), State::Recompute { n_required });
+        retro_forward_map.insert(node_id, retro_forward);
+        backward_states_map.insert(node_id, State::Recompute { n_required });
     }
 }

@@ -12,7 +12,7 @@ use crate::{backend::Backend, Tensor};
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<ID> {
-    tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
+    tensors: HashMap<ID, Box<dyn Any + Send>>,
 }
 
 impl<ID> Default for TensorContainer<ID>
