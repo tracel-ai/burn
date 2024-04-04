@@ -4,7 +4,6 @@ use crate::metric::{Metric, Numeric};
 use burn_core::tensor::{activation::sigmoid, backend::Backend, ElementConversion, Int, Tensor};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
-#[derive(Default)]
 pub struct HammingScore<B: Backend> {
     state: NumericMetricState,
     threshold: f32,
@@ -36,12 +35,16 @@ impl<B: Backend> HammingScore<B> {
         self.sigmoid = sigmoid;
         self
     }
+}
 
+impl<B: Backend> Default for HammingScore<B> {
     /// Creates a new metric instance with default values.
     fn default() -> Self {
         Self {
+            state: NumericMetricState::default(),
             threshold: 0.5,
-            ..Default::default()
+            sigmoid: false,
+            _b: B::default(),
         }
     }
 }
