@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings, B: Backend> BurnModuleAdapter for PyTorchAdapter<PS,
             .try_into_record::<_, PS, DefaultAdapter, B>(&B::Device::default())
             .expect("Failed to deserialize weight");
 
-        // Do not capture tranpose op when using autodiff backend
+        // Do not capture transpose op when using autodiff backend
         let weight = weight.set_require_grad(false);
         // Transpose the weight tensor.
         let weight_transposed = Param::from_tensor(weight.val().transpose());
