@@ -60,6 +60,7 @@ pub enum Operator {
     BitwiseXor(BinaryOperator),
     ShiftLeft(BinaryOperator),
     ShiftRight(BinaryOperator),
+    ReverseBits(UnaryOperator),
 }
 
 /// All metadata that can be access in a shader.

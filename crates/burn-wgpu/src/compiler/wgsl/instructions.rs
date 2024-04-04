@@ -218,6 +218,10 @@ pub enum Instruction {
         input: Variable,
         out: Variable,
     },
+    ReverseBits {
+        input: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -474,6 +478,9 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::Ceil { input, out } => {
                 f.write_fmt(format_args!("{out} = ceil({input});\n"))
+            }
+            Instruction::ReverseBits { input, out } => {
+                f.write_fmt(format_args!("{out} = reverseBits({input});\n"))
             }
         }
     }

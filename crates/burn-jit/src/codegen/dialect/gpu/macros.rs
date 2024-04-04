@@ -135,6 +135,12 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = reverseBits(input)
+    ($scope:expr, $out:ident = reverseBits($input:ident)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::ReverseBits(
+            gpu!(unary $input, $out)
+        ))
+    };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
         gpu!($scope, $out = equal($lhs, $rhs))

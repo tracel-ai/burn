@@ -556,6 +556,10 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::ReverseBits(op) => wgsl::Instruction::ReverseBits {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
         }
     }
 
