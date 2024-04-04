@@ -8,14 +8,8 @@ use crate::{
 
 use super::SourceTemplate;
 
-/// Static kernel source to create a [source](SourceTemplate)
-pub trait StaticKernelSource: Send + 'static + Sync {
-    /// Convert to [source](SourceTemplate)
-    fn source() -> SourceTemplate;
-}
-
-/// Dynamic kernel source to create a [source](SourceTemplate)
-pub trait DynamicKernelSource: Send + 'static + Sync {
+/// Kernel source to create a [source](SourceTemplate)
+pub trait KernelSource: Send + 'static + Sync {
     /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;
 }
@@ -44,7 +38,7 @@ pub struct SourceKernel<K> {
 
 impl<K> TemplateKernel for SourceKernel<K>
 where
-    K: DynamicKernelSource + 'static,
+    K: KernelSource + 'static,
 {
     fn compile(&self) -> CompiledKernel {
         let source_template = self.kernel_source.source();
@@ -77,8 +71,8 @@ macro_rules! kernel_wgsl {
         #[derive(new)]
         pub struct $struct;
 
-        impl $crate::template::StaticKernelSource for $struct {
-            fn source() -> $crate::template::SourceTemplate {
+        impl $crate::template::KernelSource for $struct {
+            fn source(&self) -> $crate::template::SourceTemplate {
                 $crate::template::SourceTemplate::new(include_str!($file))
             }
         }

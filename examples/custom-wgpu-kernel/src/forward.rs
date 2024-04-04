@@ -3,9 +3,9 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_wgsl, DynamicKernelSource, FloatElement, GraphicsApi,
-        IntElement, JitBackend, JitTensor, Kernel, SourceKernel, SourceTemplate,
-        StaticKernelSource, WgpuRuntime, WorkGroup, WorkgroupSize,
+        build_info, into_contiguous, kernel_wgsl, FloatElement, GraphicsApi, IntElement,
+        JitBackend, JitTensor, Kernel, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        WorkGroup, WorkgroupSize,
     },
     tensor::Shape,
 };
@@ -23,11 +23,12 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 }
 
 // Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
+impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
     fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.
-        FusedMatmulAddReluRaw::source()
+        FusedMatmulAddReluRaw::new()
+            .source()
             .register("workgroup_size_x", self.workgroup_size.x.to_string())
             .register("workgroup_size_y", self.workgroup_size.y.to_string())
             .register("elem", E::type_name())

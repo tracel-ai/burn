@@ -17,9 +17,9 @@ mod fusion;
 pub use burn_jit::{
     compute::Kernel,
     gpu::WorkgroupSize,
-    kernel::{into_contiguous, DynamicJitKernel, StaticJitKernel},
+    kernel::{into_contiguous, DynamicJitKernel},
     kernel_wgsl,
-    template::{build_info, DynamicKernelSource, SourceKernel, SourceTemplate, StaticKernelSource},
+    template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
 
 pub use device::*;
