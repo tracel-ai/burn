@@ -21,7 +21,7 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
-vision = ["dep:bincode", "dep:flate2", "dep:globwalk", "dep:burn-common"]
+vision = ["dep:flate2", "dep:globwalk", "dep:burn-common"]
 
 # internal
 __sqlite-shared = [
@@ -33,7 +33,6 @@ __sqlite-shared = [
 ]
 
 [dependencies]
-bincode = { workspace = true, optional = true }
 burn-common = { path = "../burn-common", version = "0.13.0", optional = true, features = [
   "network",
 ] }

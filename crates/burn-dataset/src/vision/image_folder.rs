@@ -107,37 +107,20 @@ enum AnnotationRaw {
     // TODO: bounding boxes and segmentation mask
 }
 
-impl AnnotationRaw {
-    fn bin_config() -> bincode::config::Configuration {
-        bincode::config::standard()
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        bincode::serde::encode_to_vec(self, Self::bin_config()).unwrap()
-    }
-
-    fn decode(annotation: &[u8]) -> Self {
-        let (annotation, _): (AnnotationRaw, usize) =
-            bincode::serde::decode_from_slice(annotation, Self::bin_config()).unwrap();
-        annotation
-    }
-}
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct ImageDatasetItemRaw {
     /// Image path.
     image_path: PathBuf,
 
     /// Image annotation.
-    /// The annotation bytes can represent a string (category name) or path to annotation file.
-    annotation: Vec<u8>,
+    annotation: AnnotationRaw,
 }
 
 impl ImageDatasetItemRaw {
     fn new<P: AsRef<Path>>(image_path: P, annotation: AnnotationRaw) -> ImageDatasetItemRaw {
         ImageDatasetItemRaw {
             image_path: image_path.as_ref().to_path_buf(),
-            annotation: annotation.encode(),
+            annotation: annotation,
         }
     }
 }
@@ -147,17 +130,18 @@ struct PathToImageDatasetItem {
 }
 
 /// Parse the image annotation to the corresponding type.
-fn parse_image_annotation(annotation: &[u8], classes: &HashMap<String, usize>) -> Annotation {
+fn parse_image_annotation(
+    annotation: &AnnotationRaw,
+    classes: &HashMap<String, usize>,
+) -> Annotation {
     // TODO: add support for other annotations
     // - [ ] Object bounding boxes
     // - [ ] Segmentation mask
     // For now, only image classification labels are supported.
 
-    let annotation = AnnotationRaw::decode(annotation);
-
     // Map class string to label id
     match annotation {
-        AnnotationRaw::Label(name) => Annotation::Label(*classes.get(&name).unwrap()),
+        AnnotationRaw::Label(name) => Annotation::Label(*classes.get(name).unwrap()),
         AnnotationRaw::MultiLabel(names) => Annotation::MultiLabel(
             names
                 .iter()
@@ -607,7 +591,7 @@ mod tests {
     #[test]
     pub fn parse_image_annotation_label_string() {
         let classes = HashMap::from([("0".to_string(), 0_usize), ("1".to_string(), 1_usize)]);
-        let anno = AnnotationRaw::Label("0".to_string()).encode();
+        let anno = AnnotationRaw::Label("0".to_string());
         assert_eq!(
             parse_image_annotation(&anno, &classes),
             Annotation::Label(0)
@@ -621,7 +605,7 @@ mod tests {
             ("1".to_string(), 1_usize),
             ("2".to_string(), 2_usize),
         ]);
-        let anno = AnnotationRaw::MultiLabel(vec!["0".to_string(), "2".to_string()]).encode();
+        let anno = AnnotationRaw::MultiLabel(vec!["0".to_string(), "2".to_string()]);
         assert_eq!(
             parse_image_annotation(&anno, &classes),
             Annotation::MultiLabel(vec![0, 2])
