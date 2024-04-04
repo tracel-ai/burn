@@ -5,7 +5,7 @@ use crate::{
     gpu::{
         gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
     },
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     JitElement, Runtime,
 };
 
@@ -96,7 +96,7 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicJitKernel
+impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
     fn compile(&self) -> ComputeShader {
@@ -170,7 +170,7 @@ pub(crate) struct MaskInplaceEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicJitKernel
+impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
     fn compile(&self) -> ComputeShader {

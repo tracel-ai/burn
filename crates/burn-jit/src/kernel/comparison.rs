@@ -8,7 +8,7 @@ use crate::{
 };
 use std::mem;
 
-use super::DynamicJitKernel;
+use super::GpuComputeShaderPhase;
 
 macro_rules! comparison {
     (
@@ -218,9 +218,9 @@ fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, cons
     kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: DynamicJitKernel,
-    KernelInplaceLhs: DynamicJitKernel,
-    KernelInplaceRhs: DynamicJitKernel,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplaceLhs: GpuComputeShaderPhase,
+    KernelInplaceRhs: GpuComputeShaderPhase,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
@@ -245,8 +245,8 @@ fn launch_unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     kernel_inplace: KernelInplace,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: DynamicJitKernel,
-    KernelInplace: DynamicJitKernel,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplace: GpuComputeShaderPhase,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();

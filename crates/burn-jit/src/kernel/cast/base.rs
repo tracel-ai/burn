@@ -6,7 +6,7 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     gpu::{gpu, ComputeShader, Scope, Variable, Visibility},
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, Runtime,
 };
@@ -59,7 +59,9 @@ pub(crate) struct CastEagerKernel<R: Runtime, EI: JitElement, EO: JitElement> {
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: Runtime, EI: JitElement, EO: JitElement> DynamicJitKernel for CastEagerKernel<R, EI, EO> {
+impl<R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+    for CastEagerKernel<R, EI, EO>
+{
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = EI::gpu_elem().into();

@@ -8,7 +8,7 @@ use crate::{
         WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicJitKernel},
+    kernel::{self, GpuComputeShaderPhase},
     tensor::JitTensor,
     Runtime,
 };
@@ -129,7 +129,7 @@ impl ScatterComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for ScatterEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_value = E::gpu_elem().into();

@@ -6,7 +6,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -68,7 +68,7 @@ impl FlipComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for FlipEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

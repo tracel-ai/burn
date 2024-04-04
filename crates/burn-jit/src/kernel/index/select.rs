@@ -6,7 +6,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -70,7 +70,7 @@ impl SelectComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for SelectEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

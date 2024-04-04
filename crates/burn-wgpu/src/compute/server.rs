@@ -290,7 +290,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
-        let work_group = kernel.launch_information().workgroup;
+        let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 

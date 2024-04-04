@@ -12,7 +12,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::{into_contiguous, DynamicJitKernel},
+    kernel::{into_contiguous, GpuComputeShaderPhase},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
@@ -234,7 +234,7 @@ impl<E: JitElement> Conv2dComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for Conv2dEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

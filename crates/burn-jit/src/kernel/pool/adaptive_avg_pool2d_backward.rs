@@ -7,7 +7,7 @@ use crate::{
     },
     element::JitElement,
     gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
 };
@@ -201,7 +201,9 @@ impl AdaptiveAvgPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for AdaptiveAvgPool2dBackwardEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
+    for AdaptiveAvgPool2dBackwardEagerKernel<R, E>
+{
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

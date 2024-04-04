@@ -7,7 +7,7 @@ use crate::{
     },
     compute::WorkGroup,
     gpu::{gpu, ComputeShader, Elem, Scope, Variable},
-    kernel::{DynamicJitKernel, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitElement, Runtime, SEED,
 };
@@ -61,7 +61,7 @@ fn prng_workgroup(
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
-impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicJitKernel for PrngEagerKernel<P, R, E> {
+impl<P: Prng<E>, R: Runtime, E: JitElement> GpuComputeShaderPhase for PrngEagerKernel<P, R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

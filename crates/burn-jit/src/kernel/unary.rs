@@ -5,7 +5,7 @@ use crate::{
     Runtime,
 };
 
-use super::DynamicJitKernel;
+use super::GpuComputeShaderPhase;
 
 /// Creates a unary kernel.
 #[macro_export]
@@ -89,7 +89,7 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::DynamicJitKernel for Ops<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
@@ -101,7 +101,7 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::DynamicJitKernel for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
@@ -168,7 +168,7 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::DynamicJitKernel for Ops<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
@@ -180,7 +180,7 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::DynamicJitKernel for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
@@ -207,8 +207,8 @@ pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     kernel_inplace: KernelInplace,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: DynamicJitKernel,
-    KernelInplace: DynamicJitKernel,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplace: GpuComputeShaderPhase,
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {

@@ -10,7 +10,7 @@ use crate::{
     JitElement, Runtime,
 };
 
-use super::DynamicJitKernel;
+use super::GpuComputeShaderPhase;
 
 pub(crate) struct IntoContiguousShader {
     tensor: Variable,
@@ -57,7 +57,7 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
     output
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for IntoContiguousEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

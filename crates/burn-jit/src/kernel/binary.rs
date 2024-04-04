@@ -87,7 +87,7 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::DynamicJitKernel for Ops<C, I, O>
+        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase for Ops<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
@@ -100,7 +100,7 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::DynamicJitKernel
+        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
             for OpsInplaceLhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
@@ -119,7 +119,7 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::DynamicJitKernel
+        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
             for OpsInplaceRhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
@@ -149,9 +149,9 @@ pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D
     kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: crate::kernel::DynamicJitKernel,
-    KernelInplaceLhs: crate::kernel::DynamicJitKernel,
-    KernelInplaceRhs: crate::kernel::DynamicJitKernel,
+    Kernel: crate::kernel::GpuComputeShaderPhase,
+    KernelInplaceLhs: crate::kernel::GpuComputeShaderPhase,
+    KernelInplaceRhs: crate::kernel::GpuComputeShaderPhase,
     E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     JitElement, Runtime,
 };
 
@@ -172,7 +172,9 @@ pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> 
     _elem: PhantomData<E>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicJitKernel for Pool2dEagerKernel<P, R, E> {
+impl<P: PoolStrategy, R: Runtime, E: JitElement> GpuComputeShaderPhase
+    for Pool2dEagerKernel<P, R, E>
+{
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

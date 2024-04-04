@@ -6,7 +6,7 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, Runtime,
 };
@@ -186,7 +186,7 @@ impl InterpolateBilinearShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for InterpolateBilinearEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBilinearEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

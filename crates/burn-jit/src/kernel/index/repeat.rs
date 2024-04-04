@@ -6,7 +6,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
 };
@@ -58,7 +58,7 @@ impl RepeatComputeShader {
         gpu!(scope, output[id] = result);
     }
 }
-impl<R: Runtime, E: JitElement> DynamicJitKernel for RepeatEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 #[cfg(feature = "template")]
 use crate::template::TemplateKernel;
-use crate::{gpu::WorkgroupSize, kernel::DynamicJitKernel, Compiler};
+use crate::{gpu::WorkgroupSize, kernel::GpuComputeShaderPhase, Compiler};
 use alloc::sync::Arc;
 
 /// Kernel for JIT backends
@@ -12,7 +12,7 @@ use alloc::sync::Arc;
 /// template feature flag.
 pub enum Kernel {
     /// A JIT GPU compute shader
-    JitGpu(Box<dyn JitGpuKernel>),
+    JitGpu(Box<dyn JitKernel>),
     #[cfg(feature = "template")]
     /// A kernel created from source
     Custom(Box<dyn TemplateKernel>),
@@ -28,7 +28,7 @@ impl Kernel {
         }
     }
 
-    /// Source of the shader, as string
+    /// Source of the shader
     pub fn compile(&self) -> CompiledKernel {
         match self {
             Kernel::JitGpu(shader) => shader.compile(),
@@ -38,7 +38,7 @@ impl Kernel {
     }
 
     /// Launch information of the kernel
-    pub fn launch_information(&self) -> LaunchSettings {
+    pub fn launch_settings(&self) -> LaunchSettings {
         match self {
             Kernel::JitGpu(shader) => shader.launch_settings(),
             #[cfg(feature = "template")]
@@ -65,7 +65,7 @@ pub struct LaunchSettings {
 /// provided id.
 ///
 /// The kernel will be launched with the given [shader information](ShaderInformation).
-pub trait JitGpuKernel: Send + Sync {
+pub trait JitKernel: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Compile the kernel into source
@@ -76,13 +76,13 @@ pub trait JitGpuKernel: Send + Sync {
 
 /// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
 #[derive(new)]
-pub struct DynamicJitGpuKernel<C: Compiler, K: DynamicJitKernel> {
+pub struct FullCompilationPhase<C: Compiler, K: GpuComputeShaderPhase> {
     kernel: K,
     workgroup: WorkGroup,
     _compiler: PhantomData<C>,
 }
 
-impl<C: Compiler, K: DynamicJitKernel> JitGpuKernel for DynamicJitGpuKernel<C, K> {
+impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C, K> {
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel.compile();
         let workgroup_size = gpu_ir.workgroup_size;
@@ -107,7 +107,7 @@ impl<C: Compiler, K: DynamicJitKernel> JitGpuKernel for DynamicJitGpuKernel<C, K
     }
 }
 
-impl JitGpuKernel for Arc<dyn JitGpuKernel> {
+impl JitKernel for Arc<dyn JitKernel> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -121,7 +121,7 @@ impl JitGpuKernel for Arc<dyn JitGpuKernel> {
     }
 }
 
-impl JitGpuKernel for Box<dyn JitGpuKernel> {
+impl JitKernel for Box<dyn JitKernel> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }

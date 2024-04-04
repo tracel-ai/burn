@@ -6,7 +6,7 @@ pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).
-pub trait DynamicJitKernel: Send + Sync + 'static {
+pub trait GpuComputeShaderPhase: Send + Sync + 'static {
     /// Convert to compute shader
     fn compile(&self) -> ComputeShader;
     /// Identifier for the kernel, used for caching kernel compilation.

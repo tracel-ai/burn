@@ -17,7 +17,7 @@ mod fusion;
 pub use burn_jit::{
     compute::Kernel,
     gpu::WorkgroupSize,
-    kernel::{into_contiguous, DynamicJitKernel},
+    kernel::{into_contiguous, GpuComputeShaderPhase},
     kernel_wgsl,
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };

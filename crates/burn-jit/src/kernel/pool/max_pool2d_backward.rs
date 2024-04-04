@@ -6,7 +6,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::{self, DynamicJitKernel},
+    kernel::{self, GpuComputeShaderPhase},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -261,7 +261,9 @@ impl MaxPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for MaxPool2dWithIndicesBackwardEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
+    for MaxPool2dWithIndicesBackwardEagerKernel<R, E>
+{
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

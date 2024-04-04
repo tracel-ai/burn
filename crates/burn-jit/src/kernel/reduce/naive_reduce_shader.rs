@@ -8,7 +8,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
 };
@@ -37,7 +37,7 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicJitKernel
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
     for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn compile(&self) -> ComputeShader {

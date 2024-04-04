@@ -11,7 +11,7 @@ use crate::{
     compute::WorkGroup,
     element::JitElement,
     gpu::ComputeShader,
-    kernel::{DynamicJitKernel, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
@@ -47,7 +47,7 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicJitKernel
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn compile(&self) -> ComputeShader {

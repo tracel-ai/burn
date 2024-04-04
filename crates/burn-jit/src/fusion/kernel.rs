@@ -1,14 +1,14 @@
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
-use crate::compute::DynamicJitGpuKernel;
-use crate::compute::JitGpuKernel;
+use crate::compute::FullCompilationPhase;
+use crate::compute::JitKernel;
 use crate::compute::Kernel;
 use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::gpu::ComputeShader;
-use crate::kernel::DynamicJitKernel;
+use crate::kernel::GpuComputeShaderPhase;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -46,7 +46,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
-    kernel: Box<dyn JitGpuKernel>,
+    kernel: Box<dyn JitKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -59,7 +59,7 @@ pub struct ExecutableKernel<R: Runtime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
-    kernel: Arc<dyn JitGpuKernel>,
+    kernel: Arc<dyn JitKernel>,
     handles: Vec<Handle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -222,7 +222,7 @@ impl<R: Runtime> FusionKernel<R> {
 
         let workgroup = fusion_kernel.workgroup.clone();
         ExecutableKernel::new(
-            Box::new(DynamicJitGpuKernel::<R::Compiler, FusionKernel<R>>::new(
+            Box::new(FullCompilationPhase::<R::Compiler, FusionKernel<R>>::new(
                 fusion_kernel,
                 workgroup,
             )),
@@ -232,7 +232,7 @@ impl<R: Runtime> FusionKernel<R> {
     }
 }
 
-impl<R: Runtime> DynamicJitKernel for FusionKernel<R> {
+impl<R: Runtime> GpuComputeShaderPhase for FusionKernel<R> {
     fn compile(&self) -> ComputeShader {
         log::info!("Compiling ... {:?}", self.id());
         Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())

@@ -6,7 +6,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::DynamicJitKernel,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
 };
@@ -75,7 +75,7 @@ impl SliceAssignComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicJitKernel for SliceAssignEagerKernel<R, E> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();

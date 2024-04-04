@@ -9,7 +9,7 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, DynamicJitKernel, WORKGROUP_DEFAULT},
+    kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
@@ -151,7 +151,7 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: Runtime> DynamicJitKernel for MatmulEagerKernel<R> {
+impl<R: Runtime> GpuComputeShaderPhase for MatmulEagerKernel<R> {
     fn compile(&self) -> ComputeShader {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,

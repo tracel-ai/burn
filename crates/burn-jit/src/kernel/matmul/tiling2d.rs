@@ -7,7 +7,7 @@ use crate::{
     },
     element::JitElement,
     gpu::ComputeShader,
-    kernel::{into_contiguous, DynamicJitKernel},
+    kernel::{into_contiguous, GpuComputeShaderPhase},
     tensor::JitTensor,
     Runtime,
 };
@@ -32,7 +32,7 @@ struct MatmulTiling2dEagerKernel<R: Runtime> {
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime> DynamicJitKernel for MatmulTiling2dEagerKernel<R> {
+impl<R: Runtime> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
