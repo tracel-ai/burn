@@ -40,9 +40,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Gelu::<D>
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -77,9 +77,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Relu
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -115,9 +115,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Sigmoid
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -153,9 +153,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match LogSigmoid::<D>
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroLogSigmoid::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroLogSigmoid::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {

@@ -3,7 +3,7 @@ use std::{any::Any, collections::HashMap};
 use crate::graph::NodeID;
 
 /// In order to accept arbitrary node output in the same hashmap, we need to upcast them to any.
-pub(crate) type StateContent = Box<dyn Any + Send + Sync>;
+pub(crate) type StateContent = Box<dyn Any + Send>;
 
 #[derive(Debug)]
 /// The state contained at one node. Encapsulates the node output if precomputed,
@@ -71,7 +71,7 @@ impl BackwardStates {
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
     pub(crate) fn get_state<T>(&mut self, node_id: &NodeID) -> T
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
         // Fetch the state and decrement its number of required
         let state = self.map.remove(node_id).unwrap();
@@ -97,7 +97,7 @@ impl BackwardStates {
                 .unwrap()
                 .clone();
 
-            self.insert_state(node_id.clone(), new_stored_state);
+            self.insert_state(*node_id, new_stored_state);
 
             downcasted
         } else {
@@ -119,7 +119,7 @@ impl BackwardStates {
 
     pub(crate) fn save<T>(&mut self, node_id: NodeID, saved_output: T)
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
         let n_required = self.get_state_ref(&node_id).unwrap().n_required();
         self.insert_state(

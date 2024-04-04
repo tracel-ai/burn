@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::checkpoint::retro_forward::RetroForward;
+use crate::runtime::AutodiffClientImpl;
 
 use super::Requirement;
 
@@ -14,6 +15,15 @@ pub enum ComputingProperty {
     Ambiguous, // Maybe autotune someday
 }
 
+/// This is safe only because we only call RetroForward on the autodiff server.
+/// Therefore, the trait will never be used by multiple threads at the same time.
+///
+/// TODO: Find a way to avoid cloning the compute property, which will remove the need to add the
+/// Arc, which will make (dyn RetroForward) safely implement Send.
+unsafe impl Send for ComputingProperty {}
+/// unsafe Sync is required because Send is only implemented for Arc<Sync>, not Arc<Send>.
+unsafe impl Sync for ComputingProperty {}
+
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
@@ -22,6 +32,7 @@ pub struct Node {
     pub id: NodeID,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
+    pub client: AutodiffClientImpl,
 }
 pub type NodeRef = Arc<Node>;
 
@@ -36,7 +47,7 @@ impl Node {
 }
 
 /// Unique identifier generated for each node.
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy)]
 pub struct NodeID {
     /// The integer representation of the id
     pub value: u64,

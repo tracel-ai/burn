@@ -20,8 +20,10 @@ default = [
     "burn-tch?/default",
     "burn-tensor/default",
     "burn-wgpu?/default",
+    "burn-autodiff?/default",
 ]
 std = [
+    "burn-autodiff?/std",
     "bincode/std",
     "burn-candle?/std",
     "burn-common/std",

@@ -5,7 +5,7 @@ use super::PrecisionSettings;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Trait to define a family of types which can be recorded using any [settings](PrecisionSettings).
-pub trait Record<B: Backend>: Send + Sync {
+pub trait Record<B: Backend>: Send {
     /// Type of the item that can be serialized and deserialized.
     type Item<S: PrecisionSettings>: Serialize + DeserializeOwned;
 
