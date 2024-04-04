@@ -12,33 +12,37 @@ use std::time;
 use web_time as time;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk.
-memory_id_type!(ChunkId, ChunkHandle);
+memory_id_type!(ChunkId, ChunkTensorBufHandle, ChunkExecutionBufHandle);
 // The SliceId allows to keep track of how many references there are to a specific slice.
-memory_id_type!(SliceId, SliceHandle);
+memory_id_type!(SliceId, SliceTensorBufHandle, SliceExecutionBufHandle);
 
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice.
 #[derive(Debug, Clone)]
-pub enum SimpleHandle {
+pub enum SimpleTensorBufHandle {
     /// A whole chunk of memory.
-    Chunk(ChunkHandle),
+    Chunk(ChunkTensorBufHandle),
     /// A slice of a chunk of memory.
-    Slice(SliceHandle),
+    Slice(SliceTensorBufHandle),
 }
 
 /// TODO:
 #[derive(Debug, Clone)]
-pub enum SimpleId {
+pub enum SimpleExecutionBufferHandle {
     /// A whole chunk of memory.
-    Chunk(ChunkId),
+    Chunk(ChunkExecutionBufHandle),
     /// A slice of a chunk of memory.
-    Slice(SliceId),
+    Slice(SliceExecutionBufHandle),
 }
 
-impl MemoryExecutionBufferHandle<SimpleHandle> for SimpleId {
-    fn from_handle(handle: &SimpleHandle) -> Self {
+impl MemoryExecutionBufferHandle<SimpleTensorBufHandle> for SimpleExecutionBufferHandle {
+    fn enqueue(handle: &SimpleTensorBufHandle) -> Self {
         match handle {
-            SimpleHandle::Chunk(handle) => SimpleId::Chunk(handle.start_execution()),
-            SimpleHandle::Slice(handle) => SimpleId::Slice(handle.start_execution()),
+            SimpleTensorBufHandle::Chunk(handle) => {
+                SimpleExecutionBufferHandle::Chunk(handle.execution())
+            }
+            SimpleTensorBufHandle::Slice(handle) => {
+                SimpleExecutionBufferHandle::Slice(handle.execution())
+            }
         }
     }
 }
@@ -123,19 +127,19 @@ impl DeallocStrategy {
 #[derive(new)]
 struct Chunk {
     storage: StorageHandle,
-    handle: ChunkHandle,
+    handle: ChunkTensorBufHandle,
     slices: Vec<SliceId>,
 }
 
 #[derive(new)]
 struct Slice {
     storage: StorageHandle,
-    handle: SliceHandle,
+    handle: SliceTensorBufHandle,
     // It is important to keep the chunk handle inside the slice, since it increases the ref count
     // on the chunk id and make the `is_free` method returns false until the slice is freed.
     //
     // TL;DR we can't only store the chunk id.
-    chunk: ChunkHandle,
+    chunk: ChunkTensorBufHandle,
 }
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
@@ -160,45 +164,37 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl MemoryTensorBufferHandle for SimpleHandle {
+impl MemoryTensorBufferHandle for SimpleTensorBufHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
-        const REFERENCE_LIMIT: usize = 2;
-
         match &self {
-            SimpleHandle::Chunk(id) => id.can_mut(REFERENCE_LIMIT),
-            SimpleHandle::Slice(id) => id.can_mut(REFERENCE_LIMIT),
+            SimpleTensorBufHandle::Chunk(id) => id.can_mut(),
+            SimpleTensorBufHandle::Slice(id) => id.can_mut(),
         }
     }
 }
 
 impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
-    type TensorBufferHandle = SimpleHandle;
-    type ExecutionBufferHandle = SimpleId;
+    type TensorBufferHandle = SimpleTensorBufHandle;
+    type ExecutionBufferHandle = SimpleExecutionBufferHandle;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource {
-        let storage = match id {
-            SimpleId::Chunk(id) => {
-                let chunk = self
+    fn get(&mut self, handle: Self::ExecutionBufferHandle) -> Storage::Resource {
+        let storage = match handle {
+            SimpleExecutionBufferHandle::Chunk(chunk) => {
+                &self
                     .chunks
-                    .get(&id)
-                    .expect("Storage found for the given execution buffer handle");
-
-                chunk.handle.end_execution();
-
-                &chunk.storage
+                    .get(chunk.id())
+                    .expect("Storage found for the given execution buffer handle")
+                    .storage
             }
-            SimpleId::Slice(id) => {
-                let slice = self
+            SimpleExecutionBufferHandle::Slice(slice) => {
+                &self
                     .slices
-                    .get(&id)
-                    .expect("Storage found for the given execution buffer handle");
-
-                slice.handle.end_execution();
-
-                &slice.storage
+                    .get(slice.id())
+                    .expect("Storage found for the given execution buffer handle")
+                    .storage
             }
         };
 
@@ -225,14 +221,14 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, id: Self::ExecutionBufferHandle) {
-        match id {
-            SimpleId::Chunk(id) => {
-                if let Some(chunk) = self.chunks.remove(&id) {
+    fn dealloc(&mut self, handle: Self::ExecutionBufferHandle) {
+        match handle {
+            SimpleExecutionBufferHandle::Chunk(chunk) => {
+                if let Some(chunk) = self.chunks.remove(chunk.id()) {
                     self.storage.dealloc(chunk.storage.id);
                 }
             }
-            SimpleId::Slice(_) => panic!("Can't dealloc slice manually"),
+            SimpleExecutionBufferHandle::Slice(_) => panic!("Can't dealloc slice manually"),
         }
     }
 
@@ -257,7 +253,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         }
     }
 
-    fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
+    fn reserve_algorithm(&mut self, size: usize) -> SimpleTensorBufHandle {
         // Looks for a large enough, existing but unused chunk of memory.
         let chunk = self.find_free_chunk(size);
 
@@ -265,7 +261,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
                     // If there is one of exactly the same size, it reuses it.
-                    SimpleHandle::Chunk(chunk_id.clone())
+                    SimpleTensorBufHandle::Chunk(chunk_id.clone())
                 } else {
                     // Otherwise creates a slice of the right size upon it, always starting at zero.
                     self.create_slice(size, chunk_id)
@@ -278,7 +274,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
-    fn find_free_chunk(&self, size: usize) -> Option<(ChunkHandle, usize)> {
+    fn find_free_chunk(&self, size: usize) -> Option<(ChunkTensorBufHandle, usize)> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
@@ -314,9 +310,9 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     /// Creates a slice of size `size` upon the given chunk.
     ///
     /// For now slices must start at zero, therefore there can be only one per chunk
-    fn create_slice(&mut self, size: usize, handle: ChunkHandle) -> SimpleHandle {
-        let chunk = self.chunks.get_mut(&handle.id()).unwrap();
-        let slice_handle = SliceHandle::new();
+    fn create_slice(&mut self, size: usize, handle: ChunkTensorBufHandle) -> SimpleTensorBufHandle {
+        let chunk = self.chunks.get_mut(handle.id()).unwrap();
+        let slice_handle = SliceTensorBufHandle::new();
 
         let storage = StorageHandle {
             id: chunk.storage.id.clone(),
@@ -325,27 +321,29 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         if chunk.slices.is_empty() {
             self.slices.insert(
-                slice_handle.id(),
+                *slice_handle.id(),
                 Slice::new(storage, slice_handle.clone(), handle.clone()),
             );
         } else {
             panic!("Can't have more than 1 slice yet.");
         }
 
-        chunk.slices.push(slice_handle.id());
+        chunk.slices.push(*slice_handle.id());
 
-        SimpleHandle::Slice(slice_handle)
+        SimpleTensorBufHandle::Slice(slice_handle)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
-    fn create_chunk(&mut self, size: usize) -> SimpleHandle {
+    fn create_chunk(&mut self, size: usize) -> SimpleTensorBufHandle {
         let storage = self.storage.alloc(size);
-        let handle = ChunkHandle::new();
+        let handle = ChunkTensorBufHandle::new();
 
-        self.chunks
-            .insert(handle.id(), Chunk::new(storage, handle.clone(), Vec::new()));
+        self.chunks.insert(
+            *handle.id(),
+            Chunk::new(storage, handle.clone(), Vec::new()),
+        );
 
-        SimpleHandle::Chunk(handle)
+        SimpleTensorBufHandle::Chunk(handle)
     }
 
     /// Deallocates free chunks and remove them from chunks map.
@@ -353,7 +351,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut ids_to_remove = Vec::new();
 
         self.chunks.iter().for_each(|(chunk_id, chunk)| {
-            if chunk.handle.is_free() {
+            if chunk.handle.can_be_dealloc() {
                 ids_to_remove.push(chunk_id.clone());
             }
         });
@@ -380,8 +378,8 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             .iter()
             .map(|slice_id| self.slices.remove(slice_id).unwrap())
             .for_each(|slice| {
-                let chunk = self.chunks.get_mut(&slice.chunk.id()).unwrap();
-                chunk.slices.retain(|id| id != &slice.handle.id());
+                let chunk = self.chunks.get_mut(slice.chunk.id()).unwrap();
+                chunk.slices.retain(|id| id != slice.handle.id());
             });
     }
 }

@@ -1,5 +1,3 @@
-use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-
 use alloc::sync::Arc;
 
 #[macro_export(local_inner_macros)]
@@ -36,93 +34,128 @@ macro_rules! storage_id_type {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MemoryHandle {
-    pub(crate) id: u64,
-    execution_count: Arc<AtomicU32>,
+pub struct TensorBuffer<Id> {
+    id: Arc<Id>,
+    execution: Arc<()>,
 }
 
-impl MemoryHandle {
-    pub(crate) fn new(id: u64) -> Self {
+#[derive(Clone, Debug)]
+pub struct ExecutionBuffer<Id> {
+    id: Id,
+    _execution: Arc<()>,
+}
+
+impl<Id> ExecutionBuffer<Id>
+where
+    Id: Clone + core::fmt::Debug,
+{
+    pub fn id(&self) -> &Id {
+        &self.id
+    }
+}
+
+impl<Id> TensorBuffer<Id>
+where
+    Id: Clone + core::fmt::Debug,
+{
+    pub(crate) fn new(id: Id) -> Self {
         Self {
-            id,
-            execution_count: Arc::new(0.into()),
+            id: Arc::new(id),
+            execution: Arc::new(()),
         }
     }
 
-    pub(crate) fn start_execution(&self) -> u64 {
-        AtomicU32::fetch_add(&self.execution_count, 1, Ordering::Relaxed);
-        self.id
+    pub(crate) fn id(&self) -> &Id {
+        &self.id
     }
 
-    pub(crate) fn end_execution(&self) {
-        AtomicU32::fetch_sub(&self.execution_count, 1, Ordering::Relaxed);
+    pub(crate) fn execution(&self) -> ExecutionBuffer<Id> {
+        ExecutionBuffer {
+            id: self.id.as_ref().clone(),
+            _execution: self.execution.clone(),
+        }
     }
 
-    pub(crate) fn can_mut(&self, limit_ref: usize) -> bool {
-        Arc::strong_count(&self.execution_count) <= limit_ref
+    pub(crate) fn can_mut(&self) -> bool {
+        // 1 memory management reference with 1 tensor reference.
+        Arc::strong_count(&self.id) <= 2
     }
 
     pub(crate) fn is_free(&self) -> bool {
-        let count = AtomicU32::load(&self.execution_count, Ordering::Relaxed);
-        Arc::strong_count(&self.execution_count) <= 1 && count == 0
+        // 1 memory management reference with 0 tensor reference.
+        Arc::strong_count(&self.id) <= 1
+    }
+
+    pub(crate) fn can_be_dealloc(&self) -> bool {
+        // Only memory management reference
+        let no_execution_queued = Arc::strong_count(&self.execution) <= 1;
+        let no_tensor_holded = Arc::strong_count(&self.id) <= 1;
+
+        no_tensor_holded && no_execution_queued
     }
 }
 
 #[macro_export(local_inner_macros)]
 /// Create a new memory ID type.
 macro_rules! memory_id_type {
-    ($id:ident, $handle:ident) => {
+    ($id:ident, $handle_buf_tensor:ident, $handle_buf_execution:ident) => {
+        /// Tensor buffer handle.
         #[derive(Clone, Debug)]
-        /// Memory handle.
-        pub struct $handle {
-            id: $crate::id::MemoryHandle,
+        pub struct $handle_buf_tensor {
+            value: $crate::id::TensorBuffer<$id>,
         }
 
-        #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+        /// Execution buffer handle.
+        #[derive(Clone, Debug)]
+        pub struct $handle_buf_execution {
+            value: $crate::id::ExecutionBuffer<$id>,
+        }
+
         /// Memory ID.
+        #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
         pub struct $id {
             value: u64,
         }
 
-        impl $handle {
+        impl $handle_buf_tensor {
             /// Create a new ID.
             pub(crate) fn new() -> Self {
                 static COUNTER: core::sync::atomic::AtomicU64 =
                     core::sync::atomic::AtomicU64::new(0);
 
-                let id = COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                if id == u64::MAX {
+                let value = COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                if value == u64::MAX {
                     core::panic!("Memory ID overflowed");
                 }
                 Self {
-                    id: $crate::id::MemoryHandle::new(id),
-                }
-            }
-            /// Get the ID from the handle.
-            pub fn id(&self) -> $id {
-                $id {
-                    value: self.id.id.clone(),
+                    value: $crate::id::TensorBuffer::new($id { value }),
                 }
             }
 
-            pub(crate) fn start_execution(&self) -> $id {
-                $id { value: self.id.start_execution() }
-            }
-
-            pub(crate) fn end_execution(&self) {
-                self.id.end_execution()
-            }
-
-            pub(crate) fn can_mut(&self, limit_ref: usize) -> bool {
-                self.id.can_mut(limit_ref)
-            }
-
-            pub(crate) fn is_free(&self) -> bool {
-                self.id.is_free()
+            pub(crate) fn execution(&self) -> $handle_buf_execution {
+                $handle_buf_execution {
+                    value: self.value.execution(),
+                }
             }
         }
 
-        impl Default for $handle {
+        impl core::ops::Deref for $handle_buf_tensor {
+            type Target = $crate::id::TensorBuffer<$id>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.value
+            }
+        }
+
+        impl core::ops::Deref for $handle_buf_execution {
+            type Target = $crate::id::ExecutionBuffer<$id>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.value
+            }
+        }
+
+        impl Default for $handle_buf_tensor {
             fn default() -> Self {
                 Self::new()
             }

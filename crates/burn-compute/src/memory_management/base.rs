@@ -13,7 +13,7 @@ pub trait MemoryTensorBufferHandle: Clone + Send + Sync + core::fmt::Debug {
 /// TODO:
 pub trait MemoryExecutionBufferHandle<Handle>: Clone + Send + Sync + core::fmt::Debug {
     /// Fetch the id from the memory id.
-    fn from_handle(handle: &Handle) -> Self;
+    fn enqueue(handle: &Handle) -> Self;
 }
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.

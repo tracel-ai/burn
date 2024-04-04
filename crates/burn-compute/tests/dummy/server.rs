@@ -36,7 +36,7 @@ where
         let handle = self.memory_management.reserve(data.len());
         let resource = self
             .memory_management
-            .get(MemoryExecutionBufferHandle::from_handle(&handle));
+            .get(MemoryExecutionBufferHandle::enqueue(&handle));
 
         let bytes = resource.write();
 

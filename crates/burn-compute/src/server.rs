@@ -70,7 +70,7 @@ impl<Server: ComputeServer> TensorBufferHandle<Server> {
     /// Server handle id.
     pub fn execution(&self) -> ExecutionBufferHandle<Server> {
         ExecutionBufferHandle {
-            memory: MemoryExecutionBufferHandle::from_handle(&self.memory),
+            memory: MemoryExecutionBufferHandle::enqueue(&self.memory),
         }
     }
 }
