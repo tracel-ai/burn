@@ -43,7 +43,7 @@ where
     Server: ComputeServer,
 {
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.server.borrow_mut().read(handle)
+        self.server.borrow_mut().read(handle.id())
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {
@@ -55,9 +55,10 @@ where
     }
 
     fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server
-            .borrow_mut()
-            .execute(kernel_description, handles)
+        self.server.borrow_mut().execute(
+            kernel_description,
+            handles.iter().map(|handle| handle.id()).collect(),
+        )
     }
 
     fn sync(&self) {

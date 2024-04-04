@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use crate::{
-    memory_management::{MemoryHandle, MemoryManagement},
+    memory_management::{MemoryHandle, MemoryId, MemoryManagement},
     storage::ComputeStorage,
     tune::AutotuneKey,
 };
@@ -26,7 +26,7 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, id: HandleId<Self>) -> Reader<Vec<u8>>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
     fn create(&mut self, data: &[u8]) -> Handle<Self>;
@@ -38,7 +38,7 @@ where
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
+    fn execute(&mut self, kernel: Self::Kernel, ids: Vec<HandleId<Self>>);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
@@ -51,10 +51,25 @@ pub struct Handle<Server: ComputeServer> {
     pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
 }
 
+/// Server handle containing the [memory handle](MemoryManagement::Handle).
+#[derive(new)]
+pub struct HandleId<Server: ComputeServer> {
+    /// Handle for the memory in use.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Id,
+}
+
 impl<Server: ComputeServer> Handle<Server> {
     /// If the tensor handle can be mut with an inplace operation.
     pub fn can_mut(&self) -> bool {
         self.memory.can_mut()
+    }
+}
+
+impl<Server: ComputeServer> Handle<Server> {
+    pub fn id(&self) -> HandleId<Server> {
+        HandleId {
+            memory: MemoryId::from_handle(&self.memory),
+        }
     }
 }
 

@@ -52,7 +52,7 @@ where
             while let Ok(message) = receiver.recv() {
                 match message {
                     Message::Read(handle, callback) => {
-                        let data = server.read(&handle);
+                        let data = server.read(handle.id());
                         core::mem::drop(handle);
                         callback.send(data).unwrap();
                     }
@@ -65,7 +65,7 @@ where
                         callback.send(handle).unwrap();
                     }
                     Message::ExecuteKernel(kernel, handles) => {
-                        server.execute(kernel, &handles.iter().collect::<Vec<_>>());
+                        server.execute(kernel, handles.iter().map(Handle::id).collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
                         server.sync();

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryManagement, SimpleMemoryManagement},
-    server::{ComputeServer, Handle},
+    memory_management::{MemoryId, MemoryManagement, SimpleMemoryManagement},
+    server::{ComputeServer, Handle, HandleId},
     storage::BytesStorage,
 };
 use derive_new::new;
@@ -26,15 +26,15 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = String;
 
-    fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>> {
-        let bytes = self.memory_management.get(&handle.memory);
+    fn read(&mut self, handle: HandleId<Self>) -> Reader<Vec<u8>> {
+        let bytes = self.memory_management.get(handle.memory);
 
         Reader::Concrete(bytes.read().to_vec())
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {
         let handle = self.memory_management.reserve(data.len());
-        let resource = self.memory_management.get(&handle);
+        let resource = self.memory_management.get(MemoryId::from_handle(&handle));
 
         let bytes = resource.write();
 
@@ -49,10 +49,10 @@ where
         Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]) {
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<HandleId<Self>>) {
         let mut resources = handles
-            .iter()
-            .map(|handle| self.memory_management.get(&handle.memory))
+            .into_iter()
+            .map(|handle| self.memory_management.get(handle.memory))
             .collect::<Vec<_>>();
 
         kernel.compute(&mut resources);

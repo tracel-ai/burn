@@ -36,7 +36,7 @@ where
     Server: ComputeServer,
 {
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.server.lock().read(handle)
+        self.server.lock().read(handle.id())
     }
 
     fn create(&self, data: &[u8]) -> Handle<Server> {
@@ -48,7 +48,10 @@ where
     }
 
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server.lock().execute(kernel, handles)
+        self.server.lock().execute(
+            kernel,
+            handles.iter().map(|handle| handle.id()).collect::<Vec<_>>(),
+        )
     }
 
     fn sync(&self) {

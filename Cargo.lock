@@ -3503,6 +3503,7 @@ name = "pytorch-tests"
 version = "0.13.0"
 dependencies = [
  "burn",
+ "burn-autodiff",
  "burn-import",
  "burn-ndarray",
  "float-cmp",
