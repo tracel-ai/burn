@@ -133,7 +133,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     ///
     /// # Warning
     ///
-    /// This should be called only onced per tensor.
+    /// This should be called only once per tensor.
     pub fn register_step<S: Step + 'static>(
         self,
         step_that_created_the_tensor: S,

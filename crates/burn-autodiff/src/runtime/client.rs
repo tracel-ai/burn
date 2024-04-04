@@ -10,7 +10,7 @@ use burn_tensor::backend::Backend;
 pub trait AutodiffClient: Send + Clone {
     /// Register a new step.
     fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
-    /// Call back propagation from the given tensor.
+    /// Call backpropagation from the given tensor.
     fn backward<B: Backend, const D: usize>(&self, tensor: AutodiffTensor<B, D>) -> Gradients;
 }
 
