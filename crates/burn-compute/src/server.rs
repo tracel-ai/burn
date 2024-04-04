@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use crate::{
-    memory_management::{MemoryExecutionBufferHandle, MemoryManagement, MemoryTensorBufferHandle},
+    memory_management::{MemoryManagement, MemoryTensorBufferHandle},
     storage::ComputeStorage,
     tune::AutotuneKey,
 };
@@ -70,7 +70,7 @@ impl<Server: ComputeServer> TensorBufferHandle<Server> {
     /// Server handle id.
     pub fn execution(&self) -> ExecutionBufferHandle<Server> {
         ExecutionBufferHandle {
-            memory: MemoryExecutionBufferHandle::enqueue(&self.memory),
+            memory: self.memory.enqueue(),
         }
     }
 }

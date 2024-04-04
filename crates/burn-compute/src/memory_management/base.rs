@@ -5,15 +5,13 @@ use crate::storage::ComputeStorage;
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryTensorBufferHandle: Clone + Send + Sync + core::fmt::Debug {
+pub trait MemoryTensorBufferHandle<ExecutionHandle>:
+    Clone + Send + Sync + core::fmt::Debug
+{
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
-}
-
-/// TODO:
-pub trait MemoryExecutionBufferHandle<Handle>: Clone + Send + Sync + core::fmt::Debug {
-    /// Fetch the id from the memory id.
-    fn enqueue(handle: &Handle) -> Self;
+    /// Enqueue the handle for computation.
+    fn enqueue(&self) -> ExecutionHandle;
 }
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
@@ -23,9 +21,9 @@ pub trait MemoryExecutionBufferHandle<Handle>: Clone + Send + Sync + core::fmt::
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// The associated type Handle must implement MemoryHandle
-    type TensorBufferHandle: MemoryTensorBufferHandle;
+    type TensorBufferHandle: MemoryTensorBufferHandle<Self::ExecutionBufferHandle>;
     /// Handle id.
-    type ExecutionBufferHandle: MemoryExecutionBufferHandle<Self::TensorBufferHandle>;
+    type ExecutionBufferHandle: Clone + Send + Sync + core::fmt::Debug;
 
     /// Returns the resource from the storage at the specified handle
     fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource;

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryExecutionBufferHandle, MemoryManagement, SimpleMemoryManagement},
+    memory_management::{MemoryManagement, MemoryTensorBufferHandle, SimpleMemoryManagement},
     server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle},
     storage::BytesStorage,
 };
@@ -34,9 +34,7 @@ where
 
     fn create(&mut self, data: &[u8]) -> TensorBufferHandle<Self> {
         let handle = self.memory_management.reserve(data.len());
-        let resource = self
-            .memory_management
-            .get(MemoryExecutionBufferHandle::enqueue(&handle));
+        let resource = self.memory_management.get(handle.enqueue());
 
         let bytes = resource.write();
 
