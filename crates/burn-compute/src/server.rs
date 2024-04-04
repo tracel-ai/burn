@@ -66,6 +66,7 @@ impl<Server: ComputeServer> Handle<Server> {
 }
 
 impl<Server: ComputeServer> Handle<Server> {
+    /// Server handle id.
     pub fn id(&self) -> HandleId<Server> {
         HandleId {
             memory: MemoryId::from_handle(&self.memory),

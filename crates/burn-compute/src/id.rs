@@ -2,6 +2,7 @@
 /// Create a new storage ID type.
 macro_rules! storage_id_type {
     ($name:ident) => {
+        /// Storage ID.
         #[derive(Clone, Hash, PartialEq, Eq)]
         pub struct $name {
             value: u64,

@@ -168,11 +168,11 @@ where
         )
     }
 
-    fn buffer_reader(&mut self, handle: &server::Handle<Self>) -> BufferReader {
+    fn buffer_reader(&mut self, handle: server::HandleId<Self>) -> BufferReader {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
-        let resource = self.memory_management.get(&handle.memory);
+        let resource = self.memory_management.get(handle.memory);
 
         let size = resource.size();
         let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -247,7 +247,7 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, handle: server::HandleId<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]
         {
             let future = self.buffer_reader(handle).read(self.device.clone());
@@ -272,7 +272,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(&handle.memory);
+        let resource = self.memory_management.get(handle.id().memory);
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
@@ -289,14 +289,14 @@ where
         server::Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<server::HandleId<Self>>) {
         let work_group = kernel.workgroup();
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let handles = handles
-            .iter()
-            .map(|handle| self.memory_management.get(&handle.memory))
+            .into_iter()
+            .map(|handle| self.memory_management.get(handle.memory))
             .collect::<Vec<_>>();
 
         let entries = handles
