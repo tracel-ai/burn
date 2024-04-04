@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
 use crate::metric::{Metric, Numeric};
@@ -8,7 +10,7 @@ pub struct HammingScore<B: Backend> {
     state: NumericMetricState,
     threshold: f32,
     sigmoid: bool,
-    _b: B,
+    _b: PhantomData<B>,
 }
 
 /// The [hamming score](HammingScore) input type.
@@ -44,7 +46,7 @@ impl<B: Backend> Default for HammingScore<B> {
             state: NumericMetricState::default(),
             threshold: 0.5,
             sigmoid: false,
-            _b: B::default(),
+            _b: PhantomData,
         }
     }
 }
