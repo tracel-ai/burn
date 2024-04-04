@@ -3,7 +3,7 @@ use crate::{
     memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 #[cfg(all(not(target_family = "wasm"), feature = "std"))]
@@ -15,20 +15,6 @@ use web_time as time;
 memory_id_type!(ChunkId, ChunkHandle);
 // The SliceId allows to keep track of how many references there are to a specific slice.
 memory_id_type!(SliceId, SliceHandle);
-
-impl ChunkHandle {
-    /// A chunk is free if it is only referred by the chunk hashmap.
-    fn is_free(&self) -> bool {
-        Arc::strong_count(&self.id) <= 1
-    }
-}
-
-impl SliceHandle {
-    /// A slice is free if it is only referred by the slice hashmap and the chunk it is in.
-    fn is_free(&self) -> bool {
-        Arc::strong_count(&self.id) <= 1
-    }
-}
 
 /// The SimpleHandle is a memory handle, referring to either a chunk or a slice.
 #[derive(Debug, Clone)]
@@ -51,8 +37,8 @@ pub enum SimpleId {
 impl MemoryExecutionBufferHandle<SimpleHandle> for SimpleId {
     fn from_handle(handle: &SimpleHandle) -> Self {
         match handle {
-            SimpleHandle::Chunk(handle) => SimpleId::Chunk(handle.id()),
-            SimpleHandle::Slice(handle) => SimpleId::Slice(handle.id()),
+            SimpleHandle::Chunk(handle) => SimpleId::Chunk(handle.start_execution()),
+            SimpleHandle::Slice(handle) => SimpleId::Slice(handle.start_execution()),
         }
     }
 }
@@ -181,8 +167,8 @@ impl MemoryTensorBufferHandle for SimpleHandle {
         const REFERENCE_LIMIT: usize = 2;
 
         match &self {
-            SimpleHandle::Chunk(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT,
-            SimpleHandle::Slice(id) => Arc::strong_count(&id.id) <= REFERENCE_LIMIT,
+            SimpleHandle::Chunk(id) => id.can_mut(REFERENCE_LIMIT),
+            SimpleHandle::Slice(id) => id.can_mut(REFERENCE_LIMIT),
         }
     }
 }
@@ -195,18 +181,24 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource {
         let storage = match id {
             SimpleId::Chunk(id) => {
-                &self
+                let chunk = self
                     .chunks
                     .get(&id)
-                    .expect("Storage found for the given execution buffer handle")
-                    .storage
+                    .expect("Storage found for the given execution buffer handle");
+
+                chunk.handle.end_execution();
+
+                &chunk.storage
             }
             SimpleId::Slice(id) => {
-                &self
+                let slice = self
                     .slices
                     .get(&id)
-                    .expect("Storage found for the given execution buffer handle")
-                    .storage
+                    .expect("Storage found for the given execution buffer handle");
+
+                slice.handle.end_execution();
+
+                &slice.storage
             }
         };
 
