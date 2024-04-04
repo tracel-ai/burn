@@ -17,9 +17,9 @@ pub trait KernelSource: Send + 'static + Sync {
 /// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
 /// provided id.
 ///
-/// The kernel will be launched with the given [shader information](ShaderInformation)
+/// The kernel will be launched with the given [launch settings](LaunchSettings)
 pub trait TemplateKernel: 'static + Send + Sync {
-    /// Convert to [source](SourceTemplate)
+    /// Convert to source
     fn compile(&self) -> CompiledKernel;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
@@ -28,7 +28,7 @@ pub trait TemplateKernel: 'static + Send + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](SourceableKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [template kernel](TemplateKernel) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,

@@ -55,7 +55,7 @@ pub struct CompiledKernel {
     pub workgroup_size: WorkgroupSize,
 }
 
-/// Informations needed to launch the kernel
+/// Information needed to launch the kernel
 pub struct LaunchSettings {
     /// Layout of workgroups for the kernel
     pub workgroup: WorkGroup,
@@ -64,7 +64,7 @@ pub struct LaunchSettings {
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
 /// provided id.
 ///
-/// The kernel will be launched with the given [shader information](ShaderInformation).
+/// The kernel will be launched with the given [launch settings](LaunchSettings).
 pub trait JitKernel: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
