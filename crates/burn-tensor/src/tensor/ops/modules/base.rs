@@ -2,7 +2,7 @@ use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
-    Shape,
+    ElementConversion, Shape,
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -488,4 +488,47 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B, 4>;
+
+    /// One dimensional Fast Fourier Transform (FFT).
+    ///
+    /// # Shapes
+    ///
+    /// x: `[batch_size, length, complex]`, where `complex` is exactly 2.
+    ///
+    /// # Returns
+    ///
+    /// X: `[batch_size, length, complex]`, where `complex` is exactly 2.
+    fn fft(x: FloatTensor<B, 3>) -> FloatTensor<B, 3>;
+
+    /// One dimensional inverse Fast Fourier Transform (FFT).
+    ///
+    /// # Shapes
+    ///
+    /// x: `[batch_size, length, complex]`, where `complex` is exactly 2.
+    ///
+    /// # Returns
+    ///
+    /// X: `[batch_size, length, complex]`, where `complex` is exactly 2.
+    fn ifft(x: FloatTensor<B, 3>) -> FloatTensor<B, 3> {
+        let [b, s, _] = B::float_shape(&x).dims;
+
+        // Conjugate input
+        let x = B::float_slice_assign(
+            x.clone(),
+            [0..b, 0..s, 1..2],
+            B::float_neg(B::float_slice(x, [0..b, 0..s, 1..2])),
+        );
+
+        // Use forwards 1D FFT of this backend to calculate inverse.
+        let x = B::fft(x);
+
+        // Conjugate output
+        let x = B::float_slice_assign(
+            x.clone(),
+            [0..b, 0..s, 1..2],
+            B::float_neg(B::float_slice(x, [0..b, 0..s, 1..2])),
+        );
+
+        B::float_div_scalar(x, (s as f32).elem::<B::FloatElem>())
+    }
 }

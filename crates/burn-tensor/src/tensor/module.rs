@@ -231,3 +231,19 @@ where
 {
     Tensor::new(B::interpolate(x.primitive, output_size, options))
 }
+
+/// Applies a [1D fast fourier transform (FFT)](crate::ops::ModuleOps::fft).
+pub fn fft<B>(x: Tensor<B, 3>) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::fft(x.primitive))
+}
+
+/// Applies an [inverse 1D fast fourier transform (FFT)](crate::ops::ModuleOps::ifft).
+pub fn ifft<B>(x: Tensor<B, 3>) -> Tensor<B, 3>
+where
+    B: Backend,
+{
+    Tensor::new(B::ifft(x.primitive))
+}

@@ -1030,6 +1030,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
         panic!("Can't differentiate interpolate backward.");
     }
+
+    fn fft(_x: AutodiffTensor<B, 3>) -> AutodiffTensor<B, 3> {
+        // Imaginary gradients = not practical. People use FFT for feature
+        //  extraction.
+        panic!("Can't differentiate FFT.");
+    }
 }
 
 #[derive(Debug)]

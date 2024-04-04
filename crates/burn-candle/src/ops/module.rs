@@ -266,4 +266,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     ) -> FloatTensor<Self, 4> {
         panic!("interpolate_backward is not supported by Candle")
     }
+
+    fn fft(x: FloatTensor<Self, 3>) -> FloatTensor<Self, 3> {
+        panic!("fft is not supported by Candle")
+    }
 }
