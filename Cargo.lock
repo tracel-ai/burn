@@ -207,6 +207,7 @@ dependencies = [
  "github-device-flow",
  "indicatif",
  "os_info",
+ "percent-encoding",
  "rand",
  "reqwest",
  "rstest",
