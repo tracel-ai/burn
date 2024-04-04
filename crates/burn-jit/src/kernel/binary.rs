@@ -1,5 +1,5 @@
 use crate::{
-    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
+    codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
@@ -24,7 +24,7 @@ macro_rules! binary {
             $runtime,
             $elem,
             D
-        >($lhs, $rhs, true)
+        >($lhs, $rhs, true, Ops::new(), OpsInplaceLhs::new(), OpsInplaceRhs::new())
     }};
 
     (
@@ -33,16 +33,19 @@ macro_rules! binary {
         elem_in: $elem_in:ty,
         elem_out: $elem_out:ty
     ) => {
+        #[derive(new)]
         pub struct Ops<C, I, O> {
             _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
         }
+        #[derive(new)]
         pub struct OpsInplaceLhs<C, I, O> {
             _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
         }
+        #[derive(new)]
         pub struct OpsInplaceRhs<C, I, O> {
             _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
@@ -84,27 +87,27 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticJitKernel for Ops<C, I, O>
+        impl<C, I, O> $crate::kernel::DynamicJitKernel for Ops<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile() -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<I, O>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticJitKernel
+        impl<C, I, O> $crate::kernel::DynamicJitKernel
             for OpsInplaceLhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile() -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -116,14 +119,14 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticJitKernel
+        impl<C, I, O> $crate::kernel::DynamicJitKernel
             for OpsInplaceRhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile() -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
@@ -141,37 +144,32 @@ pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     inplace_enabled: bool,
+    kernel: Kernel,
+    kernel_inplace_lhs: KernelInplaceLhs,
+    kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: crate::kernel::StaticJitKernel,
-    KernelInplaceLhs: crate::kernel::StaticJitKernel,
-    KernelInplaceRhs: crate::kernel::StaticJitKernel,
+    Kernel: crate::kernel::DynamicJitKernel,
+    KernelInplaceLhs: crate::kernel::DynamicJitKernel,
+    KernelInplaceRhs: crate::kernel::DynamicJitKernel,
     E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<R, KernelInplaceLhs, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+        Execution::start(kernel_inplace_lhs, rhs.client)
+            .inputs(&[
+                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[],
-            None,
-            WorkgroupLaunch::Input { pos: 0 },
-            rhs.client,
-        );
+            ])
+            .execute(WorkgroupLaunch::Input { pos: 0 });
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<R, KernelInplaceRhs, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+        Execution::start(kernel_inplace_rhs, lhs.client)
+            .inputs(&[
+                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[],
-            None,
-            WorkgroupLaunch::Input { pos: 1 },
-            lhs.client,
-        );
+            ])
+            .execute(WorkgroupLaunch::Input { pos: 1 });
 
         rhs
     } else {
@@ -190,16 +188,13 @@ where
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
         let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        execute_static::<R, Kernel, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+        Execution::start(kernel, lhs.client)
+            .inputs(&[
+                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
-            None,
-            WorkgroupLaunch::Output { pos: 0 },
-            lhs.client,
-        );
+            ])
+            .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
+            .execute(WorkgroupLaunch::Output { pos: 0 });
 
         out
     }

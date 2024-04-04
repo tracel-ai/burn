@@ -1,7 +1,7 @@
-use crate::compute::{DynamicJitGpuKernel, Kernel, StaticJitGpuKernel, WorkGroup};
+use crate::compute::{DynamicJitGpuKernel, Kernel, WorkGroup};
 use crate::element::JitElement;
 use crate::gpu::Elem;
-use crate::kernel::{elemwise_workgroup, DynamicJitKernel, StaticJitKernel, WORKGROUP_DEFAULT};
+use crate::kernel::{elemwise_workgroup, DynamicJitKernel, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
@@ -18,35 +18,6 @@ pub enum WorkgroupLaunch {
     Input { pos: usize },
     Output { pos: usize },
     Custom(WorkGroup),
-}
-
-/// Execute a static kernel.
-pub fn execute_static<R, K, E>(
-    inputs: &[EagerHandle<R>],
-    outputs: &[EagerHandle<R>],
-    scalar_elems: Option<&[E]>,
-    launch: WorkgroupLaunch,
-    client: ComputeClient<R::Server, R::Channel>,
-) where
-    K: StaticJitKernel + 'static,
-    R: Runtime,
-    E: JitElement,
-{
-    let settings =
-        execute_settings::<R, E, E, E>(inputs, outputs, scalar_elems, None, None, launch, &client);
-    let mut handles = settings.handles_tensors;
-    let workgroup = settings.workgroup;
-
-    handles.push(&settings.handle_info);
-    for handle in settings.handles_scalars.iter() {
-        handles.push(handle);
-    }
-
-    let kernel = Kernel::JitGpu(Box::new(StaticJitGpuKernel::<R::Compiler, K>::new(
-        workgroup,
-    )));
-
-    client.execute(kernel, &handles);
 }
 
 pub struct Execution<'h, K, R: Runtime, Scalars> {

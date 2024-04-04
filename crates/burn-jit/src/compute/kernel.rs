@@ -2,11 +2,7 @@ use std::marker::PhantomData;
 
 #[cfg(feature = "template")]
 use crate::template::TemplateKernel;
-use crate::{
-    gpu::WorkgroupSize,
-    kernel::{DynamicJitKernel, StaticJitKernel},
-    Compiler,
-};
+use crate::{gpu::WorkgroupSize, kernel::DynamicJitKernel, Compiler};
 use alloc::sync::Arc;
 
 /// Kernel for JIT backends
@@ -86,14 +82,6 @@ pub struct DynamicJitGpuKernel<C: Compiler, K: DynamicJitKernel> {
     _compiler: PhantomData<C>,
 }
 
-/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
-#[derive(new)]
-pub struct StaticJitGpuKernel<C: Compiler, K: StaticJitKernel> {
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-    _compiler: PhantomData<C>,
-}
-
 impl<C: Compiler, K: DynamicJitKernel> JitGpuKernel for DynamicJitGpuKernel<C, K> {
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel.compile();
@@ -110,31 +98,6 @@ impl<C: Compiler, K: DynamicJitKernel> JitGpuKernel for DynamicJitGpuKernel<C, K
 
     fn id(&self) -> String {
         self.kernel.id().clone()
-    }
-
-    fn launch_settings(&self) -> LaunchSettings {
-        LaunchSettings {
-            workgroup: self.workgroup.clone(),
-        }
-    }
-}
-
-impl<C: Compiler, K: StaticJitKernel> JitGpuKernel for StaticJitGpuKernel<C, K> {
-    fn compile(&self) -> CompiledKernel {
-        let gpu_ir = K::compile();
-        let workgroup_size = gpu_ir.workgroup_size;
-
-        let lower_level_ir = C::compile(gpu_ir);
-        let source = lower_level_ir.to_string();
-
-        CompiledKernel {
-            source,
-            workgroup_size,
-        }
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
     }
 
     fn launch_settings(&self) -> LaunchSettings {
