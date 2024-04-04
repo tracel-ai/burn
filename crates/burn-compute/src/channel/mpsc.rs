@@ -6,7 +6,7 @@ use std::{
 use burn_common::reader::Reader;
 
 use super::ComputeChannel;
-use crate::server::{ComputeServer, Handle};
+use crate::server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -33,10 +33,10 @@ enum Message<Server>
 where
     Server: ComputeServer,
 {
-    Read(Handle<Server>, Callback<Reader<Vec<u8>>>),
-    Create(Vec<u8>, Callback<Handle<Server>>),
-    Empty(usize, Callback<Handle<Server>>),
-    ExecuteKernel(Server::Kernel, Vec<Handle<Server>>),
+    Read(ExecutionBufferHandle<Server>, Callback<Reader<Vec<u8>>>),
+    Create(Vec<u8>, Callback<TensorBufferHandle<Server>>),
+    Empty(usize, Callback<TensorBufferHandle<Server>>),
+    ExecuteKernel(Server::Kernel, Vec<ExecutionBufferHandle<Server>>),
     Sync(Callback<()>),
 }
 
@@ -52,8 +52,7 @@ where
             while let Ok(message) = receiver.recv() {
                 match message {
                     Message::Read(handle, callback) => {
-                        let data = server.read(handle.id());
-                        core::mem::drop(handle);
+                        let data = server.read(handle);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
@@ -65,7 +64,7 @@ where
                         callback.send(handle).unwrap();
                     }
                     Message::ExecuteKernel(kernel, handles) => {
-                        server.execute(kernel, handles.iter().map(Handle::id).collect::<Vec<_>>());
+                        server.execute(kernel, handles);
                     }
                     Message::Sync(callback) => {
                         server.sync();
@@ -93,18 +92,18 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, handle: ExecutionBufferHandle<Server>) -> Reader<Vec<u8>> {
         let (callback, response) = mpsc::channel();
 
         self.state
             .sender
-            .send(Message::Read(handle.clone(), callback))
+            .send(Message::Read(handle, callback))
             .unwrap();
 
         self.response(response)
     }
 
-    fn create(&self, data: &[u8]) -> Handle<Server> {
+    fn create(&self, data: &[u8]) -> TensorBufferHandle<Server> {
         let (callback, response) = mpsc::channel();
 
         self.state
@@ -115,7 +114,7 @@ where
         self.response(response)
     }
 
-    fn empty(&self, size: usize) -> Handle<Server> {
+    fn empty(&self, size: usize) -> TensorBufferHandle<Server> {
         let (callback, response) = mpsc::channel();
 
         self.state
@@ -126,16 +125,10 @@ where
         self.response(response)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+    fn execute(&self, kernel: Server::Kernel, handles: Vec<ExecutionBufferHandle<Server>>) {
         self.state
             .sender
-            .send(Message::ExecuteKernel(
-                kernel,
-                handles
-                    .iter()
-                    .map(|h| (*h).clone())
-                    .collect::<Vec<Handle<Server>>>(),
-            ))
+            .send(Message::ExecuteKernel(kernel, handles))
             .unwrap()
     }
 

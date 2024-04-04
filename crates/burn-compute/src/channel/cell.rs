@@ -1,5 +1,5 @@
 use super::ComputeChannel;
-use crate::server::{ComputeServer, Handle};
+use crate::server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -42,23 +42,26 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.server.borrow_mut().read(handle.id())
+    fn read(&self, handle: ExecutionBufferHandle<Server>) -> Reader<Vec<u8>> {
+        self.server.borrow_mut().read(handle)
     }
 
-    fn create(&self, resource: &[u8]) -> Handle<Server> {
+    fn create(&self, resource: &[u8]) -> TensorBufferHandle<Server> {
         self.server.borrow_mut().create(resource)
     }
 
-    fn empty(&self, size: usize) -> Handle<Server> {
+    fn empty(&self, size: usize) -> TensorBufferHandle<Server> {
         self.server.borrow_mut().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server.borrow_mut().execute(
-            kernel_description,
-            handles.iter().map(|handle| handle.id()).collect(),
-        )
+    fn execute(
+        &self,
+        kernel_description: Server::Kernel,
+        handles: Vec<ExecutionBufferHandle<Server>>,
+    ) {
+        self.server
+            .borrow_mut()
+            .execute(kernel_description, handles)
     }
 
     fn sync(&self) {

@@ -97,12 +97,12 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
             Box::new(DynamicKernel::new(kernel, workgroup)),
-            &[
-                &lhs.handle,
-                &rhs.handle,
-                &bias.handle,
-                &output.handle,
-                &info_handle,
+            vec![
+                lhs.handle.execution(),
+                rhs.handle.execution(),
+                bias.handle.execution(),
+                output.handle.execution(),
+                info_handle.execution(),
             ],
         );
 

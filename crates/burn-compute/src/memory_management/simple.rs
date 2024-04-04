@@ -1,4 +1,4 @@
-use super::{MemoryHandle, MemoryId, MemoryManagement};
+use super::{MemoryExecutionBufferHandle, MemoryManagement, MemoryTensorBufferHandle};
 use crate::{
     memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
@@ -48,7 +48,7 @@ pub enum SimpleId {
     Slice(SliceId),
 }
 
-impl MemoryId<SimpleHandle> for SimpleId {
+impl MemoryExecutionBufferHandle<SimpleHandle> for SimpleId {
     fn from_handle(handle: &SimpleHandle) -> Self {
         match handle {
             SimpleHandle::Chunk(handle) => SimpleId::Chunk(handle.id()),
@@ -174,7 +174,7 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl MemoryHandle for SimpleHandle {
+impl MemoryTensorBufferHandle for SimpleHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
@@ -188,24 +188,36 @@ impl MemoryHandle for SimpleHandle {
 }
 
 impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
-    type Handle = SimpleHandle;
-    type HandleId = SimpleId;
+    type TensorBufferHandle = SimpleHandle;
+    type ExecutionBufferHandle = SimpleId;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, id: Self::HandleId) -> Storage::Resource {
-        let resource = match id {
-            SimpleId::Chunk(id) => &self.chunks.get(&id).unwrap().storage,
-            SimpleId::Slice(id) => &self.slices.get(&id).unwrap().storage,
+    fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource {
+        let storage = match id {
+            SimpleId::Chunk(id) => {
+                &self
+                    .chunks
+                    .get(&id)
+                    .expect("Storage found for the given execution buffer handle")
+                    .storage
+            }
+            SimpleId::Slice(id) => {
+                &self
+                    .slices
+                    .get(&id)
+                    .expect("Storage found for the given execution buffer handle")
+                    .storage
+            }
         };
 
-        self.storage.get(resource)
+        self.storage.get(storage)
     }
 
     /// Reserves memory of specified size using the reserve algorithm, and return
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
-    fn reserve(&mut self, size: usize) -> Self::Handle {
+    fn reserve(&mut self, size: usize) -> Self::TensorBufferHandle {
         self.cleanup_slices();
 
         let handle = self.reserve_algorithm(size);
@@ -217,11 +229,11 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         handle
     }
 
-    fn alloc(&mut self, size: usize) -> Self::Handle {
+    fn alloc(&mut self, size: usize) -> Self::TensorBufferHandle {
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, id: Self::HandleId) {
+    fn dealloc(&mut self, id: Self::ExecutionBufferHandle) {
         match id {
             SimpleId::Chunk(id) => {
                 if let Some(chunk) = self.chunks.remove(&id) {
@@ -385,7 +397,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        memory_management::{MemoryHandle, MemoryManagement, SliceStrategy},
+        memory_management::{MemoryManagement, MemoryTensorBufferHandle, SliceStrategy},
         storage::BytesStorage,
     };
 

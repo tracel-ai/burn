@@ -5,13 +5,13 @@ use crate::storage::ComputeStorage;
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryHandle: Clone + Send + Sync + core::fmt::Debug {
+pub trait MemoryTensorBufferHandle: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
 }
 
 /// TODO:
-pub trait MemoryId<Handle>: Clone + Send + Sync + core::fmt::Debug {
+pub trait MemoryExecutionBufferHandle<Handle>: Clone + Send + Sync + core::fmt::Debug {
     /// Fetch the id from the memory id.
     fn from_handle(handle: &Handle) -> Self;
 }
@@ -23,29 +23,29 @@ pub trait MemoryId<Handle>: Clone + Send + Sync + core::fmt::Debug {
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// The associated type Handle must implement MemoryHandle
-    type Handle: MemoryHandle;
+    type TensorBufferHandle: MemoryTensorBufferHandle;
     /// Handle id.
-    type HandleId: MemoryId<Self::Handle>;
+    type ExecutionBufferHandle: MemoryExecutionBufferHandle<Self::TensorBufferHandle>;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, id: Self::HandleId) -> Storage::Resource;
+    fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
-    fn reserve(&mut self, size: usize) -> Self::Handle;
+    fn reserve(&mut self, size: usize) -> Self::TensorBufferHandle;
 
     /// Bypass the memory allocation algorithm to allocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn alloc(&mut self, size: usize) -> Self::Handle;
+    fn alloc(&mut self, size: usize) -> Self::TensorBufferHandle;
 
     /// Bypass the memory allocation algorithm to deallocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, id: Self::HandleId);
+    fn dealloc(&mut self, id: Self::ExecutionBufferHandle);
 
     /// Fetch the storage used by the memory manager.
     ///

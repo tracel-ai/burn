@@ -1,5 +1,5 @@
 use super::ComputeChannel;
-use crate::server::{ComputeServer, Handle};
+use crate::server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -35,23 +35,20 @@ impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.server.lock().read(handle.id())
+    fn read(&self, handle: ExecutionBufferHandle<Server>) -> Reader<Vec<u8>> {
+        self.server.lock().read(handle)
     }
 
-    fn create(&self, data: &[u8]) -> Handle<Server> {
+    fn create(&self, data: &[u8]) -> TensorBufferHandle<Server> {
         self.server.lock().create(data)
     }
 
-    fn empty(&self, size: usize) -> Handle<Server> {
+    fn empty(&self, size: usize) -> TensorBufferHandle<Server> {
         self.server.lock().empty(size)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.server.lock().execute(
-            kernel,
-            handles.iter().map(|handle| handle.id()).collect::<Vec<_>>(),
-        )
+    fn execute(&self, kernel: Server::Kernel, handles: Vec<ExecutionBufferHandle<Server>>) {
+        self.server.lock().execute(kernel, handles)
     }
 
     fn sync(&self) {

@@ -10,7 +10,7 @@ use crate::kernel::SourceTemplate;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::Handle;
+use burn_compute::server::ExecutionBufferHandle;
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -45,7 +45,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn Kernel>,
-    handles: Vec<Handle<R::Server>>,
+    handles: Vec<ExecutionBufferHandle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -58,7 +58,7 @@ pub struct ExecutableKernel<R: Runtime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn Kernel>,
-    handles: Vec<Handle<R::Server>>,
+    handles: Vec<ExecutionBufferHandle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -72,23 +72,19 @@ pub enum OutputRuntimeInfo {
 impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
+        self.client.execute(self.kernel, self.handles)
     }
 }
 
 impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client.execute(
-            Box::new(self.kernel),
-            &self.handles.iter().collect::<Vec<_>>(),
-        )
+        self.client.execute(Box::new(self.kernel), self.handles)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             kernel: self.kernel.clone(),
-            handles: self.handles.iter().map(Clone::clone).collect(),
+            handles: self.handles.clone(),
             client: self.client.clone(),
         })
     }
@@ -157,9 +153,9 @@ impl<R: Runtime> FusionKernel<R> {
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
         // We register the info and handles for the inputs.
-        for (handle, tensor) in handles_input.into_iter().zip(inputs_description_updated) {
+        for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
             register_info_tensor(&mut info, tensor, &handle);
-            handles.push(handle.handle);
+            handles.push(handle.handle.execution());
         }
 
         // We register the info and handles for the outputs.
@@ -170,12 +166,13 @@ impl<R: Runtime> FusionKernel<R> {
             match output_info {
                 // Use the input inplace for this output.
                 OutputRuntimeInfo::Inplace { input_index } => {
-                    let handle = handles.get(*input_index).unwrap().clone();
+                    let input = handles_input.get(*input_index).unwrap();
+
                     let handle_fusion = JitFusionHandle {
                         client: client.clone(),
                         device: device.clone(),
                         strides: strides_dyn_rank(&tensor.shape),
-                        handle,
+                        handle: input.handle.clone(),
                     };
                     output_register.push((tensor.id, handle_fusion));
                 }
@@ -189,26 +186,34 @@ impl<R: Runtime> FusionKernel<R> {
                     };
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
-                    handles.push(handle_fusion.handle.clone());
+                    handles.push(handle_fusion.handle.execution());
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
         }
 
         // Create the info buffer.
-        handles.push(client.create(bytemuck::cast_slice(&info)));
+        handles.push(client.create(bytemuck::cast_slice(&info)).execution());
 
         // Finally we finish with the named bindings.
         if running_info.scalars.num_float > 0 {
-            handles.push(client.create(bytemuck::cast_slice(
-                &context.scalar_floats[0..running_info.scalars.num_float],
-            )));
+            handles.push(
+                client
+                    .create(bytemuck::cast_slice(
+                        &context.scalar_floats[0..running_info.scalars.num_float],
+                    ))
+                    .execution(),
+            );
         }
 
         if running_info.scalars.num_int > 0 {
-            handles.push(client.create(bytemuck::cast_slice(
-                &context.scalar_ints[0..running_info.scalars.num_int],
-            )));
+            handles.push(
+                client
+                    .create(bytemuck::cast_slice(
+                        &context.scalar_ints[0..running_info.scalars.num_int],
+                    ))
+                    .execution(),
+            );
         }
 
         // We have to register the output handles to the context.

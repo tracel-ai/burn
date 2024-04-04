@@ -5,7 +5,7 @@ use std::sync::Arc;
 #[cfg(feature = "autotune-persistent-cache")]
 use burn_compute::tune::compute_checksum;
 use burn_compute::{
-    server::Handle,
+    server::ExecutionBufferHandle,
     tune::{AutotuneOperation, AutotuneOperationSet},
 };
 
@@ -21,7 +21,7 @@ pub struct AdditionAutotuneOperationSet {
     client: DummyClient,
     key: String,
     shapes: Vec<Vec<usize>>,
-    handles: Vec<Handle<DummyServer>>,
+    handles: Vec<ExecutionBufferHandle<DummyServer>>,
 }
 
 impl AdditionAutotuneOperationSet {
@@ -29,7 +29,7 @@ impl AdditionAutotuneOperationSet {
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
-        handles: Vec<Handle<DummyServer>>,
+        handles: Vec<ExecutionBufferHandle<DummyServer>>,
     ) -> Self {
         Self {
             client,
@@ -71,7 +71,7 @@ pub struct MultiplicationAutotuneOperationSet {
     client: DummyClient,
     key: String,
     shapes: Vec<Vec<usize>>,
-    handles: Vec<Handle<DummyServer>>,
+    handles: Vec<ExecutionBufferHandle<DummyServer>>,
 }
 
 impl MultiplicationAutotuneOperationSet {
@@ -79,7 +79,7 @@ impl MultiplicationAutotuneOperationSet {
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
-        handles: Vec<Handle<DummyServer>>,
+        handles: Vec<ExecutionBufferHandle<DummyServer>>,
     ) -> Self {
         Self {
             client,
@@ -120,7 +120,7 @@ pub struct CacheTestAutotuneOperationSet {
     client: DummyClient,
     key: String,
     shapes: Vec<Vec<usize>>,
-    handles: Vec<Handle<DummyServer>>,
+    handles: Vec<ExecutionBufferHandle<DummyServer>>,
     pub generate_random_checksum: bool,
 }
 
@@ -129,7 +129,7 @@ impl CacheTestAutotuneOperationSet {
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
-        handles: Vec<Handle<DummyServer>>,
+        handles: Vec<ExecutionBufferHandle<DummyServer>>,
     ) -> Self {
         Self {
             client,
