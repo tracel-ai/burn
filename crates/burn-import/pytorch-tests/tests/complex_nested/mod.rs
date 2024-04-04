@@ -12,6 +12,7 @@ use burn::{
         Tensor,
     },
 };
+use burn_autodiff::Autodiff;
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
 #[derive(Module, Debug)]
@@ -162,6 +163,17 @@ fn full_record() {
         .expect("Should decode state successfully");
 
     model_test(record, 8);
+}
+
+#[test]
+fn full_record_autodiff() {
+    let device = Default::default();
+    let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+        .load("tests/complex_nested/complex_nested.pt".into(), &device)
+        .expect("Should decode state successfully");
+
+    let device = Default::default();
+    let _model = Net::<Autodiff<TestBackend>>::init(&device).load_record(record);
 }
 
 #[test]
