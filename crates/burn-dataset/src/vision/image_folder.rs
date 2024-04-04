@@ -120,7 +120,7 @@ impl ImageDatasetItemRaw {
     fn new<P: AsRef<Path>>(image_path: P, annotation: AnnotationRaw) -> ImageDatasetItemRaw {
         ImageDatasetItemRaw {
             image_path: image_path.as_ref().to_path_buf(),
-            annotation: annotation,
+            annotation,
         }
     }
 }
