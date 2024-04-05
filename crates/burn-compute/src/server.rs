@@ -1,12 +1,11 @@
-use core::fmt::Debug;
-
 use crate::{
-    memory_management::{MemoryManagement, MemoryTensorBufferHandle},
+    memory_management::{self, MemoryManagement},
     storage::ComputeStorage,
     tune::AutotuneKey,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use core::fmt::Debug;
 
 /// The compute server is responsible for handling resources and computations over resources.
 ///
@@ -48,21 +47,20 @@ where
 #[derive(new, Debug)]
 pub struct TensorBufferHandle<Server: ComputeServer> {
     /// Handle for the memory in use.
-    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::TensorBufferHandle,
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::TensorBufHandle,
 }
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).
 #[derive(new)]
 pub struct ExecutionBufferHandle<Server: ComputeServer> {
     /// Handle for the memory in use.
-    pub memory:
-        <Server::MemoryManagement as MemoryManagement<Server::Storage>>::ExecutionBufferHandle,
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::BufHandle,
 }
 
 impl<Server: ComputeServer> TensorBufferHandle<Server> {
     /// If the tensor handle can be mut with an inplace operation.
     pub fn can_mut(&self) -> bool {
-        self.memory.can_mut()
+        memory_management::MemoryTensorBufHandle::can_mut(&self.memory)
     }
 }
 
@@ -70,7 +68,7 @@ impl<Server: ComputeServer> TensorBufferHandle<Server> {
     /// Server handle id.
     pub fn execution(&self) -> ExecutionBufferHandle<Server> {
         ExecutionBufferHandle {
-            memory: self.memory.enqueue(),
+            memory: memory_management::MemoryTensorBufHandle::enqueue(&self.memory),
         }
     }
 }

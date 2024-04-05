@@ -1,4 +1,3 @@
-use super::{MemoryManagement, MemoryTensorBufferHandle};
 use crate::{
     memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
@@ -151,7 +150,7 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl MemoryTensorBufferHandle<SimpleExecutionBufferHandle> for SimpleTensorBufHandle {
+impl super::MemoryTensorBufHandle<SimpleExecutionBufferHandle> for SimpleTensorBufHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
@@ -169,12 +168,12 @@ impl MemoryTensorBufferHandle<SimpleExecutionBufferHandle> for SimpleTensorBufHa
     }
 }
 
-impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
-    type TensorBufferHandle = SimpleTensorBufHandle;
-    type ExecutionBufferHandle = SimpleExecutionBufferHandle;
+impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
+    type TensorBufHandle = SimpleTensorBufHandle;
+    type BufHandle = SimpleExecutionBufferHandle;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, handle: Self::ExecutionBufferHandle) -> Storage::Resource {
+    fn get(&mut self, handle: Self::BufHandle) -> Storage::Resource {
         let storage = match handle {
             SimpleExecutionBufferHandle::Chunk(chunk) => {
                 &self
@@ -199,7 +198,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
-    fn reserve(&mut self, size: usize) -> Self::TensorBufferHandle {
+    fn reserve(&mut self, size: usize) -> Self::TensorBufHandle {
         self.cleanup_slices();
 
         let handle = self.reserve_algorithm(size);
@@ -211,11 +210,11 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         handle
     }
 
-    fn alloc(&mut self, size: usize) -> Self::TensorBufferHandle {
+    fn alloc(&mut self, size: usize) -> Self::TensorBufHandle {
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, handle: Self::ExecutionBufferHandle) {
+    fn dealloc(&mut self, handle: Self::BufHandle) {
         match handle {
             SimpleExecutionBufferHandle::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
@@ -385,7 +384,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        memory_management::{MemoryManagement, MemoryTensorBufferHandle, SliceStrategy},
+        memory_management::{MemoryManagement, MemoryTensorBufHandle, SliceStrategy},
         storage::BytesStorage,
     };
 

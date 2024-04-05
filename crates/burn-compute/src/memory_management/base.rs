@@ -1,18 +1,18 @@
 use crate::storage::ComputeStorage;
 
-/// The MemoryHandle trait is an abstract way to refer to some memory segment.
+/// The MemoryTensorBufferHandle trait is an abstract way to refer to some memory segment.
 /// It should not contain actual references to data.
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryTensorBufferHandle<ExecutionHandle>:
-    Clone + Send + Sync + core::fmt::Debug
-{
+pub trait MemoryTensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
-    /// Enqueue the handle for computation.
-    fn enqueue(&self) -> ExecutionHandle;
+    /// Enqueue the handle for execution.
+    fn enqueue(&self) -> BufHandle;
 }
+
+pub trait MemoryBufHandle: Clone + Send + Sync + core::fmt::Debug {}
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
 /// It is bound to the ComputeStorage trait, which does the actual (de)allocations.
@@ -21,29 +21,29 @@ pub trait MemoryTensorBufferHandle<ExecutionHandle>:
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// The associated type Handle must implement MemoryHandle
-    type TensorBufferHandle: MemoryTensorBufferHandle<Self::ExecutionBufferHandle>;
+    type TensorBufHandle: MemoryTensorBufHandle<Self::BufHandle>;
     /// Handle id.
-    type ExecutionBufferHandle: Clone + Send + Sync + core::fmt::Debug;
+    type BufHandle: Clone + Send + Sync + core::fmt::Debug;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, id: Self::ExecutionBufferHandle) -> Storage::Resource;
+    fn get(&mut self, id: Self::BufHandle) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
-    fn reserve(&mut self, size: usize) -> Self::TensorBufferHandle;
+    fn reserve(&mut self, size: usize) -> Self::TensorBufHandle;
 
     /// Bypass the memory allocation algorithm to allocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn alloc(&mut self, size: usize) -> Self::TensorBufferHandle;
+    fn alloc(&mut self, size: usize) -> Self::TensorBufHandle;
 
     /// Bypass the memory allocation algorithm to deallocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, id: Self::ExecutionBufferHandle);
+    fn dealloc(&mut self, id: Self::BufHandle);
 
     /// Fetch the storage used by the memory manager.
     ///

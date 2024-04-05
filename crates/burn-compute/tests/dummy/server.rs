@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryManagement, MemoryTensorBufferHandle, SimpleMemoryManagement},
+    memory_management::{MemoryManagement, MemoryTensorBufHandle, SimpleMemoryManagement},
     server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle},
     storage::BytesStorage,
 };
