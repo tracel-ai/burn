@@ -6,10 +6,10 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
-    gpu::{gpu, Elem, Scope, Variable},
-    kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable},
+    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime, SEED,
+    JitElement, Runtime, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
@@ -61,8 +61,8 @@ fn prng_workgroup(
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
-impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<P, R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<P: Prng<E>, R: Runtime, E: JitElement> GpuComputeShaderPhase for PrngEagerKernel<P, R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -100,9 +100,7 @@ impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKer
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

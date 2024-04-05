@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
-    Compiler, JitElement, Runtime,
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
+    JitElement, Runtime,
 };
 
 pub(crate) struct AdaptivePool2dComputeShader<R: Runtime, E: JitElement> {
@@ -186,8 +186,8 @@ pub(crate) struct AdaptivePool2dEagerKernel<R: Runtime, E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for AdaptivePool2dEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for AdaptivePool2dEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -218,9 +218,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for AdaptivePool2dEagerKerne
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

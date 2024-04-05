@@ -1,175 +1,18 @@
-use super::SourceTemplate;
-use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
-use std::marker::PhantomData;
+use crate::{compute::WorkGroup, gpu::ComputeShader};
 
 #[cfg(target_family = "wasm")]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
-/// Static jit kernel to create a [source template](SourceTemplate).
-pub trait StaticKernelSource: Send + 'static + Sync {
-    /// Source template for the kernel.
-    fn source() -> SourceTemplate;
-}
-
-/// Dynamic jit kernel to create a [source template](SourceTemplate).
-pub trait DynamicKernelSource: Send + Sync {
-    /// Source template for the kernel.
-    fn source(&self) -> SourceTemplate;
+/// Dynamic jit kernel to create a [compute shader](ComputeShader).
+pub trait GpuComputeShaderPhase: Send + Sync + 'static {
+    /// Convert to compute shader
+    fn compile(&self) -> ComputeShader;
     /// Identifier for the kernel, used for caching kernel compilation.
-    fn id(&self) -> String;
-}
-
-/// Generates kernel source code by replacing some information using templating.
-#[macro_export]
-macro_rules! kernel_wgsl {
-    (
-        $struct:ident,
-        $file:expr
-    ) => {
-        /// Generated kernel from wgsl file.
-        #[derive(new)]
-        pub struct $struct;
-
-        impl $crate::kernel::StaticKernelSource for $struct {
-            fn source() -> $crate::kernel::SourceTemplate {
-                $crate::kernel::SourceTemplate::new(include_str!($file))
-            }
-        }
-    };
-}
-
-/// Generates kernel source code by replacing some information using templating.
-pub struct KernelSettings<
-    K: StaticKernelSource,
-    E: JitElement,
-    I: JitElement,
-    const WORKGROUP_X_SIZE: usize,
-    const WORKGROUP_Y_SIZE: usize,
-    const WORKGROUP_Z_SIZE: usize,
-> {
-    _k: PhantomData<K>,
-    _e: PhantomData<E>,
-    _i: PhantomData<I>,
-}
-
-impl<
-        K: StaticKernelSource,
-        E: JitElement,
-        I: JitElement,
-        const WORKGROUP_X_SIZE: usize,
-        const WORKGROUP_Y_SIZE: usize,
-        const WORKGROUP_Z_SIZE: usize,
-    > StaticKernelSource
-    for KernelSettings<K, E, I, WORKGROUP_X_SIZE, WORKGROUP_Y_SIZE, WORKGROUP_Z_SIZE>
-{
-    fn source() -> SourceTemplate {
-        K::source()
-            .register("workgroup_size_x", WORKGROUP_X_SIZE.to_string())
-            .register("workgroup_size_y", WORKGROUP_Y_SIZE.to_string())
-            .register("workgroup_size_z", WORKGROUP_Z_SIZE.to_string())
-            .register(
-                "workgroup_size",
-                (WORKGROUP_X_SIZE * WORKGROUP_Y_SIZE * WORKGROUP_Z_SIZE).to_string(),
-            )
-            .register("elem", E::type_name())
-            .register("int", I::type_name())
-    }
-}
-
-/// Generate kernel source code by replacing some information using templating.
-#[derive(new)]
-pub struct DynamicKernelSettings<K: StaticKernelSource, E: JitElement, I: JitElement> {
-    workgroup_x_size: usize,
-    workgroup_y_size: usize,
-    workgroup_z_size: usize,
-    _k: PhantomData<K>,
-    _e: PhantomData<E>,
-    _i: PhantomData<I>,
-}
-
-impl<K: StaticKernelSource, E: JitElement, I: JitElement> DynamicKernelSource
-    for DynamicKernelSettings<K, E, I>
-{
-    fn source(&self) -> SourceTemplate {
-        K::source()
-            .register("workgroup_size_x", self.workgroup_x_size.to_string())
-            .register("workgroup_size_y", self.workgroup_y_size.to_string())
-            .register("workgroup_size_z", self.workgroup_z_size.to_string())
-            .register(
-                "workgroup_size",
-                (self.workgroup_x_size * self.workgroup_y_size * self.workgroup_z_size).to_string(),
-            )
-            .register("elem", E::type_name())
-            .register("int", I::type_name())
-    }
-
     fn id(&self) -> String {
-        let id = core::any::TypeId::of::<K>();
-
-        format!(
-            "{:?}-dyn-settings{}-{}-{}",
-            id, self.workgroup_x_size, self.workgroup_y_size, self.workgroup_z_size
-        )
+        format!("{:?}", core::any::TypeId::of::<Self>())
     }
-}
-
-/// Create a vector containing the dimension, strides and shape of tensors.
-///
-/// # Example
-///
-/// With two tensors (lhs, rhs)
-///
-/// | Indexes                  | Value       |
-/// |:------------------------:|:-----------:|
-/// |           0..1           | D           |
-/// |           1..D + 1       | lhs strides |
-/// |     (D + 1)..(2 * D + 1) | rhs strides |
-/// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
-/// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: Runtime, E: JitElement, const D: usize>(
-    tensors: &[&JitTensor<R, E, D>],
-) -> Vec<u32> {
-    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
-    info[0] = D as u32;
-
-    let mut current = 1;
-    for tensor in tensors.iter() {
-        for d in 0..D {
-            info[current] = tensor.strides[d] as u32;
-            current += 1;
-        }
-    }
-    for tensor in tensors.iter() {
-        for d in 0..D {
-            info[current] = tensor.shape.dims[d] as u32;
-            current += 1;
-        }
-    }
-    info
-}
-
-/// Similar to [build info](build_info) but with dynamic rank.
-pub fn build_info_dyn<E: JitElement>(shapes: &[&[usize]], strides: &[&[usize]]) -> Vec<u32> {
-    let rank = shapes.first().unwrap().len();
-    let mut info: Vec<u32> = vec![0; shapes.len() * 2 * rank + 1];
-    info[0] = rank as u32;
-
-    let mut current = 1;
-    for stride in strides.iter() {
-        for d in 0..rank {
-            info[current] = stride[d] as u32;
-            current += 1;
-        }
-    }
-    for shape in shapes.iter() {
-        for d in 0..rank {
-            info[current] = shape[d] as u32;
-            current += 1;
-        }
-    }
-    info
 }
 
 pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {

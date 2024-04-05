@@ -5,10 +5,10 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 /// Cast a tensor to the given element type.
@@ -59,10 +59,10 @@ pub(crate) struct CastEagerKernel<R: Runtime, EI: JitElement, EO: JitElement> {
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
     for CastEagerKernel<R, EI, EO>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = EI::gpu_elem().into();
         let item_output = EO::gpu_elem().into();
@@ -88,9 +88,7 @@ impl<R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

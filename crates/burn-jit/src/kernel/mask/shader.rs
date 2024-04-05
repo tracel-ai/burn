@@ -2,9 +2,11 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{gpu, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
-    Compiler, JitElement, Runtime,
+    gpu::{
+        gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
+    },
+    kernel::GpuComputeShaderPhase,
+    JitElement, Runtime,
 };
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
@@ -94,10 +96,10 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelSource
+impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let tensor_item = EI::gpu_elem().into();
         let mask_item = EM::gpu_elem().into();
@@ -142,9 +144,7 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -170,10 +170,10 @@ pub(crate) struct MaskInplaceEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelSource
+impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let tensor_item = EI::gpu_elem().into();
         let mask_item = EM::gpu_elem().into();
@@ -213,9 +213,7 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

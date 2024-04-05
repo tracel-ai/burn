@@ -2,11 +2,12 @@ use burn_tensor::{Element, Shape};
 
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        Execution, InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
+        InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::{into_contiguous, GpuComputeShaderPhase},
     tensor::JitTensor,
     Runtime,
 };
@@ -31,8 +32,8 @@ struct MatmulTiling2dEagerKernel<R: Runtime> {
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
         let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
@@ -71,9 +72,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
             self.config.grid_y as u32,
             1,
         ));
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

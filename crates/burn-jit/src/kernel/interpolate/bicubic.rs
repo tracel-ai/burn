@@ -5,10 +5,10 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 #[derive(new)]
@@ -366,8 +366,8 @@ impl InterpolateBicubicShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for InterpolateBicubicEagerKernel<R, E> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -392,9 +392,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for InterpolateBicubicEagerK
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

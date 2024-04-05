@@ -13,16 +13,21 @@ mod runtime;
 #[cfg(feature = "fusion")]
 mod fusion;
 
+#[cfg(feature = "template")]
+pub use burn_jit::{
+    compute::Kernel,
+    gpu::WorkgroupSize,
+    kernel::{into_contiguous, GpuComputeShaderPhase},
+    kernel_wgsl,
+    template::{build_info, KernelSource, SourceKernel, SourceTemplate},
+};
+
 pub use device::*;
 pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_jit::compute::{DynamicKernel, WorkGroup};
-pub use burn_jit::kernel::{
-    build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
-};
-pub use burn_jit::kernel_wgsl;
+pub use burn_jit::compute::WorkGroup;
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]

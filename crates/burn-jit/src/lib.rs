@@ -35,5 +35,9 @@ pub use runtime::*;
 #[cfg(any(feature = "fusion", test))]
 mod fusion;
 
+#[cfg(feature = "template")]
+/// Module for compiling custom non-jit kernels
+pub mod template;
+
 #[cfg(feature = "export_tests")]
 pub mod tests;

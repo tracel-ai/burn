@@ -1158,10 +1158,7 @@ version = "0.13.0"
 dependencies = [
  "burn",
  "flate2",
- "indicatif",
- "reqwest",
  "tar",
- "tokio",
 ]
 
 [[package]]
