@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryManagement, SimpleMemoryManagement, TensorBufHandle},
-    server::{self, BufHandle, ComputeServer},
+    memory_management::{MemoryManagement, MemoryTensorBufHandle, SimpleMemoryManagement},
+    server::{BufHandle, ComputeServer, TensorBufHandle},
     storage::BytesStorage,
 };
 use derive_new::new;
@@ -32,7 +32,7 @@ where
         Reader::Concrete(bytes.read().to_vec())
     }
 
-    fn create(&mut self, data: &[u8]) -> server::TensorBufHandle<Self> {
+    fn create(&mut self, data: &[u8]) -> TensorBufHandle<Self> {
         let handle = self.memory_management.reserve(data.len());
         let resource = self.memory_management.get(handle.disconnect());
 
@@ -42,11 +42,11 @@ where
             bytes[i] = *val;
         }
 
-        server::TensorBufHandle::new(handle)
+        TensorBufHandle::new(handle)
     }
 
-    fn empty(&mut self, size: usize) -> server::TensorBufHandle<Self> {
-        server::TensorBufHandle::new(self.memory_management.reserve(size))
+    fn empty(&mut self, size: usize) -> TensorBufHandle<Self> {
+        TensorBufHandle::new(self.memory_management.reserve(size))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: Vec<BufHandle<Self>>) {

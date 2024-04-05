@@ -1,5 +1,5 @@
 use crate::{
-    memory_management::{self, MemoryManagement},
+    memory_management::{MemoryManagement, MemoryTensorBufHandle},
     storage::ComputeStorage,
     tune::AutotuneKey,
 };
@@ -60,7 +60,7 @@ pub struct BufHandle<Server: ComputeServer> {
 impl<Server: ComputeServer> TensorBufHandle<Server> {
     /// If the tensor handle can be reused inplace.
     pub fn can_mut(&self) -> bool {
-        memory_management::TensorBufHandle::can_mut(&self.memory)
+        MemoryTensorBufHandle::can_mut(&self.memory)
     }
 }
 
@@ -70,7 +70,7 @@ impl<Server: ComputeServer> TensorBufHandle<Server> {
     /// The handle can then be sent to the compute server.
     pub fn disconnect(&self) -> BufHandle<Server> {
         BufHandle {
-            memory: memory_management::TensorBufHandle::disconnect(&self.memory),
+            memory: MemoryTensorBufHandle::disconnect(&self.memory),
         }
     }
 }

@@ -33,12 +33,14 @@ macro_rules! storage_id_type {
     };
 }
 
+/// Reference to buffer handles, to be holded by a tensor.
 #[derive(Clone, Debug)]
 pub struct TensorBufRef<Id> {
     id: Arc<Id>,
     all: Arc<()>,
 }
 
+/// Reference to buffer handles, to be holded by anything else than tensors.
 #[derive(Clone, Debug)]
 pub struct BufRef<Id> {
     id: Id,
@@ -49,6 +51,7 @@ impl<Id> BufRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
+    /// The id associated to the buffer.
     pub(crate) fn id(&self) -> &Id {
         &self.id
     }
@@ -58,6 +61,7 @@ impl<Id> TensorBufRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
+    /// Create a new tensor buffer reference.
     pub(crate) fn new(id: Id) -> Self {
         Self {
             id: Arc::new(id),
@@ -65,10 +69,12 @@ where
         }
     }
 
+    /// The id associated to the buffer.
     pub(crate) fn id(&self) -> &Id {
         &self.id
     }
 
+    /// Get the buffer reference.
     pub(crate) fn buf_ref(&self) -> BufRef<Id> {
         BufRef {
             id: self.id.as_ref().clone(),
@@ -76,23 +82,26 @@ where
         }
     }
 
+    /// If the buffer can be mut.
     pub(crate) fn can_mut(&self) -> bool {
         // 1 memory management reference with 1 tensor reference.
         Arc::strong_count(&self.id) <= 2
     }
 
+    /// If the buffer can be reused by another tensor.
     pub(crate) fn is_free(&self) -> bool {
         // 1 memory management reference with 0 tensor reference.
         Arc::strong_count(&self.id) <= 1
     }
 
+    /// If the buffer can be dealloc.
     pub(crate) fn can_be_dealloc(&self) -> bool {
         Arc::strong_count(&self.all) <= 1
     }
 }
 
 #[macro_export(local_inner_macros)]
-/// Create a new memory ID type.
+/// Create a new memory ID types.
 macro_rules! memory_id_type {
     ($id:ident, $handle_buf_tensor:ident, $handle_buf:ident) => {
         /// Tensor buffer handle.

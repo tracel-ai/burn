@@ -1,11 +1,8 @@
 use crate::storage::ComputeStorage;
 
-/// The tensor handle trait is an abstract way to refer to some memory segment.
-/// It should not contain actual references to data.
-///
-/// It is responsible for determining if the memory segment can be mutated,
-/// for instance by keeping track of a reference count
-pub trait TensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
+/// The managed tensor buffer handle that points to some memory segment.
+/// It should not contain actual data.
+pub trait MemoryTensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
     /// Disconnect the buffer from the tensor.
@@ -15,7 +12,7 @@ pub trait TensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
 }
 
 /// Pointer to some memory segment.
-pub trait BufHandle: Clone + Send + Sync + core::fmt::Debug {}
+pub trait MemoryBufHandle: Clone + Send + Sync + core::fmt::Debug {}
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
 /// It is bound to the ComputeStorage trait, which does the actual (de)allocations.
@@ -24,9 +21,9 @@ pub trait BufHandle: Clone + Send + Sync + core::fmt::Debug {}
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// The associated type that must implement [TensorBufHandle].
-    type TensorBufHandle: TensorBufHandle<Self::BufHandle>;
+    type TensorBufHandle: MemoryTensorBufHandle<Self::BufHandle>;
     /// The associated type that must implement [BufHandle]
-    type BufHandle: BufHandle;
+    type BufHandle: MemoryBufHandle;
 
     /// Returns the resource from the storage at the specified handle
     fn get(&mut self, id: Self::BufHandle) -> Storage::Resource;
