@@ -14,11 +14,7 @@ rust-version = "1.75"
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
-doc = [
-  "default",
-  "burn-core/doc",
-  "burn-train/doc",
-]
+doc = ["default", "burn-core/doc", "burn-train/doc"]
 
 # Training with full features
 train = ["burn-train", "autodiff", "dataset"]
@@ -52,6 +48,7 @@ openblas = ["burn-core/openblas"]
 openblas-system = ["burn-core/openblas-system"]
 blas-netlib = ["burn-core/blas-netlib"]
 autotune = ["burn-core/autotune"]
+template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]

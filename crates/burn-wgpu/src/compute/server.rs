@@ -138,13 +138,13 @@ where
         self.tasks.clear();
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Kernel) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
         }
 
-        let source = kernel.source().complete();
+        let source = kernel.compile().source;
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
@@ -242,7 +242,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn Kernel>;
+    type Kernel = Kernel;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -290,7 +290,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
-        let work_group = kernel.workgroup();
+        let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
