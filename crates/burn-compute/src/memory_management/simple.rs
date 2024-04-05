@@ -351,7 +351,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         self.chunks.iter().for_each(|(chunk_id, chunk)| {
             if chunk.handle.can_be_dealloc() {
-                ids_to_remove.push(chunk_id.clone());
+                ids_to_remove.push(*chunk_id);
             }
         });
 
@@ -369,7 +369,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         self.slices.iter().for_each(|(slice_id, slice)| {
             if slice.handle.is_free() {
-                ids_to_remove.push(slice_id.clone());
+                ids_to_remove.push(*slice_id);
             }
         });
 
