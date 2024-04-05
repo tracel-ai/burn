@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
 use crate::metric::{Metric, Numeric};
@@ -9,7 +11,7 @@ use burn_core::tensor::{ElementConversion, Int, Tensor};
 pub struct AccuracyMetric<B: Backend> {
     state: NumericMetricState,
     pad_token: Option<usize>,
-    _b: B,
+    _b: PhantomData<B>,
 }
 
 /// The [accuracy metric](AccuracyMetric) input type.
