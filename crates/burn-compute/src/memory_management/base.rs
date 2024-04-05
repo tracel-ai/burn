@@ -1,6 +1,6 @@
 use crate::storage::ComputeStorage;
 
-/// The MemoryTensorBufferHandle trait is an abstract way to refer to some memory segment.
+/// The tensor handle trait is an abstract way to refer to some memory segment.
 /// It should not contain actual references to data.
 ///
 /// It is responsible for determining if the memory segment can be mutated,
@@ -14,7 +14,7 @@ pub trait TensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
     fn disconnect(&self) -> BufHandle;
 }
 
-/// Define a handle to a buffer.
+/// Pointer to some memory segment.
 pub trait BufHandle: Clone + Send + Sync + core::fmt::Debug {}
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
@@ -23,9 +23,9 @@ pub trait BufHandle: Clone + Send + Sync + core::fmt::Debug {}
 /// The MemoryManagement can only reserve memory space or get the resource located at a space.
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
-    /// The associated type Handle must implement MemoryHandle
+    /// The associated type that must implement [TensorBufHandle].
     type TensorBufHandle: TensorBufHandle<Self::BufHandle>;
-    /// Handle id.
+    /// The associated type that must implement [BufHandle]
     type BufHandle: BufHandle;
 
     /// Returns the resource from the storage at the specified handle
