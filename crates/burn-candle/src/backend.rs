@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::backend::Backend;
+use burn_tensor::{backend::Backend, Device};
 use candle_core::DeviceLocation;
 
 use crate::{
@@ -90,5 +90,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn seed(seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
+    }
+
+    fn sync(device: &Device<Self>) {
+        let device: candle_core::Device = device.clone().into();
+
+        match device {
+            candle_core::Device::Cpu => (),
+            candle_core::Device::Cuda(device) => {
+                #[cfg(feature = "cuda")]
+                device.synchronize().unwrap();
+            }
+            candle_core::Device::Metal(device) => {
+                #[cfg(feature = "metal")]
+                device.wait_until_completed().unwrap();
+            }
+        }
     }
 }
