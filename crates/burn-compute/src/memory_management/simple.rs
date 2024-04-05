@@ -26,7 +26,7 @@ pub enum SimpleTensorBufHandle {
 
 /// TODO:
 #[derive(Debug, Clone)]
-pub enum SimpleExecutionBufferHandle {
+pub enum SimpleBufHandle {
     /// A whole chunk of memory.
     Chunk(ChunkExecutionBufferHandle),
     /// A slice of a chunk of memory.
@@ -150,7 +150,9 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl super::MemoryTensorBufHandle<SimpleExecutionBufferHandle> for SimpleTensorBufHandle {
+impl super::BufHandle for SimpleBufHandle {}
+
+impl super::TensorBufHandle<SimpleBufHandle> for SimpleTensorBufHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
@@ -160,29 +162,29 @@ impl super::MemoryTensorBufHandle<SimpleExecutionBufferHandle> for SimpleTensorB
         }
     }
 
-    fn enqueue(&self) -> SimpleExecutionBufferHandle {
+    fn disconnect(&self) -> SimpleBufHandle {
         match self {
-            Self::Chunk(handle) => SimpleExecutionBufferHandle::Chunk(handle.execution()),
-            Self::Slice(handle) => SimpleExecutionBufferHandle::Slice(handle.execution()),
+            Self::Chunk(handle) => SimpleBufHandle::Chunk(handle.handle()),
+            Self::Slice(handle) => SimpleBufHandle::Slice(handle.handle()),
         }
     }
 }
 
 impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
     type TensorBufHandle = SimpleTensorBufHandle;
-    type BufHandle = SimpleExecutionBufferHandle;
+    type BufHandle = SimpleBufHandle;
 
     /// Returns the resource from the storage, for the specified handle.
     fn get(&mut self, handle: Self::BufHandle) -> Storage::Resource {
         let storage = match handle {
-            SimpleExecutionBufferHandle::Chunk(chunk) => {
+            SimpleBufHandle::Chunk(chunk) => {
                 &self
                     .chunks
                     .get(chunk.id())
                     .expect("Storage found for the given execution buffer handle")
                     .storage
             }
-            SimpleExecutionBufferHandle::Slice(slice) => {
+            SimpleBufHandle::Slice(slice) => {
                 &self
                     .slices
                     .get(slice.id())
@@ -216,12 +218,12 @@ impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryM
 
     fn dealloc(&mut self, handle: Self::BufHandle) {
         match handle {
-            SimpleExecutionBufferHandle::Chunk(chunk) => {
+            SimpleBufHandle::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
                     self.storage.dealloc(chunk.storage.id);
                 }
             }
-            SimpleExecutionBufferHandle::Slice(_) => panic!("Can't dealloc slice manually"),
+            SimpleBufHandle::Slice(_) => panic!("Can't dealloc slice manually"),
         }
     }
 
@@ -384,7 +386,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        memory_management::{MemoryManagement, MemoryTensorBufHandle, SliceStrategy},
+        memory_management::{MemoryManagement, SliceStrategy, TensorBufHandle},
         storage::BytesStorage,
     };
 

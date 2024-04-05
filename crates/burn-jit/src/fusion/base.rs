@@ -117,7 +117,7 @@ pub struct JitFusionHandle<R: Runtime> {
     /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: burn_compute::server::TensorBufferHandle<R::Server>,
+    pub handle: burn_compute::server::TensorBufHandle<R::Server>,
     /// The device of the current tensor.
     pub device: R::Device,
     pub(crate) strides: Vec<usize>,

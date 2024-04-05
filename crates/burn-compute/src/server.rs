@@ -25,19 +25,19 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, handle: ExecutionBufferHandle<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, handle: BufHandle<Self>) -> Reader<Vec<u8>>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
-    fn create(&mut self, data: &[u8]) -> TensorBufferHandle<Self>;
+    fn create(&mut self, data: &[u8]) -> TensorBufHandle<Self>;
 
     /// Reserves `size` bytes in the storage, and returns a handle over them.
-    fn empty(&mut self, size: usize) -> TensorBufferHandle<Self>;
+    fn empty(&mut self, size: usize) -> TensorBufHandle<Self>;
 
     /// Executes the `kernel` over the given memory `handles`.
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<ExecutionBufferHandle<Self>>);
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<BufHandle<Self>>);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
@@ -45,35 +45,37 @@ where
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).
 #[derive(new, Debug)]
-pub struct TensorBufferHandle<Server: ComputeServer> {
+pub struct TensorBufHandle<Server: ComputeServer> {
     /// Handle for the memory in use.
     pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::TensorBufHandle,
 }
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).
 #[derive(new)]
-pub struct ExecutionBufferHandle<Server: ComputeServer> {
+pub struct BufHandle<Server: ComputeServer> {
     /// Handle for the memory in use.
     pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::BufHandle,
 }
 
-impl<Server: ComputeServer> TensorBufferHandle<Server> {
-    /// If the tensor handle can be mut with an inplace operation.
+impl<Server: ComputeServer> TensorBufHandle<Server> {
+    /// If the tensor handle can be reused inplace.
     pub fn can_mut(&self) -> bool {
-        memory_management::MemoryTensorBufHandle::can_mut(&self.memory)
+        memory_management::TensorBufHandle::can_mut(&self.memory)
     }
 }
 
-impl<Server: ComputeServer> TensorBufferHandle<Server> {
-    /// Server handle id.
-    pub fn execution(&self) -> ExecutionBufferHandle<Server> {
-        ExecutionBufferHandle {
-            memory: memory_management::MemoryTensorBufHandle::enqueue(&self.memory),
+impl<Server: ComputeServer> TensorBufHandle<Server> {
+    /// Disconnect the buffer from the tensor.
+    ///
+    /// The handle can then be sent to the compute server.
+    pub fn disconnect(&self) -> BufHandle<Server> {
+        BufHandle {
+            memory: memory_management::TensorBufHandle::disconnect(&self.memory),
         }
     }
 }
 
-impl<Server: ComputeServer> Clone for TensorBufferHandle<Server> {
+impl<Server: ComputeServer> Clone for TensorBufHandle<Server> {
     fn clone(&self) -> Self {
         Self {
             memory: self.memory.clone(),
@@ -81,7 +83,7 @@ impl<Server: ComputeServer> Clone for TensorBufferHandle<Server> {
     }
 }
 
-impl<Server: ComputeServer> Clone for ExecutionBufferHandle<Server> {
+impl<Server: ComputeServer> Clone for BufHandle<Server> {
     fn clone(&self) -> Self {
         Self {
             memory: self.memory.clone(),

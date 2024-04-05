@@ -98,11 +98,11 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         lhs.client.execute(
             Box::new(DynamicKernel::new(kernel, workgroup)),
             vec![
-                lhs.handle.execution(),
-                rhs.handle.execution(),
-                bias.handle.execution(),
-                output.handle.execution(),
-                info_handle.execution(),
+                lhs.handle.disconnect(),
+                rhs.handle.disconnect(),
+                bias.handle.disconnect(),
+                output.handle.disconnect(),
+                info_handle.disconnect(),
             ],
         );
 

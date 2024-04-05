@@ -14,7 +14,7 @@ fn created_resource_is_the_same_when_read() {
     let resource = Vec::from([0, 1, 2]);
     let resource_description = client.create(&resource);
 
-    let obtained_resource = client.read(resource_description.execution());
+    let obtained_resource = client.read(resource_description.disconnect());
 
     assert_eq!(resource, obtained_resource.read())
 }
@@ -24,7 +24,7 @@ fn empty_allocates_memory() {
     let client = client(&DummyDevice);
     let size = 4;
     let resource_description = client.empty(size);
-    let empty_resource = client.read(resource_description.execution());
+    let empty_resource = client.read(resource_description.disconnect());
 
     assert_eq!(empty_resource.read().len(), 4);
 }
@@ -38,10 +38,10 @@ fn execute_elementwise_addition() {
 
     client.execute(
         Arc::new(DummyElementwiseAddition),
-        vec![lhs.execution(), rhs.execution(), out.execution()],
+        vec![lhs.disconnect(), rhs.disconnect(), out.disconnect()],
     );
 
-    let obtained_resource = client.read(out.execution());
+    let obtained_resource = client.read(out.disconnect());
 
     assert_eq!(obtained_resource.read(), Vec::from([4, 5, 6]))
 }
@@ -56,13 +56,13 @@ fn autotune_basic_addition_execution() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.execution(), rhs.execution(), out.execution()];
+    let handles = vec![lhs.disconnect(), rhs.disconnect(), out.disconnect()];
 
     let addition_autotune_kernel =
         dummy::AdditionAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(addition_autotune_kernel));
 
-    let obtained_resource = client.read(out.execution());
+    let obtained_resource = client.read(out.disconnect());
 
     // If slow kernel was selected it would output [0, 1, 2]
     assert_eq!(obtained_resource.read(), Vec::from([4, 5, 6]));
@@ -78,13 +78,13 @@ fn autotune_basic_multiplication_execution() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.execution(), rhs.execution(), out.execution()];
+    let handles = vec![lhs.disconnect(), rhs.disconnect(), out.disconnect()];
 
     let multiplication_autotune_kernel =
         dummy::MultiplicationAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(multiplication_autotune_kernel));
 
-    let obtained_resource = client.read(out.execution());
+    let obtained_resource = client.read(out.disconnect());
 
     // If slow kernel was selected it would output [0, 1, 2]
     assert_eq!(obtained_resource.read(), Vec::from([0, 4, 8]));
@@ -108,13 +108,13 @@ fn autotune_cache_same_key_return_a_cache_hit() {
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
     let out_1 = client.empty(3);
-    let handles_1 = vec![lhs_1.execution(), rhs_1.execution(), out_1.execution()];
+    let handles_1 = vec![lhs_1.disconnect(), rhs_1.disconnect(), out_1.disconnect()];
 
     let shapes_2 = vec![vec![1, 4], vec![1, 4], vec![1, 4]];
     let lhs_2 = client.create(&[0, 1, 2, 3]);
     let rhs_2 = client.create(&[5, 6, 7, 8]);
     let out_2 = client.empty(4);
-    let handles_2 = vec![lhs_2.execution(), rhs_2.execution(), out_2.execution()];
+    let handles_2 = vec![lhs_2.disconnect(), rhs_2.disconnect(), out_2.disconnect()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -123,7 +123,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
-    let obtained_resource = client.read(out_2.execution());
+    let obtained_resource = client.read(out_2.disconnect());
 
     // Cache should be hit, so CacheTestFastOn3 should be used, returning lhs
     assert_eq!(obtained_resource.read(), Vec::from([0, 1, 2, 3]));
@@ -149,13 +149,13 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
     let out_1 = client.empty(3);
-    let handles_1 = vec![lhs_1.execution(), rhs_1.execution(), out_1.execution()];
+    let handles_1 = vec![lhs_1.disconnect(), rhs_1.disconnect(), out_1.disconnect()];
 
     let shapes_2 = vec![vec![1, 5], vec![1, 5], vec![1, 5]];
     let lhs_2 = client.create(&[0, 1, 2, 3, 4]);
     let rhs_2 = client.create(&[5, 6, 7, 8, 9]);
     let out_2 = client.empty(5);
-    let handles_2 = vec![lhs_2.execution(), rhs_2.execution(), out_2.execution()];
+    let handles_2 = vec![lhs_2.disconnect(), rhs_2.disconnect(), out_2.disconnect()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -165,7 +165,7 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
     // read the resource which should update the cache on disk
-    let obtained_resource = client.read(out_2.execution());
+    let obtained_resource = client.read(out_2.disconnect());
 
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
     assert_eq!(obtained_resource.read(), Vec::from([5, 6, 7, 8, 9]));
@@ -194,13 +194,13 @@ fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.execution(), rhs.execution(), out.execution()];
+    let handles = vec![lhs.disconnect(), rhs.disconnect(), out.disconnect()];
 
     let cache_test_autotune_kernel =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(cache_test_autotune_kernel));
     // ensure that the autotune operations are run and cached
-    let _obtained_resource = client.read(out.execution());
+    let _obtained_resource = client.read(out.disconnect());
 
     assert!(
         parent_dir.exists(),
@@ -221,13 +221,13 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
     let out_1 = client.empty(3);
-    let handles_1 = vec![lhs_1.execution(), rhs_1.execution(), out_1.execution()];
+    let handles_1 = vec![lhs_1.disconnect(), rhs_1.disconnect(), out_1.disconnect()];
 
     let shapes_2 = vec![vec![1, 5], vec![1, 5], vec![1, 5]];
     let lhs_2 = client.create(&[0, 1, 2, 3, 4]);
     let rhs_2 = client.create(&[5, 6, 7, 8, 9]);
     let out_2 = client.empty(5);
-    let handles_2 = vec![lhs_2.execution(), rhs_2.execution(), out_2.execution()];
+    let handles_2 = vec![lhs_2.disconnect(), rhs_2.disconnect(), out_2.disconnect()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -236,7 +236,7 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
-    let obtained_resource = client.read(out_2.execution());
+    let obtained_resource = client.read(out_2.disconnect());
 
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
     assert_eq!(obtained_resource.read(), Vec::from([5, 6, 7, 8, 9]));
@@ -256,7 +256,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     let lhs_1 = client.create(&[0, 1, 2]);
     let rhs_1 = client.create(&[4, 4, 4]);
     let out_1 = client.empty(3);
-    let handles_1 = vec![lhs_1.execution(), rhs_1.execution(), out_1.execution()];
+    let handles_1 = vec![lhs_1.disconnect(), rhs_1.disconnect(), out_1.disconnect()];
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
@@ -272,7 +272,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     let lhs_2 = client.create(&[0, 1, 2, 3]);
     let rhs_2 = client.create(&[5, 6, 7, 8]);
     let out_2 = client.empty(4);
-    let handles_2 = vec![lhs_2.execution(), rhs_2.execution(), out_2.execution()];
+    let handles_2 = vec![lhs_2.disconnect(), rhs_2.disconnect(), out_2.disconnect()];
 
     let mut cache_test_autotune_kernel_2 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_2, handles_2);
@@ -280,7 +280,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
     client.sync();
 
-    let obtained_resource = client.read(out_2.execution());
+    let obtained_resource = client.read(out_2.disconnect());
 
     // Cache should be missed because the checksum on 4 is generated randomly
     // and thus is always different,

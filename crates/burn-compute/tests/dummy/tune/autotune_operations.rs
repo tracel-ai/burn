@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use burn_compute::{client::ComputeClient, server::ExecutionBufferHandle, tune::AutotuneOperation};
+use burn_compute::{client::ComputeClient, server::BufHandle, tune::AutotuneOperation};
 use derive_new::new;
 
 use crate::dummy::{DummyChannel, DummyKernel, DummyServer};
@@ -12,7 +12,7 @@ pub struct OneKernelAutotuneOperation {
     kernel: Arc<dyn DummyKernel>,
     client: ComputeClient<DummyServer, DummyChannel>,
     shapes: Vec<Vec<usize>>,
-    handles: Vec<ExecutionBufferHandle<DummyServer>>,
+    handles: Vec<BufHandle<DummyServer>>,
 }
 
 impl AutotuneOperation for OneKernelAutotuneOperation {

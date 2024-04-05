@@ -6,11 +6,11 @@ use crate::kernel::{
 };
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::{ExecutionBufferHandle, TensorBufferHandle};
+use burn_compute::server::{BufHandle, TensorBufHandle};
 
 #[derive(new)]
 pub struct EagerHandle<'a, R: Runtime> {
-    handle: &'a burn_compute::server::TensorBufferHandle<R::Server>,
+    handle: &'a burn_compute::server::TensorBufHandle<R::Server>,
     strides: &'a [usize],
     shape: &'a [usize],
 }
@@ -39,9 +39,9 @@ pub fn execute_static<R, K, E>(
     let mut handles = settings.handles_tensors;
     let workgroup = settings.workgroup;
 
-    handles.push(settings.handle_info.execution());
+    handles.push(settings.handle_info.disconnect());
     for handle in settings.handles_scalars.iter() {
-        handles.push(handle.execution());
+        handles.push(handle.disconnect());
     }
 
     let kernel = Box::new(StaticKernel::<K>::new(workgroup));
@@ -245,9 +245,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     let mut handles = settings.handles_tensors;
     let workgroup = settings.workgroup;
 
-    handles.push(settings.handle_info.execution());
+    handles.push(settings.handle_info.disconnect());
     for handle in settings.handles_scalars.iter() {
-        handles.push(handle.execution());
+        handles.push(handle.disconnect());
     }
 
     let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
@@ -256,9 +256,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
 }
 
 struct ExecuteSettings<R: Runtime> {
-    handles_tensors: Vec<ExecutionBufferHandle<R::Server>>,
-    handle_info: TensorBufferHandle<R::Server>,
-    handles_scalars: Vec<TensorBufferHandle<R::Server>>,
+    handles_tensors: Vec<BufHandle<R::Server>>,
+    handle_info: TensorBufHandle<R::Server>,
+    handles_scalars: Vec<TensorBufHandle<R::Server>>,
     workgroup: WorkGroup,
 }
 
@@ -298,7 +298,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
             }
         };
         register_info_tensor(input.strides, input.shape);
-        handles.push(input.handle.execution());
+        handles.push(input.handle.disconnect());
     }
 
     // Then we follow with the outputs.
@@ -309,7 +309,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
             }
         };
         register_info_tensor(output.strides, output.shape);
-        handles.push(output.handle.execution());
+        handles.push(output.handle.disconnect());
     }
 
     let info = client.create(bytemuck::cast_slice(&info));
@@ -336,7 +336,7 @@ fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElem
     scalars_1: Option<&[E2]>,
     scalars_2: Option<&[E3]>,
     client: &ComputeClient<R::Server, R::Channel>,
-) -> Vec<TensorBufferHandle<R::Server>> {
+) -> Vec<TensorBufHandle<R::Server>> {
     // It is crucial that scalars follow this order: float, int, uint
     let element_priority = |elem: Elem| match elem {
         Elem::Float => 0,

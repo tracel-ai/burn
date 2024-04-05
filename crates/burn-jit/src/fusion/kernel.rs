@@ -10,7 +10,7 @@ use crate::kernel::SourceTemplate;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::ExecutionBufferHandle;
+use burn_compute::server::BufHandle;
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -45,7 +45,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn Kernel>,
-    handles: Vec<ExecutionBufferHandle<R::Server>>,
+    handles: Vec<BufHandle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -58,7 +58,7 @@ pub struct ExecutableKernel<R: Runtime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn Kernel>,
-    handles: Vec<ExecutionBufferHandle<R::Server>>,
+    handles: Vec<BufHandle<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -155,7 +155,7 @@ impl<R: Runtime> FusionKernel<R> {
         // We register the info and handles for the inputs.
         for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
             register_info_tensor(&mut info, tensor, &handle);
-            handles.push(handle.handle.execution());
+            handles.push(handle.handle.disconnect());
         }
 
         // We register the info and handles for the outputs.
@@ -186,14 +186,14 @@ impl<R: Runtime> FusionKernel<R> {
                     };
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
-                    handles.push(handle_fusion.handle.execution());
+                    handles.push(handle_fusion.handle.disconnect());
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
         }
 
         // Create the info buffer.
-        handles.push(client.create(bytemuck::cast_slice(&info)).execution());
+        handles.push(client.create(bytemuck::cast_slice(&info)).disconnect());
 
         // Finally we finish with the named bindings.
         if running_info.scalars.num_float > 0 {
@@ -202,7 +202,7 @@ impl<R: Runtime> FusionKernel<R> {
                     .create(bytemuck::cast_slice(
                         &context.scalar_floats[0..running_info.scalars.num_float],
                     ))
-                    .execution(),
+                    .disconnect(),
             );
         }
 
@@ -212,7 +212,7 @@ impl<R: Runtime> FusionKernel<R> {
                     .create(bytemuck::cast_slice(
                         &context.scalar_ints[0..running_info.scalars.num_int],
                     ))
-                    .execution(),
+                    .disconnect(),
             );
         }
 

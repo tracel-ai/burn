@@ -34,34 +34,34 @@ macro_rules! storage_id_type {
 }
 
 #[derive(Clone, Debug)]
-pub struct TensorBuffer<Id> {
+pub struct TensorBufRef<Id> {
     id: Arc<Id>,
-    execution: Arc<()>,
+    all: Arc<()>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ExecutionBuffer<Id> {
+pub struct BufRef<Id> {
     id: Id,
-    _execution: Arc<()>,
+    _all: Arc<()>,
 }
 
-impl<Id> ExecutionBuffer<Id>
+impl<Id> BufRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
-    pub fn id(&self) -> &Id {
+    pub(crate) fn id(&self) -> &Id {
         &self.id
     }
 }
 
-impl<Id> TensorBuffer<Id>
+impl<Id> TensorBufRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
     pub(crate) fn new(id: Id) -> Self {
         Self {
             id: Arc::new(id),
-            execution: Arc::new(()),
+            all: Arc::new(()),
         }
     }
 
@@ -69,10 +69,10 @@ where
         &self.id
     }
 
-    pub(crate) fn execution(&self) -> ExecutionBuffer<Id> {
-        ExecutionBuffer {
+    pub(crate) fn buf_ref(&self) -> BufRef<Id> {
+        BufRef {
             id: self.id.as_ref().clone(),
-            _execution: self.execution.clone(),
+            _all: self.all.clone(),
         }
     }
 
@@ -87,28 +87,24 @@ where
     }
 
     pub(crate) fn can_be_dealloc(&self) -> bool {
-        // Only memory management reference
-        let no_execution_queued = Arc::strong_count(&self.execution) <= 1;
-        let no_tensor_holded = Arc::strong_count(&self.id) <= 1;
-
-        no_tensor_holded && no_execution_queued
+        Arc::strong_count(&self.all) <= 1
     }
 }
 
 #[macro_export(local_inner_macros)]
 /// Create a new memory ID type.
 macro_rules! memory_id_type {
-    ($id:ident, $handle_buf_tensor:ident, $handle_buf_execution:ident) => {
+    ($id:ident, $handle_buf_tensor:ident, $handle_buf:ident) => {
         /// Tensor buffer handle.
         #[derive(Clone, Debug)]
         pub struct $handle_buf_tensor {
-            value: $crate::id::TensorBuffer<$id>,
+            value: $crate::id::TensorBufRef<$id>,
         }
 
         /// Execution buffer handle.
         #[derive(Clone, Debug)]
-        pub struct $handle_buf_execution {
-            value: $crate::id::ExecutionBuffer<$id>,
+        pub struct $handle_buf {
+            value: $crate::id::BufRef<$id>,
         }
 
         /// Memory ID.
@@ -128,27 +124,27 @@ macro_rules! memory_id_type {
                     core::panic!("Memory ID overflowed");
                 }
                 Self {
-                    value: $crate::id::TensorBuffer::new($id { value }),
+                    value: $crate::id::TensorBufRef::new($id { value }),
                 }
             }
 
-            pub(crate) fn execution(&self) -> $handle_buf_execution {
-                $handle_buf_execution {
-                    value: self.value.execution(),
+            pub(crate) fn handle(&self) -> $handle_buf {
+                $handle_buf {
+                    value: self.value.buf_ref(),
                 }
             }
         }
 
         impl core::ops::Deref for $handle_buf_tensor {
-            type Target = $crate::id::TensorBuffer<$id>;
+            type Target = $crate::id::TensorBufRef<$id>;
 
             fn deref(&self) -> &Self::Target {
                 &self.value
             }
         }
 
-        impl core::ops::Deref for $handle_buf_execution {
-            type Target = $crate::id::ExecutionBuffer<$id>;
+        impl core::ops::Deref for $handle_buf {
+            type Target = $crate::id::BufRef<$id>;
 
             fn deref(&self) -> &Self::Target {
                 &self.value

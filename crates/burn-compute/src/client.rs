@@ -1,6 +1,6 @@
 use crate::{
     channel::ComputeChannel,
-    server::{ComputeServer, ExecutionBufferHandle, TensorBufferHandle},
+    server::{BufHandle, ComputeServer, TensorBufHandle},
     tune::{AutotuneOperationSet, Tuner},
 };
 use alloc::vec::Vec;
@@ -40,22 +40,22 @@ where
     }
 
     /// Given a handle, returns owned resource as bytes.
-    pub fn read(&self, handle: ExecutionBufferHandle<Server>) -> Reader<Vec<u8>> {
+    pub fn read(&self, handle: BufHandle<Server>) -> Reader<Vec<u8>> {
         self.channel.read(handle)
     }
 
     /// Given a resource, stores it and returns the resource handle.
-    pub fn create(&self, data: &[u8]) -> TensorBufferHandle<Server> {
+    pub fn create(&self, data: &[u8]) -> TensorBufHandle<Server> {
         self.channel.create(data)
     }
 
     /// Reserves `size` bytes in the storage, and returns a handle over them.
-    pub fn empty(&self, size: usize) -> TensorBufferHandle<Server> {
+    pub fn empty(&self, size: usize) -> TensorBufHandle<Server> {
         self.channel.empty(size)
     }
 
     /// Executes the `kernel` over the given `handles`.
-    pub fn execute(&self, kernel: Server::Kernel, handles: Vec<ExecutionBufferHandle<Server>>) {
+    pub fn execute(&self, kernel: Server::Kernel, handles: Vec<BufHandle<Server>>) {
         self.channel.execute(kernel, handles)
     }
 

@@ -22,8 +22,8 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
-    manual_available: HashMap<usize, Vec<server::TensorBufferHandle<Self>>>,
-    manual_taken: Vec<(usize, server::TensorBufferHandle<Self>)>,
+    manual_available: HashMap<usize, Vec<server::TensorBufHandle<Self>>>,
+    manual_taken: Vec<(usize, server::TensorBufHandle<Self>)>,
 }
 
 #[derive(new, Debug)]
@@ -92,14 +92,14 @@ where
     }
 
     // Finds a free, manually-added handle of specified size, or creates it if none is found
-    fn manual_reserve(&mut self, size: usize) -> server::TensorBufferHandle<Self> {
+    fn manual_reserve(&mut self, size: usize) -> server::TensorBufHandle<Self> {
         let handle = self
             .manual_available
             .get_mut(&size)
             .and_then(|h| h.pop())
             .unwrap_or_else(|| {
                 let memory = self.memory_management.alloc(size);
-                server::TensorBufferHandle::new(memory)
+                server::TensorBufHandle::new(memory)
             });
 
         self.manual_taken.push((size, handle.clone()));
@@ -108,7 +108,7 @@ where
     }
 
     // Manually adds a handle of given size
-    fn register_manual(&mut self, size: usize, handle: server::TensorBufferHandle<Self>) {
+    fn register_manual(&mut self, size: usize, handle: server::TensorBufHandle<Self>) {
         if let Some(handles) = self.manual_available.get_mut(&size) {
             handles.push(handle);
         } else {
@@ -168,7 +168,7 @@ where
         )
     }
 
-    fn buffer_reader(&mut self, handle: server::ExecutionBufferHandle<Self>) -> BufferReader {
+    fn buffer_reader(&mut self, handle: server::BufHandle<Self>) -> BufferReader {
         // Register previous tasks before reading the buffer so that it is up to date.
         self.register_tasks();
 
@@ -247,7 +247,7 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, handle: server::ExecutionBufferHandle<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, handle: server::BufHandle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]
         {
             let future = self.buffer_reader(handle).read(self.device.clone());
@@ -263,7 +263,7 @@ where
     ///
     /// This is important, otherwise the compute passes are going to be too small and we won't be able to
     /// fully utilize the GPU.
-    fn create(&mut self, data: &[u8]) -> server::TensorBufferHandle<Self> {
+    fn create(&mut self, data: &[u8]) -> server::TensorBufHandle<Self> {
         let handle = self.manual_reserve(data.len());
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
@@ -272,7 +272,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(handle.execution().memory);
+        let resource = self.memory_management.get(handle.disconnect().memory);
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
@@ -285,11 +285,11 @@ where
         handle
     }
 
-    fn empty(&mut self, size: usize) -> server::TensorBufferHandle<Self> {
-        server::TensorBufferHandle::new(self.memory_management.reserve(size))
+    fn empty(&mut self, size: usize) -> server::TensorBufHandle<Self> {
+        server::TensorBufHandle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<server::ExecutionBufferHandle<Self>>) {
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<server::BufHandle<Self>>) {
         let work_group = kernel.workgroup();
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
