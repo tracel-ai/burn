@@ -1,3 +1,3 @@
 mod fft1d;
 
-pub use fft1d::*;
+pub(crate) use fft1d::*;

@@ -8,14 +8,11 @@ use crate::{
     element::JitElement,
     gpu::{gpu, Branch, Elem, Scope, Variable, Visibility},
     kernel::{self, DynamicKernelSource, SourceTemplate},
-    kernel_wgsl,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Compiler, Runtime,
 };
 use burn_tensor::Element;
-
-kernel_wgsl!(FFT, "../../template/fft/fft.wgsl");
 
 pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
     input: JitTensor<R, E, 3>,
@@ -47,7 +44,6 @@ pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
         input.shape.clone(),
     );
 
-    let num_elems = input.shape.num_elements();
     let num_fft_iters = (num_samples as f32).log2() as usize;
 
     for fft_iter in 0..num_fft_iters {
@@ -77,20 +73,6 @@ pub(crate) fn fft<R: Runtime, E: JitElement + Element>(
             )])
             .with_scalars(&[num_fft_iters as u32, fft_iter as u32])
             .execute(crate::codegen::WorkgroupLaunch::Input { pos: 0 });
-
-        // let mut info = build_info(&[&x_tensor, &x_hat_tensor]);
-        // info.push(num_fft_iters as u32);
-        // info.push(fft_iter as u32);
-
-        // let info_handle = input.client.create(bytemuck::cast_slice(&info));
-
-        // let kernel = StaticKernel::<
-        //     KernelSettings<FFT, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        // >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-        // input.client.execute(
-        //     Box::new(kernel),
-        //     &[&x_tensor.handle, &x_hat_tensor.handle, &info_handle],
-        // );
     }
 
     // "Ping pong" buffering
@@ -176,8 +158,8 @@ impl FftComputeShader {
         gpu!(scope, input_stride_0 = stride(input, 0u32));
         gpu!(scope, input_stride_1 = stride(input, 1u32));
         gpu!(scope, input_stride_2 = stride(input, 2u32));
-        gpu!(scope, input_shape_0 = shape(input, 2u32));
-        gpu!(scope, input_shape_1 = shape(input, 3u32));
+        gpu!(scope, input_shape_0 = shape(input, 0u32));
+        gpu!(scope, input_shape_1 = shape(input, 1u32));
         gpu!(scope, input_shape_2 = shape(input, 2u32));
 
         gpu!(scope, output_stride_0 = stride(output, 0u32));
@@ -228,9 +210,8 @@ impl FftComputeShader {
 
         // Binary mask for extracting the index of E_k
         let even_mask = scope.create_local(Elem::UInt);
-        let all_bits = scope.zero(Elem::UInt);
-        gpu!(scope, all_bits = all_bits - 1u32); // Voluntary underflow
-        gpu!(scope, even_mask = num_transforms ^ all_bits);
+        let xffff = scope.create_with_value(65535, Elem::UInt);
+        gpu!(scope, even_mask = num_transforms ^ xffff);
 
         // Returns if outside the output dimension
         gpu!(scope, outside = oy >= output_shape_0);
@@ -308,10 +289,10 @@ impl FftComputeShader {
 
         let pm1 = scope.create_local(input.item());
         gpu!(scope, if(negative_instead_of_plus).then(|scope|{
-            let tmp = scope.create_with_value(1, input.item());
+            let tmp = scope.create_with_value(-1, input.item());
             gpu!(scope, pm1 = tmp);
         }).else(|scope|{
-            let tmp = scope.create_with_value(-1, input.item());
+            let tmp = scope.create_with_value(1, input.item());
             gpu!(scope, pm1 = tmp);
         }));
 
@@ -343,7 +324,7 @@ impl FftComputeShader {
         gpu!(scope, e_k_re = input[i_even_re]);
         gpu!(scope, e_k_im = input[i_even_im]);
         gpu!(scope, o_k_re = input[i_odd_re]);
-        gpu!(scope, o_k_im = input[i_odd_re]);
+        gpu!(scope, o_k_im = input[i_odd_im]);
 
         // Note the following:
         // Real part of (a + bj)(c + dj) = ac + bd(j*j) = ac - bd
