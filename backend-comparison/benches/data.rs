@@ -71,7 +71,12 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 1024].into();
 
@@ -81,6 +86,7 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
     save::<B>(
         vec![run_benchmark(to_benchmark), run_benchmark(from_benchmark)],
         device,
+        feature_name,
         url,
         token,
     )

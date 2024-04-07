@@ -12,9 +12,10 @@ pub struct Net<B: Backend> {
 
 impl<B: Backend> Net<B> {
     /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let conv1 = ConvTranspose2dConfig::new([2, 2], [2, 2]).init_with(record.conv1);
-        let conv2 = ConvTranspose2dConfig::new([2, 2], [2, 2]).init_with(record.conv2);
+    pub fn init(device: &B::Device) -> Self {
+        let conv1 = ConvTranspose2dConfig::new([2, 2], [2, 2]).init(device);
+        let conv2 = ConvTranspose2dConfig::new([2, 2], [2, 2]).init(device);
+
         Self { conv1, conv2 }
     }
 
@@ -38,7 +39,7 @@ mod tests {
     fn conv_transpose2d(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<Backend>::init(&device).load_record(record);
 
         let input = Tensor::<Backend, 4>::from_data(
             [[

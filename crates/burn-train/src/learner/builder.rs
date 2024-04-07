@@ -24,8 +24,8 @@ use burn_core::tensor::backend::AutodiffBackend;
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
 where
-    T: Send + Sync + 'static,
-    V: Send + Sync + 'static,
+    T: Send + 'static,
+    V: Send + 'static,
     B: AutodiffBackend,
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
@@ -58,8 +58,8 @@ where
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
 where
     B: AutodiffBackend,
-    T: Send + Sync + 'static,
-    V: Send + Sync + 'static,
+    T: Send + 'static,
+    V: Send + 'static,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler<B>,

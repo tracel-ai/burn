@@ -5,7 +5,7 @@ use crate::tensor::backend::AutodiffBackend;
 use crate::LearningRate;
 
 /// General trait to optimize [module](AutodiffModule).
-pub trait Optimizer<M, B>: Send + Sync
+pub trait Optimizer<M, B>: Send
 where
     M: AutodiffModule<B>,
     B: AutodiffBackend,

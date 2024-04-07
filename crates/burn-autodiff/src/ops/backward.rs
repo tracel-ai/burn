@@ -2,7 +2,7 @@ use super::{Ops, OpsPrep};
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder, strategy::CheckpointStrategy},
     grads::Gradients,
-    graph::{ComputingProperty, Graph, NodeRef, Requirement},
+    graph::{ComputingProperty, NodeRef, Requirement},
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
@@ -14,13 +14,13 @@ use burn_tensor::backend::Backend;
 /// Concrete types implementing this trait should not have any state.
 /// If a state is necessary during the backward pass,
 /// they should be declared with the associated type 'State'.
-pub trait Backward<B, const D: usize, const N: usize>: Send + Sync + std::fmt::Debug
+pub trait Backward<B, const D: usize, const N: usize>: Send + std::fmt::Debug
 where
     Self: Sized + 'static,
     B: Backend,
 {
     /// Associated type to compute the backward pass.
-    type State: Clone + Send + Sync + std::fmt::Debug + 'static;
+    type State: Clone + Send + std::fmt::Debug + 'static;
 
     /// The backward pass.
     fn backward(
@@ -34,12 +34,10 @@ where
     fn prepare<C: CheckpointStrategy>(
         self,
         nodes: [NodeRef; N],
-        graphs: [Graph; N],
     ) -> OpsPrep<Self, B, Self::State, C, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         OpsPrep::new(
             nodes,
-            graphs,
             requirement,
             self,
             ComputingProperty::Ambiguous, // If not specified we start with ambiguous
@@ -65,12 +63,12 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
 
     if let Some(node) = node_lhs {
         let grad = func_lhs(grad_4lhs.unwrap());
-        grads.register::<B, D_LHS>(node, grad)
+        grads.register::<B, D_LHS>(node.id, grad)
     }
 
     if let Some(node) = node_rhs {
         let grad = func_rhs(grad_4rhs.unwrap());
-        grads.register::<B, D_RHS>(node, grad)
+        grads.register::<B, D_RHS>(node.id, grad)
     }
 }
 
@@ -89,7 +87,7 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
 
     if let Some(node) = parent_node {
         let grad = func(grad);
-        grads.register::<B, D_IN>(node, grad)
+        grads.register::<B, D_IN>(node.id, grad)
     }
 }
 
@@ -110,6 +108,6 @@ pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize,
 
     if let Some(node) = parent_node {
         let grad = func(grad);
-        grads.register::<BIn, D_IN>(node, grad)
+        grads.register::<BIn, D_IN>(node.id, grad)
     }
 }

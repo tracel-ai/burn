@@ -1,22 +1,20 @@
-use std::collections::HashMap;
-
-use crate::graph::{NodeID, NodeRef};
-
 use super::{
     retro_forward::RetroForwards,
     state::{BackwardStates, State},
 };
+use crate::graph::NodeID;
+use std::collections::HashMap;
 
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]
 pub(crate) struct NodeTree {
-    map: HashMap<NodeID, NodeRef>,
+    map: HashMap<NodeID, Vec<NodeID>>,
 }
 
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
     pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
-        self.map.get(node_id).map(|node| node.parents.clone())
+        self.map.get(node_id).cloned()
     }
 }
 
@@ -33,14 +31,12 @@ impl Checkpointer {
     /// or give their pre-computed tensors.
     pub fn retrieve_node_output<T>(&mut self, node_id: NodeID) -> T
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
-        self.topological_sort(node_id.clone())
-            .into_iter()
-            .for_each(|node| {
-                self.retro_forwards
-                    .execute_retro_forward(node, &mut self.backward_states)
-            });
+        self.topological_sort(node_id).into_iter().for_each(|node| {
+            self.retro_forwards
+                .execute_retro_forward(node, &mut self.backward_states)
+        });
 
         self.backward_states.get_state::<T>(&node_id)
     }

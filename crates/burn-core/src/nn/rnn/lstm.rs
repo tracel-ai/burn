@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
-use crate::nn::LinearConfig;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::activation;
@@ -74,33 +73,6 @@ impl LstmConfig {
             forget_gate,
             output_gate,
             cell_gate,
-            d_hidden: self.d_hidden,
-        }
-    }
-
-    /// Initialize a new [lstm](Lstm) module with a [record](LstmRecord).
-    pub fn init_with<B: Backend>(&self, record: LstmRecord<B>) -> Lstm<B> {
-        let linear_config = LinearConfig {
-            d_input: self.d_input,
-            d_output: self.d_hidden,
-            bias: self.bias,
-            initializer: self.initializer.clone(),
-        };
-
-        Lstm {
-            input_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.input_gate,
-            ),
-            forget_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.forget_gate,
-            ),
-            output_gate: gate_controller::GateController::new_with(
-                &linear_config,
-                record.output_gate,
-            ),
-            cell_gate: gate_controller::GateController::new_with(&linear_config, record.cell_gate),
             d_hidden: self.d_hidden,
         }
     }
@@ -272,12 +244,12 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+                weight: Param::from_data(Data::from([[weights]]), device),
+                bias: Some(Param::from_data(Data::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+                weight: Param::from_data(Data::from([[weights]]), device),
+                bias: Some(Param::from_data(Data::from([biases]), device)),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,

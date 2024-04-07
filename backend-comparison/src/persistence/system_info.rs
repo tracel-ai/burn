@@ -5,15 +5,15 @@ use sysinfo;
 use wgpu;
 
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub(crate) struct BenchmarkSystemInfo {
+pub struct BenchmarkSystemInfo {
     cpus: Vec<String>,
     gpus: Vec<String>,
-    os: BenchmarkOSInfo,
+    pub os: BenchmarkOSInfo,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub(crate) struct BenchmarkOSInfo {
-    name: String,
+pub struct BenchmarkOSInfo {
+    pub name: String,
     #[serde(rename = "wsl")]
     windows_linux_subsystem: bool,
 }

@@ -39,7 +39,7 @@ where
             _bridge: PhantomData<Bridge>,
         }
 
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct RetroIntoTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,
@@ -84,9 +84,9 @@ where
             _backend: PhantomData,
             _bridge: PhantomData,
         }
-        .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
+        .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::into_target(tensor.primitive, None))
     }
@@ -101,7 +101,7 @@ where
             _bridge: PhantomData<Bridge>,
         }
 
-        #[derive(new, Debug)]
+        #[derive(new, Debug, Clone)]
         struct RetroFromTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,
@@ -146,9 +146,9 @@ where
             _backend: PhantomData,
             _bridge: PhantomData,
         }
-        .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+        .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id.clone()))
+        .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::from_target(tensor.primitive, None))
     }

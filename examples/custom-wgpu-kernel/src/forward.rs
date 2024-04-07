@@ -3,9 +3,9 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_wgsl, DynamicKernel, DynamicKernelSource, FloatElement,
-        GraphicsApi, IntElement, JitBackend, JitTensor, SourceTemplate, StaticKernelSource,
-        WgpuRuntime, WorkGroup,
+        build_info, into_contiguous, kernel_wgsl, FloatElement, GraphicsApi, IntElement,
+        JitBackend, JitTensor, Kernel, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        WorkGroup, WorkgroupSize,
     },
     tensor::Shape,
 };
@@ -18,25 +18,21 @@ kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
 // Define our kernel type with workgroup information.
 #[derive(new, Debug)]
 struct FusedMatmulAddRelu<E: FloatElement> {
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
+    workgroup_size: WorkgroupSize,
     _elem: PhantomData<E>,
 }
 
 // Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
+impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
     fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.
-        FusedMatmulAddReluRaw::source()
-            .register("workgroup_size_x", self.workgroup_size_x.to_string())
-            .register("workgroup_size_y", self.workgroup_size_y.to_string())
+        FusedMatmulAddReluRaw::new()
+            .source()
+            .register("workgroup_size_x", self.workgroup_size.x.to_string())
+            .register("workgroup_size_y", self.workgroup_size.y.to_string())
             .register("elem", E::type_name())
             .register("int", "i32")
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", self)
     }
 }
 
@@ -48,9 +44,9 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         bias: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         // Define workgroup size, hardcoded for simplicity.
-        let workgroup_size_x = 16;
-        let workgroup_size_y = 16;
+        let workgroup_size = WorkgroupSize { x: 16, y: 16, z: 1 };
 
+        // Specify the size of a workgroup for this kernel
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);
 
@@ -83,20 +79,24 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
-        let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size_x, workgroup_size_y);
+        let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
         let info = build_info(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of blocks in x, y and z.
-        let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
-        let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
+        let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size.x as f32) as u32;
+        let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size.y as f32) as u32;
         let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Box::new(DynamicKernel::new(kernel, workgroup)),
+            Kernel::Custom(Box::new(SourceKernel::new(
+                kernel,
+                workgroup,
+                workgroup_size,
+            ))),
             &[
                 &lhs.handle,
                 &rhs.handle,

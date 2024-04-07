@@ -1,11 +1,12 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::{self, GpuComputeShaderPhase},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -260,10 +261,10 @@ impl MaxPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
     for MaxPool2dWithIndicesBackwardEagerKernel<R, E>
 {
-    fn source(&self) -> kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -303,9 +304,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

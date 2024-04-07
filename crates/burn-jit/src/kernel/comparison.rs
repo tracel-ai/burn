@@ -2,12 +2,13 @@ use crate::{
     binary,
     codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
     element::JitElement,
-    kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
     tensor::JitTensor,
     unary, Runtime,
 };
 use std::mem;
+
+use super::GpuComputeShaderPhase;
 
 macro_rules! comparison {
     (
@@ -25,7 +26,7 @@ macro_rules! comparison {
             $runtime,
             E,
             D
-        >($lhs, $rhs)
+        >($lhs, $rhs, Ops::new(), OpsInplaceLhs::new(), OpsInplaceRhs::new())
     }};
 
     (
@@ -36,13 +37,16 @@ macro_rules! comparison {
     ) => {{
         unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, scalar 1);
 
+        let kernel = Ops::<<$runtime as Runtime>::Compiler, E>::new();
+        let kernel_inplace = OpsInplace::<<$runtime as Runtime>::Compiler, E>::new();
+
         launch_unary::<
             Ops<<$runtime as Runtime>::Compiler, E>,
             OpsInplace<<$runtime as Runtime>::Compiler, E>,
             $runtime,
             E,
             D
-        >($lhs, $rhs)
+        >($lhs, $rhs, kernel, kernel_inplace)
     }};
 }
 
@@ -209,11 +213,14 @@ pub fn lower_equal_elem<R: Runtime, E: JitElement, const D: usize>(
 fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
+    kernel: Kernel,
+    kernel_inplace_lhs: KernelInplaceLhs,
+    kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplaceLhs: StaticKernelSource,
-    KernelInplaceRhs: StaticKernelSource,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplaceLhs: GpuComputeShaderPhase,
+    KernelInplaceRhs: GpuComputeShaderPhase,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
@@ -222,6 +229,9 @@ where
         lhs,
         rhs,
         can_be_used_as_bool,
+        kernel,
+        kernel_inplace_lhs,
+        kernel_inplace_rhs,
     );
 
     // We recast the tensor type.
@@ -231,16 +241,23 @@ where
 fn launch_unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     tensor: JitTensor<R, E, D>,
     scalars: E,
+    kernel: Kernel,
+    kernel_inplace: KernelInplace,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplace: StaticKernelSource,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplace: GpuComputeShaderPhase,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
-    let output =
-        unary::<Kernel, KernelInplace, R, E, D>(tensor, Some(&[scalars]), can_be_used_as_bool);
+    let output = unary::<Kernel, KernelInplace, R, E, D>(
+        tensor,
+        Some(&[scalars]),
+        can_be_used_as_bool,
+        kernel,
+        kernel_inplace,
+    );
 
     // We recast the tensor type.
     JitTensor::new(output.client, output.device, output.shape, output.handle)

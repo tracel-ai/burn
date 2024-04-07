@@ -24,10 +24,10 @@ where
     Server: ComputeServer,
 {
     _handle: thread::JoinHandle<()>,
-    sender: mpsc::SyncSender<Message<Server>>,
+    sender: mpsc::Sender<Message<Server>>,
 }
 
-type Callback<Response> = mpsc::SyncSender<Response>;
+type Callback<Response> = mpsc::Sender<Response>;
 
 enum Message<Server>
 where
@@ -45,8 +45,8 @@ where
     Server: ComputeServer + 'static,
 {
     /// Create a new mpsc compute channel.
-    pub fn new(mut server: Server, bound: usize) -> Self {
-        let (sender, receiver) = mpsc::sync_channel(bound);
+    pub fn new(mut server: Server) -> Self {
+        let (sender, receiver) = mpsc::channel();
 
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
@@ -94,7 +94,7 @@ where
     Server: ComputeServer + 'static,
 {
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        let (callback, response) = mpsc::sync_channel(1);
+        let (callback, response) = mpsc::channel();
 
         self.state
             .sender
@@ -105,7 +105,7 @@ where
     }
 
     fn create(&self, data: &[u8]) -> Handle<Server> {
-        let (callback, response) = mpsc::sync_channel(1);
+        let (callback, response) = mpsc::channel();
 
         self.state
             .sender
@@ -116,7 +116,7 @@ where
     }
 
     fn empty(&self, size: usize) -> Handle<Server> {
-        let (callback, response) = mpsc::sync_channel(1);
+        let (callback, response) = mpsc::channel();
 
         self.state
             .sender
@@ -140,7 +140,7 @@ where
     }
 
     fn sync(&self) {
-        let (callback, response) = mpsc::sync_channel(1);
+        let (callback, response) = mpsc::channel();
 
         self.state.sender.send(Message::Sync(callback)).unwrap();
 
