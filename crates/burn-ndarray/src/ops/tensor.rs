@@ -14,12 +14,11 @@ use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
 use burn_tensor::{Distribution, Reader};
 
-// External crates
-use libm::{cos, erf, sin, tanh};
-
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
+
+use libm::erf;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_from_data<const D: usize>(
@@ -400,7 +399,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| cos(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64().unwrap()).cos().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -409,7 +408,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| sin(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64().unwrap()).sin().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -418,7 +417,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| tanh(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64().unwrap()).tanh().elem())
             .into_shared();
 
         NdArrayTensor::new(array)

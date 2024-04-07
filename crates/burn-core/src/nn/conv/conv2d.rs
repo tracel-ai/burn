@@ -9,7 +9,6 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
 
 use super::checks;
 
@@ -36,7 +35,9 @@ pub struct Conv2dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
@@ -135,7 +136,7 @@ mod tests {
 
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
@@ -161,7 +162,7 @@ mod tests {
         TestBackend::seed(0);
 
         let init = Initializer::KaimingUniform {
-            gain: 1.0 / sqrt(3.0),
+            gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true, // test that fan_out is passed to `init_with()`
         };
         let device = Default::default();
@@ -176,7 +177,7 @@ mod tests {
         TestBackend::seed(0);
 
         let init = Initializer::KaimingUniform {
-            gain: 1.0 / sqrt(3.0),
+            gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true,
         };
         let device = Default::default();

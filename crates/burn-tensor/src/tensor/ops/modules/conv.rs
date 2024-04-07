@@ -1,7 +1,9 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{Conv1dBackward, Conv2dBackward, ConvOptions, ConvTransposeOptions};
 use crate::{backend::Backend, ops::FloatTensor, Shape};
-use libm::ceilf;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Calculate the expected padding size required when applying a convolution.
 pub fn calculate_conv_padding(
@@ -16,7 +18,7 @@ pub fn calculate_conv_padding(
     let size_out = size_out as f32;
 
     let padding = stride * (size_out - 1.) - size_in + kernel_size;
-    let padding = ceilf(padding / 2.);
+    let padding = (padding / 2.).ceil();
 
     padding as usize
 }
@@ -677,9 +679,9 @@ fn calculate_padding_out(
         return 0;
     }
 
-    let out = 1 + libm::ceil(
-        (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64,
-    ) as usize;
+    let out = 1
+        + ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64).ceil()
+            as usize;
     i64::max(0, out as i64 - size_out as i64) as usize
 }
 

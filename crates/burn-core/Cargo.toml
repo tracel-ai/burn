@@ -37,6 +37,7 @@ std = [
     "rmp-serde",
     "serde/std",
     "serde_json/std",
+    "num-traits/std",
 ]
 doc = [
     "std",
@@ -86,7 +87,7 @@ candle = ["burn-candle"]
 wgpu = ["burn-wgpu"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["thiserror", "regex", "num-traits"]
+record-item-custom-serde = ["thiserror", "regex"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
@@ -111,9 +112,9 @@ burn-tch = { path = "../burn-tch", version = "0.13.0", optional = true }
 burn-candle = { path = "../burn-candle", version = "0.13.0", optional = true }
 
 derive-new = { workspace = true }
-libm = { workspace = true }
 log = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std_rng"] } # Default enables std
+
 # Using in place of use std::sync::Mutex when std is disabled
 spin = { workspace = true, features = ["mutex", "spin_mutex"] }
 
@@ -130,7 +131,7 @@ rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-num-traits = { workspace = true, optional = true }
+num-traits = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
