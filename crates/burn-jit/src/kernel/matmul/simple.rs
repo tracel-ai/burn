@@ -2,13 +2,14 @@ use crate::codegen::dialect::gpu::{
     gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
 };
 use crate::codegen::Execution;
+use crate::gpu::ComputeShader;
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
@@ -150,8 +151,8 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: Runtime> DynamicKernelSource for MatmulEagerKernel<R> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime> GpuComputeShaderPhase for MatmulEagerKernel<R> {
+    fn compile(&self) -> ComputeShader {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
             "Only square grid is supported."
@@ -193,9 +194,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulEagerKernel<R> {
             self.workgroup_size_y as u32,
             1,
         ));
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

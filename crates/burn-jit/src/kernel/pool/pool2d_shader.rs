@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
-    Compiler, JitElement, Runtime,
+    gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
+    JitElement, Runtime,
 };
 
 use super::PoolStrategy;
@@ -172,10 +172,10 @@ pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> 
     _elem: PhantomData<E>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
+impl<P: PoolStrategy, R: Runtime, E: JitElement> GpuComputeShaderPhase
     for Pool2dEagerKernel<P, R, E>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -227,9 +227,7 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

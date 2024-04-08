@@ -3,11 +3,12 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle, Execution,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
 };
@@ -36,10 +37,10 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
     for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = EI::gpu_elem().into();
         let item_output = EO::gpu_elem().into();
@@ -72,9 +73,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> Dyn
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

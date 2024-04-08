@@ -51,6 +51,15 @@ The CNN model and training recipe used in this example are fairly simple since t
 demonstrate how to load a custom image classification dataset from disk. Nonetheless, it still
 achieves 70-80% accuracy on the test set after just 30 epochs.
 
+Run it with the Torch GPU backend:
+
 ```sh
-cargo run --example custom-image-dataset
+export TORCH_CUDA_VERSION=cu121
+cargo run --example custom-image-dataset --release --features tch-gpu
+```
+
+Run it with our WGPU backend:
+
+```sh
+cargo run --example custom-image-dataset --release --features wgpu
 ```

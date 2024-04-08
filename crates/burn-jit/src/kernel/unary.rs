@@ -1,10 +1,11 @@
-use super::StaticKernelSource;
 use crate::{
-    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
+    codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
 };
+
+use super::GpuComputeShaderPhase;
 
 /// Creates a unary kernel.
 #[macro_export]
@@ -23,7 +24,7 @@ macro_rules! unary {
             $runtime,
             $elem,
             D
-        >($input, None, true)
+        >($input, None, true, Ops::new(), OpsInplace::new())
     }};
     (
         operation: $ops:expr,
@@ -39,28 +40,29 @@ macro_rules! unary {
             $runtime,
             $elem,
             D
-        >($input, Some(&[$scalar]), true)
+        >($input, Some(&[$scalar]), true, Ops::new(), OpsInplace::new())
     }};
 
     (
         operation: $ops:expr,
         compiler: $compiler:ty
     ) => {
+        #[derive(new)]
         pub struct Ops<C, E> {
             _c: core::marker::PhantomData<C>,
             _e: core::marker::PhantomData<E>,
         }
+        #[derive(new)]
         pub struct OpsInplace<C, E> {
             _c: core::marker::PhantomData<C>,
             _e: core::marker::PhantomData<E>,
         }
 
         #[allow(clippy::redundant_closure_call)]
-        fn compile<C, E>(
+        fn compile<E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
+        ) -> $crate::gpu::ComputeShader
         where
-            C: $crate::codegen::Compiler,
             E: $crate::element::JitElement
         {
 
@@ -83,38 +85,35 @@ macro_rules! unary {
                 outputs: vec![out],
                 scope,
             };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
+            $crate::codegen::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(vec![mapping]);
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
     };
@@ -123,21 +122,22 @@ macro_rules! unary {
         compiler: $compiler:ty,
         scalar $num:expr
     ) => {
+        #[derive(new)]
         pub struct Ops<C, E> {
             _c: core::marker::PhantomData<C>,
             _e: core::marker::PhantomData<E>,
         }
+        #[derive(new)]
         pub struct OpsInplace<C, E> {
             _c: core::marker::PhantomData<C>,
             _e: core::marker::PhantomData<E>,
         }
 
         #[allow(clippy::redundant_closure_call)]
-        fn compile<C, E>(
+        fn compile<E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
+        ) -> $crate::gpu::ComputeShader
         where
-            C: $crate::codegen::Compiler,
             E: $crate::element::JitElement
         {
 
@@ -164,38 +164,35 @@ macro_rules! unary {
                 outputs: vec![out],
                 scope,
             };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
+            $crate::codegen::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn source() -> $crate::kernel::SourceTemplate {
+            fn compile(&self) -> $crate::gpu::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(vec![mapping]);
-                compile::<C, E>(settings)
+                compile::<E>(settings)
             }
         }
     };
@@ -206,24 +203,36 @@ pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
     tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
+    kernel: Kernel,
+    kernel_inplace: KernelInplace,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: StaticKernelSource,
-    KernelInplace: StaticKernelSource,
+    Kernel: GpuComputeShaderPhase,
+    KernelInplace: GpuComputeShaderPhase,
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        execute_static::<R, KernelInplace, E>(
-            &[EagerHandle::new(
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            )],
-            &[],
-            scalars,
-            WorkgroupLaunch::Input { pos: 0 },
-            tensor.client.clone(),
-        );
+        let input_handles = &[EagerHandle::<R>::new(
+            &tensor.handle,
+            &tensor.strides,
+            &tensor.shape.dims,
+        )];
+
+        let launch = WorkgroupLaunch::Input { pos: 0 };
+
+        match scalars {
+            Some(scalars) => {
+                Execution::start(kernel_inplace, tensor.client.clone())
+                    .inputs(input_handles)
+                    .with_scalars(scalars)
+                    .execute(launch);
+            }
+            None => {
+                Execution::start(kernel_inplace, tensor.client.clone())
+                    .inputs(input_handles)
+                    .execute(launch);
+            }
+        }
 
         tensor
     } else {
@@ -236,21 +245,35 @@ where
             buffer,
         );
 
-        execute_static::<R, Kernel, E>(
-            &[EagerHandle::new(
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            )],
-            &[EagerHandle::new(
-                &output.handle,
-                &output.strides,
-                &output.shape.dims,
-            )],
-            scalars,
-            WorkgroupLaunch::Output { pos: 0 },
-            tensor.client,
-        );
+        let input_handles = &[EagerHandle::<R>::new(
+            &tensor.handle,
+            &tensor.strides,
+            &tensor.shape.dims,
+        )];
+
+        let output_handles = &[EagerHandle::<R>::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )];
+
+        let launch = WorkgroupLaunch::Output { pos: 0 };
+
+        match scalars {
+            Some(scalars) => {
+                Execution::start(kernel, tensor.client)
+                    .inputs(input_handles)
+                    .outputs(output_handles)
+                    .with_scalars(scalars)
+                    .execute(launch);
+            }
+            None => {
+                Execution::start(kernel, tensor.client)
+                    .inputs(input_handles)
+                    .outputs(output_handles)
+                    .execute(launch);
+            }
+        }
 
         output
     }

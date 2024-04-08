@@ -1,4 +1,7 @@
-use crate::{codegen::Compiler, compute::JitAutotuneKey};
+use crate::{
+    codegen::Compiler,
+    compute::{JitAutotuneKey, Kernel},
+};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 
 /// Type alias to the runtime signed int element type.
@@ -9,10 +12,7 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     /// The compiler used to compile the inner representation into tokens.
     type Compiler: Compiler;
     /// The compute server used to run kernels and perform autotuning.
-    type Server: ComputeServer<
-        Kernel = Box<dyn crate::compute::Kernel>,
-        AutotuneKey = JitAutotuneKey,
-    >;
+    type Server: ComputeServer<Kernel = Kernel, AutotuneKey = JitAutotuneKey>;
     /// The channel used to communicate with the compute server.
     type Channel: ComputeChannel<Self::Server>;
     /// The device used to retrieve the compute client.
