@@ -20,7 +20,7 @@ pub struct SwiGluConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }

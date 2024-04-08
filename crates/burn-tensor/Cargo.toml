@@ -15,7 +15,7 @@ default = ["std"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
-std = ["rand/std", "half/std"]
+std = ["rand/std", "half/std", "num-traits/std"]
 wasm-sync = []
 
 [dependencies]
@@ -24,7 +24,6 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.0", opt
 
 derive-new = { workspace = true }
 half = { workspace = true }
-libm = { workspace = true }       # no_std is supported by default
 num-traits = { workspace = true }
 rand = { workspace = true }
 rand_distr = { workspace = true } # use instead of statrs because it supports no_std

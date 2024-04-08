@@ -5,6 +5,9 @@ use crate::{
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     output_size: [usize; 2],
@@ -91,13 +94,12 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
-    libm::floorf((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+    ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
 
 fn end_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
     let index =
-        libm::ceilf(((output_size_index + 1) as f32 * input_size as f32) / output_size as f32)
-            as usize;
+        (((output_size_index + 1) as f32 * input_size as f32) / output_size as f32).ceil() as usize;
 
     usize::min(index, input_size)
 }
