@@ -30,14 +30,10 @@ impl MetricSummary {
         num_epochs: usize,
     ) -> Self {
         let entries = (1..num_epochs)
-            .into_iter()
             .filter_map(|epoch| {
-                if let Some(value) = event_store.find_metric(metric, epoch, Aggregate::Mean, split)
-                {
-                    Some(MetricEntry { step: epoch, value })
-                } else {
-                    None
-                }
+                event_store
+                    .find_metric(metric, epoch, Aggregate::Mean, split)
+                    .map(|value| MetricEntry { step: epoch, value })
             })
             .collect::<Vec<_>>();
 
