@@ -1158,10 +1158,7 @@ version = "0.13.0"
 dependencies = [
  "burn",
  "flate2",
- "indicatif",
- "reqwest",
  "tar",
- "tokio",
 ]
 
 [[package]]
@@ -1921,9 +1918,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
+checksum = "a06fddc2749e0528d2813f95e050e87e52c8cbbae56223b9babf73b3e53b0cc6"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3503,6 +3500,7 @@ name = "pytorch-tests"
 version = "0.13.0"
 dependencies = [
  "burn",
+ "burn-autodiff",
  "burn-import",
  "burn-ndarray",
  "float-cmp",
