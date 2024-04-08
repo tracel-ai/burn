@@ -194,8 +194,8 @@ dataloaders. For the sake of simplicity in this example, we employ the test set 
 set; however, we do not recommend this practice for actual usage.
 
 Finally, the trained model is returned by the `fit` method. The trained weights are then saved using
-the `CompactRecorder`. This recorder employs the `MessagePack` format with `gzip` compression, `f16`
-for floats and `i16` for integers. Other recorders are available, offering support for various
-formats, such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of
-precision, can load recorded data of any kind. Once the weights have been saved, we use the
-`LearnerSummary` to display the training report summary.
+the `CompactRecorder`. This recorder employs the `MessagePack` format with half precision, `f16` for
+floats and `i16` for integers. Other recorders are available, offering support for various formats,
+such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of precision, can
+load recorded data of any kind. Once the weights have been saved, we use the `LearnerSummary` to
+display the training report summary.
