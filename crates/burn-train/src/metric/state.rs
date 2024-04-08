@@ -67,7 +67,8 @@ impl NumericMetricState {
 
         let value_current = value;
         let value_running = self.sum / self.count as f64;
-        let serialized = value_current.to_string();
+        // Comma separated (value, batch size) pair
+        let serialized = format!("{value_current},{batch_size}");
 
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => (

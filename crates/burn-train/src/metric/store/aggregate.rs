@@ -1,4 +1,4 @@
-use crate::logger::MetricLogger;
+use crate::logger::{MetricLogger, NumericEntry};
 use std::collections::HashMap;
 
 use super::{Aggregate, Direction};
@@ -48,8 +48,18 @@ impl NumericMetricsAggregate {
             return None;
         }
 
-        let num_points = points.len();
-        let sum = points.into_iter().sum::<f64>();
+        // Accurately compute the aggregated value based on the *actual* number of points
+        // since not all mini-batches are guaranteed to have the specified batch size
+        let (sum, num_points) = points
+            .into_iter()
+            .map(|entry| match entry {
+                NumericEntry::Value(v) => (v, 1),
+                // Right now the mean is the only aggregate available, so we can assume that the sum
+                // of an entry corresponds to (value * number of elements)
+                NumericEntry::Aggregated(v, n) => (v * n as f64, n),
+            })
+            .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
+            .unwrap();
         let value = match aggregate {
             Aggregate::Mean => sum / num_points as f64,
         };

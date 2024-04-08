@@ -9,9 +9,9 @@ use burn::{
     train::{
         metric::{
             store::{Aggregate, Direction, Split},
-            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
+            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric, Metric,
         },
-        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+        LearnerBuilder, LearnerSummary, MetricEarlyStoppingStrategy, StoppingCondition,
     },
 };
 
@@ -90,4 +90,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             &NoStdTrainingRecorder::new(),
         )
         .expect("Failed to save trained model");
+
+    // Training summary
+    let summary = LearnerSummary::new(
+        ARTIFACT_DIR,
+        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
+    );
+    println!("{}", summary);
 }

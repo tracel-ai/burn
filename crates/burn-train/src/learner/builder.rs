@@ -140,7 +140,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.metrics.register_metric_train(metric);
+        self.metrics.register_train_metric(metric);
         self
     }
 

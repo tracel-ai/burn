@@ -13,8 +13,8 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, LossMetric},
-        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+        metric::{AccuracyMetric, LossMetric, Metric},
+        ClassificationOutput, LearnerBuilder, LearnerSummary, TrainOutput, TrainStep, ValidStep,
     },
 };
 
@@ -65,8 +65,15 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
-    std::fs::create_dir_all(ARTIFACT_DIR).ok();
+    create_artifact_dir(ARTIFACT_DIR);
+
     config
         .save(format!("{ARTIFACT_DIR}/config.json"))
         .expect("Config should be saved successfully");
@@ -113,4 +120,11 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
     model_trained
         .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
+
+    // Training summary
+    let summary = LearnerSummary::new(
+        ARTIFACT_DIR,
+        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
+    );
+    println!("{}", summary);
 }

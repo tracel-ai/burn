@@ -1,11 +1,11 @@
 # Training
 
-We are now ready to write the necessary code to train our model on the MNIST dataset.
-We shall define the code for this training section in the file: `src/training.rs`.
+We are now ready to write the necessary code to train our model on the MNIST dataset. We shall
+define the code for this training section in the file: `src/training.rs`.
 
-Instead of a simple tensor, the model should output an item that can be understood by the learner, a struct whose
-responsibility is to apply an optimizer to the model. The output struct is used for all metrics
-calculated during the training. Therefore it should include all the necessary information to
+Instead of a simple tensor, the model should output an item that can be understood by the learner, a
+struct whose responsibility is to apply an optimizer to the model. The output struct is used for all
+metrics calculated during the training. Therefore it should include all the necessary information to
 calculate any metric that you want for a task.
 
 Burn provides two basic output types: `ClassificationOutput` and `RegressionOutput`. They implement
@@ -110,8 +110,14 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
     std::fs::create_dir_all(artifact_dir).ok();
+}
+
+pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+    create_artifact_dir(artifact_dir);
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
@@ -152,6 +158,12 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
+
+    let summary = LearnerSummary::new(
+        artifact_dir,
+        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
+    );
+    println!("{}", summary);
 }
 ```
 
@@ -181,8 +193,9 @@ Once the learner is created, we can simply call `fit` and provide the training a
 dataloaders. For the sake of simplicity in this example, we employ the test set as the validation
 set; however, we do not recommend this practice for actual usage.
 
-Finally, the trained model is returned by the `fit` method, and the only remaining task is saving
-the trained weights using the `CompactRecorder`. This recorder employs the `MessagePack` format with
-`gzip` compression, `f16` for floats and `i16` for integers. Other recorders are available, offering
-support for various formats, such as `BinCode` and `JSON`, with or without compression. Any backend,
-regardless of precision, can load recorded data of any kind.
+Finally, the trained model is returned by the `fit` method. The trained weights are then saved using
+the `CompactRecorder`. This recorder employs the `MessagePack` format with `gzip` compression, `f16`
+for floats and `i16` for integers. Other recorders are available, offering support for various
+formats, such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of
+precision, can load recorded data of any kind. Once the weights have been saved, we use the
+`LearnerSummary` to display the training report summary.
