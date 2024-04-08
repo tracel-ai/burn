@@ -167,6 +167,8 @@ function!(Tanh, "tanh");
 function!(Sqrt, "sqrt");
 function!(Exp, "exp");
 function!(Erf, "erff");
+function!(Ceil, "ceil");
+function!(Floor, "floor");
 
 pub struct Not;
 

@@ -29,6 +29,25 @@ pub struct SharedMemory {
     pub size: u32,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct LocalArray {
+    pub index: u16,
+    pub item: Item,
+    pub depth: u8,
+    pub size: u32,
+}
+
+impl LocalArray {
+    pub fn new(index: u16, item: Item, depth: u8, size: u32) -> Self {
+        Self {
+            index,
+            item,
+            depth,
+            size,
+        }
+    }
+}
+
 impl SharedMemory {
     pub fn new(index: u16, item: Item, size: u32) -> Self {
         Self { index, item, size }

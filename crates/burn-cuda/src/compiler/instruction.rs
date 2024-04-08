@@ -89,6 +89,8 @@ pub enum Instruction {
         out: Variable,
     },
     SyncThreads,
+    Ceil(UnaryInstruction),
+    Floor(UnaryInstruction),
 }
 
 impl Display for Instruction {
@@ -198,6 +200,8 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                 "
             )),
             Instruction::SyncThreads => f.write_str("__syncthreads();\n"),
+            Instruction::Ceil(it) => Ceil::format(f, &it.input, &it.out),
+            Instruction::Floor(it) => Floor::format(f, &it.input, &it.out),
         }
     }
 }

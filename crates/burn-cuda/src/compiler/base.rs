@@ -10,6 +10,7 @@ pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
     shared_memories: Vec<super::SharedMemory>,
+    local_arrays: Vec<super::LocalArray>,
     id: bool,
     rank: bool,
     invocation_index: bool,
@@ -51,6 +52,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             stride: true,
             shape: true,
             shared_memories: self.shared_memories,
+            local_arrays: self.local_arrays,
             rank: self.rank,
             id: self.id,
             invocation_index: self.invocation_index,
@@ -253,8 +255,8 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 rhs: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             }),
-            gpu::Operator::Floor(_) => todo!(),
-            gpu::Operator::Ceil(_) => todo!(),
+            gpu::Operator::Floor(op) => Instruction::Floor(self.compile_unary(op)),
+            gpu::Operator::Ceil(op) => Instruction::Ceil(self.compile_unary(op)),
         }
     }
 
@@ -341,7 +343,15 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Variable::NumWorkgroupsX => super::Variable::NumWorkgroupsX,
             gpu::Variable::NumWorkgroupsY => super::Variable::NumWorkgroupsY,
             gpu::Variable::NumWorkgroupsZ => super::Variable::NumWorkgroupsZ,
-            gpu::Variable::LocalArray(_, _, _, _) => todo!(),
+            gpu::Variable::LocalArray(id, item, depth, size) => {
+                let item = Self::compile_item(item);
+                if !self.local_arrays.iter().any(|s| s.index == id && s.depth == depth) {
+                    self.local_arrays
+                        .push(super::LocalArray::new(id, item, depth,size));
+                }
+                super::Variable::LocalArray(id, item, depth,size)
+
+            },
         }
     }
 

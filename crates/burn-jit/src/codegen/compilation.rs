@@ -50,6 +50,7 @@ pub struct CompilationSettings {
     vectorization: Option<Vectorization>,
     workgroup_size: WorkgroupSize,
     reading_strategy: Vec<(u16, ReadingStrategy)>,
+    bound_check: Option<Variable>,
 }
 
 impl core::fmt::Display for CompilationSettings {
@@ -111,6 +112,11 @@ impl CompilationSettings {
     #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
         self.vectorization = Some(vectorization);
+        self
+    }
+
+    pub fn bound_check(mut self, variable: Variable) -> Self {
+        self.bound_check = Some(variable);
         self
     }
 
@@ -354,6 +360,8 @@ impl Compilation {
         if let Some(vectorization) = settings.vectorization {
             self.info.scope.vectorize(vectorization);
         }
+
+        self.bound_check = settings.bound_check;
 
         self.register_inputs(&settings);
         self.register_outputs(&mut settings);

@@ -419,7 +419,7 @@ impl IndexVector {
     ) -> std::fmt::Result {
         let index = match rhs {
             Variable::ConstantScalar(value, _) => *value as usize,
-            _ => panic!("Only constant indexing is supported"),
+            _ => panic!("Only constant indexing is supported, got {:?}", rhs),
         };
 
         let out = out.index(index);
@@ -438,7 +438,7 @@ impl IndexAssignVector {
     ) -> std::fmt::Result {
         let index = match lhs {
             Variable::ConstantScalar(value, _) => *value as usize,
-            _ => panic!("Only constant indexing is supported"),
+            _ => panic!("Only constant indexing is supported, got {:?}", lhs),
         };
 
         let out = out.index(index);

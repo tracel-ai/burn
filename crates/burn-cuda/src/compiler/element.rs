@@ -107,6 +107,7 @@ impl Component for Variable {
             Variable::NumWorkgroupsX => Item::Scalar(Elem::U32),
             Variable::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Variable::NumWorkgroupsZ => Item::Scalar(Elem::U32),
+            Variable::LocalArray(_, e, _, _) => *e,
         }
     }
 }
@@ -128,6 +129,7 @@ pub enum Variable {
         scope_depth: u8,
     },
     SharedMemory(u16, Item, u32),
+    LocalArray(u16, Item, u8, u32),
     Id,
     LocalInvocationIndex,
     LocalInvocationIdX,
@@ -188,6 +190,9 @@ impl Display for Variable {
             Variable::GlobalInvocationIdX => f.write_str("globalInvocationId.x"),
             Variable::GlobalInvocationIdY => f.write_str("globalInvocationId.y"),
             Variable::GlobalInvocationIdZ => f.write_str("globalInvocationId.z"),
+            Variable::LocalArray(id, _item, depth, _size) => {
+                f.write_fmt(format_args!("l_arr_{}_{}", id, depth))
+            }
         }
     }
 }
@@ -228,6 +233,7 @@ impl Variable {
             Variable::NumWorkgroupsX => true,
             Variable::NumWorkgroupsY => true,
             Variable::NumWorkgroupsZ => true,
+            Variable::LocalArray(_, _, _, _) => false,
         }
     }
 
