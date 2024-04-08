@@ -1,4 +1,4 @@
-use crate::logger::{MetricLogger, NumericEntry};
+use crate::{logger::MetricLogger, metric::NumericEntry};
 use std::collections::HashMap;
 
 use super::{Aggregate, Direction};
@@ -115,7 +115,10 @@ impl NumericMetricsAggregate {
 
 #[cfg(test)]
 mod tests {
-    use crate::{logger::FileMetricLogger, metric::MetricEntry};
+    use crate::{
+        logger::{FileMetricLogger, InMemoryMetricLogger},
+        metric::MetricEntry,
+    };
 
     use super::*;
 
@@ -168,5 +171,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(value, 2);
+    }
+
+    #[test]
+    fn should_aggregate_numeric_entry() {
+        let mut logger = InMemoryMetricLogger::default();
+        let mut aggregate = NumericMetricsAggregate::default();
+        let metric_name = "Loss";
+
+        // Epoch 1
+        let loss_1 = 0.5;
+        let loss_2 = 1.25; // (1.5 + 1.0) / 2 = 2.5 / 2
+        let entry = MetricEntry::new(
+            metric_name.to_string(),
+            loss_1.to_string(),
+            NumericEntry::Value(loss_1).serialize(),
+        );
+        logger.log(&entry);
+        let entry = MetricEntry::new(
+            metric_name.to_string(),
+            loss_2.to_string(),
+            NumericEntry::Aggregated(loss_2, 2).serialize(),
+        );
+        logger.log(&entry);
+
+        let value = aggregate
+            .aggregate(metric_name, 1, Aggregate::Mean, &mut [Box::new(logger)])
+            .unwrap();
+
+        // Average should be (0.5 + 1.25 * 2) / 3 = 1.0, not (0.5 + 1.25) / 2 = 0.875
+        assert_eq!(value, 1.0);
     }
 }

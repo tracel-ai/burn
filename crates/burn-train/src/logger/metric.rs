@@ -1,16 +1,8 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
-use crate::metric::MetricEntry;
+use crate::metric::{MetricEntry, NumericEntry};
 use std::{collections::HashMap, fs};
 
 const EPOCH_PREFIX: &str = "epoch-";
-
-/// Numeric log entry.
-pub enum NumericEntry {
-    /// Single numeric value.
-    Value(f64),
-    /// Aggregated numeric (value, number of elements).
-    Aggregated(f64, usize),
-}
 
 /// Metric logger.
 pub trait MetricLogger: Send {
@@ -99,33 +91,6 @@ impl FileMetricLogger {
     }
 }
 
-/// Parse numeric entry.
-fn parse_numeric_entry(entry: &str) -> Result<NumericEntry, String> {
-    // Check for comma separated values
-    let values = entry.split(',').collect::<Vec<_>>();
-    let num_values = values.len();
-
-    if num_values == 1 {
-        // Numeric value
-        match values[0].parse::<f64>() {
-            Ok(value) => Ok(NumericEntry::Value(value)),
-            Err(err) => Err(err.to_string()),
-        }
-    } else if num_values == 2 {
-        // Aggregated numeric (value, number of elements)
-        let (value, numel) = (values[0], values[1]);
-        match value.parse::<f64>() {
-            Ok(value) => match numel.parse::<usize>() {
-                Ok(numel) => Ok(NumericEntry::Aggregated(value, numel)),
-                Err(err) => Err(err.to_string()),
-            },
-            Err(err) => Err(err.to_string()),
-        }
-    } else {
-        Err("Invalid number of values for numeric entry".to_string())
-    }
-}
-
 impl MetricLogger for FileMetricLogger {
     fn log(&mut self, item: &MetricEntry) {
         let key = &item.name;
@@ -171,7 +136,7 @@ impl MetricLogger for FileMetricLogger {
                 if value.is_empty() {
                     None
                 } else {
-                    match parse_numeric_entry(value) {
+                    match NumericEntry::deserialize(value) {
                         Ok(value) => Some(value),
                         Err(err) => {
                             log::error!("{err}");
@@ -231,7 +196,7 @@ impl MetricLogger for InMemoryMetricLogger {
             Some(logger) => Ok(logger
                 .values
                 .iter()
-                .filter_map(|value| parse_numeric_entry(value).ok())
+                .filter_map(|value| NumericEntry::deserialize(value).ok())
                 .collect()),
             None => Ok(Vec::new()),
         }
