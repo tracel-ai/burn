@@ -1158,10 +1158,7 @@ version = "0.13.0"
 dependencies = [
  "burn",
  "flate2",
- "indicatif",
- "reqwest",
  "tar",
- "tokio",
 ]
 
 [[package]]
@@ -2159,9 +2156,9 @@ dependencies = [
 
 [[package]]
 name = "half"
-version = "2.3.1"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc52e53916c08643f1b56ec082790d1e86a32e58dc5268f897f313fbae7b4872"
+checksum = "6dd08c532ae367adf81c312a4580bc67f1d0fe8bc9c460520283f4c0ff277888"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -3503,6 +3500,7 @@ name = "pytorch-tests"
 version = "0.13.0"
 dependencies = [
  "burn",
+ "burn-autodiff",
  "burn-import",
  "burn-ndarray",
  "float-cmp",

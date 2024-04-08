@@ -108,7 +108,7 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 derive-new = { version = "0.6.0", default-features = false }
 
-half = { version = "2.3.1", features = [
+half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
     "serde",
