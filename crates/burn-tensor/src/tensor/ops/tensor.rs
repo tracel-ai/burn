@@ -386,6 +386,20 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatElem<B>,
     ) -> FloatTensor<B, D>;
 
+    /// Computes the modulus of a tensor given a scalar.
+    ///
+    /// # Arguments
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of applying the modulus of the scalar to the tensor.
+    fn float_remainder_scalar<const D: usize>(
+        lhs: FloatTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<B, D>;
+
     /// Multiplies two tensors together using matrix multiplication.
     ///
     /// # Arguments
