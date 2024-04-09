@@ -236,7 +236,7 @@ where
     where
         E: core::ops::Rem<Output = E>,
     {
-        let array = lhs.array.mapv(|x| x % rhs);
+        let array = lhs.array.mapv(|x| ((x % rhs) + rhs) % rhs);
         let array = array.into_shared();
 
         NdArrayTensor { array }
