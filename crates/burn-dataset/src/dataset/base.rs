@@ -25,7 +25,19 @@ pub trait Dataset<I>: Send + Sync {
         DatasetIterator::new(self)
     }
 
-    /// Returns a windowed dataset.
+    /// Returns a new `Dataset` of all the windows of length `size`. The windows overlap.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.    
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::burn_dataset::{Dataset,InMemDataset};
+    /// let dataset = InMemDataset::new([1, 2, 3, 4, 5].to_vec());
+    /// let windows = dataset.windows(3);
+    /// ```
     fn windows(&self, size: usize) -> DatasetWindows<'_, I>
     where
         Self: Sized,

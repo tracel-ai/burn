@@ -42,9 +42,9 @@ mod tests {
             .map(|x| x.to_vec())
             .to_vec();
 
-        let windows_dataset = dataset.windows(3);
+        let windows = dataset.windows(3);
 
-        assert_eq!(windows_dataset.len(), 3);
-        assert_eq!(windows_dataset.iter().collect::<Vec<Vec<i32>>>(), expected);
+        assert_eq!(windows.len(), 3);
+        assert_eq!(windows.iter().collect::<Vec<Vec<i32>>>(), expected);
     }
 }
