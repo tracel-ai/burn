@@ -32,6 +32,7 @@ fn main() {
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
+        .input("tests/not/not.onnx")
         .input("tests/recip/recip.onnx")
         .input("tests/relu/relu.onnx")
         .input("tests/leaky_relu/leaky_relu.onnx")

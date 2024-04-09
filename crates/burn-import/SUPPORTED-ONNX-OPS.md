@@ -118,7 +118,7 @@ represent the corresponding Burn Op.
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
 | [NonMaxSuppression][112]         |       ❌       |      ❌      |
 | [NonZero][113]                   |       ❌       |      ❌      |
-| [Not][114]                       |       ❌       |      ✅      |
+| [Not][114]                       |       ✅       |      ✅      |
 | [OneHot][115]                    |       ❌       |      ✅      |
 | [Optional][116]                  |       ❌       |      ❌      |
 | [OptionalGetElement][117]        |       ❌       |      ❌      |
