@@ -209,14 +209,19 @@ pub fn remainder_scalar<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    unary!(
-        operation: |scope: &mut Scope, elem: Elem| Operator::Div(BinaryOperator {
+    let shape = lhs.shape.clone();
+    let device = lhs.device.clone();
+
+    let rhs_tensor = full::<R, E, D>(shape, &device, rhs);
+
+    binary!(
+        operation: |scope: &mut Scope, elem: Elem| Operator::Modulo(BinaryOperator {
             lhs: scope.read_array(0, elem),
             rhs: scope.read_array(1, elem),
             out: scope.create_local(elem),
         }),
         runtime: R,
-        input: lhs; rhs,
+        input: lhs; rhs_tensor,
         elem: E
     )
 }
