@@ -37,6 +37,7 @@ fn main() {
         .input("tests/leaky_relu/leaky_relu.onnx")
         .input("tests/reshape/reshape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
+        .input("tests/sin/sin.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sqrt/sqrt.onnx")
         .input("tests/sub/sub_int.onnx")

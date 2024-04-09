@@ -168,7 +168,7 @@ represent the corresponding Burn Op.
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
 | [Sign][163]                      |       ❌       |      ✅      |
-| [Sin][164]                       |       ❌       |      ✅      |
+| [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
 | [Slice][167]                     |       ❌       |      ✅      |

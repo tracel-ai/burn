@@ -255,6 +255,7 @@ impl OnnxGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
+                NodeType::Sin => graph.register(Self::sin_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
@@ -483,6 +484,13 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sigmoid(input, output)
+    }
+
+    fn sin_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        UnaryNode::sin(input, output)
     }
 
     fn reciprocal_conversion(node: Node) -> UnaryNode {
