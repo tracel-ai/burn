@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use crate::DatasetIterator;
 
@@ -26,11 +26,12 @@ pub trait Dataset<I>: Send + Sync {
     }
 
     /// Returns a windowed dataset.
-    fn windows(&self, window_size: usize) -> DatasetWindows<'_, I>
+    fn windows(&self, size: usize) -> DatasetWindows<'_, I>
     where
         Self: Sized,
     {
-        DatasetWindows::new(self, window_size)
+        let size = NonZeroUsize::new(size).expect("window size must be non-zero");
+        DatasetWindows::new(self, size)
     }
 }
 
