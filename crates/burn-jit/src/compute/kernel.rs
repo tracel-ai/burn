@@ -1,45 +1,137 @@
-use crate::kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource};
-use alloc::sync::Arc;
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
+#[cfg(feature = "template")]
+use crate::template::TemplateKernel;
+use crate::{gpu::WorkgroupSize, kernel::GpuComputeShaderPhase, Compiler};
+use alloc::sync::Arc;
+
+/// Kernel for JIT backends
+///
+/// Notes: by default, only Jit variant exists,
+/// but users can add more kernels from source by activating the
+/// template feature flag.
+pub enum Kernel {
+    /// A JIT GPU compute shader
+    JitGpu(Box<dyn JitKernel>),
+    #[cfg(feature = "template")]
+    /// A kernel created from source
+    Custom(Box<dyn TemplateKernel>),
+}
+
+impl Kernel {
+    /// ID of the kernel, for caching
+    pub fn id(&self) -> String {
+        match self {
+            Kernel::JitGpu(shader) => shader.id(),
+            #[cfg(feature = "template")]
+            Kernel::Custom(template_kernel) => template_kernel.id(),
+        }
+    }
+
+    /// Source of the shader
+    pub fn compile(&self) -> CompiledKernel {
+        match self {
+            Kernel::JitGpu(shader) => shader.compile(),
+            #[cfg(feature = "template")]
+            Kernel::Custom(template_kernel) => template_kernel.compile(),
+        }
+    }
+
+    /// Launch information of the kernel
+    pub fn launch_settings(&self) -> LaunchSettings {
+        match self {
+            Kernel::JitGpu(shader) => shader.launch_settings(),
+            #[cfg(feature = "template")]
+            Kernel::Custom(template_kernel) => template_kernel.launch_settings(),
+        }
+    }
+}
+
+/// A kernel, compiled in the target language
+pub struct CompiledKernel {
+    /// Source code of the kernel
+    pub source: String,
+    /// Size of a workgroup for the compiled kernel
+    pub workgroup_size: WorkgroupSize,
+}
+
+/// Information needed to launch the kernel
+pub struct LaunchSettings {
+    /// Layout of workgroups for the kernel
+    pub workgroup: WorkGroup,
+}
+
+/// Kernel trait with the ComputeShader that will be compiled and cached based on the
 /// provided id.
 ///
-/// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send + Sync {
-    /// Source template for the kernel.
-    fn source(&self) -> SourceTemplate;
+/// The kernel will be launched with the given [launch settings](LaunchSettings).
+pub trait JitKernel: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
-    /// Launch information.
-    fn workgroup(&self) -> WorkGroup;
+    /// Compile the kernel into source
+    fn compile(&self) -> CompiledKernel;
+    /// Launch settings.
+    fn launch_settings(&self) -> LaunchSettings;
 }
 
-impl Kernel for Arc<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
+/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
+#[derive(new)]
+pub struct FullCompilationPhase<C: Compiler, K: GpuComputeShaderPhase> {
+    kernel: K,
+    workgroup: WorkGroup,
+    _compiler: PhantomData<C>,
+}
+
+impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C, K> {
+    fn compile(&self) -> CompiledKernel {
+        let gpu_ir = self.kernel.compile();
+        let workgroup_size = gpu_ir.workgroup_size;
+
+        let lower_level_ir = C::compile(gpu_ir);
+        let source = lower_level_ir.to_string();
+
+        CompiledKernel {
+            source,
+            workgroup_size,
+        }
+    }
+
+    fn id(&self) -> String {
+        self.kernel.id().clone()
+    }
+
+    fn launch_settings(&self) -> LaunchSettings {
+        LaunchSettings {
+            workgroup: self.workgroup.clone(),
+        }
+    }
+}
+
+impl JitKernel for Arc<dyn JitKernel> {
+    fn compile(&self) -> CompiledKernel {
+        self.as_ref().compile()
     }
 
     fn id(&self) -> String {
         self.as_ref().id()
     }
 
-    fn workgroup(&self) -> WorkGroup {
-        self.as_ref().workgroup()
+    fn launch_settings(&self) -> LaunchSettings {
+        self.as_ref().launch_settings()
     }
 }
 
-impl Kernel for Box<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
+impl JitKernel for Box<dyn JitKernel> {
+    fn compile(&self) -> CompiledKernel {
+        self.as_ref().compile()
     }
 
     fn id(&self) -> String {
         self.as_ref().id()
     }
 
-    fn workgroup(&self) -> WorkGroup {
-        self.as_ref().workgroup()
+    fn launch_settings(&self) -> LaunchSettings {
+        self.as_ref().launch_settings()
     }
 }
 
@@ -58,55 +150,5 @@ impl WorkGroup {
     /// Calculate the number of invocations of a compute shader.
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize
-    }
-}
-
-/// Wraps a [dynamic kernel source](DynamicKernelSource) into a [kernel](Kernel) with launch
-/// information such as [workgroup](WorkGroup).
-#[derive(new)]
-pub struct DynamicKernel<K> {
-    kernel: K,
-    workgroup: WorkGroup,
-}
-
-/// Wraps a [static kernel source](StaticKernelSource) into a [kernel](Kernel) with launch
-/// information such as [workgroup](WorkGroup).
-#[derive(new)]
-pub struct StaticKernel<K> {
-    workgroup: WorkGroup,
-    _kernel: PhantomData<K>,
-}
-
-impl<K> Kernel for DynamicKernel<K>
-where
-    K: DynamicKernelSource + 'static,
-{
-    fn source(&self) -> SourceTemplate {
-        self.kernel.source()
-    }
-
-    fn id(&self) -> String {
-        self.kernel.id()
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
-    }
-}
-
-impl<K> Kernel for StaticKernel<K>
-where
-    K: StaticKernelSource + 'static,
-{
-    fn source(&self) -> SourceTemplate {
-        K::source()
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<K>())
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.workgroup.clone()
     }
 }

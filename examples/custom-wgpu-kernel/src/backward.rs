@@ -87,13 +87,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
-                    grads.register::<B, D>(node, grad_bias);
+                    grads.register::<B, D>(node.id, grad_bias);
                 }
                 if let Some(node) = node_lhs {
-                    grads.register::<B, D>(node, grad_lhs);
+                    grads.register::<B, D>(node.id, grad_lhs);
                 }
                 if let Some(node) = node_rhs {
-                    grads.register::<B, D>(node, grad_rhs);
+                    grads.register::<B, D>(node.id, grad_rhs);
                 }
             }
         }
@@ -102,10 +102,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         //
         // Each node can be fetched with `ops.parents` in the same order as defined here.
         match FusedMatmulAddReluBackward
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone(), bias.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone(), bias.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone(), bias.node.clone()])
             // Marks the operation as compute bound, meaning it will save its
             // state instead of recomputing itself during checkpointing
             .compute_bound()

@@ -80,7 +80,7 @@ macro_rules! module {
 ///   my_other_field: usize,
 /// }
 /// ```
-pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
+pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     /// Type to save and load the module.
     type Record: Record<B>;
 
@@ -238,7 +238,7 @@ pub trait ModuleMapper<B: Backend> {
 }
 
 /// Module with auto-differentiation backend.
-pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + Sync + core::fmt::Debug {
+pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + core::fmt::Debug {
     /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 

@@ -1,14 +1,15 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
@@ -67,8 +68,8 @@ impl FlipComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for FlipEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -101,9 +102,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for FlipEagerKernel<R, E> {
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -128,30 +127,27 @@ pub(crate) fn flip_on_output<R: Runtime, E: JitElement, const D: usize>(
     output: JitTensor<R, E, D>,
     indices: &[usize],
 ) -> JitTensor<R, E, D> {
-    let mut scalars = Vec::with_capacity(D);
+    let mut scalars: Vec<u32> = Vec::with_capacity(D);
 
     for i in 0..D {
         scalars.push((indices.contains(&i) as u32).elem());
     }
 
-    let kernel = FlipEagerKernel::new(D);
+    let kernel = FlipEagerKernel::<R, E>::new(D);
 
-    execute_dynamic::<R, FlipEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(
+    Execution::start(kernel, tensor.client)
+        .inputs(&[EagerHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&scalars),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .with_scalars(&scalars)
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

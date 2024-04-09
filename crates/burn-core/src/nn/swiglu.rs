@@ -20,7 +20,7 @@ pub struct SwiGluConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -53,17 +53,6 @@ impl SwiGluConfig {
                 .with_bias(self.bias)
                 .with_initializer(self.initializer.clone())
                 .init(device),
-        }
-    }
-    /// Initialize a new [SwiGlu](SwiGlu) activation layer with a [record](SwiGlu).
-    pub fn init_with<B: Backend>(&self, record: SwiGluRecord<B>) -> SwiGlu<B> {
-        SwiGlu {
-            linear_inner: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_inner),
-            linear_outer: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_outer),
         }
     }
 }

@@ -2,13 +2,13 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 #[derive(new)]
@@ -366,8 +366,8 @@ impl InterpolateBicubicShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for InterpolateBicubicEagerKernel<R, E> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -392,9 +392,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for InterpolateBicubicEagerK
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -406,24 +404,20 @@ pub(crate) fn interpolate_bicubic_launch<R: Runtime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {
-    let kernel = InterpolateBicubicEagerKernel::new();
+    let kernel = InterpolateBicubicEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, InterpolateBicubicEagerKernel<R, E>, u32>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

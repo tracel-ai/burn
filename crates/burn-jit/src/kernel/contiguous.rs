@@ -2,15 +2,15 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
-use super::{DynamicKernelSource, SourceTemplate};
+use super::GpuComputeShaderPhase;
 
 pub(crate) struct IntoContiguousShader {
     tensor: Variable,
@@ -18,9 +18,9 @@ pub(crate) struct IntoContiguousShader {
 }
 
 #[derive(new)]
-pub(crate) struct IntoContiguousEagerKernel<R: Runtime, EO: JitElement> {
+pub(crate) struct IntoContiguousEagerKernel<R: Runtime, E: JitElement> {
     _runtime: PhantomData<R>,
-    _elem_out: PhantomData<EO>,
+    _elem_out: PhantomData<E>,
 }
 
 /// Make a jit tensor contiguous.
@@ -31,7 +31,7 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
         return tensor;
     }
 
-    let kernel = IntoContiguousEagerKernel::new();
+    let kernel = IntoContiguousEagerKernel::<R, E>::new();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
     let output = JitTensor::new(
@@ -41,28 +41,24 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
         buffer,
     );
 
-    execute_dynamic::<R, IntoContiguousEagerKernel<R, E>, u32>(
-        &[EagerHandle::new(
+    Execution::start(kernel, tensor.client)
+        .inputs(&[EagerHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for IntoContiguousEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -87,9 +83,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for IntoContiguousEagerKerne
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {

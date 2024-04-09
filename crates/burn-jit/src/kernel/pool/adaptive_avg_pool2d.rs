@@ -1,5 +1,5 @@
 use crate::{
-    codegen::{execute_dynamic, EagerHandle, WorkgroupLaunch},
+    codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     ops::numeric::empty_device,
     tensor::JitTensor,
@@ -18,24 +18,20 @@ pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: JitElement>(
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
     let output = empty_device(input.client.clone(), input.device.clone(), output_shape);
 
-    let kernel = AdaptivePool2dEagerKernel::new();
+    let kernel = AdaptivePool2dEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, AdaptivePool2dEagerKernel<R, E>, E>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

@@ -1,11 +1,12 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Branch, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    gpu::ComputeShader,
+    kernel::{elemwise_workgroup, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
@@ -127,8 +128,8 @@ impl SelectAssignComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectAssignEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
         let item_indices: Item = Elem::Int.into();
@@ -167,9 +168,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectAssignEagerKernel<
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -205,23 +204,18 @@ pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: u
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
 
-    let kernel = SelectAssignEagerKernel::new(dim);
+    let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
     let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
 
-    execute_dynamic::<R, SelectAssignEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+    Execution::start(kernel, indices.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
             EagerHandle::new(&indices.handle, &strides, &strides),
-        ],
-        &[],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        indices.client,
-    );
+        ])
+        .execute(WorkgroupLaunch::Custom(workgroup));
 
     tensor
 }

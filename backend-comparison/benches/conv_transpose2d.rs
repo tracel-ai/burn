@@ -54,7 +54,12 @@ impl<B: Backend> Benchmark for ConvTranspose2dBenchmark<B> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     // Shapes
     let batch_size = 16;
     let channels_in = 16;
@@ -85,7 +90,14 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
         device: device.clone(),
     };
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {

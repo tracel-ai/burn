@@ -1,34 +1,20 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use std::io;
 use std::process::ExitStatus;
-use std::{
-    fs,
-    io::{BufRead, BufReader, Result as ioResult},
-    process::{Command, Stdio},
-};
+use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
 use crate::burnbenchapp::auth::Tokens;
-use crate::persistence::{BenchmarkCollection, BenchmarkRecord};
+use crate::persistence::system_info::BenchmarkSystemInfo;
 
+use super::auth::get_tokens;
 use super::auth::get_username;
-use super::{auth::get_tokens, App};
-
-/// Base trait to define an application
-pub(crate) trait Application {
-    fn init(&mut self) {}
-
-    #[allow(unused)]
-    fn run(
-        &mut self,
-        benches: &[BenchmarkValues],
-        backends: &[BackendValues],
-        token: Option<&str>,
-    ) {
-    }
-
-    fn cleanup(&mut self) {}
-}
+use super::progressbar::RunnerProgressBar;
+use super::reports::{BenchmarkCollection, FailedBenchmark};
+use super::runner::{CargoRunner, NiceProcessor, OutputProcessor, VerboseProcessor};
+use super::USER_BENCHMARK_WEBSITE_URL;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -53,6 +39,10 @@ struct RunArgs {
     #[clap(short = 's', long = "share")]
     share: bool,
 
+    /// Enable verbose mode
+    #[clap(short = 'v', long = "verbose")]
+    verbose: bool,
+
     /// Space separated list of backends to include
     #[clap(short = 'B', long = "backends", value_name = "BACKEND BACKEND ...", num_args(1..), required = true)]
     backends: Vec<BackendValues>,
@@ -63,7 +53,9 @@ struct RunArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
-pub(crate) enum BackendValues {
+enum BackendValues {
+    #[strum(to_string = "all")]
+    All,
     #[strum(to_string = "candle-cpu")]
     CandleCpu,
     #[strum(to_string = "candle-cuda")]
@@ -89,7 +81,9 @@ pub(crate) enum BackendValues {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
-pub(crate) enum BenchmarkValues {
+enum BenchmarkValues {
+    #[strum(to_string = "all")]
+    All,
     #[strum(to_string = "binary")]
     Binary,
     #[strum(to_string = "custom-gelu")]
@@ -102,6 +96,8 @@ pub(crate) enum BenchmarkValues {
     Unary,
     #[strum(to_string = "max-pool2d")]
     MaxPool2d,
+    #[strum(to_string = "load-record")]
+    LoadRecord,
 }
 
 pub fn execute() {
@@ -142,111 +138,128 @@ fn command_run(run_args: RunArgs) {
     if run_args.share {
         tokens = get_tokens();
     }
-    let total_combinations = run_args.backends.len() * run_args.benches.len();
-    println!(
-        "Executing benchmark and backend combinations in total: {}",
-        total_combinations
-    );
-    let mut app = App::new();
-    app.init();
-    println!("Running benchmarks...\n");
+    // collect benchmarks and benches to execute
+    let mut backends = run_args.backends.clone();
+    if backends.contains(&BackendValues::All) {
+        backends = BackendValues::iter()
+            .filter(|b| b != &BackendValues::All)
+            .collect();
+    }
+    let mut benches = run_args.benches.clone();
+    if benches.contains(&BenchmarkValues::All) {
+        benches = BenchmarkValues::iter()
+            .filter(|b| b != &BenchmarkValues::All)
+            .collect();
+    }
     let access_token = tokens.map(|t| t.access_token);
-    app.run(
-        &run_args.benches,
-        &run_args.backends,
+    run_backend_comparison_benchmarks(
+        &benches,
+        &backends,
         access_token.as_deref(),
+        run_args.verbose,
     );
-    app.cleanup();
 }
 
-#[allow(unused)] // for tui as this is WIP
-pub(crate) fn run_cargo(command: &str, params: &[&str]) -> ioResult<ExitStatus> {
-    let mut cargo = Command::new("cargo")
-        .arg(command)
-        .arg("--color=always")
-        .args(params)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("cargo process should run");
-    cargo.wait()
-}
-
-pub(crate) fn run_backend_comparison_benchmarks(
+fn run_backend_comparison_benchmarks(
     benches: &[BenchmarkValues],
     backends: &[BackendValues],
     token: Option<&str>,
+    verbose: bool,
 ) {
-    // Prefix and postfix for titles
-    let filler = ["="; 10].join("");
-
-    // Delete the file containing file paths to benchmark results, if existing
-    let benchmark_results_file = dirs::home_dir()
-        .expect("Home directory should exist")
-        .join(".cache")
-        .join("burn")
-        .join("backend-comparison")
-        .join("benchmark_results.txt");
-
-    fs::remove_file(benchmark_results_file.clone()).ok();
-
+    let mut report_collection = BenchmarkCollection::default();
+    let total_count: u64 = (backends.len() * benches.len()).try_into().unwrap();
+    let runner_pb: Option<Arc<Mutex<RunnerProgressBar>>> = if verbose {
+        None
+    } else {
+        Some(Arc::new(Mutex::new(RunnerProgressBar::new(total_count))))
+    };
     // Iterate through every combination of benchmark and backend
     for bench in benches.iter() {
         for backend in backends.iter() {
             let bench_str = bench.to_string();
             let backend_str = backend.to_string();
-            println!(
-                "{}Benchmarking {} on {}{}",
-                filler, bench_str, backend_str, filler
-            );
             let url = format!("{}benchmarks", super::USER_BENCHMARK_SERVER_URL);
-            let mut args = vec![
-                "-p",
-                "backend-comparison",
-                "--bench",
-                &bench_str,
-                "--features",
-                &backend_str,
-                "--target-dir",
-                super::BENCHMARKS_TARGET_DIR,
-            ];
-            if let Some(t) = token {
-                args.push("--");
-                args.push("--sharing-url");
-                args.push(url.as_str());
-                args.push("--sharing-token");
-                args.push(t);
-            }
-            let status = run_cargo("bench", &args).unwrap();
-            if !status.success() {
-                println!(
-                    "Benchmark {} didn't ran successfully on the backend {}",
-                    bench_str, backend_str
-                );
-                continue;
-            }
-        }
-    }
 
-    // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
-    // and print them in a single table.
-    let mut benchmark_results = BenchmarkCollection::default();
-    if let Ok(file) = fs::File::open(benchmark_results_file.clone()) {
-        let file_reader = BufReader::new(file);
-        for file in file_reader.lines() {
-            let file_path = file.unwrap();
-            if let Ok(br_file) = fs::File::open(file_path.clone()) {
-                let benchmarkrecord =
-                    serde_json::from_reader::<_, BenchmarkRecord>(br_file).unwrap();
-                benchmark_results.records.push(benchmarkrecord)
+            let status = run_cargo(&bench_str, &backend_str, &url, token, &runner_pb);
+            let success = status.unwrap().success();
+
+            if success {
+                if let Some(ref pb) = runner_pb {
+                    pb.lock().unwrap().succeeded_inc();
+                }
             } else {
-                println!("Cannot find the benchmark-record file: {}", file_path);
-            };
+                if let Some(ref pb) = runner_pb {
+                    pb.lock().unwrap().failed_inc();
+                }
+                report_collection.push_failed_benchmark(FailedBenchmark {
+                    bench: bench_str.clone(),
+                    backend: backend_str.clone(),
+                })
+            }
         }
-        println!(
-            "{}Benchmark Results{}\n\n{}",
-            filler, filler, benchmark_results
-        );
-        fs::remove_file(benchmark_results_file).ok();
     }
+    if let Some(pb) = runner_pb.clone() {
+        pb.lock().unwrap().finish();
+    }
+    println!("{}", report_collection.load_records());
+    if let Some(url) = web_results_url(token) {
+        println!("📊 Browse results at {}", url);
+    }
+}
+
+fn run_cargo(
+    bench: &String,
+    backend: &String,
+    url: &str,
+    token: Option<&str>,
+    progress_bar: &Option<Arc<Mutex<RunnerProgressBar>>>,
+) -> io::Result<ExitStatus> {
+    let processor: Arc<dyn OutputProcessor> = if let Some(pb) = progress_bar {
+        Arc::new(NiceProcessor::new(
+            bench.clone(),
+            backend.clone(),
+            pb.clone(),
+        ))
+    } else {
+        Arc::new(VerboseProcessor)
+    };
+    let mut args = vec![
+        "-p",
+        "backend-comparison",
+        "--bench",
+        bench,
+        "--features",
+        backend,
+        "--target-dir",
+        super::BENCHMARKS_TARGET_DIR,
+    ];
+    if let Some(t) = token {
+        args.push("--");
+        args.push("--sharing-url");
+        args.push(url);
+        args.push("--sharing-token");
+        args.push(t);
+    }
+    let mut runner = CargoRunner::new(&args, processor);
+    runner.run()
+}
+
+fn web_results_url(token: Option<&str>) -> Option<String> {
+    if let Some(t) = token {
+        if let Some(user) = get_username(t) {
+            let sysinfo = BenchmarkSystemInfo::new();
+            let encoded_os = utf8_percent_encode(&sysinfo.os.name, NON_ALPHANUMERIC).to_string();
+            let output = std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap();
+            let git_hash = String::from_utf8(output.stdout).unwrap().trim().to_string();
+
+            return Some(format!(
+                "{}benchmarks/community-benchmarks?user={}&os={}&version1={}&version2={}&search=true",
+                USER_BENCHMARK_WEBSITE_URL, user.nickname, encoded_os, git_hash, git_hash
+            ));
+        }
+    }
+    None
 }

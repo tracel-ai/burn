@@ -46,23 +46,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
         let count_include_pad = self.config.count_include_pad;
 
-        let init_line = quote! {
-            init();
-        };
-
         let tokens = quote! {
             let #name = AvgPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
                 .with_count_include_pad(#count_include_pad)
-                .#init_line
+                .init();
         };
 
         Some(tokens)
@@ -135,7 +131,7 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let avg_pool2d = AvgPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)

@@ -2,6 +2,7 @@ use super::ParamId;
 use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use burn_common::stub::Mutex;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
@@ -10,7 +11,6 @@ use burn_tensor::{
 #[cfg(feature = "std")]
 mod threading {
     pub(super) use std::collections::HashMap;
-    pub(super) use std::sync::{Mutex, RwLock};
     pub(super) use std::thread::ThreadId;
 
     #[inline(always)]
@@ -21,7 +21,7 @@ mod threading {
 
 #[cfg(not(feature = "std"))]
 mod threading {
-    pub(super) use burn_common::stub::{Mutex, RwLock, ThreadId};
+    pub(super) use burn_common::stub::ThreadId;
     pub(super) use hashbrown::HashMap;
 
     #[inline(always)]
@@ -42,20 +42,20 @@ use threading::*;
 pub struct RunningState<V> {
     id: ParamId,
     values: Arc<Mutex<HashMap<ThreadId, V>>>,
-    value: Arc<RwLock<V>>,
+    value: Arc<Mutex<V>>,
 }
 
 impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        let tensor = self.value.read().unwrap();
+        let tensor = self.value.lock().unwrap();
 
         visitor.visit_float(&self.id, &tensor)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let mut tensor = self.value.write().unwrap();
+        let mut tensor = self.value.lock().unwrap();
         let tensor_out = mapper.map_float(&self.id, tensor.clone());
 
         *tensor = tensor_out;
@@ -66,14 +66,14 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
     fn into_record(self) -> Self::Record {
         self.sync();
-        let tensor = self.value.read().unwrap();
+        let tensor = self.value.lock().unwrap();
 
-        Param::new(self.id, tensor.clone())
+        Param::initialized(self.id, tensor.clone())
     }
 
     fn load_record(mut self, record: Self::Record) -> Self {
-        let mut tensor = self.value.write().unwrap();
-        *tensor = record.value.to_device(&tensor.device());
+        let mut tensor = self.value.lock().unwrap();
+        *tensor = record.val().to_device(&tensor.device());
         self.id = record.id;
 
         core::mem::drop(tensor);
@@ -82,7 +82,7 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     }
 
     fn to_device(self, device: &<B as Backend>::Device) -> Self {
-        let mut tensor = self.value.write().unwrap();
+        let mut tensor = self.value.lock().unwrap();
         let tensor_out = tensor.clone().to_device(device);
 
         *tensor = tensor_out;
@@ -99,7 +99,7 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         &self,
         mut devices: Vec<<B as Backend>::Device>,
     ) -> Vec<<B as Backend>::Device> {
-        let device = self.value.read().unwrap().device();
+        let device = self.value.lock().unwrap().device();
 
         if !devices.contains(&device) {
             devices.push(device)
@@ -115,7 +115,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
         Self {
             id: ParamId::new(),
             values: Arc::new(Mutex::new(HashMap::new())),
-            value: Arc::new(RwLock::new(value)),
+            value: Arc::new(Mutex::new(value)),
         }
     }
 
@@ -124,16 +124,17 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
         Self {
             id,
             values: Arc::new(Mutex::new(HashMap::new())),
-            value: Arc::new(RwLock::new(value)),
+            value: Arc::new(Mutex::new(value)),
         }
     }
 
     /// Create a new running state from a record.
     pub fn from_record(record: Param<Tensor<B, D>>) -> Self {
+        let tensor = record.val();
         Self {
             id: record.id,
             values: Arc::new(Mutex::new(HashMap::new())),
-            value: Arc::new(RwLock::new(record.value)),
+            value: Arc::new(Mutex::new(tensor)),
         }
     }
 
@@ -155,7 +156,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     ///
     /// The current value might be outdated by one update.
     pub fn value(&self) -> Tensor<B, D> {
-        let value = self.value.read().unwrap();
+        let value = self.value.lock().unwrap();
         value.clone()
     }
 
@@ -173,7 +174,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
             self.update_value(&mut map);
         }
 
-        let value = self.value.read().unwrap();
+        let value = self.value.lock().unwrap();
         value.clone()
     }
 
@@ -203,7 +204,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
 
         if let Some(value) = value_updated {
             let value = value.div_scalar(counter);
-            let mut value_old = self.value.write().unwrap();
+            let mut value_old = self.value.lock().unwrap();
             *value_old = value;
         }
     }

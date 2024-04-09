@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Compiler, Runtime, RuntimeInt,
+    Runtime,
 };
 
 #[derive(new)]
@@ -201,8 +201,10 @@ impl AdaptiveAvgPool2dBackwardComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for AdaptiveAvgPool2dBackwardEagerKernel<R, E> {
-    fn source(&self) -> SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
+    for AdaptiveAvgPool2dBackwardEagerKernel<R, E>
+{
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -230,9 +232,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for AdaptiveAvgPool2dBackwar
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -254,24 +254,20 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: Runtime, E: JitElement>(
         output_buffer,
     );
 
-    let kernel = AdaptiveAvgPool2dBackwardEagerKernel::new();
+    let kernel = AdaptiveAvgPool2dBackwardEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, AdaptiveAvgPool2dBackwardEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(
+    Execution::start(kernel, x.client)
+        .inputs(&[EagerHandle::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

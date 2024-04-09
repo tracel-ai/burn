@@ -1,14 +1,14 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
-    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
+    codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     gpu::{gpu, Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
+use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
@@ -137,27 +137,24 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::new(kernel_size, MaxPool::default());
+    let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
-    execute_dynamic::<R, Pool2dEagerKernel<MaxPool<E>, R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
-        &[EagerHandle::new(
+    Execution::start(kernel, x.client)
+        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as u32).elem(),
-            (stride[1] as u32).elem(),
-            (dilation[0] as u32).elem(),
-            (dilation[1] as u32).elem(),
-            (padding[0] as u32).elem(),
-            (padding[1] as u32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        )])
+        .with_scalars(&[
+            stride[0] as u32,
+            stride[1] as u32,
+            dilation[0] as u32,
+            dilation[1] as u32,
+            padding[0] as u32,
+            padding[1] as u32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }
@@ -190,26 +187,26 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
     let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::new(kernel_size, MaxPoolWithIndices::default());
+    let kernel = Pool2dEagerKernel::<MaxPoolWithIndices<E>, R, E>::new(
+        kernel_size,
+        MaxPoolWithIndices::default(),
+    );
 
-    execute_dynamic::<R, Pool2dEagerKernel<MaxPoolWithIndices<E>, R, E>, I>(
-        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
-        &[
+    Execution::start(kernel, x.client)
+        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[
             EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
             EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-        ],
-        Some(&[
-            (stride[0] as i32).elem(),
-            (stride[1] as i32).elem(),
-            (dilation[0] as i32).elem(),
-            (dilation[1] as i32).elem(),
-            (padding[0] as i32).elem(),
-            (padding[1] as i32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+        ])
+        .with_scalars(&[
+            stride[0] as i32,
+            stride[1] as i32,
+            dilation[0] as i32,
+            dilation[1] as i32,
+            padding[0] as i32,
+            padding[1] as i32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     (output, indices)
 }

@@ -5,12 +5,13 @@ use crate::{
         dialect::gpu::{
             gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    gpu::ComputeShader,
+    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
@@ -46,10 +47,10 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = EI::gpu_elem().into();
         let item_output = EO::gpu_elem().into();
@@ -90,9 +91,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> Dyn
             self.workgroup_size_y as u32,
             1,
         ));
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -259,7 +258,7 @@ pub fn reduce_dim_shared<
     let divisible_shape =
         n_invocation_per_workgroup as u32 * n_input_values_per_thread == reduce_group_size as u32;
 
-    let kernel = SharedReduceDimEagerKernel::new(
+    let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
         WORKGROUP_DEFAULT,
         WORKGROUP_DEFAULT,
@@ -267,22 +266,18 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    execute_dynamic::<R, SharedReduceDimEagerKernel<RD, R, EI, EO>, EI>(
-        &[EagerHandle::new(
+    Execution::start(kernel, input.client)
+        .inputs(&[EagerHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(grid),
-        input.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Custom(grid));
 
     output
 }

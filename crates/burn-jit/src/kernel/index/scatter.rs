@@ -1,12 +1,14 @@
 use crate::codegen::dialect::gpu::{gpu, Branch, Elem, Scope, Variable};
+use crate::codegen::Execution;
+use crate::gpu::ComputeShader;
 use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
 use crate::{
     codegen::{
-        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        EagerHandle, InputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    kernel::{self, GpuComputeShaderPhase},
     tensor::JitTensor,
     Runtime,
 };
@@ -127,8 +129,8 @@ impl ScatterComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for ScatterEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_value = E::gpu_elem().into();
         let item_indices: gpu::Item = gpu::Elem::Int.into();
@@ -167,9 +169,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for ScatterEagerKernel<R, E>
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -192,7 +192,7 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
         false => tensor.copy(),
     };
 
-    let kernel = ScatterEagerKernel::new(dim);
+    let kernel = ScatterEagerKernel::<R, E>::new(dim);
     let mut strides = [0; D];
     let mut current = 1;
     let mut num_elems_per_workgroup = 1;
@@ -209,22 +209,19 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
             current *= val;
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
+
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
     let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
-    execute_dynamic::<R, ScatterEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+
+    Execution::start(kernel, indices.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
             EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
-        ],
-        &[],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        indices.client,
-    );
+        ])
+        .execute(WorkgroupLaunch::Custom(workgroup));
 
     tensor
 }

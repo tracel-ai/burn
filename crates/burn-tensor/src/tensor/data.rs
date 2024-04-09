@@ -4,6 +4,12 @@ use alloc::vec::Vec;
 
 use crate::{tensor::Shape, Element, ElementConversion};
 
+use num_traits::pow::Pow;
+
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
+
 use rand::{distributions::Standard, Rng, RngCore};
 
 /// Data structure for serializing and deserializing tensor data.
@@ -280,7 +286,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
-        let tolerance = libm::pow(0.1, precision as f64);
+        let tolerance = 0.1.pow(precision as f64);
 
         self.assert_approx_eq_diff(other, tolerance)
     }
@@ -324,7 +330,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 continue;
             }
 
-            let err = libm::sqrt(libm::pow(a - b, 2.0));
+            let err = ((a - b).pow(2.0f64)).sqrt();
 
             if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.

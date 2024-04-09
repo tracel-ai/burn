@@ -6,16 +6,16 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::{self, GpuComputeShaderPhase},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::JitTensor,
-    Compiler, Runtime,
+    Runtime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
+use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
 #[derive(new)]
 struct Conv2dTransposeEagerKernel<R, E> {
@@ -287,8 +287,8 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dTransposeEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -334,9 +334,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dTransposeEagerKern
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -399,13 +397,13 @@ pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
             &output.shape.dims,
         )])
         .with_scalars(&[
-            (options.stride[0] as u32).elem::<u32>(),
-            (options.stride[1] as u32).elem(),
-            (options.dilation[0] as u32).elem(),
-            (options.dilation[1] as u32).elem(),
-            (options.padding[0] as u32).elem(),
-            (options.padding[1] as u32).elem(),
-            (options.groups as u32).elem(),
+            options.stride[0] as u32,
+            options.stride[1] as u32,
+            options.dilation[0] as u32,
+            options.dilation[1] as u32,
+            options.padding[0] as u32,
+            options.padding[1] as u32,
+            options.groups as u32,
         ])
         .execute(WorkgroupLaunch::Output { pos: 0 });
 

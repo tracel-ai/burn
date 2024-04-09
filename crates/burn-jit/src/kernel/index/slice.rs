@@ -1,14 +1,15 @@
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 use burn_tensor::{ElementConversion, Shape};
 use std::{marker::PhantomData, ops::Range};
@@ -63,8 +64,8 @@ impl SliceComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SliceEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -97,9 +98,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for SliceEagerKernel<R, E> {
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -125,31 +124,28 @@ pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const 
     output: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
 ) -> JitTensor<R, E, D1> {
-    let mut scalars = Vec::with_capacity(D1);
+    let mut scalars: Vec<i32> = Vec::with_capacity(D1);
 
     for i in 0..D1 {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
         scalars.push((start as i32).elem());
     }
 
-    let kernel = SliceEagerKernel::new(D1);
+    let kernel = SliceEagerKernel::<R, E>::new(D1);
 
-    execute_dynamic::<R, SliceEagerKernel<R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(
+    Execution::start(kernel, tensor.client)
+        .inputs(&[EagerHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&scalars),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .with_scalars(&scalars)
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

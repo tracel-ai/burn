@@ -24,19 +24,23 @@ pub struct Net<B: Backend> {
 impl<B: Backend> Net<B> {
     /// Create a new model from the given record.
     pub fn new_with(record: NetRecord<B>) -> Self {
+        let device = Default::default();
+
         let conv = match record.conv {
             ConvRecord::DwsConv(dws_conv) => {
                 let dconv = Conv2dConfig::new([2, 2], [3, 3])
                     .with_groups(2)
-                    .init_with(dws_conv.dconv);
+                    .init(&device)
+                    .load_record(dws_conv.dconv);
                 let pconv = Conv2dConfig::new([2, 2], [1, 1])
                     .with_groups(1)
-                    .init_with(dws_conv.pconv);
+                    .init(&device)
+                    .load_record(dws_conv.pconv);
                 Conv::DwsConv(DwsConv { dconv, pconv })
             }
             ConvRecord::Conv(conv) => {
                 let conv2d_config = Conv2dConfig::new([2, 2], [3, 3]);
-                Conv::Conv(conv2d_config.init_with(conv))
+                Conv::Conv(conv2d_config.init(&device).load_record(conv))
             }
         };
         Net { conv }

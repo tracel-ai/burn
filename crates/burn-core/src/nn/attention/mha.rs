@@ -8,7 +8,9 @@ use crate::{
     nn,
     tensor::{activation, backend::Backend, Bool, Tensor},
 };
-use libm::sqrtf;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
 #[derive(Config)]
@@ -35,7 +37,7 @@ pub struct MultiHeadAttentionConfig {
     quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -86,30 +88,6 @@ impl MultiHeadAttentionConfig {
             key: linear(self),
             value: linear(self),
             output: linear(self),
-            dropout: nn::DropoutConfig::new(self.dropout).init(),
-            activation: nn::Gelu::new(),
-            n_heads: self.n_heads,
-            d_k: self.d_model / self.n_heads,
-            min_float: self.min_float,
-            quiet_softmax: self.quiet_softmax,
-        }
-    }
-
-    /// Initialize a new [multihead attention](MultiHeadAttention) module with a
-    /// [record](MultiHeadAttentionRecord).
-    pub fn init_with<B: Backend>(
-        &self,
-        record: MultiHeadAttentionRecord<B>,
-    ) -> MultiHeadAttention<B> {
-        let linear = |config: &Self, record| {
-            nn::LinearConfig::new(config.d_model, config.d_model).init_with(record)
-        };
-
-        MultiHeadAttention {
-            query: linear(self, record.query),
-            key: linear(self, record.key),
-            value: linear(self, record.value),
-            output: linear(self, record.output),
             dropout: nn::DropoutConfig::new(self.dropout).init(),
             activation: nn::Gelu::new(),
             n_heads: self.n_heads,
@@ -231,7 +209,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
         let attn_scores = query
             .matmul(key.transpose())
-            .div_scalar(sqrtf(self.d_k as f32));
+            .div_scalar((self.d_k as f32).sqrt());
 
         self.dropout.forward(attn_scores)
     }

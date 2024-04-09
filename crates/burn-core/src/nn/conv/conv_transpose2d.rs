@@ -1,16 +1,15 @@
 use crate as burn;
 
+use super::checks;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+
 use burn_tensor::module::conv_transpose2d;
 use burn_tensor::ops::ConvTransposeOptions;
-use libm::sqrt;
-
-use super::checks;
 
 /// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer.
 #[derive(Config, Debug)]
@@ -38,7 +37,9 @@ pub struct ConvTranspose2dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
@@ -89,25 +90,11 @@ impl ConvTranspose2dConfig {
         }
 
         ConvTranspose2d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            groups: self.groups,
-            padding: self.padding,
-            padding_out: self.padding_out,
-        }
-    }
-
-    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module with a [record](ConvTranspose2dRecord).
-    pub fn init_with<B: Backend>(&self, record: ConvTranspose2dRecord<B>) -> ConvTranspose2d<B> {
-        ConvTranspose2d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            dilation: self.dilation,
-            kernel_size: self.kernel_size,
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,
@@ -150,7 +137,7 @@ mod tests {
 
         let config = ConvTranspose2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[1] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);

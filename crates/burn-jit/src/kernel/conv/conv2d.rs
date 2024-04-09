@@ -1,23 +1,24 @@
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
-    ElementConversion, Shape,
+    Shape,
 };
 use std::marker::PhantomData;
 
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
+    gpu::ComputeShader,
+    kernel::{into_contiguous, GpuComputeShaderPhase},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::JitTensor,
-    Runtime, RuntimeInt,
+    Runtime,
 };
 
 #[derive(new)]
@@ -233,8 +234,8 @@ impl<E: JitElement> Conv2dComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -280,9 +281,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Conv2dEagerKernel<R, E> 
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -335,32 +334,29 @@ pub(crate) fn conv2d<R: Runtime, E: JitElement>(
         }
     };
 
-    let kernel = Conv2dEagerKernel::new();
+    let kernel = Conv2dEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, Conv2dEagerKernel<R, E>, RuntimeInt<R>>(
-        &[
-            EagerHandle::new(&input.handle, &input.strides, &input.shape.dims),
+    Execution::start(kernel, input.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
             EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
             EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        ],
-        &[EagerHandle::new(
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[
-            (options.stride[0] as u32).elem(),
-            (options.stride[1] as u32).elem(),
-            (options.dilation[0] as u32).elem(),
-            (options.dilation[1] as u32).elem(),
-            (options.padding[0] as u32).elem(),
-            (options.padding[1] as u32).elem(),
-            (options.groups as u32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        input.client,
-    );
+        )])
+        .with_scalars(&[
+            options.stride[0] as u32,
+            options.stride[1] as u32,
+            options.dilation[0] as u32,
+            options.dilation[1] as u32,
+            options.padding[0] as u32,
+            options.padding[1] as u32,
+            options.groups as u32,
+        ])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

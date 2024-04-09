@@ -8,7 +8,6 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
 
 use super::checks;
 
@@ -37,7 +36,9 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
@@ -87,20 +88,8 @@ impl Conv1dConfig {
         }
 
         Conv1d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
-            stride: self.stride,
-            kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
-            dilation: self.dilation,
-            groups: self.groups,
-        }
-    }
-    /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv1dRecord<B>) -> Conv1d<B> {
-        Conv1d {
-            weight: record.weight,
-            bias: record.bias,
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             padding: self.padding.clone(),
@@ -144,7 +133,7 @@ mod tests {
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);

@@ -34,7 +34,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         match Embedding
-            .prepare::<C>([weights.node], [weights.graph])
+            .prepare::<C>([weights.node])
             .compute_bound()
             .stateful()
         {
@@ -85,13 +85,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv2d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 4>(node, backward.x_grad)
+                    grads.register::<B, 4>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 4>(node, backward.weights_grad)
+                    grads.register::<B, 4>(node.id, backward.weights_grad)
                 }
                 if let Some(node) = node_bias {
-                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                    grads.register::<B, 1>(node.id, backward.bias_grad.unwrap())
                 }
             }
         }
@@ -115,20 +115,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv2d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 4>(node, backward.x_grad)
+                    grads.register::<B, 4>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 4>(node, backward.weights_grad)
+                    grads.register::<B, 4>(node.id, backward.weights_grad)
                 }
             }
         }
 
         match bias {
             Some(bias) => match Conv2DWithBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
-                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -149,10 +146,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv2DNoBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone()],
-                    [x.graph.clone(), weight.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -203,13 +197,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv_transpose2d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 4>(node, backward.x_grad)
+                    grads.register::<B, 4>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 4>(node, backward.weights_grad)
+                    grads.register::<B, 4>(node.id, backward.weights_grad)
                 }
                 if let Some(node) = node_bias {
-                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                    grads.register::<B, 1>(node.id, backward.bias_grad.unwrap())
                 }
             }
         }
@@ -233,20 +227,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv_transpose2d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 4>(node, backward.x_grad)
+                    grads.register::<B, 4>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 4>(node, backward.weights_grad)
+                    grads.register::<B, 4>(node.id, backward.weights_grad)
                 }
             }
         }
 
         match bias {
             Some(bias) => match ConvTranspose2DWithBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
-                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -273,10 +264,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose2DNoBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone()],
-                    [x.graph.clone(), weight.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -330,13 +318,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv1d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 3>(node, backward.x_grad)
+                    grads.register::<B, 3>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 3>(node, backward.weights_grad)
+                    grads.register::<B, 3>(node.id, backward.weights_grad)
                 }
                 if let Some(node) = node_bias {
-                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                    grads.register::<B, 1>(node.id, backward.bias_grad.unwrap())
                 }
             }
         }
@@ -360,19 +348,16 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv1d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 3>(node, backward.x_grad)
+                    grads.register::<B, 3>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 3>(node, backward.weights_grad)
+                    grads.register::<B, 3>(node.id, backward.weights_grad)
                 }
             }
         }
         match bias {
             Some(bias) => match Conv1DWithBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
-                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -393,10 +378,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match Conv1DNoBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone()],
-                    [x.graph.clone(), weight.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -446,13 +428,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv_transpose1d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 3>(node, backward.x_grad)
+                    grads.register::<B, 3>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 3>(node, backward.weights_grad)
+                    grads.register::<B, 3>(node.id, backward.weights_grad)
                 }
                 if let Some(node) = node_bias {
-                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                    grads.register::<B, 1>(node.id, backward.bias_grad.unwrap())
                 }
             }
         }
@@ -476,20 +458,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let backward = B::conv_transpose1d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
-                    grads.register::<B, 3>(node, backward.x_grad)
+                    grads.register::<B, 3>(node.id, backward.x_grad)
                 }
                 if let Some(node) = node_weight {
-                    grads.register::<B, 3>(node, backward.weights_grad)
+                    grads.register::<B, 3>(node.id, backward.weights_grad)
                 }
             }
         }
 
         match bias {
             Some(bias) => match ConvTranspose1DWithBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
-                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -515,10 +494,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 )),
             },
             None => match ConvTranspose1DNoBias
-                .prepare::<C>(
-                    [x.node.clone(), weight.node.clone()],
-                    [x.graph.clone(), weight.graph.clone()],
-                )
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
                 .compute_bound()
                 .stateful()
             {
@@ -588,13 +564,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         padding,
                         count_include_pad,
                     );
-                    grads.register::<B, 3>(node, grad);
+                    grads.register::<B, 3>(node.id, grad);
                 }
             }
         }
 
         match AvgPool1D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -654,13 +630,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         padding,
                         count_include_pad,
                     );
-                    grads.register::<B, 4>(node, grad);
+                    grads.register::<B, 4>(node.id, grad);
                 }
             }
         }
 
         match AvgPool2D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -706,7 +682,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         dilation: usize,
     ) -> AutodiffTensor<B, 3> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -744,7 +720,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         dilation: usize,
     ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -806,7 +782,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         dilation: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -844,7 +820,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -908,13 +884,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                 if let Some(node) = node_parent {
                     let grad = B::adaptive_avg_pool1d_backward(state, grad);
-                    grads.register::<B, 3>(node, grad);
+                    grads.register::<B, 3>(node.id, grad);
                 }
             }
         }
 
         match AdaptiveAvgPool1D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -950,13 +926,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                 if let Some(node) = node_parent {
                     let grad = B::adaptive_avg_pool2d_backward(state, grad);
-                    grads.register::<B, 4>(node, grad);
+                    grads.register::<B, 4>(node.id, grad);
                 }
             }
         }
 
         match AdaptiveAvgPool2D
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -1001,13 +977,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                 if let Some(node) = node_parent {
                     let grad = B::interpolate_backward(state, grad, output_size, options);
-                    grads.register::<B, 4>(node, grad);
+                    grads.register::<B, 4>(node.id, grad);
                 }
             }
         }
 
         match Interpolate
-            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()])
             .compute_bound()
             .stateful()
         {
@@ -1060,7 +1036,7 @@ impl<B: Backend> Backward<B, 3, 1> for MaxPool1D {
                 indices,
             );
 
-            grads.register::<B, 3>(node, grad.x_grad);
+            grads.register::<B, 3>(node.id, grad.x_grad);
         }
     }
 }
@@ -1100,7 +1076,7 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
                 indices,
             );
 
-            grads.register::<B, 4>(node, grad.x_grad);
+            grads.register::<B, 4>(node.id, grad.x_grad);
         }
     }
 }

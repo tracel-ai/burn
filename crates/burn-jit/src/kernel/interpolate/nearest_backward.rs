@@ -2,13 +2,13 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, Elem, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
 #[derive(new)]
@@ -179,10 +179,10 @@ impl InterpolateNearestBackwardShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
     for InterpolateNearestBackwardEagerKernel<R, E>
 {
-    fn source(&self) -> SourceTemplate {
+    fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
@@ -207,9 +207,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -221,24 +219,20 @@ pub(crate) fn interpolate_nearest_backward_launch<R: Runtime, E: JitElement>(
     out_grad: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {
-    let kernel = InterpolateNearestBackwardEagerKernel::new();
+    let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
 
-    execute_dynamic::<R, InterpolateNearestBackwardEagerKernel<R, E>, u32>(
-        &[EagerHandle::new(
+    Execution::start(kernel, out_grad.client)
+        .inputs(&[EagerHandle::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
-        )],
-        &[EagerHandle::new(
+        )])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        out_grad.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

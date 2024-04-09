@@ -1,11 +1,13 @@
 use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
+use crate::codegen::Execution;
+use crate::gpu::ComputeShader;
 use crate::{
     codegen::{
-        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -74,8 +76,8 @@ impl GatherComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::gpu_elem().into();
         let item_indices: gpu::Item = gpu::Elem::Int.into();
@@ -113,9 +115,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> 
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
@@ -130,23 +130,19 @@ pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
 ) -> JitTensor<R, E, D> {
     let shape_output = indices.shape.clone();
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    let kernel = GatherEagerKernel::new(dim);
+    let kernel = GatherEagerKernel::<R, E>::new(dim);
 
-    execute_dynamic::<R, GatherEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+    Execution::start(kernel, tensor.client)
+        .inputs(&[
+            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-        ],
-        &[EagerHandle::new(
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+        )])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }

@@ -7,7 +7,7 @@ use crate::{
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
@@ -19,7 +19,6 @@ use std::marker::PhantomData;
 #[derive(new)]
 pub struct OpsPrep<Backward, B, S, C, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
-    graphs: [Graph; N],
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
@@ -53,7 +52,6 @@ where
     pub fn compute_bound(self) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone> {
         OpsPrep::new(
             self.nodes,
-            self.graphs,
             self.requirement,
             self.backward,
             ComputingProperty::ComputeBound,
@@ -66,7 +64,6 @@ where
     pub fn memory_bound(self) -> OpsPrep<BO, B, S, C, D, N, MemoryBound> {
         OpsPrep::new(
             self.nodes,
-            self.graphs,
             self.requirement,
             self.backward,
             self.compute_property,
@@ -88,7 +85,6 @@ where
     ) -> OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward> {
         OpsPrep::new(
             self.nodes,
-            self.graphs,
             self.requirement,
             self.backward,
             C::compute_property(retro_forward),
@@ -117,7 +113,6 @@ where
 
         OpsPrep::new(
             self.nodes,
-            self.graphs,
             self.requirement,
             self.backward,
             self.compute_property,
@@ -146,7 +141,7 @@ where
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
@@ -154,7 +149,6 @@ where
         match self.requirement.is_none() {
             false => OpsKind::Tracked(OpsPrep::new(
                 self.nodes,
-                self.graphs,
                 self.requirement,
                 self.backward,
                 self.compute_property,
@@ -162,7 +156,6 @@ where
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
-                self.graphs,
                 self.requirement,
                 self.backward,
                 self.compute_property,
@@ -175,7 +168,7 @@ where
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, UnTracked>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
@@ -183,24 +176,22 @@ where
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
-            self.graphs.into_iter(),
             self.requirement,
             self.compute_property,
-            self.checkpointer_builder,
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), ());
 
         // We register the ops in the graph even if untracked, otherwise memory bound operations
         // that have an untracked parent would not be able to retrieve it
-        output.register_step(UntrackedOpsStep::new(ops))
+        output.register_step(UntrackedOpsStep::new(ops), self.checkpointer_builder)
     }
 }
 
 impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Tracked>
 where
     B: Backend,
-    S: Clone + Send + Sync + std::fmt::Debug + 'static,
+    S: Clone + Send + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
@@ -212,15 +203,13 @@ where
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
-            self.graphs.into_iter(),
             self.requirement,
             self.compute_property,
-            self.checkpointer_builder,
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
 
-        output.register_step(OpsStep::new(ops, self.backward))
+        output.register_step(OpsStep::new(ops, self.backward), self.checkpointer_builder)
     }
 
     /// Checkpoints the tensor
@@ -228,7 +217,7 @@ where
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
-        tensor.node.id.clone()
+        tensor.node.id
     }
 }
 
@@ -257,7 +246,7 @@ struct OpsStep<B, T, SB, const D: usize, const N: usize>
 where
     B: Backend,
     T: Backward<B, D, N, State = SB>,
-    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+    SB: Clone + Send + std::fmt::Debug + 'static,
 {
     ops: Ops<SB, N>,
     backward: T,
@@ -268,14 +257,22 @@ impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
 where
     B: Backend,
     T: Backward<B, D, N, State = SB>,
-    SB: Clone + Send + Sync + std::fmt::Debug + 'static,
+    SB: Clone + Send + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeRef {
-        self.ops.node.clone()
+    fn node(&self) -> NodeID {
+        self.ops.node.id
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        self.ops.node.parents.clone()
+    }
+
+    fn order(&self) -> usize {
+        self.ops.node.order
     }
 }
 
@@ -289,8 +286,15 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeRef {
-        self.ops.node.clone()
+    fn node(&self) -> NodeID {
+        self.ops.node.id
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        self.ops.node.parents.clone()
+    }
+    fn order(&self) -> usize {
+        self.ops.node.order
     }
 }
 
