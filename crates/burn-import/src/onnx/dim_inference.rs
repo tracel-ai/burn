@@ -135,6 +135,7 @@ fn cast_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Cast: multiple inputs are not supported");
     }
+    let input = &mut node.inputs[0];
     let output = &mut node.outputs[0];
 
     // Extract cast type and update the output tensor
@@ -145,6 +146,7 @@ fn cast_update_outputs(node: &mut Node) {
                 DataType::INT32 => ElementType::Int32,
                 DataType::INT64 => ElementType::Int64,
                 DataType::DOUBLE => ElementType::Float64,
+                DataType::BOOL => ElementType::Bool,
                 _ => panic!("Cast: unsupported type"),
             },
             _ => panic!("'to' attribute must be an Int64"),
@@ -152,19 +154,25 @@ fn cast_update_outputs(node: &mut Node) {
         None => panic!("Constant node must have a value attribute"),
     };
 
-    match output.ty.clone() {
+    match input.ty.clone() {
         ArgType::Tensor(tensor) => {
             if tensor.dim == 0 {
                 // treat 0-dim tensor as scalar
                 output.ty = ArgType::Scalar(elem_type);
+                input.ty = ArgType::Scalar(tensor.elem_type);
             } else {
-                todo!("Cast: support casting from different tensor types");
+                // Cast input and output are the same shape, but possibly different types
+                output.ty = ArgType::Tensor(TensorType {
+                    elem_type,
+                    dim: tensor.dim,
+                    shape: tensor.shape.clone(),
+                });
             }
         }
         ArgType::Scalar(_scalar) => {
             output.ty = ArgType::Scalar(elem_type);
         }
-        _ => panic!("Cast: only scalar input is valid"),
+        _ => panic!("Cast: only scalar and tensor inputs are valid"),
     }
 }
 

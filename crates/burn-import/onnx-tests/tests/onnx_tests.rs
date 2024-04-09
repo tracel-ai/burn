@@ -17,6 +17,7 @@ include_models!(
     add,
     avg_pool2d,
     batch_norm,
+    cast,
     clip_opset16,
     clip_opset7,
     concat,
@@ -63,7 +64,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Data, Int, Shape, Tensor};
+    use burn::tensor::{Bool, Data, Int, Shape, Tensor};
 
     use float_cmp::ApproxEq;
 
@@ -893,5 +894,53 @@ mod tests {
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);
         assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn cast() {
+        let device = Default::default();
+        let model: cast::Model<Backend> = cast::Model::new(&device);
+
+        let input_bool =
+            Tensor::<Backend, 2, Bool>::from_bool(Data::from([[true], [true]]), &device);
+        let input_int = Tensor::<Backend, 2, Int>::from_ints([[1], [1]], &device);
+        let input_float = Tensor::<Backend, 2>::from_floats([[1.], [1.]], &device);
+        let input_scalar = 1f32;
+
+        let (
+            output1,
+            output2,
+            output3,
+            output4,
+            output5,
+            output6,
+            output7,
+            output8,
+            output9,
+            output_scalar,
+        ) = model.forward(
+            input_bool.clone(),
+            input_int.clone(),
+            input_float.clone(),
+            input_scalar,
+        );
+        let expected_bool = input_bool.to_data();
+        let expected_int = input_int.to_data();
+        let expected_float = input_float.to_data();
+        let expected_scalar = 1;
+
+        assert_eq!(output1.to_data(), expected_bool);
+        assert_eq!(output2.to_data(), expected_int);
+        output3.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output4.to_data(), expected_bool);
+        assert_eq!(output5.to_data(), expected_int);
+        output6.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output7.to_data(), expected_bool);
+        assert_eq!(output8.to_data(), expected_int);
+        output9.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output_scalar, expected_scalar);
     }
 }
