@@ -156,7 +156,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         let rhs: f64 = rhs.elem();
 
         lhs.unary_ops(
-            |mut tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
             |tensor| tensor.f_remainder(rhs).unwrap(),
         )
     }

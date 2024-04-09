@@ -218,7 +218,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_remainder_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
         lhs.unary_ops(
-            |mut tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
             |tensor| tensor.f_remainder(rhs).unwrap(),
         )
     }
