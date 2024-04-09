@@ -40,6 +40,7 @@ include_models!(
     maxpool2d,
     mul,
     neg,
+    not,
     recip,
     relu,
     reshape,
@@ -821,6 +822,22 @@ mod tests {
         output1.to_data().assert_approx_eq(&expected1, 4);
 
         assert_eq!(output2, expected2);
+    }
+
+    #[test]
+    fn not() {
+        let device = Default::default();
+        let model: not::Model<Backend> = not::Model::new(&device);
+
+        let input = Tensor::<Backend, 4, Bool>::from_bool(
+            Data::from([[[[true, false, true, false]]]]),
+            &device,
+        );
+
+        let output = model.forward(input).to_data();
+        let expected = Data::from([[[[false, true, false, true]]]]);
+
+        assert_eq!(output, expected);
     }
 
     #[test]

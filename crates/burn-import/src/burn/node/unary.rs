@@ -29,6 +29,7 @@ pub enum UnaryNodeKind {
     Log,
     LogSoftmax,
     Neg,
+    Not,
     Reciprocal,
     LeakyRelu,
     Relu,
@@ -51,6 +52,7 @@ impl UnaryNodeKind {
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
+            Self::Not => "not",
             Self::Reciprocal => "reciprocal",
             Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
@@ -115,6 +117,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match self.kind {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
+            }
+            UnaryNodeKind::Not => {
+                imports.register("burn::tensor::Bool");
             }
             _ => {}
         }
@@ -206,6 +211,12 @@ impl UnaryNode {
     pub(crate) fn neg(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.neg()};
         Self::new(input, output, UnaryNodeKind::Neg, Rc::new(function))
+    }
+
+    pub(crate) fn not(input: Type, output: Type) -> Self {
+        // Not ONNX operator is constrained to bool tensors, so no need to check the type.
+        let function = move |input| quote! { #input.bool_not()};
+        Self::new(input, output, UnaryNodeKind::Not, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -588,6 +599,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.neg();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_not() {
+        one_node_graph(
+            UnaryNode::not(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.bool_not();
 
                     tensor2
                 }

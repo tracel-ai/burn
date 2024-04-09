@@ -38,6 +38,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
+        NodeType::Not => same_as_input(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMean => mean_update_outputs(node),
         NodeType::Relu => same_as_input(node),
