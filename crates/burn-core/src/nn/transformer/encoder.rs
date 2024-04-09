@@ -44,7 +44,7 @@ pub struct TransformerEncoderConfig {
     pub quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -97,20 +97,6 @@ impl TransformerEncoderConfig {
             .collect::<Vec<_>>();
 
         TransformerEncoder { layers }
-    }
-    /// Initialize a new [transformer encoder](TransformerEncoder) module with a
-    /// [record](TransformerEncoderRecord).
-    pub fn init_with<B: Backend>(
-        &self,
-        record: TransformerEncoderRecord<B>,
-    ) -> TransformerEncoder<B> {
-        TransformerEncoder {
-            layers: record
-                .layers
-                .into_iter()
-                .map(|record| TransformerEncoderLayer::new_with(self, record))
-                .collect(),
-        }
     }
 }
 
@@ -176,32 +162,6 @@ pub struct TransformerEncoderLayer<B: Backend> {
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
-    fn new_with(
-        config: &TransformerEncoderConfig,
-        record: TransformerEncoderLayerRecord<B>,
-    ) -> Self {
-        let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .with_quiet_softmax(config.quiet_softmax)
-            .init_with(record.mha);
-        let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
-        let norm_2 = LayerNormConfig::new(config.d_model).init_with(record.norm_2);
-        let dropout = DropoutConfig::new(config.dropout).init();
-        let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .init_with(record.pwff);
-
-        Self {
-            mha,
-            norm_1,
-            norm_2,
-            pwff,
-            dropout,
-            norm_first: config.norm_first,
-        }
-    }
     fn new(config: &TransformerEncoderConfig, device: &B::Device) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())

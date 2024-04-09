@@ -15,10 +15,11 @@ pub struct Net<B: Backend> {
 impl<B: Backend> Net<B> {
     /// Create a new model from the given record.
     pub fn new_with(record: NetRecord<B>) -> Self {
+        let device = Default::default();
         let conv2d_config = Conv2dConfig::new([2, 2], [3, 3]).with_padding(PaddingConfig2d::Same);
         let mut fc = vec![];
         for fc_record in record.fc.into_iter() {
-            fc.push(conv2d_config.init_with(fc_record));
+            fc.push(conv2d_config.init(&device).load_record(fc_record));
         }
         Net { fc }
     }

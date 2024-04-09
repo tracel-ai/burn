@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let channels = self.config.channels.to_tokens();
         let kernel_size = self.config.kernel_size.to_tokens();
@@ -66,15 +66,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode<PS> {
         let padding = self.config.padding.to_tokens();
         let bias = self.config.bias;
 
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = ConvTranspose2dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
@@ -82,7 +73,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode<PS> {
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)
@@ -91,12 +82,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode<PS> {
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
         let record = ConvTranspose2dRecord::<SerializationBackend> {
-            weight: Param::new(
+            weight: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data(self.data_weights.clone().convert(), &device),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
-                Param::new(
+                Param::initialized(
                     ParamId::new(),
                     Tensor::from_data(bias.clone().convert(), &device),
                 )
@@ -173,14 +164,14 @@ mod tests {
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv_transpose_2d = ConvTranspose2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding([0, 0])
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv_transpose_2d);
+                        .init(device);
 
                     Self {
                         conv_transpose_2d,

@@ -26,5 +26,7 @@ pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
         input,
         Some(&[min_value, max_value]),
         true,
+        Ops::new(),
+        OpsInplace::new(),
     )
 }

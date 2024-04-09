@@ -12,6 +12,7 @@ use burn::{
         Tensor,
     },
 };
+use burn_autodiff::Autodiff;
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
 #[derive(Module, Debug)]
@@ -29,25 +30,21 @@ pub struct Net<B: Backend> {
 }
 
 impl<B: Backend> Net<B> {
-    /// Create a new model from the given record.
-    pub fn new_with(record: NetRecord<B>) -> Self {
-        let mut record = record;
-        let record_block_0 = record.conv_blocks.remove(0);
-        let record_block_1 = record.conv_blocks.remove(0);
-
+    pub fn init(device: &B::Device) -> Self {
         let conv_blocks = vec![
             ConvBlock {
-                conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record_block_0.conv),
-                norm: BatchNormConfig::new(2).init_with(record_block_0.norm),
+                conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
+                norm: BatchNormConfig::new(2).init(device),
             },
             ConvBlock {
-                conv: Conv2dConfig::new([4, 6], [3, 2]).init_with(record_block_1.conv),
-                norm: BatchNormConfig::new(4).init_with(record_block_1.norm),
+                conv: Conv2dConfig::new([4, 6], [3, 2]).init(device),
+                norm: BatchNormConfig::new(4).init(device),
             },
         ];
-        let norm1 = BatchNormConfig::new(6).init_with(record.norm1);
-        let fc1 = LinearConfig::new(120, 12).init_with(record.fc1);
-        let fc2 = LinearConfig::new(12, 10).init_with(record.fc2);
+        let norm1 = BatchNormConfig::new(6).init(device);
+        let fc1 = LinearConfig::new(120, 12).init(device);
+        let fc2 = LinearConfig::new(12, 10).init(device);
+
         Self {
             conv_blocks,
             norm1,
@@ -86,10 +83,10 @@ pub struct PartialNet<B: Backend> {
 
 impl<B: Backend> PartialNet<B> {
     /// Create a new model from the given record.
-    pub fn new_with(record: PartialNetRecord<B>) -> Self {
+    pub fn init(device: &B::Device) -> Self {
         let conv1 = ConvBlock {
-            conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record.conv1.conv),
-            norm: BatchNormConfig::new(2).init_with(record.conv1.norm),
+            conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
+            norm: BatchNormConfig::new(2).init(device),
         };
         Self { conv1 }
     }
@@ -109,11 +106,12 @@ pub struct PartialWithExtraNet<B: Backend> {
 
 impl<B: Backend> PartialWithExtraNet<B> {
     /// Create a new model from the given record.
-    pub fn new_with(record: PartialWithExtraNetRecord<B>) -> Self {
+    pub fn init(device: &B::Device) -> Self {
         let conv1 = ConvBlock {
-            conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record.conv1.conv),
-            norm: BatchNormConfig::new(2).init_with(record.conv1.norm),
+            conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
+            norm: BatchNormConfig::new(2).init(device),
         };
+
         Self {
             conv1,
             extra_field: true,
@@ -130,7 +128,7 @@ type TestBackend = burn_ndarray::NdArray<f32>;
 
 fn model_test(record: NetRecord<TestBackend>, precision: usize) {
     let device = Default::default();
-    let model = Net::<TestBackend>::new_with(record);
+    let model = Net::<TestBackend>::init(&device).load_record(record);
 
     let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
 
@@ -168,6 +166,17 @@ fn full_record() {
 }
 
 #[test]
+fn full_record_autodiff() {
+    let device = Default::default();
+    let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+        .load("tests/complex_nested/complex_nested.pt".into(), &device)
+        .expect("Should decode state successfully");
+
+    let device = Default::default();
+    let _model = Net::<Autodiff<TestBackend>>::init(&device).load_record(record);
+}
+
+#[test]
 fn half_record() {
     let device = Default::default();
     let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
@@ -189,7 +198,7 @@ fn partial_model_loading() {
         .load(load_args, &device)
         .expect("Should decode state successfully");
 
-    let model = PartialNet::<TestBackend>::new_with(record);
+    let model = PartialNet::<TestBackend>::init(&device).load_record(record);
 
     let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
 
@@ -214,7 +223,7 @@ fn extra_field_model_loading() {
         .load(load_args, &device)
         .expect("Should decode state successfully");
 
-    let model = PartialWithExtraNet::<TestBackend>::new_with(record);
+    let model = PartialWithExtraNet::<TestBackend>::init(&device).load_record(record);
 
     let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
 

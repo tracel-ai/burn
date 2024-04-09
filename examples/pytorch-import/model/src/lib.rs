@@ -25,26 +25,28 @@ pub struct Model<B: Backend> {
 
 impl<B: Backend> Default for Model<B> {
     fn default() -> Self {
+        let device = B::Device::default();
         let out_dir = env::var_os("OUT_DIR").unwrap();
         let file_path = Path::new(&out_dir).join("model/mnist");
 
         let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path, &B::Device::default())
+            .load(file_path, &device)
             .expect("Failed to decode state");
 
-        Self::new_with(record)
+        Self::init(&device).load_record(record)
     }
 }
 
 impl<B: Backend> Model<B> {
-    pub fn new_with(record: ModelRecord<B>) -> Self {
-        let conv1 = Conv2dConfig::new([1, 8], [3, 3]).init_with(record.conv1);
-        let conv2 = Conv2dConfig::new([8, 16], [3, 3]).init_with(record.conv2);
-        let conv3 = Conv2dConfig::new([16, 24], [3, 3]).init_with(record.conv3);
-        let norm1 = BatchNormConfig::new(24).init_with(record.norm1);
-        let fc1 = LinearConfig::new(11616, 32).init_with(record.fc1);
-        let fc2 = LinearConfig::new(32, 10).init_with(record.fc2);
-        let norm2 = BatchNormConfig::new(10).init_with(record.norm2);
+    pub fn init(device: &B::Device) -> Self {
+        let conv1 = Conv2dConfig::new([1, 8], [3, 3]).init(device);
+        let conv2 = Conv2dConfig::new([8, 16], [3, 3]).init(device);
+        let conv3 = Conv2dConfig::new([16, 24], [3, 3]).init(device);
+        let norm1 = BatchNormConfig::new(24).init(device);
+        let fc1 = LinearConfig::new(11616, 32).init(device);
+        let fc2 = LinearConfig::new(32, 10).init(device);
+        let norm2 = BatchNormConfig::new(10).init(device);
+
         Self {
             conv1,
             conv2,

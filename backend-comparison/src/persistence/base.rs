@@ -7,15 +7,15 @@ use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde_json;
-use std::fmt::Display;
 use std::time::Duration;
 use std::{fs, io::Write};
 
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
-    backend: String,
-    device: String,
-    system_info: BenchmarkSystemInfo,
+    pub backend: String,
+    pub device: String,
+    pub feature: String,
+    pub system_info: BenchmarkSystemInfo,
     pub results: BenchmarkResult,
 }
 
@@ -29,6 +29,7 @@ pub struct BenchmarkRecord {
 ///    {
 ///      "backend": "backend name",
 ///      "device": "device name",
+///      "feature": "feature name",
 ///      "gitHash": "hash",
 ///      "max": "duration in microseconds",
 ///      "mean": "duration in microseconds",
@@ -49,6 +50,7 @@ pub struct BenchmarkRecord {
 pub fn save<B: Backend>(
     benches: Vec<BenchmarkResult>,
     device: &B::Device,
+    feature: &str,
     url: Option<&str>,
     token: Option<&str>,
 ) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
@@ -71,6 +73,7 @@ pub fn save<B: Backend>(
         .map(|bench| BenchmarkRecord {
             backend: B::name().to_string(),
             device: format!("{:?}", device),
+            feature: feature.to_string(),
             system_info: BenchmarkSystemInfo::new(),
             results: bench,
         })
@@ -157,6 +160,7 @@ impl Serialize for BenchmarkRecord {
             self,
             ("backend", &self.backend),
             ("device", &self.device),
+            ("feature", &self.feature),
             ("gitHash", &self.results.git_hash),
             ("max", &self.results.computed.max.as_micros()),
             ("mean", &self.results.computed.mean.as_micros()),
@@ -190,6 +194,7 @@ impl<'de> Visitor<'de> for BenchmarkRecordVisitor {
             match key.as_str() {
                 "backend" => br.backend = map.next_value::<String>()?,
                 "device" => br.device = map.next_value::<String>()?,
+                "feature" => br.feature = map.next_value::<String>()?,
                 "gitHash" => br.results.git_hash = map.next_value::<String>()?,
                 "name" => br.results.name = map.next_value::<String>()?,
                 "max" => {
@@ -235,44 +240,6 @@ impl<'de> Deserialize<'de> for BenchmarkRecord {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct BenchmarkCollection {
-    pub records: Vec<BenchmarkRecord>,
-}
-
-impl Display for BenchmarkCollection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Compute the max length for each column
-        let mut max_name_len = 0;
-        let mut max_backend_len = 0;
-        for record in self.records.iter() {
-            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
-            max_name_len = max_name_len.max(record.results.name.len());
-            max_backend_len = max_backend_len.max(backend_name.len());
-        }
-        // Header
-        writeln!(
-            f,
-            "| {:<width_name$} | {:<width_backend$} | Median         |\n|{:->width_name$}--|{:->width_backend$}--|----------------|",
-            "Benchmark", "Backend", "", "", width_name = max_name_len, width_backend = max_backend_len
-        )?;
-        // Table entries
-        for record in self.records.iter() {
-            let backend_name = [record.backend.clone(), record.device.clone()].join("-");
-            writeln!(
-                f,
-                "| {:<width_name$} | {:<width_backend$} | {:<15.3?}|",
-                record.results.name,
-                backend_name,
-                record.results.computed.median,
-                width_name = max_name_len,
-                width_backend = max_backend_len
-            )?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +250,7 @@ mod tests {
             "backend": "candle",
             "device": "Cuda(0)",
             "gitHash": "02d37011ab4dc773286e5983c09cde61f95ba4b5",
+            "feature": "wgpu-fusion",
             "name": "unary",
             "max": 8858,
             "mean": 8629,
@@ -345,6 +313,7 @@ mod tests {
         let record = serde_json::from_str::<BenchmarkRecord>(sample_result).unwrap();
         assert!(record.backend == "candle");
         assert!(record.device == "Cuda(0)");
+        assert!(record.feature == "wgpu-fusion");
         assert!(record.results.git_hash == "02d37011ab4dc773286e5983c09cde61f95ba4b5");
         assert!(record.results.name == "unary");
         assert!(record.results.computed.max.as_micros() == 8858);

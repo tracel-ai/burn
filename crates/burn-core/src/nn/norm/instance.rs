@@ -35,13 +35,6 @@ impl InstanceNormConfig {
         }
     }
 
-    /// Initialize a new [instance norm](InstanceNorm) module with a [record](InstanceNormRecord).
-    pub fn init_with<B: Backend>(&self, record: InstanceNormRecord<B>) -> InstanceNorm<B> {
-        InstanceNorm {
-            group_norm: self.to_group_norm().init_with(record.group_norm),
-        }
-    }
-
     fn to_group_norm(&self) -> GroupNormConfig {
         GroupNormConfig {
             // Group norm is equivalent to instance norm, when the number of groups is

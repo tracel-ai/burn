@@ -189,7 +189,6 @@ impl ModelGen {
             fs::write(graph_file, debug_graph).unwrap();
         }
 
-        let new_fn = true;
         let blank_space = true;
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
@@ -197,7 +196,6 @@ impl ModelGen {
             graph
                 .into_burn::<HalfPrecisionSettings>()
                 .with_record(out_file.clone(), self.record_type, self.embed_states)
-                .with_new_fn(new_fn)
                 .with_blank_space(blank_space)
                 .with_top_comment(top_comment)
                 .codegen()
@@ -205,7 +203,6 @@ impl ModelGen {
             graph
                 .into_burn::<FullPrecisionSettings>()
                 .with_record(out_file.clone(), self.record_type, self.embed_states)
-                .with_new_fn(new_fn)
                 .with_blank_space(blank_space)
                 .with_top_comment(top_comment)
                 .codegen()

@@ -34,8 +34,8 @@ use super::BackendBridge;
 ///
 /// ### Multi-Threaded
 ///
-/// Backend tensor types are all `Clone` + `Sync` + `Send`, which allows them to be safely
-/// shared between threads. It is recommended to wrap tensors with [Arc](alloc::sync::Arc),
+/// Backend tensor types are all `Clone` + `Send`, which allows them to be safely
+/// sent between threads. It is recommended to wrap tensors with [Arc](alloc::sync::Arc),
 /// which avoids copying the tensor's buffer. Note that it is still possible to mutate and
 /// reuse tensors' buffer without locking; see the next section on the Mutable API.
 ///
@@ -72,17 +72,17 @@ pub trait Backend:
     type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type IntTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {
@@ -109,7 +109,7 @@ pub trait AutodiffBackend: Backend {
     >;
 
     /// Gradients type.
-    type Gradients: Send + Sync;
+    type Gradients: Send;
 
     /// Backward pass.
     ///

@@ -116,7 +116,6 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `InstanceNorm` | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`    | `nn.LayerNorm`                                |
 | `LeakyRelu`    | `nn.LeakyReLU`                                |
-| `LeakyRelu`    | `nn.LeakyReLu`                                |
 | `Linear`       | `nn.Linear`                                   |
 | `Prelu`        | `nn.PReLu`                                    |
 | `Relu`         | `nn.ReLU`                                     |

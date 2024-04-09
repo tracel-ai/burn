@@ -11,6 +11,7 @@ const MEAN: [f32; 3] = [0.4914, 0.48216, 0.44653];
 const STD: [f32; 3] = [0.24703, 0.24349, 0.26159];
 
 /// Normalizer for the CIFAR-10 dataset.
+#[derive(Clone)]
 pub struct Normalizer<B: Backend> {
     pub mean: Tensor<B, 4>,
     pub std: Tensor<B, 4>,
@@ -36,6 +37,7 @@ impl<B: Backend> Normalizer<B> {
     }
 }
 
+#[derive(Clone)]
 pub struct ClassificationBatcher<B: Backend> {
     normalizer: Normalizer<B>,
     device: B::Device,

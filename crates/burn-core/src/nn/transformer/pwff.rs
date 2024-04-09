@@ -20,7 +20,7 @@ pub struct PositionWiseFeedForwardConfig {
     pub dropout: f64,
     /// The type of function used to initialize neural network parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -49,19 +49,6 @@ impl PositionWiseFeedForwardConfig {
             linear_outer: LinearConfig::new(self.d_ff, self.d_model)
                 .with_initializer(self.initializer.clone())
                 .init(device),
-            dropout: DropoutConfig::new(self.dropout).init(),
-            gelu: Gelu::new(),
-        }
-    }
-    /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module with a
-    /// [record](PositionWiseFeedForwardRecord).
-    pub fn init_with<B: Backend>(
-        &self,
-        record: PositionWiseFeedForwardRecord<B>,
-    ) -> PositionWiseFeedForward<B> {
-        PositionWiseFeedForward {
-            linear_inner: LinearConfig::new(self.d_model, self.d_ff).init_with(record.linear_inner),
-            linear_outer: LinearConfig::new(self.d_ff, self.d_model).init_with(record.linear_outer),
             dropout: DropoutConfig::new(self.dropout).init(),
             gelu: Gelu::new(),
         }

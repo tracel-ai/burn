@@ -7,13 +7,18 @@ you can import them into Burn. Burn supports importing PyTorch model weights wit
 extension. Compared to ONNX models, `.pt` files only contain the weights of the model, so you will
 need to reconstruct the model architecture in Burn.
 
+Here in this document we will show the full workflow of exporting a PyTorch model and importing it.
+Also you can refer to this
+[Transitioning From PyTorch to Burn](https://dev.to/laggui/transitioning-from-pytorch-to-burn-45m)
+tutorial on importing a more complex model.
+
 ## How to export a PyTorch model
 
 If you have a PyTorch model that you want to import into Burn, you will need to export it first,
 unless you are using a pre-trained published model. To export a PyTorch model, you can use the
 `torch.save` function.
 
-Here is an example of how to export a PyTorch model:
+The following is an example of how to export a PyTorch model:
 
 ```python
 import torch
@@ -40,7 +45,7 @@ if __name__ == "__main__":
 Use [Netron](https://github.com/lutzroeder/netron) to view the exported model. You should see
 something like this:
 
-![image alt >](./conv2d.svg)
+![image alt>](./conv2d.svg)
 
 ## How to import a PyTorch model
 
@@ -59,13 +64,13 @@ something like this:
    }
 
    impl<B: Backend> Net<B> {
-       /// Create a new model from the given record.
-       pub fn new_with(record: NetRecord<B>) -> Self {
+       /// Create a new model.
+       pub fn init(device: &B::Device) -> Self {
            let conv1 = Conv2dConfig::new([2, 2], [2, 2])
-               .init_with(record.conv1);
+               .init(device);
            let conv2 = Conv2dConfig::new([2, 2], [2, 2])
                .with_bias(false)
-               .init_with(record.conv2);
+               .init(device);
            Self { conv1, conv2 }
        }
 
@@ -95,7 +100,7 @@ something like this:
            .load("./conv2d.pt".into(), &device)
            .expect("Should decode state successfully");
 
-       let model = model::Net::<Backend>::new_with(record);
+       let model = model::Net::<Backend>::init(&device).load_record(record);
    }
    ```
 
@@ -134,7 +139,7 @@ something like this:
            .load("./MY_FILE_OUTPUT_PATH".into(), &device)
            .expect("Should decode state successfully");
 
-       Net::<Backend>::new_with(record)
+       Net::<Backend>::init(&device).load_record(record)
    }
    ```
 
@@ -187,8 +192,8 @@ fn main() {
 ### Adjusting the source model architecture
 
 If your target model differs structurally from the model you exported, `PyTorchFileRecorder` allows
-changing the attribute names and the order of the attributes. For example, if you exported a model
-with the following structure:
+you to change the attribute names and the order of the attributes. For example, if you exported a
+model with the following structure:
 
 ```python
 class ConvModule(nn.Module):
@@ -225,7 +230,7 @@ pub struct Net<B: Backend> {
 Which produces the following weights structure (viewed in
 [Netron](https://github.com/lutzroeder/netron)):
 
-![image alt >](./key_remap.svg)
+![image alt>](./key_remap.svg)
 
 You can use the `PyTorchFileRecorder` to change the attribute names and the order of the attributes
 by specifying a regular expression (See
@@ -243,7 +248,7 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 
-let model = Net::<Backend>::new_with(record);
+let model = Net::<Backend>::init(&device).load_record(record);
 ```
 
 ### Printing the source model keys and tensor information
@@ -261,7 +266,7 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 
-let model = Net::<Backend>::new_with(record);
+let model = Net::<Backend>::init(&device).load_record(record);
 ```
 
 Here is an example of the output:

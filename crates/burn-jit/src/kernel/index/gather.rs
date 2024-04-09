@@ -1,12 +1,13 @@
 use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
 use crate::codegen::Execution;
+use crate::gpu::ComputeShader;
 use crate::{
     codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, DynamicKernelSource, SourceTemplate},
+    kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -75,8 +76,8 @@ impl GatherComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> {
-    fn source(&self) -> kernel::SourceTemplate {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
+    fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::gpu_elem().into();
         let item_indices: gpu::Item = gpu::Elem::Int.into();
@@ -114,9 +115,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> 
         };
 
         let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        Compilation::new(info).compile(settings)
     }
 
     fn id(&self) -> String {
