@@ -28,8 +28,8 @@ impl MetricSummary {
         metric: &str,
         split: Split,
         num_epochs: usize,
-    ) -> Self {
-        let entries = (1..num_epochs)
+    ) -> Option<Self> {
+        let entries = (1..=num_epochs)
             .filter_map(|epoch| {
                 event_store
                     .find_metric(metric, epoch, Aggregate::Mean, split)
@@ -37,9 +37,13 @@ impl MetricSummary {
             })
             .collect::<Vec<_>>();
 
-        Self {
-            name: metric.to_string(),
-            entries,
+        if entries.is_empty() {
+            None
+        } else {
+            Some(Self {
+                name: metric.to_string(),
+                entries,
+            })
         }
     }
 }
@@ -67,14 +71,23 @@ impl LearnerSummary {
     ///
     /// * `directory` - The directory containing the training artifacts (checkpoints and logs).
     /// * `metrics` - The list of metrics to collect for the summary.
-    pub fn new(directory: &str, metrics: &[&str]) -> Self {
-        if !Path::new(directory).exists() {
-            panic!("Artifact directory does not exist at: {}", directory);
+    pub fn new(directory: &str, metrics: &[&str]) -> Result<Self, String> {
+        let directory_path = Path::new(directory);
+        if !directory_path.exists() {
+            return Err(format!("Artifact directory does not exist at: {directory}"));
         }
+        let train_dir = directory_path.join("train");
+        let valid_dir = directory_path.join("valid");
+        if !train_dir.exists() & !valid_dir.exists() {
+            return Err(format!(
+                "No training or validation artifacts found at: {directory}"
+            ));
+        }
+
         let mut event_store = LogEventStore::default();
 
-        let train_logger = FileMetricLogger::new(format!("{directory}/train").as_str());
-        let valid_logger = FileMetricLogger::new(format!("{directory}/valid").as_str());
+        let train_logger = FileMetricLogger::new(train_dir.to_str().unwrap());
+        let valid_logger = FileMetricLogger::new(valid_dir.to_str().unwrap());
 
         // Number of recorded epochs
         let epochs = train_logger.epochs();
@@ -84,21 +97,21 @@ impl LearnerSummary {
 
         let train_summary = metrics
             .iter()
-            .map(|metric| MetricSummary::new(&mut event_store, metric, Split::Train, epochs))
+            .filter_map(|metric| MetricSummary::new(&mut event_store, metric, Split::Train, epochs))
             .collect::<Vec<_>>();
 
         let valid_summary = metrics
             .iter()
-            .map(|metric| MetricSummary::new(&mut event_store, metric, Split::Valid, epochs))
+            .filter_map(|metric| MetricSummary::new(&mut event_store, metric, Split::Valid, epochs))
             .collect::<Vec<_>>();
 
-        Self {
+        Ok(Self {
             epochs,
             metrics: SummaryMetrics {
                 train: train_summary,
                 valid: valid_summary,
             },
-        }
+        })
     }
 }
 
@@ -186,5 +199,82 @@ impl Display for LearnerSummary {
         write_metrics_summary(&self.metrics.valid, split_valid)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic = "Summary artifacts should exist"]
+    fn test_artifact_dir_should_exist() {
+        let dir = "/tmp/learner-summary-not-found";
+        let _summary = LearnerSummary::new(dir, &["Loss"]).expect("Summary artifacts should exist");
+    }
+
+    #[test]
+    #[should_panic = "Summary artifacts should exist"]
+    fn test_train_valid_artifacts_should_exist() {
+        let dir = "/tmp/test-learner-summary-empty";
+        std::fs::create_dir_all(dir).ok();
+        let _summary = LearnerSummary::new(dir, &["Loss"]).expect("Summary artifacts should exist");
+    }
+
+    #[test]
+    fn test_summary_should_be_empty() {
+        let dir = Path::new("/tmp/test-learner-summary-empty-metrics");
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::create_dir_all(dir.join("train/epoch-1")).unwrap();
+        std::fs::create_dir_all(dir.join("valid/epoch-1")).unwrap();
+        let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
+            .expect("Summary artifacts should exist");
+
+        assert_eq!(summary.epochs, 1);
+
+        assert_eq!(summary.metrics.train.len(), 0);
+        assert_eq!(summary.metrics.valid.len(), 0);
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn test_summary_should_be_collected() {
+        let dir = Path::new("/tmp/test-learner-summary");
+        let train_dir = dir.join("train/epoch-1");
+        let valid_dir = dir.join("valid/epoch-1");
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::create_dir_all(&train_dir).unwrap();
+        std::fs::create_dir_all(&valid_dir).unwrap();
+
+        std::fs::write(train_dir.join("Loss.log"), "1.0\n2.0").expect("Unable to write file");
+        std::fs::write(valid_dir.join("Loss.log"), "1.0").expect("Unable to write file");
+
+        let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
+            .expect("Summary artifacts should exist");
+
+        assert_eq!(summary.epochs, 1);
+
+        // Only Loss metric
+        assert_eq!(summary.metrics.train.len(), 1);
+        assert_eq!(summary.metrics.valid.len(), 1);
+
+        // Aggregated train metric entries for 1 epoch
+        let train_metric = &summary.metrics.train[0];
+        assert_eq!(train_metric.name, "Loss");
+        assert_eq!(train_metric.entries.len(), 1);
+        let entry = &train_metric.entries[0];
+        assert_eq!(entry.step, 1); // epoch = 1
+        assert_eq!(entry.value, 1.5); // (1 + 2) / 2
+
+        // Aggregated valid metric entries for 1 epoch
+        let valid_metric = &summary.metrics.valid[0];
+        assert_eq!(valid_metric.name, "Loss");
+        assert_eq!(valid_metric.entries.len(), 1);
+        let entry = &valid_metric.entries[0];
+        assert_eq!(entry.step, 1); // epoch = 1
+        assert_eq!(entry.value, 1.0);
+
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

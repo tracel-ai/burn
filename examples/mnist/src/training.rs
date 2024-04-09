@@ -95,6 +95,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let summary = LearnerSummary::new(
         ARTIFACT_DIR,
         &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
-    );
+    )
+    .expect("Summary artifacts should exist");
     println!("{}", summary);
 }

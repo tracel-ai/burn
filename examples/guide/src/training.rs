@@ -113,6 +113,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let summary = LearnerSummary::new(
         artifact_dir,
         &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
-    );
+    )
+    .expect("Summary artifacts should exist");
     println!("{}", summary);
 }
