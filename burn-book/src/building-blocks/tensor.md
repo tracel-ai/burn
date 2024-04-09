@@ -20,7 +20,7 @@ The actual shape of the tensor is inferred from its initialization. For example,
 ```rust, ignore
 let floats = [1.0, 2.0, 3.0, 4.0, 5.0];
 
-//Get the default device
+// Get the default device
 let device = Default::default();
 
 // correct: Tensor is 1-Dimensional with 5 elements
