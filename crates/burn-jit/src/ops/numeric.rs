@@ -205,6 +205,22 @@ pub fn div_scalar<R: Runtime, E: JitElement, const D: usize>(
     )
 }
 
+pub fn remainder_scalar<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: E,
+) -> JitTensor<R, E, D> {
+    unary!(
+        operation: |scope: &mut Scope, elem: Elem| Operator::Div(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
+        }),
+        runtime: R,
+        input: lhs; rhs,
+        elem: E
+    )
+}
+
 pub fn pow<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
