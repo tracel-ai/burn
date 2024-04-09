@@ -20,7 +20,8 @@ The actual shape of the tensor is inferred from its initialization. For example,
 ```rust, ignore
 let floats = [1.0, 2.0, 3.0, 4.0, 5.0];
 
-let device = burn::backend::wgpu::WgpuDevice::default();
+//Get the default device
+let device = Default::default();
 
 // correct: Tensor is 1-Dimensional with 5 elements
 let tensor_1 = Tensor::<Backend, 1>::from_floats(floats, &device);
@@ -38,8 +39,6 @@ method `.to_data()` should be employed when intending to reuse the tensor afterw
 a tensor from different inputs.
 
 ```rust, ignore
-
-let device = burn::backend::wgpu::WgpuDevice::default();
 
 // Initialization from a given Backend (Wgpu)
 let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0], &device);
@@ -88,7 +87,6 @@ times will necessitate cloning it. Let's look at an example to understand the ow
 cloning better. Suppose we want to do a simple min-max normalization of an input tensor.
 
 ```rust, ignore
-let device = burn::backend::wgpu::WgpuDevice::default();
 let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.min();
 let max = input.max();
@@ -103,7 +101,6 @@ available for further operations. Burn Tensors like most complex primitives do n
 doing min-max normalization with cloning.
 
 ```rust, ignore
-let device = burn::backend::wgpu::WgpuDevice::default();
 let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.clone().min();
 let max = input.clone().max();
