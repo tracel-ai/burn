@@ -7,3 +7,5 @@ mod kernel;
 pub(crate) use compilation::*;
 pub(crate) use compiler::*;
 pub(crate) use kernel::*;
+
+pub use dialect::*;

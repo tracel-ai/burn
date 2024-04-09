@@ -44,7 +44,7 @@ impl Scope {
     /// [compute shader](crate::codegen::dialect::gpu::ComputeShader).
     ///
     /// A local scope can be created with the [child](Self::child) method.
-    pub(crate) fn root() -> Self {
+    pub fn root() -> Self {
         Self {
             depth: 0,
             operations: Vec::new(),
@@ -69,7 +69,7 @@ impl Scope {
     }
 
     /// Create a variable initialized at some value.
-    pub(crate) fn create_with_value<E: JitElement, I: Into<Item> + Copy>(
+    pub fn create_with_value<E: JitElement, I: Into<Item> + Copy>(
         &mut self,
         value: E,
         item: I,
@@ -81,7 +81,7 @@ impl Scope {
     }
 
     /// Create a local variable of the given [item type](Item).
-    pub(crate) fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
+    pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
@@ -205,12 +205,12 @@ impl Scope {
     }
 
     /// Register an [operation](Operation) into the scope.
-    pub(crate) fn register<T: Into<Operation>>(&mut self, operation: T) {
+    pub fn register<T: Into<Operation>>(&mut self, operation: T) {
         self.operations.push(operation.into())
     }
 
     /// Create an empty child scope.
-    pub(crate) fn child(&mut self) -> Self {
+    pub fn child(&mut self) -> Self {
         Self {
             depth: self.depth + 1,
             operations: Vec::new(),
