@@ -23,7 +23,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-async-trait = "0.1.74"
+async-trait = "0.1.79"
 bytemuck = "1.14"
 candle-core = { version = "0.4.1" }
 clap = { version = "4.5.4", features = ["derive"] }
@@ -35,7 +35,7 @@ dirs = "5.0.1"
 fake = "2.9.1"
 flate2 = "1.0.28"
 float-cmp = "0.9.0"
-getrandom = { version = "0.2.11", default-features = false }
+getrandom = { version = "0.2.13", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.14.2"
@@ -108,7 +108,7 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 derive-new = { version = "0.6.0", default-features = false }
 
-half = { version = "2.3.1", features = [
+half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
     "serde",
@@ -134,7 +134,7 @@ uuid = { version = "1.8.0", default-features = false }
 libc = "0.2.153"
 tch = "0.15.0"
 nvml-wrapper = "0.9.0"
-sysinfo = "0.30.7"
+sysinfo = "0.30.8"
 systemstat = "0.2.3"
 
 
