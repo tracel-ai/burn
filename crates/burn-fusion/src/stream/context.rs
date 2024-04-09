@@ -509,6 +509,13 @@ impl<E: Element> NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOperationDescription::ModScalar(desc) => {
+                NumericOperationDescription::ModScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             NumericOperationDescription::Mul(desc) => {
                 NumericOperationDescription::Mul(BinaryOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
