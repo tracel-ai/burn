@@ -4,7 +4,7 @@ use crate::Dataset;
 
 impl<'a, I> WindowDataset<'a, I> {
     /// Creates a new `WindowDataset` instance. The windows overlap.
-    /// If the input `Dataset` is shorter than size, the new `WindowDataset` will contain no items.
+    /// If the input `Dataset` is shorter than `size`, the new `WindowDataset` will contain no items.
     ///
     /// # Parameters
     ///
