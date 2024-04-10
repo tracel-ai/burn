@@ -39,6 +39,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Reciprocal => same_as_input(node),
+        NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => mean_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
@@ -421,5 +422,36 @@ fn conv_transpose2d_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
+    }
+}
+
+/// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
+fn reduce_max_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("ReduceMax: multiple inputs are not supported");
+    }
+
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
