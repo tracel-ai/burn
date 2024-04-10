@@ -96,7 +96,7 @@ mod tests {
     pub fn get_should_be_none() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = dataset.windows(3).get(0);
+        let result = dataset.windows(4).get(0);
 
         assert_eq!(result, None);
     }
