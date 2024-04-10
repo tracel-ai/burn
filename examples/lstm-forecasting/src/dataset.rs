@@ -34,7 +34,7 @@ impl Dataset<Vec<StockItem>> for WindowedDataset {
     }
 
     fn len(&self) -> usize {
-        self.dataset.len() - self.window_size
+        self.dataset.len() - self.window_size + 1
     }
 }
 
