@@ -1,27 +1,19 @@
-use burn_cube::{cube, CodegenContext, Float};
-use burn_jit::gpu::{Elem, Item, Scope};
+use burn_cube::{cube, CubeContext, Float};
+use burn_jit::gpu::{Elem, Item};
 
 #[cube]
 pub fn kernel(lhs: Float, rhs: Float) -> Float {
-    let mut output = lhs;
-
-    for i in 0..10 {
-        output = lhs + rhs
-    }
-
-    output
+    let out = lhs.clone() + rhs;
+    let out = lhs - out;
+    out
 }
 
 #[test]
 fn test_simple_add() {
-    let mut scope = Scope::root();
-    let mut context = CodegenContext {
-        scope: &mut scope,
-        pool: Default::default(),
-    };
+    let mut context = CubeContext::root();
 
-    let lhs = context.crate_float(Item::Vec4(Elem::Float));
-    let rhs = context.crate_float(Item::Vec4(Elem::Float));
+    let lhs = context.create_local(Item::Vec4(Elem::Float));
+    let rhs = context.create_local(Item::Vec4(Elem::Float));
 
     kernel_expand(&mut context, lhs, rhs);
 }

@@ -153,8 +153,7 @@ pub enum TensorStatus {
 ///
 ///   1. Status::NotInit
 ///   2. Status::ReadOnly
-///   3. Status::ReadOnly
-///   4. Status::ReadWrite
+///   3. Status::ReadWrite
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TensorDescription {
     /// The [tensor id](TensorId).

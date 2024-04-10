@@ -452,6 +452,7 @@ version = "0.13.0"
 dependencies = [
  "burn-cube-macros",
  "burn-jit",
+ "derive-new",
  "log",
 ]
 

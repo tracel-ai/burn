@@ -92,7 +92,7 @@ impl Scope {
     /// Create a new local variable, but doesn't perform the declaration.
     ///
     /// Useful for _for loops_ and other algorithms that require the control over initialization.
-    pub(crate) fn create_local_undeclared(&mut self, item: Item) -> Variable {
+    pub fn create_local_undeclared(&mut self, item: Item) -> Variable {
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.undeclared += 1;
