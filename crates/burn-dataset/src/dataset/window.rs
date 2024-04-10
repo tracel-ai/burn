@@ -24,8 +24,8 @@ impl<'a, I> WindowDataset<'a, I> {
 
 /// Dataset designed to work with overlapping windows of data.
 pub struct WindowDataset<'a, I> {
+    pub size: NonZeroUsize,
     dataset: &'a dyn Dataset<I>,
-    size: NonZeroUsize,
 }
 
 impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
