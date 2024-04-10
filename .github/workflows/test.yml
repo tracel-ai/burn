@@ -128,7 +128,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
+          for i in {1..5}; do
+            sudo add-apt-repository ppa:kisak/kisak-mesa -y && break || sleep 5;
+          done
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
