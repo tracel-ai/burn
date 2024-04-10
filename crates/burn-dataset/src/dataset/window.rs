@@ -1,10 +1,10 @@
 use std::num::NonZeroUsize;
-use std::usize;
 
 use crate::Dataset;
 
 impl<'a, I> WindowDataset<'a, I> {
-    /// Creates a new `WindowDataset` instance.
+    /// Creates a new `WindowDataset` instance. The windows overlap.
+    /// If the input `Dataset` is shorter than size, the new `WindowDataset` will contain no items.
     ///
     /// # Parameters
     ///
@@ -50,7 +50,7 @@ impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
     ///
     /// A size representing the number of windows.
     fn len(&self) -> usize {
-        self.dataset.len() - self.size.get() + 1
+        (self.dataset.len() as isize - self.size.get() as isize + 1) as usize
     }
 }
 
@@ -61,7 +61,7 @@ mod tests {
     use crate::{Dataset, InMemDataset};
 
     #[rstest]
-    pub fn windows_should_match() {
+    pub fn windows_vec_should_be_equal() {
         let items = [1, 2, 3, 4, 5].to_vec();
         let dataset = InMemDataset::new(items.clone());
         let expected = items
@@ -75,11 +75,29 @@ mod tests {
     }
 
     #[rstest]
-    pub fn len_should_match() {
+    pub fn len_should_be_equal() {
         let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
 
         let result = dataset.windows(2).len();
 
         assert_eq!(result, 3);
+    }
+
+    #[rstest]
+    pub fn len_should_be_zero() {
+        let dataset = InMemDataset::new([1, 2].to_vec());
+
+        let result = dataset.windows(3).len();
+
+        assert_eq!(result, 0);
+    }
+
+    #[rstest]
+    pub fn get_should_be_none() {
+        let dataset = InMemDataset::new([1, 2].to_vec());
+
+        let result = dataset.windows(3).get(0);
+
+        assert_eq!(result, None);
     }
 }

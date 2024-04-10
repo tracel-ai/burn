@@ -24,6 +24,7 @@ pub trait Dataset<I>: Send + Sync {
     }
 
     /// Returns a new `Dataset` of all the windows of length `size`. The windows overlap.
+    /// If the input `Dataset` is shorter than size, the new `Dataset` is empy.
     ///
     /// # Panics
     ///
