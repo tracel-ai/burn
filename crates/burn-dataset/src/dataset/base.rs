@@ -1,8 +1,6 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
-use crate::DatasetIterator;
-
-use super::windows::DatasetWindows;
+use crate::{dataset::windows::DatasetWindows, DatasetIterator};
 
 /// The dataset trait defines a basic collection of items with a predefined size.
 pub trait Dataset<I>: Send + Sync {
