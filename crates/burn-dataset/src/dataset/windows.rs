@@ -36,15 +36,26 @@ mod tests {
     use crate::{Dataset, InMemDataset};
 
     #[rstest]
-    pub fn get_windows() {
-        let dataset = InMemDataset::new([1, 2, 3, 4, 5].to_vec());
-        let expected = [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
+    pub fn windows_should_match() {
+        let items = [1, 2, 3, 4, 5].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+        let expected = items
+            .windows(3)
             .map(|x| x.to_vec())
-            .to_vec();
+            .collect::<Vec<Vec<i32>>>();
 
-        let windows = dataset.windows(3);
+        let result = dataset.windows(3).iter().collect::<Vec<Vec<i32>>>();
 
-        assert_eq!(windows.len(), 3);
-        assert_eq!(windows.iter().collect::<Vec<Vec<i32>>>(), expected);
+        assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    pub fn len_should_match() {
+        let items = [1, 2, 3].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+
+        let result = dataset.windows(2).len();
+
+        assert_eq!(result, 2);
     }
 }

@@ -35,17 +35,12 @@ pub trait Dataset<I>: Send + Sync {
     ///
     /// ```
     /// use crate::burn_dataset::{Dataset,InMemDataset};
-    /// let dataset = InMemDataset::new([1, 2, 3].to_vec());
+    /// let items = [1, 2, 3].to_vec();
+    /// let dataset = InMemDataset::new(items.clone());
     ///
     /// let windows = dataset.windows(2);
-
-    /// assert_eq!(windows.len(), 2);
-    /// assert_eq!(
-    ///     windows.iter().collect::<Vec<Vec<i32>>>(),
-    ///      [[1, 2], [2, 3]]
-    ///          .map(|x| x.to_vec())
-    ///          .to_vec()
-    ///  );
+    ///
+    /// assert_eq!(result.len(), 2);
     /// ```
     fn windows(&self, size: usize) -> DatasetWindows<'_, I>
     where
