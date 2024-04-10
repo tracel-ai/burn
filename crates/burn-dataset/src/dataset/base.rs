@@ -33,12 +33,12 @@ pub trait Dataset<I>: Send + Sync {
     ///
     /// ```
     /// use crate::burn_dataset::{Dataset,InMemDataset};
-    /// let items = [1, 2, 3].to_vec();
+    /// let items = [1, 2, 3, 4].to_vec();
     /// let dataset = InMemDataset::new(items.clone());
     ///
     /// let windows = dataset.windows(2);
     ///
-    /// assert_eq!(windows.len(), 2);
+    /// assert_eq!(windows.len(), 3);
     /// ```
     ///
     /// # Returns

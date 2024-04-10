@@ -76,10 +76,10 @@ mod tests {
 
     #[rstest]
     pub fn len_should_match() {
-        let dataset = InMemDataset::new([1, 2, 3].to_vec());
+        let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
 
         let result = dataset.windows(2).len();
 
-        assert_eq!(result, 2);
+        assert_eq!(result, 3);
     }
 }
