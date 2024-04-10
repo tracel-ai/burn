@@ -96,6 +96,16 @@ mod tests {
     }
 
     #[rstest]
+    pub fn get_should_be_equal() {
+        let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
+        let expected = Some([1, 2, 3].to_vec());
+
+        let result = dataset.windows(3).get(0);
+
+        assert_eq!(result, expected);
+    }
+
+    #[rstest]
     pub fn get_should_be_none() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
