@@ -62,7 +62,7 @@ mod tests {
     use crate::{Dataset, InMemDataset};
 
     #[rstest]
-    pub fn windows_vec_should_be_equal() {
+    pub fn windows_to_vec_should_be_equal() {
         let items = [1, 2, 3, 4, 5].to_vec();
         let dataset = InMemDataset::new(items.clone());
         let expected = items
