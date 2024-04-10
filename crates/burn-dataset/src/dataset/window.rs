@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::{cmp::max, num::NonZeroUsize};
 
 use crate::Dataset;
 
@@ -50,7 +50,10 @@ impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
     ///
     /// A size representing the number of windows.
     fn len(&self) -> usize {
-        (self.dataset.len() as isize - self.size.get() as isize + 1) as usize
+        (max(
+            self.dataset.len() as isize - self.size.get() as isize + 1,
+            0,
+        )) as usize
     }
 }
 
@@ -87,7 +90,7 @@ mod tests {
     pub fn len_should_be_zero() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = dataset.windows(3).len();
+        let result = dataset.windows(4).len();
 
         assert_eq!(result, 0);
     }
