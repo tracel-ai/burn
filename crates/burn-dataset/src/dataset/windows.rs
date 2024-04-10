@@ -51,8 +51,7 @@ mod tests {
 
     #[rstest]
     pub fn len_should_match() {
-        let items = [1, 2, 3].to_vec();
-        let dataset = InMemDataset::new(items.clone());
+        let dataset = InMemDataset::new([1, 2, 3].to_vec());
 
         let result = dataset.windows(2).len();
 
