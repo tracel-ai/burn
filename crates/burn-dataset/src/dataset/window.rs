@@ -3,27 +3,48 @@ use std::usize;
 
 use crate::Dataset;
 
-impl<'a, I> DatasetWindows<'a, I> {
+impl<'a, I> WindowDataset<'a, I> {
+    /// Creates a new `WindowDataset` instance.
+    ///
+    /// # Parameters
+    ///
+    /// - `dataset`: The dataset over which windows will be created.
+    /// - `size`: The size of the window.
+    ///
+    /// # Returns
+    ///
+    /// A `WindowDataset` instance.
     pub fn new<D>(dataset: &'a D, size: NonZeroUsize) -> Self
     where
         D: Dataset<I>,
     {
-        DatasetWindows { size, dataset }
+        WindowDataset { size, dataset }
     }
 }
 
-pub struct DatasetWindows<'a, I> {
+/// Dataset designed to work with overlapping windows of data.
+pub struct WindowDataset<'a, I> {
     dataset: &'a dyn Dataset<I>,
     size: NonZeroUsize,
 }
 
-impl<'a, I> Dataset<Vec<I>> for DatasetWindows<'a, I> {
+impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
+    /// Retrieves a window of items from the dataset.
+    ///
+    /// # Parameters
+    ///
+    /// - `index`: The index of the window.
+    ///
+    /// # Returns
+    ///
+    /// A vector containing the items of the window.
     fn get(&self, index: usize) -> Option<Vec<I>> {
         (index..index + self.size.get())
             .map(|x| self.dataset.get(x))
             .collect()
     }
 
+    /// Retrieves the number of windows in the dataset.
     fn len(&self) -> usize {
         self.dataset.len() - self.size.get() + 1
     }

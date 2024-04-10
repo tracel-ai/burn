@@ -1,6 +1,6 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
-use crate::{dataset::windows::DatasetWindows, DatasetIterator};
+use crate::{dataset::window::WindowDataset, DatasetIterator};
 
 /// The dataset trait defines a basic collection of items with a predefined size.
 pub trait Dataset<I>: Send + Sync {
@@ -40,12 +40,12 @@ pub trait Dataset<I>: Send + Sync {
     ///
     /// assert_eq!(result.len(), 2);
     /// ```
-    fn windows(&self, size: usize) -> DatasetWindows<'_, I>
+    fn windows(&self, size: usize) -> WindowDataset<'_, I>
     where
         Self: Sized,
     {
         let size = NonZeroUsize::new(size).expect("window size must be non-zero");
-        DatasetWindows::new(self, size)
+        WindowDataset::new(self, size)
     }
 }
 
