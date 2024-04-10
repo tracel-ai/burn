@@ -252,6 +252,7 @@ impl OnnxGraph {
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
+                NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -462,6 +463,15 @@ impl OnnxGraph {
 
         ReshapeNode::new(input, output, shape)
     }
+
+    fn reduce_mean_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_mean_config(&node);
+
+        UnaryNode::reduce_mean(input, output, dim)
+    }
+
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
