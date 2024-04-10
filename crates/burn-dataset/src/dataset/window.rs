@@ -45,6 +45,10 @@ impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
     }
 
     /// Retrieves the number of windows in the dataset.
+    ///
+    /// # Returns
+    ///
+    /// A size representing the number of windows.
     fn len(&self) -> usize {
         self.dataset.len() - self.size.get() + 1
     }

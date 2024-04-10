@@ -38,8 +38,12 @@ pub trait Dataset<I>: Send + Sync {
     ///
     /// let windows = dataset.windows(2);
     ///
-    /// assert_eq!(result.len(), 2);
+    /// assert_eq!(windows.len(), 2);
     /// ```
+    ///
+    /// # Returns
+    ///
+    /// A `WindowDataset` instance.
     fn windows(&self, size: usize) -> WindowDataset<'_, I>
     where
         Self: Sized,
