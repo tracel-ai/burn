@@ -50,10 +50,8 @@ impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
     ///
     /// A size representing the number of windows.
     fn len(&self) -> usize {
-        max(
-            self.dataset.len() as isize - self.size.get() as isize + 1,
-            0,
-        ) as usize
+        let len = self.dataset.len() as isize - self.size.get() as isize + 1;
+        max(len, 0) as usize
     }
 }
 
