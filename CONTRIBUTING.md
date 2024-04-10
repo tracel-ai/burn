@@ -45,7 +45,7 @@ Be sure to follow the coding standards and guidelines used in the rest of the pr
 
 ### Step 6: Run the Pre-Pull Request Script
 
-Before you open a pull request, please run the [`run-checks.sh`](/run-before-pr.sh) script. This
+Before you open a pull request, please run [`./run-checks.sh all`](/run-checks.sh). This
 will ensure that your changes are in line with our project's standards and guidelines. You can run
 this script by opening a terminal, navigating to your local project directory, and typing
 `./run-checks`.
