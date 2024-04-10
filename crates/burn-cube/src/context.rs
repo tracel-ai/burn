@@ -1,10 +1,12 @@
 use crate::ExpandElement;
-use burn_jit::gpu::{Item, Scope, Variable};
-use std::{collections::HashMap, sync::Arc};
+use alloc::rc::Rc;
+use burn_jit::gpu::{self, Item, Scope};
+use core::cell::RefCell;
+use std::collections::HashMap;
 
 #[derive(Default, Clone)]
 pub struct VariablePool {
-    map: std::rc::Rc<std::cell::RefCell<HashMap<Item, Vec<Arc<Variable>>>>>,
+    map: Rc<RefCell<HashMap<Item, Vec<ExpandElement>>>>,
 }
 
 impl VariablePool {
@@ -17,8 +19,8 @@ impl VariablePool {
         };
 
         for variable in variables.iter() {
-            if Arc::strong_count(variable) == 1 {
-                return Some(Arc::clone(variable));
+            if Rc::strong_count(&variable.inner) == 1 {
+                return Some(variable.clone());
             }
         }
 
@@ -37,24 +39,41 @@ impl VariablePool {
 }
 
 pub struct CubeContext {
-    pub scope: Scope,
+    pub root: Rc<RefCell<Scope>>,
+    pub scope: Rc<RefCell<Scope>>,
     pub pool: VariablePool,
 }
 
 impl CubeContext {
     pub fn root() -> CubeContext {
-        Self {
-            pool: Default::default(),
-            scope: Scope::root(),
-        }
-    }
-    pub fn child(&mut self) -> CubeContext {
-        let scope = self.scope.child();
+        let root = Rc::new(RefCell::new(Scope::root()));
+        let scope = root.clone();
 
         Self {
+            pool: Default::default(),
             scope,
+            root,
+        }
+    }
+    pub fn register<O: Into<gpu::Operation>>(&mut self, op: O) {
+        self.scope.borrow_mut().register(op)
+    }
+    pub fn child(&mut self) -> CubeContext {
+        let scope = self.scope.borrow_mut().child();
+
+        Self {
+            scope: Rc::new(RefCell::new(scope)),
+            root: self.root.clone(),
             pool: self.pool.clone(),
         }
+    }
+
+    pub fn into_scope(self) -> Scope {
+        core::mem::drop(self.root);
+
+        Rc::into_inner(self.scope)
+            .expect("Only one reference")
+            .into_inner()
     }
 
     pub fn create_local(&mut self, item: Item) -> ExpandElement {
@@ -62,7 +81,7 @@ impl CubeContext {
             return var;
         }
 
-        let new = Arc::new(self.scope.create_local(item));
+        let new = ExpandElement::new(Rc::new(self.root.borrow_mut().create_local(item)));
         self.pool.insert(new.clone());
 
         new

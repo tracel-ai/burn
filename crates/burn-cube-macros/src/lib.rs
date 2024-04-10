@@ -1,7 +1,6 @@
 mod statement;
-use statement::parse_statement;
-
 use proc_macro::TokenStream;
+use statement::parse_statement;
 
 /// Derive macro for the module.
 #[proc_macro_attribute]

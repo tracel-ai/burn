@@ -145,6 +145,23 @@ pub mod div {
     }
 }
 
+pub mod assign {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        input: ExpandElement,
+        output: ExpandElement,
+    ) -> ExpandElement {
+        let input = *input;
+        let out = *output;
+
+        context.register(gpu::Operator::Assign(gpu::UnaryOperator { input, out }));
+
+        output
+    }
+}
+
 fn binary_expand<F>(
     context: &mut CubeContext,
     lhs: ExpandElement,
@@ -167,7 +184,7 @@ where
         out: out_var,
     });
 
-    context.scope.register(op);
+    context.register(op);
 
     out
 }
