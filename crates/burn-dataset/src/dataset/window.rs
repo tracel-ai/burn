@@ -59,6 +59,8 @@ impl<'a, I> Dataset<Vec<I>> for WindowDataset<'a, I> {
 
 #[cfg(test)]
 mod tests {
+    use std::usize;
+
     use rstest::rstest;
 
     use crate::{Dataset, InMemDataset};
@@ -75,6 +77,15 @@ mod tests {
         let result = dataset.windows(3).iter().collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    #[should_panic]
+    pub fn windows_should_panic() {
+        let items = [1, 2].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+
+        dataset.windows(-1.0 as usize);
     }
 
     #[rstest]
