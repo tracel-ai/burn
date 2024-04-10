@@ -99,7 +99,7 @@ represent the corresponding Burn Op.
 | [LpPool][91]                     |       ❌       |      ❌      |
 | [LRN][92]                        |       ❌       |      ❌      |
 | [LSTM][93]                       |       ❌       |      ✅      |
-| [MatMul][94]                     |       ❌       |      ✅      |
+| [MatMul][94]<sup>[✝](#*)</sup>   |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
 | [Max][96]                        |       ❌       |      ✅      |
 | [MaxPool1d][97]                  |       ❌       |      ✅      |
@@ -198,6 +198,7 @@ represent the corresponding Burn Op.
 | [Where][191]                     |       ❌       |      ✅      |
 | [Xor][192]                       |       ❌       |      ❌      |
 | [Unsqueeze][193]                 |       ✅       |      ✅      |
+<sup><a id="*">✝</a> Only supported for tensors of the same dimensionality (i.e., no broadcasting).</sup>
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"

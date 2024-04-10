@@ -1,14 +1,23 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct MatmulNode {
     pub lhs: TensorType,
     pub rhs: TensorType,
     pub output: TensorType,
+}
+
+impl MatmulNode {
+    pub fn new(lhs: TensorType, rhs: TensorType, output: TensorType) -> Self {
+        if lhs.kind != TensorKind::Float {
+            panic!("MatMul is only implemented for float tensors");
+        }
+        Self { lhs, rhs, output }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {

@@ -37,6 +37,7 @@ include_models!(
     linear,
     log_softmax,
     log,
+    matmul,
     maxpool2d,
     mul,
     neg,
@@ -127,6 +128,7 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
     }
+
     #[test]
     fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)
@@ -154,6 +156,28 @@ mod tests {
         let scalar2 = 3.0f64;
         let output = model.forward(input, scalar1, scalar2);
         let expected = Data::from([[[[1., 2., 2., 3.]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn matmul() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: matmul::Model<Backend> = matmul::Model::default();
+
+        let device = Default::default();
+        // Run the model
+        let a = Tensor::<Backend, 1, Int>::arange(0..24, &device)
+            .reshape([1, 2, 3, 4])
+            .float();
+        let b = Tensor::<Backend, 1, Int>::arange(0..16, &device)
+            .reshape([1, 2, 4, 2])
+            .float();
+        let output = model.forward(a, b);
+        let expected = Data::from([[
+            [[28., 34.], [76., 98.], [124., 162.]],
+            [[604., 658.], [780., 850.], [956., 1042.]],
+        ]]);
 
         assert_eq!(output.to_data(), expected);
     }

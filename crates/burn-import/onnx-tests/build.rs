@@ -29,6 +29,7 @@ fn main() {
         .input("tests/linear/linear.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/log/log.onnx")
+        .input("tests/matmul/matmul.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")

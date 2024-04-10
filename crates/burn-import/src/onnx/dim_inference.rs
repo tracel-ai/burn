@@ -35,6 +35,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Linear => linear_update_outputs(node),
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MatMul => matmul_update_outputs(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
@@ -417,6 +418,15 @@ fn conv2d_update_outputs(node: &mut Node) {
 /// Infers the shape of a ConvTranspose2d node and replaces the shape of the output tensor.
 fn conv_transpose2d_update_outputs(node: &mut Node) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
+
+fn matmul_update_outputs(node: &mut Node) {
+    // NOTE: matmul only supported for float tensors (no broadcasting support)
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
