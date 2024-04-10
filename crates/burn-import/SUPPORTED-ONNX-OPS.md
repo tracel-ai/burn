@@ -112,7 +112,7 @@ represent the corresponding Burn Op.
 | [Min][104]                       |       ❌       |      ✅      |
 | [Mish][105]                      |       ❌       |      ❌      |
 | [Mod][106]                       |       ❌       |      ❌      |
-| [Mul][107]                       |       ❌       |      ✅      |
+| [Mul][107]                       |       ✅       |      ✅      |
 | [Multinomial][108]               |       ❌       |      ❌      |
 | [Neg][109]                       |       ✅       |      ✅      |
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
