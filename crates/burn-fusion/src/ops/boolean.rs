@@ -5,9 +5,9 @@ use crate::{
     stream::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
         CatOperationDescription, ExpandOperationDescription, FlipOperationDescription, Operation,
-        OperationDescription, PermuteOperationDescription, ReshapeDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
+        OperationDescription, PermuteOperationDescription, RepeatOperationDescription,
+        ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription, StreamId,
+        SwapDimsDescription, UnaryOperationDescription,
     },
     Fusion, FusionBackend,
 };
@@ -536,6 +536,46 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseBool(BaseOperationDescription::Flip(desc.clone())),
             FlipOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_repeat<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> BoolTensor<Self, D> {
+        #[derive(new)]
+        struct RepeatOps<const D: usize> {
+            desc: RepeatOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for RepeatOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_bool_tensor::<D>(&self.desc.tensor);
+
+                let output = B::bool_repeat::<D>(tensor, self.desc.dim, self.desc.times);
+
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let mut shape = tensor.shape.clone();
+        shape[dim] = times;
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = RepeatOperationDescription {
+            tensor: tensor.into_description(),
+            dim,
+            times,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseBool(BaseOperationDescription::Repeat(desc.clone())),
+            RepeatOps::<D>::new(desc),
         );
 
         out
