@@ -10,10 +10,10 @@ use crate::{
         FloatOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
         MaskWhereOperationDescription, NumericOperationDescription, Operation,
         OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
+        ReduceDimWithIndicesDescription, RepeatOperationDescription, ReshapeDescription,
+        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        StreamId, SwapDimsDescription, UnaryOperationDescription,
     },
     unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
@@ -1566,6 +1566,46 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::NumericFloat(NumericOperationDescription::ArgMax(desc.clone())),
             ArgMaxOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_repeat<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> FloatTensor<Self, D> {
+        #[derive(new)]
+        struct RepeatOps<const D: usize> {
+            desc: RepeatOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for RepeatOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
+
+                let output = B::float_repeat::<D>(tensor, self.desc.dim, self.desc.times);
+
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let mut shape = tensor.shape.clone();
+        shape[dim] = times;
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = RepeatOperationDescription {
+            tensor: tensor.into_description(),
+            dim,
+            times,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::Repeat(desc.clone())),
+            RepeatOps::<D>::new(desc),
         );
 
         out

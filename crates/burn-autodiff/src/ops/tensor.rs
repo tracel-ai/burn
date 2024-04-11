@@ -40,11 +40,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        Self::float_from_data(Data::zeros(shape), device)
+        AutodiffTensor::new(B::float_zeros(shape, device))
     }
 
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        Self::float_from_data(Data::ones(shape), device)
+        AutodiffTensor::new(B::float_ones(shape, device))
     }
 
     fn float_shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
@@ -2412,6 +2412,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     // TODO: Implement float_prod and float_sum
     // https://github.com/tracel-ai/burn/issues/1458
+
+    fn float_repeat<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> FloatTensor<Self, D> {
+        AutodiffTensor::new(B::float_repeat(tensor.primitive, dim, times))
+    }
 }
 
 #[derive(Debug, Clone)]
