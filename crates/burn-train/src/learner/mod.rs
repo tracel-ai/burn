@@ -5,6 +5,7 @@ mod early_stopping;
 mod epoch;
 mod regression;
 mod step;
+mod summary;
 mod train_val;
 
 pub(crate) mod log;
@@ -16,5 +17,6 @@ pub use early_stopping::*;
 pub use epoch::*;
 pub use regression::*;
 pub use step::*;
+pub use summary::*;
 pub use train::*;
 pub use train_val::*;

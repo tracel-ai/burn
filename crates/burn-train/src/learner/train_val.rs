@@ -199,6 +199,19 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
         }
 
+        // Display learner summary
+        if let Some(summary) = self.summary {
+            match summary.init() {
+                Ok(summary) => {
+                    // Drop event processor (includes renderer) so the summary is displayed
+                    // when switching back to "main" screen
+                    core::mem::drop(self.event_processor);
+                    println!("{}", summary.with_model(self.model.to_string()))
+                }
+                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
+            }
+        }
+
         self.model
     }
 }
