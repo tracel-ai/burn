@@ -126,11 +126,7 @@ jobs:
 
       - name: install llvmpipe and lavapipe
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
-          sudo apt-get update
-          sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+        uses: ./.github/actions/setup-llvmpipe-lavapipe
 
       - name: Run cargo clippy for stable version
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
