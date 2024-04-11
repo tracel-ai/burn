@@ -62,6 +62,8 @@ pub struct LearnerSummary {
     pub epochs: usize,
     /// The summary of recorded metrics during training.
     pub metrics: SummaryMetrics,
+    /// The model name (only recorded within the learner).
+    pub(crate) model: Option<String>,
 }
 
 impl LearnerSummary {
@@ -71,7 +73,7 @@ impl LearnerSummary {
     ///
     /// * `directory` - The directory containing the training artifacts (checkpoints and logs).
     /// * `metrics` - The list of metrics to collect for the summary.
-    pub fn new(directory: &str, metrics: &[&str]) -> Result<Self, String> {
+    pub fn new<S: AsRef<str>>(directory: &str, metrics: &[S]) -> Result<Self, String> {
         let directory_path = Path::new(directory);
         if !directory_path.exists() {
             return Err(format!("Artifact directory does not exist at: {directory}"));
@@ -97,12 +99,16 @@ impl LearnerSummary {
 
         let train_summary = metrics
             .iter()
-            .filter_map(|metric| MetricSummary::new(&mut event_store, metric, Split::Train, epochs))
+            .filter_map(|metric| {
+                MetricSummary::new(&mut event_store, metric.as_ref(), Split::Train, epochs)
+            })
             .collect::<Vec<_>>();
 
         let valid_summary = metrics
             .iter()
-            .filter_map(|metric| MetricSummary::new(&mut event_store, metric, Split::Valid, epochs))
+            .filter_map(|metric| {
+                MetricSummary::new(&mut event_store, metric.as_ref(), Split::Valid, epochs)
+            })
             .collect::<Vec<_>>();
 
         Ok(Self {
@@ -111,7 +117,13 @@ impl LearnerSummary {
                 train: train_summary,
                 valid: valid_summary,
             },
+            model: None,
         })
+    }
+
+    pub(crate) fn with_model(mut self, name: String) -> Self {
+        self.model = Some(name);
+        self
     }
 }
 
@@ -132,12 +144,16 @@ impl Display for LearnerSummary {
         // Summary header
         writeln!(
             f,
-            "{:=>width_symbol$} Learner Summary {:=>width_symbol$}\nTotal Epochs: {epochs}\n\n",
+            "{:=>width_symbol$} Learner Summary {:=>width_symbol$}",
             "",
             "",
             width_symbol = 24,
-            epochs = self.epochs,
         )?;
+
+        if let Some(model) = &self.model {
+            writeln!(f, "Model: {model}")?;
+        }
+        writeln!(f, "Total Epochs: {epochs}\n\n", epochs = self.epochs)?;
 
         // Metrics table header
         writeln!(
@@ -199,6 +215,17 @@ impl Display for LearnerSummary {
         write_metrics_summary(&self.metrics.valid, split_valid)?;
 
         Ok(())
+    }
+}
+
+pub(crate) struct LearnerSummaryConfig {
+    pub(crate) directory: String,
+    pub(crate) metrics: Vec<String>,
+}
+
+impl LearnerSummaryConfig {
+    pub fn init(&self) -> Result<LearnerSummary, String> {
+        LearnerSummary::new(&self.directory, &self.metrics[..])
     }
 }
 

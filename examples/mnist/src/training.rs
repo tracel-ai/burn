@@ -9,9 +9,9 @@ use burn::{
     train::{
         metric::{
             store::{Aggregate, Direction, Split},
-            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric, Metric,
+            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
         },
-        LearnerBuilder, LearnerSummary, MetricEarlyStoppingStrategy, StoppingCondition,
+        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
     },
 };
 
@@ -34,7 +34,14 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 pub fn run<B: AutodiffBackend>(device: B::Device) {
+    create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
@@ -76,6 +83,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(Model::new(&device), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
@@ -90,12 +98,4 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             &NoStdTrainingRecorder::new(),
         )
         .expect("Failed to save trained model");
-
-    // Training summary
-    let summary = LearnerSummary::new(
-        ARTIFACT_DIR,
-        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
-    )
-    .expect("Summary artifacts should exist");
-    println!("{}", summary);
 }

@@ -147,6 +147,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(
             config.model.init::<B>(&device),
             config.optimizer.init(),
@@ -158,13 +159,6 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
-
-    let summary = LearnerSummary::new(
-        artifact_dir,
-        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
-    )
-    .expect("Summary artifacts should exist");
-    println!("{}", summary);
 }
 ```
 
@@ -198,5 +192,4 @@ Finally, the trained model is returned by the `fit` method. The trained weights 
 the `CompactRecorder`. This recorder employs the `MessagePack` format with half precision, `f16` for
 floats and `i16` for integers. Other recorders are available, offering support for various formats,
 such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of precision, can
-load recorded data of any kind. Once the weights have been saved, we use the `LearnerSummary` to
-display the training report summary.
+load recorded data of any kind.

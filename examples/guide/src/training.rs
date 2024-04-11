@@ -10,8 +10,8 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, LossMetric, Metric},
-        ClassificationOutput, LearnerBuilder, LearnerSummary, TrainOutput, TrainStep, ValidStep,
+        metric::{AccuracyMetric, LossMetric},
+        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
 
@@ -97,6 +97,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(
             config.model.init::<B>(&device),
             config.optimizer.init(),
@@ -108,12 +109,4 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
-
-    // Training summary
-    let summary = LearnerSummary::new(
-        artifact_dir,
-        &[AccuracyMetric::<B>::NAME, LossMetric::<B>::NAME],
-    )
-    .expect("Summary artifacts should exist");
-    println!("{}", summary);
 }
