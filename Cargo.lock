@@ -365,6 +365,7 @@ dependencies = [
  "burn-tensor",
  "burn-tensor-testgen",
  "derive-new",
+ "log",
  "spin",
 ]
 

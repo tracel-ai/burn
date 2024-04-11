@@ -3,6 +3,7 @@ use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
     graph::{traversal::BreadthFirstSearch, StepBoxed},
+    runtime::memory_management::GraphId,
     tensor::NodeRefCount,
     NodeID,
 };
@@ -63,6 +64,10 @@ impl AutodiffServer {
             .collect::<Vec<_>>();
 
         BreadthFirstSearch.traverse(root, root_step, &mut self.steps, |id, step| {
+            // We consume that node for the tape, so we should remove it from the
+            // memory_management.
+            self.memory_management.free_graph(GraphId::new(id), |_| {});
+
             let order = step.order();
             if order == 0 {
                 return;
