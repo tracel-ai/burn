@@ -102,8 +102,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
                 device.synchronize().unwrap();
             }
             candle_core::Device::Metal(device) => {
-                #[cfg(feature = "metal")]
-                device.wait_until_completed().unwrap();
+                // For some reason, device.wait_until_completed() does not seem to work,
+                // and neither does writing and reading a value with into_data
+                panic!("Device synchronization unavailable with Metal device on Candle backend")
             }
         }
     }
