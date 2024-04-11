@@ -3,6 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{Data, Int, Tensor};
 
+    /// From https://pytorch.org/docs/stable/generated/torch.remainder.html
     #[test]
     fn should_support_remainder_basic() {
         let data = Data::from([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
@@ -16,6 +17,7 @@ mod tests {
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 
+    /// Also from https://pytorch.org/docs/stable/generated/torch.remainder.html
     #[test]
     fn should_support_remainder_float() {
         let data = Data::from([1.0, 2.0, 3.0, 4.0, 5.0]);
