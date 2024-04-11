@@ -5,6 +5,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use alloc::vec;
 use burn_tensor::Int;
+use libm::logf;
 
 /// Configuration to create a [RotaryEncoding](RotaryEncoding) layer.
 #[derive(Config, Debug)]
@@ -17,7 +18,7 @@ pub struct RotaryEncodingConfig {
 
     /// Scaling factor for frequency computation. Defaults to 10000.0
     #[config(default = "10000.0")]
-    theta: f64,
+    theta: f32,
 }
 
 impl RotaryEncodingConfig {
@@ -39,11 +40,11 @@ impl RotaryEncodingConfig {
         // `theta_i = 1 / (10000 ^ (2i / d_model)) for i in [0..d_model/2]`
         let exponent = Tensor::<B, 1, Int>::arange_step(0..self.d_model as i64, 2, device)
             .float()
-            .div_scalar(self.d_model as f64);
+            .div_scalar(self.d_model as f32);
 
         // Calculate (10000 ^ (2i / d_model)) by using the log base property `exp(log(10000) * (2i / d_model))`
         // This is done since burn doesn't support exponentiation of scalar to tensor
-        let theta_i = exponent.mul_scalar(self.theta.ln()).exp();
+        let theta_i = exponent.mul_scalar(logf(self.theta)).exp();
         let theta_i = theta_i.powf_scalar(-1.0);
 
         // Generate frequency values for positional embeddings
