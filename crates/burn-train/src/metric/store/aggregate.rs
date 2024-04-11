@@ -1,4 +1,4 @@
-use crate::logger::MetricLogger;
+use crate::{logger::MetricLogger, metric::NumericEntry};
 use std::collections::HashMap;
 
 use super::{Aggregate, Direction};
@@ -48,8 +48,18 @@ impl NumericMetricsAggregate {
             return None;
         }
 
-        let num_points = points.len();
-        let sum = points.into_iter().sum::<f64>();
+        // Accurately compute the aggregated value based on the *actual* number of points
+        // since not all mini-batches are guaranteed to have the specified batch size
+        let (sum, num_points) = points
+            .into_iter()
+            .map(|entry| match entry {
+                NumericEntry::Value(v) => (v, 1),
+                // Right now the mean is the only aggregate available, so we can assume that the sum
+                // of an entry corresponds to (value * number of elements)
+                NumericEntry::Aggregated(v, n) => (v * n as f64, n),
+            })
+            .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
+            .unwrap();
         let value = match aggregate {
             Aggregate::Mean => sum / num_points as f64,
         };
@@ -105,7 +115,10 @@ impl NumericMetricsAggregate {
 
 #[cfg(test)]
 mod tests {
-    use crate::{logger::FileMetricLogger, metric::MetricEntry};
+    use crate::{
+        logger::{FileMetricLogger, InMemoryMetricLogger},
+        metric::MetricEntry,
+    };
 
     use super::*;
 
@@ -158,5 +171,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(value, 2);
+    }
+
+    #[test]
+    fn should_aggregate_numeric_entry() {
+        let mut logger = InMemoryMetricLogger::default();
+        let mut aggregate = NumericMetricsAggregate::default();
+        let metric_name = "Loss";
+
+        // Epoch 1
+        let loss_1 = 0.5;
+        let loss_2 = 1.25; // (1.5 + 1.0) / 2 = 2.5 / 2
+        let entry = MetricEntry::new(
+            metric_name.to_string(),
+            loss_1.to_string(),
+            NumericEntry::Value(loss_1).serialize(),
+        );
+        logger.log(&entry);
+        let entry = MetricEntry::new(
+            metric_name.to_string(),
+            loss_2.to_string(),
+            NumericEntry::Aggregated(loss_2, 2).serialize(),
+        );
+        logger.log(&entry);
+
+        let value = aggregate
+            .aggregate(metric_name, 1, Aggregate::Mean, &mut [Box::new(logger)])
+            .unwrap();
+
+        // Average should be (0.5 + 1.25 * 2) / 3 = 1.0, not (0.5 + 1.25) / 2 = 0.875
+        assert_eq!(value, 1.0);
     }
 }

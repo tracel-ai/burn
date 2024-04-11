@@ -33,10 +33,14 @@ impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
+        let [batch_size] = loss.tensor.dims();
         let loss = f64::from_elem(loss.tensor.clone().mean().into_data().value[0]);
 
-        self.state
-            .update(loss, 1, FormatOptions::new(Self::NAME).precision(2))
+        self.state.update(
+            loss,
+            batch_size,
+            FormatOptions::new(Self::NAME).precision(2),
+        )
     }
 
     fn clear(&mut self) {
