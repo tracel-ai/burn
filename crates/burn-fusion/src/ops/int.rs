@@ -978,7 +978,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::ModScalar(
+            stream::OperationDescription::NumericInt(NumericOperationDescription::RemScalar(
                 desc.clone(),
             )),
             ModOps::<D>::new(desc),

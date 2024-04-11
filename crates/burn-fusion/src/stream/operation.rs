@@ -238,7 +238,7 @@ pub enum NumericOperationDescription<E> {
     ///
     /// Float => [div](burn_tensor::ops::FloatTensorOps::float_remainder_scalar).
     /// Int => [div](burn_tensor::ops::IntTensorOps::int_remainder_scalar).
-    ModScalar(ScalarOperationDescription<E>),
+    RemScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [mul](burn_tensor::ops::FloatTensorOps::float_mul).
@@ -1137,7 +1137,7 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::DivScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::ModScalar(desc) => {
+            NumericOperationDescription::RemScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
             NumericOperationDescription::Ones(desc) => vec![desc],
@@ -1419,7 +1419,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::SubScalar(desc) => desc.hash(state),
             NumericOperationDescription::Div(desc) => desc.hash(state),
             NumericOperationDescription::DivScalar(desc) => desc.hash(state),
-            NumericOperationDescription::ModScalar(desc) => desc.hash(state),
+            NumericOperationDescription::RemScalar(desc) => desc.hash(state),
             NumericOperationDescription::Mul(desc) => desc.hash(state),
             NumericOperationDescription::MulScalar(desc) => desc.hash(state),
             NumericOperationDescription::Abs(desc) => desc.hash(state),
