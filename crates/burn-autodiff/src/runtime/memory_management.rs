@@ -9,8 +9,8 @@ use std::{
 /// When all nodes in a graph have only one reference, the graph can be freed.
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
-    pub graphs: HashMap<GraphId, GraphState>,
-    pub owned: HashSet<GraphId>,
+    graphs: HashMap<GraphId, GraphState>,
+    owned: HashSet<GraphId>,
 }
 
 #[derive(new, Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -19,7 +19,7 @@ pub struct GraphId {
 }
 
 #[derive(Debug)]
-pub(crate) enum GraphState {
+enum GraphState {
     Merged(GraphId),
     Owned(Vec<NodeRefCount>),
 }
