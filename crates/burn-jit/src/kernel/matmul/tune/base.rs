@@ -139,9 +139,15 @@ matmul_tune_ops!(Tiling2dMatmulPadded, |lhs, rhs, out| {
 
 // Probably the fastest when fixed sizes, with loop unrolling
 matmul_tune_ops!(Tiling2dMatmulPaddedUnrolled, |lhs, rhs, out| {
-    let mut config = Tiling2dConfig::default();
-    config.unroll = true;
-    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, config)
+    crate::kernel::matmul::matmul_tiling_2d_padded(
+        lhs,
+        rhs,
+        out,
+        Tiling2dConfig {
+            unroll: true,
+            ..Default::default()
+        },
+    )
 });
 
 // Probably the fastest in the general case, without loop unrolling
@@ -151,7 +157,13 @@ matmul_tune_ops!(Tiling2dMatmul, |lhs, rhs, out| {
 
 // Probably the fastest in the general case, with loop unrolling
 matmul_tune_ops!(Tiling2dMatmulUnrolled, |lhs, rhs, out| {
-    let mut config = Tiling2dConfig::default();
-    config.unroll = true;
-    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, config)
+    crate::kernel::matmul::matmul_tiling_2d_padded(
+        lhs,
+        rhs,
+        out,
+        Tiling2dConfig {
+            unroll: true,
+            ..Default::default()
+        },
+    )
 });

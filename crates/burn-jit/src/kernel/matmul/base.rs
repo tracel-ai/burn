@@ -30,7 +30,7 @@ pub struct Tiling2dConfig {
 }
 
 impl Tiling2dConfig {
-    #[allow(unused)]
+    #[allow(unused, clippy::too_many_arguments)]
     fn new<R: Runtime>(
         grid_x: usize,
         grid_y: usize,
