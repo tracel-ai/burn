@@ -248,7 +248,7 @@ impl Display for Instruction {
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
             }
             Instruction::Modulo { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
+                f.write_fmt(format_args!("{out} = (({lhs} % {rhs}) + {rhs}) % {rhs};\n"))
             }
             Instruction::Sub { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} - {rhs};\n"))
