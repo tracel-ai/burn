@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, rc::Rc};
 
 use crate::{CubeContext, ExpandElement, UInt};
 use burn_jit::gpu::{self, Branch, Elem, Item, Variable};
@@ -24,7 +24,7 @@ pub fn range_expand<F>(
     unroll: bool,
     mut func: F,
 ) where
-    F: FnMut(&mut CubeContext, Variable),
+    F: FnMut(&mut CubeContext, ExpandElement),
 {
     if unroll {
         let start = match start.deref() {
@@ -43,11 +43,12 @@ pub fn range_expand<F>(
         let mut child = context.child();
         let index_ty = Item::Scalar(Elem::UInt);
         let i = child.scope.borrow_mut().create_local_undeclared(index_ty);
+        let i = ExpandElement::new(Rc::new(i));
 
-        func(&mut child, i);
+        func(&mut child, i.clone());
 
         context.register(Branch::RangeLoop(gpu::RangeLoop {
-            i,
+            i: *i,
             start: *start,
             end: *end,
             scope: child.into_scope(),

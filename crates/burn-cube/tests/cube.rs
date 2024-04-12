@@ -1,22 +1,17 @@
-use burn_cube::{cube, range, range_expand, CubeContext, Float, UInt};
+use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt};
 use burn_jit::gpu::{Elem, Item};
 
 #[cube]
-pub fn kernel(lhs: Float, rhs: Float, end: UInt) -> Float {
-    let mut out = lhs.clone() + rhs.clone();
-
-    for i in range(0, end, false) {
-        let temp = out.clone() * rhs.clone();
-        out = kernel_inner(out.clone(), temp);
+pub fn kernel(mut lhs: Array<Float>, rhs: Float, end: UInt, unroll: bool) {
+    for i in range(0usize, end, unroll) {
+        lhs[i] = rhs.clone() + lhs[i].clone();
     }
-
-    out
 }
 
-#[cube]
-pub fn kernel_inner(lhs: Float, rhs: Float) -> Float {
-    lhs + rhs
-}
+// #[cube]
+// pub fn kernel_inner(lhs: Float, rhs: Float) -> Float {
+//     lhs + rhs
+// }
 
 #[test]
 fn test_simple_add() {
@@ -26,5 +21,5 @@ fn test_simple_add() {
     let rhs = context.create_local(Item::Vec4(Elem::Float));
     let end = context.create_local(Item::Scalar(Elem::UInt));
 
-    kernel_expand(&mut context, lhs, rhs, end);
+    kernel_expand(&mut context, lhs, rhs, end, false);
 }

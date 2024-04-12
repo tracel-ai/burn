@@ -22,6 +22,18 @@ impl From<u32> for ExpandElement {
     }
 }
 
+impl From<usize> for ExpandElement {
+    fn from(value: usize) -> Self {
+        ExpandElement::new(Rc::new(Variable::from(value)))
+    }
+}
+
+impl From<bool> for ExpandElement {
+    fn from(value: bool) -> Self {
+        ExpandElement::new(Rc::new(Variable::from(value)))
+    }
+}
+
 impl core::ops::Deref for ExpandElement {
     type Target = Variable;
 
@@ -54,7 +66,28 @@ pub struct Bool {
     pub vectorization: u8,
 }
 
+#[derive(new, Clone)]
+pub struct Array<E> {
+    pub vals: Vec<E>,
+}
+
 impl RuntimeType for Float {
+    type ExpandType = ExpandElement;
+}
+
+impl RuntimeType for Array<Float> {
+    type ExpandType = ExpandElement;
+}
+
+impl RuntimeType for Array<Int> {
+    type ExpandType = ExpandElement;
+}
+
+impl RuntimeType for Array<UInt> {
+    type ExpandType = ExpandElement;
+}
+
+impl RuntimeType for Array<Bool> {
     type ExpandType = ExpandElement;
 }
 
@@ -70,8 +103,18 @@ impl RuntimeType for Bool {
     type ExpandType = ExpandElement;
 }
 
+impl RuntimeType for bool {
+    type ExpandType = bool;
+}
+
 impl From<u32> for UInt {
     fn from(value: u32) -> Self {
         UInt::new(value, 1)
+    }
+}
+
+impl From<usize> for UInt {
+    fn from(value: usize) -> Self {
+        UInt::new(value as u32, 1)
     }
 }

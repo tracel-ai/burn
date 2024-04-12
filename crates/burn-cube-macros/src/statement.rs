@@ -47,7 +47,21 @@ fn parse_expr(expr: &syn::Expr) -> TokenStream {
         syn::Expr::Assign(assign) => parse_assign(assign),
         syn::Expr::ForLoop(for_loop) => parse_for_loop(for_loop),
         syn::Expr::MethodCall(call) => parse_expr_method_call(call),
+        syn::Expr::Index(index) => parse_expr_index(index),
         _ => panic!("Unsupported {:?}", expr),
+    }
+}
+
+fn parse_expr_index(index: &syn::ExprIndex) -> TokenStream {
+    let array = parse_expr(&index.expr);
+    let index = parse_expr(&index.index);
+
+    quote::quote! {
+        {
+        let _array = #array;
+        let _index = #index.clone();
+        burn_cube::index::expand(context, _array, _index)
+        }
     }
 }
 
@@ -86,6 +100,22 @@ fn parse_for_loop(for_loop: &syn::ExprForLoop) -> TokenStream {
 }
 
 fn parse_assign(assign: &syn::ExprAssign) -> TokenStream {
+    if let syn::Expr::Index(index) = assign.left.as_ref() {
+        let array = parse_expr(&index.expr);
+        let index = parse_expr(&index.index);
+        let value = parse_expr(&assign.right);
+
+        return quote::quote! {
+            {
+            // The clone is necessary when mutating a variable that is of a parent scope.
+            let _array = #array.clone();
+            let _index = #index.clone();
+            let _value = #value;
+            burn_cube::index_assign::expand(context, _array, _index, _value)
+            }
+        };
+    };
+
     let lhs = parse_expr(&assign.left);
     let rhs = parse_expr(&assign.right);
 
@@ -176,16 +206,32 @@ fn parse_binary(binary: &syn::ExprBinary) -> TokenStream {
 
     match binary.op {
         syn::BinOp::Add(_) => quote::quote! {
-            burn_cube::add::expand(context, #lhs, #rhs)
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::add::expand(context, _lhs, _rhs)
+            }
         },
         syn::BinOp::Sub(_) => quote::quote! {
-            burn_cube::sub::expand(context, #lhs, #rhs)
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::sub::expand(context, _lhs, _rhs)
+            }
         },
         syn::BinOp::Mul(_) => quote::quote! {
-            burn_cube::mul::expand(context, #lhs, #rhs)
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::mul::expand(context, _lhs, _rhs)
+            }
         },
         syn::BinOp::Div(_) => quote::quote! {
-            burn_cube::div::expand(context, #lhs, #rhs)
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::div::expand(context, _lhs, _rhs)
+            }
         },
         _ => todo!("{:?}", binary.op),
     }

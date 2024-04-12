@@ -17,13 +17,14 @@ pub fn cube(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let code = quote::quote! {
         #func
 
+        #[allow(unused_mut)]
         #signature {
             #body
         }
     }
     .into();
 
-    // panic!("{code}");
+    panic!("{code}");
     code
 }
 
