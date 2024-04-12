@@ -43,6 +43,7 @@ include_models!(
     recip,
     relu,
     reshape,
+    shape,
     sigmoid,
     softmax,
     sqrt,
@@ -452,6 +453,19 @@ mod tests {
         let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = Data::from([[0., 1., 2., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn shape() {
+        let device = Default::default();
+        let model: shape::Model<Backend> = shape::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::ones([4, 2], &device);
+        let output = model.forward(input);
+        let expected = Data::from([4, 2]);
 
         assert_eq!(output.to_data(), expected);
     }

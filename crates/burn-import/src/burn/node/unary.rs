@@ -32,6 +32,7 @@ pub enum UnaryNodeKind {
     Reciprocal,
     LeakyRelu,
     Relu,
+    Shape,
     Sigmoid,
     Softmax,
     Sqrt,
@@ -54,6 +55,7 @@ impl UnaryNodeKind {
             Self::Reciprocal => "reciprocal",
             Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
+            Self::Shape => "shape",
             Self::Sigmoid => "sigmoid",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
@@ -115,6 +117,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match self.kind {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
+            }
+            UnaryNodeKind::Shape => {
+                imports.register("burn::tensor::Int");
             }
             _ => {}
         }
@@ -206,6 +211,20 @@ impl UnaryNode {
     pub(crate) fn neg(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.neg()};
         Self::new(input, output, UnaryNodeKind::Neg, Rc::new(function))
+    }
+
+    pub(crate) fn shape(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
+        // Shape as defined by the ONNX op should return a tensor because other ops
+        // (e.g., Gather) will be used on a tensor
+        let function = move |input| {
+            quote! {
+                Tensor::<B, 1, Int>::from_data(
+                    Data::from(&#input.dims()[#start_dim..#end_dim]).from_usize::<i64>(),
+                    &#input.device(),
+                )
+            }
+        };
+        Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -588,6 +607,30 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.neg();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_shape() {
+        one_node_graph(
+            UnaryNode::shape(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_int("tensor2", 1)),
+                1,
+                3,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1, Int> {
+                    let tensor2 = Tensor::<B, 1, Int>::from_data(
+                        Data::from(&tensor1.dims()[1usize..3usize]).from_usize::<i64>(),
+                        &tensor1.device(),
+                    );
 
                     tensor2
                 }

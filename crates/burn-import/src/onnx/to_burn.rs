@@ -254,6 +254,7 @@ impl OnnxGraph {
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
+                NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
@@ -462,6 +463,15 @@ impl OnnxGraph {
 
         ReshapeNode::new(input, output, shape)
     }
+
+    fn shape_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let (start_dim, end_dim) = shape_config(&node);
+
+        UnaryNode::shape(input, output, start_dim, end_dim)
+    }
+
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();

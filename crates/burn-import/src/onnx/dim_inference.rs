@@ -354,14 +354,17 @@ fn equal_update_outputs(node: &mut Node) {
 
 fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
-        panic!("Gather: multiple inputs are not supported: {:?}", node);
+        panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
 
-    // Extract the configuration of the linear layer (inputs are known)
     let node_input = &mut node.inputs[0];
-    if let ArgType::Tensor(tensor) = node_input.clone().ty {
-        // Update the output tensor
-        node.outputs[0].ty = ArgType::Shape(tensor.dim);
+    if let ArgType::Tensor(_tensor) = node_input.clone().ty {
+        // Output tensor is 1D int64
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            dim: 1,
+            ..Default::default()
+        });
     } else {
         panic!("Only tensor input is valid");
     }
