@@ -23,12 +23,12 @@ pub fn write_to_output(
 
         gpu!(
             scope,
-            range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
+            range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
                     gpu!(
                         scope,
-                        range(0u32, shader.config.tile_size_n as u32, shader.unroll).for_each(
-                            |res_idx_n, scope| {
+                        range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
+                            .for_each(|res_idx_n, scope| {
                                 gpu!(scope, row_index = row + res_idx_m);
                                 gpu!(scope, col_index = col + res_idx_n);
 
@@ -47,8 +47,7 @@ pub fn write_to_output(
                                         col_index,
                                     );
                                 }));
-                            }
-                        )
+                            })
                     );
                 }
             )
@@ -56,12 +55,12 @@ pub fn write_to_output(
     } else {
         gpu!(
             scope,
-            range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
+            range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
                     gpu!(
                         scope,
-                        range(0u32, shader.config.tile_size_n as u32, shader.unroll).for_each(
-                            |res_idx_n, scope| {
+                        range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
+                            .for_each(|res_idx_n, scope| {
                                 gpu!(scope, row_index = row + res_idx_m);
                                 gpu!(scope, col_index = col + res_idx_n);
 
@@ -74,8 +73,7 @@ pub fn write_to_output(
                                     row_index,
                                     col_index,
                                 )
-                            }
-                        )
+                            })
                     );
                 }
             )

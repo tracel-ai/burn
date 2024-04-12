@@ -45,7 +45,6 @@ impl<R: Runtime> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R> {
             variables: gpu::BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
             bounds_check_required: self.bounds_check_required,
-            unroll: true,
         }
         .expand(&mut scope);
 
