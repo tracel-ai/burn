@@ -61,7 +61,7 @@ fn remote_version(crate_name: &str) -> Option<String> {
 
 fn publish(crate_name: String) {
     // Perform dry-run to ensure everything is good for publishing
-    let dry_run_params = Params::from(["publish", "-p", &crate_name, "--dry-run"]);
+    let dry_run_params = Params::from(["-p", &crate_name, "--dry-run"]);
 
     run_cargo(
         "publish",
@@ -73,13 +73,7 @@ fn publish(crate_name: String) {
     let crates_io_token =
         env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
     let envs = HashMap::from([("CRATES_IO_API_TOKEN", crates_io_token.clone())]);
-    let publish_params = Params::from(vec![
-        "publish",
-        "-p",
-        &crate_name,
-        "--token",
-        &crates_io_token,
-    ]);
+    let publish_params = Params::from(vec!["-p", &crate_name, "--token", &crates_io_token]);
 
     // Actually publish the crate
     run_cargo(
