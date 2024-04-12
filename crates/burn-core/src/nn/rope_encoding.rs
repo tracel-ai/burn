@@ -26,7 +26,10 @@ pub struct RotaryEncodingConfig {
 impl RotaryEncodingConfig {
     /// Initialize a new [RotaryEncoding](RotaryEncoding) module.
     ///
+    /// # Panics
+    ///
     /// Panics if the size of input embedding dimension is not even.
+    /// Panics if the theta parameter is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RotaryEncoding<B> {
         assert_eq!(
             self.d_model % 2,
