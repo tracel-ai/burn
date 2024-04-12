@@ -93,7 +93,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     }
 
     fn sync(device: &Device<Self>) {
-        let device: candle_core::Device = device.clone().into();
+        let device: candle_core::Device = (*device).into();
 
         match device {
             candle_core::Device::Cpu => (),
