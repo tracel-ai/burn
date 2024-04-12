@@ -1,5 +1,4 @@
 use burn_tensor::Shape;
-use libm::sqrt;
 
 use crate::config::Config;
 use crate::module::{Param, ParamId};
@@ -7,6 +6,9 @@ use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]
@@ -129,7 +131,7 @@ impl Initializer {
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max, device),
             Initializer::Normal { mean, std } => normal_draw(shape, *mean, *std, device),
             Initializer::KaimingUniform { gain, fan_out_only } => {
-                let a = sqrt(3.0) * *gain * self.kaiming_std(*fan_out_only, fan_in, fan_out);
+                let a = 3.0f64.sqrt() * *gain * self.kaiming_std(*fan_out_only, fan_in, fan_out);
                 uniform_draw(shape, -a, a, device)
             }
             Initializer::KaimingNormal { gain, fan_out_only } => {
@@ -137,7 +139,7 @@ impl Initializer {
                 normal_draw(shape, 0.0, std, device)
             }
             Initializer::XavierUniform { gain } => {
-                let a = sqrt(3.0) * *gain * self.xavier_std(fan_in, fan_out);
+                let a = 3.0f64.sqrt() * *gain * self.xavier_std(fan_in, fan_out);
                 uniform_draw(shape, -a, a, device)
             }
             Initializer::XavierNormal { gain } => {
@@ -158,7 +160,7 @@ impl Initializer {
             "Can't use Kaiming initialization without specifying fan. Use init_with method.",
         );
 
-        1.0 / sqrt(fan as f64)
+        1.0 / (fan as f64).sqrt()
     }
 
     fn xavier_std(&self, fan_in: Option<usize>, fan_out: Option<usize>) -> f64 {
@@ -170,7 +172,7 @@ impl Initializer {
             "Can't use Xavier initialization without specifying fan out. Use init_with method and \
              provide fan_out.",
         );
-        sqrt(2.0 / (fan_in + fan_out) as f64)
+        (2.0 / (fan_in + fan_out) as f64).sqrt()
     }
 }
 
@@ -199,6 +201,7 @@ mod tests {
     use super::*;
 
     use burn_tensor::{Data, ElementConversion};
+    use num_traits::Pow;
 
     pub type TB = burn_ndarray::NdArray<f32>;
 
@@ -293,7 +296,7 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * sqrt(3.0 / fan_in as f64);
+        let k = gain * (3.0 / fan_in as f64).sqrt();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
@@ -312,7 +315,7 @@ mod tests {
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
-        let expected_var = (gain * sqrt(1. / (fan_in as f64))).powf(2.);
+        let expected_var = (gain * (1. / (fan_in as f64)).sqrt()).pow(2.);
         let tensor: Tensor<TB, 2> = Initializer::KaimingNormal {
             gain,
             fan_out_only: false,
@@ -329,7 +332,7 @@ mod tests {
         let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
-        let k = gain * sqrt(3.0 / fan_in as f64);
+        let k = gain * (3.0 / fan_in as f64).sqrt();
 
         let tensor: Tensor<TB, 1> = Initializer::KaimingUniform {
             gain,
@@ -346,7 +349,7 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * sqrt(3.0 / fan_out as f64);
+        let k = gain * (3.0 / fan_out as f64).sqrt();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
@@ -379,7 +382,7 @@ mod tests {
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
+        let bound = gain * (6. / (fan_in + fan_out) as f64).sqrt();
         let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }
             .init_with(
                 [fan_out, fan_in],
@@ -400,7 +403,7 @@ mod tests {
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
-        let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
+        let expected_var = (gain * (2. / (fan_in as f64 + fan_out as f64)).sqrt()).powf(2.);
         let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }
             .init_with(
                 [fan_out, fan_in],

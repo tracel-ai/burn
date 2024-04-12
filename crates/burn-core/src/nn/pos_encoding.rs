@@ -7,7 +7,8 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::Data;
 
-use libm::{cosf, expf, logf, sinf};
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Configuration to create an [PositionalEncoding](PositionalEncoding) layer.
 #[derive(Config)]
@@ -122,7 +123,7 @@ pub fn generate_sinusoids<B: Backend>(
     );
 
     // Calculate the increment for the logarithmic timescale
-    let log_timescale_increment = -logf(max_timescale as f32) / d_model as f32;
+    let log_timescale_increment = -(max_timescale as f32).ln() / d_model as f32;
 
     // Create a vector to hold the sinusoids
     let mut scaled_time_sin_cos = Vec::with_capacity(length);
@@ -134,10 +135,10 @@ pub fn generate_sinusoids<B: Backend>(
         // Loop over each dimension of the sinusoids
         for k in (0..d_model).step_by(2) {
             // Calculate the division term for this dimension
-            let div_term = expf(k as f32 * log_timescale_increment);
+            let div_term = (k as f32 * log_timescale_increment).exp();
             // Calculate the sine and cosine values for this dimension and position
-            row.push(sinf(div_term * i as f32));
-            row.push(cosf(div_term * i as f32));
+            row.push((div_term * i as f32).sin());
+            row.push((div_term * i as f32).cos());
         }
 
         // Add the sinusoids for this position to the vector

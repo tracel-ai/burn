@@ -8,7 +8,6 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::module::conv1d;
 use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
 
 use super::checks;
 
@@ -37,7 +36,9 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
@@ -132,7 +133,7 @@ mod tests {
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);

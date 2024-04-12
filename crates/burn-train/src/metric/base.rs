@@ -84,6 +84,49 @@ pub struct MetricEntry {
     pub serialize: String,
 }
 
+/// Numeric metric entry.
+pub enum NumericEntry {
+    /// Single numeric value.
+    Value(f64),
+    /// Aggregated numeric (value, number of elements).
+    Aggregated(f64, usize),
+}
+
+impl NumericEntry {
+    pub(crate) fn serialize(&self) -> String {
+        match self {
+            Self::Value(v) => v.to_string(),
+            Self::Aggregated(v, n) => format!("{v},{n}"),
+        }
+    }
+
+    pub(crate) fn deserialize(entry: &str) -> Result<Self, String> {
+        // Check for comma separated values
+        let values = entry.split(',').collect::<Vec<_>>();
+        let num_values = values.len();
+
+        if num_values == 1 {
+            // Numeric value
+            match values[0].parse::<f64>() {
+                Ok(value) => Ok(NumericEntry::Value(value)),
+                Err(err) => Err(err.to_string()),
+            }
+        } else if num_values == 2 {
+            // Aggregated numeric (value, number of elements)
+            let (value, numel) = (values[0], values[1]);
+            match value.parse::<f64>() {
+                Ok(value) => match numel.parse::<usize>() {
+                    Ok(numel) => Ok(NumericEntry::Aggregated(value, numel)),
+                    Err(err) => Err(err.to_string()),
+                },
+                Err(err) => Err(err.to_string()),
+            }
+        } else {
+            Err("Invalid number of values for numeric entry".to_string())
+        }
+    }
+}
+
 /// Format a float with the given precision. Will use scientific notation if necessary.
 pub fn format_float(float: f64, precision: usize) -> String {
     let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);

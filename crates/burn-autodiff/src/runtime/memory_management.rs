@@ -61,6 +61,7 @@ impl GraphMemoryManagement {
 
         for node_id in graph.into_iter() {
             func(&node_id);
+            self.graphs.remove(&GraphId::new(*node_id));
         }
     }
 
@@ -258,6 +259,9 @@ mod tests {
         assert!(node_ids.contains(&node_1));
         assert!(node_ids.contains(&node_2));
 
+        assert_eq!(graph_mm.graphs.len(), 0);
+        assert_eq!(graph_mm.owned.len(), 0);
+
         // Same but with free(node_2);
         graph_mm.register(node_1.clone(), vec![]);
         graph_mm.register(node_2.clone(), vec![*node_1]);
@@ -267,5 +271,8 @@ mod tests {
 
         assert!(node_ids.contains(&node_1));
         assert!(node_ids.contains(&node_2));
+
+        assert_eq!(graph_mm.graphs.len(), 0);
+        assert_eq!(graph_mm.owned.len(), 0);
     }
 }

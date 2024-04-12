@@ -3,10 +3,6 @@
 This crate allows to compare backend computation times, from tensor operations
 to complex models.
 
-Note: in order to compare different backend-specific tensor operation
-implementations (for autotuning purposes, for instance), this should be done
-within the corresponding backend crate.
-
 ## burnbench CLI
 
 This crate comes with a CLI binary called `burnbench` which can be executed via
@@ -80,11 +76,15 @@ Executing the following benchmark and backend combinations (Total: 4):
 Running benchmarks...
 ```
 
+By default `burnbench` uses a compact output with a progress bar which hides the
+compilation logs and benchmarks results as they are executed. If a benchmark
+failed to run, the `--verbose` flag can be use to investigate the error.
+
 #### Authentication and benchmarks sharing
 
 Burnbench can upload benchmark results to our servers so that users can share
 their results with the community and we can use this information to drive the
-development of Burn.
+development of Burn. The results can be explored on [Burn website][1].
 
 Sharing results is opt-in and it is enabled with the `--share` arguments passed
 to the `run` command:
@@ -112,15 +112,12 @@ For instance:
 🔑 Your username is: CuteFlame
 ```
 
-You can now use the `--share` argument to upload and share your benchmarks!
+You can now use the `--share` argument to upload and share your benchmarks.
+A URL to the results will displayed at the end of the report table.
 
 Note that your access token will be refreshed automatically so you should not
 need to reauthorize the application again except if your refresh token itself
 becomes invalid.
-
-### Terminal UI
-
-This is a work in progress and is not usable for now.
 
 ## Execute benchmarks with cargo
 
@@ -178,3 +175,4 @@ pub(crate) enum BackendValues {
 Then update the macro `bench_on_backend` to support the newly registered
 backend.
 
+[1]: https://burn.dev/benchmarks/community-benchmarks

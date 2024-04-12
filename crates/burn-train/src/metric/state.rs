@@ -1,4 +1,4 @@
-use crate::metric::{format_float, MetricEntry, Numeric};
+use crate::metric::{format_float, MetricEntry, Numeric, NumericEntry};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -67,7 +67,8 @@ impl NumericMetricState {
 
         let value_current = value;
         let value_running = self.sum / self.count as f64;
-        let serialized = value_current.to_string();
+        // Numeric metric state is an aggregated value
+        let serialized = NumericEntry::Aggregated(value_current, batch_size).serialize();
 
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => (

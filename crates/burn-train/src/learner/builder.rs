@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use super::log::install_file_logger;
@@ -14,7 +15,7 @@ use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::LearnerCheckpointer;
+use crate::{LearnerCheckpointer, LearnerSummaryConfig};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -53,6 +54,8 @@ where
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    summary_metrics: HashSet<String>,
+    summary: bool,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -94,6 +97,8 @@ where
                     .build(),
             ),
             early_stopping: None,
+            summary_metrics: HashSet::new(),
+            summary: false,
         }
     }
 
@@ -140,7 +145,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.metrics.register_metric_train(metric);
+        self.metrics.register_train_metric(metric);
         self
     }
 
@@ -174,6 +179,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
+        self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_train_metric_numeric(metric);
         self
     }
@@ -186,6 +192,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
+        self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_valid_metric_numeric(metric);
         self
     }
@@ -266,6 +273,14 @@ where
         self
     }
 
+    /// Enable the training summary report.
+    ///
+    /// The summary will be displayed at the end of `.fit()`.
+    pub fn summary(mut self) -> Self {
+        self.summary = true;
+        self
+    }
+
     /// Create the [learner](Learner) from a [model](AutodiffModule) and an [optimizer](Optimizer).
     /// The [learning rate scheduler](LrScheduler) can also be a simple
     /// [learning rate](burn_core::LearningRate).
@@ -320,6 +335,15 @@ where
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
         });
 
+        let summary = if self.summary {
+            Some(LearnerSummaryConfig {
+                directory: self.directory,
+                metrics: self.summary_metrics.into_iter().collect::<Vec<_>>(),
+            })
+        } else {
+            None
+        };
+
         Learner {
             model,
             optim,
@@ -333,6 +357,7 @@ where
             devices: self.devices,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
+            summary,
         }
     }
 

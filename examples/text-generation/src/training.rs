@@ -80,6 +80,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .devices(vec![device])
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
+        .summary()
         .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
