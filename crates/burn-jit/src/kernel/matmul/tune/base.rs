@@ -65,6 +65,16 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
                 rhs.clone(),
                 out.clone(),
             )),
+            Box::new(Tiling2dMatmulPaddedUnrolled::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
+            )),
+            Box::new(Tiling2dMatmulUnrolled::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
+            )),
         ]
     }
 
@@ -74,6 +84,10 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
             1 => Box::new(SimpleMatmul16x16::new(self.lhs, self.rhs, self.out)),
             2 => Box::new(Tiling2dMatmul::new(self.lhs, self.rhs, self.out)),
             3 => Box::new(Tiling2dMatmulPadded::new(self.lhs, self.rhs, self.out)),
+            4 => Box::new(Tiling2dMatmulPaddedUnrolled::new(
+                self.lhs, self.rhs, self.out,
+            )),
+            5 => Box::new(Tiling2dMatmulUnrolled::new(self.lhs, self.rhs, self.out)),
             _ => panic!("Fastest index is out of bound"),
         }
     }
