@@ -18,7 +18,7 @@ exclude = ["examples/notebook"]
 
 [workspace.package]
 edition = "2021"
-version = "0.13.0"
+version = "0.14.0"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 
