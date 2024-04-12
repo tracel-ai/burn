@@ -106,6 +106,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
+      - publish-burn-jit
     with:
       crate: burn-wgpu
     secrets: inherit
