@@ -1,6 +1,6 @@
 # Dataset
 
-Most deep learning training being done on datasets –with perhaps the exception of reinforcement learning–, it is
+In most deep learning training performed on datasets (with perhaps the exception of reinforcement learning), it is
 essential to provide a convenient and performant API.
 The dataset trait is quite similar to the dataset abstract class in PyTorch:
 
