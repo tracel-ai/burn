@@ -136,23 +136,23 @@ seeing what completions are suggested will take you far. If you are having troub
 to do it from the docs for that backend,
 [try searching github for relevant function calls](https://docs.github.com/en/search-github/github-code-search/understanding-github-code-search-syntax).
 
-## Adding the Op to fusion and wgpu backends
+## Adding the Op to fusion, jit, and wgpu backends
 
-Adding an operator to these backends is fairly straightforward, though due to what these backends
-are for, involves a bit more indirection. Fusion, like autodiff, is not a target backend as much as
-a backend that enables certain functionality for other backends, in this case kernel fusion (which
-is currently only supported for `burn-wgpu`), so adding the operator won't involve doing any
-calculation, you'll just be describing how the generated code should look. Most of this can be
-copy/pasted/adjusted from other functions.
+Adding an operator to these backends can be fairly straightforward, though due to what these
+backends are for, involves a bit more indirection. Fusion and jit, like autodiff, are not target
+backends as much as backends that enable certain functionality for other backends, in this case
+kernel fusion (which is currently only supported for `burn-wgpu`) or just-in-time compilation.
+Adding the operator won't involve doing any calculation, you'll just be describing how the generated
+code should look. Most of this can be copy/pasted/adjusted from other functions.
 
 Here's how powf was added to burn fusion:
 
 1. added powf to the float ops under
-   [`burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/ops/float.rs#L1758)
-2. added powf to the `FloatOperationDescription` enum under
-   [burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/stream/operation.rs#L385)
-3. added powf to the implementations of `FloatOperationDescription` enum under
-   [burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/stream/context.rs#L726)
+   [`crates/burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-fusion/src/ops/float.rs#L1813)
+2. added powf to the `NumericOperationDescription` enum under
+   [crates/burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-fusion/src/stream/operation.rs#L426)
+3. added powf to the implementations of `NumericOperationDescription` enum under
+   [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-fusion/src/stream/context.rs#L764)
 
 Adding pow to wgpu was actually pretty easy due to the design. The way wgpu handles tensor-scalar
 operations is by transforming both into a sequence of vectorized scalar operations. Since powf
