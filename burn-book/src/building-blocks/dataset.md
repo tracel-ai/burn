@@ -69,7 +69,7 @@ let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
 ```rust, ignore
 // define chained dataset type here for brevity
 type PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>>;
-let dataset_len = dataset.len();
+let len = dataset.len();
 let split == "train"; // or "val"/"test"
 
 let data_split = match split {
