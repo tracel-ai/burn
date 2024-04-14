@@ -154,28 +154,37 @@ Here's how powf was added to burn fusion:
 3. added powf to the implementations of `NumericOperationDescription` enum under
    [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-fusion/src/stream/context.rs#L764)
 
-Adding pow to wgpu was actually pretty easy due to the design. The way wgpu handles tensor-scalar
-operations is by transforming both into a sequence of vectorized scalar operations. Since powf
-already existed in burn-wgpu, It was pretty easy to reuse the existing implementation for the
-situation where both sides of the operation were tensors.
+The way wgpu handles tensor-scalar operations is by transforming both into a sequence of vectorized
+scalar operations. Since powf already existed in burn-wgpu, It was pretty easy to reuse the existing
+implementation for the situation where both sides of the operation were tensors.
 
-Here is where code was added for powf in burn-wgpu:
+Here is where code was added for powf in burn-jit:
 
 1. to the implementation of
-   [`TensorOps` under `burn-wgpu/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/ops/float_ops.rs#L513)
+   [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/ops/float_ops.rs#L491)
 2. the function being called was added to
-   [burn-wgpu/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/ops/numeric.rs#L199)
-3. the call to the fmt function use to generate wgsl code in
-   [`burn-wgpu/src/codegen/kernel.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/codegen/kernel.rs#L208)
-4. A custom function generator was added to
-   [`burn-wgpu/src/codegen/function.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/codegen/function.rs#L99)
+   [crates/burn-jit/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/ops/numeric.rs#L208)
+3. the operator was defined in
+   [`crates/burn-jit/src/codegen/dialect/gpu/operation.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/codegen/dialect/gpu/operation.rs#L37)
+4. the vectorization was added to
+   [`crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs#L55)
+5. how the operation looks to the gpu was added to
+   [`crates/burn-jit/src/fusion/tracing/builder.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/fusion/tracing/builder.rs#L279)
+6. the mapping between the gpu operation and the wgsl instruction was added to
+   [`crates/burn-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L455).
+   See [^note]
+7. the wgsl instruction itself was added to the
+   [instruction op enum in `crates/burn-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L103),
+   and the actual
+   [instruction in wgsl here](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L273)
 
 We needed to generate some custom wgsl code for powf, primarily due to issues with proper case
 handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an even
-power being positive. We reused as much as the existing logic as possible, such as the operation
-output description generation in
-[`burn-wgpu/src/fusion/elemwise/builder.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/fusion/elemwise/optimization.rs)
-and then branched at the last point based off the var type of the rhs.
+power being positive. We reused as much as the existing logic as possible, and then branched at the
+last point based off the var type of the rhs.
+[See here](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L596).
+For most operations, you should't need to add to `crates/burn-wgpu/src/compiler/wgsl/extension.rs`
+unless the function isn't native to WGSL.
 
 ## Adding the Op to burn-import
 
