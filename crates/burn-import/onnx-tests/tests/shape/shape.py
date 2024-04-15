@@ -2,6 +2,7 @@
 
 # used to generate model: onnx-tests/tests/shape/shape.onnx
 
+import onnx
 import torch
 import torch.nn as nn
 
@@ -44,9 +45,11 @@ def main():
         opset_version=16,
     )
 
-    from onnx.shape_inference import infer_shapes_path
-
-    infer_shapes_path(file_name, strict_mode=True)
+    m = onnx.load(file_name)
+    # Remove cast node
+    m.graph.node.pop(1)
+    m.graph.node[0].output[0] = m.graph.output[0].name
+    onnx.save(m, file_name)
 
     print(f"Finished exporting model to {file_name}")
 
