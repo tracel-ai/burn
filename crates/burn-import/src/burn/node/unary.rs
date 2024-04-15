@@ -122,16 +122,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
             UnaryNodeKind::Not => {
                 imports.register("burn::tensor::Bool");
             }
-            UnaryNodeKind::Cast(input, output) => {
-                if let Some(input_kind) = input {
-                    if let Some(output_kind) = output {
-                        if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
-                            imports.register("burn::tensor::Bool");
-                        }
-                        if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
-                            imports.register("burn::tensor::Int");
-                        }
-                    }
+            UnaryNodeKind::Cast(Some(input_kind), Some(output_kind)) => {
+                if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
+                    imports.register("burn::tensor::Bool");
+                }
+                if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
+                    imports.register("burn::tensor::Int");
                 }
             }
             _ => {}
