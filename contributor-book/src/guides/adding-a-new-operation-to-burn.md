@@ -184,7 +184,7 @@ power being positive. We reused as much as the existing logic as possible, and t
 last point based off the var type of the rhs.
 [See here](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L596).
 For most operations, you should't need to add to `crates/burn-wgpu/src/compiler/wgsl/extension.rs`
-unless the function isn't native to WGSL.
+unless the operation isn't native to WGSL.
 
 ## Adding the Op to burn-import
 
@@ -203,16 +203,16 @@ Let's review the changes made for pow starting from `src/burn` and moving to `sr
 
 1. determine the type of operator and add your operator to the appropriate node (operation) type, in
    this case
-   [BinaryNode under burn-import/src/burn/node/binary.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/burn/node/binary.rs#L160)
+   [BinaryNode under crates/burn-import/src/burn/node/binary.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/burn/node/binary.rs#L160)
    along with its
-   [`to_str` definition](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/burn/node/binary.rs#L9)
+   [`to_str` definition](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/burn/node/binary.rs#L15)
 2. add an arm to the match statement inside the `into_burn` function in
-   [burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/onnx/to_burn.rs#L269)
+   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/onnx/to_burn.rs#L268)
    for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make a
-   [`foo_conversion` function](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/onnx/to_burn.rs#L667)
+   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/onnx/to_burn.rs#L682)
    that maps the ONNX node to the binary type
 3. specify how dimensions for the output should be derived in
-   [burn-import/src/onnx/dim_inference.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/onnx/dim_inference.rs#L103)
+   [crates/burn-import/src/onnx/dim_inference.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/onnx/dim_inference.rs#L53)
 
 And you're done! Congrats, you just fully added a new op to burn, and we are all one step closer to
 the answer to [are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and it's
