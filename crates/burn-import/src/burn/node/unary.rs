@@ -219,7 +219,9 @@ impl UnaryNode {
         let function = move |input| {
             quote! {
                 Tensor::<B, 1, Int>::from_data(
-                    Data::from(&#input.dims()[#start_dim..#end_dim]).from_usize::<i64>(),
+                    burn::tensor::Data::from(&#input.dims()[#start_dim..#end_dim])
+                        .from_usize::<i64>()
+                        .convert::<burn::tensor::ops::IntElem<B>>(),
                     &#input.device(),
                 )
             }
@@ -628,7 +630,9 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1, Int> {
                     let tensor2 = Tensor::<B, 1, Int>::from_data(
-                        Data::from(&tensor1.dims()[1usize..3usize]).from_usize::<i64>(),
+                        burn::tensor::Data::from(&tensor1.dims()[1usize..3usize])
+                            .from_usize::<i64>()
+                            .convert::<burn::tensor::ops::IntElem<B>>(),
                         &tensor1.device(),
                     );
 
