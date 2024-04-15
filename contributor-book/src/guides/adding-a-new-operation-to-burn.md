@@ -160,7 +160,7 @@ implementation for the situation where both sides of the operation were tensors.
 crate is primarily concered with how the operation is compiled and executed by the gpu. The actual
 implementation is defined in `burn-jit`.
 
-Here is where code was added for powf in `burn-jit`:
+Here is where code was added for powf in `burn-jit` and `burn-wgpu`:
 
 1. to the implementation of
    [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/ops/float_ops.rs#L491)
