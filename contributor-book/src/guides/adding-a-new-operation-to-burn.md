@@ -2,7 +2,7 @@
 
 Let's discuss how one might go about adding new operators to Burn, using the example of the pow
 operator added in [this PR](https://github.com/tracel-ai/burn/pull/1133/files). In that PR, the
-following things took place (albeit not in this order)
+following things took place (albeit not in this order).
 
 ## Adding the Op to burn-tensor
 
@@ -13,7 +13,7 @@ is the home of all tensor operations that are numeric in nature and that are sha
 `Float` Tensor types. More information on the relationship between Tensor modules can be found under
 the section for [Tensor Architecture](../project-architecture/Tensor.md#tensorops).
 
-Here is where pow was added to `burn-tensor/src/tensor/api/numeric.rs`:
+Here is where pow was added to `crates/burn-tensor/src/tensor/api/numeric.rs`:
 
 1. for the
    [`Tensor<Backend,Dimension,Kind>` struct](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-tensor/src/tensor/api/numeric.rs#L565)
@@ -50,9 +50,9 @@ The `Int` Tensor function uses the ones defined for Float with 2 extra casts (LH
 tensor, Output to an `Int`). Given that the rest of the code will only look at the float
 implementations.
 
-### Adding Test
+### Adding Tests
 
-Additional Test should be added to `burn-tensor` under
+Additional Tests should be added to `burn-tensor` under
 [`crates/burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-tensor/src/tests/ops/powf.rs#L1),
 inserting the module name into `crates/burn-tensor/src/tests/ops/mod.rs`. Then add it to the
 `testgen_all` macro under `crates/burn-tensor/src/tests/mod.rs`. This macro is called from the
@@ -155,10 +155,12 @@ Here's how powf was added to burn fusion:
    [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-fusion/src/stream/context.rs#L764)
 
 The way wgpu handles tensor-scalar operations is by transforming both into a sequence of vectorized
-scalar operations. Since powf already existed in burn-wgpu, It was pretty easy to reuse the existing
-implementation for the situation where both sides of the operation were tensors.
+scalar operations. Since powf already existed in burn-wgpu, it was pretty easy to reuse the existing
+implementation for the situation where both sides of the operation were tensors. The `burn-wgpu`
+crate is primarily concered with how the operation is compiled and executed by the gpu. The actual
+implementation is defined in `burn-jit`.
 
-Here is where code was added for powf in burn-jit:
+Here is where code was added for powf in `burn-jit`:
 
 1. to the implementation of
    [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/ops/float_ops.rs#L491)
@@ -170,20 +172,19 @@ Here is where code was added for powf in burn-jit:
    [`crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs#L55)
 5. how the operation looks to the gpu was added to
    [`crates/burn-jit/src/fusion/tracing/builder.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-jit/src/fusion/tracing/builder.rs#L279)
-6. the mapping between the gpu operation and the wgsl instruction was added to
-   [`crates/burn-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L455).
-   See [^note]
-7. the wgsl instruction itself was added to the
+6. the mapping between the gpu operation and the WGSL instruction was added to
+   [`crates/burn-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L455)
+7. the WGSL instruction itself was added to the
    [instruction op enum in `crates/burn-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L103),
    and the actual
    [instruction in wgsl here](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L273)
 
-We needed to generate some custom wgsl code for powf, primarily due to issues with proper case
+We needed to generate some custom WGSL code for powf, primarily due to issues with proper case
 handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an even
 power being positive. We reused as much as the existing logic as possible, and then branched at the
 last point based off the var type of the rhs.
 [See here](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L596).
-For most operations, you should't need to add to `crates/burn-wgpu/src/compiler/wgsl/extension.rs`
+For most operations, you shouldn't need to add to `crates/burn-wgpu/src/compiler/wgsl/extension.rs`
 unless the operation isn't native to WGSL.
 
 ## Adding the Op to burn-import
@@ -208,7 +209,7 @@ Let's review the changes made for pow starting from `src/burn` and moving to `sr
    [`to_str` definition](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/burn/node/binary.rs#L15)
 2. add an arm to the match statement inside the `into_burn` function in
    [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/onnx/to_burn.rs#L268)
-   for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make a
+   for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make an
    [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-import/src/onnx/to_burn.rs#L682)
    that maps the ONNX node to the binary type
 3. specify how dimensions for the output should be derived in
