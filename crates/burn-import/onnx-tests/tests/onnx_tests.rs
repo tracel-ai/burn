@@ -44,6 +44,7 @@ include_models!(
     relu,
     reshape,
     sigmoid,
+    sin,
     softmax,
     sqrt,
     sub_int,
@@ -553,6 +554,19 @@ mod tests {
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn sin() {
+        let device = Default::default();
+        let model: sin::Model<Backend> = sin::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.8415, -0.7568, 0.4121, -0.1324]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]
