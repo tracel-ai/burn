@@ -664,7 +664,7 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
 pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
         panic!(
-            "Flatten: multiple inputs are not supported (got {:?})",
+            "Shape: multiple inputs are not supported (got {:?})",
             curr.inputs.len()
         );
     }
