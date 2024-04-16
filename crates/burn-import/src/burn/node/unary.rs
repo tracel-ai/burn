@@ -29,10 +29,12 @@ pub enum UnaryNodeKind {
     Log,
     LogSoftmax,
     Neg,
+    ReduceMean,
     Reciprocal,
     LeakyRelu,
     Relu,
     Sigmoid,
+    Sin,
     Softmax,
     Sqrt,
     Tanh,
@@ -51,10 +53,12 @@ impl UnaryNodeKind {
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
+            Self::ReduceMean => "reduce_mean",
             Self::Reciprocal => "reciprocal",
             Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
+            Self::Sin => "sin",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
@@ -188,6 +192,11 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
     }
 
+    pub(crate) fn sin(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sin()};
+        Self::new(input, output, UnaryNodeKind::Sin, Rc::new(function))
+    }
+
     pub(crate) fn exp(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.exp()};
         Self::new(input, output, UnaryNodeKind::Exp, Rc::new(function))
@@ -244,6 +253,32 @@ impl UnaryNode {
             }
 
             _ => panic!("output must be a tensor"),
+        }
+    }
+
+    pub(crate) fn reduce_mean(input: Type, output: Type, dim: Option<usize>) -> Self {
+        // ReduceMean is constrained to numeric tensors, so no need to check for bool.
+        if let Type::Tensor(_) = output {
+            if let Some(dim) = dim {
+                // ReduceMean, keepdims=1, axes=[dim]
+                let dim = dim.to_tokens();
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMean,
+                    Rc::new(move |input| quote! { #input.mean_dim(#dim) }),
+                )
+            } else {
+                // ReduceMean, keepdims=0, axes=None
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMean,
+                    Rc::new(move |input| quote! { #input.mean() }),
+                )
+            }
+        } else {
+            panic!("ReduceMean only supports tensor output");
         }
     }
 }
@@ -431,6 +466,43 @@ mod tests {
     }
 
     #[test]
+    fn test_unary_codegen_reduce_mean() {
+        one_node_graph(
+            UnaryNode::reduce_mean(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Some(1),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.mean_dim(1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::reduce_mean(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+                None,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.mean();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
     fn test_unary_codegen_reciprocal() {
         one_node_graph(
             UnaryNode::reciprocal(
@@ -493,6 +565,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.cos();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_sin() {
+        one_node_graph(
+            UnaryNode::sin(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.sin();
 
                     tensor2
                 }

@@ -140,9 +140,9 @@ represent the corresponding Burn Op.
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
 | [ReduceMax][135]                 |       ❌       |      ✅      |
-| [ReduceMean][136]                |       ❌       |      ✅      |
+| [ReduceMean][136]                |       ✅       |      ✅      |
 | [ReduceMin][137]                 |       ❌       |      ✅      |
-| [ReduceProd][138]                |       ❌       |      ❌      |
+| [ReduceProd][138]                |       ❌       |      ✅      |
 | [ReduceSum][139]                 |       ❌       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
@@ -168,7 +168,7 @@ represent the corresponding Burn Op.
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
 | [Sign][163]                      |       ❌       |      ✅      |
-| [Sin][164]                       |       ❌       |      ✅      |
+| [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
 | [Slice][167]                     |       ❌       |      ✅      |

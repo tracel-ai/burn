@@ -152,6 +152,15 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         )
     }
 
+    fn float_remainder_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let rhs: f64 = rhs.elem();
+
+        lhs.unary_ops(
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+        )
+    }
+
     fn float_matmul<const D: usize>(lhs: TchTensor<E, D>, rhs: TchTensor<E, D>) -> TchTensor<E, D> {
         let tensor = lhs.tensor.matmul(&rhs.tensor);
         TchTensor::new(tensor)
