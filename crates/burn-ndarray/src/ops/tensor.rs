@@ -119,6 +119,13 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::div_scalar(lhs, rhs)
     }
 
+    fn float_remainder_scalar<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::remainder_scalar(lhs, rhs)
+    }
+
     fn float_matmul<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
