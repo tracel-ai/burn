@@ -4,6 +4,8 @@
 macro_rules! include_models {
     ($($model:ident),*) => {
         $(
+            // Allow type complexity for generated code
+            #[allow(clippy::type_complexity)]
             pub mod $model {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }
@@ -46,6 +48,7 @@ include_models!(
     reduce_mean,
     relu,
     reshape,
+    shape,
     sigmoid,
     sin,
     softmax,
@@ -472,6 +475,19 @@ mod tests {
         let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = Data::from([[0., 1., 2., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn shape() {
+        let device = Default::default();
+        let model: shape::Model<Backend> = shape::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::ones([4, 2], &device);
+        let output = model.forward(input);
+        let expected = Data::from([4, 2]);
 
         assert_eq!(output.to_data(), expected);
     }

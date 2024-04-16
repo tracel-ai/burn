@@ -157,7 +157,7 @@ Here's how powf was added to burn fusion:
 The way wgpu handles tensor-scalar operations is by transforming both into a sequence of vectorized
 scalar operations. Since powf already existed in burn-wgpu, it was pretty easy to reuse the existing
 implementation for the situation where both sides of the operation were tensors. The `burn-wgpu`
-crate is primarily concered with how the operation is compiled and executed by the gpu. The actual
+crate is primarily concerned with how the operation is compiled and executed by the gpu. The actual
 implementation is defined in `burn-jit`.
 
 Here is where code was added for powf in `burn-jit` and `burn-wgpu`:

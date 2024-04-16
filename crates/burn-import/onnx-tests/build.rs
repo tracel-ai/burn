@@ -39,6 +39,7 @@ fn main() {
         .input("tests/leaky_relu/leaky_relu.onnx")
         .input("tests/reduce_mean/reduce_mean.onnx")
         .input("tests/reshape/reshape.onnx")
+        .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/sin/sin.onnx")
         .input("tests/softmax/softmax.onnx")
