@@ -14,9 +14,9 @@ use burn_tensor::{backend::Backend, Tensor};
 #[derive(Module, Debug)]
 pub struct GateController<B: Backend> {
     /// Represents the affine transformation applied to input vector
-    pub(crate) input_transform: Linear<B>,
+    pub input_transform: Linear<B>,
     /// Represents the affine transformation applied to the hidden state
-    pub(crate) hidden_transform: Linear<B>,
+    pub hidden_transform: Linear<B>,
 }
 
 impl<B: Backend> GateController<B> {

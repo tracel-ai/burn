@@ -25,13 +25,13 @@ pub struct LstmConfig {
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
-    /// input gate
+    /// The input gate regulates which information to update and store in the memory cell at each time step.
     pub input_gate: GateController<B>,
-    /// forget gate
+    /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
     pub forget_gate: GateController<B>,
-    /// output gate
+    /// The output gate determines which information from the memory cell to output at each time step.
     pub output_gate: GateController<B>,
-    /// cell gate
+    /// The cell gate is used to compute the cell state that stores and carries information through time.
     pub cell_gate: GateController<B>,
     d_hidden: usize,
 }
@@ -177,8 +177,10 @@ pub struct BiLstmConfig {
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
 #[derive(Module, Debug)]
 pub struct BiLstm<B: Backend> {
-    forward: Lstm<B>,
-    reverse: Lstm<B>,
+    /// LSTM for the forward direction
+    pub forward: Lstm<B>,
+    /// LSTM for the reverse direction
+    pub reverse: Lstm<B>,
     d_hidden: usize,
 }
 
@@ -245,6 +247,7 @@ impl<B: Backend> BiLstm<B> {
             None => [None, None],
         };
 
+        // forward direction
         let (batched_cell_state_forward, batched_hidden_state_forward) =
             self.forward.forward(batched_input.clone(), state_forward);
 
