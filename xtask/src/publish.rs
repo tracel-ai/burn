@@ -4,9 +4,12 @@
 //!
 //! cargo xtask publish INPUT_CRATE
 
-use std::env;
-use std::process::{Command, Stdio};
-use std::str;
+use std::{collections::HashMap, env, process::Command, str};
+
+use crate::{
+    endgroup, group,
+    utils::{cargo::run_cargo, Params},
+};
 
 // Crates.io API token
 const CRATES_IO_API_TOKEN: &str = "CRATES_IO_API_TOKEN";
@@ -56,73 +59,56 @@ fn remote_version(crate_name: &str) -> Option<String> {
     }
 }
 
-// Run cargo publish
-fn cargo_publish(params: &[&str]) {
-    // Run cargo publish
-    let mut cargo_publish = Command::new("cargo")
-        .arg("publish")
-        .arg("--color=always")
-        .args(params)
-        .stdout(Stdio::inherit()) // Send stdout directly to terminal
-        .stderr(Stdio::inherit()) // Send stderr directly to terminal
-        .spawn()
-        .expect("Failed to run cargo publish");
-
-    // Wait for cargo publish command to finish
-    let status = cargo_publish
-        .wait()
-        .expect("Failed to wait for cargo publish child process");
-
-    // If exit status is not a success, terminate the process with an error
-    if !status.success() {
-        // Use the exit code associated to a command to terminate the process,
-        // if any exit code had been found, use the default value 1
-        std::process::exit(status.code().unwrap_or(1));
-    }
-}
-
-// Publishes a crate
 fn publish(crate_name: String) {
-    // Run cargo publish --dry-run
-    cargo_publish(&["-p", &crate_name, "--dry-run"]);
+    // Perform dry-run to ensure everything is good for publishing
+    let dry_run_params = Params::from(["-p", &crate_name, "--dry-run"]);
+
+    run_cargo(
+        "publish",
+        dry_run_params,
+        HashMap::new(),
+        "The cargo publish --dry-run should complete successfully, indicating readiness for actual publication",
+    );
 
     let crates_io_token =
         env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
+    let envs = HashMap::from([("CRATES_IO_API_TOKEN", crates_io_token.clone())]);
+    let publish_params = Params::from(vec!["-p", &crate_name, "--token", &crates_io_token]);
 
-    // Publish crate
-    cargo_publish(&["-p", &crate_name, "--token", &crates_io_token]);
+    // Actually publish the crate
+    run_cargo(
+        "publish",
+        publish_params,
+        envs,
+        "The crate should be successfully published",
+    );
 }
 
-pub fn run(crate_name: String) -> anyhow::Result<()> {
-    println!("Publishing {crate_name}...\n");
+pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
+    group!("Publishing {}...\n", crate_name);
 
     // Retrieve local version for crate
     let local_version = local_version(&crate_name);
+    info!("{crate_name} local version: {local_version}");
 
-    // Print local version for crate
-    println!("{crate_name} local version: {local_version}");
+    // Retrieve remote version for crate if it exists
+    match remote_version(&crate_name) {
+        Some(remote_version) => {
+            info!("{crate_name} remote version: {remote_version}\n");
 
-    // Retrieve remote version for crate
-    //
-    // If remote version is None, the crate will be published for the first time
-    // on crates.io
-    if let Some(remote_version) = remote_version(&crate_name) {
-        // Print local version for crate
-        println!("{crate_name} remote version: {remote_version}\n");
-
-        // If local and remote versions are equal, do not publish
-        if local_version == remote_version {
-            println!("Remote version {remote_version} is up to date, skipping deployment");
-        } else {
-            // Publish crate
-            publish(crate_name);
+            // Early return if we don't need to publish the crate
+            if local_version == remote_version {
+                info!("Remote version {remote_version} is up to date, skipping deployment");
+                return Ok(());
+            }
         }
-    } else {
-        // Print crate publishing message
-        println!("\nFirst time publishing {crate_name} on crates.io!\n");
-        // Publish crate
-        publish(crate_name);
+        None => info!("\nFirst time publishing {crate_name} on crates.io!\n"),
     }
+
+    // Publish the crate
+    publish(crate_name);
+
+    endgroup!();
 
     Ok(())
 }

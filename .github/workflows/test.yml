@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
@@ -16,6 +17,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
@@ -48,6 +50,12 @@ env:
   # Corresponds to https://github.com/gfx-rs/ci-build/releases
   CI_BINARY_BUILD: "build18"
 
+  # Typos version
+  TYPOS_VERSION: "1.16.20"
+
+  # Grcov version
+  GRCOV_VERSION: "0.8.18"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -57,19 +65,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, ubuntu-22.04, windows-2022]
-        rust: [stable, 1.71.0]
+        os: [blaze/macos-14, ubuntu-22.04, windows-2022]
+        # We support both the latest Rust toolchain and the preceding version.
+        rust: [stable, 1.75.0]
         test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
             rust: stable
-          - cache: 1-71-0
-            rust: 1.71.0
+          - cache: 1-75-0
+            rust: 1.75.0
           - os: ubuntu-22.04
             coverage-flags: COVERAGE=1
             rust: stable
             test: std
-          - os: macos-13
+          - os: blaze/macos-14
             rust: stable
             test: std
           - os: windows-2022
@@ -79,10 +88,10 @@ jobs:
             # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
         exclude:
           # only need to check this once
-          - rust: 1.71.0
+          - rust: 1.75.0
             test: 'examples'
           # Do not run no-std tests on macos
-          - os: macos-13
+          - os: blaze/macos-14
             test: 'no-std'
           # Do not run no-std tests on Windows
           - os: windows-2022
@@ -117,11 +126,7 @@ jobs:
 
       - name: install llvmpipe and lavapipe
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
-          sudo apt-get update
-          sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+        uses: ./.github/actions/setup-llvmpipe-lavapipe
 
       - name: Run cargo clippy for stable version
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
@@ -140,9 +145,8 @@ jobs:
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
         env:
           GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
-          GRCOV_VERSION: v0.8.18
         run: |
-          curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
       # -----------------------------------------------------------------------------------
@@ -251,9 +255,10 @@ jobs:
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   check-typos:
     runs-on: ubuntu-22.04
@@ -270,9 +275,8 @@ jobs:
       - name: Install typos
         env:
           TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
-          TYPOS_VERSION: v1.16.20
         run: |
-          curl -L "$TYPOS_LINK/$TYPOS_VERSION/typos-$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
+          curl -L "$TYPOS_LINK/v$TYPOS_VERSION/typos-v$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
           tar xz -C $HOME/.cargo/bin
 
       - name: run spelling checks using typos

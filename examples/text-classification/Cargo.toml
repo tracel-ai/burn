@@ -19,10 +19,10 @@ wgpu = ["burn/wgpu"]
 
 [dependencies]
 # Burn
-burn = {path = "../../burn", features=["train", "ndarray", "fusion"]}
+burn = {path = "../../crates/burn", features=["train", "ndarray", "fusion"]}
 
 # Tokenizer
-tokenizers = { version = "0.15.0", default-features = false, features = [
+tokenizers = { version = "0.15.2", default-features = false, features = [
   "onig",
   "http",
 ] }

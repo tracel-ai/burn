@@ -1,0 +1,11 @@
+[package]
+name = "model"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+burn = { path = "../../../crates/burn" }
+burn-import = { path = "../../../crates/burn-import", features = [
+    "pytorch",
+], default-features = false }
+

@@ -10,8 +10,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
 version.workspace = true
 
 [features]
-default = ["std"]
-std = []
+# we depend on wgpu and autotune by default because we use the burn-wgpu crate to get system information
+default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
 candle-cpu = ["burn/candle"]
 candle-cuda = ["burn/candle", "burn/cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
@@ -22,19 +22,35 @@ ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu"]
-wgpu-fusion = ["burn/wgpu", "burn/fusion"]
+wgpu = ["burn/wgpu", "burn/autotune"]
+wgpu-fusion = ["wgpu", "burn/fusion"]
 
 [dependencies]
-burn = { path = "../burn" }
+arboard = { workspace = true }
+burn = { path = "../crates/burn", default-features = false }
+burn-common = { path = "../crates/burn-common", version = "0.14.0" }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.14.0" }
+clap = { workspace = true }
+colored = { workspace = true }
 derive-new = { workspace = true }
+dirs = { workspace = true }
+github-device-flow = { workspace = true }
+os_info = { workspace = true }
+indicatif = { workspace = true }
+percent-encoding = { workspace = true }
 rand = { workspace = true }
-burn-common = { path = "../burn-common", version = "0.12.0" }
+reqwest = {workspace = true, features = ["blocking", "json"]}
+serde = { workspace = true }
 serde_json = { workspace = true }
-dirs = "5.0.1"
+strum = { workspace = true }
+strum_macros = { workspace = true }
+sysinfo = { workspace = true, features = ["serde"] }
+wgpu = { workspace = true }
+wsl = { workspace = true }
 
 [dev-dependencies]
-
+rstest = { workspace = true }
+serial_test = { workspace = true }
 
 [[bench]]
 name = "unary"
@@ -42,6 +58,16 @@ harness = false
 
 [[bench]]
 name = "binary"
+harness = false
+
+[[bench]]
+name = "max-pool2d"
+path = "benches/max_pool2d.rs"
+harness = false
+
+[[bench]]
+name = "conv-transpose2d"
+path = "benches/conv_transpose2d.rs"
 harness = false
 
 [[bench]]
@@ -53,5 +79,15 @@ name = "data"
 harness = false
 
 [[bench]]
-name = "custom_gelu"
+name = "load-record"
 harness = false
+path = "benches/load_record.rs"
+
+[[bench]]
+name = "custom-gelu"
+path = "benches/custom_gelu.rs"
+harness = false
+
+[[bin]]
+name = "burnbench"
+path = "src/bin/burnbench.rs"

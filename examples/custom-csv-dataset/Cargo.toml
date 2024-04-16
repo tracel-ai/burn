@@ -11,11 +11,10 @@ version.workspace = true
 default = ["burn/dataset"]
 
 [dependencies]
-burn = {path = "../../burn"}
+burn = {path = "../../crates/burn"}
 
 # File download
 reqwest = {workspace = true, features = ["blocking"]}
-tempfile = {workspace = true}
 
 # CSV parsing
 csv = {workspace = true}

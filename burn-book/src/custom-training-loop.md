@@ -40,21 +40,21 @@ pub fn run<B: AutodiffBackend>(device: &B::Device) {
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     ...
 }
@@ -72,7 +72,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our training loop.
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             let output = model.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
@@ -97,7 +98,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our validation loop.
         for (iteration, batch) in dataloader_test.iter().enumerate() {
             let output = model_valid.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
@@ -140,7 +142,7 @@ Note that after each epoch, we include a validation loop to assess our model's p
 previously unseen data. To disable gradient tracking during this validation step, we can invoke
 `model.valid()`, which provides a model on the inner backend without autodiff capabilities. It's
 important to emphasize that we've declared our validation batcher to be on the inner backend,
-specifically `MNISTBatcher<B::InnerBackend>`; not using `model.valid()` will result in a compilation
+specifically `MnistBatcher<B::InnerBackend>`; not using `model.valid()` will result in a compilation
 error.
 
 You can find the code above available as an
@@ -195,7 +197,7 @@ where
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
 {
-    pub fn step(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
@@ -214,7 +216,7 @@ the backend and add your trait constraint within its definition:
 ```rust, ignore
 #[allow(dead_code)]
 impl<M, O> Learner2<M, O> {
-    pub fn step<B: AutodiffBackend>(&mut self, _batch: MNISTBatch<B>)
+    pub fn step<B: AutodiffBackend>(&mut self, _batch: MnistBatch<B>)
     where
         B: AutodiffBackend,
         M: AutodiffModule<B>,

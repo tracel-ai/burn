@@ -2,7 +2,7 @@ use std::io::Write;
 
 /// Initialise and create a `env_logger::Builder` which follows the
 /// GitHub Actions logging syntax when running on CI.
-pub fn init_logger() -> env_logger::Builder {
+pub(crate) fn init_logger() -> env_logger::Builder {
     let mut builder = env_logger::Builder::from_default_env();
     builder.target(env_logger::Target::Stdout);
 

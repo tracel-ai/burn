@@ -7,6 +7,14 @@ on:
     tags:
       - 'v*.*.*' # Run when a new version is being published
 
+env:
+  #
+  # Dependency versioning
+  #
+
+  # careful version
+  CAREFUL_VERSION: "0.4.0"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,16 +34,11 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Install cargo-careful
       env:
         CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
-        CAREFUL_VERSION: 0.4.0
       run: |
         curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
         --output $HOME/.cargo/bin/cargo-careful
@@ -59,11 +62,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run AddressSanitizer
       env:
@@ -86,11 +85,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run ThreadSanitizer
       env:
@@ -113,11 +108,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run MemorySanitizer
       env:
@@ -140,11 +131,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run SafeStack
       env:

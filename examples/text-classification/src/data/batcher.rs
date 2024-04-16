@@ -11,15 +11,11 @@
 // generates a padding mask, and returns a batch object.
 
 use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
-use burn::{
-    data::dataloader::batcher::Batcher,
-    nn::attention::generate_padding_mask,
-    tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Tensor},
-};
+use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
 use std::sync::Arc;
 
 /// Struct for batching text classification items
-#[derive(new)]
+#[derive(Clone, new)]
 pub struct TextClassificationBatcher<B: Backend> {
     tokenizer: Arc<dyn Tokenizer>, // Tokenizer for converting text to token IDs
     device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)

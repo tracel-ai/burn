@@ -2,18 +2,19 @@ use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
     model::TextGenerationModelConfig,
 };
-use burn::data::dataset::transform::SamplerDataset;
 use burn::{
-    config::Config,
-    data::{dataloader::DataLoaderBuilder, dataset::Dataset},
+    data::{
+        dataloader::DataLoaderBuilder,
+        dataset::{transform::SamplerDataset, Dataset},
+    },
     lr_scheduler::noam::NoamLrSchedulerConfig,
-    module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    prelude::*,
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
+        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
 };
@@ -68,8 +69,8 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .init();
 
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train(CUDAMetric::new())
-        .metric_valid(CUDAMetric::new())
+        .metric_train(CudaMetric::new())
+        .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_valid_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_train(LossMetric::new())
@@ -79,6 +80,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .devices(vec![device])
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
+        .summary()
         .build(model, optim, lr_scheduler);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);

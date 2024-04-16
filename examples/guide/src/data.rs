@@ -1,26 +1,27 @@
 use burn::{
-    data::{dataloader::batcher::Batcher, dataset::source::huggingface::MNISTItem},
-    tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
+    data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+    prelude::*,
 };
 
-pub struct MNISTBatcher<B: Backend> {
+#[derive(Clone)]
+pub struct MnistBatcher<B: Backend> {
     device: B::Device,
 }
 
-impl<B: Backend> MNISTBatcher<B> {
+impl<B: Backend> MnistBatcher<B> {
     pub fn new(device: B::Device) -> Self {
         Self { device }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct MNISTBatch<B: Backend> {
+pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,
     pub targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
-    fn batch(&self, items: Vec<MNISTItem>) -> MNISTBatch<B> {
+impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
+    fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
         let images = items
             .iter()
             .map(|item| Data::<f32, 2>::from(item.image))
@@ -40,6 +41,6 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
         let images = Tensor::cat(images, 0);
         let targets = Tensor::cat(targets, 0);
 
-        MNISTBatch { images, targets }
+        MnistBatch { images, targets }
     }
 }

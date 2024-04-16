@@ -1,15 +1,13 @@
 use crate::data::TrainingTextGenerationBatch;
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         attention::generate_autoregressive_mask,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{AutodiffBackend, Backend},
-    tensor::Tensor,
+    prelude::*,
+    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -64,7 +62,7 @@ impl<B: Backend> TextGenerationModel<B> {
         let targets = item.targets.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
-        let index_positions = Tensor::arange(0..seq_length, device)
+        let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
 

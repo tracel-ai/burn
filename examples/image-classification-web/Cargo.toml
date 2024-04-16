@@ -14,11 +14,11 @@ default = []
 half_precision = []
 
 [dependencies]
-burn = { path = "../../burn", version = "0.12.0", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "0.14.0", default-features = false, features = [
     "ndarray",
 ] }
-burn-wgpu = { path = "../../burn-wgpu", version = "0.12.0", default-features = false }
-burn-candle = { path = "../../burn-candle", version = "0.12.0", default-features = false }
+burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", default-features = false }
+burn-candle = { path = "../../crates/burn-candle", version = "0.14.0", default-features = false }
 
 js-sys = { workspace = true }
 log = { workspace = true }
@@ -33,10 +33,4 @@ console_error_panic_hook = { workspace = true }
 
 [build-dependencies]
 # Used to generate code from ONNX model
-burn-import = { path = "../../burn-import" }
-
-[profile.dev]
-lto = "fat"
-
-[profile.release]
-lto = "fat"
+burn-import = { path = "../../crates/burn-import" }

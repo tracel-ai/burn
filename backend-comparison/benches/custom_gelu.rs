@@ -1,4 +1,5 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
+use burn::backend::Autodiff;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
@@ -18,20 +19,47 @@ struct CustomGeluBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
     device: B::Device,
     kind: GeluKind,
+    autodiff: bool,
 }
 
 impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        format!("Gelu {:?}", self.kind)
+        match self.autodiff {
+            true => format!("gelu_autodiff_{:?}", self.kind),
+            false => format!("gelu_{:?}", self.kind),
+        }
     }
 
-    fn execute(&self, args: Self::Args) {
-        match self.kind {
-            GeluKind::Reference => burn::tensor::activation::gelu(args),
-            GeluKind::WithReferenceErf => gelu_custom(args, Tensor::erf),
-            GeluKind::WithCustomErf => gelu_custom(args, erf_custom),
+    fn options(&self) -> Option<String> {
+        Some(format!("{:?}", self.kind))
+    }
+
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec![self.shape.dims.into()]
+    }
+
+    fn execute(&self, tensor: Self::Args) {
+        match self.autodiff {
+            true => {
+                let tensor: Tensor<Autodiff<B>, D> = Tensor::from_inner(tensor).require_grad();
+                let output = match self.kind {
+                    GeluKind::Reference => burn::tensor::activation::gelu(tensor.clone()),
+                    GeluKind::WithReferenceErf => gelu_custom(tensor.clone(), Tensor::erf),
+                    GeluKind::WithCustomErf => gelu_custom(tensor.clone(), erf_custom),
+                };
+                let mut gradients = output.sum().backward();
+                let _tmp = tensor.grad_remove(&mut gradients).unwrap();
+            }
+
+            false => {
+                match self.kind {
+                    GeluKind::Reference => burn::tensor::activation::gelu(tensor),
+                    GeluKind::WithReferenceErf => gelu_custom(tensor, Tensor::erf),
+                    GeluKind::WithCustomErf => gelu_custom(tensor, erf_custom),
+                };
+            }
         };
     }
 
@@ -44,7 +72,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn num_samples(&self) -> usize {
-        50
+        10
     }
 }
 
@@ -85,25 +113,51 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
 
-    let reference_gelu =
-        CustomGeluBenchmark::<B, D>::new(shape.clone(), device.clone(), GeluKind::Reference);
-    let reference_erf_gelu =
-        CustomGeluBenchmark::<B, D>::new(shape.clone(), device.clone(), GeluKind::WithReferenceErf);
-    let custom_erf_gelu =
-        CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf);
+    let run = |autodiff: bool| {
+        let reference_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::Reference,
+            autodiff,
+        );
+        let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::WithReferenceErf,
+            autodiff,
+        );
+        let custom_erf_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::WithCustomErf,
+            autodiff,
+        );
 
-    Persistence::persist::<B>(
-        vec![
-            run_benchmark(reference_gelu),
-            run_benchmark(reference_erf_gelu),
-            run_benchmark(custom_erf_gelu),
-        ],
-        device,
-    )
+        save::<B>(
+            vec![
+                run_benchmark(reference_gelu),
+                run_benchmark(reference_erf_gelu),
+                run_benchmark(custom_erf_gelu),
+            ],
+            device,
+            feature_name,
+            url,
+            token,
+        )
+        .unwrap();
+    };
+
+    run(false);
+    run(true);
 }
 
 fn main() {

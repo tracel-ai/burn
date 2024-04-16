@@ -1,0 +1,34 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "LibTorch backend for the Burn framework using the tch bindings."
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-tch"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-tch"
+version.workspace = true
+
+[features]
+default = []
+doc = ["tch/doc-only"]
+
+[dependencies]
+burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
+
+half = { workspace = true, features = ["std"] }
+libc = { workspace = true }
+rand = { workspace = true, features = ["std"] }
+tch = { workspace = true, features = ["download-libtorch"] }
+
+[dev-dependencies]
+burn-autodiff = { path = "../burn-autodiff", version = "0.14.0", default-features = false, features = [
+  "export_tests",
+] }
+burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false, features = [
+  "export_tests",
+] }
+
+[package.metadata.docs.rs]
+features = ["doc"]

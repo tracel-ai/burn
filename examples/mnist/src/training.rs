@@ -1,20 +1,17 @@
-use crate::data::MNISTBatcher;
-use crate::model::Model;
+use crate::{data::MnistBatcher, model::Model};
 
-use burn::module::Module;
-use burn::optim::decay::WeightDecayConfig;
-use burn::optim::AdamConfig;
-use burn::record::{CompactRecorder, NoStdTrainingRecorder};
-use burn::train::metric::store::{Aggregate, Direction, Split};
-use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
-use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
-    config::Config,
-    data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+    optim::{decay::WeightDecayConfig, AdamConfig},
+    prelude::*,
+    record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, LossMetric},
-        LearnerBuilder,
+        metric::{
+            store::{Aggregate, Direction, Split},
+            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
+        },
+        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
     },
 };
 
@@ -37,26 +34,33 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 pub fn run<B: AutodiffBackend>(device: B::Device) {
+    create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
     // Data
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
@@ -79,6 +83,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(Model::new(&device), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);

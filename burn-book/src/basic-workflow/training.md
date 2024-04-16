@@ -1,9 +1,11 @@
 # Training
 
-We are now ready to write the necessary code to train our model on the MNIST dataset. Instead of a
-simple tensor, the model should output an item that can be understood by the learner, a struct whose
-responsibility is to apply an optimizer to the model. The output struct is used for all metrics
-calculated during the training. Therefore it should include all the necessary information to
+We are now ready to write the necessary code to train our model on the MNIST dataset. We shall
+define the code for this training section in the file: `src/training.rs`.
+
+Instead of a simple tensor, the model should output an item that can be understood by the learner, a
+struct whose responsibility is to apply an optimizer to the model. The output struct is used for all
+metrics calculated during the training. Therefore it should include all the necessary information to
 calculate any metric that you want for a task.
 
 Burn provides two basic output types: `ClassificationOutput` and `RegressionOutput`. They implement
@@ -20,7 +22,7 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::new(None).forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
@@ -32,7 +34,7 @@ calculation, without the inclusion of any padding token. We then return the clas
 containing the loss, the output tensor with all logits and the targets.
 
 Please take note that tensor operations receive owned tensors as input. For reusing a tensor
-multiple times, you need to use the clone function. There's no need to worry; this process won't
+multiple times, you need to use the `clone()` function. There's no need to worry; this process won't
 involve actual copying of the tensor data. Instead, it will simply indicate that the tensor is
 employed in multiple instances, implying that certain operations won't be performed in place. In
 summary, our API has been designed with owned tensors to optimize performance.
@@ -41,23 +43,23 @@ Moving forward, we will proceed with the implementation of both the training and
 for our model.
 
 ```rust , ignore
-impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, batch: MNISTBatch<B>) -> ClassificationOutput<B> {
+impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
 }
 ```
 
 Here we define the input and output types as generic arguments in the `TrainStep` and `ValidStep`.
-We will call them `MNISTBatch` and `ClassificationOutput`. In the training step, the computation of
+We will call them `MnistBatch` and `ClassificationOutput`. In the training step, the computation of
 gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
 that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
 returned by the backward pass, as such: `let gradients = loss.backward();`. The gradient of a
@@ -67,6 +69,27 @@ when debugging or writing custom training loops. One of the differences between 
 validation steps is that the former requires the backend to implement `AutodiffBackend` and not just
 `Backend`. Otherwise, the `backward` function is not available, as the backend does not support
 autodiff. We will see later how to create a backend with autodiff support.
+
+<details>
+<summary><strong>🦀 Generic Type Constraints in Method Definitions</strong></summary>
+
+Although generic data types, trait and trait bounds were already introduced in previous sections of
+this guide, the previous code snippet might be a lot to take in at first.
+
+In the example above, we implement the `TrainStep` and `ValidStep` trait for our `Model` struct,
+which is generic over the `Backend` trait as has been covered before. These traits are provided by
+`burn::train` and define a common `step` method that should be implemented for all structs. Since
+the trait is generic over the input and output types, the trait implementation must specify the
+concrete types used. This is where the additional type constraints appear
+`<MnistBatch<B>, ClassificationOutput<B>>`. As we saw previously, the concrete input type for the
+batch is `MnistBatch`, and the output of the forward pass is `ClassificationOutput`. The `step`
+method signature matches the concrete input and output types.
+
+For more details specific to constraints on generic types when defining methods, take a look at
+[this section](https://doc.rust-lang.org/book/ch10-01-syntax.html#in-method-definitions) of the Rust
+Book.
+
+</details><br>
 
 Let us move on to establishing the practical training configuration.
 
@@ -87,28 +110,34 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
     std::fs::create_dir_all(artifact_dir).ok();
+}
+
+pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+    create_artifact_dir(artifact_dir);
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
 
     B::seed(config.seed);
 
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train_numeric(AccuracyMetric::new())
@@ -116,10 +145,11 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device])
+        .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(
-            config.model.init::<B>(),
+            config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
         );
@@ -135,8 +165,8 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under this directory. We then initialize our dataloaders using our previously created batcher.
-Since no automatic differentiation is needed during the validation phase, the backend used for the
+under this directory. We then initialize our dataloaders using our previously created batcher. Since
+no automatic differentiation is needed during the validation phase, the backend used for the
 corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
 are available through a type system, making it nearly impossible to forget to deactivate gradient
 calculation.
@@ -158,8 +188,8 @@ Once the learner is created, we can simply call `fit` and provide the training a
 dataloaders. For the sake of simplicity in this example, we employ the test set as the validation
 set; however, we do not recommend this practice for actual usage.
 
-Finally, the trained model is returned by the `fit` method, and the only remaining task is saving
-the trained weights using the `CompactRecorder`. This recorder employs the `MessagePack` format with
-`gzip` compression, `f16` for floats and `i16` for integers. Other recorders are available, offering
-support for various formats, such as `BinCode` and `JSON`, with or without compression. Any backend,
-regardless of precision, can load recorded data of any kind.
+Finally, the trained model is returned by the `fit` method. The trained weights are then saved using
+the `CompactRecorder`. This recorder employs the `MessagePack` format with half precision, `f16` for
+floats and `i16` for integers. Other recorders are available, offering support for various formats,
+such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of precision, can
+load recorded data of any kind.
