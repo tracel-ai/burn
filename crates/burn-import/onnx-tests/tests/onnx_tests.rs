@@ -43,9 +43,11 @@ include_models!(
     neg,
     not,
     recip,
+    reduce_mean,
     relu,
     reshape,
     sigmoid,
+    sin,
     softmax,
     sqrt,
     sub_int,
@@ -445,6 +447,22 @@ mod tests {
     }
 
     #[test]
+    fn reduce_mean() {
+        let device = Default::default();
+        let model: reduce_mean::Model<Backend> = reduce_mean::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([9.75]);
+        let expected = Data::from([[[[9.75]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
     fn reshape() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -555,6 +573,19 @@ mod tests {
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn sin() {
+        let device = Default::default();
+        let model: sin::Model<Backend> = sin::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.8415, -0.7568, 0.4121, -0.1324]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]

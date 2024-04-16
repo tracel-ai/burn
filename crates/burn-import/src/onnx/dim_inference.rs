@@ -40,11 +40,12 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
         NodeType::Reciprocal => same_as_input(node),
-        NodeType::ReduceMean => mean_update_outputs(node),
+        NodeType::ReduceMean => reduce_mean_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sin => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => same_as_input(node),
@@ -214,12 +215,11 @@ fn reshape_update_outputs(node: &mut Node) {
     });
 }
 
-fn mean_update_outputs(node: &mut Node) {
+fn reduce_mean_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Mean: multiple inputs are not supported");
     }
 
-    // Extract the configuration of the linear layer (inputs are known)
     let node_input = &mut node.inputs[0];
     let tensor = match node_input.clone().ty {
         ArgType::Tensor(tensor) => tensor,
@@ -238,6 +238,9 @@ fn mean_update_outputs(node: &mut Node) {
     if dim_only {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
+        // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
