@@ -94,7 +94,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     fn sync(device: &Device<Self>) {
         let device: candle_core::Device = (*device).into();
-        device.synchronize();
 
         match device {
             candle_core::Device::Cpu => (),
@@ -105,7 +104,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                // See this issue: https://github.com/huggingface/candle/issues/2050
                 panic!("Device synchronization unavailable with Metal device on Candle backend")
             }
         }
