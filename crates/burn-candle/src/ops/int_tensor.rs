@@ -289,6 +289,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         panic!("Not supported by Candle")
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        // Same problem as int_div_scalar.
+        panic!("Not supported by Candle")
+    }
+
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         CandleTensor::new(
             candle_core::Tensor::zeros(&shape.dims, I::DTYPE, &(*device).into()).unwrap(),
