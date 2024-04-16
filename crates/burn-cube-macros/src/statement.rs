@@ -59,7 +59,7 @@ fn parse_expr_index(index: &syn::ExprIndex) -> TokenStream {
     quote::quote! {
         {
         let _array = #array;
-        let _index = #index.clone();
+        let _index = #index;
         burn_cube::index::expand(context, _array, _index)
         }
     }
@@ -107,9 +107,8 @@ fn parse_assign(assign: &syn::ExprAssign) -> TokenStream {
 
         return quote::quote! {
             {
-            // The clone is necessary when mutating a variable that is of a parent scope.
-            let _array = #array.clone();
-            let _index = #index.clone();
+            let _array = #array;
+            let _index = #index;
             let _value = #value;
             burn_cube::index_assign::expand(context, _array, _index, _value)
             }
@@ -121,10 +120,7 @@ fn parse_assign(assign: &syn::ExprAssign) -> TokenStream {
 
     quote::quote! {
         {
-            // The clone is necessary when mutating a variable that is of a parent scope.
-            let _assign_lhs = #lhs.clone();
-            // This is necessary is the rhs is an expression that need a mutable reference on the
-            // context.
+            let _assign_lhs = #lhs;
             let _assign_rhs = #rhs;
             #lhs = burn_cube::assign::expand(context, _assign_lhs, _assign_rhs)
         }
@@ -195,8 +191,17 @@ fn parse_path(path: &syn::ExprPath) -> TokenStream {
         .get_ident()
         .expect("Only ident path are supported.");
 
-    quote::quote! {
-        #ident
+    // TODO: Check in the following statements if the indent is overriden, or reused.
+    let will_be_used_again = true;
+
+    if will_be_used_again {
+        quote::quote! {
+            #ident.clone()
+        }
+    } else {
+        quote::quote! {
+            #ident
+        }
     }
 }
 

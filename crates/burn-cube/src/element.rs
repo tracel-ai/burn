@@ -5,7 +5,7 @@ pub trait RuntimeType {
     type ExpandType: Clone;
 }
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Debug)]
 pub struct ExpandElement {
     pub(crate) inner: Rc<Variable>,
 }
@@ -42,25 +42,25 @@ impl core::ops::Deref for ExpandElement {
     }
 }
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Copy)]
 pub struct Float {
     pub val: f32,
     pub vectorization: u8,
 }
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Copy)]
 pub struct Int {
     pub val: u32,
     pub vectorization: u8,
 }
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Copy)]
 pub struct UInt {
     pub val: u32,
     pub vectorization: u8,
 }
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Copy)]
 pub struct Bool {
     pub val: bool,
     pub vectorization: u8,

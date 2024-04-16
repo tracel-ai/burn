@@ -20,8 +20,15 @@ impl VariablePool {
 
         for variable in variables.iter() {
             if Rc::strong_count(&variable.inner) == 1 {
+                println!("Reuse var {:?}", variable.inner);
                 return Some(variable.clone());
             }
+        }
+
+        println!("New var");
+        for variable in variables {
+            let count = Rc::strong_count(&variable.inner);
+            println!("{:?} => {}", variable.inner, count);
         }
 
         None
