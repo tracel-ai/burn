@@ -10,8 +10,8 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def forward(self, a, b):
-        return torch.matmul(a, b)
+    def forward(self, a, b, c, d):
+        return torch.matmul(a, b), torch.matmul(c, d), torch.matmul(d, c)
 
 
 def main():
@@ -25,7 +25,9 @@ def main():
     onnx_name = "matmul.onnx"
     a = torch.arange(24, dtype=torch.float, device=device).reshape(1, 2, 3, 4)
     b = torch.arange(16, dtype=torch.float, device=device).reshape(1, 2, 4, 2)
-    test_input = (a, b)
+    c = torch.arange(96, dtype=torch.float, device=device).reshape(2, 3, 4, 4)
+    d = torch.arange(4, dtype=torch.float, device=device)
+    test_input = (a, b, c, d)
 
     torch.onnx.export(model, test_input, onnx_name, verbose=False, opset_version=16)
 

@@ -173,13 +173,43 @@ mod tests {
         let b = Tensor::<Backend, 1, Int>::arange(0..16, &device)
             .reshape([1, 2, 4, 2])
             .float();
-        let output = model.forward(a, b);
-        let expected = Data::from([[
+        let c = Tensor::<Backend, 1, Int>::arange(0..96, &device)
+            .reshape([2, 3, 4, 4])
+            .float();
+        let d = Tensor::<Backend, 1, Int>::arange(0..4, &device).float();
+        let (output_mm, output_mv, output_vm) = model.forward(a, b, c, d);
+        let expected_mm = Data::from([[
             [[28., 34.], [76., 98.], [124., 162.]],
             [[604., 658.], [780., 850.], [956., 1042.]],
         ]]);
+        let expected_mv = Data::from([
+            [
+                [14., 38., 62., 86.],
+                [110., 134., 158., 182.],
+                [206., 230., 254., 278.],
+            ],
+            [
+                [302., 326., 350., 374.],
+                [398., 422., 446., 470.],
+                [494., 518., 542., 566.],
+            ],
+        ]);
+        let expected_vm = Data::from([
+            [
+                [56., 62., 68., 74.],
+                [152., 158., 164., 170.],
+                [248., 254., 260., 266.],
+            ],
+            [
+                [344., 350., 356., 362.],
+                [440., 446., 452., 458.],
+                [536., 542., 548., 554.],
+            ],
+        ]);
 
-        assert_eq!(output.to_data(), expected);
+        assert_eq!(output_mm.to_data(), expected_mm);
+        assert_eq!(output_vm.to_data(), expected_vm);
+        assert_eq!(output_mv.to_data(), expected_mv);
     }
 
     #[test]

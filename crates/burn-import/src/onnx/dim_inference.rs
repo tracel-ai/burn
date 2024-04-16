@@ -1,3 +1,4 @@
+use core::cmp::max;
 use core::panic;
 
 use protobuf::Enum;
@@ -426,10 +427,23 @@ fn conv_transpose2d_update_outputs(node: &mut Node) {
 }
 
 fn matmul_update_outputs(node: &mut Node) {
-    // NOTE: matmul only supported for float tensors (no broadcasting support)
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        panic!("Only tensor input is valid");
+    // NOTE: matmul only supported for float tensors
+    match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
+        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            let mut out_dim = max(a.dim, b.dim);
+
+            // Matrix-vector or vector-matrix product
+            if (a.dim >= 2 && b.dim == 1) || (a.dim == 1 && b.dim >= 2) {
+                out_dim -= 1;
+            }
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: a.elem_type.clone(),
+                dim: out_dim,
+                shape: a.shape.clone(),
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
     }
 }
