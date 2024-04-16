@@ -46,7 +46,7 @@ In the directory of your choice, run the following:
 cargo new my_burn_app
 ```
 
-This will initialize the `my_burn_app` project directory with a `Cargo.toml` file a a `src`
+This will initialize the `my_burn_app` project directory with a `Cargo.toml` file and a `src`
 directory with an auto-generated `main.rs` file inside. Head inside the directory to check:
 
 ```console
@@ -125,24 +125,24 @@ of the Rust Book or the
 
 If you're new to Rust, you're probably wondering why we had to use `Tensor::<Backend, 2>::...`.
 That's because the `Tensor` struct is [generic](https://doc.rust-lang.org/book/ch10-01-syntax.html)
-over multiple concrete data types. More specifically, a `Tensor` can be used for 3 generic
-parameters: a `Tensor` struct has 3 generic arguments: the backend, the number of dimensions (rank)
-and the data type (defaults to `Float`). Here, we only specify the backend and number of dimensions
-since a `Float` tensor is used by default. For more details on the `Tensor` struct, take a look at
-[this section](./building-blocks/tensor.md).
+over multiple concrete data types. More specifically, a `Tensor` can be defined using three generic
+parameters:  the backend, the number of dimensions (rank) and the data type (defaults to `Float`).
+Here, we only specify the backend and number of dimensions since a `Float` tensor is used by default.
+For more details on the `Tensor` struct, take a look at [this section](./building-blocks/tensor.md).
 
 Most of the time when generics are involved, the compiler can infer the generic parameters
 automatically. In this case, the compiler needs a little help. This can usually be done in one of
 two ways: providing a type annotation or binding the gereneric parameter via the _turbofish_ `::<>`
-syntax. In the example we used the so-called _turbofish_ syntax, but we could have used type
-annotations instead.
+syntax. In the example above we used the so-called _turbofish_ syntax, but we could have used type
+annotations instead like this:
 
 ```rust, ignore
 let tensor_1: Tensor<Backend, 2> = Tensor::from_data([[2., 3.], [4., 5.]]);
 let tensor_2 = Tensor::ones_like(&tensor_1);
 ```
 
-You probably noticed that we provided a type annotation for the first tensor, yet it still worked.
+You probably noticed that we provided a type annotation for the first tensor only and yet this example
+still works.
 That's because the compiler (correctly) inferred that `tensor_2` had the same generic parameters.
 The same could have been done in the original example, but specifying the parameters for both is
 more explicit.
@@ -170,7 +170,7 @@ deep learning applications.
 
 ## Using `prelude`
 
-Burn comes with a variety of things in its core library. 
+Burn comes with a variety of things in its core library.
 When creating a new model or using an existing one for inference,
 you may need to import every single component you used, which could be a little verbose.
 
@@ -195,15 +195,15 @@ use burn::{
 
 <div class="warning">
 
-For the sake of simplicity, the subsequent chapters of this book will all use this form of importing. However, this does not include the content in the [Building Blocks](./building-blocks) chapter, as explicit importing aids users in grasping the usage of particular structures and macros.
+For the sake of simplicity, the subsequent chapters of this book will all use this form of importing except in the [Building Blocks](./building-blocks) chapter, as explicit importing aids users in grasping the usage of particular structures and macros.
 
 </div>
 
 ## Running examples
 
-Many additional Burn examples available in the
-[examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. To run one, please refer
-to the example's README.md for the specific command to execute.
+Many additional Burn examples are available in the
+[examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. To run an example, please refer
+to its README.md for the specific command to execute.
 
 Note that some examples use the
 [`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index) to download the
