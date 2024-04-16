@@ -23,11 +23,8 @@ def main():
     model.eval()
     device = torch.device("cpu")
     onnx_name = "matmul.onnx"
-    a = torch.arange(24, dtype=torch.float, device=device).reshape(1,2,3,4)
+    a = torch.arange(24, dtype=torch.float, device=device).reshape(1, 2, 3, 4)
     b = torch.arange(16, dtype=torch.float, device=device).reshape(1, 2, 4, 2)
-    # b = torch.ones(1, 2, 4, 2, device=device)
-    # a = torch.randn(1, 2, 3, 4, device=device)
-    # b = torch.randn(1, 2, 4, 2, device=device)
     test_input = (a, b)
 
     torch.onnx.export(model, test_input, onnx_name, verbose=False, opset_version=16)
