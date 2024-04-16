@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{backend::Backend, Device};
-use candle_core::DeviceLocation;
+use candle_core::{backend::BackendDevice, DeviceLocation};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -94,17 +94,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     fn sync(device: &Device<Self>) {
         let device: candle_core::Device = (*device).into();
+        device.synchronize();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
-                #[cfg(feature = "cuda")]
                 device.synchronize().unwrap();
             }
             candle_core::Device::Metal(device) => {
+                device.synchronize().unwrap();
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                panic!("Device synchronization unavailable with Metal device on Candle backend")
+                // panic!("Device synchronization unavailable with Metal device on Candle backend")
             }
         }
     }
