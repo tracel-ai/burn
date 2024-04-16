@@ -64,18 +64,18 @@ impl LstmConfig {
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. This LSTM implementation
     /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
-    /// producing 3-dimensional tensors where the dimensions represent [batch_size, sequence_length, hidden_size].
+    /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size]`.
     ///
-    /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
-    ///     state: An optional tuple of tensors representing the initial cell state and hidden state.
-    ///            Each state tensor has shape [batch_size, hidden_size].
+    /// ## Parameters:
+    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - state: An optional tuple of tensors representing the initial cell state and hidden state.
+    ///            Each state tensor has shape `[batch_size, hidden_size]`.
     ///            If no initial state is provided, these tensors are initialized to zeros.
     ///
-    /// Returns:
-    ///     A tuple of tensors, where the first tensor represents the cell states and
-    ///     the second tensor represents the hidden states for each sequence element.
-    ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size].
+    /// ## Returns:
+    /// A tuple of tensors, where the first tensor represents the cell states and
+    /// the second tensor represents the hidden states for each sequence element.
+    /// Both output tensors have the shape `[batch_size, sequence_length, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -177,9 +177,9 @@ pub struct BiLstmConfig {
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
 #[derive(Module, Debug)]
 pub struct BiLstm<B: Backend> {
-    /// LSTM for the forward direction
+    /// LSTM for the forward direction.
     pub forward: Lstm<B>,
-    /// LSTM for the reverse direction
+    /// LSTM for the reverse direction.
     pub reverse: Lstm<B>,
     d_hidden: usize,
 }
@@ -202,18 +202,19 @@ impl BiLstmConfig {
 impl<B: Backend> BiLstm<B> {
     /// Applies the forward pass on the input tensor. This Bidirectional LSTM implementation
     /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
-    /// producing 3-dimensional tensors where the dimensions represent [batch_size, sequence_length, hidden_size * 2].
+    /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size * 2]`.
     ///
-    /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
-    ///     state: An optional tuple of tensors representing the initial cell state and hidden state.
-    ///            Each state tensor has shape [2, batch_size, hidden_size].
+    /// ## Parameters:
+    ///
+    /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
+    /// - state: An optional tuple of tensors representing the initial cell state and hidden state.
+    ///            Each state tensor has shape `[2, batch_size, hidden_size]`.
     ///            If no initial state is provided, these tensors are initialized to zeros.
     ///
-    /// Returns:
-    ///     A tuple of tensors, where the first tensor represents the cell states and
-    ///     the second tensor represents the hidden states for each sequence element.
-    ///     Both output tensors have the shape [batch_size, sequence_length, hidden_size * 2].
+    /// ## Returns:
+    /// A tuple of tensors, where the first tensor represents the cell states and
+    /// the second tensor represents the hidden states for each sequence element.
+    /// Both output tensors have the shape `[batch_size, sequence_length, hidden_size * 2]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
