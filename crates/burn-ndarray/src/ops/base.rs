@@ -232,6 +232,16 @@ where
         NdArrayTensor { array }
     }
 
+    pub fn remainder_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D>
+    where
+        E: core::ops::Rem<Output = E>,
+    {
+        let array = lhs.array.mapv(|x| ((x % rhs) + rhs) % rhs);
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
     pub fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.map(|x| 1.elem::<E>() / *x);
         let array = array.into_shared();
