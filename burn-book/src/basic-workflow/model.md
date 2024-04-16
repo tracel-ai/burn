@@ -11,6 +11,7 @@ As [mentioned previously](../getting-started.md#creating-a-burn-application), th
 your `guide` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
 In the `Cargo.toml` file, add the `burn` dependency with `train`, `wgpu` and `vision` features.
+Then run `cargo build` to build the project and import all the dependencies.
 
 ```toml
 [package]
@@ -157,6 +158,14 @@ There are two major things going on in this code sample.
    [reference](https://doc.rust-lang.org/reference/items/traits.html#trait-bounds).
 
    </details><br>
+
+Note that each time you create a new file in the `src` directory you also need to add explicitly this
+module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the following
+at the top of the main file:
+
+```rust , ignore
+mod model;
+```
 
 Next, we need to instantiate the model for training.
 
