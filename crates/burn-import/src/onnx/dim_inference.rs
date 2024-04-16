@@ -240,8 +240,10 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
@@ -465,8 +467,10 @@ fn reduce_max_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
