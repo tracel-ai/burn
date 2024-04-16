@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use crate::burn::{BurnImports, Scope, TensorKind, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -20,7 +20,8 @@ pub struct UnaryNode {
 /// Type of unary node.
 #[derive(Clone)]
 pub enum UnaryNodeKind {
-    Cast,
+    // Input and output tensor types (required for codegen imports)
+    Cast(Option<TensorKind>, Option<TensorKind>),
     Cos,
     Erf,
     Exp,
@@ -29,6 +30,7 @@ pub enum UnaryNodeKind {
     Log,
     LogSoftmax,
     Neg,
+    Not,
     ReduceMean,
     Reciprocal,
     LeakyRelu,
@@ -44,7 +46,7 @@ pub enum UnaryNodeKind {
 impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Cast => "cast",
+            Self::Cast(..) => "cast",
             Self::Cos => "cos",
             Self::Erf => "erf",
             Self::Exp => "exp",
@@ -53,6 +55,7 @@ impl UnaryNodeKind {
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
+            Self::Not => "not",
             Self::ReduceMean => "reduce_mean",
             Self::Reciprocal => "reciprocal",
             Self::LeakyRelu => "leaky_relu",
@@ -119,6 +122,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match self.kind {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
+            }
+            UnaryNodeKind::Not => {
+                imports.register("burn::tensor::Bool");
+            }
+            UnaryNodeKind::Cast(Some(input_kind), Some(output_kind)) => {
+                if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
+                    imports.register("burn::tensor::Bool");
+                }
+                if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
+                    imports.register("burn::tensor::Int");
+                }
             }
             _ => {}
         }
@@ -217,42 +231,61 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Neg, Rc::new(function))
     }
 
+    pub(crate) fn not(input: Type, output: Type) -> Self {
+        // Not ONNX operator is constrained to bool tensors, so no need to check the type.
+        let function = move |input| quote! { #input.bool_not()};
+        Self::new(input, output, UnaryNodeKind::Not, Rc::new(function))
+    }
+
     /// Casts the input to the output type.
-    ///
-    /// Currently this function only supports the following conversions:
-    /// 1) scalar -> scalar
-    ///
-    /// TODO: Implement the following conversions:
-    /// 2) tensor int -> tensor float
-    /// 3) tensor float -> tensor int
-    /// 4) tensor -> scalar
-    /// 5) scalar -> tensor
     pub(crate) fn cast(input: Type, output: Type) -> Self {
         match (input.clone(), output.clone()) {
             (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
                 if input_scalar.kind == output_scalar.kind {
                     // If the input and output types are the same, we don't need to cast.
-                    Self::new(input, output, UnaryNodeKind::Cast, Rc::new(|input| input))
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::Cast(None, None),
+                        Rc::new(|input| input),
+                    )
                 } else {
                     // If the input and output types are different, we need to cast.
                     let ty = output_scalar.ty();
                     Self::new(
                         input,
                         output,
-                        UnaryNodeKind::Cast,
+                        UnaryNodeKind::Cast(None, None),
                         Rc::new(move |input| quote! { #input as #ty }),
                     )
                 }
             }
-            (Type::Tensor(_input_tensor), Type::Tensor(_output_tensor)) => {
-                // TODO: Implement this after tensor Int is implemented (@antimora 8/2/2023)
-                // TODO: If the input is scalar and the output type is a tensor,
-                // we should generate another code block. (@antimora 8/4/2023)
-                // Tensor::from_data(Data::from([#input]).convert()).unsqueeze();
-                todo!()
-            }
+            (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) => {
+                if input_tensor.kind == output_tensor.kind {
+                    // If the input and output types are the same, we don't need to cast.
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
+                        Rc::new(|input| input),
+                    )
+                } else {
+                    // If the input and output types are different, we need to cast.
+                    let function = match output_tensor.kind {
+                        TensorKind::Bool => move |input| quote! { #input.bool()},
+                        TensorKind::Int => move |input| quote! { #input.int()},
+                        TensorKind::Float => move |input| quote! { #input.float()},
+                    };
 
-            _ => panic!("output must be a tensor"),
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
+                        Rc::new(function),
+                    )
+                }
+            }
+            _ => panic!("output must be a tensor or scalar"),
         }
     }
 
@@ -553,6 +586,51 @@ mod tests {
             vec!["scalar1".to_string()],
             vec!["scalar2".to_string()],
         );
+        one_node_graph(
+            UnaryNode::cast(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_int("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Int> {
+                    let tensor2 = tensor1.int();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+        one_node_graph(
+            UnaryNode::cast(
+                Type::Tensor(TensorType::new_int("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Int>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.float();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+        one_node_graph(
+            UnaryNode::cast(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.bool();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
     }
 
     #[test]
@@ -679,6 +757,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.neg();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_not() {
+        one_node_graph(
+            UnaryNode::not(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.bool_not();
 
                     tensor2
                 }
