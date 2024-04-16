@@ -33,6 +33,7 @@ pub enum UnaryNodeKind {
     LeakyRelu,
     Relu,
     Sigmoid,
+    Sin,
     Softmax,
     Sqrt,
     Tanh,
@@ -55,6 +56,7 @@ impl UnaryNodeKind {
             Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
+            Self::Sin => "sin",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
@@ -186,6 +188,11 @@ impl UnaryNode {
     pub(crate) fn cos(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.cos()};
         Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
+    }
+
+    pub(crate) fn sin(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sin()};
+        Self::new(input, output, UnaryNodeKind::Sin, Rc::new(function))
     }
 
     pub(crate) fn exp(input: Type, output: Type) -> Self {
@@ -493,6 +500,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.cos();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_sin() {
+        one_node_graph(
+            UnaryNode::sin(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.sin();
 
                     tensor2
                 }
