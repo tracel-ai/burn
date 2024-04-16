@@ -23,7 +23,7 @@ Here's an easy way to define tests for a new operation's backward pass:
 2. Pop open a terminal, launch `ipython` and import `numpy` then do the calculations by hand. You
    can also use [Google Colab](https://colab.google/) so you don't have to install the packages on
    your system.
-3. Compare the actual outputs to the expected output for left-hand side, right-hande side.
+3. Compare the actual outputs to the expected output for left-hand side, right-hand side.
 
 For float tensors, it is advised to use
 `actual_output_tensor.into_data().assert_approx_eq(&expected_tensor_data,3)` instead of
