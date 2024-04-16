@@ -12,6 +12,10 @@ The Backend trait abstracts multiple things:
 - Int tensor operations (kernels)
 - Bool tensor operations (kernels)
 
+## Element types
+
+> Warning: there are plans to change this architecture in the near future.
+
 Even though having one type for tensors is convenient for the tensor API, it can be cumbersome when
 implementing a backend. Therefore, backends can decide, through associated types, what types they
 want to use for their int, float, and bool tensors. Since float and int can have multiple
@@ -24,6 +28,8 @@ change the precision, except for the `to_full_precision` function, which ensures
 on the current backend. Backend implementations can provide a way to choose the precision, which can
 be accomplished with a generic parameter (e.g. `NdArray<f32>`).
 
+## Operations
+
 To be as general as possible, tensor operations are implemented as plain functions. There is no
 object or self, just functions that take tensors as input and often return tensors as output as
 well. Backend implementations are free to use their own patterns to implement these kernels. Note
@@ -35,5 +41,5 @@ kernel executions for performance reasons.
 As of now, there is only one backend decorator that supports autodiff. It follows the decorator
 pattern, making any backend differentiable. However, the `AutodiffBackend` trait abstracts how
 gradients are calculated, and other approaches to autodiff might be added later. For more
-information about how the current autodiff backend works, you can read this
+information about how the current autodiff backend works, you can read this (slightly outdated)
 [blog post](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).

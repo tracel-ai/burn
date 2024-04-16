@@ -27,9 +27,9 @@ easy API for optimizing modules.
 ### Solution
 
 In the following, the `Module` trait is defined in
-[`crates/burn-core/src/module/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/module/base.rs)
+[`crates/burn-core/src/module/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/module/base.rs#L83)
 and the `Optimizer` trait is defined in
-[`crates/burn-core/src/optim/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/base.rs)
+[`crates/burn-core/src/optim/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/base.rs#L8)
 
 The solution to this problem comprises multiple parts. Firstly, the `Optimizer` trait is quite
 similar to the `Module` trait, in terms of saving and loading the state. Please refer to the
@@ -52,7 +52,7 @@ parameter tensors.
 #### SimpleOptimizer
 
 Located in
-[`crates/burn-core/src/optim/simple/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/base.rs),
+[`crates/burn-core/src/optim/simple/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/base.rs#L9),
 the `SimpleOptimizer` has two major assumptions:
 
 1. The state of the optimizer is linked to each parameter. In other words, each parameter has its
@@ -69,7 +69,7 @@ used.
 #### OptimizerAdaptor
 
 Located in in
-[`crates/burn-core/src/optim/simple/adaptor.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/adaptor.rs),
+[`crates/burn-core/src/optim/simple/adaptor.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/adaptor.rs#L14),
 the `OptimizerAdaptor` is a simple struct composed of a `SimpleOptimizer` and a hashmap with all
 records associated with each parameter ID.
 

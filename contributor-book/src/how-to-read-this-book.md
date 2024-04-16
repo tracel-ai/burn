@@ -7,7 +7,7 @@ Throughout this book, we maintain the following structure.
 When referring to structures or functions within codebase, we provide permalinks to the lines in
 specific commits, and indicate them by the relative path of their parent file from the project root.
 For example this is a reference to the `Tensor` struct in
-[`crates/burn-tensor/src/tensor/api/base.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-tensor/src/tensor/api/base.rs)
+[`crates/burn-tensor/src/tensor/api/base.rs`](https://github.com/tracel-ai/burn/blob/e303e31c8bc85486690ff80df65d1e25e16728c4/crates/burn-tensor/src/tensor/api/base.rs#L27)
 
 When some reference information is useful but is beyond the scope of contributing to Burn, we
 provide that information in a footnote. To build on the previous example, the `Tensor` mentioned is

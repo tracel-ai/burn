@@ -19,9 +19,9 @@ sides need to be verified.
 
 Here's an easy way to define tests for a new operation's backward pass:
 
-1. Use small tensors with simple values
+1. Use small tensors with simple values.
 2. Pop open a terminal, launch `ipython` and import `numpy` then do the calculations by hand. You
-   can also use [google colab](https://colab.google/) so you don't have to install the packages on
+   can also use [Google Colab](https://colab.google/) so you don't have to install the packages on
    your system.
 3. Compare the actual outputs to the expected output for left-hand side, right-hande side.
 
