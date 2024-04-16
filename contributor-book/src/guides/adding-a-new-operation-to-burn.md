@@ -117,7 +117,7 @@ plug in your operator in terms of \\(x\\) and \\(y\\), and just swap out the var
 
 ### Testing autodiff
 
-For testing the `autodiff` operations, please refer to [this secton](../getting-started/testing.md).
+For testing the `autodiff` operations, please refer to [this section](../getting-started/testing.md).
 
 ## Adding the Op to other backends
 

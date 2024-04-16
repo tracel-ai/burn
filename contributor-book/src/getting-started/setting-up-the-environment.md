@@ -12,7 +12,7 @@ There are a few commands you will want to run prior to any commit for a non-draf
 2. `cargo clippy --fix` will run [Clippy](https://github.com/rust-lang/rust-clippy) and fix any
    coding issues it can. Clippy necessitates to be in a clean Git state, but this can be
    circumvented by adding the `--allow-dirty` flag.
-3. `cargo xtask run_checks all` is a script located in the project root that builds and tests the
+3. `cargo xtask run-checks all` is a script located in the project root that builds and tests the
    project. It is required to run successfully prior to merging a PR. Fair warning, running these
    tests can take a while[^linux_mem_note].
 
@@ -34,7 +34,7 @@ Alternatively, if you want to install mdbook directly, run the following command
 cargo install mdbook
 ```
 
-Also instead of running `cargo xtask run_checks all`, you can run `cargo xtask run_checks typo` to
+Also instead of running `cargo xtask run-checks all`, you can run `cargo xtask run-checks typos` to
 only check for misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if
 any are encountered you should be able to run `typo -w /path/to/book` to fix them.
 
