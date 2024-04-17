@@ -68,6 +68,13 @@ where
             all: Arc::new(()),
         }
     }
+    /// Derive the handle from another one, increasing its total ref count.
+    pub(crate) fn derive_from<T>(id: Id, other: &HandleRef<T>) -> Self {
+        Self {
+            id: Arc::new(id),
+            all: other.all.clone(),
+        }
+    }
 
     /// The id associated to the handle.
     pub(crate) fn id(&self) -> &Id {
@@ -125,15 +132,18 @@ macro_rules! memory_id_type {
         impl $handle {
             /// Create a new ID.
             pub(crate) fn new() -> Self {
-                static COUNTER: core::sync::atomic::AtomicU64 =
-                    core::sync::atomic::AtomicU64::new(0);
-
-                let value = COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                if value == u64::MAX {
-                    core::panic!("Memory ID overflowed");
-                }
+                let value = Self::gen_id();
                 Self {
                     value: $crate::id::HandleRef::new($id { value }),
+                }
+            }
+
+            /// Derive the handle from another one, increasing its total ref count.
+            #[allow(unused)]
+            pub(crate) fn derive_from<Id>(handle: &$crate::id::HandleRef<Id>) -> Self {
+                let value = Self::gen_id();
+                Self {
+                    value: $crate::id::HandleRef::derive_from($id { value }, handle),
                 }
             }
 
@@ -141,6 +151,18 @@ macro_rules! memory_id_type {
                 $binding {
                     value: self.value.binding(),
                 }
+            }
+
+            fn gen_id() -> u64 {
+                static COUNTER: core::sync::atomic::AtomicU64 =
+                    core::sync::atomic::AtomicU64::new(0);
+
+                let value = COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                if value == u64::MAX {
+                    core::panic!("Memory ID overflowed");
+                }
+
+                value
             }
         }
 
