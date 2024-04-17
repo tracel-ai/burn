@@ -55,6 +55,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
+        NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -473,4 +474,9 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
+}
+
+fn where_update_outputs(node: &mut Node) {
+    // Same type and dimensions as the value tensor
+    node.outputs[0].ty = node.inputs[1].ty.clone();
 }

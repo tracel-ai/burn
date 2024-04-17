@@ -40,6 +40,7 @@ include_models!(
     linear,
     log_softmax,
     log,
+    mask_where,
     maxpool2d,
     mul,
     neg,
@@ -1006,5 +1007,20 @@ mod tests {
         output9.to_data().assert_approx_eq(&expected_float, 4);
 
         assert_eq!(output_scalar, expected_scalar);
+    }
+
+    #[test]
+    fn mask_where() {
+        let device = Default::default();
+        let model: mask_where::Model<Backend> = mask_where::Model::new(&device);
+
+        let x = Tensor::ones([2, 2], &device);
+        let y = Tensor::zeros([2, 2], &device);
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let output = model.forward(mask, x, y);
+        let expected = Data::from([[1.0, 0.0], [0.0, 1.0]]);
+
+        assert_eq!(output.to_data(), expected);
     }
 }
