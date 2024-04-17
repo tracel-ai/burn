@@ -5,14 +5,19 @@ ONNX to Burn conversion tool. This tool allows the importation of ONNX models in
 learning framework written in Rust. It converts both ONNX models to Rust source code and model
 weights to Burn state files.
 
+For an introduction to ONNX import in Burn, see
+[this section of the Burn book](https://burn.dev/book/import/onnx-model.html).
+
 ## Table of Contents
 
-1. [Design Overview](#Design-Overview)
-   1. [Design Goals](#Design-Goals)
-   2. [Design Decisions](#Design-Decisions)
-2. [Adding New Operators](#Adding-New-Operators)
-3. [Testing](#Testing)
-4. [Resources](#Resources)
+- [ONNX to Burn Conversion Tool: Development Guide](#onnx-to-burn-conversion-tool-development-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Design Overview](#design-overview)
+    - [Design Goals](#design-goals)
+    - [Design Decisions](#design-decisions)
+  - [Adding New Operators](#adding-new-operators)
+  - [Testing](#testing)
+  - [Resources](#resources)
 
 ## Design Overview
 
@@ -41,15 +46,17 @@ The conversion process involves three main stages:
 To extend `burn-import` with support for new ONNX operators, follow these steps:
 
 1. **Create PyTorch Script**: Place a PyTorch script using the new operator under
-   `./burn-import/onnx-tests/tests/<op>/<op>.py`. Make sure to print both input and output tensors
-   for end-to-end testing.
+   `crates/burn-import/onnx-tests/tests/<op>/<op>.py`. Make sure to print both input and output
+   tensors for end-to-end testing.
 
 2. **Generate ONNX Model**: Run the PyTorch script to produce an ONNX model.
 
 3. **Visualize ONNX Model**: Use [Netron](https://github.com/lutzroeder/netron) to verify the ONNX
    model contains the expected operators.
 
-4. **Generate IR and Burn Graph**: Navigate to `./burn-import/` and run:
+4. **Generate IR and Burn Graph**: Navigate to
+   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import)
+   and run:
 
    ```
    cargo r -- ./onnx-tests/tests/<op>/<op>.onnx ./out
@@ -61,8 +68,10 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
 6. **Inspect Generated Files**: The `my-model.graph.txt` contains IR details, `my-model.rs` holds
    the Burn model in Rust code, and `my-model.json` includes the model data.
 
-7. **Add End-to-End Test**: Include the test in `./burn-import/onnx-tests/tests/onnx_tests.rs`.
-   Further details can be found in the [onnx-tests README](./burn-import/onnx-tests/README.md).
+7. **Add End-to-End Test**: Include the test in
+   [crates/burn-import/onnx-tests/tests/onnx_tests.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/tests/onnx_tests.rs).
+   Further details can be found in the
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/README.md).
 
 ## Testing
 

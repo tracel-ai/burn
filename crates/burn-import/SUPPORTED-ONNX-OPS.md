@@ -118,7 +118,7 @@ represent the corresponding Burn Op.
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
 | [NonMaxSuppression][112]         |       ❌       |      ❌      |
 | [NonZero][113]                   |       ❌       |      ❌      |
-| [Not][114]                       |       ❌       |      ✅      |
+| [Not][114]                       |       ✅       |      ✅      |
 | [OneHot][115]                    |       ❌       |      ✅      |
 | [Optional][116]                  |       ❌       |      ❌      |
 | [OptionalGetElement][117]        |       ❌       |      ❌      |
@@ -139,10 +139,10 @@ represent the corresponding Burn Op.
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
-| [ReduceMax][135]                 |       ❌       |      ✅      |
-| [ReduceMean][136]                |       ❌       |      ✅      |
+| [ReduceMax][135]                 |       ✅       |      ✅      |
+| [ReduceMean][136]                |       ✅       |      ✅      |
 | [ReduceMin][137]                 |       ❌       |      ✅      |
-| [ReduceProd][138]                |       ❌       |      ❌      |
+| [ReduceProd][138]                |       ❌       |      ✅      |
 | [ReduceSum][139]                 |       ❌       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
@@ -164,11 +164,11 @@ represent the corresponding Burn Op.
 | [SequenceInsert][157]            |       ❌       |      ❌      |
 | [SequenceLength][158]            |       ❌       |      ❌      |
 | [SequenceMap][159]               |       ❌       |      ❌      |
-| [Shape][160]                     |       ❌       |      ✅      |
+| [Shape][160]                     |       ✅       |      ✅      |
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
 | [Sign][163]                      |       ❌       |      ✅      |
-| [Sin][164]                       |       ❌       |      ✅      |
+| [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
 | [Slice][167]                     |       ❌       |      ✅      |

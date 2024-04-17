@@ -205,6 +205,27 @@ pub fn div_scalar<R: Runtime, E: JitElement, const D: usize>(
     )
 }
 
+pub fn remainder_scalar<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: E,
+) -> JitTensor<R, E, D> {
+    let shape = lhs.shape.clone();
+    let device = lhs.device.clone();
+
+    let rhs_tensor = full::<R, E, D>(shape, &device, rhs);
+
+    binary!(
+        operation: |scope: &mut Scope, elem: Elem| Operator::Remainder(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
+        }),
+        runtime: R,
+        input: lhs; rhs_tensor,
+        elem: E
+    )
+}
+
 pub fn pow<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,

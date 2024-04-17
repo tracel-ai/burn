@@ -81,6 +81,7 @@ impl Operator {
             Operator::BitwiseXor(op) => Operator::BitwiseXor(op.vectorize(vectorization)),
             Operator::ShiftLeft(op) => Operator::ShiftLeft(op.vectorize(vectorization)),
             Operator::ShiftRight(op) => Operator::ShiftRight(op.vectorize(vectorization)),
+            Operator::Remainder(op) => Operator::Remainder(op.vectorize(vectorization)),
         }
     }
 }

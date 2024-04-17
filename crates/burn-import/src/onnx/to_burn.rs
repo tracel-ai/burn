@@ -237,6 +237,7 @@ impl OnnxGraph {
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
+                NodeType::Not => graph.register(Self::not_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
                     graph.register(Self::batch_norm_conversion::<PS>(node))
@@ -252,9 +253,13 @@ impl OnnxGraph {
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
+                NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
+                NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
+                NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
+                NodeType::Sin => graph.register(Self::sin_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
@@ -462,6 +467,31 @@ impl OnnxGraph {
 
         ReshapeNode::new(input, output, shape)
     }
+
+    fn reduce_max_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_max_config(&node);
+
+        UnaryNode::reduce_max(input, output, dim)
+    }
+
+    fn reduce_mean_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_mean_config(&node);
+
+        UnaryNode::reduce_mean(input, output, dim)
+    }
+
+    fn shape_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let (start_dim, end_dim) = shape_config(&node);
+
+        UnaryNode::shape(input, output, start_dim, end_dim)
+    }
+
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -483,6 +513,13 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sigmoid(input, output)
+    }
+
+    fn sin_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        UnaryNode::sin(input, output)
     }
 
     fn reciprocal_conversion(node: Node) -> UnaryNode {
@@ -679,6 +716,13 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
         UnaryNode::neg(input, output)
     }
+
+    fn not_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        UnaryNode::not(input, output)
+    }
+
     fn pow_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
