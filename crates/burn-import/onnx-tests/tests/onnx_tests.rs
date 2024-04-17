@@ -1014,13 +1014,16 @@ mod tests {
         let device = Default::default();
         let model: mask_where::Model<Backend> = mask_where::Model::new(&device);
 
-        let x = Tensor::ones([2, 2], &device);
-        let y = Tensor::zeros([2, 2], &device);
+        let x1 = Tensor::ones([2, 2], &device);
+        let y1 = Tensor::zeros([2, 2], &device);
+        let x2 = Tensor::ones([2], &device);
+        let y2 = Tensor::zeros([2], &device);
         let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
 
-        let output = model.forward(mask, x, y);
+        let (output, output_broadcasted) = model.forward(mask, x1, y1, x2, y2);
         let expected = Data::from([[1.0, 0.0], [0.0, 1.0]]);
 
         assert_eq!(output.to_data(), expected);
+        assert_eq!(output_broadcasted.to_data(), expected);
     }
 }

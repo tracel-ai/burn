@@ -1,3 +1,4 @@
+use core::cmp::max;
 use core::panic;
 
 use protobuf::Enum;
@@ -477,6 +478,15 @@ fn reduce_max_update_outputs(node: &mut Node) {
 }
 
 fn where_update_outputs(node: &mut Node) {
-    // Same type and dimensions as the value tensor
-    node.outputs[0].ty = node.inputs[1].ty.clone();
+    match (node.inputs[1].ty.clone(), node.inputs[2].ty.clone()) {
+        (ArgType::Tensor(x), ArgType::Tensor(y)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: x.elem_type.clone(),
+                dim: max(x.dim, y.dim),
+                ..Default::default()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
 }
