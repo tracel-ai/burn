@@ -495,4 +495,66 @@ mod tests {
         assert!(strategy.can_use_chunk(200, 180));
         assert!(!strategy.can_use_chunk(200, 179));
     }
+
+    #[test]
+    fn test_handle_mutability() {
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Ratio(0.5),
+        );
+        let handle = memory_management.reserve(10);
+
+        let other_ref = handle.clone();
+
+        assert!(
+            !handle.can_mut(),
+            "Handle can't be mut when multiple ref."
+        );
+        drop(other_ref);
+        assert!(
+            handle.can_mut(),
+            "Handle should be mut when only one ref."
+        );
+    }
+
+    #[test]
+    fn test_slice_mutability() {
+        let mut memory_management = SimpleMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Ratio(0.5),
+        );
+        let chunk = memory_management.reserve(10);
+
+        if let super::SimpleHandle::Slice(_) = chunk {
+            panic!("Should be a chunk.")
+        }
+
+        drop(chunk);
+
+        let slice = memory_management.reserve(8);
+
+        if let super::SimpleHandle::Chunk(_) = &slice {
+            panic!("Should be a slice.")
+        }
+
+        if let super::SimpleHandle::Slice(slice) = slice {
+            let other_ref = slice.clone();
+
+            assert!(
+                !slice.can_mut(),
+                "Slice can't be mut when multiple ref to the same handle."
+            );
+            drop(other_ref);
+            assert!(
+                slice.can_mut(),
+                "Slice should be mut when only one ref to the same handle."
+            );
+            assert!(
+                !slice.is_free(),
+                "Slice can't be reallocated when one ref still exist."
+            );
+        }
+    }
 }
