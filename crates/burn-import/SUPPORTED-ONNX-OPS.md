@@ -139,7 +139,7 @@ represent the corresponding Burn Op.
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
-| [ReduceMax][135]                 |       ❌       |      ✅      |
+| [ReduceMax][135]                 |       ✅       |      ✅      |
 | [ReduceMean][136]                |       ✅       |      ✅      |
 | [ReduceMin][137]                 |       ❌       |      ✅      |
 | [ReduceProd][138]                |       ❌       |      ✅      |

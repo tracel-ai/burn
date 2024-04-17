@@ -45,6 +45,7 @@ include_models!(
     neg,
     not,
     recip,
+    reduce_max,
     reduce_mean,
     relu,
     reshape,
@@ -447,6 +448,22 @@ mod tests {
         output1.to_data().assert_approx_eq(&expected1, 3);
         output2.to_data().assert_approx_eq(&expected2, 3);
         output3.to_data().assert_approx_eq(&expected3, 3);
+    }
+
+    #[test]
+    fn reduce_max() {
+        let device = Default::default();
+        let model: reduce_max::Model<Backend> = reduce_max::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([25.]);
+        let expected = Data::from([[[[25.]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
     }
 
     #[test]

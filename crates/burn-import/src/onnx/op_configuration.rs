@@ -661,6 +661,50 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     }
 }
 
+pub fn reduce_max_config(node: &Node) -> Option<usize> {
+    let mut axes = Vec::new();
+    let mut keepdims = 1;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => axes = value.clone().into_i64s(),
+            "keepdims" => keepdims = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    if axes.len() > 1 {
+        panic!("ReduceMax: reducing on multiple dimensions is not supported")
+    }
+
+    if axes.is_empty() && keepdims == 1 {
+        panic!("ReduceMax: axes must be provided with keepdims")
+    }
+
+    if !axes.is_empty() && keepdims == 0 {
+        // Not supported in Burn
+        panic!("ReduceMax: the reduce operation must preserve the reduced dimension")
+    }
+
+    if axes.is_empty() {
+        None
+    } else {
+        let mut dim = axes[0];
+
+        if dim < 0 {
+            // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+            dim += tensor.dim as i64;
+        }
+        Some(dim as usize)
+    }
+}
+
 pub fn reduce_mean_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
