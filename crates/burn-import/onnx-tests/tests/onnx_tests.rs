@@ -174,7 +174,6 @@ mod tests {
         let model: matmul::Model<Backend> = matmul::Model::default();
 
         let device = Default::default();
-        // Run the model
         let a = Tensor::<Backend, 1, Int>::arange(0..24, &device)
             .reshape([1, 2, 3, 4])
             .float();
@@ -185,11 +184,14 @@ mod tests {
             .reshape([2, 3, 4, 4])
             .float();
         let d = Tensor::<Backend, 1, Int>::arange(0..4, &device).float();
+
         let (output_mm, output_mv, output_vm) = model.forward(a, b, c, d);
+        // matrix-matrix `a @ b`
         let expected_mm = Data::from([[
             [[28., 34.], [76., 98.], [124., 162.]],
             [[604., 658.], [780., 850.], [956., 1042.]],
         ]]);
+        // matrix-vector `c @ d` where the lhs vector is expanded and broadcasted to the correct dims
         let expected_mv = Data::from([
             [
                 [14., 38., 62., 86.],
@@ -202,6 +204,7 @@ mod tests {
                 [494., 518., 542., 566.],
             ],
         ]);
+        // vector-matrix `d @ c` where the rhs vector is expanded and broadcasted to the correct dims
         let expected_vm = Data::from([
             [
                 [56., 62., 68., 74.],
