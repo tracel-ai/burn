@@ -8,7 +8,9 @@ use crate::{
     nn,
     tensor::{activation, backend::Backend, Bool, Tensor},
 };
-use libm::sqrtf;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
 #[derive(Config)]
@@ -35,7 +37,7 @@ pub struct MultiHeadAttentionConfig {
     quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -207,7 +209,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     fn attn_scores(&self, query: Tensor<B, 4>, key: Tensor<B, 4>) -> Tensor<B, 4> {
         let attn_scores = query
             .matmul(key.transpose())
-            .div_scalar(sqrtf(self.d_k as f32));
+            .div_scalar((self.d_k as f32).sqrt());
 
         self.dropout.forward(attn_scores)
     }

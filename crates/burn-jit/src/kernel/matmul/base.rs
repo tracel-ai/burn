@@ -25,10 +25,12 @@ pub struct Tiling2dConfig {
     pub tile_size_m: usize,
     /// Tile size along dimension of rhs
     pub tile_size_n: usize,
+    /// Loop unrolling
+    pub unroll: bool,
 }
 
 impl Tiling2dConfig {
-    #[allow(unused)]
+    #[allow(unused, clippy::too_many_arguments)]
     fn new<R: Runtime>(
         grid_x: usize,
         grid_y: usize,
@@ -37,6 +39,7 @@ impl Tiling2dConfig {
         block_size_n: usize,
         tile_size_m: usize,
         tile_size_n: usize,
+        unroll: bool,
     ) -> Self {
         assert!(grid_x == f32::ceil(block_size_m as f32 / tile_size_m as f32) as usize);
         assert!(grid_y == f32::ceil(block_size_n as f32 / tile_size_n as f32) as usize);
@@ -61,6 +64,7 @@ impl Tiling2dConfig {
             block_size_n,
             tile_size_m,
             tile_size_n,
+            unroll,
         }
     }
 }
@@ -75,6 +79,7 @@ impl Default for Tiling2dConfig {
             block_size_n: 64,
             tile_size_m: 4,
             tile_size_n: 4,
+            unroll: false,
         }
     }
 }
@@ -99,11 +104,10 @@ pub enum MatmulStrategy {
     Autotune,
 }
 
-#[cfg(feature = "autotune")]
 #[cfg(not(feature = "autotune"))]
 impl Default for MatmulStrategy {
     fn default() -> Self {
-        MatmulStrategy::Tiling2d
+        MatmulStrategy::Tiling2d(Tiling2dConfig::default())
     }
 }
 

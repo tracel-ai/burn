@@ -38,12 +38,15 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
+        NodeType::Not => same_as_input(node),
         NodeType::Reciprocal => same_as_input(node),
-        NodeType::ReduceMean => mean_update_outputs(node),
+        NodeType::ReduceMax => reduce_max_update_outputs(node),
+        NodeType::ReduceMean => reduce_mean_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sin => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => same_as_input(node),
@@ -134,6 +137,7 @@ fn cast_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Cast: multiple inputs are not supported");
     }
+    let input = &mut node.inputs[0];
     let output = &mut node.outputs[0];
 
     // Extract cast type and update the output tensor
@@ -144,6 +148,7 @@ fn cast_update_outputs(node: &mut Node) {
                 DataType::INT32 => ElementType::Int32,
                 DataType::INT64 => ElementType::Int64,
                 DataType::DOUBLE => ElementType::Float64,
+                DataType::BOOL => ElementType::Bool,
                 _ => panic!("Cast: unsupported type"),
             },
             _ => panic!("'to' attribute must be an Int64"),
@@ -151,19 +156,25 @@ fn cast_update_outputs(node: &mut Node) {
         None => panic!("Constant node must have a value attribute"),
     };
 
-    match output.ty.clone() {
+    match input.ty.clone() {
         ArgType::Tensor(tensor) => {
             if tensor.dim == 0 {
                 // treat 0-dim tensor as scalar
                 output.ty = ArgType::Scalar(elem_type);
+                input.ty = ArgType::Scalar(tensor.elem_type);
             } else {
-                todo!("Cast: support casting from different tensor types");
+                // Cast input and output are the same shape, but possibly different types
+                output.ty = ArgType::Tensor(TensorType {
+                    elem_type,
+                    dim: tensor.dim,
+                    shape: tensor.shape.clone(),
+                });
             }
         }
         ArgType::Scalar(_scalar) => {
             output.ty = ArgType::Scalar(elem_type);
         }
-        _ => panic!("Cast: only scalar input is valid"),
+        _ => panic!("Cast: only scalar and tensor inputs are valid"),
     }
 }
 
@@ -205,12 +216,11 @@ fn reshape_update_outputs(node: &mut Node) {
     });
 }
 
-fn mean_update_outputs(node: &mut Node) {
+fn reduce_mean_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Mean: multiple inputs are not supported");
     }
 
-    // Extract the configuration of the linear layer (inputs are known)
     let node_input = &mut node.inputs[0];
     let tensor = match node_input.clone().ty {
         ArgType::Tensor(tensor) => tensor,
@@ -229,6 +239,11 @@ fn mean_update_outputs(node: &mut Node) {
     if dim_only {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
+        // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
@@ -354,14 +369,17 @@ fn equal_update_outputs(node: &mut Node) {
 
 fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
-        panic!("Gather: multiple inputs are not supported: {:?}", node);
+        panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
 
-    // Extract the configuration of the linear layer (inputs are known)
     let node_input = &mut node.inputs[0];
-    if let ArgType::Tensor(tensor) = node_input.clone().ty {
-        // Update the output tensor
-        node.outputs[0].ty = ArgType::Shape(tensor.dim);
+    if let ArgType::Tensor(_tensor) = node_input.clone().ty {
+        // Output tensor is 1D int64
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            dim: 1,
+            ..Default::default()
+        });
     } else {
         panic!("Only tensor input is valid");
     }
@@ -421,5 +439,38 @@ fn conv_transpose2d_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
+    }
+}
+
+/// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
+fn reduce_max_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("ReduceMax: multiple inputs are not supported");
+    }
+
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }

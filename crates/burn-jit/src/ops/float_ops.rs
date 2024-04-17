@@ -132,6 +132,13 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn float_remainder_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        numeric::remainder_scalar(lhs, rhs)
+    }
+
     fn float_matmul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,

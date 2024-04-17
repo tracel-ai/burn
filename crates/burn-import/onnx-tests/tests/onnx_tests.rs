@@ -4,6 +4,8 @@
 macro_rules! include_models {
     ($($model:ident),*) => {
         $(
+            // Allow type complexity for generated code
+            #[allow(clippy::type_complexity)]
             pub mod $model {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }
@@ -17,6 +19,7 @@ include_models!(
     add,
     avg_pool2d,
     batch_norm,
+    cast,
     clip_opset16,
     clip_opset7,
     concat,
@@ -40,10 +43,15 @@ include_models!(
     maxpool2d,
     mul,
     neg,
+    not,
     recip,
+    reduce_max,
+    reduce_mean,
     relu,
     reshape,
+    shape,
     sigmoid,
+    sin,
     softmax,
     sqrt,
     sub_int,
@@ -62,7 +70,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Data, Int, Shape, Tensor};
+    use burn::tensor::{Bool, Data, Int, Shape, Tensor};
 
     use float_cmp::ApproxEq;
 
@@ -443,6 +451,38 @@ mod tests {
     }
 
     #[test]
+    fn reduce_max() {
+        let device = Default::default();
+        let model: reduce_max::Model<Backend> = reduce_max::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([25.]);
+        let expected = Data::from([[[[25.]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
+    fn reduce_mean() {
+        let device = Default::default();
+        let model: reduce_mean::Model<Backend> = reduce_mean::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([9.75]);
+        let expected = Data::from([[[[9.75]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
     fn reshape() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -452,6 +492,19 @@ mod tests {
         let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = Data::from([[0., 1., 2., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn shape() {
+        let device = Default::default();
+        let model: shape::Model<Backend> = shape::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::ones([4, 2], &device);
+        let output = model.forward(input);
+        let expected = Data::from([4, 2]);
 
         assert_eq!(output.to_data(), expected);
     }
@@ -553,6 +606,19 @@ mod tests {
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn sin() {
+        let device = Default::default();
+        let model: sin::Model<Backend> = sin::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.8415, -0.7568, 0.4121, -0.1324]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]
@@ -824,6 +890,22 @@ mod tests {
     }
 
     #[test]
+    fn not() {
+        let device = Default::default();
+        let model: not::Model<Backend> = not::Model::new(&device);
+
+        let input = Tensor::<Backend, 4, Bool>::from_bool(
+            Data::from([[[[true, false, true, false]]]]),
+            &device,
+        );
+
+        let output = model.forward(input).to_data();
+        let expected = Data::from([[[[false, true, false, true]]]]);
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
     fn test_model_creation_with_a_default_device() {
         let device = Default::default();
         let model: neg::Model<Backend> = neg::Model::new(&device);
@@ -876,5 +958,53 @@ mod tests {
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);
         assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn cast() {
+        let device = Default::default();
+        let model: cast::Model<Backend> = cast::Model::new(&device);
+
+        let input_bool =
+            Tensor::<Backend, 2, Bool>::from_bool(Data::from([[true], [true]]), &device);
+        let input_int = Tensor::<Backend, 2, Int>::from_ints([[1], [1]], &device);
+        let input_float = Tensor::<Backend, 2>::from_floats([[1.], [1.]], &device);
+        let input_scalar = 1f32;
+
+        let (
+            output1,
+            output2,
+            output3,
+            output4,
+            output5,
+            output6,
+            output7,
+            output8,
+            output9,
+            output_scalar,
+        ) = model.forward(
+            input_bool.clone(),
+            input_int.clone(),
+            input_float.clone(),
+            input_scalar,
+        );
+        let expected_bool = input_bool.to_data();
+        let expected_int = input_int.to_data();
+        let expected_float = input_float.to_data();
+        let expected_scalar = 1;
+
+        assert_eq!(output1.to_data(), expected_bool);
+        assert_eq!(output2.to_data(), expected_int);
+        output3.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output4.to_data(), expected_bool);
+        assert_eq!(output5.to_data(), expected_int);
+        output6.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output7.to_data(), expected_bool);
+        assert_eq!(output8.to_data(), expected_int);
+        output9.to_data().assert_approx_eq(&expected_float, 4);
+
+        assert_eq!(output_scalar, expected_scalar);
     }
 }

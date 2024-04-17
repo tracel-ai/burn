@@ -96,6 +96,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_tri_mask!();
         burn_tensor::testgen_sort_argsort!();
         burn_tensor::testgen_topk!();
+        burn_tensor::testgen_remainder!();
 
         // test stats
         burn_tensor::testgen_var!();

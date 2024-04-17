@@ -1,9 +1,14 @@
 use burn_tensor::Element;
-use libm::{exp, fabs, log, log1p, pow, sqrt};
-use libm::{expf, fabsf, log1pf, logf, powf, sqrtf};
 use ndarray::LinalgScalar;
 use num_traits::One;
 use num_traits::Signed;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
+use num_traits::Pow;
+
+use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
 pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar + Signed
@@ -51,12 +56,12 @@ macro_rules! make_elem {
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
-                exp(self as f64) as $ty
+                (self as f64).exp() as $ty
             }
 
             #[inline(always)]
             fn log_elem(self) -> Self {
-                log(self as f64) as $ty
+                (self as f64).ln() as $ty
             }
 
             #[inline(always)]
@@ -66,7 +71,7 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn powf_elem(self, value: f32) -> Self {
-                pow(self as f64, value.into()) as $ty
+                (self as f64).pow(value) as $ty
             }
 
             #[inline(always)]
@@ -82,12 +87,12 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
-                sqrt(self as f64) as $ty
+                (self as f64).sqrt() as $ty
             }
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                fabs(self as f64) as $ty
+                (self as f64).abs() as $ty
             }
 
             #[inline(always)]
@@ -105,12 +110,12 @@ macro_rules! make_elem {
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
-                expf(self as f32) as $ty
+                (self as f32).exp() as $ty
             }
 
             #[inline(always)]
             fn log_elem(self) -> Self {
-                logf(self as f32) as $ty
+                (self as f32).ln() as $ty
             }
 
             #[inline(always)]
@@ -120,7 +125,7 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn powf_elem(self, value: f32) -> Self {
-                powf(self as f32, value.into()) as $ty
+                (self as f32).pow(value) as $ty
             }
 
             #[inline(always)]
@@ -136,12 +141,12 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
-                sqrtf(self as f32) as $ty
+                (self as f32).sqrt() as $ty
             }
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                fabsf(self as f32) as $ty
+                (self as f32).abs() as $ty
             }
 
             #[inline(always)]

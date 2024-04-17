@@ -20,10 +20,13 @@ The actual shape of the tensor is inferred from its initialization. For example,
 ```rust, ignore
 let floats = [1.0, 2.0, 3.0, 4.0, 5.0];
 
-// correct: Tensor is 1-Dimensional with 5 elements
-let tensor_1 = Tensor::<Backend, 1>::from_floats(floats);
+// Get the default device
+let device = Default::default();
 
-// incorrect: let tensor_1 = Tensor::<Backend, 5>::from_floats(floats);
+// correct: Tensor is 1-Dimensional with 5 elements
+let tensor_1 = Tensor::<Backend, 1>::from_floats(floats, &device);
+
+// incorrect: let tensor_1 = Tensor::<Backend, 5>::from_floats(floats, &device);
 // this will lead to an error and is for creating a 5-D tensor
 ```
 
@@ -38,19 +41,19 @@ a tensor from different inputs.
 ```rust, ignore
 
 // Initialization from a given Backend (Wgpu)
-let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0]);
+let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0], &device);
 
 // Initialization from a generic Backend
-let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).convert());
+let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).convert(), &device);
 
 // Initialization using from_floats (Recommended for f32 ElementType)
 // Will be converted to Data internally.
 // `.convert()` not needed as from_floats() defined for fixed ElementType
-let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0]);
+let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0], &device);
 
 // Initialization of Int Tensor from array slices
 let arr: [i32; 6] = [1, 2, 3, 4, 5, 6];
-let tensor_4 = Tensor::<Backend, 1, Int>::from_data(Data::from(&arr[0..3]).convert());
+let tensor_4 = Tensor::<Backend, 1, Int>::from_data(Data::from(&arr[0..3]).convert(), &device);
 
 // Initialization from a custom type
 
@@ -66,7 +69,7 @@ let bmi = BodyMetrics{
         weight: 80.0
     };
 let data  = Data::from([bmi.age as f32, bmi.height as f32, bmi.weight]).convert();
-let tensor_5 = Tensor::<Backend, 1>::from_data(data);
+let tensor_5 = Tensor::<Backend, 1>::from_data(data, &device);
 
 ```
 
@@ -84,7 +87,7 @@ times will necessitate cloning it. Let's look at an example to understand the ow
 cloning better. Suppose we want to do a simple min-max normalization of an input tensor.
 
 ```rust, ignore
-let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.min();
 let max = input.max();
 let input = (input - min).div(max - min);
@@ -98,7 +101,7 @@ available for further operations. Burn Tensors like most complex primitives do n
 doing min-max normalization with cloning.
 
 ```rust, ignore
-let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.clone().min();
 let max = input.clone().max();
 let input = (input.clone() - min.clone()).div(max - min);

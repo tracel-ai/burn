@@ -83,7 +83,7 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
-    libm::floorf((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+    ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
 
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(

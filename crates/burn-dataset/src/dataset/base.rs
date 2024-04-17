@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
-use crate::DatasetIterator;
+use crate::{dataset::window::WindowDataset, DatasetIterator};
 
 /// The dataset trait defines a basic collection of items with a predefined size.
 pub trait Dataset<I>: Send + Sync {
@@ -21,6 +21,36 @@ pub trait Dataset<I>: Send + Sync {
         Self: Sized,
     {
         DatasetIterator::new(self)
+    }
+
+    /// Returns a new `Dataset` of all the windows of length `size`. The windows overlap.
+    /// Is empty if the input `Dataset` is shorter than `size`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.    
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::burn_dataset::{Dataset,InMemDataset};
+    /// let items = [1, 2, 3, 4].to_vec();
+    /// let dataset = InMemDataset::new(items.clone());
+    ///
+    /// let windows = dataset.windows(2);
+    ///
+    /// assert_eq!(windows.len(), 3);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// A `WindowDataset` instance.
+    fn windows(&self, size: usize) -> WindowDataset<'_, I>
+    where
+        Self: Sized,
+    {
+        let size = NonZeroUsize::new(size).expect("window size must be non-zero");
+        WindowDataset::new(self, size)
     }
 }
 

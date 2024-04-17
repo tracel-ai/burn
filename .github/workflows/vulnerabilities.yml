@@ -34,11 +34,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Install cargo-careful
       env:
@@ -66,11 +62,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run AddressSanitizer
       env:
@@ -93,11 +85,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run ThreadSanitizer
       env:
@@ -120,11 +108,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run MemorySanitizer
       env:
@@ -147,11 +131,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+      uses: ./.github/actions/setup-llvmpipe-lavapipe
 
     - name: Run SafeStack
       env:

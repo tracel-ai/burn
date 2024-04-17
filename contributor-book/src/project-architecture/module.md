@@ -6,13 +6,13 @@ declaration of the forward pass, leaving it up to the implementer to decide how 
 defined.
 
 Additionally, most modules are created using a (de)serializable configuration, which defines the
-structure of the module and its hyper-parameters. Parameters and hyper-parameters are not serialized
-into the same file and both are normally necessary to load a module for inference.
+structure of the module and its hyperparameters. Parameters and hyperparameters are not serialized
+into the same file, and both are normally necessary to load a module for inference.
 
 ## Optimization
 
-Optimization is normally done with gradient descent (or ascent for reinforcement learning), and it
-is important to provide an easy API for optimizing modules.
+Optimization is normally done with variants of gradient descent, and it is important to provide an
+easy API for optimizing modules.
 
 ### Constraints
 
@@ -26,10 +26,10 @@ is important to provide an easy API for optimizing modules.
 
 ### Solution
 
-`Module` trait defined in
-[`burn-core/src/module/base.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-core/src/module/base.rs#L83)
-`Optimizer` trait defined in
-[`burn-core/src/optim/base.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-core/src/optim/base.rs#L8)
+In the following, the `Module` trait is defined in
+[`crates/burn-core/src/module/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/module/base.rs#L83)
+and the `Optimizer` trait is defined in
+[`crates/burn-core/src/optim/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/base.rs#L8)
 
 The solution to this problem comprises multiple parts. Firstly, the `Optimizer` trait is quite
 similar to the `Module` trait, in terms of saving and loading the state. Please refer to the
@@ -52,9 +52,8 @@ parameter tensors.
 #### SimpleOptimizer
 
 Located in
-[`burn-core/src/optim/simple/base.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-core/src/optim/simple/base.rs#L9)
-
-The `SimpleOptimizer` has two major assumptions:
+[`crates/burn-core/src/optim/simple/base.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/base.rs#L9),
+the `SimpleOptimizer` has two major assumptions:
 
 1. The state of the optimizer is linked to each parameter. In other words, each parameter has its
    own optimizer state, decoupled from the other parameters.
@@ -70,9 +69,8 @@ used.
 #### OptimizerAdaptor
 
 Located in in
-[`burn-core/src/optim/simple/adapter.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-core/src/optim/simple/adaptor.rs#L14)
-
-The `OptimizerAdaptor` is a simple struct composed of a `SimpleOptimizer` and a hashmap with all
+[`crates/burn-core/src/optim/simple/adaptor.rs`](https://github.com/tracel-ai/burn/blob/81a67b6a0992b9b5c33cda8b9784570143b67319/crates/burn-core/src/optim/simple/adaptor.rs#L14),
+the `OptimizerAdaptor` is a simple struct composed of a `SimpleOptimizer` and a hashmap with all
 records associated with each parameter ID.
 
 When performing an optimization step, the adaptor handles the following:
@@ -87,7 +85,7 @@ When performing an optimization step, the adaptor handles the following:
 5. Updates the state for the current parameter and returns the updated tensor, making sure it's
    properly registered into the autodiff graph if gradients are marked as required.
 
-Note that a parameter can still be updated by another process, as it is the case with running metrics
-used in batch norm. These tensors are still wrapped using the `Param` struct so that they are
-included in the module's state and given a proper parameter ID, but they are not registered in the
-autodiff graph.
+Note that a parameter can still be updated by another process, as it is the case with running
+metrics used in batch norm. These tensors are still wrapped using the `Param` struct so that they
+are included in the module's state and given a proper parameter ID, but they are not registered in
+the autodiff graph.

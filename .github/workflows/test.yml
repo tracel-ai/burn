@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, ubuntu-22.04, windows-2022]
+        os: [blaze/macos-14, ubuntu-22.04, windows-2022]
         # We support both the latest Rust toolchain and the preceding version.
         rust: [stable, 1.75.0]
         test: ['std', 'no-std', 'examples']
@@ -78,7 +78,7 @@ jobs:
             coverage-flags: COVERAGE=1
             rust: stable
             test: std
-          - os: macos-13
+          - os: blaze/macos-14
             rust: stable
             test: std
           - os: windows-2022
@@ -91,7 +91,7 @@ jobs:
           - rust: 1.75.0
             test: 'examples'
           # Do not run no-std tests on macos
-          - os: macos-13
+          - os: blaze/macos-14
             test: 'no-std'
           # Do not run no-std tests on Windows
           - os: windows-2022
@@ -126,11 +126,7 @@ jobs:
 
       - name: install llvmpipe and lavapipe
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
-          sudo apt-get update
-          sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+        uses: ./.github/actions/setup-llvmpipe-lavapipe
 
       - name: Run cargo clippy for stable version
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
