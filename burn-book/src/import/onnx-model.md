@@ -134,4 +134,4 @@ streamline your deep learning workflows like never before.
 ---
 
 > 🚨**Note**: `burn-import` crate is in active development and currently supports a
-> [limited set of ONNX operators](https://github.com/tracel-ai/burn/blob/main/burn-import/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
