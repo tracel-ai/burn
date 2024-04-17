@@ -1,5 +1,5 @@
 use super::ComputeChannel;
-use crate::server::{BufHandle, ComputeServer, TensorBufHandle};
+use crate::server::{Binding, ComputeServer, Handle};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -42,19 +42,19 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: BufHandle<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, handle: Binding<Server>) -> Reader<Vec<u8>> {
         self.server.borrow_mut().read(handle)
     }
 
-    fn create(&self, resource: &[u8]) -> TensorBufHandle<Server> {
+    fn create(&self, resource: &[u8]) -> Handle<Server> {
         self.server.borrow_mut().create(resource)
     }
 
-    fn empty(&self, size: usize) -> TensorBufHandle<Server> {
+    fn empty(&self, size: usize) -> Handle<Server> {
         self.server.borrow_mut().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, handles: Vec<BufHandle<Server>>) {
+    fn execute(&self, kernel_description: Server::Kernel, handles: Vec<Binding<Server>>) {
         self.server
             .borrow_mut()
             .execute(kernel_description, handles)

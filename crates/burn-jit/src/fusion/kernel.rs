@@ -12,7 +12,7 @@ use crate::kernel::GpuComputeShaderPhase;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::BufHandle;
+use burn_compute::server::Binding;
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -47,7 +47,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn JitKernel>,
-    handles: Vec<BufHandle<R::Server>>,
+    handles: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -60,7 +60,7 @@ pub struct ExecutableKernel<R: Runtime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn JitKernel>,
-    handles: Vec<BufHandle<R::Server>>,
+    handles: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 

@@ -6,7 +6,7 @@ use std::{
 use burn_common::reader::Reader;
 
 use super::ComputeChannel;
-use crate::server::{BufHandle, ComputeServer, TensorBufHandle};
+use crate::server::{Binding, ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -33,10 +33,10 @@ enum Message<Server>
 where
     Server: ComputeServer,
 {
-    Read(BufHandle<Server>, Callback<Reader<Vec<u8>>>),
-    Create(Vec<u8>, Callback<TensorBufHandle<Server>>),
-    Empty(usize, Callback<TensorBufHandle<Server>>),
-    ExecuteKernel(Server::Kernel, Vec<BufHandle<Server>>),
+    Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
+    Create(Vec<u8>, Callback<Handle<Server>>),
+    Empty(usize, Callback<Handle<Server>>),
+    ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
     Sync(Callback<()>),
 }
 
@@ -92,7 +92,7 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, handle: BufHandle<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, handle: Binding<Server>) -> Reader<Vec<u8>> {
         let (callback, response) = mpsc::channel();
 
         self.state
@@ -103,7 +103,7 @@ where
         self.response(response)
     }
 
-    fn create(&self, data: &[u8]) -> TensorBufHandle<Server> {
+    fn create(&self, data: &[u8]) -> Handle<Server> {
         let (callback, response) = mpsc::channel();
 
         self.state
@@ -114,7 +114,7 @@ where
         self.response(response)
     }
 
-    fn empty(&self, size: usize) -> TensorBufHandle<Server> {
+    fn empty(&self, size: usize) -> Handle<Server> {
         let (callback, response) = mpsc::channel();
 
         self.state
@@ -125,7 +125,7 @@ where
         self.response(response)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: Vec<BufHandle<Server>>) {
+    fn execute(&self, kernel: Server::Kernel, handles: Vec<Binding<Server>>) {
         self.state
             .sender
             .send(Message::ExecuteKernel(kernel, handles))

@@ -11,26 +11,26 @@ use std::time;
 use web_time as time;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk.
-memory_id_type!(ChunkId, ChunkTensorBufHandle, ChunkBufHandle);
+memory_id_type!(ChunkId, ChunkHandle, ChunkBinding);
 // The SliceId allows to keep track of how many references there are to a specific slice.
-memory_id_type!(SliceId, SliceTensorBufHandle, SliceBufHandle);
+memory_id_type!(SliceId, SliceHandle, SliceBinding);
 
 /// A tensor memory handle, referring to either a chunk or a slice.
 #[derive(Debug, Clone)]
-pub enum SimpleTensorBufHandle {
+pub enum SimpleHandle {
     /// A whole chunk of memory.
-    Chunk(ChunkTensorBufHandle),
+    Chunk(ChunkHandle),
     /// A slice of a chunk of memory.
-    Slice(SliceTensorBufHandle),
+    Slice(SliceHandle),
 }
 
-/// A memory handle, referring to either a chunk or a slice.
+/// Binding of the [simple handle](SimpleHandle).
 #[derive(Debug, Clone)]
-pub enum SimpleBufHandle {
-    /// A whole chunk of memory.
-    Chunk(ChunkBufHandle),
-    /// A slice of a chunk of memory.
-    Slice(SliceBufHandle),
+pub enum SimpleBinding {
+    /// Binding of the [chunk handle](ChunkHandle).
+    Chunk(ChunkBinding),
+    /// Binding of the [slice handle](SliceHandle)
+    Slice(SliceBinding),
 }
 
 /// The strategy defines the frequency at which deallocation of unused memory chunks should occur.
@@ -113,19 +113,19 @@ impl DeallocStrategy {
 #[derive(new)]
 struct Chunk {
     storage: StorageHandle,
-    handle: ChunkTensorBufHandle,
+    handle: ChunkHandle,
     slices: Vec<SliceId>,
 }
 
 #[derive(new)]
 struct Slice {
     storage: StorageHandle,
-    handle: SliceTensorBufHandle,
+    handle: SliceHandle,
     // It is important to keep the chunk handle inside the slice, since it increases the ref count
     // on the chunk id and make the `is_free` method returns false until the slice is freed.
     //
     // TL;DR we can't only store the chunk id.
-    chunk: ChunkTensorBufHandle,
+    chunk: ChunkHandle,
 }
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
@@ -150,41 +150,41 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl super::MemoryBufHandle for SimpleBufHandle {}
+impl super::MemoryBinding for SimpleBinding {}
 
-impl super::MemoryTensorBufHandle<SimpleBufHandle> for SimpleTensorBufHandle {
+impl super::MemoryHandle<SimpleBinding> for SimpleHandle {
     /// Returns true if referenced by only one tensor, and only once by the
     /// memory management hashmaps
     fn can_mut(&self) -> bool {
         match &self {
-            SimpleTensorBufHandle::Chunk(id) => id.can_mut(),
-            SimpleTensorBufHandle::Slice(id) => id.can_mut(),
+            SimpleHandle::Chunk(id) => id.can_mut(),
+            SimpleHandle::Slice(id) => id.can_mut(),
         }
     }
 
-    fn disconnect(&self) -> SimpleBufHandle {
+    fn binding(&self) -> SimpleBinding {
         match self {
-            Self::Chunk(handle) => SimpleBufHandle::Chunk(handle.handle()),
-            Self::Slice(handle) => SimpleBufHandle::Slice(handle.handle()),
+            Self::Chunk(handle) => SimpleBinding::Chunk(handle.binding()),
+            Self::Slice(handle) => SimpleBinding::Slice(handle.binding()),
         }
     }
 }
 
 impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
-    type TensorBufHandle = SimpleTensorBufHandle;
-    type BufHandle = SimpleBufHandle;
+    type Handle = SimpleHandle;
+    type Binding = SimpleBinding;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, handle: Self::BufHandle) -> Storage::Resource {
+    fn get(&mut self, handle: Self::Binding) -> Storage::Resource {
         let storage = match handle {
-            SimpleBufHandle::Chunk(chunk) => {
+            SimpleBinding::Chunk(chunk) => {
                 &self
                     .chunks
                     .get(chunk.id())
                     .expect("Storage found for the given execution buffer handle")
                     .storage
             }
-            SimpleBufHandle::Slice(slice) => {
+            SimpleBinding::Slice(slice) => {
                 &self
                     .slices
                     .get(slice.id())
@@ -200,7 +200,7 @@ impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryM
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
-    fn reserve(&mut self, size: usize) -> Self::TensorBufHandle {
+    fn reserve(&mut self, size: usize) -> Self::Handle {
         self.cleanup_slices();
 
         let handle = self.reserve_algorithm(size);
@@ -212,18 +212,18 @@ impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryM
         handle
     }
 
-    fn alloc(&mut self, size: usize) -> Self::TensorBufHandle {
+    fn alloc(&mut self, size: usize) -> Self::Handle {
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, handle: Self::BufHandle) {
+    fn dealloc(&mut self, handle: Self::Binding) {
         match handle {
-            SimpleBufHandle::Chunk(chunk) => {
+            SimpleBinding::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
                     self.storage.dealloc(chunk.storage.id);
                 }
             }
-            SimpleBufHandle::Slice(_) => panic!("Can't dealloc slice manually"),
+            SimpleBinding::Slice(_) => panic!("Can't dealloc slice manually"),
         }
     }
 
@@ -248,7 +248,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         }
     }
 
-    fn reserve_algorithm(&mut self, size: usize) -> SimpleTensorBufHandle {
+    fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
         // Looks for a large enough, existing but unused chunk of memory.
         let chunk = self.find_free_chunk(size);
 
@@ -256,7 +256,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             Some((chunk_id, chunk_size)) => {
                 if size == chunk_size {
                     // If there is one of exactly the same size, it reuses it.
-                    SimpleTensorBufHandle::Chunk(chunk_id.clone())
+                    SimpleHandle::Chunk(chunk_id.clone())
                 } else {
                     // Otherwise creates a slice of the right size upon it, always starting at zero.
                     self.create_slice(size, chunk_id)
@@ -269,7 +269,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
-    fn find_free_chunk(&self, size: usize) -> Option<(ChunkTensorBufHandle, usize)> {
+    fn find_free_chunk(&self, size: usize) -> Option<(ChunkHandle, usize)> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
@@ -305,9 +305,9 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
     /// Creates a slice of size `size` upon the given chunk.
     ///
     /// For now slices must start at zero, therefore there can be only one per chunk
-    fn create_slice(&mut self, size: usize, handle: ChunkTensorBufHandle) -> SimpleTensorBufHandle {
+    fn create_slice(&mut self, size: usize, handle: ChunkHandle) -> SimpleHandle {
         let chunk = self.chunks.get_mut(handle.id()).unwrap();
-        let slice_handle = SliceTensorBufHandle::new();
+        let slice_handle = SliceHandle::new();
 
         let storage = StorageHandle {
             id: chunk.storage.id.clone(),
@@ -325,20 +325,20 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         chunk.slices.push(*slice_handle.id());
 
-        SimpleTensorBufHandle::Slice(slice_handle)
+        SimpleHandle::Slice(slice_handle)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
-    fn create_chunk(&mut self, size: usize) -> SimpleTensorBufHandle {
+    fn create_chunk(&mut self, size: usize) -> SimpleHandle {
         let storage = self.storage.alloc(size);
-        let handle = ChunkTensorBufHandle::new();
+        let handle = ChunkHandle::new();
 
         self.chunks.insert(
             *handle.id(),
             Chunk::new(storage, handle.clone(), Vec::new()),
         );
 
-        SimpleTensorBufHandle::Chunk(handle)
+        SimpleHandle::Chunk(handle)
     }
 
     /// Deallocates free chunks and remove them from chunks map.
@@ -382,7 +382,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        memory_management::{MemoryManagement, MemoryTensorBufHandle, SliceStrategy},
+        memory_management::{MemoryHandle, MemoryManagement, SliceStrategy},
         storage::BytesStorage,
     };
 

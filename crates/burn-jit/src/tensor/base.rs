@@ -2,7 +2,7 @@ use crate::codegen::dialect::gpu::{Elem, Operator, Scope, UnaryOperator};
 use crate::element::JitElement;
 use crate::{unary, Runtime};
 use burn_compute::client::ComputeClient;
-use burn_compute::server::TensorBufHandle;
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
@@ -15,7 +15,7 @@ where
     /// Compute client for the [runtime](Runtime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: TensorBufHandle<R::Server>,
+    pub handle: Handle<R::Server>,
     /// The shape of the tensor.
     pub shape: Shape<D>,
     /// The device of the tensor.
@@ -69,7 +69,7 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         shape: Shape<D>,
-        handle: TensorBufHandle<R::Server>,
+        handle: Handle<R::Server>,
     ) -> Self {
         let mut strides = [0; D];
 

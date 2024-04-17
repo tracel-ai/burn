@@ -33,21 +33,21 @@ macro_rules! storage_id_type {
     };
 }
 
-/// Reference to buffer handles, to be holded by a tensor.
+/// Reference to a buffer handle.
 #[derive(Clone, Debug)]
-pub struct TensorBufRef<Id> {
+pub struct HandleRef<Id> {
     id: Arc<Id>,
     all: Arc<()>,
 }
 
-/// Reference to buffer handles, to be holded by anything else than tensors.
+/// Reference to buffer binding.
 #[derive(Clone, Debug)]
-pub struct BufRef<Id> {
+pub struct BindingRef<Id> {
     id: Id,
     _all: Arc<()>,
 }
 
-impl<Id> BufRef<Id>
+impl<Id> BindingRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
@@ -57,11 +57,11 @@ where
     }
 }
 
-impl<Id> TensorBufRef<Id>
+impl<Id> HandleRef<Id>
 where
     Id: Clone + core::fmt::Debug,
 {
-    /// Create a new tensor buffer reference.
+    /// Create a new handle.
     pub(crate) fn new(id: Id) -> Self {
         Self {
             id: Arc::new(id),
@@ -69,32 +69,32 @@ where
         }
     }
 
-    /// The id associated to the buffer.
+    /// The id associated to the handle.
     pub(crate) fn id(&self) -> &Id {
         &self.id
     }
 
-    /// Get the buffer reference.
-    pub(crate) fn buf_ref(&self) -> BufRef<Id> {
-        BufRef {
+    /// Get the binding.
+    pub(crate) fn binding(&self) -> BindingRef<Id> {
+        BindingRef {
             id: self.id.as_ref().clone(),
             _all: self.all.clone(),
         }
     }
 
-    /// If the buffer can be mut.
+    /// If the handle can be mut.
     pub(crate) fn can_mut(&self) -> bool {
         // 1 memory management reference with 1 tensor reference.
         Arc::strong_count(&self.id) <= 2
     }
 
-    /// If the buffer can be reused by another tensor.
+    /// If the ressource can be reused by another tensor.
     pub(crate) fn is_free(&self) -> bool {
         // 1 memory management reference with 0 tensor reference.
         Arc::strong_count(&self.id) <= 1
     }
 
-    /// If the buffer can be dealloc.
+    /// If the ressource can be dealloc.
     pub(crate) fn can_be_dealloc(&self) -> bool {
         Arc::strong_count(&self.all) <= 1
     }
@@ -103,17 +103,17 @@ where
 #[macro_export(local_inner_macros)]
 /// Create a new memory ID types.
 macro_rules! memory_id_type {
-    ($id:ident, $handle_buf_tensor:ident, $handle_buf:ident) => {
-        /// Tensor buffer handle.
+    ($id:ident, $handle:ident, $binding:ident) => {
+        /// Memory Handle.
         #[derive(Clone, Debug)]
-        pub struct $handle_buf_tensor {
-            value: $crate::id::TensorBufRef<$id>,
+        pub struct $handle {
+            value: $crate::id::HandleRef<$id>,
         }
 
-        /// Execution buffer handle.
+        /// Binding of a memory handle.
         #[derive(Clone, Debug)]
-        pub struct $handle_buf {
-            value: $crate::id::BufRef<$id>,
+        pub struct $binding {
+            value: $crate::id::BindingRef<$id>,
         }
 
         /// Memory ID.
@@ -122,7 +122,7 @@ macro_rules! memory_id_type {
             value: u64,
         }
 
-        impl $handle_buf_tensor {
+        impl $handle {
             /// Create a new ID.
             pub(crate) fn new() -> Self {
                 static COUNTER: core::sync::atomic::AtomicU64 =
@@ -133,34 +133,34 @@ macro_rules! memory_id_type {
                     core::panic!("Memory ID overflowed");
                 }
                 Self {
-                    value: $crate::id::TensorBufRef::new($id { value }),
+                    value: $crate::id::HandleRef::new($id { value }),
                 }
             }
 
-            pub(crate) fn handle(&self) -> $handle_buf {
-                $handle_buf {
-                    value: self.value.buf_ref(),
+            pub(crate) fn binding(&self) -> $binding {
+                $binding {
+                    value: self.value.binding(),
                 }
             }
         }
 
-        impl core::ops::Deref for $handle_buf_tensor {
-            type Target = $crate::id::TensorBufRef<$id>;
+        impl core::ops::Deref for $handle {
+            type Target = $crate::id::HandleRef<$id>;
 
             fn deref(&self) -> &Self::Target {
                 &self.value
             }
         }
 
-        impl core::ops::Deref for $handle_buf {
-            type Target = $crate::id::BufRef<$id>;
+        impl core::ops::Deref for $binding {
+            type Target = $crate::id::BindingRef<$id>;
 
             fn deref(&self) -> &Self::Target {
                 &self.value
             }
         }
 
-        impl Default for $handle_buf_tensor {
+        impl Default for $handle {
             fn default() -> Self {
                 Self::new()
             }

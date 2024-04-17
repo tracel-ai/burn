@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryManagement, MemoryTensorBufHandle, SimpleMemoryManagement},
-    server::{BufHandle, ComputeServer, TensorBufHandle},
+    memory_management::{MemoryHandle, MemoryManagement, SimpleMemoryManagement},
+    server::{Binding, ComputeServer, Handle},
     storage::BytesStorage,
 };
 use derive_new::new;
@@ -26,15 +26,15 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = String;
 
-    fn read(&mut self, handle: BufHandle<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, handle: Binding<Self>) -> Reader<Vec<u8>> {
         let bytes = self.memory_management.get(handle.memory);
 
         Reader::Concrete(bytes.read().to_vec())
     }
 
-    fn create(&mut self, data: &[u8]) -> TensorBufHandle<Self> {
+    fn create(&mut self, data: &[u8]) -> Handle<Self> {
         let handle = self.memory_management.reserve(data.len());
-        let resource = self.memory_management.get(handle.disconnect());
+        let resource = self.memory_management.get(handle.binding());
 
         let bytes = resource.write();
 
@@ -42,14 +42,14 @@ where
             bytes[i] = *val;
         }
 
-        TensorBufHandle::new(handle)
+        Handle::new(handle)
     }
 
-    fn empty(&mut self, size: usize) -> TensorBufHandle<Self> {
-        TensorBufHandle::new(self.memory_management.reserve(size))
+    fn empty(&mut self, size: usize) -> Handle<Self> {
+        Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<BufHandle<Self>>) {
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<Binding<Self>>) {
         let mut resources = handles
             .into_iter()
             .map(|handle| self.memory_management.get(handle.memory))

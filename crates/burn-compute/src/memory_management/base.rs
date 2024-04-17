@@ -2,17 +2,15 @@ use crate::storage::ComputeStorage;
 
 /// The managed tensor buffer handle that points to some memory segment.
 /// It should not contain actual data.
-pub trait MemoryTensorBufHandle<BufHandle>: Clone + Send + Sync + core::fmt::Debug {
+pub trait MemoryHandle<Binding>: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
-    /// Disconnect the buffer from the tensor.
-    ///
-    /// The handle can then be sent to the compute server.
-    fn disconnect(&self) -> BufHandle;
+    /// Get the binding associated to the current handle.
+    fn binding(&self) -> Binding;
 }
 
-/// Pointer to some memory segment.
-pub trait MemoryBufHandle: Clone + Send + Sync + core::fmt::Debug {}
+/// Binding to a [memory handle](MemoryHandle).
+pub trait MemoryBinding: Clone + Send + Sync + core::fmt::Debug {}
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
 /// It is bound to the ComputeStorage trait, which does the actual (de)allocations.
@@ -20,30 +18,30 @@ pub trait MemoryBufHandle: Clone + Send + Sync + core::fmt::Debug {}
 /// The MemoryManagement can only reserve memory space or get the resource located at a space.
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
-    /// The associated type that must implement [TensorBufHandle].
-    type TensorBufHandle: MemoryTensorBufHandle<Self::BufHandle>;
+    /// The associated type that must implement [Handle].
+    type Handle: MemoryHandle<Self::Binding>;
     /// The associated type that must implement [BufHandle]
-    type BufHandle: MemoryBufHandle;
+    type Binding: MemoryBinding;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, id: Self::BufHandle) -> Storage::Resource;
+    fn get(&mut self, id: Self::Binding) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
-    fn reserve(&mut self, size: usize) -> Self::TensorBufHandle;
+    fn reserve(&mut self, size: usize) -> Self::Handle;
 
     /// Bypass the memory allocation algorithm to allocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn alloc(&mut self, size: usize) -> Self::TensorBufHandle;
+    fn alloc(&mut self, size: usize) -> Self::Handle;
 
     /// Bypass the memory allocation algorithm to deallocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, id: Self::BufHandle);
+    fn dealloc(&mut self, id: Self::Binding);
 
     /// Fetch the storage used by the memory manager.
     ///

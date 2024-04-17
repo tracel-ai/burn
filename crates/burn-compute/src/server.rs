@@ -1,5 +1,5 @@
 use crate::{
-    memory_management::{MemoryManagement, MemoryTensorBufHandle},
+    memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
     tune::AutotuneKey,
 };
@@ -25,19 +25,19 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, handle: BufHandle<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, handle: Binding<Self>) -> Reader<Vec<u8>>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
-    fn create(&mut self, data: &[u8]) -> TensorBufHandle<Self>;
+    fn create(&mut self, data: &[u8]) -> Handle<Self>;
 
     /// Reserves `size` bytes in the storage, and returns a handle over them.
-    fn empty(&mut self, size: usize) -> TensorBufHandle<Self>;
+    fn empty(&mut self, size: usize) -> Handle<Self>;
 
     /// Executes the `kernel` over the given memory `handles`.
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<BufHandle<Self>>);
+    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<Binding<Self>>);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
@@ -45,37 +45,37 @@ where
 
 /// Server handle containing the [memory handle](MemoryManagement::Handle).
 #[derive(new, Debug)]
-pub struct TensorBufHandle<Server: ComputeServer> {
-    /// Handle for the memory in use.
-    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::TensorBufHandle,
+pub struct Handle<Server: ComputeServer> {
+    /// Memory handle.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
 }
 
-/// Server handle containing the [memory handle](MemoryManagement::Handle).
+/// Binding of a [tensor handle](Handle) to execute a kernel.
 #[derive(new)]
-pub struct BufHandle<Server: ComputeServer> {
-    /// Handle for the memory in use.
-    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::BufHandle,
+pub struct Binding<Server: ComputeServer> {
+    /// Memory binding.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Binding,
 }
 
-impl<Server: ComputeServer> TensorBufHandle<Server> {
+impl<Server: ComputeServer> Handle<Server> {
     /// If the tensor handle can be reused inplace.
     pub fn can_mut(&self) -> bool {
-        MemoryTensorBufHandle::can_mut(&self.memory)
+        MemoryHandle::can_mut(&self.memory)
     }
 }
 
-impl<Server: ComputeServer> TensorBufHandle<Server> {
+impl<Server: ComputeServer> Handle<Server> {
     /// Disconnect the buffer from the tensor.
     ///
     /// The handle can then be sent to the compute server.
-    pub fn disconnect(&self) -> BufHandle<Server> {
-        BufHandle {
-            memory: MemoryTensorBufHandle::disconnect(&self.memory),
+    pub fn disconnect(&self) -> Binding<Server> {
+        Binding {
+            memory: MemoryHandle::binding(&self.memory),
         }
     }
 }
 
-impl<Server: ComputeServer> Clone for TensorBufHandle<Server> {
+impl<Server: ComputeServer> Clone for Handle<Server> {
     fn clone(&self) -> Self {
         Self {
             memory: self.memory.clone(),
@@ -83,7 +83,7 @@ impl<Server: ComputeServer> Clone for TensorBufHandle<Server> {
     }
 }
 
-impl<Server: ComputeServer> Clone for BufHandle<Server> {
+impl<Server: ComputeServer> Clone for Binding<Server> {
     fn clone(&self) -> Self {
         Self {
             memory: self.memory.clone(),

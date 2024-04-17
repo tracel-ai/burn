@@ -4,11 +4,11 @@ use crate::gpu::Elem;
 use crate::kernel::{elemwise_workgroup, GpuComputeShaderPhase, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::{BufHandle, TensorBufHandle};
+use burn_compute::server::{Binding, Handle};
 
 #[derive(new)]
 pub struct EagerHandle<'a, R: Runtime> {
-    handle: &'a burn_compute::server::TensorBufHandle<R::Server>,
+    handle: &'a burn_compute::server::Handle<R::Server>,
     strides: &'a [usize],
     shape: &'a [usize],
 }
@@ -229,9 +229,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
 }
 
 struct ExecuteSettings<R: Runtime> {
-    handles_tensors: Vec<BufHandle<R::Server>>,
-    handle_info: TensorBufHandle<R::Server>,
-    handles_scalars: Vec<TensorBufHandle<R::Server>>,
+    handles_tensors: Vec<Binding<R::Server>>,
+    handle_info: Handle<R::Server>,
+    handles_scalars: Vec<Handle<R::Server>>,
     workgroup: WorkGroup,
 }
 
@@ -309,7 +309,7 @@ fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElem
     scalars_1: Option<&[E2]>,
     scalars_2: Option<&[E3]>,
     client: &ComputeClient<R::Server, R::Channel>,
-) -> Vec<TensorBufHandle<R::Server>> {
+) -> Vec<Handle<R::Server>> {
     // It is crucial that scalars follow this order: float, int, uint
     let element_priority = |elem: Elem| match elem {
         Elem::Float => 0,
