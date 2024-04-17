@@ -1,24 +1,23 @@
 use proc_macro2::TokenStream;
 
-pub fn parse_statement(statement: &syn::Stmt, loop_level: usize) -> TokenStream {
+pub fn codegen_statement(statement: &syn::Stmt, loop_level: usize) -> TokenStream {
     match statement {
-        syn::Stmt::Local(local) => parse_local(local, loop_level),
+        syn::Stmt::Local(local) => codegen_local(local, loop_level),
         syn::Stmt::Item(_) => todo!(),
         syn::Stmt::Expr(expr, semi) => {
-            if let Some(_semi) = semi {
-                let expr = parse_expr(expr, loop_level);
-                quote::quote! {
+            let expr = codegen_expr(expr, loop_level);
+            match semi {
+                Some(_semi) => quote::quote!(
                     #expr;
-                }
-            } else {
-                parse_expr(expr, loop_level)
+                ),
+                None => expr,
             }
         }
         syn::Stmt::Macro(_) => todo!(),
     }
 }
 
-fn parse_local(local: &syn::Local, loop_level: usize) -> TokenStream {
+fn codegen_local(local: &syn::Local, loop_level: usize) -> TokenStream {
     let init = local
         .init
         .as_ref()
@@ -27,7 +26,7 @@ fn parse_local(local: &syn::Local, loop_level: usize) -> TokenStream {
         syn::Pat::Ident(ident) => ident,
         _ => panic!("Only ident declaration is supported."),
     };
-    let init = parse_expr(&init.expr, loop_level);
+    let init = codegen_expr(&init.expr, loop_level);
 
     let let_tok = local.let_token;
 
@@ -36,25 +35,25 @@ fn parse_local(local: &syn::Local, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_expr(expr: &syn::Expr, loop_level: usize) -> TokenStream {
+fn codegen_expr(expr: &syn::Expr, loop_level: usize) -> TokenStream {
     match expr {
-        syn::Expr::Binary(op) => parse_binary(op, loop_level),
-        syn::Expr::Path(path) => parse_path(path, loop_level),
-        syn::Expr::Call(call) => parse_call(call, loop_level),
+        syn::Expr::Binary(op) => codegen_binary(op, loop_level),
+        syn::Expr::Path(path) => codegen_path(path, loop_level),
+        syn::Expr::Call(call) => codegen_call(call, loop_level),
         syn::Expr::Lit(lit) => quote::quote! { #lit.into() },
-        syn::Expr::Closure(closure) => parse_closure(closure, loop_level),
-        syn::Expr::Block(block) => parse_expr_block(block, loop_level),
-        syn::Expr::Assign(assign) => parse_assign(assign, loop_level),
-        syn::Expr::ForLoop(for_loop) => parse_for_loop(for_loop, loop_level),
-        syn::Expr::MethodCall(call) => parse_expr_method_call(call),
-        syn::Expr::Index(index) => parse_expr_index(index, loop_level),
+        syn::Expr::Closure(closure) => codegen_closure(closure, loop_level),
+        syn::Expr::Block(block) => codegen_expr_block(block, loop_level),
+        syn::Expr::Assign(assign) => codegen_assign(assign, loop_level),
+        syn::Expr::ForLoop(for_loop) => codegen_for_loop(for_loop, loop_level),
+        syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
+        syn::Expr::Index(index) => codegen_expr_index(index, loop_level),
         _ => panic!("Unsupported {:?}", expr),
     }
 }
 
-fn parse_expr_index(index: &syn::ExprIndex, loop_level: usize) -> TokenStream {
-    let array = parse_expr(&index.expr, loop_level);
-    let index = parse_expr(&index.index, loop_level);
+fn codegen_expr_index(index: &syn::ExprIndex, loop_level: usize) -> TokenStream {
+    let array = codegen_expr(&index.expr, loop_level);
+    let index = codegen_expr(&index.index, loop_level);
 
     quote::quote! {
         {
@@ -65,13 +64,13 @@ fn parse_expr_index(index: &syn::ExprIndex, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_expr_method_call(call: &syn::ExprMethodCall) -> TokenStream {
+fn codegen_expr_method_call(call: &syn::ExprMethodCall) -> TokenStream {
     quote::quote!( #call )
 }
 
-fn parse_for_loop(for_loop: &syn::ExprForLoop, loop_level: usize) -> TokenStream {
+fn codegen_for_loop(for_loop: &syn::ExprForLoop, loop_level: usize) -> TokenStream {
     let i = &for_loop.pat;
-    let block = parse_block(&for_loop.body, loop_level + 1);
+    let block = codegen_block(&for_loop.body, loop_level + 1);
 
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
@@ -79,31 +78,33 @@ fn parse_for_loop(for_loop: &syn::ExprForLoop, loop_level: usize) -> TokenStream
                 syn::Expr::Path(path) => path.path.get_ident().unwrap(),
                 _ => todo!("Only path call supported"),
             };
+
             if &func_name.to_string() == "range" {
                 let mut args = quote::quote! {
                     context,
                 };
+
                 for argument in call.args.iter() {
-                    let arg = parse_expr(argument, loop_level);
+                    let arg = codegen_expr(argument, loop_level);
                     args.extend(quote::quote! { #arg, });
                 }
 
-                return quote::quote! {
+                quote::quote! {
                     range_expand(#args |context, #i| #block);
-                };
+                }
+            } else {
+                todo!("Only range is supported")
             }
         }
         _ => todo!("Only call is supported {for_loop:?}"),
     }
-
-    todo!();
 }
 
-fn parse_assign(assign: &syn::ExprAssign, loop_level: usize) -> TokenStream {
+fn codegen_assign(assign: &syn::ExprAssign, loop_level: usize) -> TokenStream {
     if let syn::Expr::Index(index) = assign.left.as_ref() {
-        let array = parse_expr(&index.expr, loop_level);
-        let index = parse_expr(&index.index, loop_level);
-        let value = parse_expr(&assign.right, loop_level);
+        let array = codegen_expr(&index.expr, loop_level);
+        let index = codegen_expr(&index.index, loop_level);
+        let value = codegen_expr(&assign.right, loop_level);
 
         return quote::quote! {
             {
@@ -115,8 +116,8 @@ fn parse_assign(assign: &syn::ExprAssign, loop_level: usize) -> TokenStream {
         };
     };
 
-    let lhs = parse_expr(&assign.left, loop_level);
-    let rhs = parse_expr(&assign.right, loop_level);
+    let lhs = codegen_expr(&assign.left, loop_level);
+    let rhs = codegen_expr(&assign.right, loop_level);
 
     quote::quote! {
         {
@@ -127,11 +128,11 @@ fn parse_assign(assign: &syn::ExprAssign, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_block(block: &syn::Block, loop_level: usize) -> TokenStream {
+fn codegen_block(block: &syn::Block, loop_level: usize) -> TokenStream {
     let mut statements = quote::quote!();
 
     for statement in block.stmts.iter() {
-        statements.extend(parse_statement(statement, loop_level));
+        statements.extend(codegen_statement(statement, loop_level));
     }
 
     quote::quote! {
@@ -141,11 +142,11 @@ fn parse_block(block: &syn::Block, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_expr_block(block: &syn::ExprBlock, loop_level: usize) -> TokenStream {
-    parse_block(&block.block, loop_level)
+fn codegen_expr_block(block: &syn::ExprBlock, loop_level: usize) -> TokenStream {
+    codegen_block(&block.block, loop_level)
 }
 
-fn parse_closure(closure: &syn::ExprClosure, loop_level: usize) -> TokenStream {
+fn codegen_closure(closure: &syn::ExprClosure, loop_level: usize) -> TokenStream {
     let mut inputs = quote::quote! {};
     for input in closure.inputs.iter() {
         let ident = match input {
@@ -157,26 +158,28 @@ fn parse_closure(closure: &syn::ExprClosure, loop_level: usize) -> TokenStream {
         });
     }
 
-    let body = parse_expr(closure.body.as_ref(), loop_level);
+    let body = codegen_expr(closure.body.as_ref(), loop_level);
 
     quote::quote! {
         |context, #inputs| #body
     }
 }
 
-fn parse_call(call: &syn::ExprCall, loop_level: usize) -> TokenStream {
+fn codegen_call(call: &syn::ExprCall, loop_level: usize) -> TokenStream {
     let func_name = match call.func.as_ref() {
         syn::Expr::Path(path) => path.path.get_ident().unwrap(),
         _ => todo!("Only path call supported"),
     };
+
     let mut args = quote::quote! {
         context,
     };
+
     let func_name_expand =
         syn::Ident::new(format!("{func_name}_expand").as_str(), func_name.span());
 
     for argument in call.args.iter() {
-        let arg = parse_expr(argument, loop_level);
+        let arg = codegen_expr(argument, loop_level);
         args.extend(quote::quote! { #arg, });
     }
 
@@ -185,13 +188,13 @@ fn parse_call(call: &syn::ExprCall, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_path(path: &syn::ExprPath, loop_level: usize) -> TokenStream {
+fn codegen_path(path: &syn::ExprPath, loop_level: usize) -> TokenStream {
     let ident = path
         .path
         .get_ident()
         .expect("Only ident path are supported.");
 
-    // TODO: Check in the following statements if the indent is overriden, or reused.
+    // TODO: Check in the following statements if the ident is overriden, or reused.
     let will_be_used_again = true;
 
     if will_be_used_again {
@@ -205,9 +208,9 @@ fn parse_path(path: &syn::ExprPath, loop_level: usize) -> TokenStream {
     }
 }
 
-fn parse_binary(binary: &syn::ExprBinary, loop_level: usize) -> TokenStream {
-    let lhs = parse_expr(&binary.left, loop_level);
-    let rhs = parse_expr(&binary.right, loop_level);
+fn codegen_binary(binary: &syn::ExprBinary, loop_level: usize) -> TokenStream {
+    let lhs = codegen_expr(&binary.left, loop_level);
+    let rhs = codegen_expr(&binary.right, loop_level);
 
     match binary.op {
         syn::BinOp::Add(_) => quote::quote! {

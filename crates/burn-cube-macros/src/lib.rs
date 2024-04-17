@@ -2,7 +2,7 @@ mod statement;
 use std::collections::HashMap;
 
 use proc_macro::TokenStream;
-use statement::parse_statement;
+use statement::codegen_statement;
 
 /// Derive macro for the module.
 #[proc_macro_attribute]
@@ -33,11 +33,7 @@ struct VariableAnalysis {
 
 impl VariableAnalysis {
     pub fn should_clone(&self, loop_level: usize) -> bool {
-        if self.num_used == 1 && self.loop_level_declared >= loop_level {
-            return false;
-        }
-
-        true
+        self.num_used > 1 || self.loop_level_declared < loop_level
     }
 }
 
@@ -54,6 +50,7 @@ impl VariableAnalyses {
 
         false
     }
+
     pub fn create(func: &syn::ItemFn) -> Self {
         Self {
             analyses: Default::default(),
@@ -66,7 +63,7 @@ fn codegen_cube(func: &syn::ItemFn, variables: &mut VariableAnalyses) -> TokenSt
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
-        let tokens = parse_statement(statement, 0);
+        let tokens = codegen_statement(statement, 0);
         body.extend(tokens);
     }
 
