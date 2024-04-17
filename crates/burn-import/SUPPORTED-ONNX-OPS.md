@@ -195,10 +195,9 @@ represent the corresponding Burn Op.
 | [Trilu][188]                     |       ❌       |      ✅      |
 | [Unique][189]                    |       ❌       |      ❌      |
 | [Upsample][190]                  |       ❌       |      ❌      |
-| [Where][191]<sup>[*](#*)</sup>   |       ✅       |      ✅      |
+| [Where][191]                     |       ✅       |      ✅      |
 | [Xor][192]                       |       ❌       |      ❌      |
 | [Unsqueeze][193]                 |       ✅       |      ✅      |
-<sup><a id="*">*</a> Only supported for tensors of the same dimensionality (i.e., no broadcasting).</sup>
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
