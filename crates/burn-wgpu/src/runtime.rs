@@ -13,6 +13,7 @@ use burn_compute::{
     ComputeRuntime,
 };
 use burn_jit::Runtime;
+use burn_tensor::backend::{DeviceId, DeviceOps};
 use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
@@ -49,6 +50,18 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, 
 
     fn name() -> &'static str {
         "wgpu"
+    }
+}
+
+impl DeviceOps for WgpuDevice {
+    fn id(&self) -> DeviceId {
+        match self {
+            WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
+            WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
+            WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
+            WgpuDevice::Cpu => DeviceId::new(3, 0),
+            WgpuDevice::BestAvailable => DeviceId::new(4, 0),
+        }
     }
 }
 

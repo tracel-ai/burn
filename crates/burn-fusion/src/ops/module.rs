@@ -1,25 +1,26 @@
-use crate::stream::InterpolateBackwardDescription;
-use crate::{
-    client::FusionClient,
-    stream::{
+use crate::{client::FusionClient, stream::execution::Operation, Fusion, FusionBackend};
+use burn_tensor::{
+    handle::HandleContainer,
+    ops::{
+        conv::{
+            calculate_conv_output_size, calculate_conv_transpose_output_size,
+            calculate_pool_output_size,
+        },
+        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateOptions,
+        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+        ModuleOps,
+    },
+    repr::{
         AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
         AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
         AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
         AvgPool2dDescription, Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription,
-        ConvTranspose2dDescription, InterpolateDescription, MaxPool1dDescription,
-        MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
-        MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
-        MaxPool2dWithIndicesDescription, Operation, OperationDescription,
+        ConvTranspose2dDescription, InterpolateBackwardDescription, InterpolateDescription,
+        MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+        MaxPool1dWithIndicesDescription, MaxPool2dDescription,
+        MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
+        ModuleOperationDescription, OperationDescription,
     },
-    Fusion, FusionBackend, HandleContainer,
-};
-use burn_tensor::ops::{
-    conv::{
-        calculate_conv_output_size, calculate_conv_transpose_output_size,
-        calculate_pool_output_size,
-    },
-    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateOptions,
-    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 macro_rules! make_ops {
@@ -30,7 +31,7 @@ macro_rules! make_ops {
         }
 
         impl<B: FusionBackend> Operation<B> for $name {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 #[allow(clippy::redundant_closure_call)]
                 $fn(self.desc, handles)
             }
@@ -88,9 +89,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.clone().register(
             streams,
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::Conv1d(
-                description.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::Conv1d(description.clone())),
             Conv1dOps::new(description),
         );
 
@@ -155,9 +154,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             streams,
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::Conv2d(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::Conv2d(desc.clone())),
             Conv2dOps::new(desc),
         );
 
@@ -216,9 +213,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             streams,
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::ConvTranspose1d(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::ConvTranspose1d(desc.clone())),
             ConvTranspose1dOps::new(desc),
         );
 
@@ -285,9 +280,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             streams,
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::ConvTranspose2d(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::ConvTranspose2d(desc.clone())),
             ConvTranspose2dOps::new(desc),
         );
 
@@ -333,9 +326,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::AvgPool1d(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::AvgPool1d(desc.clone())),
             AvgPool1dOps::new(desc),
         );
 
@@ -385,9 +376,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::AvgPool2d(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::AvgPool2d(desc.clone())),
             AvgPool2dOps::new(desc),
         );
 
@@ -436,9 +425,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AvgPool1dBackward(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AvgPool1dBackward(
+                desc.clone(),
+            )),
             AvgPool1dBackwardOps::new(desc),
         );
 
@@ -487,9 +476,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AvgPool2dBackward(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AvgPool2dBackward(
+                desc.clone(),
+            )),
             AvgPool2dBackwardOps::new(desc),
         );
 
@@ -536,9 +525,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::MaxPool1d(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool1d(desc.clone())),
             MaxPool1dOps::new(desc),
         );
 
@@ -598,9 +585,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::MaxPool2d(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool2d(desc.clone())),
             MaxPool2dOps::new(desc),
         );
 
@@ -649,9 +634,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::MaxPool1dWithIndices(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool1dWithIndices(
+                desc.clone(),
+            )),
             MaxPool1dWithIndicesOps::new(desc),
         );
 
@@ -714,9 +699,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::MaxPool2dWithIndices(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool2dWithIndices(
+                desc.clone(),
+            )),
             MaxPool2dWithIndicesOps::new(desc),
         );
 
@@ -770,11 +755,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2, stream_3],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::MaxPool1dWithIndicesBackward(
-                    desc.clone(),
-                ),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool1dWithIndicesBackward(
+                desc.clone(),
+            )),
             MaxPool1dWithIndicesBackwardOps::new(desc),
         );
 
@@ -828,11 +811,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2, stream_3],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::MaxPool2dWithIndicesBackward(
-                    desc.clone(),
-                ),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::MaxPool2dWithIndicesBackward(
+                desc.clone(),
+            )),
             MaxPool2dWithIndicesBackwardOps::new(desc),
         );
 
@@ -862,9 +843,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AdaptiveAvgPool1d(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool1d(
+                desc.clone(),
+            )),
             AdaptiveAvgPool1dOps::new(desc),
         );
 
@@ -897,9 +878,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AdaptiveAvgPool2d(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool2d(
+                desc.clone(),
+            )),
             AdaptiveAvgPool2dOps::new(desc),
         );
 
@@ -933,9 +914,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AdaptiveAvgPool1dBackward(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool1dBackward(
+                desc.clone(),
+            )),
             AdaptiveAvgPool1dBackwardOps::new(desc),
         );
 
@@ -969,9 +950,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::AdaptiveAvgPool2dBackward(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool2dBackward(
+                desc.clone(),
+            )),
             AdaptiveAvgPool2dBackwardOps::new(desc),
         );
 
@@ -1006,9 +987,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         out.client.register(
             vec![stream],
-            OperationDescription::Module(crate::stream::ModuleOperationDescription::Interpolate(
-                desc.clone(),
-            )),
+            OperationDescription::Module(ModuleOperationDescription::Interpolate(desc.clone())),
             InterpolateOps::new(desc),
         );
 
@@ -1047,9 +1026,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Module(
-                crate::stream::ModuleOperationDescription::InterpolateBackward(desc.clone()),
-            ),
+            OperationDescription::Module(ModuleOperationDescription::InterpolateBackward(
+                desc.clone(),
+            )),
             InterpolateBackwardOps::new(desc),
         );
         out

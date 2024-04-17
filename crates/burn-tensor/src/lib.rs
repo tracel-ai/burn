@@ -11,6 +11,13 @@ extern crate alloc;
 
 mod tensor;
 
+/// Tensor Handles Container
+#[cfg(feature = "std")]
+pub mod handle;
+/// Tensor Ops descriptions
+#[cfg(feature = "std")]
+pub mod repr;
+
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
 mod tests;

@@ -6,16 +6,19 @@
 //! To test these components effectively, we create mock types for the stream, optimization,
 //! optimization builder, and stream segment. These mock types aid in comprehensively
 //! understanding the process of optimizing streams.
-use crate::{
-    stream::{
-        store::{
-            ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
-        },
+use burn_tensor::{
+    handle::{TensorDescription, TensorId, TensorStatus},
+    repr::{
         BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
-        OperationDescription, ScalarOperationDescription,
+        OperationDescription, ScalarOperationDescription, UnaryOperationDescription,
     },
-    OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
-    TensorStatus,
+};
+
+use crate::{
+    stream::store::{
+        ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
+    },
+    OptimizationBuilder, OptimizationProperties, OptimizationStatus,
 };
 
 use super::*;
@@ -558,18 +561,16 @@ fn operation_2() -> OperationDescription {
 
 /// Just a simple operation.
 fn operation_3() -> OperationDescription {
-    OperationDescription::Float(FloatOperationDescription::Log(
-        crate::stream::UnaryOperationDescription {
-            input: TensorDescription {
-                id: TensorId::new(0),
-                shape: vec![32, 32],
-                status: TensorStatus::ReadOnly,
-            },
-            out: TensorDescription {
-                id: TensorId::new(0),
-                shape: vec![32, 32],
-                status: TensorStatus::NotInit,
-            },
+    OperationDescription::Float(FloatOperationDescription::Log(UnaryOperationDescription {
+        input: TensorDescription {
+            id: TensorId::new(0),
+            shape: vec![32, 32],
+            status: TensorStatus::ReadOnly,
         },
-    ))
+        out: TensorDescription {
+            id: TensorId::new(0),
+            shape: vec![32, 32],
+            status: TensorStatus::NotInit,
+        },
+    }))
 }

@@ -4,28 +4,30 @@ use crate::{
     get_client,
     ops::binary::binary_ops_shape,
     scalar_int_cmp_ops, scalar_int_ops,
-    stream::{
+    stream::{execution::Operation, StreamId},
+    unary_int_ops, Fusion, FusionBackend,
+};
+use burn_tensor::{
+    handle::{HandleContainer, TensorDescription},
+    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
+    repr::{
         self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
         ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
         GatherOperationDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
-        NumericOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
+        NumericOperationDescription, OperationDescription, PermuteOperationDescription,
         RandomOperationDescription, ReduceDimWithIndicesDescription, RepeatOperationDescription,
         ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
         SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
         UnaryOperationDescription,
     },
-    unary_int_ops, Fusion, FusionBackend, TensorDescription,
-};
-use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use core::ops::Range;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        let client = get_client::<B>(&device.clone().into());
+        let client = get_client::<B>(&device.clone());
         let tensor = B::int_empty(shape.clone(), device);
         let stream = StreamId::current();
 
@@ -44,7 +46,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         data: Data<IntElem<Self>, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        let client = get_client::<B>(&device.clone().into());
+        let client = get_client::<B>(&device.clone());
         let tensor = B::int_from_data(data, device);
         let shape = B::int_shape(&tensor);
         let stream = StreamId::current();
@@ -53,15 +55,15 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
-        tensor.client.device().clone().into()
+        tensor.client.device().clone()
     }
 
     fn int_to_device<const D: usize>(
         tensor: IntTensor<Self, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        let device_original: &B::FusionDevice = tensor.client.device();
-        let device_target: B::FusionDevice = device.clone().into();
+        let device_original: &B::Device = tensor.client.device();
+        let device_target: B::Device = device.clone();
 
         if device_original == &device_target {
             return tensor;
@@ -86,7 +88,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for ReshapeDimsOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D1>(&self.desc.input);
                 let output = B::int_reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
                 handles.register_int_tensor(&self.desc.out.id, output);
@@ -120,7 +122,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D1>(&self.desc.tensor);
 
                 let output =
@@ -164,7 +166,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceAssignOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D1>(&self.desc.tensor);
                 let value = handles.get_int_tensor::<D1>(&self.desc.value);
 
@@ -208,7 +210,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaskWhereOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let value = handles.get_int_tensor(&self.desc.value);
                 let mask = handles.get_bool_tensor(&self.desc.mask);
@@ -251,7 +253,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaskFillOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor(&self.desc.mask);
 
@@ -291,7 +293,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for GatherOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
 
@@ -331,7 +333,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for ScatterOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
                 let value = handles.get_int_tensor(&self.desc.value);
@@ -374,7 +376,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SelectOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
 
@@ -416,7 +418,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SelectAssignOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
                 let value = handles.get_int_tensor(&self.desc.value);
@@ -457,7 +459,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for CatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensors = self
                     .desc
                     .tensors
@@ -770,9 +772,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::Add(
-                desc.clone(),
-            )),
+            repr::OperationDescription::NumericInt(NumericOperationDescription::Add(desc.clone())),
             AddOps::<D>::new(desc),
         );
 
@@ -795,7 +795,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::AddScalar(
+            repr::OperationDescription::NumericInt(NumericOperationDescription::AddScalar(
                 desc.clone(),
             )),
             AddOps::<D>::new(desc),
@@ -823,9 +823,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::Sub(
-                desc.clone(),
-            )),
+            repr::OperationDescription::NumericInt(NumericOperationDescription::Sub(desc.clone())),
             SubOps::<D>::new(desc),
         );
 
@@ -848,7 +846,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::SubScalar(
+            repr::OperationDescription::NumericInt(NumericOperationDescription::SubScalar(
                 desc.clone(),
             )),
             SubOps::<D>::new(desc),
@@ -876,9 +874,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::Mul(
-                desc.clone(),
-            )),
+            repr::OperationDescription::NumericInt(NumericOperationDescription::Mul(desc.clone())),
             MulOps::<D>::new(desc),
         );
 
@@ -901,7 +897,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::MulScalar(
+            repr::OperationDescription::NumericInt(NumericOperationDescription::MulScalar(
                 desc.clone(),
             )),
             MulOps::<D>::new(desc),
@@ -929,9 +925,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::Div(
-                desc.clone(),
-            )),
+            repr::OperationDescription::NumericInt(NumericOperationDescription::Div(desc.clone())),
             DivOps::<D>::new(desc),
         );
 
@@ -954,7 +948,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::DivScalar(
+            repr::OperationDescription::NumericInt(NumericOperationDescription::DivScalar(
                 desc.clone(),
             )),
             DivOps::<D>::new(desc),
@@ -979,7 +973,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            stream::OperationDescription::NumericInt(NumericOperationDescription::RemScalar(
+            repr::OperationDescription::NumericInt(NumericOperationDescription::RemScalar(
                 desc.clone(),
             )),
             ModOps::<D>::new(desc),
@@ -995,7 +989,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for ZerosOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_zeros::<D>(shape, &handles.device);
                 handles.register_int_tensor(&self.desc.id, output);
@@ -1004,7 +998,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
-        let client = get_client::<B>(&device.clone().into());
+        let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape);
         let desc = out.to_description_out();
         client.register(
@@ -1023,7 +1017,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for OnesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_ones::<D>(shape, &handles.device);
                 handles.register_int_tensor(&self.desc.id, output);
@@ -1032,7 +1026,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
-        let client = get_client::<B>(&device.clone().into());
+        let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape);
 
         let desc = out.to_description_out();
@@ -1223,7 +1217,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for ClampOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let output = B::int_clamp(input, self.desc.min.elem(), self.desc.max.elem());
 
@@ -1274,7 +1268,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for IntoFloatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let output = B::int_into_float(input);
                 handles.register_float_tensor(&self.desc.out.id, output);
@@ -1289,7 +1283,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Int(stream::IntOperationDescription::IntoFloat(desc.clone())),
+            OperationDescription::Int(repr::IntOperationDescription::IntoFloat(desc.clone())),
             IntoFloatOps::<D>::new(desc),
         );
 
@@ -1307,7 +1301,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SwapDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let output = B::int_swap_dims(input, self.desc.dim1, self.desc.dim2);
                 handles.register_int_tensor(&self.desc.out.id, output);
@@ -1387,7 +1381,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaxDimWithIndicesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let (output, indices) = B::int_max_dim_with_indices(tensor, self.desc.dim);
 
@@ -1470,7 +1464,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MinDimWithIndicesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
                 let (output, indices) = B::int_min_dim_with_indices(tensor, self.desc.dim);
 
@@ -1513,7 +1507,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for IntRandomOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::IntTensorPrimitive<D> =
                     B::int_random(shape, self.desc.distribution, &handles.device);
@@ -1523,7 +1517,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
-        let client = get_client::<B>(&device.clone().into());
+        let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape);
 
         let desc = RandomOperationDescription {
@@ -1549,7 +1543,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let axes: [usize; D] = self.desc.axes.try_into().unwrap();
                 let output = B::int_permute(input, axes);
@@ -1589,7 +1583,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_bool_tensor::<D>(&self.desc.input);
                 let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
                 let output = B::bool_expand(input, shape.into());
@@ -1623,7 +1617,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for FlipDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let axes = &self.desc.axes;
                 let output = B::int_flip(input, axes);
@@ -1661,7 +1655,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for RepeatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
 
                 let output = B::int_repeat::<D>(tensor, self.desc.dim, self.desc.times);
