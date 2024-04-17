@@ -18,9 +18,9 @@ pub trait MemoryBinding: Clone + Send + Sync + core::fmt::Debug {}
 /// The MemoryManagement can only reserve memory space or get the resource located at a space.
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
-    /// The associated type that must implement [Handle].
+    /// The associated type that must implement [MemoryHandle].
     type Handle: MemoryHandle<Self::Binding>;
-    /// The associated type that must implement [BufHandle]
+    /// The associated type that must implement [MemoryBinding]
     type Binding: MemoryBinding;
 
     /// Returns the resource from the storage at the specified handle

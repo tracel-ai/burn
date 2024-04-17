@@ -122,7 +122,7 @@ struct Slice {
     storage: StorageHandle,
     handle: SliceHandle,
     // It is important to keep the chunk handle inside the slice, since it increases the ref count
-    // on the chunk id and make the `is_free` method returns false until the slice is freed.
+    // on the chunk id and make the `is_free` method return false until the slice is freed.
     //
     // TL;DR we can't only store the chunk id.
     chunk: ChunkHandle,
@@ -175,8 +175,8 @@ impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryM
     type Binding = SimpleBinding;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, handle: Self::Binding) -> Storage::Resource {
-        let storage = match handle {
+    fn get(&mut self, binding: Self::Binding) -> Storage::Resource {
+        let storage = match binding {
             SimpleBinding::Chunk(chunk) => {
                 &self
                     .chunks
@@ -216,8 +216,8 @@ impl<Storage: ComputeStorage> super::MemoryManagement<Storage> for SimpleMemoryM
         self.create_chunk(size)
     }
 
-    fn dealloc(&mut self, handle: Self::Binding) {
-        match handle {
+    fn dealloc(&mut self, binding: Self::Binding) {
+        match binding {
             SimpleBinding::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
                     self.storage.dealloc(chunk.storage.id);
@@ -364,7 +364,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut ids_to_remove = Vec::new();
 
         self.slices.iter().for_each(|(slice_id, slice)| {
-            if slice.handle.is_free() {
+            if slice.handle.can_be_dealloc() {
                 ids_to_remove.push(*slice_id);
             }
         });

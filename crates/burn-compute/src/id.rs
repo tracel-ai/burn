@@ -88,20 +88,20 @@ where
         Arc::strong_count(&self.id) <= 2
     }
 
-    /// If the ressource can be reused by another tensor.
+    /// If the resource can be reused by another tensor.
     pub(crate) fn is_free(&self) -> bool {
         // 1 memory management reference with 0 tensor reference.
         Arc::strong_count(&self.id) <= 1
     }
 
-    /// If the ressource can be dealloc.
+    /// If the resource can be dealloc.
     pub(crate) fn can_be_dealloc(&self) -> bool {
         Arc::strong_count(&self.all) <= 1
     }
 }
 
 #[macro_export(local_inner_macros)]
-/// Create a new memory ID types.
+/// Create new memory ID types.
 macro_rules! memory_id_type {
     ($id:ident, $handle:ident, $binding:ident) => {
         /// Memory Handle.
