@@ -715,7 +715,7 @@ dependencies = [
 [[package]]
 name = "candle-core"
 version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?branch=main#af955f260cc20364b3e000c895dcb134a46e4e94"
+source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
 dependencies = [
  "accelerate-src",
  "byteorder",
@@ -741,7 +741,7 @@ dependencies = [
 [[package]]
 name = "candle-kernels"
 version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?branch=main#af955f260cc20364b3e000c895dcb134a46e4e94"
+source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
 dependencies = [
  "bindgen_cuda",
 ]
@@ -749,7 +749,7 @@ dependencies = [
 [[package]]
 name = "candle-metal-kernels"
 version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?branch=main#af955f260cc20364b3e000c895dcb134a46e4e94"
+source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
 dependencies = [
  "metal",
  "once_cell",
