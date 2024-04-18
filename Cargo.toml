@@ -25,7 +25,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 async-trait = "0.1.80"
 bytemuck = "1.14"
-candle-core = { version = "0.4.1" }
+# candle-core = { version = "0.4.1" }
+candle-core = { git = "https://github.com/huggingface/candle.git", rev = "2817643" }
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"

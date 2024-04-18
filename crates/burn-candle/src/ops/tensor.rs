@@ -11,7 +11,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::{expand, permute};
+use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
@@ -539,6 +539,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         expand(tensor, shape)
     }
 
-    // TODO add sign operator once Candle supports it:
-    // https://github.com/huggingface/candle/issues/1827
+    fn float_sign<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        sign(tensor)
+    }
 }

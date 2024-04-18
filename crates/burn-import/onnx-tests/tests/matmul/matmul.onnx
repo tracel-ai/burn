@@ -1,0 +1,49 @@
+pytorch2.1.2:ù
+4
+onnx::MatMul_0
+onnx::MatMul_14/MatMul"MatMul
+6
+onnx::MatMul_2
+onnx::MatMul_35	/MatMul_1"MatMul
+6
+onnx::MatMul_3
+onnx::MatMul_26	/MatMul_2"MatMul
+main_graphZ(
+onnx::MatMul_0
+
+
+
+
+Z(
+onnx::MatMul_1
+
+
+
+
+Z(
+onnx::MatMul_2
+
+
+
+
+Z
+onnx::MatMul_3
+
+
+b
+4
+
+
+
+
+b
+5
+
+
+
+b
+6
+
+
+
+B

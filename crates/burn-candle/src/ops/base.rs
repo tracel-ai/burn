@@ -149,3 +149,7 @@ pub fn expand<E: CandleElement, const D1: usize, const D2: usize>(
 ) -> CandleTensor<E, D2> {
     CandleTensor::new(tensor.tensor.broadcast_as(&shape.dims).unwrap())
 }
+
+pub fn sign<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> CandleTensor<E, D> {
+    CandleTensor::new(tensor.tensor.sign().unwrap())
+}
