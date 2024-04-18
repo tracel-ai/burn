@@ -11,7 +11,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::{expand, permute};
+use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
@@ -136,6 +136,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
         CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
+    }
+
+    fn float_remainder_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        // In PyTorch, remainder can also be defined as torch.remainder(a, b) == a - a.div(b, rounding_mode="floor") * b
+        let rhs_val = rhs.elem::<f64>();
+        let division_result = (lhs.tensor.clone() / rhs_val).unwrap().floor().unwrap();
+        let product = division_result * rhs_val;
+
+        CandleTensor::new((lhs.tensor - product).unwrap())
     }
 
     fn float_matmul<const D: usize>(
@@ -527,6 +539,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         expand(tensor, shape)
     }
 
-    // TODO add sign operator once Candle supports it:
-    // https://github.com/huggingface/candle/issues/1827
+    fn float_sign<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        sign(tensor)
+    }
 }

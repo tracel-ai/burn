@@ -9,7 +9,6 @@ pub(crate) struct MatmulTiling2dShader {
     pub variables: BinaryOperator,
     pub config: Tiling2dConfig,
     pub bounds_check_required: bool,
-    pub unroll: bool,
 }
 
 pub(crate) struct Tiling2dState {

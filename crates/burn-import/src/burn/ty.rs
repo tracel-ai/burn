@@ -13,7 +13,7 @@ pub struct TensorType {
     pub shape: Option<Vec<usize>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TensorKind {
     Int,
     Float,

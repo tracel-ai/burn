@@ -28,6 +28,7 @@ mod pos_encoding;
 mod prelu;
 mod relu;
 mod rnn;
+mod rope_encoding;
 mod swiglu;
 mod unfold;
 
@@ -43,5 +44,6 @@ pub use pos_encoding::*;
 pub use prelu::*;
 pub use relu::*;
 pub use rnn::*;
+pub use rope_encoding::*;
 pub use swiglu::*;
 pub use unfold::*;

@@ -41,6 +41,7 @@ mod powf;
 mod powf_scalar;
 mod random;
 mod recip;
+mod remainder;
 mod repeat;
 mod reshape;
 mod select;

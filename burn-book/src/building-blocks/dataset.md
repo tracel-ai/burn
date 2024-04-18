@@ -1,6 +1,6 @@
 # Dataset
 
-Most deep learning training being done on datasets –with perhaps the exception of reinforcement learning–, it is
+In most deep learning training performed on datasets (with perhaps the exception of reinforcement learning), it is
 essential to provide a convenient and performant API.
 The dataset trait is quite similar to the dataset abstract class in PyTorch:
 
@@ -32,6 +32,7 @@ distributions.
 | `PartialDataset`  | Returns a view of the input dataset with a specified range.                                                              |
 | `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
 | `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
+| `WindowDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
 
 Let us look at the basic usages of each dataset transform and how they can be composed together. These transforms
 are lazy by default except when specified, reducing the need for unnecessary intermediate allocations and improving
@@ -69,7 +70,7 @@ let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
 ```rust, ignore
 // define chained dataset type here for brevity
 type PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>>;
-let dataset_len = dataset.len();
+let len = dataset.len();
 let split == "train"; // or "val"/"test"
 
 let data_split = match split {

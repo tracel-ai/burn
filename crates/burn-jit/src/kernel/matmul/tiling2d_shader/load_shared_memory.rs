@@ -98,7 +98,7 @@ fn load_shared_memory_with_bound_check(
 
     gpu!(
         scope,
-        range(0_u32, 4u32, shader.unroll).for_each(|j, scope| {
+        range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
             gpu!(scope, current = thread_idx_1 + j);
 
             gpu!(scope, aligned_with_shared_memory = current < block_size_k);
@@ -235,7 +235,7 @@ fn load_shared_memory_no_bound_check(
 
     gpu!(
         scope,
-        range(0_u32, 4u32, shader.unroll).for_each(|j, scope| {
+        range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
             gpu!(scope, current = thread_idx_1 + j);
 
             gpu!(scope, aligned_with_shared_memory = current < block_size_k);

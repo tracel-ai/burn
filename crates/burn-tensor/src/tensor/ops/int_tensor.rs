@@ -692,6 +692,20 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the division.
     fn int_div_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
+    /// Element-wise modulus with a scalar.
+    ///
+    /// # Arguments
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of applying the modulus of the scalar to the tensor.
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntElem<B>,
+    ) -> IntTensor<B, D>;
+
     /// Element-wise negation.
     ///
     /// # Arguments

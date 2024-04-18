@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::{backend::Backend, Tensor};
-use libm::sqrt;
 
 use super::Initializer;
 
@@ -19,7 +18,9 @@ pub struct LinearConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0), fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
@@ -80,21 +81,20 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn_tensor::{Data, Shape};
-    use libm::sqrt;
 
     #[test]
     fn initializer_default() {
         TestBackend::seed(0);
 
         let config = LinearConfig::new(5, 5);
-        let k = sqrt(1.0 / config.d_input as f64) as f32;
+        let k = (1.0 / config.d_input as f64).sqrt() as f32;
         let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(
             config.initializer,
             Initializer::KaimingUniform {
-                gain: 1.0 / sqrt(3.0),
+                gain: 1.0 / 3.0f64.sqrt(),
                 fan_out_only: false
             }
         );

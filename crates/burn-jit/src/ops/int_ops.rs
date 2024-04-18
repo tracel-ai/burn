@@ -235,6 +235,13 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        numeric::remainder_scalar(lhs, rhs)
+    }
+
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         numeric::zeros(shape, device)
     }

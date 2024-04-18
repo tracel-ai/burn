@@ -216,6 +216,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::<i64, D>::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
     }
 
+    fn int_remainder_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
+        lhs.unary_ops(
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+        )
+    }
+
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
         Self::int_mul_scalar(tensor, -1)
     }
