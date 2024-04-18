@@ -53,6 +53,7 @@ fn main() {
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
         .input("tests/unsqueeze/unsqueeze.onnx")
+        .input("tests/unsqueeze/unsqueeze_opset16.onnx")
         .out_dir("model/")
         .run_from_script();
 
