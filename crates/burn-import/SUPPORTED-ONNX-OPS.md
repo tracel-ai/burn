@@ -99,7 +99,7 @@ represent the corresponding Burn Op.
 | [LpPool][91]                     |       ❌       |      ❌      |
 | [LRN][92]                        |       ❌       |      ❌      |
 | [LSTM][93]                       |       ❌       |      ✅      |
-| [MatMul][94]                     |       ❌       |      ✅      |
+| [MatMul][94]                     |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
 | [Max][96]                        |       ❌       |      ✅      |
 | [MaxPool1d][97]                  |       ❌       |      ✅      |
@@ -112,7 +112,7 @@ represent the corresponding Burn Op.
 | [Min][104]                       |       ❌       |      ✅      |
 | [Mish][105]                      |       ❌       |      ❌      |
 | [Mod][106]                       |       ❌       |      ❌      |
-| [Mul][107]                       |       ❌       |      ✅      |
+| [Mul][107]                       |       ✅       |      ✅      |
 | [Multinomial][108]               |       ❌       |      ❌      |
 | [Neg][109]                       |       ✅       |      ✅      |
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
