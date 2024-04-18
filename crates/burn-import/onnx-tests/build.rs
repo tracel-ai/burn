@@ -30,6 +30,7 @@ fn main() {
         .input("tests/linear/linear.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/log/log.onnx")
+        .input("tests/matmul/matmul.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
@@ -54,6 +55,7 @@ fn main() {
         .input("tests/pow/pow_int.onnx")
         .input("tests/unsqueeze/unsqueeze.onnx")
         .input("tests/unsqueeze/unsqueeze_opset16.onnx")
+        .input("tests/mask_where/mask_where.onnx")
         .out_dir("model/")
         .run_from_script();
 

@@ -40,6 +40,8 @@ include_models!(
     linear,
     log_softmax,
     log,
+    mask_where,
+    matmul,
     maxpool2d,
     mul,
     neg,
@@ -136,6 +138,7 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
     }
+
     #[test]
     fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)
@@ -165,6 +168,61 @@ mod tests {
         let expected = Data::from([[[[1., 2., 2., 3.]]]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn matmul() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: matmul::Model<Backend> = matmul::Model::default();
+
+        let device = Default::default();
+        let a = Tensor::<Backend, 1, Int>::arange(0..24, &device)
+            .reshape([1, 2, 3, 4])
+            .float();
+        let b = Tensor::<Backend, 1, Int>::arange(0..16, &device)
+            .reshape([1, 2, 4, 2])
+            .float();
+        let c = Tensor::<Backend, 1, Int>::arange(0..96, &device)
+            .reshape([2, 3, 4, 4])
+            .float();
+        let d = Tensor::<Backend, 1, Int>::arange(0..4, &device).float();
+
+        let (output_mm, output_mv, output_vm) = model.forward(a, b, c, d);
+        // matrix-matrix `a @ b`
+        let expected_mm = Data::from([[
+            [[28., 34.], [76., 98.], [124., 162.]],
+            [[604., 658.], [780., 850.], [956., 1042.]],
+        ]]);
+        // matrix-vector `c @ d` where the lhs vector is expanded and broadcasted to the correct dims
+        let expected_mv = Data::from([
+            [
+                [14., 38., 62., 86.],
+                [110., 134., 158., 182.],
+                [206., 230., 254., 278.],
+            ],
+            [
+                [302., 326., 350., 374.],
+                [398., 422., 446., 470.],
+                [494., 518., 542., 566.],
+            ],
+        ]);
+        // vector-matrix `d @ c` where the rhs vector is expanded and broadcasted to the correct dims
+        let expected_vm = Data::from([
+            [
+                [56., 62., 68., 74.],
+                [152., 158., 164., 170.],
+                [248., 254., 260., 266.],
+            ],
+            [
+                [344., 350., 356., 362.],
+                [440., 446., 452., 458.],
+                [536., 542., 548., 554.],
+            ],
+        ]);
+
+        assert_eq!(output_mm.to_data(), expected_mm);
+        assert_eq!(output_vm.to_data(), expected_vm);
+        assert_eq!(output_mv.to_data(), expected_mv);
     }
 
     #[test]
@@ -1018,5 +1076,23 @@ mod tests {
         output9.to_data().assert_approx_eq(&expected_float, 4);
 
         assert_eq!(output_scalar, expected_scalar);
+    }
+
+    #[test]
+    fn mask_where() {
+        let device = Default::default();
+        let model: mask_where::Model<Backend> = mask_where::Model::new(&device);
+
+        let x1 = Tensor::ones([2, 2], &device);
+        let y1 = Tensor::zeros([2, 2], &device);
+        let x2 = Tensor::ones([2], &device);
+        let y2 = Tensor::zeros([2], &device);
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let (output, output_broadcasted) = model.forward(mask, x1, y1, x2, y2);
+        let expected = Data::from([[1.0, 0.0], [0.0, 1.0]]);
+
+        assert_eq!(output.to_data(), expected);
+        assert_eq!(output_broadcasted.to_data(), expected);
     }
 }

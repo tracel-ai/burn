@@ -26,6 +26,7 @@ use crate::{
             gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
+            mask_where::WhereNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
             reshape::ReshapeNode,
@@ -272,6 +273,7 @@ impl OnnxGraph {
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
+                NodeType::Where => graph.register(Self::where_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -498,6 +500,15 @@ impl OnnxGraph {
         let dims = unsqueeze_config(&node);
 
         UnsqueezeNode::new(input, output, dims)
+    }
+
+    fn where_conversion(node: Node) -> WhereNode {
+        let condition = node.inputs.first().unwrap().to_tensor_type();
+        let x = node.inputs.get(1).unwrap().to_tensor_type();
+        let y = node.inputs.get(2).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        WhereNode::new(condition, x, y, output)
     }
 
     fn clip_conversion(node: Node) -> ClipNode {
@@ -800,6 +811,11 @@ impl Argument {
                 dim,
                 ..
             }) => TensorType::new_int(self.name.clone(), *dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Bool,
+                dim,
+                ..
+            }) => TensorType::new_bool(self.name.clone(), *dim),
             _ => panic!("Can't transform to tensor."),
         }
     }

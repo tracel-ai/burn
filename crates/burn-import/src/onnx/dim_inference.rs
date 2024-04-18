@@ -1,3 +1,4 @@
+use core::cmp::max;
 use core::panic;
 
 use protobuf::Enum;
@@ -35,6 +36,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Linear => linear_update_outputs(node),
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MatMul => matmul_update_outputs(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
@@ -55,6 +57,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
+        NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -442,6 +445,28 @@ fn conv_transpose2d_update_outputs(node: &mut Node) {
     }
 }
 
+fn matmul_update_outputs(node: &mut Node) {
+    // NOTE: matmul only supported for float tensors
+    match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
+        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            let mut out_dim = max(a.dim, b.dim);
+
+            // Matrix-vector or vector-matrix product
+            if (a.dim >= 2 && b.dim == 1) || (a.dim == 1 && b.dim >= 2) {
+                out_dim -= 1;
+            }
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: a.elem_type.clone(),
+                dim: out_dim,
+                shape: a.shape.clone(),
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
 /// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
 fn reduce_max_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
@@ -472,5 +497,23 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+fn where_update_outputs(node: &mut Node) {
+    match (
+        node.inputs[0].ty.clone(),
+        node.inputs[1].ty.clone(),
+        node.inputs[2].ty.clone(),
+    ) {
+        (ArgType::Tensor(condition), ArgType::Tensor(x), ArgType::Tensor(y)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: x.elem_type.clone(),
+                dim: max(condition.dim, max(x.dim, y.dim)),
+                ..Default::default()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
     }
 }
