@@ -507,15 +507,9 @@ mod tests {
 
         let other_ref = handle.clone();
 
-        assert!(
-            !handle.can_mut(),
-            "Handle can't be mut when multiple ref."
-        );
+        assert!(!handle.can_mut(), "Handle can't be mut when multiple ref.");
         drop(other_ref);
-        assert!(
-            handle.can_mut(),
-            "Handle should be mut when only one ref."
-        );
+        assert!(handle.can_mut(), "Handle should be mut when only one ref.");
     }
 
     #[test]
