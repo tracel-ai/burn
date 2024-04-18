@@ -27,7 +27,7 @@ def main():
     device = torch.device("cpu")
 
     file_name = "transpose.onnx"
-    test_input = torch.randn(2, 3, 4, device=device)
+    test_input = torch.arange(24, dtype=torch.float, device=device).reshape(2, 3, 4)
     torch.onnx.export(model, test_input, file_name,
                       verbose=False, opset_version=16)
 
