@@ -790,7 +790,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 pub fn transpose_config(curr: &Node) -> Vec<i64> {
     if curr.inputs.len() != 1 {
         panic!(
-            "Tranpose: multiple inputs are not supported (got {:?})",
+            "Transpose: multiple inputs are not supported (got {:?})",
             curr.inputs.len()
         );
     }
