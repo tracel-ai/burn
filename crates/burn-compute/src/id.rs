@@ -7,18 +7,18 @@ macro_rules! storage_id_type {
         /// Storage ID.
         #[derive(Clone, Hash, PartialEq, Eq)]
         pub struct $name {
-            value: u64,
+            value: usize,
         }
 
         impl $name {
             /// Create a new ID.
             pub fn new() -> Self {
-                use core::sync::atomic::{AtomicU64, Ordering};
+                use core::sync::atomic::{AtomicUsize, Ordering};
 
-                static COUNTER: AtomicU64 = AtomicU64::new(0);
+                static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
                 let value = COUNTER.fetch_add(1, Ordering::Relaxed);
-                if value == u64::MAX {
+                if value == usize::MAX {
                     core::panic!("Memory ID overflowed");
                 }
                 Self { value }
@@ -126,7 +126,7 @@ macro_rules! memory_id_type {
         /// Memory ID.
         #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
         pub struct $id {
-            value: u64,
+            value: usize,
         }
 
         impl $handle {
@@ -153,12 +153,12 @@ macro_rules! memory_id_type {
                 }
             }
 
-            fn gen_id() -> u64 {
-                static COUNTER: core::sync::atomic::AtomicU64 =
-                    core::sync::atomic::AtomicU64::new(0);
+            fn gen_id() -> usize {
+                static COUNTER: core::sync::atomic::AtomicUsize =
+                    core::sync::atomic::AtomicUsize::new(0);
 
                 let value = COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                if value == u64::MAX {
+                if value == usize::MAX {
                     core::panic!("Memory ID overflowed");
                 }
 
