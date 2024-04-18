@@ -42,22 +42,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
 
         // x, y and condition need to be broadcastable
         let broadcasted_dim = max(max(self.x.dim, self.y.dim), self.condition.dim);
+        let unsqueeze_dims = broadcasted_dim.to_tokens();
 
         if self.condition.dim < broadcasted_dim {
-            let axes = [0i64]
-                .repeat(broadcasted_dim - self.condition.dim)
-                .to_tokens();
-            mask = quote! { #mask.unsqueeze_dims(&#axes)};
+            mask = quote! { #mask.unsqueeze::<#unsqueeze_dims>()};
         }
 
         if self.x.dim < broadcasted_dim {
-            let axes = [0i64].repeat(broadcasted_dim - self.x.dim).to_tokens();
-            x = quote! { #x.unsqueeze_dims(&#axes)};
+            x = quote! { #x.unsqueeze::<#unsqueeze_dims>()};
         }
 
         if self.y.dim < broadcasted_dim {
-            let axes = [0i64].repeat(broadcasted_dim - self.y.dim).to_tokens();
-            y = quote! { #y.unsqueeze_dims(&#axes)};
+            y = quote! { #y.unsqueeze::<#unsqueeze_dims>()};
         }
 
         quote! {
@@ -189,7 +185,7 @@ mod tests {
                     tensor1: Tensor<B, 4, Bool>,
                     tensor2: Tensor<B, 2>,
                     tensor3: Tensor<B, 3>
-                ) -> Tensor<B, 2> {
+                ) -> Tensor<B, 4> {
                     let tensor4 = tensor3
                         .unsqueeze_dims(&[0])
                         .mask_where(tensor1, tensor2.unsqueeze_dims(&[0, 0]));

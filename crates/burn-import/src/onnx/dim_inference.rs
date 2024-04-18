@@ -478,12 +478,16 @@ fn reduce_max_update_outputs(node: &mut Node) {
 }
 
 fn where_update_outputs(node: &mut Node) {
-    match (node.inputs[1].ty.clone(), node.inputs[2].ty.clone()) {
-        (ArgType::Tensor(x), ArgType::Tensor(y)) => {
+    match (
+        node.inputs[0].ty.clone(),
+        node.inputs[1].ty.clone(),
+        node.inputs[2].ty.clone(),
+    ) {
+        (ArgType::Tensor(condition), ArgType::Tensor(x), ArgType::Tensor(y)) => {
             // With broadcasting support, output dim has to be computed based on the inputs
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: x.elem_type.clone(),
-                dim: max(x.dim, y.dim),
+                dim: max(condition.dim, max(x.dim, y.dim)),
                 ..Default::default()
             });
         }
