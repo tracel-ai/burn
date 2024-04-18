@@ -8,6 +8,21 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use burn_tensor::activation;
 
+/// A LstmState is used to store cell state and hidden state in LSTM.
+pub struct LstmState<B: Backend, const D: usize> {
+    /// The cell state.
+    pub cell: Tensor<B, D>,
+    /// The hidden state.
+    pub hidden: Tensor<B, D>,
+}
+
+impl<B: Backend, const D: usize> LstmState<B, D> {
+    /// Initialize a new [LSTM State](LstmState).
+    pub fn new(cell: Tensor<B, D>, hidden: Tensor<B, D>) -> Self {
+        Self { cell, hidden }
+    }
+}
+
 /// The configuration for a [lstm](Lstm) module.
 #[derive(Config)]
 pub struct LstmConfig {
@@ -25,11 +40,11 @@ pub struct LstmConfig {
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
-    /// The input gate regulates which information to update and store in the memory cell at each time step.
+    /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController<B>,
     /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
     pub forget_gate: GateController<B>,
-    /// The output gate determines which information from the memory cell to output at each time step.
+    /// The output gate determines which information from the cell state to output at each time step.
     pub output_gate: GateController<B>,
     /// The cell gate is used to compute the cell state that stores and carries information through time.
     pub cell_gate: GateController<B>,
@@ -63,24 +78,24 @@ impl LstmConfig {
 
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. This LSTM implementation
-    /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
+    /// returns hidden state for each element in a sequence (i.e., across `seq_length`) and a final state,
     /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size]`.
     ///
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
-    /// - state: An optional tuple of tensors representing the initial cell state and hidden state.
-    ///            Each state tensor has shape `[batch_size, hidden_size]`.
-    ///            If no initial state is provided, these tensors are initialized to zeros.
+    /// - state: An optional `LstmState` representing the initial cell state and hidden state.
+    ///          Each state tensor has shape `[batch_size, hidden_size]`.
+    ///          If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// A tuple of tensors, where the first tensor represents the cell states and
-    /// the second tensor represents the hidden states for each sequence element.
-    /// Both output tensors have the shape `[batch_size, sequence_length, hidden_size]`.
+    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
+    /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
+    ///          `state.hidden` have the shape `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
-        state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
-    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+        state: Option<LstmState<B, 2>>,
+    ) -> (Tensor<B, 3>, LstmState<B, 2>) {
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.dims();
 
@@ -96,17 +111,16 @@ impl<B: Backend> Lstm<B> {
     fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
         &self,
         input_timestep_iter: I,
-        state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
+        state: Option<LstmState<B, 2>>,
         batch_size: usize,
         seq_length: usize,
         device: &B::Device,
-    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
-        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
+    ) -> (Tensor<B, 3>, LstmState<B, 2>) {
         let mut batched_hidden_state =
-            Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
+            Tensor::empty([batch_size, seq_length, self.d_hidden], device);
 
         let (mut cell_state, mut hidden_state) = match state {
-            Some((cell_state, hidden_state)) => (cell_state, hidden_state),
+            Some(state) => (state.cell, state.hidden),
             None => (
                 Tensor::zeros([batch_size, self.d_hidden], device),
                 Tensor::zeros([batch_size, self.d_hidden], device),
@@ -142,21 +156,19 @@ impl<B: Backend> Lstm<B> {
             cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
             hidden_state = output_values * cell_state.clone().tanh();
 
-            let unsqueezed_cell_state = cell_state.clone().unsqueeze_dim(1);
             let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
 
-            // store the state for this timestep
-            batched_cell_state = batched_cell_state.slice_assign(
-                [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                unsqueezed_cell_state.clone(),
-            );
+            // store the hidden state for this timestep
             batched_hidden_state = batched_hidden_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
                 unsqueezed_hidden_state.clone(),
             );
         }
 
-        (batched_cell_state, batched_hidden_state)
+        (
+            batched_hidden_state,
+            LstmState::new(cell_state, hidden_state),
+        )
     }
 }
 
@@ -201,76 +213,88 @@ impl BiLstmConfig {
 
 impl<B: Backend> BiLstm<B> {
     /// Applies the forward pass on the input tensor. This Bidirectional LSTM implementation
-    /// returns the cell state and hidden state for each element in a sequence (i.e., across `seq_length`),
+    /// returns hidden state for each element in a sequence (i.e., across `seq_length`) and a final state,
     /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size * 2]`.
     ///
     /// ## Parameters:
     ///
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
-    /// - state: An optional tuple of tensors representing the initial cell state and hidden state.
-    ///            Each state tensor has shape `[2, batch_size, hidden_size]`.
-    ///            If no initial state is provided, these tensors are initialized to zeros.
+    /// - state: An optional `LstmState` representing the initial cell state and hidden state.
+    ///          Each state tensor has shape `[2, batch_size, hidden_size]`.
+    ///          If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
-    /// A tuple of tensors, where the first tensor represents the cell states and
-    /// the second tensor represents the hidden states for each sequence element.
-    /// Both output tensors have the shape `[batch_size, sequence_length, hidden_size * 2]`.
+    /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size * 2]`
+    /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
+    ///          `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
-        state: Option<(Tensor<B, 3>, Tensor<B, 3>)>,
-    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+        state: Option<LstmState<B, 3>>,
+    ) -> (Tensor<B, 3>, LstmState<B, 3>) {
         let device = batched_input.clone().device();
         let [batch_size, seq_length, _] = batched_input.shape().dims;
 
-        let [state_forward, state_reverse] = match state {
-            Some((cell_state, hidden_state)) => {
-                let cell_state_forward = cell_state
+        let [init_state_forward, init_state_reverse] = match state {
+            Some(state) => {
+                let cell_state_forward = state
+                    .cell
                     .clone()
                     .slice([0..1, 0..batch_size, 0..self.d_hidden])
                     .squeeze(0);
-                let hidden_state_forward = hidden_state
+                let hidden_state_forward = state
+                    .hidden
                     .clone()
                     .slice([0..1, 0..batch_size, 0..self.d_hidden])
                     .squeeze(0);
-                let cell_state_reverse = cell_state
+                let cell_state_reverse = state
+                    .cell
                     .slice([1..2, 0..batch_size, 0..self.d_hidden])
                     .squeeze(0);
-                let hidden_state_reverse = hidden_state
+                let hidden_state_reverse = state
+                    .hidden
                     .slice([1..2, 0..batch_size, 0..self.d_hidden])
                     .squeeze(0);
 
                 [
-                    Some((cell_state_forward, hidden_state_forward)),
-                    Some((cell_state_reverse, hidden_state_reverse)),
+                    Some(LstmState::new(cell_state_forward, hidden_state_forward)),
+                    Some(LstmState::new(cell_state_reverse, hidden_state_reverse)),
                 ]
             }
             None => [None, None],
         };
 
         // forward direction
-        let (batched_cell_state_forward, batched_hidden_state_forward) =
-            self.forward.forward(batched_input.clone(), state_forward);
+        let (batched_hidden_state_forward, final_state_forward) = self
+            .forward
+            .forward(batched_input.clone(), init_state_forward);
 
         // reverse direction
-        let (batched_cell_state_reverse, batched_hidden_state_reverse) = self.reverse.forward_iter(
+        let (batched_hidden_state_reverse, final_state_reverse) = self.reverse.forward_iter(
             batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
-            state_reverse,
+            init_state_reverse,
             batch_size,
             seq_length,
             &device,
         );
 
-        let batched_cell_state = Tensor::cat(
-            [batched_cell_state_forward, batched_cell_state_reverse].to_vec(),
-            2,
-        );
-        let batched_hidden_state = Tensor::cat(
+        let output = Tensor::cat(
             [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),
             2,
         );
 
-        (batched_cell_state, batched_hidden_state)
+        let state = LstmState::new(
+            Tensor::stack(
+                [final_state_forward.cell, final_state_reverse.cell].to_vec(),
+                0,
+            ),
+            Tensor::stack(
+                [final_state_forward.hidden, final_state_reverse.hidden].to_vec(),
+                0,
+            ),
+        );
+
+        (output, state)
     }
 }
 
@@ -278,7 +302,7 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
+    use burn_tensor::{Data, Device, Distribution};
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -323,7 +347,7 @@ mod tests {
             d_output: usize,
             bias: bool,
             initializer: Initializer,
-            device: &<TestBackend as Backend>::Device,
+            device: &Device<TestBackend>,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
                 weight: Param::from_data(Data::from([[weights]]), device),
@@ -383,19 +407,21 @@ mod tests {
         // single timestep with single feature
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
 
-        let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
-        let cell_state = cell_state_batch
-            .select(0, Tensor::arange(0..1, &device))
-            .squeeze(0);
-        let hidden_state = hidden_state_batch
-            .select(0, Tensor::arange(0..1, &device))
-            .squeeze(0);
-        cell_state
+        // let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
+        let (output, state) = lstm.forward(input, None);
+        state
+            .cell
             .to_data()
             .assert_approx_eq(&Data::from([[0.046]]), 3);
-        hidden_state
+        state
+            .hidden
             .to_data()
-            .assert_approx_eq(&Data::from([[0.024]]), 3)
+            .assert_approx_eq(&Data::from([[0.024]]), 3);
+        output
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze(0)
+            .to_data()
+            .assert_approx_eq(&state.hidden.to_data(), 3);
     }
 
     #[test]
@@ -405,10 +431,11 @@ mod tests {
         let batched_input =
             Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
 
-        let (cell_state, hidden_state) = lstm.forward(batched_input, None);
+        let (output, state) = lstm.forward(batched_input, None);
 
-        assert_eq!(cell_state.shape().dims, [8, 10, 1024]);
-        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+        assert_eq!(output.dims(), [8, 10, 1024]);
+        assert_eq!(state.cell.dims(), [8, 1024]);
+        assert_eq!(state.hidden.dims(), [8, 1024]);
     }
 
     #[test]
@@ -421,8 +448,8 @@ mod tests {
         let batched_input =
             Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
 
-        let (cell_state, hidden_state) = lstm.forward(batched_input.clone(), None);
-        let fake_loss = cell_state + hidden_state;
+        let (output, _) = lstm.forward(batched_input.clone(), None);
+        let fake_loss = output;
         let grads = fake_loss.backward();
 
         let some_gradient = lstm
@@ -448,7 +475,7 @@ mod tests {
             input_biases: [f32; D1],
             hidden_weights: [[f32; D1]; D1],
             hidden_biases: [f32; D1],
-            device: &<TestBackend as Backend>::Device,
+            device: &Device<TestBackend>,
         ) -> GateController<TestBackend> {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
@@ -610,8 +637,8 @@ mod tests {
             ],
         ]]);
 
-        let (_, hidden_state) = lstm.forward(input, None);
+        let (output, _) = lstm.forward(input, None);
 
-        hidden_state.to_data().assert_approx_eq(&expected_result, 3)
+        output.to_data().assert_approx_eq(&expected_result, 3)
     }
 }
