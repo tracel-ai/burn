@@ -68,13 +68,6 @@ where
             all: Arc::new(()),
         }
     }
-    /// Derive the handle from another one, increasing its total ref count.
-    pub(crate) fn derive_from<T>(id: Id, other: &HandleRef<T>) -> Self {
-        Self {
-            id: Arc::new(id),
-            all: other.all.clone(),
-        }
-    }
 
     /// The id associated to the handle.
     pub(crate) fn id(&self) -> &Id {
@@ -135,15 +128,6 @@ macro_rules! memory_id_type {
                 let value = Self::gen_id();
                 Self {
                     value: $crate::id::HandleRef::new($id { value }),
-                }
-            }
-
-            /// Derive the handle from another one, increasing its total ref count.
-            #[allow(unused)]
-            pub(crate) fn derive_from<Id>(handle: &$crate::id::HandleRef<Id>) -> Self {
-                let value = Self::gen_id();
-                Self {
-                    value: $crate::id::HandleRef::derive_from($id { value }, handle),
                 }
             }
 
