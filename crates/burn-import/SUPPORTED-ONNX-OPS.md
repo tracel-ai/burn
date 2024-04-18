@@ -195,7 +195,7 @@ represent the corresponding Burn Op.
 | [Trilu][188]                     |       ❌       |      ✅      |
 | [Unique][189]                    |       ❌       |      ❌      |
 | [Upsample][190]                  |       ❌       |      ❌      |
-| [Where][191]                     |       ❌       |      ✅      |
+| [Where][191]                     |       ✅       |      ✅      |
 | [Xor][192]                       |       ❌       |      ❌      |
 | [Unsqueeze][193]                 |       ✅       |      ✅      |
 

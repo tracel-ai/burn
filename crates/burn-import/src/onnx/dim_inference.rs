@@ -57,6 +57,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
+        NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -496,5 +497,23 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+fn where_update_outputs(node: &mut Node) {
+    match (
+        node.inputs[0].ty.clone(),
+        node.inputs[1].ty.clone(),
+        node.inputs[2].ty.clone(),
+    ) {
+        (ArgType::Tensor(condition), ArgType::Tensor(x), ArgType::Tensor(y)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: x.elem_type.clone(),
+                dim: max(condition.dim, max(x.dim, y.dim)),
+                ..Default::default()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
     }
 }
