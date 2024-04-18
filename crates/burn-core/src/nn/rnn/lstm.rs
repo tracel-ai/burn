@@ -330,6 +330,19 @@ mod tests {
     }
 
     #[test]
+    fn test_batched_forward_pass_batch_of_one() {
+        let device = Default::default();
+        let lstm = LstmConfig::new(64, 1024, true).init(&device);
+        let batched_input =
+            Tensor::<TestBackend, 3>::random([1, 10, 64], Distribution::Default, &device);
+
+        let (cell_state, hidden_state) = lstm.forward(batched_input, None);
+
+        assert_eq!(cell_state.shape().dims, [1, 10, 1024]);
+        assert_eq!(hidden_state.shape().dims, [1, 10, 1024]);
+    }
+
+    #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
         use burn_tensor::Shape;

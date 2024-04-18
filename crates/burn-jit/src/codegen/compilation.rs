@@ -193,7 +193,10 @@ impl CompilationSettings {
                     if chosen.is_some() {
                         break;
                     }
-                    if desc.shape == desc_input.shape && input.item() == output.item() {
+                    if desc.shape == desc_input.shape
+                        && input.item() == output.item()
+                        && desc.id == desc_input.id
+                    {
                         chosen = Some(index);
                     }
                 }
