@@ -378,8 +378,6 @@ fn conv1d_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 fn conv2d_update_outputs(node: &mut Node) {
-    println!("{:?}", node.inputs[0].clone());
-
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);
