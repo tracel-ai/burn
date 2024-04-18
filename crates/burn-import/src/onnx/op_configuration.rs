@@ -555,6 +555,19 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
 pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+    // Check if axes attribute exists
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => return value.clone().into_i64s(),
+            _ => {}
+        }
+    }
+
+    assert!(
+        !node.inputs.is_empty(),
+        "Unsqueeze: axes tensor must be present"
+    );
+
     let input_value = &node.inputs[1];
 
     match &node.inputs[1].ty {

@@ -251,92 +251,43 @@ fn reduce_mean_update_outputs(node: &mut Node) {
     }
 }
 
-//fn __unsqueeze_shape
-/// Infers the shape of the output from the input and axes
-/// Right now, this should only be called if the rhs is a constant
+/// Update the output tensor dimension based on the "axes" attribute or the second input
 fn unsqueeze_update_output(node: &mut Node) {
-    if node.inputs.len() != 2 {
-        panic!("Unsqueeze: wrong number of inputs");
-    }
-    // get the values while making sure the types are correct
-    let (input, axes) = match (&node.inputs[0].ty, &node.inputs[1].ty) {
-        (ArgType::Tensor(tensor), ArgType::Tensor(_axes)) => (
-            tensor.clone(),
-            match &node.inputs[1].value {
-                Some(value) => match &value {
-                    Data::Int64s(axes) => Some(axes.clone()),
-                    _ => panic!("Unsqueeze: invalid input types"),
-                },
-                None => None,
+    let axes = if node.inputs.len() == 2 {
+        // get the values while making sure the types are correct
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(axes) => Some(axes.clone()),
+                _ => panic!("Unsqueeze: invalid input types"),
             },
-        ),
-        _ => panic!("Unsqueeze: invalid input types"),
+            None => None,
+        }
+    } else {
+        node.attrs
+            .iter()
+            .find_map(|(key, value)| match key.as_str() {
+                "axes" => Some(value.clone().into_i64s()),
+                _ => None,
+            })
     };
-    //need output way up here to avoid borrowing issues
-    let mut tensor = match &node.outputs[0].ty {
+
+    // need output way up here to avoid borrowing issues
+    let input = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.clone(),
         _ => panic!("Unsqueeze: invalid output types"),
     };
-    match &axes {
-        //case 1: axes is constant -> output shape is input shape with 1s inserted at the axes
-        Some(dim_indices) => {
-            let output_rank = (dim_indices.len() + input.dim) as i64;
-            let mut dim_indices = dim_indices
-                .to_vec()
-                .iter()
-                .map(|&d| {
-                    if (-output_rank..output_rank).contains(&d) {
-                        (if d < 0 { d + output_rank } else { d }) as usize
-                    } else {
-                        panic!("Unsqueeze: invalid axis")
-                    }
-                })
-                .collect::<Vec<usize>>();
-            dim_indices.sort_unstable();
-            let mut new_dims = vec![1; output_rank as usize];
 
-            tensor.dim = output_rank as usize;
-            let old_dims = input.shape.unwrap();
-            //Now use this to copy the chunks of the dims
-            let mut prev_idx: usize = 0;
-            let mut current_left_b: usize = 0;
-            let mut current_right_b: usize = 0;
-            let mut offset: usize = 0;
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Unsqueeze: invalid output types"),
+    };
 
-            dim_indices.iter().for_each(|d| {
-                //check if there is space for at least one dimension
-                if prev_idx < *d {
-                    current_right_b = *d - offset;
-
-                    //copy the chunks of the dims
-                    if current_right_b < old_dims.len() {
-                        new_dims[prev_idx..*d]
-                            .copy_from_slice(&old_dims[current_left_b..current_right_b])
-                    } else {
-                        new_dims[prev_idx..*d].copy_from_slice(&old_dims[current_left_b..]);
-                    }
-                    prev_idx = *d + 1;
-                    //offset is equal to the number of extracted elements from the original shape
-                    offset += current_right_b - current_left_b;
-                    current_left_b = current_right_b;
-                } else {
-                    //it's sorted so the only reason this would happen
-                    //is if multiple indices are the same
-                    prev_idx += 1;
-                }
-            });
-            //copy over anything past the index of the last new dimension
-            if current_left_b < old_dims.len() {
-                new_dims[prev_idx..].copy_from_slice(&old_dims[current_left_b..]);
-            }
-            tensor.shape = Some(new_dims);
-            node.outputs[0].ty = ArgType::Tensor(tensor.clone());
-        }
-
-        //case 3: output shape is dynamic -> black magic or unsupported
-        None => {
-            panic!("Unsqueeze: dynamic output shape is not currently supported");
-        }
+    if axes.is_some() {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: input.dim + axes.unwrap().len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
     }
 }
 
@@ -427,6 +378,8 @@ fn conv1d_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 fn conv2d_update_outputs(node: &mut Node) {
+    println!("{:?}", node.inputs[0].clone());
+
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);

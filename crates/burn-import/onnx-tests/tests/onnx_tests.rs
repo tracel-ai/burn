@@ -64,7 +64,8 @@ include_models!(
     pow,
     pow_int,
     unsqueeze,
-    unsqueeze_opset16
+    unsqueeze_opset16,
+    unsqueeze_opset11
 );
 
 #[cfg(test)]
@@ -1027,7 +1028,18 @@ mod tests {
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);
-        assert_eq!(output.shape(), expected_shape);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn unsqueeze_opset11() {
+        let device = Default::default();
+        let model = unsqueeze_opset11::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 5]);
+        let expected_shape = Shape::from([3, 4, 5, 1]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
     }
 
     #[test]
