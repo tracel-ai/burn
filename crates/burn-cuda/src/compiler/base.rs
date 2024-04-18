@@ -144,7 +144,12 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                     out: self.compile_variable(out),
                 }
             }
-            gpu::Metadata::ArrayLength { var: _, out: _ } => todo!("Remove that operation."),
+            gpu::Metadata::ArrayLength { var, out } => super::Instruction::ArrayLength {
+                input: self.compile_variable(var),
+                out: self.compile_variable(out),
+                num_inputs: self.num_inputs,
+                num_outputs: self.num_outputs,
+            },
         }
     }
 
@@ -346,13 +351,16 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Variable::NumWorkgroupsZ => super::Variable::NumWorkgroupsZ,
             gpu::Variable::LocalArray(id, item, depth, size) => {
                 let item = Self::compile_item(item);
-                if !self.local_arrays.iter().any(|s| s.index == id && s.depth == depth) {
+                if !self
+                    .local_arrays
+                    .iter()
+                    .any(|s| s.index == id && s.depth == depth)
+                {
                     self.local_arrays
-                        .push(super::LocalArray::new(id, item, depth,size));
+                        .push(super::LocalArray::new(id, item, depth, size));
                 }
-                super::Variable::LocalArray(id, item, depth,size)
-
-            },
+                super::Variable::LocalArray(id, item, depth, size)
+            }
         }
     }
 

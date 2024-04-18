@@ -73,8 +73,9 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         );
 
         self.execute_task(task);
-        self.free_manual_allocations();
-        self.memory_management.storage().perform_deallocations();
+        // self.free_manual_allocations();
+        // self.memory_management.storage().perform_deallocations();
+        self.sync();
     }
 
     fn sync(&mut self) {

@@ -53,4 +53,8 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
 
     /// The runtime name.
     fn name() -> &'static str;
+
+    fn require_array_lengths() -> bool {
+        false
+    }
 }

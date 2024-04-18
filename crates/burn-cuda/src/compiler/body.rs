@@ -70,7 +70,7 @@ impl Display for Body {
         for array in self.local_arrays.iter() {
             f.write_fmt(format_args!(
                 "{} l_arr_{}_{}[{}];\n\n",
-                array.item ,array.index, array.depth, array.size
+                array.item, array.index, array.depth, array.size
             ))?;
         }
 

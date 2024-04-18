@@ -424,6 +424,9 @@ impl IndexVector {
 
         let out = out.index(index);
         let lhs = lhs.index(index);
+        // lhs: Vec4<usize>;
+        // let scalar = lhs[1]; WGSL
+        // let scalar = lhs.y;
 
         f.write_fmt(format_args!("{out} = {lhs};\n"))
     }

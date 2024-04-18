@@ -39,11 +39,8 @@ impl<F: FloatElement, I: IntElement> Runtime for CudaRuntime<F, I> {
         RUNTIME.client(device, move || {
             let device = cudarc::driver::CudaDevice::new(device.index).unwrap();
             let storage = CudaStorage::new(device.clone());
-            let memory_management = SimpleMemoryManagement::new(
-                storage,
-                DeallocStrategy::new_period_tick(100),
-                SliceStrategy::Ratio(0.8),
-            );
+            let memory_management =
+                SimpleMemoryManagement::new(storage, DeallocStrategy::Never, SliceStrategy::Never);
             let server = CudaServer::new(device, memory_management);
 
             let tuner_device_id = tuner_device_id();
@@ -56,6 +53,10 @@ impl<F: FloatElement, I: IntElement> Runtime for CudaRuntime<F, I> {
 
     fn name() -> &'static str {
         "cuda"
+    }
+
+    fn require_array_lengths() -> bool {
+        true
     }
 }
 

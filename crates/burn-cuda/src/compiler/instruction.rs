@@ -16,6 +16,12 @@ pub struct UnaryInstruction {
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    ArrayLength {
+        input: Variable,
+        out: Variable,
+        num_inputs: usize,
+        num_outputs: usize,
+    },
     DeclareVariable {
         var: Variable,
     },
@@ -202,6 +208,23 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::SyncThreads => f.write_str("__syncthreads();\n"),
             Instruction::Ceil(it) => Ceil::format(f, &it.input, &it.out),
             Instruction::Floor(it) => Floor::format(f, &it.input, &it.out),
+            Instruction::ArrayLength {
+                input,
+                out,
+                num_inputs,
+                num_outputs,
+            } => {
+                println!("ArrayLength {input:?} {out:?} {num_inputs}");
+                let offset = num_inputs + num_outputs;
+                let index = match input {
+                    Variable::GlobalInputArray(index, _) => *index as usize,
+                    Variable::GlobalOutputArray(index, _) => *index as usize + num_inputs,
+                    _ => panic!("Can only know the len of a global array."),
+                };
+                f.write_fmt(format_args!(
+                    "{out} = info[({offset} * 2 * info[0]) + 1 + {index}];\n"
+                ))
+            }
         }
     }
 }
