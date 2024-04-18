@@ -503,7 +503,7 @@ impl OnnxGraph {
     }
 
     fn where_conversion(node: Node) -> WhereNode {
-        let condition = node.inputs.get(0).unwrap().to_tensor_type();
+        let condition = node.inputs.first().unwrap().to_tensor_type();
         let x = node.inputs.get(1).unwrap().to_tensor_type();
         let y = node.inputs.get(2).unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
