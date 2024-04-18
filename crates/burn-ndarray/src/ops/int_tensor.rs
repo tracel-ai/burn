@@ -242,6 +242,13 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::div_scalar(lhs, rhs)
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: i64,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::remainder_scalar(lhs, rhs)
+    }
+
     fn int_neg<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, D> {
         Self::int_mul_scalar(tensor, -1)
     }

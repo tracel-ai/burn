@@ -963,6 +963,31 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        scalar_int_ops!(ModOps, B::int_remainder_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            stream::OperationDescription::NumericInt(NumericOperationDescription::RemScalar(
+                desc.clone(),
+            )),
+            ModOps::<D>::new(desc),
+        );
+
+        out
+    }
+
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         #[derive(new)]
         struct ZerosOps<const D: usize> {

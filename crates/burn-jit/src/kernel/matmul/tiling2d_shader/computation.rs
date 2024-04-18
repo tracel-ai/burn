@@ -33,50 +33,52 @@ pub fn computation_loop(
 
     gpu!(
         scope,
-        range(0u32, shader.config.block_size_k as u32, shader.unroll).for_each(
-            |dot_index, scope| {
-                // Load a subcolumn of values from lhs
-                gpu!(scope, lhs_sm_position = thread_row / 4u32);
-                gpu!(scope, lhs_sm_position *= block_size_k);
-                gpu!(scope, lhs_sm_position += dot_index);
-                gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
-
-                // Load a subrow of values from rhs
-                gpu!(scope, rhs_sm_position = dot_index * block_size_n);
-                gpu!(scope, rhs_sm_position += thread_col);
-                gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
-                gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
-
-                gpu!(
-                    scope,
-                    range(0u32, shader.config.tile_size_m as u32, shader.unroll).for_each(
-                        |res_idx_m, scope| {
-                            gpu!(
-                                scope,
-                                range(0u32, shader.config.tile_size_n as u32, shader.unroll)
-                                    .for_each(|res_idx_n, scope| {
-                                        gpu!(scope, registered_m = register_m[res_idx_m]);
-                                        gpu!(scope, registered_n = register_n[res_idx_n]);
-
-                                        gpu!(scope, multiplied = registered_m * registered_n);
-
-                                        gpu!(
-                                            scope,
-                                            results_position =
-                                                res_idx_m * shader.config.tile_size_n
-                                        );
-                                        gpu!(scope, results_position += res_idx_n);
-
-                                        gpu!(scope, results_before = results[results_position]);
-                                        gpu!(scope, results_after = results_before + multiplied);
-
-                                        gpu!(scope, results[results_position] = results_after);
-                                    })
-                            );
-                        }
-                    )
-                );
-            }
+        range(
+            0u32,
+            shader.config.block_size_k as u32,
+            shader.config.unroll
         )
+        .for_each(|dot_index, scope| {
+            // Load a subcolumn of values from lhs
+            gpu!(scope, lhs_sm_position = thread_row / 4u32);
+            gpu!(scope, lhs_sm_position *= block_size_k);
+            gpu!(scope, lhs_sm_position += dot_index);
+            gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
+
+            // Load a subrow of values from rhs
+            gpu!(scope, rhs_sm_position = dot_index * block_size_n);
+            gpu!(scope, rhs_sm_position += thread_col);
+            gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
+            gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
+
+            gpu!(
+                scope,
+                range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
+                    |res_idx_m, scope| {
+                        gpu!(
+                            scope,
+                            range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
+                                .for_each(|res_idx_n, scope| {
+                                    gpu!(scope, registered_m = register_m[res_idx_m]);
+                                    gpu!(scope, registered_n = register_n[res_idx_n]);
+
+                                    gpu!(scope, multiplied = registered_m * registered_n);
+
+                                    gpu!(
+                                        scope,
+                                        results_position = res_idx_m * shader.config.tile_size_n
+                                    );
+                                    gpu!(scope, results_position += res_idx_n);
+
+                                    gpu!(scope, results_before = results[results_position]);
+                                    gpu!(scope, results_after = results_before + multiplied);
+
+                                    gpu!(scope, results[results_position] = results_after);
+                                })
+                        );
+                    }
+                )
+            );
+        })
     );
 }

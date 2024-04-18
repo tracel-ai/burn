@@ -467,6 +467,36 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_remainder_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct RemainderScalar;
+
+        retro_unary_scalar!(RetroRemainderScalar, B::float_remainder_scalar);
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for RemainderScalar {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| grad);
+            }
+        }
+
+        RemainderScalar
+            .prepare::<C>([lhs.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroRemainderScalar::<B, D>::new(lhs.node.id, rhs))
+            .parents([&lhs])
+            .stateless(B::float_remainder_scalar(lhs.primitive, rhs))
+    }
+
     fn float_matmul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,

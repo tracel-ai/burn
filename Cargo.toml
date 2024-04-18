@@ -18,14 +18,15 @@ exclude = ["examples/notebook"]
 
 [workspace.package]
 edition = "2021"
-version = "0.13.0"
+version = "0.14.0"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-async-trait = "0.1.79"
+async-trait = "0.1.80"
 bytemuck = "1.14"
-candle-core = { version = "0.4.1" }
+# candle-core = { version = "0.4.1" }
+candle-core = { git = "https://github.com/huggingface/candle.git", rev = "2817643" }
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -35,7 +36,7 @@ dirs = "5.0.1"
 fake = "2.9.1"
 flate2 = "1.0.28"
 float-cmp = "0.9.0"
-getrandom = { version = "0.2.13", default-features = false }
+getrandom = { version = "0.2.14", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.14.2"
@@ -134,7 +135,7 @@ uuid = { version = "1.8.0", default-features = false }
 libc = "0.2.153"
 tch = "0.15.0"
 nvml-wrapper = "0.9.0"
-sysinfo = "0.30.8"
+sysinfo = "0.30.10"
 systemstat = "0.2.3"
 
 
