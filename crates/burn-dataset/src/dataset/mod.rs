@@ -12,5 +12,6 @@ pub use self::fake::*;
 pub use base::*;
 pub use in_memory::*;
 pub use iterator::*;
+pub use window::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 pub use sqlite::*;

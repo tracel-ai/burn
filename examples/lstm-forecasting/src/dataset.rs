@@ -98,6 +98,7 @@ pub struct StockBatch<B: Backend> {
     pub targets: Tensor<B, 1>,
 }
 
+#[derive(Clone, Debug)]
 pub struct StockBatcher<B: Backend> {
     device: B::Device,
 }
