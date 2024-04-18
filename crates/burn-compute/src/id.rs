@@ -88,14 +88,8 @@ where
         Arc::strong_count(&self.id) <= 2
     }
 
-    /// If the resource can be reused by another tensor.
+    /// If the resource is free.
     pub(crate) fn is_free(&self) -> bool {
-        // 1 memory management reference with 0 tensor reference.
-        Arc::strong_count(&self.id) <= 1
-    }
-
-    /// If the resource can be dealloc.
-    pub(crate) fn can_be_dealloc(&self) -> bool {
         Arc::strong_count(&self.all) <= 1
     }
 }

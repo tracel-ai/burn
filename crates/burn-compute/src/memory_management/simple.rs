@@ -346,7 +346,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut ids_to_remove = Vec::new();
 
         self.chunks.iter().for_each(|(chunk_id, chunk)| {
-            if chunk.handle.can_be_dealloc() {
+            if chunk.handle.is_free() {
                 ids_to_remove.push(*chunk_id);
             }
         });
@@ -364,7 +364,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let mut ids_to_remove = Vec::new();
 
         self.slices.iter().for_each(|(slice_id, slice)| {
-            if slice.handle.can_be_dealloc() {
+            if slice.handle.is_free() {
                 ids_to_remove.push(*slice_id);
             }
         });
