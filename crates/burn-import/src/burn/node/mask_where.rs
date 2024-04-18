@@ -187,8 +187,8 @@ mod tests {
                     tensor3: Tensor<B, 3>
                 ) -> Tensor<B, 4> {
                     let tensor4 = tensor3
-                        .unsqueeze_dims(&[0])
-                        .mask_where(tensor1, tensor2.unsqueeze_dims(&[0, 0]));
+                        .unsqueeze::<4>()
+                        .mask_where(tensor1, tensor2.unsqueeze::<4>());
 
                     tensor4
                 }
