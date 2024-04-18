@@ -150,8 +150,8 @@ pub trait Binary {
 
         let out0 = out.index(0);
         let out1 = out.index(1);
-        let out2 = out.index(3);
-        let out3 = out.index(2);
+        let out2 = out.index(2);
+        let out3 = out.index(3);
 
         Self::format_scalar(f, lhs0, rhs0, out0, elem)?;
         Self::format_scalar(f, lhs1, rhs1, out1, elem)?;

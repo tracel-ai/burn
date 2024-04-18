@@ -257,6 +257,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             }),
             gpu::Operator::Floor(op) => Instruction::Floor(self.compile_unary(op)),
             gpu::Operator::Ceil(op) => Instruction::Ceil(self.compile_unary(op)),
+            gpu::Operator::Remainder(op) => todo!(),
         }
     }
 

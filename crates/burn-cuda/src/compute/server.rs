@@ -54,13 +54,13 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             let name = format!("m{}", self.module_names.len());
             let kernel = kernel.compile();
             let source = kernel.source;
-            let workgroup_siz = kernel.workgroup_size;
+            let workgroup_size = kernel.workgroup_size;
             println!("Source {source}");
             let kernel = compile_ptx(source).unwrap();
 
             self.device.load_ptx(kernel, &name, &["kernel"]).unwrap();
             self.module_names
-                .insert(kernel_id.clone(), (name, workgroup_siz));
+                .insert(kernel_id.clone(), (name, workgroup_size));
         }
 
         let task = ComputeTask::new(
