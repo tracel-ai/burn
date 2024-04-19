@@ -19,11 +19,11 @@ fn test_simple_add() {
     let rhs = context.create_local(Item::Scalar(Elem::Float));
     let end = context.create_local(Item::Scalar(Elem::UInt));
 
-    // kernel_expand(&mut context, lhs, rhs, end, false);
+    kernel_expand(&mut context, lhs, rhs, end, false);
     let scope = context.into_scope();
 
     for op in scope.operations.iter() {
-        // println!("{op:?}");
+        println!("{op:?}");
     }
 
     panic!("nop");

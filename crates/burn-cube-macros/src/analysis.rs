@@ -11,8 +11,13 @@ pub(crate) struct VariableAnalysis {
 }
 
 impl VariableAnalysis {
-    pub fn should_clone(&self, loop_level: usize) -> bool {
-        self.num_used > 1 || self.loop_level_declared < loop_level
+    pub fn should_clone(&mut self, loop_level: usize) -> bool {
+        if self.num_used > 1 {
+            self.num_used -= 1;
+            true
+        } else {
+            self.loop_level_declared < loop_level
+        }
     }
 }
 
@@ -22,13 +27,16 @@ pub(crate) struct VariableAnalyses {
 }
 
 impl VariableAnalyses {
-    pub fn should_clone(&self, ident: &syn::Ident, loop_level: usize) -> bool {
+    pub fn should_clone(&mut self, ident: &syn::Ident, loop_level: usize) -> bool {
         let key: VariableKey = ident.into();
-        if let Some(var) = self.analyses.get(&key) {
-            return var.should_clone(loop_level);
+        match self.analyses.remove(&key) {
+            Some(mut var) => {
+                let should_clone = var.should_clone(loop_level);
+                self.analyses.insert(key, var);
+                return should_clone;
+            }
+            None => panic!("Ident {ident} not part of analysis"),
         }
-
-        false
     }
 
     pub fn create(func: &syn::ItemFn) -> Self {
@@ -41,8 +49,11 @@ impl VariableAnalyses {
 pub(crate) fn analyze(func: &syn::ItemFn) -> HashMap<VariableKey, VariableAnalysis> {
     // Build the vector of (Id, depth), using recursion
     let mut declarations = Vec::new();
+    list_declarations_in_signature(&func.sig, &mut declarations);
+
     let mut var_uses = Vec::new();
     list_occurrences(&func.block.stmts, 0, &mut declarations, &mut var_uses);
+    // panic!("{var_uses:?}");
 
     // Run through the vec and build hashmap, without recursion
     let mut analyses = HashMap::<VariableKey, VariableAnalysis>::new();
@@ -62,17 +73,40 @@ pub(crate) fn analyze(func: &syn::ItemFn) -> HashMap<VariableKey, VariableAnalys
     }
 
     for id in var_uses.into_iter() {
-        let prev_analysis = analyses
-            .remove(&id)
-            .expect("Variable {id} should be declared before it's used");
+        let prev_analysis = analyses.remove(&id).expect(&format!(
+            "Variable {:?} should be declared before it's used",
+            id
+        ));
         let new_analysis = VariableAnalysis {
             num_used: prev_analysis.num_used + 1,
             loop_level_declared: prev_analysis.loop_level_declared,
         };
         analyses.insert(id, new_analysis);
     }
+    // panic!("{analyses:?}");
 
     analyses
+}
+
+fn list_declarations_in_signature(
+    sig: &syn::Signature,
+    declarations: &mut Vec<(VariableKey, usize)>,
+) {
+    for input in &sig.inputs {
+        match input {
+            syn::FnArg::Typed(pat) => {
+                let ident = &*pat.pat;
+                match ident {
+                    syn::Pat::Ident(pat_ident) => {
+                        let id = &pat_ident.ident;
+                        declarations.push((id.into(), 0));
+                    }
+                    _ => todo!(),
+                }
+            }
+            _ => todo!(),
+        }
+    }
 }
 
 fn list_occurrences(
@@ -88,6 +122,10 @@ fn list_occurrences(
                 syn::Pat::Ident(pat_ident) => {
                     let id = &pat_ident.ident;
                     declarations.push((id.into(), depth));
+
+                    if let Some(local_init) = &local.init {
+                        occ_expr(&local_init.expr, depth, declarations, uses)
+                    }
                 }
                 _ => todo!(),
             },
@@ -105,22 +143,37 @@ fn occ_expr(
 ) {
     match expr {
         syn::Expr::ForLoop(expr) => {
-            // Declaration
+            let depth = depth + 1;
+
+            // Declaration of iterator
             if let syn::Pat::Ident(pat_ident) = &*expr.pat {
                 let id = &pat_ident.ident;
                 declarations.push((id.into(), depth));
             }
 
-            list_occurrences(&expr.body.stmts, depth + 1, declarations, uses);
+            list_occurrences(&expr.body.stmts, depth, declarations, uses);
         }
         syn::Expr::Assign(expr) => {
+            occ_expr(&expr.left, depth, declarations, uses);
             occ_expr(&expr.right, depth, declarations, uses);
         }
-        syn::Expr::Index(expr) => panic!("{expr:?}"),
-        syn::Expr::Path(expr) => panic!("{expr:?}"),
+        syn::Expr::Index(expr) => {
+            occ_expr(&expr.expr, depth, declarations, uses);
+            occ_expr(&expr.index, depth, declarations, uses);
+        }
+        syn::Expr::Path(expr) => {
+            let ident = expr
+                .path
+                .get_ident()
+                .expect("Only ident path are supported.");
+
+            // Use
+            uses.push(ident.into());
+        }
         syn::Expr::Binary(expr) => {
-            
-        },
+            occ_expr(&expr.left, depth, declarations, uses);
+            occ_expr(&expr.right, depth, declarations, uses);
+        }
         _ => todo!(),
     }
 }

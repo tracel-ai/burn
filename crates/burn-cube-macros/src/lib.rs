@@ -1,6 +1,7 @@
+mod analysis;
 mod statement;
-use std::collections::HashMap;
 
+use analysis::VariableAnalyses;
 use proc_macro::TokenStream;
 use statement::codegen_statement;
 
@@ -26,44 +27,12 @@ impl From<&syn::Ident> for VariableKey {
     }
 }
 
-struct VariableAnalysis {
-    num_used: usize,
-    loop_level_declared: usize,
-}
-
-impl VariableAnalysis {
-    pub fn should_clone(&self, loop_level: usize) -> bool {
-        self.num_used > 1 || self.loop_level_declared < loop_level
-    }
-}
-
-struct VariableAnalyses {
-    analyses: HashMap<VariableKey, VariableAnalysis>,
-}
-
-impl VariableAnalyses {
-    pub fn should_clone(&self, ident: &syn::Ident, loop_level: usize) -> bool {
-        let key: VariableKey = ident.into();
-        if let Some(var) = self.analyses.get(&key) {
-            return var.should_clone(loop_level);
-        }
-
-        false
-    }
-
-    pub fn create(func: &syn::ItemFn) -> Self {
-        Self {
-            analyses: Default::default(),
-        }
-    }
-}
-
-fn codegen_cube(func: &syn::ItemFn, variables: &mut VariableAnalyses) -> TokenStream {
+fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut VariableAnalyses) -> TokenStream {
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
-        let tokens = codegen_statement(statement, 0);
+        let tokens = codegen_statement(statement, 0, variable_analyses);
         body.extend(tokens);
     }
 
@@ -76,6 +45,7 @@ fn codegen_cube(func: &syn::ItemFn, variables: &mut VariableAnalyses) -> TokenSt
         }
     }
     .into();
+    // panic!("{code}");
 
     code
 }
