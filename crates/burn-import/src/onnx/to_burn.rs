@@ -274,6 +274,7 @@ impl OnnxGraph {
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
+                NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -751,6 +752,12 @@ impl OnnxGraph {
             },
             _ => panic!("pow function only supports RHS scalar or tensor types"),
         }
+    }
+
+    fn sign_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        UnaryNode::sign(input, output)
     }
 }
 

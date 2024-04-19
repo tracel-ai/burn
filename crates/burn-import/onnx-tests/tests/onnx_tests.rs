@@ -53,6 +53,7 @@ include_models!(
     reshape,
     shape,
     sigmoid,
+    sign,
     sin,
     softmax,
     sqrt,
@@ -1082,5 +1083,18 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
         assert_eq!(output_broadcasted.to_data(), expected);
+    }
+
+    #[test]
+    fn sign() {
+        let device = Default::default();
+        let model: sign::Model<Backend> = sign::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-1.0, 2.0, 0.0, -4.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[-1.0, 1.0, 0.0, -1.0]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }
