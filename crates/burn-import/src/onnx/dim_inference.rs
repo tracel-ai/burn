@@ -195,28 +195,36 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    assert_eq!(node.inputs.len(), 2);
-
-    let shape = if let Some(Data::Int64s(ref shape)) = node.inputs[1].value {
-        shape
+    let shape = if node.inputs.len() == 2 {
+        // get the values while making sure the types are correct
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(shape) => Some(shape.clone()),
+                _ => panic!("Reshape: invalid input types"),
+            },
+            None => None,
+        }
     } else {
-        panic!("Reshape: int64s shape is expected per ONNX spec");
+        node.attrs
+            .iter()
+            .find_map(|(key, value)| match key.as_str() {
+                "shape" => Some(value.clone().into_i64s()),
+                _ => None,
+            })
     };
 
-    // The output dimension is the same as the shape length
-    let dim = shape.len();
-    let elem_type = match node.inputs[0].ty.clone() {
-        ArgType::Tensor(tensor) => tensor.elem_type,
-        _ => panic!("Reshape: invalid input type"),
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Reshape: invalid output types"),
     };
 
-    let shape = shape.iter().map(|&dim| dim as usize).collect();
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        dim,
-        shape: Some(shape),
-    });
+    if shape.is_some() {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: shape.unwrap().len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
+    }
 }
 
 fn reduce_mean_update_outputs(node: &mut Node) {
