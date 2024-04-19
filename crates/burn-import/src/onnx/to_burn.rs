@@ -451,8 +451,9 @@ impl OnnxGraph {
     fn transpose_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
+        let perm = transpose_config(&node);
 
-        UnaryNode::transpose(input, output)
+        UnaryNode::transpose(input, output, perm)
     }
 
     fn cast_conversion(node: Node) -> UnaryNode {

@@ -198,8 +198,9 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Tanh, Rc::new(function))
     }
 
-    pub(crate) fn transpose(input: Type, output: Type) -> Self {
-        let function = move |input| quote! { #input.transpose() };
+    pub(crate) fn transpose(input: Type, output: Type, perm: Vec<i64>) -> Self {
+        let perm = perm.to_tokens();
+        let function = move |input| quote! { #input.permute(#perm) };
         Self::new(input, output, UnaryNodeKind::Transpose, Rc::new(function))
     }
 
@@ -538,10 +539,11 @@ mod tests {
             UnaryNode::transpose(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
+                vec![0, 3, 1, 2],
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.transpose();
+                    let tensor2 = tensor1.permute([0, 3, 1, 2]);
 
                     tensor2
                 }

@@ -786,3 +786,27 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     (start_dim as usize, end_dim as usize)
 }
+
+pub fn transpose_config(curr: &Node) -> Vec<i64> {
+    if curr.inputs.len() != 1 {
+        panic!(
+            "Transpose: multiple inputs are not supported (got {:?})",
+            curr.inputs.len()
+        );
+    }
+
+    // Extract the shape of the input tensor
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Default: reverse the dimensions
+    let mut perm = (0..tensor.dim as i64).rev().collect::<Vec<i64>>();
+
+    if let Some(axes) = curr.attrs.get("perm") {
+        perm = axes.clone().into_i64s();
+    }
+
+    perm
+}

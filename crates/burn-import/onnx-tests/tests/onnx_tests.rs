@@ -686,18 +686,23 @@ mod tests {
         let model: transpose::Model<Backend> = transpose::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<Backend, 3>::from_floats(
             [
-                [0.33669037, 0.128_809_4, 0.23446237],
-                [0.23033303, -1.122_856_4, -0.18632829],
+                [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
+                [
+                    [12., 13., 14., 15.],
+                    [16., 17., 18., 19.],
+                    [20., 21., 22., 23.],
+                ],
             ],
             &device,
         );
         let output = model.forward(input);
         let expected = Data::from([
-            [0.33669037, 0.23033303],
-            [0.128_809_4, -1.122_856_4],
-            [0.23446237, -0.18632829],
+            [[0., 4., 8.], [12., 16., 20.]],
+            [[1., 5., 9.], [13., 17., 21.]],
+            [[2., 6., 10.], [14., 18., 22.]],
+            [[3., 7., 11.], [15., 19., 23.]],
         ]);
 
         assert_eq!(output.to_data(), expected);
