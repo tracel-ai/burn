@@ -145,18 +145,21 @@ impl GraphMemoryManagement {
         Some(updated_graph_id)
     }
 
-    fn find_owned_graph(&mut self, graph_id: GraphId) -> Option<GraphId> {
-        let graph = match self.graphs.get(&graph_id) {
-            Some(val) => val,
-            None => return None,
-        };
+    fn find_owned_graph(&mut self, mut graph_id: GraphId) -> Option<GraphId> {
+        loop {
+            let graph = match self.graphs.get(&graph_id) {
+                Some(val) => val,
+                None => return None,
+            };
 
-        let merged_graph_id = match graph {
-            GraphState::Merged(graph_id) => graph_id,
-            GraphState::Owned(_) => return Some(graph_id),
-        };
-
-        self.find_owned_graph(*merged_graph_id)
+            match graph {
+                GraphState::Merged(new_graph_id) => {
+                    graph_id = *new_graph_id;
+                    continue;
+                }
+                GraphState::Owned(_) => return Some(graph_id),
+            };
+        }
     }
 }
 
