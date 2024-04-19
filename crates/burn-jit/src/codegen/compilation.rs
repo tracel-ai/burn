@@ -190,7 +190,8 @@ impl CompilationSettings {
 
                 let mut chosen = None;
                 for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                    if chosen.is_some() {
+                    if desc.id == desc_input.id {
+                        chosen = Some(index);
                         break;
                     }
                     if desc.shape == desc_input.shape
