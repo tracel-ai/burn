@@ -216,9 +216,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     let mut handles = settings.handles_tensors;
     let workgroup = settings.workgroup;
 
-    handles.push(settings.handle_info.disconnect());
+    handles.push(settings.handle_info.binding());
     for handle in settings.handles_scalars.iter() {
-        handles.push(handle.disconnect());
+        handles.push(handle.binding());
     }
 
     let kernel = Kernel::JitGpu(Box::new(FullCompilationPhase::<R::Compiler, K>::new(
@@ -271,7 +271,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
             }
         };
         register_info_tensor(input.strides, input.shape);
-        handles.push(input.handle.disconnect());
+        handles.push(input.handle.binding());
     }
 
     // Then we follow with the outputs.
@@ -282,7 +282,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
             }
         };
         register_info_tensor(output.strides, output.shape);
-        handles.push(output.handle.disconnect());
+        handles.push(output.handle.binding());
     }
 
     let info = client.create(bytemuck::cast_slice(&info));

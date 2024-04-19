@@ -98,11 +98,11 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
                 workgroup_size,
             ))),
             vec![
-                lhs.handle.disconnect(),
-                rhs.handle.disconnect(),
-                bias.handle.disconnect(),
-                output.handle.disconnect(),
-                info_handle.disconnect(),
+                lhs.handle.binding(),
+                rhs.handle.binding(),
+                bias.handle.binding(),
+                output.handle.binding(),
+                info_handle.binding(),
             ],
         );
 

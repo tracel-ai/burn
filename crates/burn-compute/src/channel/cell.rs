@@ -42,8 +42,8 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: Binding<Server>) -> Reader<Vec<u8>> {
-        self.server.borrow_mut().read(handle)
+    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
+        self.server.borrow_mut().read(binding)
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {
@@ -54,10 +54,10 @@ where
         self.server.borrow_mut().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, handles: Vec<Binding<Server>>) {
+    fn execute(&self, kernel_description: Server::Kernel, bindings: Vec<Binding<Server>>) {
         self.server
             .borrow_mut()
-            .execute(kernel_description, handles)
+            .execute(kernel_description, bindings)
     }
 
     fn sync(&self) {

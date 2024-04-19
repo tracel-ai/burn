@@ -47,7 +47,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn JitKernel>,
-    handles: Vec<Binding<R::Server>>,
+    bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -60,7 +60,7 @@ pub struct ExecutableKernel<R: Runtime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn JitKernel>,
-    handles: Vec<Binding<R::Server>>,
+    bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -75,20 +75,20 @@ impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
         self.client
-            .execute(Kernel::JitGpu(self.kernel), self.handles)
+            .execute(Kernel::JitGpu(self.kernel), self.bindings)
     }
 }
 
 impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
         self.client
-            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.handles)
+            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             kernel: self.kernel.clone(),
-            handles: self.handles.clone(),
+            bindings: self.bindings.clone(),
             client: self.client.clone(),
         })
     }
@@ -98,7 +98,7 @@ impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
-            handles: value.handles,
+            bindings: value.bindings,
             client: value.client,
         }
     }
@@ -153,13 +153,13 @@ impl<R: Runtime> FusionKernel<R> {
         }
 
         let mut info = Vec::with_capacity(info_size);
-        let mut handles = Vec::with_capacity(num_handles);
+        let mut bindings = Vec::with_capacity(num_handles);
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
         // We register the info and handles for the inputs.
         for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
             register_info_tensor(&mut info, tensor, handle);
-            handles.push(handle.handle.disconnect());
+            bindings.push(handle.handle.binding());
         }
 
         // We register the info and handles for the outputs.
@@ -190,33 +190,33 @@ impl<R: Runtime> FusionKernel<R> {
                     };
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
-                    handles.push(handle_fusion.handle.disconnect());
+                    bindings.push(handle_fusion.handle.binding());
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
         }
 
         // Create the info buffer.
-        handles.push(client.create(bytemuck::cast_slice(&info)).disconnect());
+        bindings.push(client.create(bytemuck::cast_slice(&info)).binding());
 
         // Finally we finish with the named bindings.
         if running_info.scalars.num_float > 0 {
-            handles.push(
+            bindings.push(
                 client
                     .create(bytemuck::cast_slice(
                         &context.scalar_floats[0..running_info.scalars.num_float],
                     ))
-                    .disconnect(),
+                    .binding(),
             );
         }
 
         if running_info.scalars.num_int > 0 {
-            handles.push(
+            bindings.push(
                 client
                     .create(bytemuck::cast_slice(
                         &context.scalar_ints[0..running_info.scalars.num_int],
                     ))
-                    .disconnect(),
+                    .binding(),
             );
         }
 
@@ -231,7 +231,7 @@ impl<R: Runtime> FusionKernel<R> {
                 fusion_kernel,
                 workgroup,
             )),
-            handles,
+            bindings,
             client,
         )
     }

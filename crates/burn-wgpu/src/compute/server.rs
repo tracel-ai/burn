@@ -272,7 +272,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(handle.disconnect().memory);
+        let resource = self.memory_management.get(handle.binding().memory);
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,

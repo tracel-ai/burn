@@ -102,7 +102,7 @@ where
     ) -> Self {
         let bytes = self
             .client
-            .read(self.handle.disconnect())
+            .read(self.handle.binding())
             .read_sync()
             .expect("Can only change client synchronously");
         let handle = client.create(&bytes);

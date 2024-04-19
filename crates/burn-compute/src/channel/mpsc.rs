@@ -51,8 +51,8 @@ where
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    Message::Read(handle, callback) => {
-                        let data = server.read(handle);
+                    Message::Read(binding, callback) => {
+                        let data = server.read(binding);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
@@ -63,8 +63,8 @@ where
                         let handle = server.empty(size);
                         callback.send(handle).unwrap();
                     }
-                    Message::ExecuteKernel(kernel, handles) => {
-                        server.execute(kernel, handles);
+                    Message::ExecuteKernel(kernel, bindings) => {
+                        server.execute(kernel, bindings);
                     }
                     Message::Sync(callback) => {
                         server.sync();

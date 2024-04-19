@@ -25,7 +25,7 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, handle: Binding<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
     fn create(&mut self, data: &[u8]) -> Handle<Self>;
@@ -37,7 +37,7 @@ where
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<Binding<Self>>);
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
@@ -65,10 +65,8 @@ impl<Server: ComputeServer> Handle<Server> {
 }
 
 impl<Server: ComputeServer> Handle<Server> {
-    /// Disconnect the buffer from the tensor.
-    ///
-    /// The handle can then be sent to the compute server.
-    pub fn disconnect(&self) -> Binding<Server> {
+    /// Convert the [handle](Handle) into a [binding](Binding).
+    pub fn binding(&self) -> Binding<Server> {
         Binding {
             memory: MemoryHandle::binding(&self.memory),
         }
