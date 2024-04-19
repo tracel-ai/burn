@@ -49,11 +49,10 @@ impl VariableAnalyses {
 pub(crate) fn analyze(func: &syn::ItemFn) -> HashMap<VariableKey, VariableAnalysis> {
     // Build the vector of (Id, depth), using recursion
     let mut declarations = Vec::new();
-    list_declarations_in_signature(&func.sig, &mut declarations);
+    signature_declarations(&func.sig, &mut declarations);
 
     let mut var_uses = Vec::new();
-    list_occurrences(&func.block.stmts, 0, &mut declarations, &mut var_uses);
-    // panic!("{var_uses:?}");
+    stmts_occurrences(&func.block.stmts, 0, &mut declarations, &mut var_uses);
 
     // Run through the vec and build hashmap, without recursion
     let mut analyses = HashMap::<VariableKey, VariableAnalysis>::new();
@@ -83,15 +82,11 @@ pub(crate) fn analyze(func: &syn::ItemFn) -> HashMap<VariableKey, VariableAnalys
         };
         analyses.insert(id, new_analysis);
     }
-    // panic!("{analyses:?}");
 
     analyses
 }
 
-fn list_declarations_in_signature(
-    sig: &syn::Signature,
-    declarations: &mut Vec<(VariableKey, usize)>,
-) {
+fn signature_declarations(sig: &syn::Signature, declarations: &mut Vec<(VariableKey, usize)>) {
     for input in &sig.inputs {
         match input {
             syn::FnArg::Typed(pat) => {
@@ -109,7 +104,7 @@ fn list_declarations_in_signature(
     }
 }
 
-fn list_occurrences(
+fn stmts_occurrences(
     stmts: &Vec<Stmt>,
     depth: usize,
     declarations: &mut Vec<(VariableKey, usize)>,
@@ -124,18 +119,18 @@ fn list_occurrences(
                     declarations.push((id.into(), depth));
 
                     if let Some(local_init) = &local.init {
-                        occ_expr(&local_init.expr, depth, declarations, uses)
+                        expr_occurrences(&local_init.expr, depth, declarations, uses)
                     }
                 }
                 _ => todo!(),
             },
-            syn::Stmt::Expr(expr, _) => occ_expr(expr, depth, declarations, uses),
+            syn::Stmt::Expr(expr, _) => expr_occurrences(expr, depth, declarations, uses),
             _ => todo!(),
         }
     }
 }
 
-fn occ_expr(
+fn expr_occurrences(
     expr: &syn::Expr,
     depth: usize,
     declarations: &mut Vec<(VariableKey, usize)>,
@@ -151,15 +146,15 @@ fn occ_expr(
                 declarations.push((id.into(), depth));
             }
 
-            list_occurrences(&expr.body.stmts, depth, declarations, uses);
+            stmts_occurrences(&expr.body.stmts, depth, declarations, uses);
         }
         syn::Expr::Assign(expr) => {
-            occ_expr(&expr.left, depth, declarations, uses);
-            occ_expr(&expr.right, depth, declarations, uses);
+            expr_occurrences(&expr.left, depth, declarations, uses);
+            expr_occurrences(&expr.right, depth, declarations, uses);
         }
         syn::Expr::Index(expr) => {
-            occ_expr(&expr.expr, depth, declarations, uses);
-            occ_expr(&expr.index, depth, declarations, uses);
+            expr_occurrences(&expr.expr, depth, declarations, uses);
+            expr_occurrences(&expr.index, depth, declarations, uses);
         }
         syn::Expr::Path(expr) => {
             let ident = expr
@@ -171,8 +166,8 @@ fn occ_expr(
             uses.push(ident.into());
         }
         syn::Expr::Binary(expr) => {
-            occ_expr(&expr.left, depth, declarations, uses);
-            occ_expr(&expr.right, depth, declarations, uses);
+            expr_occurrences(&expr.left, depth, declarations, uses);
+            expr_occurrences(&expr.right, depth, declarations, uses);
         }
         _ => todo!(),
     }

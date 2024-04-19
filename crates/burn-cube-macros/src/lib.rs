@@ -9,9 +9,9 @@ use statement::codegen_statement;
 #[proc_macro_attribute]
 pub fn cube(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let func: syn::ItemFn = syn::parse(tokens).unwrap();
-    let mut variables = VariableAnalyses::create(&func);
+    let mut variable_analyses = VariableAnalyses::create(&func);
 
-    codegen_cube(&func, &mut variables)
+    codegen_cube(&func, &mut variable_analyses)
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -27,6 +27,7 @@ impl From<&syn::Ident> for VariableKey {
     }
 }
 
+/// Generate the expanded version of a function marked with the cube macro
 fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut VariableAnalyses) -> TokenStream {
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
