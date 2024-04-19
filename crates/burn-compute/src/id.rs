@@ -90,7 +90,8 @@ where
 
     /// If the resource is free.
     pub(crate) fn is_free(&self) -> bool {
-        Arc::strong_count(&self.all) <= 1
+        false
+        // Arc::strong_count(&self.all) <= 1
     }
 }
 

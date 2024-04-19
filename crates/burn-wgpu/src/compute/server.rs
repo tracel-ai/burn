@@ -320,7 +320,7 @@ where
             pipeline,
             bind_group,
             work_group,
-            Box::new(bindings),
+            Box::new(()),
         ));
 
         if self.tasks.len() >= self.max_tasks {

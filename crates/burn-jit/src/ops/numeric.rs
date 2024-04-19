@@ -1,5 +1,10 @@
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
-use crate::{binary, Runtime};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope};
+use crate::codegen::{
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
+use crate::kernel::GpuComputeShaderPhase;
+use crate::{binary, gpu, Compiler, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;
 use burn_tensor::{ElementConversion, Shape};
@@ -20,17 +25,63 @@ pub fn full_device<R: Runtime, E: JitElement, const D: usize>(
     device: R::Device,
     value: E,
 ) -> JitTensor<R, E, D> {
-    let empty = empty_device(client, device, shape);
+    #[derive(new)]
+    pub struct Ops<C, E> {
+        _c: core::marker::PhantomData<C>,
+        _e: core::marker::PhantomData<E>,
+    }
 
-    unary!(
-        operation: |scope: &mut Scope, elem: Elem| Operator::Assign(UnaryOperator {
-            input: scope.read_scalar(0, elem),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: empty; value,
-        elem: E
-    )
+    impl<C, E> GpuComputeShaderPhase for Ops<C, E>
+    where
+        C: Compiler,
+        E: JitElement,
+    {
+        fn compile(&self) -> gpu::ComputeShader {
+            let settings = CompilationSettings::default();
+            let mut scope = gpu::Scope::root();
+            let elem = E::gpu_elem();
+            let op = gpu::Operator::Assign(gpu::UnaryOperator {
+                input: scope.read_scalar(0, elem),
+                out: scope.create_local(elem),
+            });
+            scope.register(op);
+
+            let local = scope.last_local_index().unwrap().index().unwrap();
+            let scalars = InputInfo::Scalar {
+                elem: E::gpu_elem(),
+                size: 1,
+            };
+
+            let out = OutputInfo::ArrayWrite {
+                item: gpu::Item::Scalar(E::gpu_elem()),
+                local,
+            };
+            let info = CompilationInfo {
+                inputs: vec![scalars],
+                outputs: vec![out],
+                scope,
+            };
+            Compilation::new(info).compile(settings)
+        }
+    }
+
+    let kernel = Ops::<R::Compiler, E>::new();
+    let launch = WorkgroupLaunch::Input { pos: 0 };
+
+    let num_elems = shape.num_elements();
+    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
+    let output = JitTensor::new(client.clone(), device, shape, buffer);
+
+    Execution::start(kernel, client.clone())
+        .inputs(&[EagerHandle::<R>::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )])
+        .with_scalars(&[value])
+        .execute(launch);
+
+    output
 }
 
 pub fn zeros<R: Runtime, E: JitElement, const D: usize>(
