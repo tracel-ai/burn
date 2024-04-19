@@ -14,7 +14,7 @@ use wgpu::{
 
 /// Wgpu compute server.
 #[derive(Debug)]
-pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
+pub struct WgpuServer<MM: MemoryManagement<WgpuStorage> + 'static> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
@@ -31,6 +31,8 @@ struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,
     work_group: WorkGroup,
+    // Important to release the bindings only when the task is actually registered into the queue.
+    _bindings: Box<dyn core::any::Any + Send + Sync>,
 }
 
 impl<MM> WgpuServer<MM>
@@ -240,7 +242,7 @@ impl BufferReader {
 
 impl<MM> ComputeServer for WgpuServer<MM>
 where
-    MM: MemoryManagement<WgpuStorage>,
+    MM: MemoryManagement<WgpuStorage> + 'static,
 {
     type Kernel = Kernel;
     type Storage = WgpuStorage;
@@ -289,17 +291,17 @@ where
         server::Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<server::Binding<Self>>) {
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
         let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
-        let handles = handles
-            .into_iter()
-            .map(|handle| self.memory_management.get(handle.memory))
+        let memory_handles = bindings
+            .iter()
+            .map(|binding| self.memory_management.get(binding.memory.clone()))
             .collect::<Vec<_>>();
 
-        let entries = handles
+        let entries = memory_handles
             .iter()
             .enumerate()
             .map(|(i, buffer)| wgpu::BindGroupEntry {
@@ -314,8 +316,12 @@ where
             entries: &entries,
         });
 
-        self.tasks
-            .push(ComputeTask::new(pipeline, bind_group, work_group));
+        self.tasks.push(ComputeTask::new(
+            pipeline,
+            bind_group,
+            work_group,
+            Box::new(bindings),
+        ));
 
         if self.tasks.len() >= self.max_tasks {
             self.register_tasks();
