@@ -253,23 +253,28 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         let chunk = self.find_free_chunk(size);
 
         match chunk {
-            Some((chunk_id, chunk_size)) => {
-                if size == chunk_size {
+            Some(chunk) => {
+                // println!("Reuse chunk. {:?}", chunk.handle.id());
+                if size == chunk.storage.size() {
                     // If there is one of exactly the same size, it reuses it.
-                    SimpleHandle::Chunk(chunk_id.clone())
+                    SimpleHandle::Chunk(chunk.handle.clone())
                 } else {
                     // Otherwise creates a slice of the right size upon it, always starting at zero.
-                    self.create_slice(size, chunk_id)
+                    self.create_slice(size, chunk.handle.clone())
                 }
             }
             // If no chunk available, creates one of exactly the right size.
-            None => self.create_chunk(size),
+            None => {
+                let chunk = self.create_chunk(size);
+                // println!("New chunk. {chunk:?}");
+                chunk
+            }
         }
     }
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
-    fn find_free_chunk(&self, size: usize) -> Option<(ChunkHandle, usize)> {
+    fn find_free_chunk(&self, size: usize) -> Option<&Chunk> {
         let mut size_diff_current = usize::MAX;
         let mut current = None;
 
@@ -299,33 +304,33 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             }
         }
 
-        current.map(|chunk| (chunk.handle.clone(), chunk.storage.size()))
+        current
     }
 
     /// Creates a slice of size `size` upon the given chunk.
     ///
     /// For now slices must start at zero, therefore there can be only one per chunk
-    fn create_slice(&mut self, size: usize, handle: ChunkHandle) -> SimpleHandle {
-        let chunk = self.chunks.get_mut(handle.id()).unwrap();
-        let slice_handle = SliceHandle::new();
+    fn create_slice(&mut self, size: usize, handle_chunk: ChunkHandle) -> SimpleHandle {
+        let chunk = self.chunks.get_mut(handle_chunk.id()).unwrap();
+        let handle_slice = SliceHandle::new();
 
         let storage = StorageHandle {
             id: chunk.storage.id.clone(),
-            utilization: StorageUtilization::Slice(0, size),
+            utilization: StorageUtilization::Slice { offset: 0, size },
         };
 
         if chunk.slices.is_empty() {
             self.slices.insert(
-                *slice_handle.id(),
-                Slice::new(storage, slice_handle.clone(), handle.clone()),
+                *handle_slice.id(),
+                Slice::new(storage, handle_slice.clone(), handle_chunk.clone()),
             );
         } else {
             panic!("Can't have more than 1 slice yet.");
         }
 
-        chunk.slices.push(*slice_handle.id());
+        chunk.slices.push(*handle_slice.id());
 
-        SimpleHandle::Slice(slice_handle)
+        SimpleHandle::Slice(handle_slice)
     }
 
     /// Creates a chunk of given size by allocating on the storage.

@@ -14,7 +14,7 @@ use wgpu::{
 
 /// Wgpu compute server.
 #[derive(Debug)]
-pub struct WgpuServer<MM: MemoryManagement<WgpuStorage> + 'static> {
+pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
@@ -31,8 +31,6 @@ struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,
     work_group: WorkGroup,
-    // Important to release the bindings only when the task is actually registered into the queue.
-    _bindings: Box<dyn core::any::Any + Send + Sync>,
 }
 
 impl<MM> WgpuServer<MM>
@@ -73,7 +71,11 @@ where
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
-        self.queue.submit(Some(new_encoder.finish()));
+        println!("{new_encoder:?}");
+        let compute = new_encoder.finish();
+        self.queue.submit(Some(compute));
+        self.device.poll(wgpu::Maintain::Wait);
+
 
         // Cleanup allocations and deallocations.
         self.free_manual_allocations();
@@ -95,15 +97,17 @@ where
 
     // Finds a free, manually-added handle of specified size, or creates it if none is found
     fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        let handle = self
-            .manual_available
-            .get_mut(&size)
-            .and_then(|h| h.pop())
-            .unwrap_or_else(|| {
-                let memory = self.memory_management.alloc(size);
-                server::Handle::new(memory)
-            });
+        // let handle = self
+        //     .manual_available
+        //     .get_mut(&size)
+        //     .and_then(|h| h.pop())
+        //     .unwrap_or_else(|| {
+        //         let memory = self.memory_management.alloc(size);
+        //         server::Handle::new(memory)
+        //     });
 
+        let memory = self.memory_management.alloc(size);
+        let handle = server::Handle::new(memory);
         self.manual_taken.push((size, handle.clone()));
 
         handle
@@ -123,20 +127,20 @@ where
             return;
         }
 
-        let mut compute = self
-            .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: None,
-                timestamp_writes: None,
-            });
-
         for task in self.tasks.iter() {
+            let mut compute = self
+                .encoder
+                .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+
             compute.set_pipeline(&task.pipeline);
             compute.set_bind_group(0, &task.bind_group, &[]);
             compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
+            std::mem::drop(compute);
         }
 
-        std::mem::drop(compute);
         self.tasks.clear();
     }
 
@@ -184,6 +188,7 @@ where
             mapped_at_creation: false,
         });
 
+        println!("Buffer reader...");
         self.encoder.copy_buffer_to_buffer(
             &resource.buffer,
             resource.offset(),
@@ -242,7 +247,7 @@ impl BufferReader {
 
 impl<MM> ComputeServer for WgpuServer<MM>
 where
-    MM: MemoryManagement<WgpuStorage> + 'static,
+    MM: MemoryManagement<WgpuStorage>,
 {
     type Kernel = Kernel;
     type Storage = WgpuStorage;
@@ -267,6 +272,7 @@ where
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let handle = self.manual_reserve(data.len());
+        // println!("Create handle {:?} from data", handle);
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
@@ -276,6 +282,7 @@ where
 
         let resource = self.memory_management.get(handle.binding().memory);
 
+        println!("Buffer create...");
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
             0,
@@ -292,13 +299,18 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
+        // println!(
+        //     "Execute kernel {} with bindings {:?}",
+        //     kernel.id(),
+        //     bindings
+        // );
         let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
         let memory_handles = bindings
-            .iter()
-            .map(|binding| self.memory_management.get(binding.memory.clone()))
+            .into_iter()
+            .map(|binding| self.memory_management.get(binding.memory))
             .collect::<Vec<_>>();
 
         let entries = memory_handles
@@ -316,12 +328,8 @@ where
             entries: &entries,
         });
 
-        self.tasks.push(ComputeTask::new(
-            pipeline,
-            bind_group,
-            work_group,
-            Box::new(()),
-        ));
+        self.tasks
+            .push(ComputeTask::new(pipeline, bind_group, work_group));
 
         if self.tasks.len() >= self.max_tasks {
             self.register_tasks();

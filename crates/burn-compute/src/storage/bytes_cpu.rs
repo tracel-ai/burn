@@ -34,7 +34,7 @@ impl BytesResource {
     fn get_exact_location_and_length(&self) -> (*mut u8, usize) {
         match self.utilization {
             StorageUtilization::Full(len) => (self.ptr, len),
-            StorageUtilization::Slice(location, len) => unsafe { (self.ptr.add(location), len) },
+            StorageUtilization::Slice { offset, size } => unsafe { (self.ptr.add(offset), size) },
         }
     }
 
