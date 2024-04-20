@@ -1,3 +1,4 @@
+
 use crate::{
     codegen::dialect::gpu::{gpu, Item, Scope, Variable},
     JitElement,
@@ -24,18 +25,8 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         accumulator: Variable,
         _shape_reduce_dim: Variable,
     ) {
-        let write_position = Variable::Id;
-
-        let array_len = scope.create_local(Item::Scalar(crate::gpu::Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(crate::gpu::Elem::Bool));
-
-        gpu!(scope, array_len = len(output));
-        gpu!(scope, inside_bound = write_position < array_len);
-
-        gpu!(scope, if(inside_bound).then(|scope| {
-            gpu!(scope, output[write_position] = accumulator);
-        }));
-
+        let id = Variable::Id;
+        gpu!(scope, output[id] = accumulator);
     }
 
     fn initialize_shared(
@@ -92,19 +83,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         _shape_reduce_dim: Variable,
     ) {
         let final_value = scope.create_local(output.item());
-        let array_len = scope.create_local(Item::Scalar(crate::gpu::Elem::UInt));
-        let out_of_bound = scope.create_local(Item::Scalar(crate::gpu::Elem::Bool));
-
-        let array_len = scope.create_local(Item::Scalar(crate::gpu::Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(crate::gpu::Elem::Bool));
-
-        gpu!(scope, array_len = len(output));
-        gpu!(scope, inside_bound = write_position < array_len);
-
-        gpu!(scope, if(inside_bound).then(|scope| {
-            gpu!(scope, final_value = shared_memory[0]);
-            gpu!(scope, output[write_position] = final_value);
-        }));
-
+        gpu!(scope, final_value = shared_memory[0]);
+        gpu!(scope, output[write_position] = final_value);
     }
 }

@@ -207,6 +207,7 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // TODO check bounds on relevent runtimes
     // out = lhs[rhs]
     ($scope:expr, $out:ident = $lhs:ident[$rhs:expr]) => {
         gpu!($scope, $out = index($lhs, $rhs))
@@ -220,6 +221,12 @@ macro_rules! gpu {
     // out[lhs] = rhs
     ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::IndexAssign(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // __bound_checked__(out[lhs]) = rhs
+    ($scope:expr, $__check_bound__:ident($out:ident[$lhs:ident]) = $rhs:expr) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::CheckedIndexAssign(
             gpu!(binary $lhs, $rhs, $out)
         ));
     };

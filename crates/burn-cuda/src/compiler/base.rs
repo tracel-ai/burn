@@ -82,7 +82,22 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
 
     fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<Instruction> {
         let mut instructions = Vec::new();
-        let processing = value.process();
+        let mut processing = value.process();
+
+        // Replace all IndexAssign operators with CheckedIndexAssign procedures
+        for operation in &mut processing.operations {
+            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
+                if let gpu::Variable::GlobalOutputArray(_, _) = operands.out {
+                    *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
+                        gpu::CheckedIndexAssign {
+                            lhs: operands.lhs,
+                            rhs: operands.rhs,
+                            out: operands.out,
+                        },
+                    ));
+                }
+            }
+        }
 
         for var in processing.variables {
             instructions.push(Instruction::DeclareVariable {
@@ -97,6 +112,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
 
         instructions
     }
+
     fn compile_operation(
         &mut self,
         instructions: &mut Vec<Instruction>,
@@ -204,6 +220,10 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 proc.expand(scope);
                 compile(scope);
             }
+            gpu::Procedure::CheckedIndexAssign(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
             gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
                 proc.expand(scope);
                 compile(scope);
@@ -220,6 +240,9 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
             gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),
+            gpu::Operator::CheckedIndexAssign(op) => {
+                Instruction::IndexAssign(self.compile_binary(op))
+            }
             gpu::Operator::Modulo(op) => Instruction::Modulo(self.compile_binary(op)),
             gpu::Operator::Equal(op) => Instruction::Equal(self.compile_binary(op)),
             gpu::Operator::Lower(op) => Instruction::Lower(self.compile_binary(op)),
@@ -262,7 +285,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             }),
             gpu::Operator::Floor(op) => Instruction::Floor(self.compile_unary(op)),
             gpu::Operator::Ceil(op) => Instruction::Ceil(self.compile_unary(op)),
-            gpu::Operator::Remainder(op) => todo!(),
+            gpu::Operator::Remainder(_op) => todo!(),
         }
     }
 

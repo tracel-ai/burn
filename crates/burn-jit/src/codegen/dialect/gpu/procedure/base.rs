@@ -1,5 +1,5 @@
 use super::{
-    ConditionalAssign, IndexOffsetGlobalWithLayout, ReadGlobal, ReadGlobalWithLayout, WriteGlobal,
+    ConditionalAssign, CheckedIndexAssign, IndexOffsetGlobalWithLayout, ReadGlobal, ReadGlobalWithLayout, WriteGlobal,
 };
 use crate::codegen::dialect::gpu::Vectorization;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ pub enum Procedure {
     ReadGlobal(ReadGlobal),
     WriteGlobal(WriteGlobal),
     ConditionalAssign(ConditionalAssign),
+    CheckedIndexAssign(CheckedIndexAssign),
 }
 
 impl Procedure {
@@ -26,6 +27,9 @@ impl Procedure {
             Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
             Procedure::ConditionalAssign(proc) => {
                 Procedure::ConditionalAssign(proc.vectorize(vectorization))
+            }
+            Procedure::CheckedIndexAssign(proc) => {
+                Procedure::CheckedIndexAssign(proc.vectorize(vectorization))
             }
             Procedure::IndexOffsetGlobalWithLayout(op) => {
                 Procedure::IndexOffsetGlobalWithLayout(op.vectorize(vectorization))

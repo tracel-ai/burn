@@ -51,6 +51,7 @@ pub enum Operator {
     Modulo(BinaryOperator),
     Index(BinaryOperator),
     IndexAssign(BinaryOperator),
+    CheckedIndexAssign(BinaryOperator),
     And(BinaryOperator),
     Or(BinaryOperator),
     Not(UnaryOperator),

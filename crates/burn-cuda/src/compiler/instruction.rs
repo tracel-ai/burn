@@ -32,6 +32,7 @@ pub enum Instruction {
     Sub(BinaryInstruction),
     Index(BinaryInstruction),
     IndexAssign(BinaryInstruction),
+    CheckedIndexAssign(BinaryInstruction),
     Assign(UnaryInstruction),
     RangeLoop {
         i: Variable,
@@ -119,6 +120,9 @@ impl Display for Instruction {
             Instruction::ShiftRight(it) => ShiftRight::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Index(it) => Index::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::IndexAssign(it) => IndexAssign::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::CheckedIndexAssign(it) => {
+                IndexAssign::format(f, &it.lhs, &it.rhs, &it.out)
+            }
             Instruction::Assign(it) => Assign::format(f, &it.input, &it.out),
             Instruction::RangeLoop {
                 i,
@@ -214,7 +218,7 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                 num_inputs,
                 num_outputs,
             } => {
-                println!("ArrayLength {input:?} {out:?} {num_inputs}");
+                println!("ArrayLength: {input:?} | {out:?} | {num_inputs}");
                 let offset = num_inputs + num_outputs;
                 let index = match input {
                     Variable::GlobalInputArray(index, _) => *index as usize,

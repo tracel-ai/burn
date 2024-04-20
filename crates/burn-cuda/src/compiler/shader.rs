@@ -67,7 +67,7 @@ impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "
-typedef unsigned int uint; 
+typedef unsigned int uint;
 
 extern \"C\" struct bool4 {{
     bool x;
