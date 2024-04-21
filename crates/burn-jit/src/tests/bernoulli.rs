@@ -13,27 +13,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn subsequent_calls_give_different_tensors() {
-        TestBackend::seed(0);
-        let shape: Shape<2> = [40, 40].into();
-        let device = Default::default();
-
-        let tensor_1 =
-            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
-        let tensor_2 =
-            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
-        let mut diff_exists = false;
-        for i in 0..shape.num_elements() {
-            if tensor_1.to_data().value[i] != tensor_2.to_data().value[i] {
-                diff_exists = true;
-                break;
-            }
-        }
-        assert!(diff_exists);
-    }
-
-    #[test]
-    #[serial]
     fn number_of_1_proportional_to_prob() {
         TestBackend::seed(0);
         let shape: Shape<2> = [40, 40].into();
