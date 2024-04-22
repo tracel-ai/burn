@@ -24,7 +24,7 @@ impl VariablePool {
         // Arbitrarily takes the first it finds
         for variable in variables.iter() {
             if Rc::strong_count(&variable.inner) == 1 {
-                println!("Reuse var {:?}", variable.inner);
+                // println!("Reuse var {:?}", variable.inner);
                 return Some(variable.clone());
             }
         }

@@ -1,5 +1,6 @@
 use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt};
-use burn_jit::gpu::{Elem, Item};
+use burn_jit::gpu;
+use burn_jit::gpu::{Elem, Item, Variable};
 
 // #[cube]
 pub fn kernel(mut lhs: Array<Float>, rhs: Float, end: UInt, unroll: bool) {
@@ -57,6 +58,35 @@ fn test_simple_add() {
 
     kernel_expand(&mut context, lhs, rhs, end, false);
     let scope = context.into_scope();
+
+    for op in scope.operations.iter() {
+        println!("{op:?}");
+    }
+
+    panic!("nop");
+}
+
+#[test]
+fn gpu_macro_test() {
+    let mut context = CubeContext::root();
+    let item = Item::Scalar(Elem::Float);
+
+    let lhs = context.create_local(item);
+    let rhs = context.create_local(item);
+    let end = context.create_local(Item::Scalar(Elem::UInt));
+    let out = context.create_local(item);
+    let mut scope = context.into_scope();
+
+    // Kernel
+    let tmp1 = scope.create_local(item);
+    let tmp2 = scope.create_local(item);
+    let rhs: Variable = rhs.into();
+    gpu!(scope, tmp1 = rhs * rhs);
+    gpu!(scope, tmp2 = tmp1 + rhs);
+
+    for i in range(0usize, end, unroll) {
+        lhs[i] = tmp2 + lhs[i];
+    }
 
     for op in scope.operations.iter() {
         println!("{op:?}");

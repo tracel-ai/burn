@@ -1,5 +1,7 @@
 use super::Variable;
 
+#[macro_export(local_inner_macros)]
+/// Macro for generating JIT intermediate representation, in a concise way
 macro_rules! gpu {
     // out = lhs + rhs
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {

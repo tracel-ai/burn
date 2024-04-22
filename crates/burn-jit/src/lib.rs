@@ -15,7 +15,7 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod codegen;
+pub mod codegen;
 pub(crate) mod tune;
 
 mod element;

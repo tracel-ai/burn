@@ -7,12 +7,12 @@ use burn_jit::gpu::{Item, Variable};
 /// have ExpandElement as associated type
 /// Variables whose values will be known at compile time
 /// must have the primitive type as associated type
-/// 
-/// Note: Cube functions should be written using RuntimeTypes, 
-/// so that the code generated uses the associated ExpandType. 
+///
+/// Note: Cube functions should be written using RuntimeTypes,
+/// so that the code generated uses the associated ExpandType.
 /// This allows Cube code to not necessitate cloning, which is cumbersome
-/// in algorithmic code. The necessary cloning will automatically appear in 
-/// the generated code. 
+/// in algorithmic code. The necessary cloning will automatically appear in
+/// the generated code.
 pub trait RuntimeType {
     type ExpandType: Clone;
 }
@@ -131,5 +131,12 @@ impl From<u32> for UInt {
 impl From<usize> for UInt {
     fn from(value: usize) -> Self {
         UInt::new(value as u32, 1)
+    }
+}
+
+impl From<ExpandElement> for Variable {
+    fn from(value: ExpandElement) -> Self {
+        // Is it ok to do that?
+        (*value.inner).clone()
     }
 }
