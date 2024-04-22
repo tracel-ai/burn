@@ -271,7 +271,7 @@ where
         self.ops.node.parents.clone()
     }
 
-    fn order(&self) -> usize {
+    fn depth(&self) -> usize {
         self.ops.node.order
     }
 }
@@ -293,7 +293,7 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
     fn parents(&self) -> Vec<NodeID> {
         self.ops.node.parents.clone()
     }
-    fn order(&self) -> usize {
+    fn depth(&self) -> usize {
         self.ops.node.order
     }
 }

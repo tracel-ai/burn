@@ -35,7 +35,7 @@ impl Step for RootStep {
         self.node.parents.clone()
     }
 
-    fn order(&self) -> usize {
+    fn depth(&self) -> usize {
         self.node.order
     }
 }

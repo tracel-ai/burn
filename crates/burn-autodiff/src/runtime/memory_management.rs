@@ -40,6 +40,13 @@ impl GraphMemoryManagement {
         }
     }
 
+    /// Free the node from the state.
+    pub fn free_node(&mut self, node_id: NodeID) {
+        let graph_id = GraphId::new(node_id);
+        self.owned.remove(&graph_id);
+        self.graphs.remove(&graph_id);
+    }
+
     /// Free the given graph calling the given function for each node deleted.
     pub fn free_graph<F>(&mut self, graph_id: GraphId, mut func: F)
     where
