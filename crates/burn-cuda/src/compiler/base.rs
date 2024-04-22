@@ -84,6 +84,21 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
         let mut instructions = Vec::new();
         let mut processing = value.process();
 
+        // Replace all Index operators with CheckedIndexAssign procedures
+        for operation in &mut processing.operations {
+            if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
+                if let gpu::Variable::GlobalInputArray(_, _) = operands.lhs {
+                    *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
+                        gpu::CheckedIndex {
+                            lhs: operands.lhs,
+                            rhs: operands.rhs,
+                            out: operands.out,
+                        },
+                    ));
+                }
+            }
+        }
+
         // Replace all IndexAssign operators with CheckedIndexAssign procedures
         for operation in &mut processing.operations {
             if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
@@ -220,6 +235,10 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 proc.expand(scope);
                 compile(scope);
             }
+            gpu::Procedure::CheckedIndex(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
             gpu::Procedure::CheckedIndexAssign(proc) => {
                 proc.expand(scope);
                 compile(scope);
@@ -239,6 +258,9 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operator::Sub(op) => Instruction::Sub(self.compile_binary(op)),
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
+            gpu::Operator::UncheckedIndex(op) => {
+                Instruction::Index(self.compile_binary(op))
+            }
             gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),
             gpu::Operator::UncheckedIndexAssign(op) => {
                 Instruction::IndexAssign(self.compile_binary(op))

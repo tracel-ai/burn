@@ -40,6 +40,7 @@ impl Operator {
             Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
             Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
             Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
+            Operator::UncheckedIndex(op) => Operator::UncheckedIndex(op.vectorize(vectorization)),
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
             Operator::Mul(op) => Operator::Mul(op.vectorize(vectorization)),
             Operator::Div(op) => Operator::Div(op.vectorize(vectorization)),

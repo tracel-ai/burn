@@ -50,6 +50,7 @@ pub enum Operator {
     Assign(UnaryOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
+    UncheckedIndex(BinaryOperator),
     IndexAssign(BinaryOperator),
     UncheckedIndexAssign(BinaryOperator),
     And(BinaryOperator),
