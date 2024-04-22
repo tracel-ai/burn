@@ -8,6 +8,8 @@ use crate::{
 };
 use std::collections::HashMap;
 
+static GRAPH_MM_ACTIVATED: bool = true;
+
 #[derive(Default)]
 pub struct AutodiffServer {
     steps: HashMap<NodeID, StepBoxed>,
@@ -20,7 +22,9 @@ impl AutodiffServer {
         let parents = step.parents();
         let node_id = *rc.as_ref();
 
-        self.memory_management.register(rc, parents);
+        if GRAPH_MM_ACTIVATED {
+            self.memory_management.register(rc, parents);
+        }
 
         self.steps.insert(node_id, step);
         self.actions_builder.insert(node_id, actions);
@@ -33,20 +37,30 @@ impl AutodiffServer {
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
+
+        let orphans = self.memory_management.find_orphan_graphs();
+
         let (tape, builder) = self.build_tape(node_id, step, builder);
         let checkpointer = builder.build(&self.steps);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
 
-        // Cleanup
-        let mut on_free_graph = |node_id: &NodeID| {
-            self.steps.remove(node_id);
-            self.actions_builder.remove(node_id);
-        };
+        if !GRAPH_MM_ACTIVATED {
+            self.steps.clear();
+            self.actions_builder.clear();
+        } else {
+            // Cleanup
+            let mut on_free_graph = |node_id: &NodeID| {
+                self.steps.remove(node_id);
+                self.actions_builder.remove(node_id);
+            };
 
-        for graph_id in self.memory_management.find_orphan_graphs() {
-            self.memory_management
-                .free_graph(graph_id, &mut on_free_graph);
+            for graph_id in orphans {
+                self.memory_management
+                    .free_graph(graph_id, &mut on_free_graph);
+            }
+
+            println!("{}", self.memory_management);
         }
 
         gradients
@@ -63,7 +77,9 @@ impl AutodiffServer {
             .collect::<Vec<_>>();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
-            self.memory_management.free_node(id);
+            if GRAPH_MM_ACTIVATED {
+                self.memory_management.free_node(id);
+            }
 
             let depth = step.depth();
             if depth == 0 {

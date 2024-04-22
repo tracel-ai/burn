@@ -11,6 +11,8 @@ use std::{
 pub struct GraphMemoryManagement {
     graphs: HashMap<GraphId, GraphState>,
     owned: HashSet<GraphId>,
+    nodes: HashMap<NodeRefCount, Vec<NodeID>>,
+    leafs: HashSet<NodeID>,
 }
 
 #[derive(new, Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -78,7 +80,7 @@ impl GraphMemoryManagement {
     pub fn find_orphan_graphs(&self) -> Vec<GraphId> {
         self.owned
             .iter()
-            .filter(|id| self.is_orphan(id))
+            // .filter(|id| self.is_orphan(id))
             .copied()
             .collect()
     }
@@ -174,19 +176,19 @@ impl core::fmt::Display for GraphMemoryManagement {
             self.owned.len(),
             self.graphs.len()
         ))?;
-        for (id, state) in self.graphs.iter() {
-            f.write_fmt(format_args!("Graph {} => ", id.node.value))?;
-            match state {
-                GraphState::Merged(id) => f.write_fmt(format_args!("Merged {}", id.node.value))?,
-                GraphState::Owned(nodes) => {
-                    f.write_str("Owned")?;
-                    for node in nodes {
-                        f.write_fmt(format_args!(" {}", node.value))?;
-                    }
-                }
-            }
-            f.write_str("\n")?;
-        }
+        // for (id, state) in self.graphs.iter() {
+        //     f.write_fmt(format_args!("Graph {} => ", id.node.value))?;
+        //     match state {
+        //         GraphState::Merged(id) => f.write_fmt(format_args!("Merged {}", id.node.value))?,
+        //         GraphState::Owned(nodes) => {
+        //             f.write_str("Owned")?;
+        //             for node in nodes {
+        //                 f.write_fmt(format_args!(" {}", node.value))?;
+        //             }
+        //         }
+        //     }
+        //     f.write_str("\n")?;
+        // }
 
         Ok(())
     }
