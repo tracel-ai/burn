@@ -43,6 +43,7 @@ fn main() {
         .input("tests/reshape/reshape.onnx")
         .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
+        .input("tests/sign/sign.onnx")
         .input("tests/sin/sin.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sqrt/sqrt.onnx")
