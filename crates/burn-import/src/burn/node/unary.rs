@@ -43,6 +43,7 @@ pub enum UnaryNodeKind {
     Sqrt,
     Tanh,
     Transpose,
+    Sign,
 }
 
 impl UnaryNodeKind {
@@ -70,6 +71,7 @@ impl UnaryNodeKind {
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
+            Self::Sign => "sign",
         }
     }
 }
@@ -367,6 +369,11 @@ impl UnaryNode {
             }
         };
         Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
+    }
+
+    pub(crate) fn sign(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sign()};
+        Self::new(input, output, UnaryNodeKind::Sign, Rc::new(function))
     }
 }
 
@@ -894,6 +901,25 @@ mod tests {
                             .convert::<burn::tensor::ops::IntElem<B>>(),
                         &tensor1.device(),
                     );
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_sign_tensor() {
+        one_node_graph(
+            UnaryNode::sign(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.sign();
 
                     tensor2
                 }

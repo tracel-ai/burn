@@ -48,6 +48,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
