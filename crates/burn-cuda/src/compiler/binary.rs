@@ -418,15 +418,15 @@ impl IndexVector {
         out: &Variable,
     ) -> std::fmt::Result {
         let index = match rhs {
-            Variable::ConstantScalar(value, _) => *value as usize,
-            _ => panic!("Only constant indexing is supported, got {:?}", rhs),
+            Variable::ConstantScalar(value, elem) => *value as usize,
+            _ => {
+                let elem = out.elem();
+                return f.write_fmt(format_args!("{out} = *(({elem}*)&{lhs} + {rhs});\n"));
+            }
         };
 
         let out = out.index(index);
         let lhs = lhs.index(index);
-        // lhs: Vec4<usize>;
-        // let scalar = lhs[1]; WGSL
-        // let scalar = lhs.y;
 
         f.write_fmt(format_args!("{out} = {lhs};\n"))
     }
@@ -441,7 +441,10 @@ impl IndexAssignVector {
     ) -> std::fmt::Result {
         let index = match lhs {
             Variable::ConstantScalar(value, _) => *value as usize,
-            _ => panic!("Only constant indexing is supported, got {:?}", lhs),
+            _ => {
+                let elem = out.elem();
+                return f.write_fmt(format_args!("*(({elem}*)&{out} + {lhs}) = {rhs};\n"));
+            }
         };
 
         let out = out.index(index);
