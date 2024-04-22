@@ -341,7 +341,7 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    gpu::Operator::CheckedIndexAssign(op) => mark_binary(
+                    gpu::Operator::UncheckedIndexAssign(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,

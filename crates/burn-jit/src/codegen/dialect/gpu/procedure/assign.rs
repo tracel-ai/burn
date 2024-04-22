@@ -33,7 +33,7 @@ impl CheckedIndexAssign {
         gpu!(scope, inside_bound = lhs < array_len);
 
         gpu!(scope, if(inside_bound).then(|scope| {
-            gpu!(scope, __bound_checked__(out[lhs]) = rhs);
+            gpu!(scope, unchecked(out[lhs]) = rhs);
         }));
     }
 

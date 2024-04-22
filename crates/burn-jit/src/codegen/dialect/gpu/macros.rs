@@ -224,9 +224,9 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
-    // __bound_checked__(out[lhs]) = rhs
-    ($scope:expr, $__check_bound__:ident($out:ident[$lhs:ident]) = $rhs:expr) => {
-        $scope.register($crate::codegen::dialect::gpu::Operator::CheckedIndexAssign(
+    // unchecked(out[lhs]) = rhs
+    ($scope:expr, unchecked($out:ident[$lhs:ident]) = $rhs:expr) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::UncheckedIndexAssign(
             gpu!(binary $lhs, $rhs, $out)
         ));
     };

@@ -1,6 +1,6 @@
 use super::Instruction;
 use crate::element::{FloatElement, IntElement};
-use burn_jit::gpu;
+use burn_jit::gpu::{self, CheckedIndexAssign};
 use std::marker::PhantomData;
 
 #[derive(new, Clone, Debug, Default)]
@@ -240,7 +240,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
             gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),
-            gpu::Operator::CheckedIndexAssign(op) => {
+            gpu::Operator::UncheckedIndexAssign(op) => {
                 Instruction::IndexAssign(self.compile_binary(op))
             }
             gpu::Operator::Modulo(op) => Instruction::Modulo(self.compile_binary(op)),
