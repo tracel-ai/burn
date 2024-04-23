@@ -66,9 +66,9 @@ impl<Server: ComputeServer> Handle<Server> {
 
 impl<Server: ComputeServer> Handle<Server> {
     /// Convert the [handle](Handle) into a [binding](Binding).
-    pub fn binding(&self) -> Binding<Server> {
+    pub fn binding(self) -> Binding<Server> {
         Binding {
-            memory: MemoryHandle::binding(&self.memory),
+            memory: MemoryHandle::binding(self.memory),
         }
     }
 }

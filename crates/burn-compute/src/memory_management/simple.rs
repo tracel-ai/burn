@@ -162,7 +162,7 @@ impl MemoryHandle<SimpleBinding> for SimpleHandle {
         }
     }
 
-    fn binding(&self) -> SimpleBinding {
+    fn binding(self) -> SimpleBinding {
         match self {
             Self::Chunk(handle) => SimpleBinding::Chunk(handle.binding()),
             Self::Slice(handle) => SimpleBinding::Slice(handle.binding()),
@@ -254,7 +254,6 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
         match chunk {
             Some(chunk) => {
-                // println!("Reuse chunk. {:?}", chunk.handle.id());
                 if size == chunk.storage.size() {
                     // If there is one of exactly the same size, it reuses it.
                     SimpleHandle::Chunk(chunk.handle.clone())
@@ -264,11 +263,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
                 }
             }
             // If no chunk available, creates one of exactly the right size.
-            None => {
-                let chunk = self.create_chunk(size);
-                // println!("New chunk. {chunk:?}");
-                chunk
-            }
+            None => self.create_chunk(size),
         }
     }
 

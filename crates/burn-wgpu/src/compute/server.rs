@@ -22,8 +22,6 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks: Vec<ComputeTask>,
     max_tasks: usize,
-    manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
-    manual_taken: Vec<(usize, server::Handle<Self>)>,
 }
 
 #[derive(new, Debug)]
@@ -56,8 +54,6 @@ where
             pipelines: HashMap::new(),
             tasks: Vec::new(),
             max_tasks,
-            manual_available: HashMap::new(),
-            manual_taken: Vec::new(),
         }
     }
 
@@ -71,55 +67,15 @@ where
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
-        println!("{new_encoder:?}");
-        let compute = new_encoder.finish();
-        self.queue.submit(Some(compute));
-        self.device.poll(wgpu::Maintain::Wait);
-
+        self.queue.submit(Some(new_encoder.finish()));
 
         // Cleanup allocations and deallocations.
-        self.free_manual_allocations();
         self.memory_management.storage().perform_deallocations();
-    }
-
-    fn free_manual_allocations(&mut self) {
-        let mut manual_taken_tmp = Vec::new();
-        core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
-
-        for (size, handle) in manual_taken_tmp.drain(..) {
-            if handle.can_mut() {
-                self.register_manual(size, handle);
-            } else {
-                self.manual_taken.push((size, handle));
-            }
-        }
     }
 
     // Finds a free, manually-added handle of specified size, or creates it if none is found
     fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        // let handle = self
-        //     .manual_available
-        //     .get_mut(&size)
-        //     .and_then(|h| h.pop())
-        //     .unwrap_or_else(|| {
-        //         let memory = self.memory_management.alloc(size);
-        //         server::Handle::new(memory)
-        //     });
-
-        let memory = self.memory_management.alloc(size);
-        let handle = server::Handle::new(memory);
-        self.manual_taken.push((size, handle.clone()));
-
-        handle
-    }
-
-    // Manually adds a handle of given size
-    fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
-        if let Some(handles) = self.manual_available.get_mut(&size) {
-            handles.push(handle);
-        } else {
-            self.manual_available.insert(size, [handle].into());
-        }
+        server::Handle::new(self.memory_management.reserve(size))
     }
 
     fn register_tasks(&mut self) {
@@ -127,20 +83,20 @@ where
             return;
         }
 
-        for task in self.tasks.iter() {
-            let mut compute = self
-                .encoder
-                .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: None,
-                    timestamp_writes: None,
-                });
+        let mut compute = self
+            .encoder
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
 
+        for task in self.tasks.iter() {
             compute.set_pipeline(&task.pipeline);
             compute.set_bind_group(0, &task.bind_group, &[]);
             compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
-            std::mem::drop(compute);
         }
 
+        std::mem::drop(compute);
         self.tasks.clear();
     }
 
@@ -188,7 +144,6 @@ where
             mapped_at_creation: false,
         });
 
-        println!("Buffer reader...");
         self.encoder.copy_buffer_to_buffer(
             &resource.buffer,
             resource.offset(),
@@ -254,15 +209,15 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, handle: server::Binding<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]
         {
-            let future = self.buffer_reader(handle).read(self.device.clone());
+            let future = self.buffer_reader(binding).read(self.device.clone());
             return Reader::Future(Box::pin(future));
         }
 
         #[cfg(not(target_family = "wasm"))]
-        Reader::Concrete(self.buffer_reader(handle).read(&self.device))
+        Reader::Concrete(self.buffer_reader(binding).read(&self.device))
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't
@@ -272,7 +227,7 @@ where
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let handle = self.manual_reserve(data.len());
-        // println!("Create handle {:?} from data", handle);
+        let binding = handle.clone().binding();
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
@@ -280,9 +235,8 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(handle.binding().memory);
+        let resource = self.memory_management.get(binding.memory);
 
-        println!("Buffer create...");
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
             0,
@@ -299,11 +253,6 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        // println!(
-        //     "Execute kernel {} with bindings {:?}",
-        //     kernel.id(),
-        //     bindings
-        // );
         let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);

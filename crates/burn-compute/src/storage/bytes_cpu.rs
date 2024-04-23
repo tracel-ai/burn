@@ -109,7 +109,13 @@ mod tests {
     fn test_slices() {
         let mut storage = BytesStorage::default();
         let handle_1 = storage.alloc(64);
-        let handle_2 = StorageHandle::new(handle_1.id.clone(), StorageUtilization::Slice(24, 8));
+        let handle_2 = StorageHandle::new(
+            handle_1.id.clone(),
+            StorageUtilization::Slice {
+                offset: 24,
+                size: 8,
+            },
+        );
 
         storage
             .get(&handle_1)

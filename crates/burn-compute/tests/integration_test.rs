@@ -38,7 +38,7 @@ fn execute_elementwise_addition() {
 
     client.execute(
         Arc::new(DummyElementwiseAddition),
-        vec![lhs.binding(), rhs.binding(), out.binding()],
+        vec![lhs.binding(), rhs.binding(), out.clone().binding()],
     );
 
     let obtained_resource = client.read(out.binding());
@@ -56,7 +56,7 @@ fn autotune_basic_addition_execution() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.binding(), rhs.binding(), out.binding()];
+    let handles = vec![lhs.binding(), rhs.binding(), out.clone().binding()];
 
     let addition_autotune_kernel =
         dummy::AdditionAutotuneOperationSet::new(client.clone(), shapes, handles);
@@ -78,7 +78,7 @@ fn autotune_basic_multiplication_execution() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.binding(), rhs.binding(), out.binding()];
+    let handles = vec![lhs.binding(), rhs.binding(), out.clone().binding()];
 
     let multiplication_autotune_kernel =
         dummy::MultiplicationAutotuneOperationSet::new(client.clone(), shapes, handles);
@@ -114,7 +114,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
     let lhs_2 = client.create(&[0, 1, 2, 3]);
     let rhs_2 = client.create(&[5, 6, 7, 8]);
     let out_2 = client.empty(4);
-    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.binding()];
+    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.clone().binding()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -155,7 +155,7 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     let lhs_2 = client.create(&[0, 1, 2, 3, 4]);
     let rhs_2 = client.create(&[5, 6, 7, 8, 9]);
     let out_2 = client.empty(5);
-    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.binding()];
+    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.clone().binding()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -194,7 +194,7 @@ fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs.binding(), rhs.binding(), out.binding()];
+    let handles = vec![lhs.binding(), rhs.binding(), out.clone().binding()];
 
     let cache_test_autotune_kernel =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes, handles);
@@ -227,7 +227,7 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
     let lhs_2 = client.create(&[0, 1, 2, 3, 4]);
     let rhs_2 = client.create(&[5, 6, 7, 8, 9]);
     let out_2 = client.empty(5);
-    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.binding()];
+    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.clone().binding()];
 
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
@@ -272,7 +272,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     let lhs_2 = client.create(&[0, 1, 2, 3]);
     let rhs_2 = client.create(&[5, 6, 7, 8]);
     let out_2 = client.empty(4);
-    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.binding()];
+    let handles_2 = vec![lhs_2.binding(), rhs_2.binding(), out_2.clone().binding()];
 
     let mut cache_test_autotune_kernel_2 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_2, handles_2);

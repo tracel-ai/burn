@@ -217,7 +217,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     let workgroup = settings.workgroup;
 
     handles.push(settings.handle_info.binding());
-    for handle in settings.handles_scalars.iter() {
+    for handle in settings.handles_scalars.into_iter() {
         handles.push(handle.binding());
     }
 
@@ -264,25 +264,25 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
     let mut num_elems_output = 0;
 
     // We start by registering the inputs.
-    for (i, input) in inputs.iter().enumerate() {
+    for (i, input) in inputs.into_iter().enumerate() {
         if let WorkgroupLaunch::Input { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(input.shape);
             }
         };
         register_info_tensor(input.strides, input.shape);
-        handles.push(input.handle.binding());
+        handles.push(input.handle.clone().binding());
     }
 
     // Then we follow with the outputs.
-    for (i, output) in outputs.iter().enumerate() {
+    for (i, output) in outputs.into_iter().enumerate() {
         if let WorkgroupLaunch::Output { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(output.shape);
             }
         };
         register_info_tensor(output.strides, output.shape);
-        handles.push(output.handle.binding());
+        handles.push(output.handle.clone().binding());
     }
 
     let info = client.create(bytemuck::cast_slice(&info));

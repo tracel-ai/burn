@@ -6,7 +6,7 @@ pub trait MemoryHandle<Binding>: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
     /// Get the binding associated to the current handle.
-    fn binding(&self) -> Binding;
+    fn binding(self) -> Binding;
 }
 
 /// Binding to a [memory handle](MemoryHandle).
@@ -24,7 +24,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     type Binding: MemoryBinding;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, id: Self::Binding) -> Storage::Resource;
+    fn get(&mut self, binding: Self::Binding) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
     fn reserve(&mut self, size: usize) -> Self::Handle;
@@ -41,7 +41,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, id: Self::Binding);
+    fn dealloc(&mut self, binding: Self::Binding);
 
     /// Fetch the storage used by the memory manager.
     ///

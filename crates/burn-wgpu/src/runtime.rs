@@ -68,13 +68,12 @@ impl Default for RuntimeOptions {
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 2, // 64 tasks by default
+            Err(_) => 1, // 64 tasks by default
         };
 
         Self {
             dealloc_strategy: DeallocStrategy::new_period_tick(max_tasks * 2),
-            // slice_strategy: SliceStrategy::Ratio(0.2),
-            slice_strategy: SliceStrategy::Never,
+            slice_strategy: SliceStrategy::Ratio(0.8),
             max_tasks,
         }
     }

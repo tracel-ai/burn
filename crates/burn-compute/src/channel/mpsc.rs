@@ -92,12 +92,12 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, handle: Binding<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
         let (callback, response) = mpsc::channel();
 
         self.state
             .sender
-            .send(Message::Read(handle, callback))
+            .send(Message::Read(binding, callback))
             .unwrap();
 
         self.response(response)
@@ -125,10 +125,10 @@ where
         self.response(response)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: Vec<Binding<Server>>) {
+    fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
         self.state
             .sender
-            .send(Message::ExecuteKernel(kernel, handles))
+            .send(Message::ExecuteKernel(kernel, bindings))
             .unwrap()
     }
 

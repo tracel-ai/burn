@@ -75,10 +75,10 @@ where
     }
 
     /// Get the binding.
-    pub(crate) fn binding(&self) -> BindingRef<Id> {
+    pub(crate) fn binding(self) -> BindingRef<Id> {
         BindingRef {
             id: self.id.as_ref().clone(),
-            _all: self.all.clone(),
+            _all: self.all,
         }
     }
 
@@ -125,7 +125,7 @@ macro_rules! memory_id_type {
                 }
             }
 
-            pub(crate) fn binding(&self) -> $binding {
+            pub(crate) fn binding(self) -> $binding {
                 $binding {
                     value: self.value.binding(),
                 }

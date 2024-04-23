@@ -34,7 +34,7 @@ where
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {
         let handle = self.memory_management.reserve(data.len());
-        let resource = self.memory_management.get(handle.binding());
+        let resource = self.memory_management.get(handle.clone().binding());
 
         let bytes = resource.write();
 

@@ -101,7 +101,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
                 lhs.handle.binding(),
                 rhs.handle.binding(),
                 bias.handle.binding(),
-                output.handle.binding(),
+                output.handle.clone().binding(),
                 info_handle.binding(),
             ],
         );

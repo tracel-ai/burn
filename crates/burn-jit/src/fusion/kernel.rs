@@ -159,7 +159,7 @@ impl<R: Runtime> FusionKernel<R> {
         // We register the info and handles for the inputs.
         for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
             register_info_tensor(&mut info, tensor, handle);
-            bindings.push(handle.handle.binding());
+            bindings.push(handle.handle.clone().binding());
         }
 
         // We register the info and handles for the outputs.
@@ -190,7 +190,7 @@ impl<R: Runtime> FusionKernel<R> {
                     };
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
-                    bindings.push(handle_fusion.handle.binding());
+                    bindings.push(handle_fusion.handle.clone().binding());
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
