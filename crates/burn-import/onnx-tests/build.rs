@@ -43,6 +43,7 @@ fn main() {
         .input("tests/reshape/reshape.onnx")
         .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
+        .input("tests/sign/sign.onnx")
         .input("tests/sin/sin.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sqrt/sqrt.onnx")
@@ -54,6 +55,9 @@ fn main() {
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
         .input("tests/unsqueeze/unsqueeze.onnx")
+        .input("tests/unsqueeze/unsqueeze_opset16.onnx")
+        .input("tests/unsqueeze/unsqueeze_opset11.onnx")
+        .input("tests/mask_where/mask_where.onnx")
         .out_dir("model/")
         .run_from_script();
 

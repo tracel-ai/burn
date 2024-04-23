@@ -1,3 +1,4 @@
+use super::mask_where::WhereNode;
 use super::unsqueeze::UnsqueezeNode;
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
@@ -92,6 +93,7 @@ pub enum Node<PS: PrecisionSettings> {
     Reshape(ReshapeNode),
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
+    Where(WhereNode),
 }
 
 macro_rules! match_all {
@@ -116,6 +118,7 @@ macro_rules! match_all {
             Node::Reshape(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
+            Node::Where(node) => $func(node),
         }
     }};
 }
@@ -150,6 +153,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Reshape(_) => "reshape",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
+            Node::Where(_) => "where",
         }
     }
 }

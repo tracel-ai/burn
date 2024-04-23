@@ -13,6 +13,7 @@ pub(crate) mod dropout;
 pub(crate) mod gather;
 pub(crate) mod global_avg_pool;
 pub(crate) mod linear;
+pub(crate) mod mask_where;
 pub(crate) mod matmul;
 pub(crate) mod max_pool2d;
 pub(crate) mod reshape;

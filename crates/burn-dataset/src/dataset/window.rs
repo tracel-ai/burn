@@ -9,7 +9,7 @@ impl<'a, I> WindowDataset<'a, I> {
     /// # Parameters
     ///
     /// - `dataset`: The dataset over which windows will be created.
-    /// - `size`: The size of the window.
+    /// - `size`: The size of the windows.
     ///
     /// # Returns
     ///
@@ -24,6 +24,7 @@ impl<'a, I> WindowDataset<'a, I> {
 
 /// Dataset designed to work with overlapping windows of data.
 pub struct WindowDataset<'a, I> {
+    /// The size of the windows.
     pub size: NonZeroUsize,
     dataset: &'a dyn Dataset<I>,
 }

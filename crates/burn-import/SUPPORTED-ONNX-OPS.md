@@ -167,7 +167,7 @@ represent the corresponding Burn Op.
 | [Shape][160]                     |       ✅       |      ✅      |
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
-| [Sign][163]                      |       ❌       |      ✅      |
+| [Sign][163]                      |       ✅       |      ✅      |
 | [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
@@ -195,7 +195,7 @@ represent the corresponding Burn Op.
 | [Trilu][188]                     |       ❌       |      ✅      |
 | [Unique][189]                    |       ❌       |      ❌      |
 | [Upsample][190]                  |       ❌       |      ❌      |
-| [Where][191]                     |       ❌       |      ✅      |
+| [Where][191]                     |       ✅       |      ✅      |
 | [Xor][192]                       |       ❌       |      ❌      |
 | [Unsqueeze][193]                 |       ✅       |      ✅      |
 

@@ -360,7 +360,10 @@ impl OnnxGraphBuilder {
     /// Needs to be called after node renaming to ensure that the rhs name is correct
     /// Needs to be called after constant lifting to ensure that the rhs value exists
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
-        if node.node_type == NodeType::Unsqueeze && node.inputs[1].value.is_none() {
+        if node.node_type == NodeType::Unsqueeze
+            && node.inputs.len() > 1
+            && node.inputs[1].value.is_none()
+        {
             if let Some(in_arg) = graph_io.get_node_output(&node.outputs[0].name) {
                 remap_unsqueeze_to_reshape(node, in_arg);
             }

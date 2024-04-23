@@ -27,15 +27,15 @@ def main():
     model.eval()
     device = torch.device("cpu")
 
-    file_name = "unsqueeze_torch.onnx"
     test_input = torch.randn(3, 4, 5, device=device)
     model = Model()
 
     output = model.forward(test_input)
 
-    torch.onnx.export(model, (test_input), file_name, verbose=False, opset_version=16)
+    torch.onnx.export(model, (test_input), "unsqueeze_opset16.onnx", verbose=False, opset_version=16)
+    torch.onnx.export(model, (test_input), "unsqueeze_opset11.onnx", verbose=False, opset_version=11)
 
-    print(f"Finished exporting model to {file_name}")
+    print(f"Finished exporting model")
 
     # Output some test data for use in the test
     print(f"Test input data of ones: {test_input}")

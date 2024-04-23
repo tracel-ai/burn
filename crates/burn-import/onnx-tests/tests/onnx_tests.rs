@@ -40,6 +40,7 @@ include_models!(
     linear,
     log_softmax,
     log,
+    mask_where,
     matmul,
     maxpool2d,
     mul,
@@ -52,6 +53,7 @@ include_models!(
     reshape,
     shape,
     sigmoid,
+    sign,
     sin,
     softmax,
     sqrt,
@@ -62,7 +64,9 @@ include_models!(
     conv_transpose2d,
     pow,
     pow_int,
-    unsqueeze
+    unsqueeze,
+    unsqueeze_opset16,
+    unsqueeze_opset11
 );
 
 #[cfg(test)]
@@ -685,18 +689,23 @@ mod tests {
         let model: transpose::Model<Backend> = transpose::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<Backend, 3>::from_floats(
             [
-                [0.33669037, 0.128_809_4, 0.23446237],
-                [0.23033303, -1.122_856_4, -0.18632829],
+                [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
+                [
+                    [12., 13., 14., 15.],
+                    [16., 17., 18., 19.],
+                    [20., 21., 22., 23.],
+                ],
             ],
             &device,
         );
         let output = model.forward(input);
         let expected = Data::from([
-            [0.33669037, 0.23033303],
-            [0.128_809_4, -1.122_856_4],
-            [0.23446237, -0.18632829],
+            [[0., 4., 8.], [12., 16., 20.]],
+            [[1., 5., 9.], [13., 17., 21.]],
+            [[2., 6., 10.], [14., 18., 22.]],
+            [[3., 7., 11.], [15., 19., 23.]],
         ]);
 
         assert_eq!(output.to_data(), expected);
@@ -1018,6 +1027,28 @@ mod tests {
     }
 
     #[test]
+    fn unsqueeze_opset16() {
+        let device = Default::default();
+        let model = unsqueeze_opset16::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 5]);
+        let expected_shape = Shape::from([3, 4, 5, 1]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn unsqueeze_opset11() {
+        let device = Default::default();
+        let model = unsqueeze_opset11::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 5]);
+        let expected_shape = Shape::from([3, 4, 5, 1]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn cast() {
         let device = Default::default();
         let model: cast::Model<Backend> = cast::Model::new(&device);
@@ -1063,5 +1094,36 @@ mod tests {
         output9.to_data().assert_approx_eq(&expected_float, 4);
 
         assert_eq!(output_scalar, expected_scalar);
+    }
+
+    #[test]
+    fn mask_where() {
+        let device = Default::default();
+        let model: mask_where::Model<Backend> = mask_where::Model::new(&device);
+
+        let x1 = Tensor::ones([2, 2], &device);
+        let y1 = Tensor::zeros([2, 2], &device);
+        let x2 = Tensor::ones([2], &device);
+        let y2 = Tensor::zeros([2], &device);
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let (output, output_broadcasted) = model.forward(mask, x1, y1, x2, y2);
+        let expected = Data::from([[1.0, 0.0], [0.0, 1.0]]);
+
+        assert_eq!(output.to_data(), expected);
+        assert_eq!(output_broadcasted.to_data(), expected);
+    }
+
+    #[test]
+    fn sign() {
+        let device = Default::default();
+        let model: sign::Model<Backend> = sign::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-1.0, 2.0, 0.0, -4.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[-1.0, 1.0, 0.0, -1.0]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }
