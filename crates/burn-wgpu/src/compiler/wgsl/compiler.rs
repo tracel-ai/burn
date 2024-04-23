@@ -340,6 +340,14 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 proc.expand(scope);
                 compile(scope);
             }
+            gpu::Procedure::CheckedIndex(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
+            gpu::Procedure::CheckedIndexAssign(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
             gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
                 proc.expand(scope);
                 compile(scope);
@@ -400,6 +408,11 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 out: self.compile_variable(op.out),
             },
             gpu::Operator::Index(op) => wgsl::Instruction::Index {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::UncheckedIndex(op) => wgsl::Instruction::Index {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
@@ -518,6 +531,11 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 out: self.compile_variable(op.out),
             },
             gpu::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::UncheckedIndexAssign(op) => wgsl::Instruction::IndexAssign {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
