@@ -1,3 +1,5 @@
+use burn_tensor::repr::TensorDescription;
+
 use crate::{
     codegen::{
         calculate_num_elems_dyn_rank,
@@ -11,7 +13,6 @@ use crate::{
     kernel::elemwise_workgroup,
     Runtime,
 };
-use burn_fusion::TensorDescription;
 use std::{marker::PhantomData, sync::Arc};
 
 #[derive(new)]

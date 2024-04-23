@@ -3,7 +3,7 @@ use alloc::string::String;
 use crate::ops::*;
 use crate::tensor::Element;
 
-use super::BackendBridge;
+use super::{BackendBridge, DeviceOps};
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
 ///
@@ -66,7 +66,7 @@ pub trait Backend:
     + 'static
 {
     /// Device type.
-    type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
+    type Device: DeviceOps;
 
     /// A bridge that can cast tensors to full precision.
     type FullPrecisionBridge: BackendBridge<Self> + 'static;

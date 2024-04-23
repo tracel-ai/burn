@@ -1,8 +1,11 @@
 use crate::{
-    stream::{MultiStream, Operation, OperationDescription, StreamId},
-    FusionBackend, HandleContainer, TensorId,
+    stream::{execution::Operation, MultiStream, StreamId},
+    FusionBackend,
 };
-use burn_tensor::ops::{FloatElem, IntElem};
+use burn_tensor::{
+    ops::{FloatElem, IntElem},
+    repr::{HandleContainer, OperationDescription, TensorDescription, TensorId},
+};
 use std::sync::Arc;
 
 pub struct FusionServer<B>
@@ -11,14 +14,14 @@ where
 {
     streams: MultiStream<B>,
     pub(crate) handles: HandleContainer<B>,
-    pub device: B::FusionDevice,
+    pub device: B::Device,
 }
 
 impl<B> FusionServer<B>
 where
     B: FusionBackend,
 {
-    pub fn new(device: B::FusionDevice) -> Self {
+    pub fn new(device: B::Device) -> Self {
         Self {
             streams: MultiStream::new(device.clone()),
             handles: HandleContainer::new(device.clone()),
@@ -46,7 +49,7 @@ where
 
     pub fn read_float<const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
@@ -59,7 +62,7 @@ where
 
     pub fn read_int<const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
         // Make sure all registered operations are executed.
@@ -72,7 +75,7 @@ where
 
     pub fn read_bool<const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         // Make sure all registered operations are executed.
@@ -85,7 +88,7 @@ where
 
     pub fn change_server_float<const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
+        tensor: &TensorDescription,
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {
@@ -101,7 +104,7 @@ where
     }
     pub fn change_server_int<const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
+        tensor: &TensorDescription,
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {
@@ -117,7 +120,7 @@ where
     }
     pub fn change_server_bool<const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
+        tensor: &TensorDescription,
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {

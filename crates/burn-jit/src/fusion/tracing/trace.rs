@@ -1,6 +1,6 @@
 use super::Scalars;
 use crate::codegen::{dialect::gpu, CompilationInfo, InputInfo, OutputInfo};
-use burn_fusion::TensorDescription;
+use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
 
 /// A trace encapsulates all information necessary to perform the compilation and execution of

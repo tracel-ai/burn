@@ -7,16 +7,14 @@ use crate::{
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitBackend, Runtime,
 };
-use burn_fusion::{
-    stream::{
-        BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
-        NumericOperationDescription, OperationDescription, ScalarOperationDescription,
-        UnaryOperationDescription,
-    },
-    OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription,
-};
+use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     ops::{FloatElem, IntElem},
+    repr::{
+        BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
+        NumericOperationDescription, OperationDescription, ScalarOperationDescription,
+        TensorDescription, UnaryOperationDescription,
+    },
     Device, Element,
 };
 

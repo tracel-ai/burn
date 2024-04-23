@@ -2,7 +2,7 @@ use crate::PrecisionBridge;
 
 use super::element::TchElement;
 use super::TchTensor;
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
 
@@ -55,6 +55,17 @@ impl From<tch::Device> for LibTorchDevice {
             tch::Device::Cuda(num) => LibTorchDevice::Cuda(num),
             tch::Device::Mps => LibTorchDevice::Mps,
             tch::Device::Vulkan => LibTorchDevice::Vulkan,
+        }
+    }
+}
+
+impl DeviceOps for LibTorchDevice {
+    fn id(&self) -> burn_tensor::backend::DeviceId {
+        match self {
+            LibTorchDevice::Cpu => DeviceId::new(0, 0),
+            LibTorchDevice::Cuda(index) => DeviceId::new(1, *index as u32),
+            LibTorchDevice::Mps => DeviceId::new(2, 0),
+            LibTorchDevice::Vulkan => DeviceId::new(3, 0),
         }
     }
 }

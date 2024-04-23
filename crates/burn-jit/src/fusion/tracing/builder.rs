@@ -1,7 +1,9 @@
 use super::{trace::Trace, Scalars};
 use crate::codegen::dialect::gpu::{self, Operation, Variable};
-use burn_fusion::{TensorDescription, TensorId};
-use burn_tensor::Element;
+use burn_tensor::{
+    repr::{TensorDescription, TensorId, TensorStatus},
+    Element,
+};
 use hashbrown::HashMap;
 
 /// Type facilitating building a [trace](Trace) by doing most of the conversions between the
@@ -415,7 +417,7 @@ impl TraceBuilder {
         // are going to be used after the fused kernel by other operations.
         for entry in self.tensors.values() {
             let (tensor, _) = &entry;
-            if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
+            if let TensorStatus::ReadOnly = tensor.status {
                 if self.output_to_local.contains_key(&tensor.id) {
                     outputs.push(entry.clone());
                 }

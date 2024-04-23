@@ -18,7 +18,7 @@ macro_rules! scalar_float_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
@@ -38,7 +38,7 @@ macro_rules! scalar_float_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs);
 
@@ -62,7 +62,7 @@ macro_rules! scalar_float2int_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs.clone());
 
@@ -85,7 +85,7 @@ macro_rules! unary_float_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&self.desc.input);
                 let output = $ops(input);
 
@@ -108,7 +108,7 @@ macro_rules! unary_int_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let output = $ops(input);
 
@@ -131,7 +131,7 @@ macro_rules! scalar_float_cmp_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
@@ -154,7 +154,7 @@ macro_rules! scalar_int_cmp_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
@@ -184,7 +184,7 @@ macro_rules! scalar_int_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
@@ -204,7 +204,7 @@ macro_rules! scalar_int_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs);
 
