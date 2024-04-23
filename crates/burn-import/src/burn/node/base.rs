@@ -1,3 +1,4 @@
+use super::layer_norm::LayerNormNode;
 use super::mask_where::WhereNode;
 use super::unsqueeze::UnsqueezeNode;
 use super::{
@@ -87,6 +88,7 @@ pub enum Node<PS: PrecisionSettings> {
     Dropout(DropoutNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    LayerNorm(LayerNormNode<PS>),
     Linear(LinearNode<PS>),
     Matmul(MatmulNode),
     MaxPool2d(MaxPool2dNode),
@@ -112,6 +114,7 @@ macro_rules! match_all {
             Node::Dropout(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::LayerNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
@@ -147,6 +150,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Dropout(_) => "dropout",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::LayerNorm(_) => "layer_norm",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",
             Node::MaxPool2d(_) => "max_pool2d",

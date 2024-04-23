@@ -36,6 +36,7 @@ include_models!(
     gather,
     gelu,
     global_avr_pool,
+    layer_norm,
     leaky_relu,
     linear,
     log_softmax,
@@ -598,6 +599,40 @@ mod tests {
         let output_sum = output.sum().into_scalar();
         let expected_sum = 19.999_802; // from pytorch
         assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
+    }
+
+    #[test]
+    fn layer_norm() {
+        let device = Default::default();
+        let model: layer_norm::Model<Backend> = layer_norm::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::from_floats(
+            [
+                [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
+                [
+                    [12., 13., 14., 15.],
+                    [16., 17., 18., 19.],
+                    [20., 21., 22., 23.],
+                ],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([
+            [
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+            ],
+            [
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+            ],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]
