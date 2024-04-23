@@ -19,7 +19,7 @@ pub(crate) mod codegen;
 pub(crate) mod tune;
 
 mod element;
-pub use codegen::compiler::Compiler;
+pub use codegen::compiler::{Compiler, CompilerRepresentation};
 pub use codegen::dialect::gpu;
 
 pub use element::{FloatElement, IntElement, JitElement};

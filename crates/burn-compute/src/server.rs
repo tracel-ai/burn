@@ -51,7 +51,7 @@ pub struct Handle<Server: ComputeServer> {
 }
 
 /// Binding of a [tensor handle](Handle) to execute a kernel.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct Binding<Server: ComputeServer> {
     /// Memory binding.
     pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Binding,

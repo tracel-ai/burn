@@ -164,11 +164,15 @@ pub trait Binary {
 
 macro_rules! operator {
     ($name:ident, $op:expr) => {
-        operator!($name, $op, |_elem| InstructionSettings {
-            native_vec4: false,
-            native_vec3: false,
-            native_vec2: true,
-        });
+        operator!(
+            $name,
+            $op,
+            InstructionSettings {
+                native_vec4: false,
+                native_vec3: false,
+                native_vec2: false,
+            }
+        );
     };
     ($name:ident, $op:expr, $vectorization:expr) => {
         pub struct $name;
@@ -184,8 +188,9 @@ macro_rules! operator {
                 f.write_fmt(format_args!("{out} = {lhs} {} {rhs};\n", $op))
             }
 
+            #[allow(unused_variables)]
             fn settings(elem: Elem) -> InstructionSettings {
-                $vectorization(elem)
+                $vectorization
             }
         }
     };
@@ -193,11 +198,15 @@ macro_rules! operator {
 
 macro_rules! function {
     ($name:ident, $op:expr) => {
-        function!($name, $op, |_elem| InstructionSettings {
-            native_vec4: false,
-            native_vec3: false,
-            native_vec2: true,
-        });
+        function!(
+            $name,
+            $op,
+            InstructionSettings {
+                native_vec4: false,
+                native_vec3: false,
+                native_vec2: true,
+            }
+        );
     };
     ($name:ident, $op:expr, $vectorization:expr) => {
         pub struct $name;
@@ -213,8 +222,9 @@ macro_rules! function {
                 f.write_fmt(format_args!("{out} = {}({lhs}, {rhs});\n", $op))
             }
 
+            #[allow(unused_variables)]
             fn settings(elem: Elem) -> InstructionSettings {
-                $vectorization(elem)
+                $vectorization
             }
         }
     };
@@ -258,9 +268,21 @@ impl Binary for IndexAssign {
         Rhs: Component,
         Out: Component,
     {
+        let elem_rhs = rhs.elem();
         // Cast only when necessary.
-        if elem != rhs.elem() {
-            f.write_fmt(format_args!("{out}[{lhs}] = {elem}({rhs});\n"))
+        if elem != elem_rhs {
+            if let Elem::Bool = elem_rhs {
+                match rhs.item() {
+                    Item::Vec4(_) => {
+                        f.write_fmt(format_args!("{out}[{lhs}] = make_uint4({elem}({rhs}.x), {elem}({rhs}.y), {elem}({rhs}.z), {elem}({rhs}.w));\n"))
+                    },
+                    Item::Vec3(_) => todo!(),
+                    Item::Vec2(_) => todo!(),
+                    Item::Scalar(_) => todo!(),
+                }
+            } else {
+                f.write_fmt(format_args!("{out}[{lhs}] = {elem}({rhs});\n"))
+            }
         } else {
             f.write_fmt(format_args!("{out}[{lhs}] = {rhs};\n"))
         }
@@ -279,8 +301,10 @@ impl Binary for IndexAssign {
         let rhs0 = rhs.index(0);
         let rhs1 = rhs.index(1);
 
-        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
+        Self::format_scalar(f, lhs0, rhs0, *out, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, *out, elem)?;
+
+        Ok(())
     }
 
     fn unroll_vec3(
@@ -298,9 +322,11 @@ impl Binary for IndexAssign {
         let rhs1 = rhs.index(1);
         let rhs2 = rhs.index(2);
 
-        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
+        Self::format_scalar(f, lhs0, rhs0, *out, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, *out, elem)?;
+        Self::format_scalar(f, lhs2, rhs2, *out, elem)?;
+
+        Ok(())
     }
 
     fn unroll_vec4(
@@ -320,10 +346,12 @@ impl Binary for IndexAssign {
         let rhs2 = rhs.index(2);
         let rhs3 = rhs.index(3);
 
-        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
-        f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+        Self::format_scalar(f, lhs0, rhs0, *out, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, *out, elem)?;
+        Self::format_scalar(f, lhs2, rhs2, *out, elem)?;
+        Self::format_scalar(f, lhs3, rhs3, *out, elem)?;
+
+        Ok(())
     }
 
     fn format(

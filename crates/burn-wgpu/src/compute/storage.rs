@@ -86,9 +86,9 @@ impl WgpuStorage {
 }
 
 impl ComputeStorage for WgpuStorage {
-    type Resource<'a> = WgpuResource;
+    type Resource = WgpuResource;
 
-    fn get<'a>(&'a mut self, handle: &StorageHandle) -> Self::Resource<'a> {
+    fn get(&mut self, handle: &StorageHandle) -> Self::Resource {
         let buffer = self.memory.get(&handle.id).unwrap();
 
         match handle.utilization {

@@ -1,7 +1,7 @@
 use super::Instruction;
 use std::fmt::Display;
 
-/// A body is composed of a list of [operations](Operation).
+/// A body is composed of a list of [instructions](Instruction).
 ///
 /// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
 /// X and Y, but with Z=1.
@@ -66,6 +66,7 @@ impl Display for Body {
                 shared.item, shared.index, shared.size
             ))?;
         }
+
         // Local arrays
         for array in self.local_arrays.iter() {
             f.write_fmt(format_args!(

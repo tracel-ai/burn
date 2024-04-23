@@ -40,12 +40,10 @@ impl StorageHandle {
 pub trait ComputeStorage: Send {
     /// The resource associated type determines the way data is implemented and how
     /// it can be accessed by kernels.
-    type Resource<'a>: Send
-    where
-        Self: 'a;
+    type Resource: Send;
 
     /// Returns the underlying resource for a specified storage handle
-    fn get<'a>(&'a mut self, handle: &StorageHandle) -> Self::Resource<'a>;
+    fn get(&mut self, handle: &StorageHandle) -> Self::Resource;
 
     /// Allocates `size` units of memory and returns a handle to it
     fn alloc(&mut self, size: usize) -> StorageHandle;

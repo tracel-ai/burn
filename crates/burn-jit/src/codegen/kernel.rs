@@ -297,7 +297,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
             info.push(len as u32);
         }
     }
-    println!("{info:?}");
+
     let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.

@@ -113,11 +113,6 @@ impl CompilationSettings {
         self
     }
 
-    pub fn bound_check(mut self, variable: Variable) -> Self {
-        self.bound_check = Some(variable);
-        self
-    }
-
     /// Compile the shader with inplace enabled by the given [mapping](InplaceMapping).
     ///
     /// Notes:

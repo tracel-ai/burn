@@ -24,7 +24,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     type Binding: MemoryBinding;
 
     /// Returns the resource from the storage at the specified handle
-    fn get<'a>(&'a mut self, binding: Self::Binding) -> Storage::Resource<'a>;
+    fn get(&mut self, binding: Self::Binding) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
     fn reserve(&mut self, size: usize) -> Self::Handle;

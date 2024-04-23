@@ -2,11 +2,17 @@ use super::dialect::gpu;
 use crate::{FloatElement, IntElement};
 use std::fmt::Display;
 
+/// Trait for compiled code representation
+pub trait CompilerRepresentation: Display {
+    /// Computes and returns the shared memory size
+    fn shared_memory_size(&self) -> usize;
+}
+
 /// Compiles the [gpu representation](gpu::ComputeShader) into its own representation that can be
 /// formatted into tokens.
 pub trait Compiler: Sync + Send + 'static + Clone + Default + core::fmt::Debug {
     /// The representation for the compiled code.
-    type Representation: Display;
+    type Representation: CompilerRepresentation;
     /// The float element type used for compilation.
     type Float: FloatElement;
     /// The int element type used for compilation.

@@ -3,6 +3,7 @@ use crate::element::{FloatElement, IntElement};
 use burn_jit::gpu::{self};
 use std::marker::PhantomData;
 
+#[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
 pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     shape: bool,
@@ -23,7 +24,6 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
     type Representation = super::ComputeShader;
     type Float = f32;
     type Int = i32;
-
     type FullPrecisionCompiler = CudaCompiler<f32, i32>;
 
     fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
@@ -101,8 +101,8 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                     // Cannot perform bound check on non-global arrays, do nothing.
                     _ => (),
                 }
-            } else if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation
-            {
+            }
+            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
                 // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
                 match operands.out {
                     gpu::Variable::GlobalInputArray(_, _)

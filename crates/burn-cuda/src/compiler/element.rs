@@ -238,10 +238,7 @@ impl Variable {
     }
 
     pub fn index(&self, index: usize) -> IndexedVariable {
-        IndexedVariable {
-            var: self.clone(),
-            index,
-        }
+        IndexedVariable { var: *self, index }
     }
 }
 

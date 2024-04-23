@@ -43,9 +43,11 @@ where
     fn compile(&self) -> CompiledKernel {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
+
         CompiledKernel {
             source,
             workgroup_size: self.workgroup_size,
+            shared_mem_bytes: 0,
         }
     }
 

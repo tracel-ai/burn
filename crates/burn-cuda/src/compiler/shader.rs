@@ -1,6 +1,6 @@
 // use super::{Body, Extension, Item};
 use super::{Body, Item};
-use burn_jit::gpu::WorkgroupSize;
+use burn_jit::{gpu::WorkgroupSize, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -61,6 +61,26 @@ pub struct ComputeShader {
     pub named: Vec<(String, Binding)>,
     pub workgroup_size: WorkgroupSize,
     pub body: Body,
+}
+
+impl CompilerRepresentation for ComputeShader {
+    fn shared_memory_size(&self) -> usize {
+        let mut current = 0usize;
+
+        for var in self.body.shared_memories.iter() {
+            let factor = match var.item {
+                Item::Vec4(_) => 4,
+                Item::Vec3(_) => 3,
+                Item::Vec2(_) => 2,
+                Item::Scalar(_) => 1,
+            };
+
+            let elem_size_bytes = var.item.elem().size();
+            current += (var.size as usize) * factor * elem_size_bytes;
+        }
+
+        current
+    }
 }
 
 impl Display for ComputeShader {

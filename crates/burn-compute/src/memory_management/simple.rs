@@ -175,7 +175,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     type Binding = SimpleBinding;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get<'a>(&'a mut self, binding: Self::Binding) -> Storage::Resource<'a> {
+    fn get(&mut self, binding: Self::Binding) -> Storage::Resource {
         let storage = match binding {
             SimpleBinding::Chunk(chunk) => {
                 &self
