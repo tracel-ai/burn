@@ -9,18 +9,17 @@ use crate::{
 };
 
 use burn_tensor::{
-    handle::{HandleContainer, TensorDescription},
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     repr::{
         BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
         ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-        FloatOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
-        MaskWhereOperationDescription, NumericOperationDescription, OperationDescription,
-        PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-        RepeatOperationDescription, ReshapeDescription, ScalarOperationDescription,
-        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
-        UnaryOperationDescription,
+        FloatOperationDescription, GatherOperationDescription, HandleContainer,
+        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+        ReduceDimWithIndicesDescription, RepeatOperationDescription, ReshapeDescription,
+        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        SwapDimsDescription, TensorDescription, UnaryOperationDescription,
     },
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };

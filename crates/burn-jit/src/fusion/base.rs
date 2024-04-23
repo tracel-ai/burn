@@ -4,7 +4,7 @@ use crate::{
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend};
-use burn_tensor::{handle::HandleContainerBackend, Shape};
+use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +53,7 @@ impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R>
     }
 }
 
-impl<R: Runtime> HandleContainerBackend for JitBackend<R> {
+impl<R: Runtime> ReprBackend for JitBackend<R> {
     type Handle = JitFusionHandle<R>;
 
     fn float_tensor<const D: usize>(

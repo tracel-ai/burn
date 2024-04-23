@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
 use crate::{
-    handle::TensorDescription,
     ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions},
+    repr::tensor::TensorDescription,
     Distribution, Element,
 };
 

@@ -4,10 +4,9 @@ use crate::{
 };
 use burn_tensor::{
     backend::Backend,
-    handle::{TensorDescription, TensorId},
     ops::{FloatElem, IntElem},
-    repr::OperationDescription,
-    Data, Reader,
+    repr::{OperationDescription, TensorDescription, TensorId},
+    Data, Device, Reader,
 };
 
 /// Define how to interact with the fusion server.
@@ -15,8 +14,8 @@ pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion backend](FusionBackend) associated type.
     type FusionBackend: FusionBackend;
 
-    /// Create a new client for the given [fusion device](Backend::Device).
-    fn new(device: <Self::FusionBackend as Backend>::Device) -> Self;
+    /// Create a new client for the given [device](Backend::Device).
+    fn new(device: Device<Self::FusionBackend>) -> Self;
     /// Register a new [tensor operation description](OperationDescription).
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,

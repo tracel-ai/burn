@@ -6,14 +6,13 @@ use crate::{
     Fusion, FusionBackend,
 };
 use burn_tensor::{
-    handle::HandleContainer,
     ops::{BoolTensor, BoolTensorOps},
     repr::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
         CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-        OperationDescription, PermuteOperationDescription, RepeatOperationDescription,
-        ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
-        SwapDimsDescription, UnaryOperationDescription,
+        HandleContainer, OperationDescription, PermuteOperationDescription,
+        RepeatOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
+        SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
     },
     Device, Shape,
 };

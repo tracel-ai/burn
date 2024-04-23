@@ -265,9 +265,9 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{
-        handle::{TensorDescription, TensorId, TensorStatus},
-        repr::{FloatOperationDescription, UnaryOperationDescription},
+    use burn_tensor::repr::{
+        FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
+        UnaryOperationDescription,
     };
 
     use super::*;

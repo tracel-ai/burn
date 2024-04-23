@@ -11,11 +11,8 @@ extern crate alloc;
 
 mod tensor;
 
-/// Tensor Handles Container
-#[cfg(feature = "std")]
-pub mod handle;
-/// Tensor Ops descriptions
-#[cfg(feature = "std")]
+/// Burn Tensor representaton
+#[cfg(feature = "repr")]
 pub mod repr;
 
 #[cfg(feature = "export_tests")]

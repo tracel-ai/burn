@@ -1,8 +1,8 @@
 use crate::{client::FusionClient, stream::StreamId};
 use burn_tensor::{
     backend::Backend,
-    handle::{TensorDescription, TensorId, TensorStatus},
     ops::{FloatElem, IntElem},
+    repr::{TensorDescription, TensorId, TensorStatus},
     Data, Reader, Shape,
 };
 use std::sync::Arc;

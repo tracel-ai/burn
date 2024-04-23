@@ -1,35 +1,17 @@
 use crate::{
     backend::Backend,
-    handle::{TensorDescription, TensorId, TensorStatus},
-    ops::{BoolTensor, FloatTensor, IntTensor},
+    repr::{
+        backend::ReprBackend,
+        tensor::{TensorDescription, TensorId, TensorStatus},
+    },
     Shape,
 };
 use std::{collections::HashMap, sync::Arc};
 
-/// Backend extension trait that allows an existing [backend](Backend) to store its tensors in a .
-pub trait HandleContainerBackend: Backend {
-    /// The type that can be used to point to a tensor of any kind.
-    type Handle: Sync + Send + Clone;
-
-    /// Convert a [handle](HandleContainerBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
-    fn float_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> FloatTensor<Self, D>;
-    /// Convert a [handle](HandleContainerBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
-    fn int_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> IntTensor<Self, D>;
-    /// Convert a [handle](HandleContainerBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
-    fn bool_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> BoolTensor<Self, D>;
-
-    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](HandleContainerBackend::Handle).
-    fn float_tensor_handle<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Handle;
-    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](HandleContainerBackend::Handle).
-    fn int_tensor_handle<const D: usize>(tensor: IntTensor<Self, D>) -> Self::Handle;
-    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](HandleContainerBackend::Handle).
-    fn bool_tensor_handle<const D: usize>(tensor: BoolTensor<Self, D>) -> Self::Handle;
-}
-
-/// Keep all [tensor handles](HandleContainerBackend::Handle) in one place and ensure that all resources
+/// Keep all [tensor handles](ReprBackend::Handle) in one place and ensure that all resources
 /// are used optimally.
 #[derive(Default)]
-pub struct HandleContainer<B: HandleContainerBackend> {
+pub struct HandleContainer<B: ReprBackend> {
     handles: HashMap<TensorId, Handle<B>>,
     counter: u64,
     /// --ADDED-- Handle candidates to be freed.
@@ -38,15 +20,15 @@ pub struct HandleContainer<B: HandleContainerBackend> {
     pub device: B::Device,
 }
 
-/// --ADDED-- Backend [tensor handle](HandleContainerBackend::Handle) wrapper tracking their creation state
-pub enum Handle<B: Backend + HandleContainerBackend> {
-    /// --ADDED-- No [tensor handle](HandleContainerBackend::Handle) has been created yet
+/// --ADDED-- Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
+pub enum Handle<B: Backend + ReprBackend> {
+    /// --ADDED-- No [tensor handle](ReprBackend::Handle) has been created yet
     NotInit,
-    /// --ADDED-- A [tensor handle](HandleContainerBackend::Handle) has been created
+    /// --ADDED-- A [tensor handle](ReprBackend::Handle) has been created
     Existing(B::Handle),
 }
 
-impl<B: HandleContainerBackend> HandleContainer<B> {
+impl<B: ReprBackend> HandleContainer<B> {
     /// Create a new HandleContainer
     pub fn new(device_handle: B::Device) -> Self {
         Self {

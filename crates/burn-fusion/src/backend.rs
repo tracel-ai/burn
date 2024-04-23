@@ -2,7 +2,9 @@ use crate::{
     client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{
-    backend::Backend, handle::HandleContainerBackend, repr::OperationDescription, Device,
+    backend::Backend,
+    repr::{OperationDescription, ReprBackend},
+    Device,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -116,7 +118,7 @@ pub trait Optimization<B: FusionBackend>: Send {
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
-pub trait FusionBackend: Backend + HandleContainerBackend {
+pub trait FusionBackend: Backend + ReprBackend {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.

@@ -1,6 +1,5 @@
 use crate::{client::FusionClient, stream::execution::Operation, Fusion, FusionBackend};
 use burn_tensor::{
-    handle::HandleContainer,
     ops::{
         conv::{
             calculate_conv_output_size, calculate_conv_transpose_output_size,
@@ -15,8 +14,8 @@ use burn_tensor::{
         AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
         AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
         AvgPool2dDescription, Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription,
-        ConvTranspose2dDescription, InterpolateBackwardDescription, InterpolateDescription,
-        MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+        ConvTranspose2dDescription, HandleContainer, InterpolateBackwardDescription,
+        InterpolateDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
         MaxPool1dWithIndicesDescription, MaxPool2dDescription,
         MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
         ModuleOperationDescription, OperationDescription,

@@ -1,4 +1,4 @@
-use burn_tensor::handle::TensorDescription;
+use burn_tensor::repr::TensorDescription;
 
 use crate::{
     codegen::{

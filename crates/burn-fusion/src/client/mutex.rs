@@ -5,9 +5,8 @@ use crate::{
 };
 use burn_tensor::{
     backend::Backend,
-    handle::{TensorDescription, TensorId},
     ops::FloatElem,
-    repr::OperationDescription,
+    repr::{OperationDescription, TensorDescription, TensorId},
 };
 use spin::Mutex;
 use std::sync::Arc;
@@ -116,13 +115,12 @@ where
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<Self> {
-        let device = client.device.clone();
-
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_float::<D>(&tensor, &device, &mut server_other);
+        let id =
+            server_current.change_server_float::<D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -136,13 +134,11 @@ where
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<Self> {
-        let device = client.device.clone();
-
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_int::<D>(&tensor, &device, &mut server_other);
+        let id = server_current.change_server_int::<D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -156,13 +152,11 @@ where
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<Self> {
-        let device = client.device.clone();
-
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_bool::<D>(&tensor, &device, &mut server_other);
+        let id = server_current.change_server_bool::<D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);

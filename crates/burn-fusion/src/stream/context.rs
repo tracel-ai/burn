@@ -1,9 +1,5 @@
 use crate::FusionBackend;
-use burn_tensor::{
-    handle::{HandleContainer, TensorDescription, TensorId},
-    repr::*,
-    Element, ElementConversion,
-};
+use burn_tensor::{repr::*, Element, ElementConversion};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -908,7 +904,7 @@ impl RelativeOps for TensorDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::handle::{TensorDescription, TensorId, TensorStatus};
+    use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
 
     #[test]
     fn tensor_description_to_relative() {

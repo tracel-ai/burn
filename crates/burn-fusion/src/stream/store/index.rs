@@ -116,11 +116,9 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{
-        handle::{TensorDescription, TensorId, TensorStatus},
-        repr::{
-            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-        },
+    use burn_tensor::repr::{
+        BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
+        TensorDescription, TensorId, TensorStatus,
     };
 
     use super::*;

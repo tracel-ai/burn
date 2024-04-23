@@ -9,12 +9,11 @@ use crate::{
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
-    handle::TensorDescription,
     ops::{FloatElem, IntElem},
     repr::{
         BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
         NumericOperationDescription, OperationDescription, ScalarOperationDescription,
-        UnaryOperationDescription,
+        TensorDescription, UnaryOperationDescription,
     },
     Device, Element,
 };

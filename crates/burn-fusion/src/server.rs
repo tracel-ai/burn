@@ -3,9 +3,8 @@ use crate::{
     FusionBackend,
 };
 use burn_tensor::{
-    handle::{HandleContainer, TensorDescription, TensorId},
     ops::{FloatElem, IntElem},
-    repr::OperationDescription,
+    repr::{HandleContainer, OperationDescription, TensorDescription, TensorId},
 };
 use std::sync::Arc;
 

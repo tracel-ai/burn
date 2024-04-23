@@ -1,7 +1,7 @@
 use super::{trace::Trace, Scalars};
 use crate::codegen::dialect::gpu::{self, Operation, Variable};
 use burn_tensor::{
-    handle::{TensorDescription, TensorId, TensorStatus},
+    repr::{TensorDescription, TensorId, TensorStatus},
     Element,
 };
 use hashbrown::HashMap;

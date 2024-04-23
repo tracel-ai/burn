@@ -8,18 +8,17 @@ use crate::{
     unary_int_ops, Fusion, FusionBackend,
 };
 use burn_tensor::{
-    handle::{HandleContainer, TensorDescription},
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     repr::{
         self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
         ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-        GatherOperationDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
-        NumericOperationDescription, OperationDescription, PermuteOperationDescription,
-        RandomOperationDescription, ReduceDimWithIndicesDescription, RepeatOperationDescription,
-        ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
-        SelectAssignOperationDescription, SelectOperationDescription,
+        GatherOperationDescription, HandleContainer, MaskFillOperationDescription,
+        MaskWhereOperationDescription, NumericOperationDescription, OperationDescription,
+        PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
+        RepeatOperationDescription, ReshapeDescription, ScalarOperationDescription,
+        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
         SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
-        UnaryOperationDescription,
+        TensorDescription, UnaryOperationDescription,
     },
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };

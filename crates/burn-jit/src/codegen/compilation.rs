@@ -134,8 +134,8 @@ impl CompilationSettings {
     pub fn dynamic_settings<R: Runtime>(
         self,
         info: &CompilationInfo,
-        inputs: &[&burn_tensor::handle::TensorDescription],
-        outputs: &[&burn_tensor::handle::TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
         stateful: bool,
     ) -> Self {
@@ -152,8 +152,8 @@ impl CompilationSettings {
     fn dynamic_inplace<R: Runtime>(
         self,
         info: &CompilationInfo,
-        inputs: &[&burn_tensor::handle::TensorDescription],
-        outputs: &[&burn_tensor::handle::TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
         let mut potential_inplace = inputs
@@ -168,9 +168,9 @@ impl CompilationSettings {
                 }
 
                 match desc.status {
-                    burn_tensor::handle::TensorStatus::ReadOnly => return None,
-                    burn_tensor::handle::TensorStatus::NotInit => return None,
-                    burn_tensor::handle::TensorStatus::ReadWrite => (),
+                    burn_tensor::repr::TensorStatus::ReadOnly => return None,
+                    burn_tensor::repr::TensorStatus::NotInit => return None,
+                    burn_tensor::repr::TensorStatus::ReadWrite => (),
                 };
 
                 Some((pos, desc, input))
@@ -213,8 +213,8 @@ impl CompilationSettings {
     fn dynamic_reading_strategy<R: Runtime>(
         mut self,
         info: &CompilationInfo,
-        inputs: &[&burn_tensor::handle::TensorDescription],
-        outputs: &[&burn_tensor::handle::TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
         // First output is chosen for the layout reference.
