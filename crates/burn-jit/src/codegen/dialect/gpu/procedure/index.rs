@@ -24,6 +24,8 @@ impl CheckedIndex {
 
         gpu!(scope, if(inside_bound).then(|scope| {
             gpu!(scope, out = unchecked(lhs[rhs]));
+        }).else(|scope| {
+            gpu!(scope, out = cast(0));
         }));
     }
 
