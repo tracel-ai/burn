@@ -179,17 +179,17 @@ impl CompilationSettings {
             })
             .collect::<Vec<_>>();
 
-        // Start the same tensor description id.
-        let mut mappings = outputs
+        let mappings = outputs
             .iter()
+            .zip(info.outputs.iter())
             .enumerate()
-            .filter_map(|(pos, desc)| {
+            .filter_map(|(pos, (desc, output))| {
                 if potential_inplace.is_empty() {
                     return None;
                 }
 
-                for (index, (_, desc_input, _input)) in potential_inplace.iter().enumerate() {
-                    if desc.id == desc_input.id {
+                for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
+                    if desc.shape == desc_input.shape && input.item() == output.item() {
                         let (pos_input, _desc, _info) = potential_inplace.remove(index);
                         return Some(InplaceMapping::new(pos_input, pos));
                     }
@@ -197,30 +197,7 @@ impl CompilationSettings {
 
                 None
             })
-            .collect::<Vec<_>>();
-
-        // Then with the same tensor types.
-        mappings.extend(
-            outputs
-                .iter()
-                .zip(info.outputs.iter())
-                .enumerate()
-                .filter_map(|(pos, (desc, output))| {
-                    if potential_inplace.is_empty() {
-                        return None;
-                    }
-
-                    for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                        if desc.shape == desc_input.shape && input.item() == output.item() {
-                            let (pos_input, _desc, _info) = potential_inplace.remove(index);
-                            return Some(InplaceMapping::new(pos_input, pos));
-                        }
-                    }
-
-                    None
-                })
-                .collect::<Vec<_>>(),
-        );
+            .collect();
 
         self.inplace(mappings)
     }

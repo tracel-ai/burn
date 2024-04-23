@@ -31,10 +31,7 @@ impl StorageHandle {
     pub fn size(&self) -> usize {
         match self.utilization {
             StorageUtilization::Full(size) => size,
-            StorageUtilization::Slice {
-                offset: start,
-                size: end,
-            } => end - start,
+            StorageUtilization::Slice { offset: _, size } => size,
         }
     }
 }

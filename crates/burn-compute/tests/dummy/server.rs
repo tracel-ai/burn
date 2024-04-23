@@ -26,8 +26,8 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = String;
 
-    fn read(&mut self, handle: Binding<Self>) -> Reader<Vec<u8>> {
-        let bytes = self.memory_management.get(handle.memory);
+    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>> {
+        let bytes = self.memory_management.get(binding.memory);
 
         Reader::Concrete(bytes.read().to_vec())
     }
@@ -49,10 +49,10 @@ where
         Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: Vec<Binding<Self>>) {
-        let mut resources = handles
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>) {
+        let mut resources = bindings
             .into_iter()
-            .map(|handle| self.memory_management.get(handle.memory))
+            .map(|binding| self.memory_management.get(binding.memory))
             .collect::<Vec<_>>();
 
         kernel.compute(&mut resources);
