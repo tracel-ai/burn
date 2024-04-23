@@ -113,7 +113,7 @@ impl ComputeStorage for CudaStorage {
             StorageUtilization::Full(size) => {
                 CudaResource::new(buffer, CudaResourceKind::Full { size })
             }
-            StorageUtilization::Slice(offset, size) => {
+            StorageUtilization::Slice { offset, size } => {
                 CudaResource::new(buffer, CudaResourceKind::Slice { size, offset })
             }
         }

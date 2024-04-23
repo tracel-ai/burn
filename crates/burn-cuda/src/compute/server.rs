@@ -14,8 +14,6 @@ use std::{collections::HashMap, sync::Arc};
 pub struct CudaServer<MM: MemoryManagement<CudaStorage>> {
     memory_management: MM,
     device: Arc<CudaDevice>,
-    manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
-    manual_taken: Vec<(usize, server::Handle<Self>)>,
     module_names: HashMap<String, (String, WorkgroupSize)>,
 }
 
@@ -25,17 +23,18 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, handle: &server::Handle<Self>) -> burn_tensor::Reader<Vec<u8>> {
+    fn read(&mut self, binding: server::Binding<Self>) -> burn_tensor::Reader<Vec<u8>> {
         self.sync();
 
-        let resource = self.memory_management.get(&handle.memory);
+        let resource = self.memory_management.get(binding.memory);
         let data = self.device.dtoh_sync_copy(resource.buffer).unwrap();
         burn_tensor::Reader::Concrete(data)
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = self.manual_reserve(data.len());
-        let resource = self.memory_management.get(&handle.memory);
+        let handle = self.empty(data.len());
+        let resource = self.memory_management.get(handle.clone().binding().memory);
+
         self.device
             .htod_copy_into(data.to_vec(), resource.buffer)
             .unwrap();
@@ -47,7 +46,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         server::Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
         let kernel_id = kernel.id();
 
         if !self.module_names.contains_key(&kernel_id) {
@@ -66,9 +65,9 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         let task = ComputeTask::new(
             kernel_id,
             kernel.launch_settings().workgroup,
-            handles
-                .iter()
-                .map(|h| self.memory_management.get(&h.memory).as_binding())
+            bindings
+                .into_iter()
+                .map(|binding| self.memory_management.get(binding.memory).as_binding())
                 .collect(),
         );
 
@@ -95,45 +94,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
         Self {
             memory_management,
             device,
-            manual_available: HashMap::new(),
-            manual_taken: Vec::new(),
             module_names: HashMap::new(),
-        }
-    }
-
-    fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        let handle = self
-            .manual_available
-            .get_mut(&size)
-            .and_then(|h| h.pop())
-            .unwrap_or_else(|| {
-                let memory = self.memory_management.alloc(size);
-                server::Handle::new(memory)
-            });
-
-        self.manual_taken.push((size, handle.clone()));
-
-        handle
-    }
-
-    fn free_manual_allocations(&mut self) {
-        let mut manual_taken_tmp = Vec::new();
-        core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
-
-        for (size, handle) in manual_taken_tmp.drain(..) {
-            if handle.can_mut() {
-                self.register_manual(size, handle);
-            } else {
-                self.manual_taken.push((size, handle));
-            }
-        }
-    }
-
-    fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
-        if let Some(handles) = self.manual_available.get_mut(&size) {
-            handles.push(handle);
-        } else {
-            self.manual_available.insert(size, [handle].into());
         }
     }
 

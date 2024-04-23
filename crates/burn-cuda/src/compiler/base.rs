@@ -1,6 +1,6 @@
 use super::Instruction;
 use crate::element::{FloatElement, IntElement};
-use burn_jit::gpu::{self, CheckedIndexAssign};
+use burn_jit::gpu::{self};
 use std::marker::PhantomData;
 
 #[derive(new, Clone, Debug, Default)]
