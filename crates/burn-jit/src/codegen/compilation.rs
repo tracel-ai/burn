@@ -1,7 +1,5 @@
 #[cfg(feature = "fusion")]
 use crate::fusion::JitFusionHandle;
-#[cfg(feature = "fusion")]
-use burn_fusion::TensorDescription;
 
 use super::{
     dialect::gpu::{self},
@@ -144,8 +142,8 @@ impl CompilationSettings {
     pub fn dynamic_settings<R: Runtime>(
         self,
         info: &CompilationInfo,
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
         stateful: bool,
     ) -> Self {
@@ -162,8 +160,8 @@ impl CompilationSettings {
     fn dynamic_inplace<R: Runtime>(
         self,
         info: &CompilationInfo,
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
         let mut potential_inplace = inputs
@@ -178,9 +176,9 @@ impl CompilationSettings {
                 }
 
                 match desc.status {
-                    burn_fusion::TensorStatus::ReadOnly => return None,
-                    burn_fusion::TensorStatus::NotInit => return None,
-                    burn_fusion::TensorStatus::ReadWrite => (),
+                    burn_tensor::repr::TensorStatus::ReadOnly => return None,
+                    burn_tensor::repr::TensorStatus::NotInit => return None,
+                    burn_tensor::repr::TensorStatus::ReadWrite => (),
                 };
 
                 Some((pos, desc, input))
@@ -196,25 +194,16 @@ impl CompilationSettings {
                     return None;
                 }
 
-                let mut chosen = None;
                 for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                    if chosen.is_some() {
-                        break;
-                    }
                     if desc.shape == desc_input.shape && input.item() == output.item() {
-                        chosen = Some(index);
+                        let (pos_input, _desc, _info) = potential_inplace.remove(index);
+                        return Some(InplaceMapping::new(pos_input, pos));
                     }
                 }
 
-                let index = match chosen {
-                    Some(index) => index,
-                    None => return None,
-                };
-
-                let (pos_input, _desc, _info) = potential_inplace.remove(index);
-                Some(InplaceMapping::new(pos_input, pos))
+                None
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         self.inplace(mappings)
     }
@@ -223,8 +212,8 @@ impl CompilationSettings {
     fn dynamic_reading_strategy<R: Runtime>(
         mut self,
         info: &CompilationInfo,
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
+        inputs: &[&burn_tensor::repr::TensorDescription],
+        outputs: &[&burn_tensor::repr::TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
         // First output is chosen for the layout reference.

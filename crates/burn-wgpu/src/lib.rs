@@ -10,9 +10,6 @@ mod element;
 mod graphics;
 mod runtime;
 
-#[cfg(feature = "fusion")]
-mod fusion;
-
 #[cfg(feature = "template")]
 pub use burn_jit::{
     compute::Kernel,

@@ -1,4 +1,3 @@
-
 use crate::{
     codegen::dialect::gpu::{gpu, Item, Scope, Variable},
     JitElement,

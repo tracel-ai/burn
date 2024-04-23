@@ -88,8 +88,8 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
                 // Replace all Index operators for global arrays with CheckedIndexAssign procedures
                 match operands.lhs {
-                    gpu::Variable::GlobalInputArray(_, _) |
-                    gpu::Variable::GlobalOutputArray(_, _) => {
+                    gpu::Variable::GlobalInputArray(_, _)
+                    | gpu::Variable::GlobalOutputArray(_, _) => {
                         *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
                             gpu::CheckedIndex {
                                 lhs: operands.lhs,
@@ -97,15 +97,16 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                                 out: operands.out,
                             },
                         ));
-                    },
+                    }
                     // Cannot perform bound check on non-global arrays, do nothing.
                     _ => (),
                 }
-            } else if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
+            } else if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation
+            {
                 // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
                 match operands.out {
-                    gpu::Variable::GlobalInputArray(_, _) |
-                    gpu::Variable::GlobalOutputArray(_, _) => {
+                    gpu::Variable::GlobalInputArray(_, _)
+                    | gpu::Variable::GlobalOutputArray(_, _) => {
                         *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
                             gpu::CheckedIndexAssign {
                                 lhs: operands.lhs,
@@ -113,7 +114,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                                 out: operands.out,
                             },
                         ));
-                    },
+                    }
                     // Cannot perform bound check on non-global arrays, do nothing.
                     _ => (),
                 }
@@ -264,9 +265,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operator::Sub(op) => Instruction::Sub(self.compile_binary(op)),
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
-            gpu::Operator::UncheckedIndex(op) => {
-                Instruction::Index(self.compile_binary(op))
-            }
+            gpu::Operator::UncheckedIndex(op) => Instruction::Index(self.compile_binary(op)),
             gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),
             gpu::Operator::UncheckedIndexAssign(op) => {
                 Instruction::IndexAssign(self.compile_binary(op))

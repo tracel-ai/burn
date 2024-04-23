@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Device};
+use burn_tensor::{
+    backend::{Backend, DeviceId, DeviceOps},
+    Device,
+};
 use candle_core::DeviceLocation;
 
 use crate::{
@@ -56,6 +59,16 @@ impl From<candle_core::Device> for CandleDevice {
             DeviceLocation::Cpu => CandleDevice::Cpu,
             DeviceLocation::Cuda { gpu_id } => CandleDevice::Cuda(gpu_id),
             DeviceLocation::Metal { gpu_id } => CandleDevice::Metal(gpu_id),
+        }
+    }
+}
+
+impl DeviceOps for CandleDevice {
+    fn id(&self) -> burn_tensor::backend::DeviceId {
+        match self {
+            CandleDevice::Cpu => DeviceId::new(0, 0),
+            CandleDevice::Cuda(index) => DeviceId::new(1, *index as u32),
+            CandleDevice::Metal(index) => DeviceId::new(2, *index as u32),
         }
     }
 }

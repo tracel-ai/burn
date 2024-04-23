@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::rc::Rc;
 
 use super::log::install_file_logger;
 use super::Learner;
@@ -328,7 +328,7 @@ where
                 ));
         }
 
-        let event_store = Arc::new(EventStoreClient::new(self.event_store));
+        let event_store = Rc::new(EventStoreClient::new(self.event_store));
         let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {

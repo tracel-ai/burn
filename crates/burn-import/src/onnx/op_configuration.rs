@@ -1,8 +1,8 @@
 use burn::nn::{
-    conv::Conv1dConfig,
-    conv::{Conv2dConfig, ConvTranspose2dConfig},
+    conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool2dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig1d, PaddingConfig2d,
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d,
 };
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
@@ -465,6 +465,42 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
         .with_momentum(momentum as f64)
 }
 
+/// Create a LayerNormConfig from the attributes of the node
+pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
+    // Extract the shape of the weight tensor
+    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
+        tensor_type
+    } else {
+        panic!("LayerNorm: weight tensor must be present");
+    };
+
+    let num_features: usize = tensor_type.shape.clone().unwrap()[0];
+
+    // When `stash_type` is `1` (default), perform operations in 32-bit float and
+    // cast the results back to original dtype
+    let mut stash_type = 1;
+    let mut axis = -1;
+    let mut epsilon = 1e-5;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "epsilon" => epsilon = value.clone().into_f32(),
+            "stash_type" => stash_type = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    if axis != -1 && axis != tensor_type.dim as i64 - 1 {
+        panic!("LayerNorm: normalization is only supported on the last axis right now")
+    }
+
+    (
+        LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
+        stash_type == 1,
+    )
+}
+
 /// Calculate the padding configuration for a 2D operations such as Convolution and Pooling.
 ///
 /// # Arguments
@@ -555,6 +591,19 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
 pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+    // Check if axes attribute exists
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => return value.clone().into_i64s(),
+            _ => {}
+        }
+    }
+
+    assert!(
+        !node.inputs.is_empty(),
+        "Unsqueeze: axes tensor must be present"
+    );
+
     let input_value = &node.inputs[1];
 
     match &node.inputs[1].ty {
@@ -785,4 +834,28 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     }
 
     (start_dim as usize, end_dim as usize)
+}
+
+pub fn transpose_config(curr: &Node) -> Vec<i64> {
+    if curr.inputs.len() != 1 {
+        panic!(
+            "Transpose: multiple inputs are not supported (got {:?})",
+            curr.inputs.len()
+        );
+    }
+
+    // Extract the shape of the input tensor
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Default: reverse the dimensions
+    let mut perm = (0..tensor.dim as i64).rev().collect::<Vec<i64>>();
+
+    if let Some(axes) = curr.attrs.get("perm") {
+        perm = axes.clone().into_i64s();
+    }
+
+    perm
 }

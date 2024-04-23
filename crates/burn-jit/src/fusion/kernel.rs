@@ -12,10 +12,11 @@ use crate::kernel::GpuComputeShaderPhase;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
-use burn_compute::server::Handle;
+use burn_compute::server::Binding;
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
-use burn_fusion::{TensorDescription, TensorStatus};
+use burn_tensor::repr::TensorDescription;
+use burn_tensor::repr::TensorStatus;
 use burn_tensor::Device;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -47,7 +48,7 @@ pub trait FusionKernelFactory<R: Runtime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn JitKernel>,
-    handles: Vec<Handle<R::Server>>,
+    bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -60,7 +61,7 @@ pub struct ExecutableKernel<R: Runtime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn JitKernel>,
-    handles: Vec<Handle<R::Server>>,
+    bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
 
@@ -74,25 +75,21 @@ pub enum OutputRuntimeInfo {
 impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client.execute(
-            Kernel::JitGpu(self.kernel),
-            &self.handles.iter().collect::<Vec<_>>(),
-        )
+        self.client
+            .execute(Kernel::JitGpu(self.kernel), self.bindings)
     }
 }
 
 impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client.execute(
-            Kernel::JitGpu(Box::new(self.kernel)),
-            &self.handles.iter().collect::<Vec<_>>(),
-        )
+        self.client
+            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             kernel: self.kernel.clone(),
-            handles: self.handles.iter().map(Clone::clone).collect(),
+            bindings: self.bindings.clone(),
             client: self.client.clone(),
         })
     }
@@ -102,7 +99,7 @@ impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
-            handles: value.handles,
+            bindings: value.bindings,
             client: value.client,
         }
     }
@@ -157,13 +154,13 @@ impl<R: Runtime> FusionKernel<R> {
         }
 
         let mut info = Vec::with_capacity(info_size);
-        let mut handles = Vec::with_capacity(num_handles);
+        let mut bindings = Vec::with_capacity(num_handles);
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
         // We register the info and handles for the inputs.
-        for (handle, tensor) in handles_input.into_iter().zip(inputs_description_updated) {
-            register_info_tensor(&mut info, tensor, &handle);
-            handles.push(handle.handle);
+        for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
+            register_info_tensor(&mut info, tensor, handle);
+            bindings.push(handle.handle.clone().binding());
         }
 
         // We register the info and handles for the outputs.
@@ -174,12 +171,13 @@ impl<R: Runtime> FusionKernel<R> {
             match output_info {
                 // Use the input inplace for this output.
                 OutputRuntimeInfo::Inplace { input_index } => {
-                    let handle = handles.get(*input_index).unwrap().clone();
+                    let input = handles_input.get(*input_index).unwrap();
+
                     let handle_fusion = JitFusionHandle {
                         client: client.clone(),
                         device: device.clone(),
                         strides: strides_dyn_rank(&tensor.shape),
-                        handle,
+                        handle: input.handle.clone(),
                     };
                     output_register.push((tensor.id, handle_fusion));
                 }
@@ -193,26 +191,34 @@ impl<R: Runtime> FusionKernel<R> {
                     };
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
-                    handles.push(handle_fusion.handle.clone());
+                    bindings.push(handle_fusion.handle.clone().binding());
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
         }
 
         // Create the info buffer.
-        handles.push(client.create(bytemuck::cast_slice(&info)));
+        bindings.push(client.create(bytemuck::cast_slice(&info)).binding());
 
         // Finally we finish with the named bindings.
         if running_info.scalars.num_float > 0 {
-            handles.push(client.create(bytemuck::cast_slice(
-                &context.scalar_floats[0..running_info.scalars.num_float],
-            )));
+            bindings.push(
+                client
+                    .create(bytemuck::cast_slice(
+                        &context.scalar_floats[0..running_info.scalars.num_float],
+                    ))
+                    .binding(),
+            );
         }
 
         if running_info.scalars.num_int > 0 {
-            handles.push(client.create(bytemuck::cast_slice(
-                &context.scalar_ints[0..running_info.scalars.num_int],
-            )));
+            bindings.push(
+                client
+                    .create(bytemuck::cast_slice(
+                        &context.scalar_ints[0..running_info.scalars.num_int],
+                    ))
+                    .binding(),
+            );
         }
 
         // We have to register the output handles to the context.
@@ -226,7 +232,7 @@ impl<R: Runtime> FusionKernel<R> {
                 fusion_kernel,
                 workgroup,
             )),
-            handles,
+            bindings,
             client,
         )
     }

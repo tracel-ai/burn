@@ -95,7 +95,7 @@ impl ComputeStorage for WgpuStorage {
             StorageUtilization::Full(_) => {
                 WgpuResource::new(buffer.clone(), WgpuResourceKind::Full)
             }
-            StorageUtilization::Slice(offset, size) => WgpuResource::new(
+            StorageUtilization::Slice { offset, size } => WgpuResource::new(
                 buffer.clone(),
                 WgpuResourceKind::Slice(offset as u64, NonZeroU64::new(size as u64).unwrap()),
             ),

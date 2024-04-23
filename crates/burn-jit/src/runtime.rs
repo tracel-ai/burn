@@ -16,19 +16,8 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     /// The channel used to communicate with the compute server.
     type Channel: ComputeChannel<Self::Server>;
     /// The device used to retrieve the compute client.
-    #[cfg(any(feature = "fusion", test))]
-    type Device: burn_fusion::FusionDevice
+    type Device: burn_tensor::backend::DeviceOps
         + Default
-        + core::hash::Hash
-        + PartialEq
-        + Eq
-        + Clone
-        + core::fmt::Debug
-        + Sync
-        + Send;
-    /// The device used to retrieve the compute client.
-    #[cfg(not(any(feature = "fusion", test)))]
-    type Device: Default
         + core::hash::Hash
         + PartialEq
         + Eq

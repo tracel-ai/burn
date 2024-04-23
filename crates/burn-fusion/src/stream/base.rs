@@ -1,7 +1,8 @@
-use super::Operation;
-use super::OperationConverter;
-use super::OperationDescription;
+use burn_tensor::repr::OperationDescription;
+
 use crate::FusionBackend;
+
+use super::{execution::Operation, OperationConverter, RelativeOps};
 
 /// A growing list of [tensor operation descriptions](OperationDescription).
 pub struct OperationQueue<B: FusionBackend> {

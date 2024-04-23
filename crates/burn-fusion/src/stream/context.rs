@@ -1,23 +1,5 @@
-use super::{
-    AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
-    AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
-    AvgPool2dBackwardDescription, AvgPool2dDescription, BaseOperationDescription,
-    BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
-    Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
-    EmbeddingBackwardDescription, EmbeddingDescription, ExpandOperationDescription,
-    FlipOperationDescription, FloatOperationDescription, GatherOperationDescription,
-    IntOperationDescription, InterpolateBackwardDescription, InterpolateDescription,
-    MaskFillOperationDescription, MaskWhereOperationDescription, MaxPool1dDescription,
-    MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription, MaxPool2dDescription,
-    MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
-    ModuleOperationDescription, NumericOperationDescription, OperationDescription,
-    PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-    ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
-    SelectAssignOperationDescription, SelectOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
-};
-use crate::{FusionBackend, HandleContainer, TensorDescription, TensorId};
-use burn_tensor::{Element, ElementConversion};
+use crate::FusionBackend;
+use burn_tensor::{repr::*, Element, ElementConversion};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -47,6 +29,16 @@ pub(crate) struct OperationConverter {
     shapes_global2relative: HashMap<usize, usize>,
     scalar_floats: Vec<f32>,
     scalar_ints: Vec<i32>,
+}
+
+pub(crate) trait RelativeOps {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self;
+}
+
+trait RelativeOpsScalar<E: Element> {
+    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
+    where
+        F: Fn(&mut OperationConverter, &E) -> E;
 }
 
 impl OperationConverter {
@@ -85,8 +77,8 @@ impl OperationConverter {
     }
 }
 
-impl OperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for OperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             OperationDescription::BaseFloat(ops) => {
                 OperationDescription::BaseFloat(ops.to_relative(converter))
@@ -117,8 +109,8 @@ impl OperationDescription {
     }
 }
 
-impl ModuleOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for ModuleOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             ModuleOperationDescription::Embedding(desc) => {
                 ModuleOperationDescription::Embedding(EmbeddingDescription {
@@ -172,7 +164,7 @@ impl ModuleOperationDescription {
                 })
             }
             ModuleOperationDescription::AvgPool1d(desc) => {
-                ModuleOperationDescription::AvgPool1d(super::AvgPool1dDescription {
+                ModuleOperationDescription::AvgPool1d(AvgPool1dDescription {
                     x: desc.x.to_relative(converter),
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
@@ -192,7 +184,7 @@ impl ModuleOperationDescription {
                 })
             }
             ModuleOperationDescription::AvgPool1dBackward(desc) => {
-                ModuleOperationDescription::AvgPool1dBackward(super::AvgPool1dBackwardDescription {
+                ModuleOperationDescription::AvgPool1dBackward(AvgPool1dBackwardDescription {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     kernel_size: desc.kernel_size,
@@ -336,8 +328,8 @@ impl ModuleOperationDescription {
     }
 }
 
-impl FloatOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for FloatOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             FloatOperationDescription::Exp(desc) => {
                 FloatOperationDescription::Exp(UnaryOperationDescription {
@@ -423,8 +415,8 @@ impl FloatOperationDescription {
     }
 }
 
-impl BoolOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for BoolOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             BoolOperationDescription::IntoFloat(desc) => {
                 BoolOperationDescription::IntoFloat(UnaryOperationDescription {
@@ -448,8 +440,8 @@ impl BoolOperationDescription {
     }
 }
 
-impl IntOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for IntOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             IntOperationDescription::IntoFloat(desc) => {
                 IntOperationDescription::IntoFloat(UnaryOperationDescription {
@@ -461,8 +453,8 @@ impl IntOperationDescription {
     }
 }
 
-impl<E: Element> NumericOperationDescription<E> {
-    pub(crate) fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
+impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
+    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
         F: Fn(&mut OperationConverter, &E) -> E,
     {
@@ -779,8 +771,8 @@ impl<E: Element> NumericOperationDescription<E> {
     }
 }
 
-impl BaseOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for BaseOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             BaseOperationDescription::ToDevice(desc) => {
                 BaseOperationDescription::ToDevice(desc.to_relative(converter))
@@ -828,7 +820,7 @@ impl BaseOperationDescription {
                 })
             }
             BaseOperationDescription::SliceAssign(desc) => {
-                BaseOperationDescription::SliceAssign(super::SliceAssignOperationDescription {
+                BaseOperationDescription::SliceAssign(SliceAssignOperationDescription {
                     tensor: desc.tensor.to_relative(converter),
                     ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
                     value: desc.value.to_relative(converter),
@@ -836,14 +828,14 @@ impl BaseOperationDescription {
                 })
             }
             BaseOperationDescription::Equal(desc) => {
-                BaseOperationDescription::Equal(super::BinaryOperationDescription {
+                BaseOperationDescription::Equal(BinaryOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
             BaseOperationDescription::Repeat(desc) => {
-                BaseOperationDescription::Repeat(super::RepeatOperationDescription {
+                BaseOperationDescription::Repeat(RepeatOperationDescription {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
                     times: desc.times,
@@ -851,7 +843,7 @@ impl BaseOperationDescription {
                 })
             }
             BaseOperationDescription::Cat(desc) => {
-                BaseOperationDescription::Cat(super::CatOperationDescription {
+                BaseOperationDescription::Cat(CatOperationDescription {
                     tensors: desc
                         .tensors
                         .iter()
@@ -865,8 +857,8 @@ impl BaseOperationDescription {
     }
 }
 
-impl TensorDescription {
-    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOps for TensorDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         let relative_id = if let Some(value) = converter.tensors_global2relative.get(&self.id) {
             // If we already have the same tensor registered, we have to update its value, but not
             // its id.
@@ -911,9 +903,8 @@ impl TensorDescription {
 
 #[cfg(test)]
 mod tests {
-    use crate::TensorStatus;
-
     use super::*;
+    use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
 
     #[test]
     fn tensor_description_to_relative() {

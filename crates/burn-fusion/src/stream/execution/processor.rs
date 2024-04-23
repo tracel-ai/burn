@@ -1,9 +1,10 @@
+use burn_tensor::repr::OperationDescription;
+
 use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{
     ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
 };
-use crate::stream::OperationDescription;
 use crate::OptimizationBuilder;
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).

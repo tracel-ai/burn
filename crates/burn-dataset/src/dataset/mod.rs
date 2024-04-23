@@ -14,3 +14,4 @@ pub use in_memory::*;
 pub use iterator::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 pub use sqlite::*;
+pub use window::*;

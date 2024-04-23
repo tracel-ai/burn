@@ -9,7 +9,12 @@ pub enum StorageUtilization {
     /// Full memory chunk of specified size
     Full(usize),
     /// Slice of memory chunk with start index and size.
-    Slice(usize, usize),
+    Slice {
+        /// The offset in bytes from the chunk start.
+        offset: usize,
+        /// The size of the slice in bytes.
+        size: usize,
+    },
 }
 
 /// Contains the [storage id](StorageId) of a resource and the way it is used.
@@ -26,7 +31,7 @@ impl StorageHandle {
     pub fn size(&self) -> usize {
         match self.utilization {
             StorageUtilization::Full(size) => size,
-            StorageUtilization::Slice(_, size) => size,
+            StorageUtilization::Slice { offset: _, size } => size,
         }
     }
 }

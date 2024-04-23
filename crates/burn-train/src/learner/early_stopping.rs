@@ -113,7 +113,7 @@ impl MetricEarlyStoppingStrategy {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::rc::Rc;
 
     use crate::{
         logger::InMemoryMetricLogger,
@@ -197,7 +197,7 @@ mod tests {
         store.register_logger_train(InMemoryMetricLogger::default());
         metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
 
-        let store = Arc::new(EventStoreClient::new(store));
+        let store = Rc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
         let mut epoch = 1;

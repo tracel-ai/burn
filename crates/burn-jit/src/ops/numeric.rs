@@ -1,4 +1,5 @@
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope};
+use crate::gpu::UnaryOperator;
 use crate::{binary, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;

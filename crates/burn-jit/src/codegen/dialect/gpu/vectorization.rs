@@ -75,7 +75,9 @@ impl Operator {
             }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
             Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
-            Operator::UncheckedIndexAssign(op) => Operator::UncheckedIndexAssign(op.vectorize(vectorization)),
+            Operator::UncheckedIndexAssign(op) => {
+                Operator::UncheckedIndexAssign(op.vectorize(vectorization))
+            }
             Operator::And(op) => Operator::And(op.vectorize(vectorization)),
             Operator::Or(op) => Operator::Or(op.vectorize(vectorization)),
             Operator::Not(op) => Operator::Not(op.vectorize(vectorization)),

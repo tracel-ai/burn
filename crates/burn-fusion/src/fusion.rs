@@ -1,8 +1,14 @@
-use crate::{client::FusionClient, DeviceId, FusionBackend, FusionDevice};
+use burn_tensor::{
+    backend::{Backend, DeviceId, DeviceOps},
+    repr::ReprBackend,
+};
+
+use crate::client::FusionClient;
+
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
-/// Type alias for [fusion backend handle](FusionBackend::Handle).
-pub type Handle<B> = <B as FusionBackend>::Handle;
+/// Type alias for [representation backend handle](burn_tensor::repr::ReprBackend::Handle).
+pub type Handle<B> = <B as ReprBackend>::Handle;
 type Key = (core::any::TypeId, DeviceId);
 
 pub(crate) struct FusionClientLocator {
@@ -22,7 +28,7 @@ impl FusionClientLocator {
     /// Provide the init function to create a new client if it isn't already initialized.
     pub fn client<C: FusionClient + 'static>(
         &self,
-        device: &<C::FusionBackend as FusionBackend>::FusionDevice,
+        device: &<C::FusionBackend as Backend>::Device,
     ) -> C {
         let device_id = device.id();
         let client_id = (core::any::TypeId::of::<C>(), device_id);
