@@ -73,11 +73,6 @@ where
         self.memory_management.storage().perform_deallocations();
     }
 
-    // Finds a free, manually-added handle of specified size, or creates it if none is found
-    fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        server::Handle::new(self.memory_management.reserve(size))
-    }
-
     fn register_tasks(&mut self) {
         if self.tasks.is_empty() {
             return;
@@ -226,7 +221,7 @@ where
     /// This is important, otherwise the compute passes are going to be too small and we won't be able to
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = self.manual_reserve(data.len());
+        let handle = self.empty(data.len());
         let binding = handle.clone().binding();
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {

@@ -161,7 +161,6 @@ pub(crate) fn conv2d_backward<B: Backend>(
             options.groups,
         ),
     );
-    println!("After transpose.");
 
     let weight_grad = match options.groups == 1 {
         true => conv2d_weight_grad_no_groups::<B>(x, output_grad.clone(), weight_shape, options),
@@ -406,9 +405,6 @@ fn conv2d_weight_grad_groups<B: Backend>(
     output_grad: FloatTensor<B, 4>,
     options: ConvOptions<2>,
 ) -> FloatTensor<B, 4> {
-    println!("in conv2d_weight_grad_groups.");
-    let aa = B::float_into_data(weight_grad.clone()).read_sync();
-    println!("aa {aa:?}");
     let [channels_out, increment_ci, kernel_size_1, kernel_size_2] =
         B::float_shape(&weight_grad).dims;
     let increment_co = channels_out / options.groups;

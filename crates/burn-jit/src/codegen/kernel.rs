@@ -264,7 +264,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
     let mut num_elems_output = 0;
 
     // We start by registering the inputs.
-    for (i, input) in inputs.into_iter().enumerate() {
+    for (i, input) in inputs.iter().enumerate() {
         if let WorkgroupLaunch::Input { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(input.shape);
@@ -275,7 +275,7 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
     }
 
     // Then we follow with the outputs.
-    for (i, output) in outputs.into_iter().enumerate() {
+    for (i, output) in outputs.iter().enumerate() {
         if let WorkgroupLaunch::Output { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(output.shape);
