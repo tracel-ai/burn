@@ -14,17 +14,17 @@ use std::{collections::HashMap, sync::Arc};
 pub struct HandleContainer<B: ReprBackend> {
     handles: HashMap<TensorId, Handle<B>>,
     counter: u64,
-    /// --ADDED-- Handle candidates to be freed.
+    /// Handle candidates to be freed.
     pub handles_orphan: Vec<TensorId>,
     /// The device on which all tensors are held.
     pub device: B::Device,
 }
 
-/// --ADDED-- Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
+/// Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
 pub enum Handle<B: Backend + ReprBackend> {
-    /// --ADDED-- No [tensor handle](ReprBackend::Handle) has been created yet
+    /// No [tensor handle](ReprBackend::Handle) has been created yet
     NotInit,
-    /// --ADDED-- A [tensor handle](ReprBackend::Handle) has been created
+    /// A [tensor handle](ReprBackend::Handle) has been created
     Existing(B::Handle),
 }
 
@@ -145,7 +145,7 @@ impl<B: ReprBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    /// --ADDED-- Remove tensor handle from container if writable
+    /// Remove tensor handle from container if writable
     pub fn free(&mut self, tensor: &TensorDescription) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
@@ -156,7 +156,7 @@ impl<B: ReprBackend> HandleContainer<B> {
         }
     }
 
-    /// --ADDED-- Remove tensor handle from container if not in use
+    /// Remove tensor handle from container if not in use
     pub fn free_orphans(&mut self, remaining: &[&TensorId]) {
         let mut handles_orphan = Vec::new();
 
