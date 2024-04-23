@@ -1,5 +1,3 @@
-use core::fmt::Debug;
-
 use crate::{
     memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
@@ -7,6 +5,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use core::fmt::Debug;
 
 /// The compute server is responsible for handling resources and computations over resources.
 ///
@@ -26,7 +25,7 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>>;
 
     /// Given a resource as bytes, stores it and returns the memory handle.
     fn create(&mut self, data: &[u8]) -> Handle<Self>;
@@ -38,7 +37,7 @@ where
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&Handle<Self>]);
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>);
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
@@ -47,18 +46,42 @@ where
 /// Server handle containing the [memory handle](MemoryManagement::Handle).
 #[derive(new, Debug)]
 pub struct Handle<Server: ComputeServer> {
-    /// Handle for the memory in use.
+    /// Memory handle.
     pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Handle,
 }
 
+/// Binding of a [tensor handle](Handle) to execute a kernel.
+#[derive(new)]
+pub struct Binding<Server: ComputeServer> {
+    /// Memory binding.
+    pub memory: <Server::MemoryManagement as MemoryManagement<Server::Storage>>::Binding,
+}
+
 impl<Server: ComputeServer> Handle<Server> {
-    /// If the tensor handle can be mut with an inplace operation.
+    /// If the tensor handle can be reused inplace.
     pub fn can_mut(&self) -> bool {
-        self.memory.can_mut()
+        MemoryHandle::can_mut(&self.memory)
+    }
+}
+
+impl<Server: ComputeServer> Handle<Server> {
+    /// Convert the [handle](Handle) into a [binding](Binding).
+    pub fn binding(self) -> Binding<Server> {
+        Binding {
+            memory: MemoryHandle::binding(self.memory),
+        }
     }
 }
 
 impl<Server: ComputeServer> Clone for Handle<Server> {
+    fn clone(&self) -> Self {
+        Self {
+            memory: self.memory.clone(),
+        }
+    }
+}
+
+impl<Server: ComputeServer> Clone for Binding<Server> {
     fn clone(&self) -> Self {
         Self {
             memory: self.memory.clone(),

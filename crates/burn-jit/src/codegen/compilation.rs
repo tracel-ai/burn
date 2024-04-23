@@ -186,25 +186,16 @@ impl CompilationSettings {
                     return None;
                 }
 
-                let mut chosen = None;
                 for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                    if chosen.is_some() {
-                        break;
-                    }
                     if desc.shape == desc_input.shape && input.item() == output.item() {
-                        chosen = Some(index);
+                        let (pos_input, _desc, _info) = potential_inplace.remove(index);
+                        return Some(InplaceMapping::new(pos_input, pos));
                     }
                 }
 
-                let index = match chosen {
-                    Some(index) => index,
-                    None => return None,
-                };
-
-                let (pos_input, _desc, _info) = potential_inplace.remove(index);
-                Some(InplaceMapping::new(pos_input, pos))
+                None
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         self.inplace(mappings)
     }

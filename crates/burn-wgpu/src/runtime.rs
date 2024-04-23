@@ -72,22 +72,24 @@ pub struct RuntimeOptions {
     /// Control the slicing strategy.
     pub slice_strategy: SliceStrategy,
     /// Control the amount of compute tasks to be aggregated into a single GPU command.
-    pub max_tasks: usize,
+    pub tasks_max: usize,
 }
 
 impl Default for RuntimeOptions {
     fn default() -> Self {
-        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
+        const DEFAULT_MAX_TASKS: usize = 16;
+
+        let tasks_max = match std::env::var("BURN_WGPU_MAX_TASKS") {
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 64, // 64 tasks by default
+            Err(_) => DEFAULT_MAX_TASKS,
         };
 
         Self {
-            dealloc_strategy: DeallocStrategy::new_period_tick(max_tasks * 2),
+            dealloc_strategy: DeallocStrategy::new_period_tick(1),
             slice_strategy: SliceStrategy::Ratio(0.8),
-            max_tasks,
+            tasks_max,
         }
     }
 }
@@ -127,7 +129,7 @@ async fn create_client<G: GraphicsApi>(
     let storage = WgpuStorage::new(device.clone());
     let memory_management =
         SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
-    let server = WgpuServer::new(memory_management, device, queue, options.max_tasks);
+    let server = WgpuServer::new(memory_management, device, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
 
     let tuner_device_id = tuner_device_id(info);
