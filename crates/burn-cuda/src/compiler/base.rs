@@ -84,32 +84,38 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
         let mut instructions = Vec::new();
         let mut processing = value.process();
 
-        // Replace all Index operators with CheckedIndexAssign procedures
         for operation in &mut processing.operations {
             if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
-                if let gpu::Variable::GlobalInputArray(_, _) = operands.lhs {
-                    *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
-                        gpu::CheckedIndex {
-                            lhs: operands.lhs,
-                            rhs: operands.rhs,
-                            out: operands.out,
-                        },
-                    ));
+                // Replace all Index operators for global arrays with CheckedIndexAssign procedures
+                match operands.lhs {
+                    gpu::Variable::GlobalInputArray(_, _) |
+                    gpu::Variable::GlobalOutputArray(_, _) => {
+                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
+                            gpu::CheckedIndex {
+                                lhs: operands.lhs,
+                                rhs: operands.rhs,
+                                out: operands.out,
+                            },
+                        ));
+                    },
+                    // Cannot perform bound check on non-global arrays, do nothing.
+                    _ => (),
                 }
-            }
-        }
-
-        // Replace all IndexAssign operators with CheckedIndexAssign procedures
-        for operation in &mut processing.operations {
-            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
-                if let gpu::Variable::GlobalOutputArray(_, _) = operands.out {
-                    *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
-                        gpu::CheckedIndexAssign {
-                            lhs: operands.lhs,
-                            rhs: operands.rhs,
-                            out: operands.out,
-                        },
-                    ));
+            } else if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
+                // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
+                match operands.out {
+                    gpu::Variable::GlobalInputArray(_, _) |
+                    gpu::Variable::GlobalOutputArray(_, _) => {
+                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
+                            gpu::CheckedIndexAssign {
+                                lhs: operands.lhs,
+                                rhs: operands.rhs,
+                                out: operands.out,
+                            },
+                        ));
+                    },
+                    // Cannot perform bound check on non-global arrays, do nothing.
+                    _ => (),
                 }
             }
         }
