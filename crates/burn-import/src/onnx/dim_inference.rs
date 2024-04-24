@@ -198,7 +198,6 @@ fn concat_update_outputs(node: &mut Node) {
 
 fn reshape_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
-        // get the values while making sure the types are correct
         match &node.inputs[1].value {
             Some(value) => match value {
                 Data::Int64s(shape) => Some(shape.clone()),
@@ -207,12 +206,7 @@ fn reshape_update_outputs(node: &mut Node) {
             None => None,
         }
     } else {
-        node.attrs
-            .iter()
-            .find_map(|(key, value)| match key.as_str() {
-                "shape" => Some(value.clone().into_i64s()),
-                _ => None,
-            })
+        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
     };
 
     let output = match &node.outputs[0].ty {
@@ -220,9 +214,9 @@ fn reshape_update_outputs(node: &mut Node) {
         _ => panic!("Reshape: invalid output types"),
     };
 
-    if shape.is_some() {
+    if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: shape.unwrap().len(),
+            dim: shape.len(),
             shape: None, // shape is calculated at runtime
             ..output
         });
