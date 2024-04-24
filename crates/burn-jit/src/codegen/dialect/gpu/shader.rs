@@ -21,6 +21,7 @@ pub enum Visibility {
 #[allow(missing_docs)]
 pub enum Elem {
     Float,
+    Half,
     Int,
     UInt,
     Bool,
@@ -36,6 +37,7 @@ impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Float => f.write_str("float"),
+            Self::Half => f.write_str("half"),
             Self::Int => f.write_str("int"),
             Self::UInt => f.write_str("uint"),
             Self::Bool => f.write_str("bool"),

@@ -1,6 +1,7 @@
 use burn_jit::JitElement;
 
 use crate::compiler::wgsl;
+use half::f16;
 
 /// The base element trait for the wgpu backend.
 pub trait WgpuElement: JitElement {
@@ -31,5 +32,12 @@ impl WgpuElement for f32 {
     }
 }
 
+impl WgpuElement for f16 {
+    fn wgpu_elem() -> wgsl::Elem {
+        wgsl::Elem::F16
+    }
+}
+
 impl FloatElement for f32 {}
 impl IntElement for i32 {}
+impl FloatElement for f16 {}
