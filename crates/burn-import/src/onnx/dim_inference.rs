@@ -258,7 +258,6 @@ fn reduce_mean_update_outputs(node: &mut Node) {
 /// Update the output tensor dimension based on the "axes" attribute or the second input
 fn unsqueeze_update_output(node: &mut Node) {
     let axes = if node.inputs.len() == 2 {
-        // get the values while making sure the types are correct
         match &node.inputs[1].value {
             Some(value) => match value {
                 Data::Int64s(axes) => Some(axes.clone()),
@@ -267,12 +266,7 @@ fn unsqueeze_update_output(node: &mut Node) {
             None => None,
         }
     } else {
-        node.attrs
-            .iter()
-            .find_map(|(key, value)| match key.as_str() {
-                "axes" => Some(value.clone().into_i64s()),
-                _ => None,
-            })
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
     // need output way up here to avoid borrowing issues
@@ -286,9 +280,9 @@ fn unsqueeze_update_output(node: &mut Node) {
         _ => panic!("Unsqueeze: invalid output types"),
     };
 
-    if axes.is_some() {
+    if let Some(axes) = axes {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: input.dim + axes.unwrap().len(),
+            dim: input.dim + axes.len(),
             shape: None, // shape is calculated at runtime
             ..output
         });
