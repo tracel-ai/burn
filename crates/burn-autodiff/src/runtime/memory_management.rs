@@ -9,7 +9,7 @@ use std::{
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
     nodes: HashMap<NodeRefCount, Vec<NodeID>>,
-    roots: HashSet<NodeID>,
+    leaves: HashSet<NodeID>,
     statuses: HashMap<NodeID, NodeMemoryStatus>,
 }
 
@@ -19,7 +19,7 @@ impl Display for GraphMemoryManagement {
             format!(
                 "{} {} {}",
                 self.nodes.len(),
-                self.roots.len(),
+                self.leaves.len(),
                 self.statuses.len()
             )
             .as_str(),
@@ -42,57 +42,57 @@ enum Mode {
 
 impl GraphMemoryManagement {
     /// Register a new node with its parent.
-    pub fn register(&mut self, node: NodeRefCount, children: Vec<NodeID>) {
+    pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
         let node_id = *node.as_ref();
 
-        for parent_id in children.iter() {
-            self.roots.remove(parent_id);
+        for parent_id in parents.iter() {
+            self.leaves.remove(parent_id);
         }
 
-        self.roots.insert(node_id);
-        self.nodes.insert(node, children);
+        self.leaves.insert(node_id);
+        self.nodes.insert(node, parents);
     }
 
     /// Free the node from the state.
     pub fn consume_node(&mut self, node_id: NodeID) {
-        self.roots.remove(&node_id);
+        self.leaves.remove(&node_id);
         self.nodes.remove(&node_id);
     }
 
     /// Free all nodes whose backward call has become impossible
     ///
-    /// This function goes into three steps, which must happen for all roots
+    /// This function goes into three steps, which must happen for all leaves
     /// before going into the next step. Then it deletes what can be safely deleted
-    pub(crate) fn free_unusable(&mut self, mut on_free_graph: impl FnMut(&NodeID)) {
-        let roots = self.roots.clone();
-        let mut new_roots = HashSet::new();
+    pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeID)) {
+        let leaves = self.leaves.clone();
+        let mut new_leaves = HashSet::new();
         let mut deletables = Vec::new();
 
         // When consuming nodes with a backward pass, some other backward passes become
-        // unavailable because some of their children have been consumed. They are
+        // unavailable because some of their parents have been consumed. They are
         // identified here.
-        for root in roots.clone() {
-            self.unavailable_propagation(root);
+        for leaf in leaves.clone() {
+            self.unavailable_propagation(leaf);
         }
 
         // Among the available nodes that remain, some may be useless if no
-        // available node with a tensor reference exist in their ancestry.
-        // But some may seem useless from some root but be useful in another one,
-        // hence the need to iterate on all roots.
-        for root in roots.clone() {
-            self.useful_propagation(root, Mode::Explore);
+        // available node with a tensor reference exist in their descendance.
+        // But some may seem useless from some leaf but be useful from another one,
+        // hence the need to iterate on all leaves.
+        for leaf in leaves.clone() {
+            self.useful_propagation(leaf, Mode::Explore);
         }
 
-        // New roots are the roots of a useful sub-tree.
+        // New leaves are the roots of a useful backward sub-tree.
         // Deletables are everything not marked as useful.
-        for root in roots.clone() {
-            self.identify_roots_and_deletables(root, &mut new_roots, &mut deletables);
+        for leaf in leaves.clone() {
+            self.identify_leaves_and_deletables(leaf, &mut new_leaves, &mut deletables);
         }
 
-        // Replace roots by the new ones and delete everything not useful anymore
-        println!("{:?}", new_roots);
+        // Replace leaves by the new ones and delete everything not useful anymore
+        println!("{:?}", new_leaves);
         println!("{:?}", deletables);
-        mem::swap(&mut self.roots, &mut new_roots);
+        mem::swap(&mut self.leaves, &mut new_leaves);
         self.statuses.clear();
         for node_to_delete in deletables {
             self.nodes.remove(&node_to_delete);
@@ -107,19 +107,19 @@ impl GraphMemoryManagement {
         }
 
         match self.nodes.get(&node_id).cloned() {
-            // If node exists and any of its children is unavailable, it is unavailable as well
-            Some(children) => {
+            // If node exists and any of its parents is unavailable, it is unavailable as well
+            Some(parents) => {
                 let mut node_status = NodeMemoryStatus::Unknown;
-                for child in children {
-                    let child_status = self.unavailable_propagation(child);
-                    if let NodeMemoryStatus::Unavailable = child_status {
+                for parent in parents {
+                    let parent_status = self.unavailable_propagation(parent);
+                    if let NodeMemoryStatus::Unavailable = parent_status {
                         node_status = NodeMemoryStatus::Unavailable;
                     }
                 }
                 self.statuses.insert(node_id.clone(), node_status.clone());
                 node_status
             }
-            // If node does not exist, it was deleted, and all its ancestors are unavailable
+            // If node does not exist, it was deleted, and all its descendants are unavailable
             None => {
                 self.statuses
                     .insert(node_id.clone(), NodeMemoryStatus::Unavailable);
@@ -129,13 +129,13 @@ impl GraphMemoryManagement {
     }
 
     fn useful_propagation(&mut self, node_id: NodeID, mode: Mode) {
-        let children = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
+        let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
 
         match mode {
             Mode::Retain => {
                 self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                for child in children {
-                    self.useful_propagation(child, Mode::Retain)
+                for parent in parents {
+                    self.useful_propagation(parent, Mode::Retain)
                 }
             }
             Mode::Explore => {
@@ -147,17 +147,17 @@ impl GraphMemoryManagement {
 
                 match node_status {
                     NodeMemoryStatus::Useful => {
-                        // Nothing to do, was already tagged by some other path
+                        // Nothing to do, was already tagged through some other path
                     }
                     NodeMemoryStatus::Unavailable => {
-                        // Even if this node is useless, it is still possible that a descendant is useful if referenced
-                        for child in children {
-                            self.useful_propagation(child, Mode::Explore);
+                        // Even if this node is unavailable, it is still possible that an ancestor is useful if referenced
+                        for parent in parents {
+                            self.useful_propagation(parent, Mode::Explore);
                         }
                     }
                     NodeMemoryStatus::Unknown => {
                         // If this node is referenced and not unavailable,
-                        // then it is useful and we must retain all descendants
+                        // then it is useful and we must retain all ancestors
 
                         let mut mode = Mode::Explore;
                         if self.is_referenced(node_id) {
@@ -165,8 +165,8 @@ impl GraphMemoryManagement {
                             mode = Mode::Retain;
                         }
 
-                        for child in children {
-                            self.useful_propagation(child, mode.clone());
+                        for parent in parents {
+                            self.useful_propagation(parent, mode.clone());
                         }
                     }
                 }
@@ -183,10 +183,10 @@ impl GraphMemoryManagement {
         ) > 1
     }
 
-    fn identify_roots_and_deletables(
+    fn identify_leaves_and_deletables(
         &self,
         node_id: NodeID,
-        new_roots: &mut HashSet<NodeID>,
+        new_leaves: &mut HashSet<NodeID>,
         to_delete: &mut Vec<NodeID>,
     ) {
         let current_status = self
@@ -196,12 +196,12 @@ impl GraphMemoryManagement {
 
         match current_status {
             NodeMemoryStatus::Useful => {
-                new_roots.insert(node_id);
+                new_leaves.insert(node_id);
             }
             _ => {
-                let children = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
-                for child in children {
-                    self.identify_roots_and_deletables(child, new_roots, to_delete)
+                let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
+                for parent in parents {
+                    self.identify_leaves_and_deletables(parent, new_leaves, to_delete)
                 }
                 to_delete.push(node_id);
             }
