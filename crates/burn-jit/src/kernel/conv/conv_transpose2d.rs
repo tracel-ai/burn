@@ -6,7 +6,7 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Elem, IntKind, Scope, Variable, Visibility},
     kernel::{self, GpuComputeShaderPhase},
     ops::{
         numeric::{empty_device, zeros_device},
@@ -99,8 +99,8 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
         let groups = Variable::GlobalScalar(6, Elem::UInt);
 
-        let stride_0_i = scope.create_local(Elem::Int);
-        let stride_1_i = scope.create_local(Elem::Int);
+        let stride_0_i = scope.create_local(Elem::Int(IntKind::I32));
+        let stride_1_i = scope.create_local(Elem::Int(IntKind::I32));
         gpu!(scope, stride_0_i = cast(conv_stride_0));
         gpu!(scope, stride_1_i = cast(conv_stride_1));
 
@@ -139,15 +139,15 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         gpu!(scope, ic_end = ic_start + ic_tmp);
 
         let tmp_u = scope.create_local(Elem::UInt);
-        let tmp_i = scope.create_local(Elem::Int);
-        let zero_i = scope.zero(Elem::Int);
-        let one_i = scope.create_with_value(1, Elem::Int);
+        let tmp_i = scope.create_local(Elem::Int(IntKind::I32));
+        let zero_i = scope.zero(Elem::Int(IntKind::I32));
+        let one_i = scope.create_with_value(1, Elem::Int(IntKind::I32));
 
         let kms_u = scope.create_local(Elem::UInt);
-        let kms_0 = scope.create_local(Elem::Int);
-        let kms_1 = scope.create_local(Elem::Int);
-        let ih_start_tmp = scope.create_local(Elem::Int);
-        let iw_start_tmp = scope.create_local(Elem::Int);
+        let kms_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let kms_1 = scope.create_local(Elem::Int(IntKind::I32));
+        let ih_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
+        let iw_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
         let ih_start = scope.create_local(Elem::UInt);
         let iw_start = scope.create_local(Elem::UInt);
         let ih_end = scope.create_local(Elem::UInt);

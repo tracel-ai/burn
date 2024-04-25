@@ -312,8 +312,8 @@ fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElem
 ) -> Vec<Handle<R::Server>> {
     // It is crucial that scalars follow this order: float, int, uint
     let element_priority = |elem: Elem| match elem {
-        Elem::Float => 0,
-        Elem::Int => 1,
+        Elem::Float(_) => 0,
+        Elem::Int(_) => 1,
         Elem::UInt => 2,
         Elem::Bool => panic!("Bool scalars are not supported"),
     };

@@ -57,9 +57,10 @@ impl Trace {
             })
             .collect::<Vec<_>>();
 
+        // NOTE: we might want to pass a struct including all inputs/outputs metadata instead of 3 arrays
         if self.scalars.num_float > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Float,
+                elem: gpu::Elem::Float(gpu::FloatKind::F32),
                 size: self.scalars.num_float,
             })
         }
@@ -73,7 +74,7 @@ impl Trace {
 
         if self.scalars.num_int > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Int,
+                elem: gpu::Elem::Int(gpu::IntKind::I32),
                 size: self.scalars.num_int,
             })
         }

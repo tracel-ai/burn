@@ -1,7 +1,7 @@
 use crate::{
     compiler::wgsl,
     compute::{WgpuServer, WgpuStorage},
-    FloatElement, GraphicsApi, IntElement, WgpuDevice,
+    GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -19,13 +19,10 @@ use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
-/// The [graphics api](GraphicsApi), the [float element](FloatElement) and the
-/// [int element](IntElement) types are passed as generic.
+/// The [graphics api](GraphicsApi) type is passed as generic.
 #[derive(Debug)]
-pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct WgpuRuntime<G: GraphicsApi> {
     _g: PhantomData<G>,
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
@@ -34,9 +31,8 @@ static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> 
 
 type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
-    type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
-    type Compiler = wgsl::WgslCompiler<F, I>;
+impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
+    type Compiler = wgsl::WgslCompiler;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
     type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;

@@ -17,16 +17,18 @@ struct InterpolateBicubicEagerKernel<R, E> {
     _elem: PhantomData<E>,
 }
 
-struct InterpolateBicubicShader {
+struct InterpolateBicubicShader<E> {
     input: Variable,
     output: Variable,
+    _elem: PhantomData<E>,
 }
 
-impl InterpolateBicubicShader {
+impl<E: JitElement> InterpolateBicubicShader<E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
         let id = Variable::Id;
+        let elem = E::gpu_elem();
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -83,20 +85,20 @@ impl InterpolateBicubicShader {
 
         let input_height = scope.create_local(Elem::UInt);
         let output_height = scope.create_local(Elem::UInt);
-        let output_height_float = scope.create_local(Elem::Float);
+        let output_height_float = scope.create_local(elem);
 
         let input_width = scope.create_local(Elem::UInt);
         let output_width = scope.create_local(Elem::UInt);
-        let output_width_float = scope.create_local(Elem::Float);
+        let output_width_float = scope.create_local(elem);
 
-        let frac = scope.create_local(Elem::Float);
+        let frac = scope.create_local(elem);
         let numerator = scope.create_local(Elem::UInt);
-        let numerator_float = scope.create_local(Elem::Float);
+        let numerator_float = scope.create_local(elem);
         let not_zero = scope.create_local(Elem::Bool);
 
-        let y_in_float = scope.create_local(Elem::Float);
+        let y_in_float = scope.create_local(elem);
         let y_in = scope.create_local(Elem::UInt);
-        let yw = scope.create_local(Elem::Float);
+        let yw = scope.create_local(elem);
         let y_tmp = scope.create_local(Elem::UInt);
 
         gpu!(scope, input_height = input_shape_2 - 1u32);
@@ -123,9 +125,9 @@ impl InterpolateBicubicShader {
         gpu!(scope, y_tmp = y_in + 2u32);
         let y3 = Self::min(scope, y_tmp, input_height);
 
-        let x_in_float = scope.create_local(Elem::Float);
+        let x_in_float = scope.create_local(elem);
         let x_in = scope.create_local(Elem::UInt);
-        let xw = scope.create_local(Elem::Float);
+        let xw = scope.create_local(elem);
         let x_tmp = scope.create_local(Elem::UInt);
 
         gpu!(scope, input_width = input_shape_3 - 1u32);
@@ -374,7 +376,12 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEage
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
 
-        InterpolateBicubicShader { input, output }.expand(&mut scope);
+        InterpolateBicubicShader {
+            input,
+            output,
+            _elem: PhantomData::<E>,
+        }
+        .expand(&mut scope);
 
         scope.write_global_custom(output);
 

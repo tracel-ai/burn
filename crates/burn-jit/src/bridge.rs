@@ -1,4 +1,6 @@
-use crate::{kernel, ops::to_device, tensor::JitTensor, JitBackend, Runtime};
+use crate::{
+    kernel, ops::to_device, tensor::JitTensor, FloatElement, IntElement, JitBackend, Runtime,
+};
 use burn_tensor::{
     backend::BackendBridge,
     ops::{FloatElem, FloatTensor},
@@ -7,26 +9,34 @@ use core::marker::PhantomData;
 
 /// Handle precision conversion for the jit backend.
 #[derive(Debug)]
-pub struct PrecisionBridge<R> {
+pub struct PrecisionBridge<R, F: FloatElement, I: IntElement> {
     _runtime: PhantomData<R>,
+    _float_elem: PhantomData<F>,
+    _int_elem: PhantomData<I>,
 }
 
-impl<ROrigin, RTarget> BackendBridge<JitBackend<ROrigin>> for PrecisionBridge<RTarget>
+impl<ROrigin, FOrigin, IOrigin, RTarget, FTarget, ITarget>
+    BackendBridge<JitBackend<ROrigin, FOrigin, IOrigin>>
+    for PrecisionBridge<RTarget, FTarget, ITarget>
 where
     ROrigin: Runtime,
+    FOrigin: FloatElement,
+    IOrigin: IntElement,
     RTarget:
         Runtime<Device = ROrigin::Device, Server = ROrigin::Server, Channel = ROrigin::Channel>,
+    FTarget: FloatElement,
+    ITarget: IntElement,
 {
-    type Target = JitBackend<RTarget>;
+    type Target = JitBackend<RTarget, FTarget, ITarget>;
 
     fn into_target<const D: usize>(
-        tensor: FloatTensor<JitBackend<ROrigin>, D>,
+        tensor: FloatTensor<JitBackend<ROrigin, FOrigin, IOrigin>, D>,
         device: Option<burn_tensor::Device<Self::Target>>,
     ) -> FloatTensor<Self::Target, D> {
         let tensor = kernel::cast::<
             ROrigin,
-            FloatElem<JitBackend<ROrigin>>,
-            FloatElem<JitBackend<RTarget>>,
+            FloatElem<JitBackend<ROrigin, FOrigin, IOrigin>>,
+            FloatElem<JitBackend<RTarget, FOrigin, IOrigin>>,
             D,
         >(tensor);
 
@@ -42,12 +52,12 @@ where
 
     fn from_target<const D: usize>(
         tensor: FloatTensor<Self::Target, D>,
-        device: Option<burn_tensor::Device<JitBackend<ROrigin>>>,
-    ) -> FloatTensor<JitBackend<ROrigin>, D> {
+        device: Option<burn_tensor::Device<JitBackend<ROrigin, FOrigin, IOrigin>>>,
+    ) -> FloatTensor<JitBackend<ROrigin, FOrigin, IOrigin>, D> {
         let tensor = kernel::cast::<
             RTarget,
-            FloatElem<JitBackend<RTarget>>,
-            FloatElem<JitBackend<ROrigin>>,
+            FloatElem<JitBackend<RTarget, FTarget, ITarget>>,
+            FloatElem<JitBackend<ROrigin, FOrigin, IOrigin>>,
             D,
         >(tensor);
         // The line below does the backend type cast.

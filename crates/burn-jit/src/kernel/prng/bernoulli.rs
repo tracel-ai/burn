@@ -44,7 +44,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 gpu!(scope, int_random = int_random ^ state_2);
                 gpu!(scope, int_random = int_random ^ state_3);
 
-                let float_random = scope.create_local(Elem::Float);
+                let float_random = scope.create_local(E::gpu_elem());
                 cast_uint_to_float(scope, int_random, float_random);
 
                 let bernoulli = scope.create_local(Elem::Bool);
