@@ -90,7 +90,7 @@ impl GraphMemoryManagement {
         }
 
         match self.nodes.get(&node_id).cloned() {
-            // If node exists and any of its children is useless, it is useless as well
+            // If node exists and any of its children is unavailable, it is unavailable as well
             Some(children) => {
                 let mut node_status = NodeMemoryStatus::Unknown;
                 for child in children {
@@ -102,8 +102,12 @@ impl GraphMemoryManagement {
                 self.statuses.insert(node_id.clone(), node_status.clone());
                 node_status
             }
-            // If node does not exist, it was deleted, and all its ancestors are useless
-            None => NodeMemoryStatus::Unavailable,
+            // If node does not exist, it was deleted, and all its ancestors are unavailable
+            None => {
+                self.statuses
+                    .insert(node_id.clone(), NodeMemoryStatus::Unavailable);
+                NodeMemoryStatus::Unavailable
+            }
         }
     }
 
