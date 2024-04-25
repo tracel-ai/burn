@@ -32,7 +32,7 @@ impl<B: AutodiffBackend> Benchmark for AutodiffOverheadBenchmark<B> {
             let mut cell = input.clone();
             let lstm = self.lstm.clone().fork(&input.device());
 
-            for i in 0..10 {
+            for _ in 0..10 {
                 let (cells, _) = lstm.forward(input.clone(), None);
                 cell = cell + cells;
             }

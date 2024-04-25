@@ -37,9 +37,6 @@ impl AutodiffServer {
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
-
-        let orphans = self.memory_management.find_orphan_graphs();
-
         let (tape, builder) = self.build_tape(node_id, step, builder);
         let checkpointer = builder.build(&self.steps);
 
@@ -55,12 +52,7 @@ impl AutodiffServer {
                 self.actions_builder.remove(node_id);
             };
 
-            for graph_id in orphans {
-                self.memory_management
-                    .free_graph(graph_id, &mut on_free_graph);
-            }
-
-            println!("{}", self.memory_management);
+            self.memory_management.free_unusable(&mut on_free_graph);
         }
 
         gradients
@@ -78,7 +70,7 @@ impl AutodiffServer {
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
             if GRAPH_MM_ACTIVATED {
-                self.memory_management.free_node(id);
+                self.memory_management.consume_node(id);
             }
 
             let depth = step.depth();
