@@ -72,7 +72,7 @@ impl Default for RuntimeOptions {
         };
 
         Self {
-            dealloc_strategy: DeallocStrategy::new_period_tick(max_tasks * 2),
+            dealloc_strategy: DeallocStrategy::new_period_tick(tasks_max * 2),
             slice_strategy: SliceStrategy::Ratio(0.8),
             max_tasks,
         }
@@ -137,8 +137,8 @@ pub async fn select_device<G: GraphicsApi>(
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits,
+                required_features: wgpu::Features::empty(),
+                required_limits: limits,
             },
             None,
         )
@@ -179,6 +179,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
 
     instance
         .enumerate_adapters(G::backend().into())
+        .into_iter()
         .for_each(|adapter| {
             let device_type = adapter.get_info().device_type;
 

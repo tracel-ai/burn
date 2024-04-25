@@ -62,10 +62,12 @@ impl JitElement for i32 {
         gpu::Elem::Int
     }
     fn maximum_value() -> Self {
-        i32::MAX
+        // Seems to cause problem for some GPU
+        i32::MAX - 1
     }
     fn minimum_value() -> Self {
-        i32::MIN
+        // Seems to cause problem for some GPU
+        i32::MIN + 1
     }
 }
 
