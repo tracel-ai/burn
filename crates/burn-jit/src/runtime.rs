@@ -23,17 +23,6 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
         + Sync
         + Send;
 
-    /// A version of the runtime that supports full precision.
-    ///
-    /// Note that the runtime should share all other runtime components.
-    /// This way, it's possible to share the same handles for both runtimes and reduce data copies to a minimum.
-    // type FullPrecisionRuntime: Runtime<
-    //     Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
-    //     Device = Self::Device,
-    //     Server = Self::Server,
-    //     Channel = Self::Channel,
-    // >;
-
     /// Retrieve the compute client from the runtime device.
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
 
