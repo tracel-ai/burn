@@ -1068,8 +1068,9 @@ mod tests {
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(expected_shape, output.shape());
+        let output = model.forward(input, 1.0);
+        assert_eq!(expected_shape, output.0.shape());
+        assert_eq!(Shape::from([1]), output.1.shape());
     }
 
     #[test]
@@ -1079,8 +1080,9 @@ mod tests {
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(expected_shape, output.shape());
+        let output = model.forward(input, 1.0);
+        assert_eq!(expected_shape, output.0.shape());
+        assert_eq!(Shape::from([1]), output.1.shape());
     }
 
     #[test]

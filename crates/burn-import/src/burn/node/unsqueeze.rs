@@ -1,12 +1,12 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct UnsqueezeNode {
-    pub input: TensorType,
+    pub input: Type,
     pub output: TensorType,
     pub axes: Vec<i64>,
 }
@@ -17,22 +17,42 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        vec![self.input.clone()]
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
         let shape_values = &self.axes.to_tokens();
         let new_dims = self.output.dim.to_tokens();
 
-        quote! {
-            let #output: Tensor<B, #new_dims> = #input.unsqueeze_dims(&#shape_values);
+        match &self.input {
+            Type::Tensor(tensor) => {
+                let input = scope.tensor_use_owned(tensor, node_position);
+                quote! {
+                    let #output: Tensor<B, #new_dims> = #input.unsqueeze_dims(&#shape_values);
+                }
+            }
+            Type::Scalar(scalar) => {
+                let input = &scalar.name;
+                quote! {
+                    let #output = Tensor::<B, #new_dims>::from_data([#input.elem()], &self.device).unsqueeze();
+                }
+            }
+            _ => panic!("Unsupported input type"),
         }
     }
 
     fn into_node(self) -> Node<PS> {
         Node::Unsqueeze(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        match &self.input {
+            Type::Scalar(_) => {
+                imports.register("burn::tensor::ElementConversion");
+            }
+            _ => {}
+        }
     }
 }
 
@@ -44,7 +64,7 @@ mod tests {
     use crate::burn::{
         graph::BurnGraph,
         node::{test::assert_tokens, unsqueeze::UnsqueezeNode},
-        TensorType,
+        TensorType, Type,
     };
 
     #[test]
@@ -52,7 +72,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(UnsqueezeNode::new(
-            TensorType::new_float("tensor1", 3),
+            Type::Tensor(TensorType::new_float("tensor1", 3)),
             TensorType::new_float("tensor2", 5),
             [0, 4].into(),
         ));
@@ -68,6 +88,7 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -75,6 +96,7 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

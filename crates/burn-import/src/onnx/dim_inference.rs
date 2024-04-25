@@ -269,22 +269,27 @@ fn unsqueeze_update_output(node: &mut Node) {
         node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
-    // need output way up here to avoid borrowing issues
-    let input = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Unsqueeze: invalid output types"),
+    if axes.is_none() {
+        return;
+    }
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Scalar(_) => 0, // treat scalar as 0-dim tensor
+        _ => panic!("Unsqueeze: invalid input type"),
     };
 
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Unsqueeze: invalid output types"),
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Scalar(elem_type) => elem_type.clone(),
+        _ => panic!("Unsqueeze: invalid output type"),
     };
 
     if let Some(axes) = axes {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: input.dim + axes.len(),
-            shape: None, // shape is calculated at runtime
-            ..output
+            dim: input_dim + axes.len(),
+            shape: None, // shape is tracked and calculated at runtime
+            elem_type: output_elem,
         });
     }
 }

@@ -501,7 +501,7 @@ impl OnnxGraph {
     }
 
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
+        let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let dims = unsqueeze_config(&node);
 

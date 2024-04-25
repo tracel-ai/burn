@@ -240,6 +240,7 @@ pub(crate) mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -247,6 +248,7 @@ pub(crate) mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
 
@@ -294,6 +296,7 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -310,6 +313,7 @@ pub(crate) mod tests {
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
@@ -370,6 +374,7 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -386,6 +391,7 @@ pub(crate) mod tests {
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
