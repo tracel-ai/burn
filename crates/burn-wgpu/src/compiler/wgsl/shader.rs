@@ -213,7 +213,13 @@ impl Display for Location {
 impl Display for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Visibility::Read => f.write_str("read"),
+            // We have to set the visibility of all buffers to `read_write`, otherwise we may
+            // have the error: 'Attempted to use buffer with conflicting usages'
+            //
+            // This is because with lazy execution AND buffer reuse, the same buffer can be bound to
+            // two different variables with different visibility. This is especially true with
+            // operation fusion.
+            Visibility::Read => f.write_str("read_write"),
             Visibility::ReadWrite => f.write_str("read_write"),
         }
     }
