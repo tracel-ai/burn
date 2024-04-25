@@ -54,8 +54,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
             _ => {}
         }
     }
-
-    //
 }
 
 #[cfg(test)]
