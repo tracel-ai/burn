@@ -152,7 +152,6 @@ impl MatmulComputeShader {
     }
 }
 
-// Kernels implemented for float only should also be generic over E: JitElement
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         assert_eq!(
