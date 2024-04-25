@@ -1,6 +1,7 @@
 use crate::{tensor::NodeRefCount, NodeID};
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Display,
     mem,
     sync::Arc,
 };
@@ -10,6 +11,20 @@ pub struct GraphMemoryManagement {
     nodes: HashMap<NodeRefCount, Vec<NodeID>>,
     roots: HashSet<NodeID>,
     statuses: HashMap<NodeID, NodeMemoryStatus>,
+}
+
+impl Display for GraphMemoryManagement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!(
+                "{} {} {}",
+                self.nodes.len(),
+                self.roots.len(),
+                self.statuses.len()
+            )
+            .as_str(),
+        )
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +90,8 @@ impl GraphMemoryManagement {
         }
 
         // Replace roots by the new ones and delete everything not useful anymore
+        println!("{:?}", new_roots);
+        println!("{:?}", deletables);
         mem::swap(&mut self.roots, &mut new_roots);
         self.statuses.clear();
         for node_to_delete in deletables {

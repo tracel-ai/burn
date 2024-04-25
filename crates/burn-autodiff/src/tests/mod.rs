@@ -35,6 +35,7 @@ mod matmul;
 mod maxmin;
 mod maxpool1d;
 mod maxpool2d;
+mod memory_management;
 mod mul;
 mod multithread;
 mod nearest_interpolate;
@@ -69,6 +70,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_gradients!();
         burn_autodiff::testgen_bridge!();
         burn_autodiff::testgen_checkpoint!();
+        burn_autodiff::testgen_memory_management!();
 
         // Activation
         burn_autodiff::testgen_ad_relu!();

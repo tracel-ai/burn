@@ -8,7 +8,16 @@ use crate::{
 };
 use std::collections::HashMap;
 
-static GRAPH_MM_ACTIVATED: bool = true;
+enum MemoryManagementMode {
+    /// Faster but introduces bugs
+    DeleteAll,
+    /// Slower but can't bug
+    KeepAll,
+    /// Nearly as fast as delete all, soon no bugs
+    Managed,
+}
+
+static GRAPH_MM_ACTIVATED: MemoryManagementMode = MemoryManagementMode::Managed;
 
 #[derive(Default)]
 pub struct AutodiffServer {
@@ -22,7 +31,7 @@ impl AutodiffServer {
         let parents = step.parents();
         let node_id = *rc.as_ref();
 
-        if GRAPH_MM_ACTIVATED {
+        if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
             self.memory_management.register(rc, parents);
         }
 
@@ -42,10 +51,10 @@ impl AutodiffServer {
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
 
-        if !GRAPH_MM_ACTIVATED {
+        if let MemoryManagementMode::DeleteAll = GRAPH_MM_ACTIVATED {
             self.steps.clear();
             self.actions_builder.clear();
-        } else {
+        } else if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
             // Cleanup
             let mut on_free_graph = |node_id: &NodeID| {
                 self.steps.remove(node_id);
@@ -69,7 +78,7 @@ impl AutodiffServer {
             .collect::<Vec<_>>();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
-            if GRAPH_MM_ACTIVATED {
+            if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
                 self.memory_management.consume_node(id);
             }
 
