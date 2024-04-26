@@ -110,6 +110,7 @@ mod tests {
             pub struct Model <B: Backend> {
                 dropout: Dropout,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
 
             }
 
@@ -122,6 +123,7 @@ mod tests {
                     Self {
                         dropout,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

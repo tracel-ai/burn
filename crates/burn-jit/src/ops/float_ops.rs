@@ -3,14 +3,19 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryO
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
-use crate::Runtime;
 use crate::{unary, JitBackend};
+use crate::{FloatElement, IntElement, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
+impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
+where
+    R: Runtime,
+    F: FloatElement,
+    I: IntElement,
+{
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,

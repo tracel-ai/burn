@@ -1,5 +1,4 @@
 use super::dialect::gpu;
-use crate::{FloatElement, IntElement};
 use std::fmt::Display;
 
 /// Trait for compiled code representation

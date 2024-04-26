@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use super::{optimization::ElementWise, CompilationPhase};
 use crate::{
     codegen::dialect::gpu::{
@@ -5,7 +7,7 @@ use crate::{
     },
     element::JitElement,
     fusion::{tracing::TraceBuilder, JitOptimization},
-    JitBackend, Runtime,
+    FloatElement, IntElement, JitBackend, Runtime,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
@@ -19,15 +21,22 @@ use burn_tensor::{
 };
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: Runtime> {
+pub(crate) struct ElementWiseBuilder<R: Runtime, F: FloatElement, I: IntElement> {
     builder: TraceBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     num_added: usize,
     device: R::Device,
+    _float_elem: PhantomData<F>,
+    _int_elem: PhantomData<I>,
 }
 
-impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
+impl<R, F, I> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R, F, I>
+where
+    R: Runtime,
+    F: FloatElement,
+    I: IntElement,
+{
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -35,31 +44,31 @@ impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<
 
         match ops {
             OperationDescription::BaseFloat(ops) => {
-                if !self.register_base::<FloatElem<JitBackend<R>>>(ops) {
+                if !self.register_base::<FloatElem<JitBackend<R, F, I>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::BaseInt(ops) => {
-                if !self.register_base::<IntElem<JitBackend<R>>>(ops) {
+                if !self.register_base::<IntElem<JitBackend<R, F, I>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::Float(ops) => {
-                if !self.register_float::<FloatElem<JitBackend<R>>>(ops) {
+                if !self.register_float::<FloatElem<JitBackend<R, F, I>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericFloat(ops) => {
-                if !self.register_numeric::<FloatElem<JitBackend<R>>, _>(ops) {
+                if !self.register_numeric::<FloatElem<JitBackend<R, F, I>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericInt(ops) => {
-                if !self.register_numeric::<IntElem<JitBackend<R>>, _>(ops) {
+                if !self.register_numeric::<IntElem<JitBackend<R, F, I>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -110,14 +119,16 @@ impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<
     }
 }
 
-impl<R: Runtime> ElementWiseBuilder<R> {
-    pub fn new(device: Device<JitBackend<R>>) -> Self {
+impl<R: Runtime, F: FloatElement, I: IntElement> ElementWiseBuilder<R, F, I> {
+    pub fn new(device: Device<JitBackend<R, F, I>>) -> Self {
         Self {
             builder: TraceBuilder::new(),
             num_added: 0,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
             device,
+            _float_elem: PhantomData,
+            _int_elem: PhantomData,
         }
     }
 

@@ -19,9 +19,23 @@ pub enum Visibility {
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub enum FloatKind {
+    F32,
+    F64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum IntKind {
+    I32,
+    I64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum Elem {
-    Float,
-    Int,
+    Float(FloatKind),
+    Int(IntKind),
     UInt,
     Bool,
 }
@@ -35,8 +49,9 @@ impl From<Elem> for Item {
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Float => f.write_str("float"),
-            Self::Int => f.write_str("int"),
+            // NOTE: we'll eventually want to differentiate between int/float types
+            Self::Float(_) => f.write_str("float"),
+            Self::Int(_) => f.write_str("int"),
             Self::UInt => f.write_str("uint"),
             Self::Bool => f.write_str("bool"),
         }

@@ -143,6 +143,7 @@ mod tests {
             pub struct Model <B: Backend> {
                 linear: Linear<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -155,6 +156,7 @@ mod tests {
                     Self {
                         linear,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

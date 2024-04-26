@@ -90,14 +90,14 @@ impl TraceBuilder {
     /// Create a variable from an input [scalar](Element).
     pub fn scalar<E: Element>(&mut self, _value: &E, elem_type: gpu::Elem) -> gpu::Variable {
         match elem_type {
-            gpu::Elem::Float => {
+            gpu::Elem::Float(_) => {
                 let var = self
                     .scope
                     .read_scalar(self.scalars.num_float as u16, elem_type);
                 self.scalars.num_float += 1;
                 var
             }
-            gpu::Elem::Int => {
+            gpu::Elem::Int(_) => {
                 let var = self
                     .scope
                     .read_scalar(self.scalars.num_int as u16, elem_type);

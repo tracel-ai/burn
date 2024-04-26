@@ -18,12 +18,13 @@ struct AdaptiveAvgPool2dBackwardEagerKernel<R, E> {
     _elem: PhantomData<E>,
 }
 
-struct AdaptiveAvgPool2dBackwardComputeShader {
+struct AdaptiveAvgPool2dBackwardComputeShader<E> {
     grad: Variable,
     output: Variable,
+    _elem: PhantomData<E>,
 }
 
-impl AdaptiveAvgPool2dBackwardComputeShader {
+impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.grad;
         let output = self.output;
@@ -158,8 +159,9 @@ impl AdaptiveAvgPool2dBackwardComputeShader {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
         gpu!(scope, index = output_size_index * input_size);
@@ -177,8 +179,9 @@ impl AdaptiveAvgPool2dBackwardComputeShader {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
@@ -213,7 +216,12 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
 
         scope.write_global_custom(output);
 
-        AdaptiveAvgPool2dBackwardComputeShader { grad, output }.expand(&mut scope);
+        AdaptiveAvgPool2dBackwardComputeShader {
+            grad,
+            output,
+            _elem: PhantomData::<E>,
+        }
+        .expand(&mut scope);
 
         let grad = InputInfo::Array {
             item,

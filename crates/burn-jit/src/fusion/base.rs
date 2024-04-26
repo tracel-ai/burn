@@ -1,6 +1,7 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
-    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, JitBackend, Runtime,
+    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, FloatElement, IntElement,
+    JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend};
@@ -25,8 +26,13 @@ pub enum JitOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R> {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R>>) {
+impl<R, F, I> burn_fusion::Optimization<JitBackend<R, F, I>> for JitOptimization<R>
+where
+    R: Runtime,
+    F: FloatElement,
+    I: IntElement,
+{
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R, F, I>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -53,7 +59,7 @@ impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R>
     }
 }
 
-impl<R: Runtime> ReprBackend for JitBackend<R> {
+impl<R: Runtime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
     type Handle = JitFusionHandle<R>;
 
     fn float_tensor<const D: usize>(
@@ -96,7 +102,7 @@ impl<R: Runtime> ReprBackend for JitBackend<R> {
     }
 }
 
-impl<R: Runtime> FusionBackend for JitBackend<R> {
+impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
     type FusionClient = MutexFusionClient<Self>;
@@ -104,7 +110,7 @@ impl<R: Runtime> FusionBackend for JitBackend<R> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::new(device))]
+        vec![Box::new(ElementWiseBuilder::<R, F, I>::new(device))]
     }
 }
 
