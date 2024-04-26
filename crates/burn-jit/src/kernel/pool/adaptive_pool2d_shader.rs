@@ -137,8 +137,9 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
         gpu!(scope, index = output_size_index * input_size);
@@ -156,8 +157,9 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);

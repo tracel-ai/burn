@@ -1,4 +1,4 @@
-use crate::{kernel, JitBackend, Runtime};
+use crate::{kernel, FloatElement, IntElement, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
@@ -6,7 +6,12 @@ use std::ops::Range;
 
 use super::{expand, permute};
 
-impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
+impl<R, F, I> BoolTensorOps<Self> for JitBackend<R, F, I>
+where
+    R: Runtime,
+    F: FloatElement,
+    I: IntElement,
+{
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::empty(shape, device)
     }

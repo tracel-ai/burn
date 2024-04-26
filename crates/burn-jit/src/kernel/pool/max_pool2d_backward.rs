@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, IntKind, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -94,7 +94,7 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, index_current_tmp = iw * output_stride_3);
         gpu!(scope, index_current += index_current_tmp);
 
-        let index_select = scope.create_local(Elem::Int);
+        let index_select = scope.create_local(Elem::Int(IntKind::I32));
 
         let index_max = scope.create_local(Elem::UInt);
         let is_max = scope.create_local(Elem::Bool);
@@ -169,17 +169,17 @@ impl MaxPool2dBackwardComputeShader {
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
-        let signed_ih = scope.create_local(Elem::Int);
-        let signed_iw = scope.create_local(Elem::Int);
+        let signed_ih = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_iw = scope.create_local(Elem::Int(IntKind::I32));
 
-        let signed_pool_stride_0 = scope.create_local(Elem::Int);
-        let signed_pool_stride_1 = scope.create_local(Elem::Int);
-        let signed_dilation_0 = scope.create_local(Elem::Int);
-        let signed_dilation_1 = scope.create_local(Elem::Int);
-        let signed_padding_0 = scope.create_local(Elem::Int);
-        let signed_padding_1 = scope.create_local(Elem::Int);
-        let signed_kernel_size_0 = scope.create_local(Elem::Int);
-        let signed_kernel_size_1 = scope.create_local(Elem::Int);
+        let signed_pool_stride_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_pool_stride_1 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_dilation_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_dilation_1 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_padding_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_padding_1 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_kernel_size_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let signed_kernel_size_1 = scope.create_local(Elem::Int(IntKind::I32));
 
         gpu!(scope, signed_pool_stride_0 = cast(pool_stride_0));
         gpu!(scope, signed_pool_stride_1 = cast(pool_stride_1));
@@ -194,8 +194,8 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, signed_ih = cast(ih));
         gpu!(scope, signed_iw = cast(iw));
 
-        let kms_0 = scope.create_local(Elem::Int);
-        let kms_1 = scope.create_local(Elem::Int);
+        let kms_0 = scope.create_local(Elem::Int(IntKind::I32));
+        let kms_1 = scope.create_local(Elem::Int(IntKind::I32));
 
         gpu!(scope, kms_0 = signed_dilation_0 * signed_kernel_size_0);
         gpu!(scope, kms_0 = kms_0 - signed_pool_stride_0);
@@ -203,8 +203,8 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, kms_1 = signed_dilation_1 * signed_kernel_size_1);
         gpu!(scope, kms_1 = kms_1 - signed_pool_stride_1);
 
-        let oh_start_tmp = scope.create_local(Elem::Int);
-        let ow_start_tmp = scope.create_local(Elem::Int);
+        let oh_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
+        let ow_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
 
         gpu!(scope, oh_start_tmp = signed_ih + signed_padding_0);
         gpu!(scope, oh_start_tmp = oh_start_tmp - kms_0);
@@ -223,8 +223,8 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, oh_start = cast(oh_start_tmp));
         gpu!(scope, ow_start = cast(ow_start_tmp));
 
-        let oh_end_tmp = scope.create_local(Elem::Int);
-        let ow_end_tmp = scope.create_local(Elem::Int);
+        let oh_end_tmp = scope.create_local(Elem::Int(IntKind::I32));
+        let ow_end_tmp = scope.create_local(Elem::Int(IntKind::I32));
 
         gpu!(scope, oh_end_tmp = max(kms_0, 0i32));
         gpu!(scope, ow_end_tmp = max(kms_1, 0i32));
@@ -268,7 +268,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
 
-        let indices = Variable::GlobalInputArray(0, Item::Scalar(Elem::Int));
+        let indices = Variable::GlobalInputArray(0, Item::Scalar(Elem::Int(IntKind::I32)));
         let grad = Variable::GlobalInputArray(1, item);
         let output = Variable::GlobalOutputArray(0, item);
 
@@ -283,7 +283,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
         .expand(&mut scope);
 
         let indices = InputInfo::Array {
-            item: Item::Scalar(Elem::Int),
+            item: Item::Scalar(Elem::Int(IntKind::I32)),
             visibility: Visibility::Read,
         };
 

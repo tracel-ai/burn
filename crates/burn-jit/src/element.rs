@@ -59,7 +59,7 @@ impl JitElement for i32 {
         bytemuck::cast_slice(bytes)
     }
     fn gpu_elem() -> gpu::Elem {
-        gpu::Elem::Int
+        gpu::Elem::Int(gpu::IntKind::I32)
     }
     fn maximum_value() -> Self {
         // Seems to cause problem for some GPU
@@ -82,7 +82,7 @@ impl JitElement for f32 {
         bytemuck::cast_slice(bytes)
     }
     fn gpu_elem() -> gpu::Elem {
-        gpu::Elem::Float
+        gpu::Elem::Float(gpu::FloatKind::F32)
     }
     fn maximum_value() -> Self {
         f32::MAX
