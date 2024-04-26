@@ -8,17 +8,6 @@ use crate::{
 };
 use std::collections::HashMap;
 
-enum MemoryManagementMode {
-    /// Faster but introduces bugs
-    DeleteAll,
-    /// Slower but can't bug
-    KeepAll,
-    /// Nearly as fast as delete all, soon no bugs
-    Managed,
-}
-
-static GRAPH_MM_ACTIVATED: MemoryManagementMode = MemoryManagementMode::Managed;
-
 #[derive(Default)]
 pub struct AutodiffServer {
     steps: HashMap<NodeID, StepBoxed>,
@@ -31,9 +20,7 @@ impl AutodiffServer {
         let parents = step.parents();
         let node_id = *rc.as_ref();
 
-        if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
-            self.memory_management.register(rc, parents);
-        }
+        self.memory_management.register(rc, parents);
 
         self.steps.insert(node_id, step);
         self.actions_builder.insert(node_id, actions);
@@ -51,19 +38,12 @@ impl AutodiffServer {
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
 
-        if let MemoryManagementMode::DeleteAll = GRAPH_MM_ACTIVATED {
-            self.steps.clear();
-            self.actions_builder.clear();
-        } else if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
-            // Cleanup
-            let mut on_free_graph = |node_id: &NodeID| {
+        // Cleanup
+        self.memory_management
+            .free_unavailable_nodes(|node_id: &NodeID| {
                 self.steps.remove(node_id);
                 self.actions_builder.remove(node_id);
-            };
-
-            self.memory_management
-                .free_unavailable_nodes(&mut on_free_graph);
-        }
+            });
 
         gradients
     }
@@ -79,9 +59,7 @@ impl AutodiffServer {
             .collect::<Vec<_>>();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
-            if let MemoryManagementMode::Managed = GRAPH_MM_ACTIVATED {
-                self.memory_management.consume_node(id);
-            }
+            self.memory_management.consume_node(id);
 
             let depth = step.depth();
             if depth == 0 {

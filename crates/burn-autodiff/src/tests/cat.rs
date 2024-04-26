@@ -6,16 +6,21 @@ mod tests {
     #[test]
     fn should_diff_cat() {
         let device = Default::default();
-        let tensor_1 =
-            TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
-        let tensor_2 =
-            TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0]], &device).require_grad();
+        let data_1 = Data::from([[2.0, -1.0], [5.0, 2.0]]);
+        let data_2 = Data::from([[5.0, 4.0], [-1.0, 4.0]]);
+
+        let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let grads = tensor_3.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
+
+        // Redeclared because consumed in previous backward
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
         let mut tensor_1_list = Vec::new();
         let mut tensor_2_list = Vec::new();

@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{activation, Data, Tensor};
 
     #[test]
-    fn test_mm_independant_trees() {
+    fn test_mm_independent_trees() {
         let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
         let device = Default::default();
 
@@ -189,48 +189,23 @@ mod tests {
         assert!(tensor_3.grad(&grads).is_some());
     }
 
-    // #[test]
-    fn test_mm_with_impacting_detach() {
-        let data_1 = Data::from([[0.0, 1.0], [3.0, 4.0]]);
-        let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
-
-        let device = Default::default();
-        let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1, &device).require_grad();
-        let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data_2, &device).require_grad();
-
-        let tensor_3 = tensor_1.clone() * tensor_2.clone();
-
-        let tensor_3a = tensor_3.clone() - tensor_3.detach().max_dim(1);
-        let tensor_3b = tensor_3a.exp();
-        let tensor_3c = tensor_3b.clone().sum_dim(1);
-
-        let tensor_3d = tensor_3b.div(tensor_3c);
-
-        let tensor_4 = tensor_3d.matmul(tensor_2.clone());
-
-        let grads = tensor_4.backward();
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
-
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[1.1797, 1.1797], [0.0055, 0.0055]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[0.2534, 0.2862], [0.5286, 2.9317]]), 3);
-    }
-
     #[test]
-    fn test_mm_with_missing_require_grad() {
+    fn test_mm_with_missing_require_grad_after_cleanup() {
         let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
         let device = Default::default();
+
         let tensor_1 =
             Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
         let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device);
-        let tensor_3 = Tensor::<TestAutodiffBackend, 2>::from_data(data, &device);
+        let tensor_3 = Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device);
 
         let tensor_4 = tensor_1.clone() * tensor_2.clone();
         let tensor_5 = tensor_4 * tensor_3.clone();
+
+        // Trivial backward, just to trigger cleanup
+        Tensor::<TestAutodiffBackend, 2>::from_data(data, &device)
+            .require_grad()
+            .backward();
 
         let grads = tensor_5.backward();
         assert!(tensor_1.grad(&grads).is_some());
@@ -238,21 +213,29 @@ mod tests {
         assert!(tensor_3.grad(&grads).is_none());
     }
 
-    // #[test]
-    // fn test_mm_with_detach() {
-    //     let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
-    //     let device = Default::default();
-    //     let tensor_1 =
-    //         Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    //     let tensor_2 =
-    //         Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    //     let tensor_3 = Tensor::<TestAutodiffBackend, 2>::from_data(data, &device).require_grad();
+    #[test]
+    fn test_mm_with_detach_after_cleanup() {
+        let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
+        let device = Default::default();
 
-    //     let tensor_4 = tensor_1.clone() * tensor_2.clone();
-    //     let tensor_5 = tensor_4 * tensor_3.detach();
+        let tensor_1 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+        let tensor_2 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+        let tensor_3 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
 
-    //     let grads = tensor_5.backward();
-    //     assert!(tensor_1.grad(&grads).is_some());
-    //     assert!(tensor_2.grad(&grads).is_some());
-    // }
+        let tensor_4 = tensor_1.clone() * tensor_2.clone();
+        let tensor_5 = tensor_4 * tensor_3.clone().detach();
+
+        // Trivial backward, just to trigger cleanup
+        Tensor::<TestAutodiffBackend, 2>::from_data(data, &device)
+            .require_grad()
+            .backward();
+
+        let grads = tensor_5.backward();
+        assert!(tensor_1.grad(&grads).is_some());
+        assert!(tensor_2.grad(&grads).is_some());
+        assert!(tensor_3.grad(&grads).is_none());
+    }
 }

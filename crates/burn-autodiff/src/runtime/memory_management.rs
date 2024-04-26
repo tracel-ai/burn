@@ -1,7 +1,6 @@
 use crate::{tensor::NodeRefCount, NodeID};
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Display,
     mem,
     sync::Arc,
 };
@@ -13,20 +12,6 @@ pub struct GraphMemoryManagement {
     statuses: HashMap<NodeID, NodeMemoryStatus>,
 }
 
-impl Display for GraphMemoryManagement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "{} {} {}",
-                self.nodes.len(),
-                self.leaves.len(),
-                self.statuses.len()
-            )
-            .as_str(),
-        )
-    }
-}
-
 #[derive(Debug, Clone)]
 enum NodeMemoryStatus {
     Useful,
@@ -36,7 +21,7 @@ enum NodeMemoryStatus {
 
 #[derive(Clone)]
 enum Mode {
-    Retain,
+    TagAsUseful,
     Explore,
 }
 
@@ -90,8 +75,6 @@ impl GraphMemoryManagement {
         }
 
         // Replace leaves by the new ones and delete everything not useful anymore
-        println!("{:?}", new_leaves);
-        println!("{:?}", deletables);
         mem::swap(&mut self.leaves, &mut new_leaves);
         self.statuses.clear();
         for node_to_delete in deletables {
@@ -108,6 +91,8 @@ impl GraphMemoryManagement {
 
         match self.nodes.get(&node_id).cloned() {
             // If node exists and any of its parents is unavailable, it is unavailable as well
+            // If node exists but the parents vec is empty, it is a tensor that never had parents;
+            //  the status remains unknown
             Some(parents) => {
                 let mut node_status = NodeMemoryStatus::Unknown;
                 for parent in parents {
@@ -116,13 +101,14 @@ impl GraphMemoryManagement {
                         node_status = NodeMemoryStatus::Unavailable;
                     }
                 }
-                self.statuses.insert(node_id.clone(), node_status.clone());
+                self.statuses.insert(node_id, node_status.clone());
                 node_status
             }
-            // If node does not exist, it was deleted, and all its descendants are unavailable
+            // If node does not exist, it was either
+            // - deleted, so this all its descendants are unavailable
+            // - not requiring grad or detached, the status remains unknown (TODO REGISTER THEM WITH EMPTY PARENTS LIKE THOSE WITH REGISTER_GRAD)
             None => {
-                self.statuses
-                    .insert(node_id.clone(), NodeMemoryStatus::Unavailable);
+                self.statuses.insert(node_id, NodeMemoryStatus::Unavailable);
                 NodeMemoryStatus::Unavailable
             }
         }
@@ -132,10 +118,10 @@ impl GraphMemoryManagement {
         let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
 
         match mode {
-            Mode::Retain => {
+            Mode::TagAsUseful => {
                 self.statuses.insert(node_id, NodeMemoryStatus::Useful);
                 for parent in parents {
-                    self.useful_propagation(parent, Mode::Retain)
+                    self.useful_propagation(parent, Mode::TagAsUseful)
                 }
             }
             Mode::Explore => {
@@ -162,7 +148,7 @@ impl GraphMemoryManagement {
                         let mut mode = Mode::Explore;
                         if self.is_referenced(node_id) {
                             self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                            mode = Mode::Retain;
+                            mode = Mode::TagAsUseful;
                         }
 
                         for parent in parents {

@@ -18,7 +18,7 @@ pub struct AutodiffTensor<B: Backend, const D: usize> {
 pub type NodeRefCount = Arc<NodeID>;
 
 #[derive(new, Debug)]
-struct RootStep {
+pub(crate) struct RootStep {
     node: NodeRef,
 }
 
@@ -57,7 +57,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         Self {
             rc: Arc::new(node.id),
             primitive,
-            node,
+            node: node.clone(),
         }
     }
 
@@ -113,7 +113,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             .unwrap_or_else(AutodiffClientImpl::new);
 
         let node: NodeRef = Node::new(
-            parent_nodes.iter().map(|node| node.id).collect(),
+            parent_nodes
+                .iter()
+                .filter_map(|node| node.clone_if_require_grad())
+                .map(|node| node.id)
+                .collect(),
             order,
             NodeID::new(),
             requirement,
