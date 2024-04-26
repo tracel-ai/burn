@@ -15,9 +15,9 @@ pub trait AutodiffClient: Send + Clone {
 }
 
 /// Client implementation in used.
-// #[cfg(feature = "std")]
-// pub type AutodiffClientImpl = super::mspc::ChannelClient;
-//
-// /// Client implementation in used.
-// #[cfg(not(feature = "std"))]
+#[cfg(feature = "std")]
+pub type AutodiffClientImpl = super::mspc::ChannelClient;
+
+/// Client implementation in used.
+#[cfg(not(feature = "std"))]
 pub type AutodiffClientImpl = super::mutex::MutexClient;

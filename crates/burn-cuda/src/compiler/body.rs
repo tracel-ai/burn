@@ -2,9 +2,6 @@ use super::Instruction;
 use std::fmt::Display;
 
 /// A body is composed of a list of [instructions](Instruction).
-///
-/// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
-/// X and Y, but with Z=1.
 #[derive(Debug, Clone)]
 pub struct Body {
     pub instructions: Vec<Instruction>,

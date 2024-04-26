@@ -157,7 +157,7 @@ fn bench<B: Backend>(
     };
 
     run(false);
-    // run(true);
+    run(true);
 }
 
 fn main() {
