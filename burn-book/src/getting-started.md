@@ -234,7 +234,7 @@ two of them are public and visible to the users of the crates, one of them is pu
 only and crate users cannot see it, at last one is private when there is no keyword.
 These modules can be single files or a directory with a `mod.rs` file inside.
 
-```
+```rust, ignore
 pub mod data;
 pub mod inference;
 pub(crate) mod model;
@@ -247,7 +247,7 @@ for a binary crate). Any module declared in the crate root file will be inserted
 compilation.
 
 All Burn examples are library crates and they can contain one or more executable examples that
-uses the library. We have even some Burn examples that uses the library crate of other examples.
+uses the library. We even have some Burn examples that uses the library crate of other examples.
 
 The examples are unique files under the `examples` directory. Each file produces an executable file
 with the same name. Each example can then be executed with `cargo run --example <executable name>`.
