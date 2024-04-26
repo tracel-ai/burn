@@ -15,28 +15,25 @@ pub struct PrecisionBridge<R, F: FloatElement, I: IntElement> {
     _int_elem: PhantomData<I>,
 }
 
-impl<ROrigin, FOrigin, IOrigin, RTarget, FTarget, ITarget>
-    BackendBridge<JitBackend<ROrigin, FOrigin, IOrigin>>
-    for PrecisionBridge<RTarget, FTarget, ITarget>
+impl<R, FOrigin, IOrigin, FTarget, ITarget> BackendBridge<JitBackend<R, FOrigin, IOrigin>>
+    for PrecisionBridge<R, FTarget, ITarget>
 where
-    ROrigin: Runtime,
+    R: Runtime,
     FOrigin: FloatElement,
     IOrigin: IntElement,
-    RTarget:
-        Runtime<Device = ROrigin::Device, Server = ROrigin::Server, Channel = ROrigin::Channel>,
     FTarget: FloatElement,
     ITarget: IntElement,
 {
-    type Target = JitBackend<RTarget, FTarget, ITarget>;
+    type Target = JitBackend<R, FTarget, ITarget>;
 
     fn into_target<const D: usize>(
-        tensor: FloatTensor<JitBackend<ROrigin, FOrigin, IOrigin>, D>,
+        tensor: FloatTensor<JitBackend<R, FOrigin, IOrigin>, D>,
         device: Option<burn_tensor::Device<Self::Target>>,
     ) -> FloatTensor<Self::Target, D> {
         let tensor = kernel::cast::<
-            ROrigin,
-            FloatElem<JitBackend<ROrigin, FOrigin, IOrigin>>,
-            FloatElem<JitBackend<RTarget, FOrigin, IOrigin>>,
+            R,
+            FloatElem<JitBackend<R, FOrigin, IOrigin>>,
+            FloatElem<JitBackend<R, FTarget, ITarget>>,
             D,
         >(tensor);
 
@@ -52,12 +49,12 @@ where
 
     fn from_target<const D: usize>(
         tensor: FloatTensor<Self::Target, D>,
-        device: Option<burn_tensor::Device<JitBackend<ROrigin, FOrigin, IOrigin>>>,
-    ) -> FloatTensor<JitBackend<ROrigin, FOrigin, IOrigin>, D> {
+        device: Option<burn_tensor::Device<JitBackend<R, FOrigin, IOrigin>>>,
+    ) -> FloatTensor<JitBackend<R, FOrigin, IOrigin>, D> {
         let tensor = kernel::cast::<
-            RTarget,
-            FloatElem<JitBackend<RTarget, FTarget, ITarget>>,
-            FloatElem<JitBackend<ROrigin, FOrigin, IOrigin>>,
+            R,
+            FloatElem<JitBackend<R, FTarget, ITarget>>,
+            FloatElem<JitBackend<R, FOrigin, IOrigin>>,
             D,
         >(tensor);
         // The line below does the backend type cast.
