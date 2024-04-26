@@ -17,15 +17,15 @@ std = []
 async = [] # Require std
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.13.1" }
-burn-tensor = { path = "../burn-tensor", version = "0.13.1", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.1", optional = true }
+burn-common = { path = "../burn-common", version = "0.13.2" }
+burn-tensor = { path = "../burn-tensor", version = "0.13.2", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.2", optional = true }
 
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.13.1", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.13.2", default-features = false, features = [
   "export_tests",
 ] }
