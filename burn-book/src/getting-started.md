@@ -273,7 +273,6 @@ examples/burn-example
 For more information on each example, see their respective `README.md` file.
 
 <div class="warning">
->>>>>>> 1f8b5d3ef ([guide] Remove ambiguity lib vs. executable (#1649))
 
 Note that some examples use the
 [`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index) to download the
