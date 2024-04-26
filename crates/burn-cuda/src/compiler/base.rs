@@ -1,11 +1,9 @@
 use super::Instruction;
-use crate::element::{FloatElement, IntElement};
 use burn_jit::gpu::{self};
-use std::marker::PhantomData;
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
-pub struct CudaCompiler<F: FloatElement, I: IntElement> {
+pub struct CudaCompiler {
     shape: bool,
     stride: bool,
     num_inputs: usize,
@@ -16,15 +14,10 @@ pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     rank: bool,
     invocation_index: bool,
     global_invocation_id: (bool, bool, bool),
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
 }
 
-impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
+impl burn_jit::Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
-    type Float = f32;
-    type Int = i32;
-    type FullPrecisionCompiler = CudaCompiler<f32, i32>;
 
     fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
         let compiler = Self::default();
@@ -41,7 +34,7 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
     }
 }
 
-impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
+impl CudaCompiler {
     fn compile_shader(mut self, mut value: gpu::ComputeShader) -> super::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
@@ -432,8 +425,16 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
 
     fn compile_elem(value: gpu::Elem) -> super::Elem {
         match value {
-            gpu::Elem::Float => F::cuda_elem(),
-            gpu::Elem::Int => I::cuda_elem(),
+            gpu::Elem::Float(kind) => match kind {
+                gpu::FloatKind::F16 => super::Elem::F16,
+                gpu::FloatKind::BF16 => super::Elem::BF16,
+                gpu::FloatKind::F32 => super::Elem::F32,
+                gpu::FloatKind::F64 => panic!("f64 isn't supported yet"),
+            },
+            gpu::Elem::Int(kind) => match kind {
+                gpu::IntKind::I32 => super::Elem::I32,
+                gpu::IntKind::I64 => panic!("i64 isn't supported yet"),
+            },
             gpu::Elem::UInt => super::Elem::U32,
             gpu::Elem::Bool => super::Elem::Bool,
         }

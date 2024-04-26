@@ -20,6 +20,8 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub enum FloatKind {
+    F16,
+    BF16,
     F32,
     F64,
 }

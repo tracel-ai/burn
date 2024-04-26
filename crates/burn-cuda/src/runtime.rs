@@ -7,20 +7,16 @@ use burn_compute::{
     ComputeRuntime,
 };
 use burn_jit::Runtime;
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     compiler::CudaCompiler,
     compute::{CudaContext, CudaServer, CudaStorage},
     device::CudaDevice,
-    element::{FloatElement, IntElement},
 };
 
 #[derive(Debug)]
-pub struct CudaRuntime<F: FloatElement, I: IntElement> {
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
-}
+pub struct CudaRuntime;
 
 // static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
@@ -28,9 +24,8 @@ static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> 
 
 type Server = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 
-impl<F: FloatElement, I: IntElement> Runtime for CudaRuntime<F, I> {
-    type FullPrecisionRuntime = CudaRuntime<f32, i32>;
-    type Compiler = CudaCompiler<F, I>;
+impl Runtime for CudaRuntime {
+    type Compiler = CudaCompiler;
     type Server = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 
     // type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;

@@ -12,16 +12,6 @@ pub trait CompilerRepresentation: Display {
 pub trait Compiler: Sync + Send + 'static + Clone + Default + core::fmt::Debug {
     /// The representation for the compiled code.
     type Representation: CompilerRepresentation;
-    /// The float element type used for compilation.
-    type Float: FloatElement;
-    /// The int element type used for compilation.
-    type Int: IntElement;
-    /// The compiler that can be used to generate full precision shaders.
-    type FullPrecisionCompiler: Compiler<
-        Representation = Self::Representation,
-        Float = f32,
-        Int = i32,
-    >;
 
     /// Compiles the [gpu shader](gpu::ComputeShader) into the compiler's representation.
     fn compile(shader: gpu::ComputeShader) -> Self::Representation;

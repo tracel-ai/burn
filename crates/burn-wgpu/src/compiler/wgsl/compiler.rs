@@ -100,6 +100,8 @@ impl WgslCompiler {
     fn compile_elem(value: gpu::Elem) -> wgsl::Elem {
         match value {
             gpu::Elem::Float(f) => match f {
+                gpu::FloatKind::F16 => panic!("f16 is not yet supported"),
+                gpu::FloatKind::BF16 => panic!("f64 is not a valid WgpuElement"),
                 gpu::FloatKind::F32 => wgsl::Elem::F32,
                 gpu::FloatKind::F64 => panic!("f64 is not a valid WgpuElement"),
             },
