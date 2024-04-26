@@ -35,3 +35,18 @@ Finally we can init the model with the configuration and the record. For simplic
 same batcher used during the training to pass from a MnistItem to a tensor.
 
 By running the infer function, you should see the predictions of your model!
+
+Add the call to `infer` to the `main.rs` file after the `train` function call:
+
+```rust , ignore
+    crate::inference::infer::<MyBackend>(
+        artifact_dir,
+        device,
+        burn::data::dataset::vision::MnistDataset::test()
+            .get(42)
+            .unwrap(),
+    );
+```
+
+The number `42` is the index of the image in the MNIST dataset. You can explore and verify them using
+this [MNIST viewer](https://observablehq.com/@davidalber/mnist-viewer).
