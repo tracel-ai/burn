@@ -1,13 +1,12 @@
+use burn_tensor::repr::OperationDescription;
+
 use super::validator::{
     ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
     ValidatorState,
 };
 use super::ExecutionMode;
 use crate::stream::execution::validator::OperationsValidator;
-use crate::stream::{
-    store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
-    OperationDescription,
-};
+use crate::stream::store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery};
 use std::marker::PhantomData;
 
 /// The policy keeps track of all possible execution plans for the current operations.
@@ -266,14 +265,13 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        stream::{
-            store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger},
-            FloatOperationDescription, UnaryOperationDescription,
-        },
-        TensorDescription, TensorId, TensorStatus,
+    use burn_tensor::repr::{
+        FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
+        UnaryOperationDescription,
     };
+
+    use super::*;
+    use crate::stream::store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger};
     use std::ops::Range;
 
     #[test]

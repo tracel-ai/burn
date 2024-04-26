@@ -1,3 +1,4 @@
+use core::cmp::max;
 use core::panic;
 
 use protobuf::Enum;
@@ -32,19 +33,23 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::GatherElements => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::LayerNormalization => same_as_input(node),
         NodeType::Linear => linear_update_outputs(node),
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MatMul => matmul_update_outputs(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
         NodeType::Reciprocal => same_as_input(node),
+        NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
@@ -54,6 +59,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
+        NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -191,28 +197,30 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    assert_eq!(node.inputs.len(), 2);
-
-    let shape = if let Some(Data::Int64s(ref shape)) = node.inputs[1].value {
-        shape
+    let shape = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(shape) => Some(shape.clone()),
+                _ => panic!("Reshape: invalid input types"),
+            },
+            None => None,
+        }
     } else {
-        panic!("Reshape: int64s shape is expected per ONNX spec");
+        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
     };
 
-    // The output dimension is the same as the shape length
-    let dim = shape.len();
-    let elem_type = match node.inputs[0].ty.clone() {
-        ArgType::Tensor(tensor) => tensor.elem_type,
-        _ => panic!("Reshape: invalid input type"),
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Reshape: invalid output types"),
     };
 
-    let shape = shape.iter().map(|&dim| dim as usize).collect();
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        dim,
-        shape: Some(shape),
-    });
+    if let Some(shape) = shape {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: shape.len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
+    }
 }
 
 fn reduce_mean_update_outputs(node: &mut Node) {
@@ -239,98 +247,50 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
 
-//fn __unsqueeze_shape
-/// Infers the shape of the output from the input and axes
-/// Right now, this should only be called if the rhs is a constant
+/// Update the output tensor dimension based on the "axes" attribute or the second input
 fn unsqueeze_update_output(node: &mut Node) {
-    if node.inputs.len() != 2 {
-        panic!("Unsqueeze: wrong number of inputs");
-    }
-    // get the values while making sure the types are correct
-    let (input, axes) = match (&node.inputs[0].ty, &node.inputs[1].ty) {
-        (ArgType::Tensor(tensor), ArgType::Tensor(_axes)) => (
-            tensor.clone(),
-            match &node.inputs[1].value {
-                Some(value) => match &value {
-                    Data::Int64s(axes) => Some(axes.clone()),
-                    _ => panic!("Unsqueeze: invalid input types"),
-                },
-                None => None,
+    let axes = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(axes) => Some(axes.clone()),
+                _ => panic!("Unsqueeze: invalid input types"),
             },
-        ),
-        _ => panic!("Unsqueeze: invalid input types"),
-    };
-    //need output way up here to avoid borrowing issues
-    let mut tensor = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Unsqueeze: invalid output types"),
-    };
-    match &axes {
-        //case 1: axes is constant -> output shape is input shape with 1s inserted at the axes
-        Some(dim_indices) => {
-            let output_rank = (dim_indices.len() + input.dim) as i64;
-            let mut dim_indices = dim_indices
-                .to_vec()
-                .iter()
-                .map(|&d| {
-                    if (-output_rank..output_rank).contains(&d) {
-                        (if d < 0 { d + output_rank } else { d }) as usize
-                    } else {
-                        panic!("Unsqueeze: invalid axis")
-                    }
-                })
-                .collect::<Vec<usize>>();
-            dim_indices.sort_unstable();
-            let mut new_dims = vec![1; output_rank as usize];
-
-            tensor.dim = output_rank as usize;
-            let old_dims = input.shape.unwrap();
-            //Now use this to copy the chunks of the dims
-            let mut prev_idx: usize = 0;
-            let mut current_left_b: usize = 0;
-            let mut current_right_b: usize = 0;
-            let mut offset: usize = 0;
-
-            dim_indices.iter().for_each(|d| {
-                //check if there is space for at least one dimension
-                if prev_idx < *d {
-                    current_right_b = *d - offset;
-
-                    //copy the chunks of the dims
-                    if current_right_b < old_dims.len() {
-                        new_dims[prev_idx..*d]
-                            .copy_from_slice(&old_dims[current_left_b..current_right_b])
-                    } else {
-                        new_dims[prev_idx..*d].copy_from_slice(&old_dims[current_left_b..]);
-                    }
-                    prev_idx = *d + 1;
-                    //offset is equal to the number of extracted elements from the original shape
-                    offset += current_right_b - current_left_b;
-                    current_left_b = current_right_b;
-                } else {
-                    //it's sorted so the only reason this would happen
-                    //is if multiple indices are the same
-                    prev_idx += 1;
-                }
-            });
-            //copy over anything past the index of the last new dimension
-            if current_left_b < old_dims.len() {
-                new_dims[prev_idx..].copy_from_slice(&old_dims[current_left_b..]);
-            }
-            tensor.shape = Some(new_dims);
-            node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+            None => None,
         }
+    } else {
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+    };
 
-        //case 3: output shape is dynamic -> black magic or unsupported
-        None => {
-            panic!("Unsqueeze: dynamic output shape is not currently supported");
-        }
+    if axes.is_none() {
+        return;
+    }
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Scalar(_) => 0, // treat scalar as 0-dim tensor
+        _ => panic!("Unsqueeze: invalid input type"),
+    };
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Scalar(elem_type) => elem_type.clone(),
+        _ => panic!("Unsqueeze: invalid output type"),
+    };
+
+    if let Some(axes) = axes {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: input_dim + axes.len(),
+            shape: None, // shape is tracked and calculated at runtime
+            elem_type: output_elem,
+        });
     }
 }
 
@@ -436,5 +396,78 @@ fn conv_transpose2d_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(tensor);
     } else {
         panic!("Only tensor input is valid");
+    }
+}
+
+fn matmul_update_outputs(node: &mut Node) {
+    // NOTE: matmul only supported for float tensors
+    match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
+        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            let mut out_dim = max(a.dim, b.dim);
+
+            // Matrix-vector or vector-matrix product
+            if (a.dim >= 2 && b.dim == 1) || (a.dim == 1 && b.dim >= 2) {
+                out_dim -= 1;
+            }
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: a.elem_type.clone(),
+                dim: out_dim,
+                shape: a.shape.clone(),
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+/// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
+fn reduce_max_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("ReduceMax: multiple inputs are not supported");
+    }
+
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.max()`
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+fn where_update_outputs(node: &mut Node) {
+    match (
+        node.inputs[0].ty.clone(),
+        node.inputs[1].ty.clone(),
+        node.inputs[2].ty.clone(),
+    ) {
+        (ArgType::Tensor(condition), ArgType::Tensor(x), ArgType::Tensor(y)) => {
+            // With broadcasting support, output dim has to be computed based on the inputs
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: x.elem_type.clone(),
+                dim: max(condition.dim, max(x.dim, y.dim)),
+                ..Default::default()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
     }
 }

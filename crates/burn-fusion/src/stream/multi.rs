@@ -1,20 +1,22 @@
+use burn_tensor::repr::{HandleContainer, OperationDescription};
+
 use super::{
-    execution::{ExecutionMode, Processor, StreamSegment},
+    execution::{ExecutionMode, Operation, Processor, StreamSegment},
     store::{ExecutionPlanId, ExecutionPlanStore},
-    Operation, OperationDescription, OperationQueue, StreamId,
+    OperationQueue, StreamId,
 };
-use crate::{FusionBackend, HandleContainer};
+use crate::FusionBackend;
 use std::collections::HashMap;
 
 /// Keep track of multiple concurrent streams of operations.
 pub struct MultiStream<B: FusionBackend> {
     streams: HashMap<StreamId, Stream<B>>,
     optimizations: ExecutionPlanStore<B::Optimization>,
-    device: B::FusionDevice,
+    device: B::Device,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
-    pub(crate) fn new(device: B::FusionDevice) -> Self {
+    pub(crate) fn new(device: B::Device) -> Self {
         Self {
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
@@ -146,9 +148,9 @@ impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {
 }
 
 impl<B: FusionBackend> Stream<B> {
-    fn new(device: B::FusionDevice) -> Self {
+    fn new(device: B::Device) -> Self {
         Self {
-            processor: Processor::new(B::optimizations(device.into())),
+            processor: Processor::new(B::optimizations(device)),
             queue: OperationQueue::new(),
         }
     }

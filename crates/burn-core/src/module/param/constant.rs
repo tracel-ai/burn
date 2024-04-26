@@ -208,6 +208,67 @@ impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
     }
 }
 
+/// Container to satisfy the Module trait for types that are not modules.
+#[derive(Clone, Debug)]
+pub struct Ignored<T>(pub T);
+
+impl<B, T> Module<B> for Ignored<T>
+where
+    B: Backend,
+    T: Sync + Send + core::fmt::Debug + Clone,
+{
+    type Record = ConstantRecord;
+
+    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {
+        // Nothing to do
+    }
+
+    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+        self
+    }
+
+    fn load_record(self, _record: Self::Record) -> Self {
+        self
+    }
+
+    fn into_record(self) -> Self::Record {
+        ConstantRecord::new()
+    }
+
+    fn to_device(self, _: &<B as Backend>::Device) -> Self {
+        self
+    }
+
+    fn fork(self, _: &<B as Backend>::Device) -> Self {
+        self
+    }
+
+    fn collect_devices(&self, devices: Devices<B>) -> Devices<B> {
+        devices
+    }
+}
+
+impl<B: AutodiffBackend, T> AutodiffModule<B> for Ignored<T>
+where
+    B: AutodiffBackend,
+    T: Sync + Send + core::fmt::Debug + Clone,
+{
+    type InnerModule = Ignored<T>;
+
+    fn valid(&self) -> Self::InnerModule {
+        self.clone()
+    }
+}
+
+// Implement deref for Ignored
+impl<T> core::ops::Deref for Ignored<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use core::marker::PhantomData;

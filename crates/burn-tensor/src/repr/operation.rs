@@ -1,15 +1,11 @@
-use crate::FusionBackend;
-use crate::{HandleContainer, TensorDescription};
-use burn_tensor::ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions};
-use burn_tensor::{Distribution, Element};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
-/// General trait to abstract how a single operation is executed.
-pub trait Operation<B: FusionBackend>: Send + Sync {
-    /// Execute the operation.
-    fn execute(self: Box<Self>, handles: &mut HandleContainer<B>);
-}
+use crate::{
+    ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions},
+    repr::tensor::TensorDescription,
+    Distribution, Element,
+};
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -37,92 +33,92 @@ pub enum OperationDescription {
 /// Operation description specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOperationDescription {
-    /// Operation corresponding to [exp](burn_tensor::ops::FloatTensorOps::float_exp).
+    /// Operation corresponding to [exp](crate::ops::FloatTensorOps::float_exp).
     Exp(UnaryOperationDescription),
-    /// Operation corresponding to [log](burn_tensor::ops::FloatTensorOps::float_log).
+    /// Operation corresponding to [log](crate::ops::FloatTensorOps::float_log).
     Log(UnaryOperationDescription),
-    /// Operation corresponding to [log1p](burn_tensor::ops::FloatTensorOps::float_log1p).
+    /// Operation corresponding to [log1p](crate::ops::FloatTensorOps::float_log1p).
     Log1p(UnaryOperationDescription),
-    /// Operation corresponding to [erf](burn_tensor::ops::FloatTensorOps::float_erf).
+    /// Operation corresponding to [erf](crate::ops::FloatTensorOps::float_erf).
     Erf(UnaryOperationDescription),
-    /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
+    /// Operation corresponding to [powf_scalar](crate::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOperationDescription<f32>),
-    /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
+    /// Operation corresponding to [sqrt](crate::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOperationDescription),
-    /// Operation corresponding to [cos](burn_tensor::ops::FloatTensorOps::float_cos).
+    /// Operation corresponding to [cos](crate::ops::FloatTensorOps::float_cos).
     Cos(UnaryOperationDescription),
-    /// Operation corresponding to [sin](burn_tensor::ops::FloatTensorOps::float_sin).
+    /// Operation corresponding to [sin](crate::ops::FloatTensorOps::float_sin).
     Sin(UnaryOperationDescription),
-    /// Operation corresponding to [tanh](burn_tensor::ops::FloatTensorOps::float_tanh).
+    /// Operation corresponding to [tanh](crate::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOperationDescription),
-    /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
+    /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
-    /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
+    /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOperationDescription),
-    /// Operation corresponding to [random](burn_tensor::ops::FloatTensorOps::float_random).
+    /// Operation corresponding to [random](crate::ops::FloatTensorOps::float_random).
     Random(RandomOperationDescription),
-    /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
+    /// Operation corresponding to [recip](crate::ops::FloatTensorOps::float_recip).
     Recip(UnaryOperationDescription),
 }
 
 /// Operation description specific to module.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOperationDescription {
-    /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
+    /// Operation corresponding to [embedding](crate::ops::ModuleOps::embedding).
     Embedding(EmbeddingDescription),
-    /// Operation corresponding to [embedding_backward](burn_tensor::ops::ModuleOps::embedding_backward).
+    /// Operation corresponding to [embedding_backward](crate::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardDescription),
-    /// Operation corresponding to [conv1d](burn_tensor::ops::ModuleOps::conv1d).
+    /// Operation corresponding to [conv1d](crate::ops::ModuleOps::conv1d).
     Conv1d(Conv1dDescription),
-    /// Operation corresponding to [conv2d](burn_tensor::ops::ModuleOps::conv2d).
+    /// Operation corresponding to [conv2d](crate::ops::ModuleOps::conv2d).
     Conv2d(Conv2dDescription),
-    /// Operation corresponding to [conv transpose 1d](burn_tensor::ops::ModuleOps::conv_transpose1d).
+    /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
-    /// Operation corresponding to [conv transpose 2d](burn_tensor::ops::ModuleOps::conv_transpose2d).
+    /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
     ConvTranspose2d(ConvTranspose2dDescription),
-    /// Operation corresponding to [avg pool 1d](burn_tensor::ops::ModuleOps::avg_pool1d).
+    /// Operation corresponding to [avg pool 1d](crate::ops::ModuleOps::avg_pool1d).
     AvgPool1d(AvgPool1dDescription),
-    /// Operation corresponding to [avg pool 2d](burn_tensor::ops::ModuleOps::avg_pool2d).
+    /// Operation corresponding to [avg pool 2d](crate::ops::ModuleOps::avg_pool2d).
     AvgPool2d(AvgPool2dDescription),
     /// Operation corresponding to
-    /// [avg pool 1d backward](burn_tensor::ops::ModuleOps::avg_pool1d_backward).
+    /// [avg pool 1d backward](crate::ops::ModuleOps::avg_pool1d_backward).
     AvgPool1dBackward(AvgPool1dBackwardDescription),
     /// Operation corresponding to
-    /// [avg pool 2d backward](burn_tensor::ops::ModuleOps::avg_pool2d_backward).
+    /// [avg pool 2d backward](crate::ops::ModuleOps::avg_pool2d_backward).
     AvgPool2dBackward(AvgPool2dBackwardDescription),
     /// Operation corresponding to
-    /// [adaptive avg pool 1d](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d).
+    /// [adaptive avg pool 1d](crate::ops::ModuleOps::adaptive_avg_pool1d).
     AdaptiveAvgPool1d(AdaptiveAvgPool1dDescription),
     /// Operation corresponding to
-    /// [adaptive avg pool 2d](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d).
+    /// [adaptive avg pool 2d](crate::ops::ModuleOps::adaptive_avg_pool2d).
     AdaptiveAvgPool2d(AdaptiveAvgPool2dDescription),
     /// Operation corresponding to
-    /// [adaptive avg pool 1d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d_backward).
+    /// [adaptive avg pool 1d backward](crate::ops::ModuleOps::adaptive_avg_pool1d_backward).
     AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardDescription),
     /// Operation corresponding to
-    /// [adaptive avg pool 2d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d_backward).
+    /// [adaptive avg pool 2d backward](crate::ops::ModuleOps::adaptive_avg_pool2d_backward).
     AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardDescription),
     /// Operation corresponding to
-    /// [max pool 1d](burn_tensor::ops::ModuleOps::max_pool1d).
+    /// [max pool 1d](crate::ops::ModuleOps::max_pool1d).
     MaxPool1d(MaxPool1dDescription),
     /// Operation corresponding to
-    /// [max pool 1d with indices](burn_tensor::ops::ModuleOps::max_pool1d_with_indices).
+    /// [max pool 1d with indices](crate::ops::ModuleOps::max_pool1d_with_indices).
     MaxPool1dWithIndices(MaxPool1dWithIndicesDescription),
     /// Operation corresponding to
-    /// [max pool 1d with indices backward](burn_tensor::ops::ModuleOps::max_pool1d_with_indices_backward).
+    /// [max pool 1d with indices backward](crate::ops::ModuleOps::max_pool1d_with_indices_backward).
     MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardDescription),
     /// Operation corresponding to
-    /// [max pool 2d](burn_tensor::ops::ModuleOps::max_pool1d).
+    /// [max pool 2d](crate::ops::ModuleOps::max_pool1d).
     MaxPool2d(MaxPool2dDescription),
     /// Operation corresponding to
-    /// [max pool 2d with indices](burn_tensor::ops::ModuleOps::max_pool2d_with_indices).
+    /// [max pool 2d with indices](crate::ops::ModuleOps::max_pool2d_with_indices).
     MaxPool2dWithIndices(MaxPool2dWithIndicesDescription),
     /// Operation corresponding to
-    /// [max pool 2d with indices backward](burn_tensor::ops::ModuleOps::max_pool2d_with_indices_backward).
+    /// [max pool 2d with indices backward](crate::ops::ModuleOps::max_pool2d_with_indices_backward).
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
-    /// Operation corresponding to [interpolate](burn_tensor::ops::ModuleOps::interpolate).
+    /// Operation corresponding to [interpolate](crate::ops::ModuleOps::interpolate).
     Interpolate(InterpolateDescription),
-    /// Operation corresponding to [interpolate backward](burn_tensor::ops::ModuleOps::interpolate_backward).
+    /// Operation corresponding to [interpolate backward](crate::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardDescription),
 }
 
@@ -131,73 +127,73 @@ pub enum ModuleOperationDescription {
 pub enum BaseOperationDescription {
     /// Operation corresponding to:
     ///
-    /// Float => [to device](burn_tensor::ops::FloatTensorOps::float_to_device).
-    /// Int => [to device](burn_tensor::ops::IntTensorOps::int_to_device).
-    /// Bool => [to device](burn_tensor::ops::BoolTensorOps::bool_to_device).
+    /// Float => [to device](crate::ops::FloatTensorOps::float_to_device).
+    /// Int => [to device](crate::ops::IntTensorOps::int_to_device).
+    /// Bool => [to device](crate::ops::BoolTensorOps::bool_to_device).
     ToDevice(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [reshape](burn_tensor::ops::FloatTensorOps::float_reshape).
-    /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
-    /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
+    /// Float => [reshape](crate::ops::FloatTensorOps::float_reshape).
+    /// Int => [reshape](crate::ops::IntTensorOps::int_reshape).
+    /// Bool => [reshape](crate::ops::BoolTensorOps::bool_reshape).
     Reshape(ReshapeDescription),
 
     /// Operation corresponding to:
     ///
-    /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
-    /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
-    /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
+    /// Float => [swap_dims](crate::ops::FloatTensorOps::float_swap_dims).
+    /// Int => [swap_dims](crate::ops::IntTensorOps::int_swap_dims).
+    /// Bool => [swap_dims](crate::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsDescription),
 
     /// Operation corresponding to:
     ///
-    /// Float => [permute](burn_tensor::ops::FloatTensorOps::float_permute).
-    /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
-    /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
+    /// Float => [permute](crate::ops::FloatTensorOps::float_permute).
+    /// Int => [permute](crate::ops::IntTensorOps::int_permute).
+    /// Bool => [permute](crate::ops::BoolTensorOps::bool_permute).
     Permute(PermuteOperationDescription),
 
     /// Operation corresponding to:
-    /// Float => [flip](burn_tensor::ops::FloatTensorOps::float_flip).
-    /// Int => [flip](burn_tensor::ops::IntTensorOps::int_flip).
-    /// Bool => [flip](burn_tensor::ops::BoolTensorOps::bool_flip).
+    /// Float => [flip](crate::ops::FloatTensorOps::float_flip).
+    /// Int => [flip](crate::ops::IntTensorOps::int_flip).
+    /// Bool => [flip](crate::ops::BoolTensorOps::bool_flip).
     Flip(FlipOperationDescription),
 
     /// Operation corresponding to:
     ///
-    /// Float => [expand](burn_tensor::ops::FloatTensorOps::float_expand).
-    /// Int => [expand](burn_tensor::ops::IntTensorOps::int_expand).
-    /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
+    /// Float => [expand](crate::ops::FloatTensorOps::float_expand).
+    /// Int => [expand](crate::ops::IntTensorOps::int_expand).
+    /// Bool => [expand](crate::ops::BoolTensorOps::bool_expand).
     Expand(ExpandOperationDescription),
 
     /// Operation corresponding to:
     ///
-    /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
-    /// Int => [slice](burn_tensor::ops::IntTensorOps::int_slice).
-    /// Bool => [slice](burn_tensor::ops::BoolTensorOps::bool_slice).
+    /// Float => [slice](crate::ops::FloatTensorOps::float_slice).
+    /// Int => [slice](crate::ops::IntTensorOps::int_slice).
+    /// Bool => [slice](crate::ops::BoolTensorOps::bool_slice).
     Slice(SliceOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [slice assign](burn_tensor::ops::FloatTensorOps::float_slice_assign).
-    /// Int => [slice assign](burn_tensor::ops::IntTensorOps::int_slice_assign).
-    /// Bool => [slice assign](burn_tensor::ops::BoolTensorOps::bool_slice_assign).
+    /// Float => [slice assign](crate::ops::FloatTensorOps::float_slice_assign).
+    /// Int => [slice assign](crate::ops::IntTensorOps::int_slice_assign).
+    /// Bool => [slice assign](crate::ops::BoolTensorOps::bool_slice_assign).
     SliceAssign(SliceAssignOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [equal](burn_tensor::ops::FloatTensorOps::float_equal).
-    /// Int => [equal](burn_tensor::ops::IntTensorOps::int_equal).
-    /// Bool => [equal](burn_tensor::ops::BoolTensorOps::bool_equal).
+    /// Float => [equal](crate::ops::FloatTensorOps::float_equal).
+    /// Int => [equal](crate::ops::IntTensorOps::int_equal).
+    /// Bool => [equal](crate::ops::BoolTensorOps::bool_equal).
     Equal(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [repeat](burn_tensor::ops::FloatTensorOps::float_repeat).
-    /// Int => [repeat](burn_tensor::ops::IntTensorOps::int_repeat).
-    /// Bool => [repeat](burn_tensor::ops::BoolTensorOps::bool_repeat).
+    /// Float => [repeat](crate::ops::FloatTensorOps::float_repeat).
+    /// Int => [repeat](crate::ops::IntTensorOps::int_repeat).
+    /// Bool => [repeat](crate::ops::BoolTensorOps::bool_repeat).
     Repeat(RepeatOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [cat](burn_tensor::ops::FloatTensorOps::float_cat).
-    /// Int => [cat](burn_tensor::ops::IntTensorOps::int_cat).
-    /// Bool => [cat](burn_tensor::ops::BoolTensorOps::bool_cat).
+    /// Float => [cat](crate::ops::FloatTensorOps::float_cat).
+    /// Int => [cat](crate::ops::IntTensorOps::int_cat).
+    /// Bool => [cat](crate::ops::BoolTensorOps::bool_cat).
     Cat(CatOperationDescription),
 }
 
@@ -206,248 +202,248 @@ pub enum BaseOperationDescription {
 pub enum NumericOperationDescription<E> {
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::FloatTensorOps::float_add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [add](crate::ops::FloatTensorOps::float_add).
+    /// Int => [add](crate::ops::IntTensorOps::int_add).
     Add(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [add scalar](burn_tensor::ops::FloatTensorOps::float_add_scalar).
-    /// Int => [add scalar](burn_tensor::ops::IntTensorOps::int_add_scalar).
+    /// Float => [add scalar](crate::ops::FloatTensorOps::float_add_scalar).
+    /// Int => [add scalar](crate::ops::IntTensorOps::int_add_scalar).
     AddScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [sub](burn_tensor::ops::FloatTensorOps::float_sub).
-    /// Int => [sub](burn_tensor::ops::IntTensorOps::int_sub).
+    /// Float => [sub](crate::ops::FloatTensorOps::float_sub).
+    /// Int => [sub](crate::ops::IntTensorOps::int_sub).
     Sub(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sub scalar](burn_tensor::ops::FloatTensorOps::float_sub_scalar).
-    /// Int => [sub scalar](burn_tensor::ops::IntTensorOps::int_sub_scalar).
+    /// Float => [sub scalar](crate::ops::FloatTensorOps::float_sub_scalar).
+    /// Int => [sub scalar](crate::ops::IntTensorOps::int_sub_scalar).
     SubScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [div](burn_tensor::ops::FloatTensorOps::float_div).
-    /// Int => [div](burn_tensor::ops::IntTensorOps::int_div).
+    /// Float => [div](crate::ops::FloatTensorOps::float_div).
+    /// Int => [div](crate::ops::IntTensorOps::int_div).
     Div(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [div scalar](burn_tensor::ops::FloatTensorOps::float_div_scalar).
-    /// Int => [div scalar](burn_tensor::ops::IntTensorOps::int_div_scalar).
+    /// Float => [div scalar](crate::ops::FloatTensorOps::float_div_scalar).
+    /// Int => [div scalar](crate::ops::IntTensorOps::int_div_scalar).
     DivScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [div](burn_tensor::ops::FloatTensorOps::float_remainder_scalar).
-    /// Int => [div](burn_tensor::ops::IntTensorOps::int_remainder_scalar).
+    /// Float => [div](crate::ops::FloatTensorOps::float_remainder_scalar).
+    /// Int => [div](crate::ops::IntTensorOps::int_remainder_scalar).
     RemScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [mul](burn_tensor::ops::FloatTensorOps::float_mul).
-    /// Int => [mul](burn_tensor::ops::IntTensorOps::int_mul).
+    /// Float => [mul](crate::ops::FloatTensorOps::float_mul).
+    /// Int => [mul](crate::ops::IntTensorOps::int_mul).
     Mul(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mul scalar](burn_tensor::ops::FloatTensorOps::float_mul_scalar).
-    /// Int => [mul scalar](burn_tensor::ops::IntTensorOps::int_mul_scalar).
+    /// Float => [mul scalar](crate::ops::FloatTensorOps::float_mul_scalar).
+    /// Int => [mul scalar](crate::ops::IntTensorOps::int_mul_scalar).
     MulScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [abs](burn_tensor::ops::FloatTensorOps::float_abs).
-    /// Int => [abs](burn_tensor::ops::IntTensorOps::int_abs).
+    /// Float => [abs](crate::ops::FloatTensorOps::float_abs).
+    /// Int => [abs](crate::ops::IntTensorOps::int_abs).
     Abs(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [ones](burn_tensor::ops::FloatTensorOps::float_ones).
-    /// Int => [ones](burn_tensor::ops::IntTensorOps::int_ones).
+    /// Float => [ones](crate::ops::FloatTensorOps::float_ones).
+    /// Int => [ones](crate::ops::IntTensorOps::int_ones).
     Ones(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [zeros](burn_tensor::ops::FloatTensorOps::float_zeros).
-    /// Int => [zeros](burn_tensor::ops::IntTensorOps::int_zeros).
+    /// Float => [zeros](crate::ops::FloatTensorOps::float_zeros).
+    /// Int => [zeros](crate::ops::IntTensorOps::int_zeros).
     Zeros(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [full](burn_tensor::ops::FloatTensorOps::float_full).
-    /// Int => [full](burn_tensor::ops::IntTensorOps::int_full).
+    /// Float => [full](crate::ops::FloatTensorOps::float_full).
+    /// Int => [full](crate::ops::IntTensorOps::int_full).
     Full((TensorDescription, E)),
     /// Operation corresponding to:
     ///
-    /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
-    /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
+    /// Float => [gather](crate::ops::FloatTensorOps::float_gather).
+    /// Int => [gather](crate::ops::IntTensorOps::int_gather).
     Gather(GatherOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter).
-    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter).
+    /// Float => [scatter](crate::ops::FloatTensorOps::float_scatter).
+    /// Int => [scatter](crate::ops::IntTensorOps::int_scatter).
     Scatter(ScatterOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [select](burn_tensor::ops::FloatTensorOps::float_select).
-    /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
+    /// Float => [select](crate::ops::FloatTensorOps::float_select).
+    /// Int => [select](crate::ops::IntTensorOps::int_select).
     Select(SelectOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_assign).
-    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_assign).
+    /// Float => [select assign](crate::ops::FloatTensorOps::float_select_assign).
+    /// Int => [select assign](crate::ops::IntTensorOps::int_select_assign).
     SelectAssign(SelectAssignOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mask where](burn_tensor::ops::FloatTensorOps::float_mask_where).
-    /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
+    /// Float => [mask where](crate::ops::FloatTensorOps::float_mask_where).
+    /// Int => [mask where](crate::ops::IntTensorOps::int_mask_where).
     MaskWhere(MaskWhereOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
-    /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
+    /// Float => [mask fill](crate::ops::FloatTensorOps::float_mask_fill).
+    /// Int => [mask fill](crate::ops::IntTensorOps::int_mask_fill).
     MaskFill(MaskFillOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
-    /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
+    /// Float => [mean dim](crate::ops::FloatTensorOps::float_mean_dim).
+    /// Int => [mean dim](crate::ops::IntTensorOps::int_mean_dim).
     MeanDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [mean](burn_tensor::ops::FloatTensorOps::float_mean).
-    /// Int => [mean](burn_tensor::ops::IntTensorOps::int_mean).
+    /// Float => [mean](crate::ops::FloatTensorOps::float_mean).
+    /// Int => [mean](crate::ops::IntTensorOps::int_mean).
     Mean(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sum](burn_tensor::ops::FloatTensorOps::float_sum).
-    /// Int => [sum](burn_tensor::ops::IntTensorOps::int_sum).
+    /// Float => [sum](crate::ops::FloatTensorOps::float_sum).
+    /// Int => [sum](crate::ops::IntTensorOps::int_sum).
     Sum(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
-    /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
+    /// Float => [sum dim](crate::ops::FloatTensorOps::float_sum_dim).
+    /// Int => [sum dim](crate::ops::IntTensorOps::int_sum_dim).
     SumDim(ScalarOperationDescription<usize>),
 
     /// Operation corresponding to:
     ///
-    /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
-    /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
+    /// Float => [prod](crate::ops::FloatTensorOps::float_prod).
+    /// Int => [prod](crate::ops::IntTensorOps::int_prod).
     Prod(UnaryOperationDescription),
 
     /// Operation corresponding to:
     ///
-    /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
-    /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
+    /// Float => [prod dim](crate::ops::FloatTensorOps::float_prod_dim).
+    /// Int => [prod dim](crate::ops::IntTensorOps::int_prod_dim).
     ProdDim(ScalarOperationDescription<usize>),
 
     /// Operation corresponding to:
     ///
-    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
-    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
+    /// Float => [equal elem](crate::ops::FloatTensorOps::float_equal_elem).
+    /// Int => [equal elem](crate::ops::IntTensorOps::int_equal_elem).
     EqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
-    /// Int => [greater](burn_tensor::ops::IntTensorOps::int_greater).
+    /// Float => [greater](crate::ops::FloatTensorOps::float_greater).
+    /// Int => [greater](crate::ops::IntTensorOps::int_greater).
     Greater(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [greater elem](burn_tensor::ops::FloatTensorOps::float_greater_elem).
-    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
+    /// Float => [greater elem](crate::ops::FloatTensorOps::float_greater_elem).
+    /// Int => [greater elem](crate::ops::IntTensorOps::int_greater_elem).
     GreaterElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal](burn_tensor::ops::FloatTensorOps::float_greater_elem).
-    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
+    /// Float => [greater equal](crate::ops::FloatTensorOps::float_greater_elem).
+    /// Int => [greater elem](crate::ops::IntTensorOps::int_greater_elem).
     GreaterEqual(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal elem](burn_tensor::ops::FloatTensorOps::float_greater_equal_elem).
-    /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
+    /// Float => [greater equal elem](crate::ops::FloatTensorOps::float_greater_equal_elem).
+    /// Int => [greater equal elem](crate::ops::IntTensorOps::int_greater_equal_elem).
     GreaterEqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [lower](burn_tensor::ops::FloatTensorOps::float_lower).
-    /// Int => [lower](burn_tensor::ops::IntTensorOps::int_lower).
+    /// Float => [lower](crate::ops::FloatTensorOps::float_lower).
+    /// Int => [lower](crate::ops::IntTensorOps::int_lower).
     Lower(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [lower elem](burn_tensor::ops::FloatTensorOps::float_lower_elem).
-    /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
+    /// Float => [lower elem](crate::ops::FloatTensorOps::float_lower_elem).
+    /// Int => [lower elem](crate::ops::IntTensorOps::int_lower_elem).
     LowerElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal](burn_tensor::ops::FloatTensorOps::float_lower_equal).
-    /// Int => [lower equal](burn_tensor::ops::IntTensorOps::int_lower_equal).
+    /// Float => [lower equal](crate::ops::FloatTensorOps::float_lower_equal).
+    /// Int => [lower equal](crate::ops::IntTensorOps::int_lower_equal).
     LowerEqual(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal elem](burn_tensor::ops::FloatTensorOps::float_lower_equal_elem).
-    /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
+    /// Float => [lower equal elem](crate::ops::FloatTensorOps::float_lower_equal_elem).
+    /// Int => [lower equal elem](crate::ops::IntTensorOps::int_lower_equal_elem).
     LowerEqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [argmax](burn_tensor::ops::FloatTensorOps::float_argmax).
-    /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
+    /// Float => [argmax](crate::ops::FloatTensorOps::float_argmax).
+    /// Int => [argmax](crate::ops::IntTensorOps::int_argmax).
     ArgMax(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [argmin](burn_tensor::ops::FloatTensorOps::float_argmin).
-    /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
+    /// Float => [argmin](crate::ops::FloatTensorOps::float_argmin).
+    /// Int => [argmin](crate::ops::IntTensorOps::int_argmin).
     ArgMin(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [max](burn_tensor::ops::FloatTensorOps::float_max).
-    /// Int => [max](burn_tensor::ops::IntTensorOps::int_max).
+    /// Float => [max](crate::ops::FloatTensorOps::float_max).
+    /// Int => [max](crate::ops::IntTensorOps::int_max).
     Max(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim with indices](burn_tensor::ops::FloatTensorOps::float_max_dim_with_indices).
-    /// Int => [max dim with indices](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
+    /// Float => [max dim with indices](crate::ops::FloatTensorOps::float_max_dim_with_indices).
+    /// Int => [max dim with indices](crate::ops::IntTensorOps::int_max_dim_with_indices).
     MaxDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim with indices](burn_tensor::ops::FloatTensorOps::float_min_dim_with_indices).
-    /// Int => [min dim with indices](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
+    /// Float => [min dim with indices](crate::ops::FloatTensorOps::float_min_dim_with_indices).
+    /// Int => [min dim with indices](crate::ops::IntTensorOps::int_min_dim_with_indices).
     MinDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [min](burn_tensor::ops::FloatTensorOps::float_min).
-    /// Int => [min](burn_tensor::ops::IntTensorOps::int_min).
+    /// Float => [min](crate::ops::FloatTensorOps::float_min).
+    /// Int => [min](crate::ops::IntTensorOps::int_min).
     Min(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim](burn_tensor::ops::FloatTensorOps::float_max_dim).
-    /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
+    /// Float => [max dim](crate::ops::FloatTensorOps::float_max_dim).
+    /// Int => [max dim](crate::ops::IntTensorOps::int_max_dim).
     MaxDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim](burn_tensor::ops::FloatTensorOps::float_min_dim).
-    /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
+    /// Float => [min dim](crate::ops::FloatTensorOps::float_min_dim).
+    /// Int => [min dim](crate::ops::IntTensorOps::int_min_dim).
     MinDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
-    /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
+    /// Float => [clamp](crate::ops::FloatTensorOps::float_clamp).
+    /// Int => [clamp](crate::ops::IntTensorOps::int_clamp).
     Clamp(ClampOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
+    /// Int => [random](crate::ops::IntTensorOps::int_random).
     IntRandom(RandomOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
-    /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
+    /// Float => [powf](crate::ops::FloatTensorOps::float_powf).
+    /// Int => [powf](crate::ops::IntTensorOps::int_powf).
     Powf(BinaryOperationDescription),
 }
 
 /// Operation description specific to an int tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum IntOperationDescription {
-    /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
+    /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOperationDescription),
 }
 
 /// Operation description specific to a bool tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BoolOperationDescription {
-    /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
+    /// Operation corresponding to [into float](crate::ops::BoolTensorOps::bool_into_float).
     IntoFloat(UnaryOperationDescription),
-    /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
+    /// Operation corresponding to [into int](crate::ops::BoolTensorOps::bool_into_int).
     IntoInt(UnaryOperationDescription),
-    /// Operation corresponding to [not](burn_tensor::ops::BoolTensorOps::bool_not).
+    /// Operation corresponding to [not](crate::ops::BoolTensorOps::bool_not).
     Not(UnaryOperationDescription),
 }
 
@@ -1057,7 +1053,7 @@ pub struct InterpolateBackwardDescription {
 
 impl OperationDescription {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
+    pub fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             OperationDescription::BaseFloat(ops) => ops.nodes(),
             OperationDescription::BaseInt(ops) => ops.nodes(),

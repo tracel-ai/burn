@@ -414,6 +414,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         // Extend with phantom data to avoid unused generic type.
         body.extend(quote! {
             phantom: core::marker::PhantomData<B>,
+            device: burn::module::Ignored<B::Device>,
         });
 
         quote! {
@@ -447,6 +448,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 Self {
                     #(#fields,)*
                     phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
                 }
             }
         }

@@ -76,7 +76,7 @@ mod tests {
         },
         TestBackend,
     };
-    use std::sync::Arc;
+    use std::rc::Rc;
 
     use super::*;
 
@@ -93,7 +93,7 @@ mod tests {
         store.register_logger_train(InMemoryMetricLogger::default());
         // Register the loss metric.
         metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
-        let store = Arc::new(EventStoreClient::new(store));
+        let store = Rc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
         // Two points for the first epoch. Mean 0.75

@@ -27,13 +27,14 @@ pub enum UnaryNodeKind {
     Exp,
     Flatten,
     Gelu,
+    LeakyRelu,
     Log,
     LogSoftmax,
     Neg,
     Not,
+    ReduceMax,
     ReduceMean,
     Reciprocal,
-    LeakyRelu,
     Relu,
     Shape,
     Sigmoid,
@@ -42,6 +43,7 @@ pub enum UnaryNodeKind {
     Sqrt,
     Tanh,
     Transpose,
+    Sign,
 }
 
 impl UnaryNodeKind {
@@ -53,13 +55,14 @@ impl UnaryNodeKind {
             Self::Exp => "exp",
             Self::Flatten => "flatten",
             Self::Gelu => "gelu",
+            Self::LeakyRelu => "leaky_relu",
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
             Self::Not => "not",
+            Self::ReduceMax => "reduce_max",
             Self::ReduceMean => "reduce_mean",
             Self::Reciprocal => "reciprocal",
-            Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
             Self::Shape => "shape",
             Self::Sigmoid => "sigmoid",
@@ -68,6 +71,7 @@ impl UnaryNodeKind {
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
+            Self::Sign => "sign",
         }
     }
 }
@@ -196,8 +200,9 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Tanh, Rc::new(function))
     }
 
-    pub(crate) fn transpose(input: Type, output: Type) -> Self {
-        let function = move |input| quote! { #input.transpose() };
+    pub(crate) fn transpose(input: Type, output: Type, perm: Vec<i64>) -> Self {
+        let perm = perm.to_tokens();
+        let function = move |input| quote! { #input.permute(#perm) };
         Self::new(input, output, UnaryNodeKind::Transpose, Rc::new(function))
     }
 
@@ -294,6 +299,36 @@ impl UnaryNode {
         }
     }
 
+    pub(crate) fn reduce_max(input: Type, output: Type, dim: Option<usize>) -> Self {
+        if let Type::Tensor(ref tensor) = output {
+            if let Some(dim) = dim {
+                if tensor.kind == TensorKind::Bool {
+                    // Max is only implemented on numeric tensors
+                    panic!("ReduceMax is not supported for boolean");
+                }
+
+                // ReduceMax, keepdims=1, axes=[dim]
+                let dim = dim.to_tokens();
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMax,
+                    Rc::new(move |input| quote! { #input.max_dim(#dim) }),
+                )
+            } else {
+                // ReduceMax, keepdims=0, axes=None
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMax,
+                    Rc::new(move |input| quote! { #input.max() }),
+                )
+            }
+        } else {
+            panic!("ReduceMax only supports tensor output");
+        }
+    }
+
     pub(crate) fn reduce_mean(input: Type, output: Type, dim: Option<usize>) -> Self {
         // ReduceMean is constrained to numeric tensors, so no need to check for bool.
         if let Type::Tensor(_) = output {
@@ -334,6 +369,11 @@ impl UnaryNode {
             }
         };
         Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
+    }
+
+    pub(crate) fn sign(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sign()};
+        Self::new(input, output, UnaryNodeKind::Sign, Rc::new(function))
     }
 }
 
@@ -506,10 +546,48 @@ mod tests {
             UnaryNode::transpose(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
+                vec![0, 3, 1, 2],
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.transpose();
+                    let tensor2 = tensor1.permute([0, 3, 1, 2]);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_reduce_max() {
+        one_node_graph(
+            UnaryNode::reduce_max(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Some(1),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.max_dim(1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::reduce_max(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+                None,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.max();
 
                     tensor2
                 }
@@ -823,6 +901,25 @@ mod tests {
                             .convert::<burn::tensor::ops::IntElem<B>>(),
                         &tensor1.device(),
                     );
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_sign_tensor() {
+        one_node_graph(
+            UnaryNode::sign(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.sign();
 
                     tensor2
                 }

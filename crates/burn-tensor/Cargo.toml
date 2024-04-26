@@ -11,11 +11,12 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-tensor"
 version.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "repr"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std", "num-traits/std"]
+repr = []
 wasm-sync = []
 
 [dependencies]

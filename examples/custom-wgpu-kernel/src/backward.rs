@@ -15,7 +15,7 @@ use burn::{
 };
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<JitBackend<WgpuRuntime<G, F, I>>>
+    for Autodiff<JitBackend<WgpuRuntime<G>, F, I>>
 {
 }
 

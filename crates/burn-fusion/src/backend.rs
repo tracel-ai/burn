@@ -1,15 +1,17 @@
 use crate::{
-    client::FusionClient,
-    stream::{Context, OperationDescription},
-    FusionClientLocator, FusionTensor, PrecisionBridge,
+    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
 };
-use burn_tensor::{backend::Backend, Device, Shape};
+use burn_tensor::{
+    backend::Backend,
+    repr::{OperationDescription, ReprBackend},
+    Device,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &B::FusionDevice) -> B::FusionClient {
+pub(crate) fn get_client<B: FusionBackend>(device: &B::Device) -> B::FusionClient {
     CLIENTS.client(device)
 }
 
@@ -43,7 +45,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
+        let client = CLIENTS.client::<B::FusionClient>(&device.clone());
         client.drain();
         B::sync(device)
     }
@@ -114,62 +116,17 @@ pub trait Optimization<B: FusionBackend>: Send {
     fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
 }
 
-/// The device id.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
-pub struct DeviceId {
-    /// The type id identifies the type of the device.
-    pub type_id: u16,
-    /// The index id identifies the device number.
-    pub index_id: u32,
-}
-
-/// The handle device trait allows to get an id for a backend device.
-pub trait FusionDevice: Clone + Send + Sync + PartialEq {
-    /// Return the [device id](DeviceId).
-    fn id(&self) -> DeviceId;
-}
-
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
-pub trait FusionBackend: Backend {
+pub trait FusionBackend: Backend + ReprBackend {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
-
-    /// The device type that can return an ID.
-    ///
-    /// It can be the same as (Backend::Device), but must implement (FusionDevice).
-    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device> + core::fmt::Debug;
-    /// The type that can be used to point to a tensor of any kind.
-    type Handle: Sync + Send + Clone;
     /// What kind of client should be used.
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(device: Device<Self>)
         -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
-
-    /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
-    fn float_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::FloatTensorPrimitive<D>;
-    /// Convert a [handle](FusionBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
-    fn int_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::IntTensorPrimitive<D>;
-    /// Convert a [handle](FusionBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
-    fn bool_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::BoolTensorPrimitive<D>;
-
-    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn float_tensor_handle<const D: usize>(tensor: Self::FloatTensorPrimitive<D>) -> Self::Handle;
-    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
-    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
 }

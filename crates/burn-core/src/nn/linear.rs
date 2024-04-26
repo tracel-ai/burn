@@ -64,9 +64,14 @@ impl<B: Backend> Linear<B> {
     ///
     /// # Shapes
     ///
-    /// - input: `[..., any, d_input]`
-    /// - output: `[..., any, d_output]`
+    /// - input: `[..., d_input]`
+    /// - output: `[..., d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+        if D == 1 {
+            // Insert and remove an extra batch dimension for the batch matmul to work.
+            return Self::forward::<2>(self, input.unsqueeze()).flatten(0, 1);
+        }
+
         let output = input.matmul(self.weight.val().unsqueeze());
 
         match &self.bias {
@@ -149,5 +154,24 @@ mod tests {
         let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
+    }
+
+    #[test]
+    fn test_linear_1d() {
+        TestBackend::seed(0);
+
+        let device = Default::default();
+
+        let value = 2.;
+        let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
+        let linear = config.init::<TestBackend>(&device);
+
+        let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([2]), &device);
+        let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
+
+        let result_1d = linear.forward(input_1d).unsqueeze();
+        let result_2d = linear.forward(input_2d);
+
+        assert_eq!(result_1d.into_data(), result_2d.into_data());
     }
 }

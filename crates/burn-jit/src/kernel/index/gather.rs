@@ -1,6 +1,6 @@
 use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
 use crate::codegen::Execution;
-use crate::gpu::ComputeShader;
+use crate::gpu::{ComputeShader, IntKind};
 use crate::{
     codegen::{
         dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
@@ -80,7 +80,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::gpu_elem().into();
-        let item_indices: gpu::Item = gpu::Elem::Int.into();
+        let item_indices: gpu::Item = gpu::Elem::Int(IntKind::I32).into();
 
         let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);
         let indices = scope.read_array(1, item_indices);
@@ -103,7 +103,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
             visibility: gpu::Visibility::Read,
         };
         let indices = InputInfo::Array {
-            item: gpu::Elem::Int.into(),
+            item: gpu::Elem::Int(IntKind::I32).into(),
             visibility: gpu::Visibility::Read,
         };
         let out = OutputInfo::Array { item: item_tensor };

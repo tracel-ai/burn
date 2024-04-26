@@ -25,7 +25,9 @@ use crate::{
             dropout::DropoutNode,
             gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
+            layer_norm::LayerNormNode,
             linear::LinearNode,
+            mask_where::WhereNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
             reshape::ReshapeNode,
@@ -238,6 +240,9 @@ impl OnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::LayerNormalization => {
+                    graph.register(Self::layer_norm_conversion::<PS>(node))
+                }
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
                     graph.register(Self::batch_norm_conversion::<PS>(node))
@@ -253,6 +258,7 @@ impl OnnxGraph {
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
+                NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
@@ -271,6 +277,8 @@ impl OnnxGraph {
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
+                NodeType::Where => graph.register(Self::where_conversion(node)),
+                NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -448,8 +456,9 @@ impl OnnxGraph {
     fn transpose_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
+        let perm = transpose_config(&node);
 
-        UnaryNode::transpose(input, output)
+        UnaryNode::transpose(input, output, perm)
     }
 
     fn cast_conversion(node: Node) -> UnaryNode {
@@ -465,6 +474,14 @@ impl OnnxGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+
+    fn reduce_max_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_max_config(&node);
+
+        UnaryNode::reduce_max(input, output, dim)
     }
 
     fn reduce_mean_conversion(node: Node) -> UnaryNode {
@@ -484,11 +501,20 @@ impl OnnxGraph {
     }
 
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
+        let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let dims = unsqueeze_config(&node);
 
         UnsqueezeNode::new(input, output, dims)
+    }
+
+    fn where_conversion(node: Node) -> WhereNode {
+        let condition = node.inputs.first().unwrap().to_tensor_type();
+        let x = node.inputs.get(1).unwrap().to_tensor_type();
+        let y = node.inputs.get(2).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        WhereNode::new(condition, x, y, output)
     }
 
     fn clip_conversion(node: Node) -> ClipNode {
@@ -613,6 +639,21 @@ impl OnnxGraph {
         )
     }
 
+    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode<PS> {
+        let (config, full_precision) = layer_norm_config(&node);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        // Scale tensor (aka gamma)
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
+        // Bias (B) optional tensor
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node);
+
+        let name = &node.name;
+
+        LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
+    }
+
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode<PS> {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -732,6 +773,12 @@ impl OnnxGraph {
             _ => panic!("pow function only supports RHS scalar or tensor types"),
         }
     }
+
+    fn sign_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        UnaryNode::sign(input, output)
+    }
 }
 
 /// Extract data from node states and convert it to `DataSerialize`.
@@ -791,6 +838,11 @@ impl Argument {
                 dim,
                 ..
             }) => TensorType::new_int(self.name.clone(), *dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Bool,
+                dim,
+                ..
+            }) => TensorType::new_bool(self.name.clone(), *dim),
             _ => panic!("Can't transform to tensor."),
         }
     }
