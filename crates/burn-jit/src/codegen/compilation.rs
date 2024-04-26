@@ -163,19 +163,19 @@ impl CompilationSettings {
             .zip(info.inputs.iter())
             .enumerate()
             .filter_map(|(pos, (desc, input))| {
-                let handle = &handles_inputs[pos];
-
-                if !is_contiguous(&handle.strides) {
-                    return None;
-                }
-
                 match desc.status {
                     burn_fusion::TensorStatus::ReadOnly => return None,
                     burn_fusion::TensorStatus::NotInit => return None,
                     burn_fusion::TensorStatus::ReadWrite => (),
                 };
 
-                Some((pos, desc, input))
+                let handle = &handles_inputs[pos];
+
+                if handle.handle.can_mut() && is_contiguous(&handle.strides) {
+                    Some((pos, desc, input))
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
 
