@@ -162,12 +162,10 @@ impl GraphMemoryManagement {
     }
 
     fn is_referenced(&self, node_id: NodeID) -> bool {
-        Arc::strong_count(
-            self.nodes
-                .keys()
-                .find(|key| key.as_ref().eq(&node_id))
-                .expect("Node should be in the nodes map"),
-        ) > 1
+        match self.nodes.get_key_value(&node_id) {
+            Some((key, _value)) => Arc::strong_count(key) > 1,
+            None => panic!("Node should be in the nodes map"),
+        }
     }
 
     fn identify_leaves_and_deletables(

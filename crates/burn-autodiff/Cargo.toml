@@ -14,6 +14,7 @@ version.workspace = true
 default = ["std"]
 export_tests = ["burn-tensor-testgen"]
 std = []
+async = [] # Require std
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.14.0" }
