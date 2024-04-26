@@ -2038,7 +2038,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     .map(|node| node.id)
                     .collect()
             }
-            fn order(&self) -> usize {
+            fn depth(&self) -> usize {
                 self.output.order
             }
         }

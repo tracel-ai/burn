@@ -88,6 +88,10 @@ name = "custom-gelu"
 path = "benches/custom_gelu.rs"
 harness = false
 
+[[bench]]
+name = "autodiff"
+harness = false
+
 [[bin]]
 name = "burnbench"
 path = "src/bin/burnbench.rs"
