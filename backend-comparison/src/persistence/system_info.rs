@@ -52,6 +52,7 @@ impl BenchmarkSystemInfo {
         let instance = wgpu::Instance::default();
         let adapters: Vec<wgpu::Adapter> = instance
             .enumerate_adapters(burn_wgpu::AutoGraphicsApi::backend().into())
+            .into_iter()
             .filter(|adapter| {
                 let info = adapter.get_info();
                 info.device_type == wgpu::DeviceType::DiscreteGpu

@@ -1,4 +1,5 @@
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope};
+use crate::gpu::UnaryOperator;
 use crate::{binary, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;
@@ -201,6 +202,27 @@ pub fn div_scalar<R: Runtime, E: JitElement, const D: usize>(
         }),
         runtime: R,
         input: lhs; rhs,
+        elem: E
+    )
+}
+
+pub fn remainder_scalar<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: E,
+) -> JitTensor<R, E, D> {
+    let shape = lhs.shape.clone();
+    let device = lhs.device.clone();
+
+    let rhs_tensor = full::<R, E, D>(shape, &device, rhs);
+
+    binary!(
+        operation: |scope: &mut Scope, elem: Elem| Operator::Remainder(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
+        }),
+        runtime: R,
+        input: lhs; rhs_tensor,
         elem: E
     )
 }

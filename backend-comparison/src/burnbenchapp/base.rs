@@ -98,6 +98,8 @@ enum BenchmarkValues {
     MaxPool2d,
     #[strum(to_string = "load-record")]
     LoadRecord,
+    #[strum(to_string = "autodiff")]
+    Autodiff,
 }
 
 pub fn execute() {

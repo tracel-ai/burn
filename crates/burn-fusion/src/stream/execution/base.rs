@@ -1,9 +1,11 @@
+use burn_tensor::repr::HandleContainer;
+
 use crate::{
     stream::{
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
-        OperationQueue,
+        OperationQueue, RelativeOps,
     },
-    FusionBackend, HandleContainer, Optimization,
+    FusionBackend, Optimization,
 };
 
 /// The mode in which the execution is done.
@@ -11,6 +13,12 @@ use crate::{
 pub(crate) enum ExecutionMode {
     Lazy,
     Sync,
+}
+
+/// General trait to abstract how a single operation is executed.
+pub trait Operation<B: FusionBackend>: Send + Sync {
+    /// Execute the operation.
+    fn execute(self: Box<Self>, handles: &mut HandleContainer<B>);
 }
 
 impl<B: FusionBackend> OperationQueue<B> {

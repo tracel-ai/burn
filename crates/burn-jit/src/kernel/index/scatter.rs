@@ -133,10 +133,10 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, 
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_value = E::gpu_elem().into();
-        let item_indices: gpu::Item = gpu::Elem::Int.into();
+        let item_indices: gpu::Item = gpu::Elem::Int(gpu::IntKind::I32).into();
 
         let input_output = gpu::Variable::GlobalInputArray(0, item_value);
-        let indices = gpu::Variable::GlobalInputArray(1, Elem::Int.into());
+        let indices = gpu::Variable::GlobalInputArray(1, Elem::Int(gpu::IntKind::I32).into());
         let value = gpu::Variable::GlobalInputArray(2, item_value);
 
         scope.write_global_custom(input_output);

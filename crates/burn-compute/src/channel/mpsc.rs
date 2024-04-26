@@ -6,7 +6,7 @@ use std::{
 use burn_common::reader::Reader;
 
 use super::ComputeChannel;
-use crate::server::{ComputeServer, Handle};
+use crate::server::{Binding, ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -33,10 +33,10 @@ enum Message<Server>
 where
     Server: ComputeServer,
 {
-    Read(Handle<Server>, Callback<Reader<Vec<u8>>>),
+    Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
-    ExecuteKernel(Server::Kernel, Vec<Handle<Server>>),
+    ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
     Sync(Callback<()>),
 }
 
@@ -51,9 +51,8 @@ where
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    Message::Read(handle, callback) => {
-                        let data = server.read(&handle);
-                        core::mem::drop(handle);
+                    Message::Read(binding, callback) => {
+                        let data = server.read(binding);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
@@ -64,8 +63,8 @@ where
                         let handle = server.empty(size);
                         callback.send(handle).unwrap();
                     }
-                    Message::ExecuteKernel(kernel, handles) => {
-                        server.execute(kernel, &handles.iter().collect::<Vec<_>>());
+                    Message::ExecuteKernel(kernel, bindings) => {
+                        server.execute(kernel, bindings);
                     }
                     Message::Sync(callback) => {
                         server.sync();
@@ -93,12 +92,12 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
         let (callback, response) = mpsc::channel();
 
         self.state
             .sender
-            .send(Message::Read(handle.clone(), callback))
+            .send(Message::Read(binding, callback))
             .unwrap();
 
         self.response(response)
@@ -126,16 +125,10 @@ where
         self.response(response)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
+    fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
         self.state
             .sender
-            .send(Message::ExecuteKernel(
-                kernel,
-                handles
-                    .iter()
-                    .map(|h| (*h).clone())
-                    .collect::<Vec<Handle<Server>>>(),
-            ))
+            .send(Message::ExecuteKernel(kernel, bindings))
             .unwrap()
     }
 

@@ -17,16 +17,18 @@ struct InterpolateNearestEagerKernel<R, E> {
     _elem: PhantomData<E>,
 }
 
-struct InterpolateNearestShader {
+struct InterpolateNearestShader<E> {
     input: Variable,
     output: Variable,
+    _elem: PhantomData<E>,
 }
 
-impl InterpolateNearestShader {
+impl<E: JitElement> InterpolateNearestShader<E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
         let id = Variable::Id;
+        let elem = E::gpu_elem();
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -81,11 +83,11 @@ impl InterpolateNearestShader {
         gpu!(scope, w = id / output_stride_3);
         gpu!(scope, w = w % output_shape_3);
 
-        let factor_float = scope.create_local(Elem::Float);
-        let numerator_float = scope.create_local(Elem::Float);
-        let denominator_float = scope.create_local(Elem::Float);
-        let x = scope.create_local(Elem::Float);
-        let y = scope.create_local(Elem::Float);
+        let factor_float = scope.create_local(elem);
+        let numerator_float = scope.create_local(elem);
+        let denominator_float = scope.create_local(elem);
+        let x = scope.create_local(elem);
+        let y = scope.create_local(elem);
         let xu = scope.create_local(Elem::UInt);
         let yu = scope.create_local(Elem::UInt);
 
@@ -130,7 +132,12 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateNearestEage
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
 
-        InterpolateNearestShader { input, output }.expand(&mut scope);
+        InterpolateNearestShader {
+            input,
+            output,
+            _elem: PhantomData::<E>,
+        }
+        .expand(&mut scope);
 
         scope.write_global_custom(output);
 

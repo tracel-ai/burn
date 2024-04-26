@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_tensor::backend::Backend;
+use burn_tensor::{
+    backend::{Backend, DeviceId, DeviceOps},
+    Device,
+};
 use candle_core::DeviceLocation;
 
 use crate::{
@@ -60,6 +63,16 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
+impl DeviceOps for CandleDevice {
+    fn id(&self) -> burn_tensor::backend::DeviceId {
+        match self {
+            CandleDevice::Cpu => DeviceId::new(0, 0),
+            CandleDevice::Cuda(index) => DeviceId::new(1, *index as u32),
+            CandleDevice::Metal(index) => DeviceId::new(2, *index as u32),
+        }
+    }
+}
+
 impl Default for CandleDevice {
     fn default() -> Self {
         Self::Cpu
@@ -90,5 +103,22 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn seed(seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
+    }
+
+    fn sync(device: &Device<Self>) {
+        let device: candle_core::Device = (*device).into();
+
+        match device {
+            candle_core::Device::Cpu => (),
+            candle_core::Device::Cuda(device) => {
+                #[cfg(feature = "cuda")]
+                device.synchronize().unwrap();
+            }
+            candle_core::Device::Metal(device) => {
+                // For some reason, device.wait_until_completed() does not seem to work,
+                // and neither does writing and reading a value with into_data
+                panic!("Device synchronization unavailable with Metal device on Candle backend")
+            }
+        }
     }
 }

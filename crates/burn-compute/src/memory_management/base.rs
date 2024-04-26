@@ -1,14 +1,16 @@
 use crate::storage::ComputeStorage;
 
-/// The MemoryHandle trait is an abstract way to refer to some memory segment.
-/// It should not contain actual references to data.
-///
-/// It is responsible for determining if the memory segment can be mutated,
-/// for instance by keeping track of a reference count
-pub trait MemoryHandle: Clone + Send + Sync + core::fmt::Debug {
+/// The managed tensor buffer handle that points to some memory segment.
+/// It should not contain actual data.
+pub trait MemoryHandle<Binding>: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
+    /// Get the binding associated to the current handle.
+    fn binding(self) -> Binding;
 }
+
+/// Binding to a [memory handle](MemoryHandle).
+pub trait MemoryBinding: Clone + Send + Sync + core::fmt::Debug {}
 
 /// The MemoryManagement trait encapsulates strategies for (de)allocating memory.
 /// It is bound to the ComputeStorage trait, which does the actual (de)allocations.
@@ -16,11 +18,13 @@ pub trait MemoryHandle: Clone + Send + Sync + core::fmt::Debug {
 /// The MemoryManagement can only reserve memory space or get the resource located at a space.
 /// Modification of the resource data should be done directly on the resource.
 pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
-    /// The associated type Handle must implement MemoryHandle
-    type Handle: MemoryHandle;
+    /// The associated type that must implement [MemoryHandle].
+    type Handle: MemoryHandle<Self::Binding>;
+    /// The associated type that must implement [MemoryBinding]
+    type Binding: MemoryBinding;
 
     /// Returns the resource from the storage at the specified handle
-    fn get(&mut self, handle: &Self::Handle) -> Storage::Resource;
+    fn get(&mut self, binding: Self::Binding) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
     fn reserve(&mut self, size: usize) -> Self::Handle;
@@ -37,7 +41,7 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn dealloc(&mut self, handle: &Self::Handle);
+    fn dealloc(&mut self, binding: Self::Binding);
 
     /// Fetch the storage used by the memory manager.
     ///

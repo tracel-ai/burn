@@ -20,17 +20,8 @@ pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     queue: wgpu::Queue,
     encoder: CommandEncoder,
     pipelines: HashMap<String, Arc<ComputePipeline>>,
-    tasks: Vec<ComputeTask>,
-    max_tasks: usize,
-    manual_available: HashMap<usize, Vec<server::Handle<Self>>>,
-    manual_taken: Vec<(usize, server::Handle<Self>)>,
-}
-
-#[derive(new, Debug)]
-struct ComputeTask {
-    pipeline: Arc<ComputePipeline>,
-    bind_group: BindGroup,
-    work_group: WorkGroup,
+    tasks_max: usize,
+    tasks_count: usize,
 }
 
 impl<MM> WgpuServer<MM>
@@ -42,7 +33,7 @@ where
         memory_management: MM,
         device: Arc<wgpu::Device>,
         queue: wgpu::Queue,
-        max_tasks: usize,
+        tasks_max: usize,
     ) -> Self {
         let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Command Encoder"),
@@ -54,73 +45,30 @@ where
             queue,
             encoder,
             pipelines: HashMap::new(),
-            tasks: Vec::new(),
-            max_tasks,
-            manual_available: HashMap::new(),
-            manual_taken: Vec::new(),
+            tasks_max,
+            tasks_count: 0,
         }
     }
 
     fn submit(&mut self) {
-        assert!(
-            self.tasks.is_empty(),
-            "Tasks should be completed before submitting the current encoder."
-        );
         let mut new_encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         core::mem::swap(&mut new_encoder, &mut self.encoder);
 
         self.queue.submit(Some(new_encoder.finish()));
+        self.tasks_count = 0;
 
         // Cleanup allocations and deallocations.
-        self.free_manual_allocations();
         self.memory_management.storage().perform_deallocations();
     }
 
-    fn free_manual_allocations(&mut self) {
-        let mut manual_taken_tmp = Vec::new();
-        core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
-
-        for (size, handle) in manual_taken_tmp.drain(..) {
-            if handle.can_mut() {
-                self.register_manual(size, handle);
-            } else {
-                self.manual_taken.push((size, handle));
-            }
-        }
-    }
-
-    // Finds a free, manually-added handle of specified size, or creates it if none is found
-    fn manual_reserve(&mut self, size: usize) -> server::Handle<Self> {
-        let handle = self
-            .manual_available
-            .get_mut(&size)
-            .and_then(|h| h.pop())
-            .unwrap_or_else(|| {
-                let memory = self.memory_management.alloc(size);
-                server::Handle::new(memory)
-            });
-
-        self.manual_taken.push((size, handle.clone()));
-
-        handle
-    }
-
-    // Manually adds a handle of given size
-    fn register_manual(&mut self, size: usize, handle: server::Handle<Self>) {
-        if let Some(handles) = self.manual_available.get_mut(&size) {
-            handles.push(handle);
-        } else {
-            self.manual_available.insert(size, [handle].into());
-        }
-    }
-
-    fn register_tasks(&mut self) {
-        if self.tasks.is_empty() {
-            return;
-        }
-
+    fn register_compute(
+        &mut self,
+        pipeline: Arc<ComputePipeline>,
+        bind_group: BindGroup,
+        work_group: WorkGroup,
+    ) {
         let mut compute = self
             .encoder
             .begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -128,14 +76,11 @@ where
                 timestamp_writes: None,
             });
 
-        for task in self.tasks.iter() {
-            compute.set_pipeline(&task.pipeline);
-            compute.set_bind_group(0, &task.bind_group, &[]);
-            compute.dispatch_workgroups(task.work_group.x, task.work_group.y, task.work_group.z);
-        }
+        compute.set_pipeline(&pipeline);
+        compute.set_bind_group(0, &bind_group, &[]);
+        compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
 
-        std::mem::drop(compute);
-        self.tasks.clear();
+        self.tasks_count += 1;
     }
 
     fn pipeline(&mut self, kernel: Kernel) -> Arc<ComputePipeline> {
@@ -168,11 +113,8 @@ where
         )
     }
 
-    fn buffer_reader(&mut self, handle: &server::Handle<Self>) -> BufferReader {
-        // Register previous tasks before reading the buffer so that it is up to date.
-        self.register_tasks();
-
-        let resource = self.memory_management.get(&handle.memory);
+    fn buffer_reader(&mut self, handle: server::Binding<Self>) -> BufferReader {
+        let resource = self.memory_management.get(handle.memory);
 
         let size = resource.size();
         let buffer_dest = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -189,6 +131,7 @@ where
             0,
             size,
         );
+        self.tasks_count += 1;
 
         self.submit();
 
@@ -247,15 +190,15 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]
         {
-            let future = self.buffer_reader(handle).read(self.device.clone());
+            let future = self.buffer_reader(binding).read(self.device.clone());
             return Reader::Future(Box::pin(future));
         }
 
         #[cfg(not(target_family = "wasm"))]
-        Reader::Concrete(self.buffer_reader(handle).read(&self.device))
+        Reader::Concrete(self.buffer_reader(binding).read(&self.device))
     }
 
     /// When we create a new handle from existing data, we use custom allocations so that we don't
@@ -264,7 +207,8 @@ where
     /// This is important, otherwise the compute passes are going to be too small and we won't be able to
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = self.manual_reserve(data.len());
+        let handle = server::Handle::new(self.memory_management.reserve(data.len()));
+        let binding = handle.clone().binding();
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Buffer Src"),
@@ -272,7 +216,7 @@ where
             usage: wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let resource = self.memory_management.get(&handle.memory);
+        let resource = self.memory_management.get(binding.memory);
 
         self.encoder.copy_buffer_to_buffer(
             &buffer_src,
@@ -281,6 +225,7 @@ where
             resource.offset(),
             buffer_src.size(),
         );
+        self.tasks_count += 1;
 
         handle
     }
@@ -289,17 +234,17 @@ where
         server::Handle::new(self.memory_management.reserve(size))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, handles: &[&server::Handle<Self>]) {
+    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
         let work_group = kernel.launch_settings().workgroup;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
-        let handles = handles
-            .iter()
-            .map(|handle| self.memory_management.get(&handle.memory))
+        let memory_handles = bindings
+            .into_iter()
+            .map(|binding| self.memory_management.get(binding.memory))
             .collect::<Vec<_>>();
 
-        let entries = handles
+        let entries = memory_handles
             .iter()
             .enumerate()
             .map(|(i, buffer)| wgpu::BindGroupEntry {
@@ -314,21 +259,15 @@ where
             entries: &entries,
         });
 
-        self.tasks
-            .push(ComputeTask::new(pipeline, bind_group, work_group));
+        self.register_compute(pipeline, bind_group, work_group);
 
-        if self.tasks.len() >= self.max_tasks {
-            self.register_tasks();
+        if self.tasks_count >= self.tasks_max {
             self.submit();
         }
     }
 
     fn sync(&mut self) {
-        if !self.tasks.is_empty() {
-            self.register_tasks();
-            self.submit();
-        }
-
+        self.submit();
         self.device.poll(wgpu::Maintain::Wait);
     }
 }

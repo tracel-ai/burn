@@ -11,6 +11,10 @@ extern crate alloc;
 
 mod tensor;
 
+/// Burn Tensor representaton
+#[cfg(feature = "repr")]
+pub mod repr;
+
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
 mod tests;

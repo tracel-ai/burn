@@ -1,27 +1,33 @@
-use std::collections::{HashMap, HashSet};
-
+use super::{Step, StepBoxed};
 use crate::NodeID;
-
-use super::StepBoxed;
+use std::collections::{HashMap, HashSet};
 
 /// Breadth for search algorithm.
 pub struct BreadthFirstSearch;
 
+pub trait TraversalItem {
+    fn id(&self) -> NodeID;
+    fn parents(&self) -> Vec<NodeID>;
+}
+
 impl BreadthFirstSearch {
     /// Traverse the graph of backward steps from a root node.
-    pub fn traverse<F: FnMut(NodeID, StepBoxed)>(
+    pub fn traverse<F, I>(
         &self,
         root_id: NodeID,
-        root_step: StepBoxed,
-        steps: &mut HashMap<NodeID, StepBoxed>,
+        root_step: I,
+        steps: &mut HashMap<NodeID, I>,
         mut callback: F,
-    ) {
-        let root_order = root_step.order();
-        let mut visited = HashSet::with_capacity(root_order);
-        let mut parents = Vec::with_capacity(root_order);
+    ) where
+        F: FnMut(NodeID, I),
+        I: TraversalItem,
+    {
+        let mut visited = HashSet::new();
+        let mut parents = Vec::new();
 
         visited.insert(root_id);
         parents.append(&mut root_step.parents());
+
         callback(root_id, root_step);
 
         while let Some(id) = parents.pop() {
@@ -30,7 +36,7 @@ impl BreadthFirstSearch {
                 None => continue,
             };
 
-            let step_node = step.node();
+            let step_node = step.id();
             let step_parents = step.parents();
 
             if visited.contains(&step_node) {
@@ -47,5 +53,15 @@ impl BreadthFirstSearch {
 
             callback(step_node, step);
         }
+    }
+}
+
+impl TraversalItem for StepBoxed {
+    fn id(&self) -> NodeID {
+        Step::node(self.as_ref())
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        Step::parents(self.as_ref())
     }
 }

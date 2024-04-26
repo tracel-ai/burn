@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, IntKind, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -74,7 +74,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
-        let item_indices: Item = Elem::Int.into();
+        let item_indices: Item = Elem::Int(IntKind::I32).into();
 
         let input = Variable::GlobalInputArray(0, item);
         let indices = Variable::GlobalInputArray(1, item_indices);
