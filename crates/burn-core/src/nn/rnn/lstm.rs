@@ -89,7 +89,7 @@ impl<B: Backend> Lstm<B> {
     ///
     /// ## Returns:
     /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
-    /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape 
+    /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape
     ///          `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
