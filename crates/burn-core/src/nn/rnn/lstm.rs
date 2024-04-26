@@ -78,8 +78,7 @@ impl LstmConfig {
 
 impl<B: Backend> Lstm<B> {
     /// Applies the forward pass on the input tensor. This LSTM implementation
-    /// returns hidden state for each element in a sequence (i.e., across `seq_length`) and a final state,
-    /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size]`.
+    /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
@@ -213,11 +212,9 @@ impl BiLstmConfig {
 
 impl<B: Backend> BiLstm<B> {
     /// Applies the forward pass on the input tensor. This Bidirectional LSTM implementation
-    /// returns hidden state for each element in a sequence (i.e., across `seq_length`) and a final state,
-    /// producing 3-dimensional tensors where the dimensions represent `[batch_size, sequence_length, hidden_size * 2]`.
+    /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
     /// ## Parameters:
-    ///
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
     ///          Each state tensor has shape `[2, batch_size, hidden_size]`.
@@ -407,7 +404,6 @@ mod tests {
         // single timestep with single feature
         let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
 
-        // let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
         let (output, state) = lstm.forward(input, None);
         state
             .cell
