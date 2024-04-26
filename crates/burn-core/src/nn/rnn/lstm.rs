@@ -447,7 +447,7 @@ mod tests {
 
         let (output, state) = lstm.forward(batched_input, None);
 
-        assert_eq!(output.dims(), [1, 10, 1024]);
+        assert_eq!(output.dims(), [1, 2, 1024]);
         assert_eq!(state.cell.dims(), [1, 1024]);
         assert_eq!(state.hidden.dims(), [1, 1024]);
     }
