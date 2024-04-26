@@ -72,7 +72,7 @@ impl Default for RuntimeOptions {
         };
 
         Self {
-            dealloc_strategy: DeallocStrategy::new_period_tick(tasks_max * 2),
+            dealloc_strategy: DeallocStrategy::new_period_tick(max_tasks * 2),
             slice_strategy: SliceStrategy::Ratio(0.8),
             max_tasks,
         }

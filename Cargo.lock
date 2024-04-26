@@ -194,7 +194,7 @@ checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 
 [[package]]
 name = "backend-comparison"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "arboard",
  "burn",
@@ -357,7 +357,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "burn"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-core",
  "burn-train",
@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "burn-autodiff"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "burn-candle"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-autodiff",
  "burn-tch",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "burn-common"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "burn-compute"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "derive-new",
@@ -425,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "burn-core"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "bincode",
  "burn-autodiff",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "burn-dataset"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "csv",
@@ -486,7 +486,7 @@ dependencies = [
 
 [[package]]
 name = "burn-derive"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "burn-fusion"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "burn-import"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "burn-jit"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-autodiff",
  "burn-common",
@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ndarray"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "blas-src",
  "burn-autodiff",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "burn-no-std-tests"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tch"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-autodiff",
  "burn-tensor",
@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "burn-tensor-testgen",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor-testgen"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -624,7 +624,7 @@ dependencies = [
 
 [[package]]
 name = "burn-train"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-core",
  "burn-ndarray",
@@ -643,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "burn-wgpu"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn-common",
  "burn-compute",
@@ -720,8 +720,9 @@ dependencies = [
 
 [[package]]
 name = "candle-core"
-version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f1b20174c1707e20f4cb364a355b449803c03e9b0c9193324623cf9787a4e00"
 dependencies = [
  "accelerate-src",
  "byteorder",
@@ -746,16 +747,18 @@ dependencies = [
 
 [[package]]
 name = "candle-kernels"
-version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5845911a44164ebb73b56a0e23793ba1b583bad102af7400fe4768babc5815b2"
 dependencies = [
  "bindgen_cuda",
 ]
 
 [[package]]
 name = "candle-metal-kernels"
-version = "0.5.0"
-source = "git+https://github.com/huggingface/candle.git?rev=2817643#2817643db9c687cacd330ad53385ae278d018c00"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b20d6c0d49121e2709ed9faa958ba915ea59526036bcf27558817d1452a4ff09"
 dependencies = [
  "metal",
  "once_cell",
@@ -1179,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "custom-csv-dataset"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "csv",
@@ -1189,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "custom-image-dataset"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "flate2",
@@ -1198,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "custom-renderer"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1210,7 +1213,7 @@ dependencies = [
 
 [[package]]
 name = "custom-training-loop"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1222,7 +1225,7 @@ dependencies = [
 
 [[package]]
 name = "custom-wgpu-kernel"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -2159,7 +2162,7 @@ dependencies = [
 
 [[package]]
 name = "guide"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "log",
@@ -2476,7 +2479,7 @@ dependencies = [
 
 [[package]]
 name = "image-classification-web"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-candle",
@@ -2838,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "mnist"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "log",
@@ -2847,7 +2850,7 @@ dependencies = [
 
 [[package]]
 name = "mnist-inference-web"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "console_error_panic_hook",
@@ -2860,7 +2863,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "0.3.0"
+version = "0.2.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -2909,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "named-tensor"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "serde",
@@ -3157,7 +3160,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-inference"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3166,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-tests"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3533,7 +3536,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-import"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3542,7 +3545,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-tests"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "burn-autodiff",
@@ -3776,7 +3779,7 @@ checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
 name = "regression"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "log",
@@ -4584,7 +4587,7 @@ dependencies = [
 
 [[package]]
 name = "text-classification"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "derive-new",
@@ -4594,7 +4597,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation"
-version = "0.14.0"
+version = "0.13.1"
 dependencies = [
  "burn",
  "derive-new",
@@ -5559,7 +5562,7 @@ checksum = "791978798f0597cfc70478424c2b4fdc2b7a8024aaff78497ef00f24ef674193"
 
 [[package]]
 name = "xtask"
-version = "0.5.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "clap 4.5.4",
