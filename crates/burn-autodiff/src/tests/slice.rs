@@ -85,23 +85,16 @@ mod tests {
         let data_3: Data<f32, 2> = Data::from([[14.0, 97.0, 100.0, 9.0], [2.0, 3.0, 15.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_1_slice = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
-        let tensor_2_slice = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
-
-        let tensor_1_cat = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2_cat = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device);
 
         let slice_assign_output = TestAutodiffTensor::zeros([2, 4], &Default::default());
-        let slice_assign_output =
-            slice_assign_output.slice_assign([0..2, 0..2], tensor_1_slice.clone());
-        let slice_assign_output =
-            slice_assign_output.slice_assign([0..2, 2..4], tensor_2_slice.clone());
+        let slice_assign_output = slice_assign_output.slice_assign([0..2, 0..2], tensor_1.clone());
+        let slice_assign_output = slice_assign_output.slice_assign([0..2, 2..4], tensor_2.clone());
         let slice_assign_output = slice_assign_output / tensor_3.clone();
 
-        let cat_output =
-            TestAutodiffTensor::cat(vec![tensor_1_cat.clone(), tensor_2_cat.clone()], 1);
+        let cat_output = TestAutodiffTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 1);
         let cat_output = cat_output / tensor_3;
 
         slice_assign_output
@@ -111,10 +104,10 @@ mod tests {
         let slice_assign_grads = slice_assign_output.backward();
         let cat_grads = cat_output.backward();
 
-        let slice_assign_grad_1 = tensor_1_slice.grad(&slice_assign_grads).unwrap();
-        let slice_assign_grad_2 = tensor_2_slice.grad(&slice_assign_grads).unwrap();
-        let cat_grad_1 = tensor_1_cat.grad(&cat_grads).unwrap();
-        let cat_grad_2 = tensor_2_cat.grad(&cat_grads).unwrap();
+        let slice_assign_grad_1 = tensor_1.grad(&slice_assign_grads).unwrap();
+        let slice_assign_grad_2 = tensor_2.grad(&slice_assign_grads).unwrap();
+        let cat_grad_1 = tensor_1.grad(&cat_grads).unwrap();
+        let cat_grad_2 = tensor_2.grad(&cat_grads).unwrap();
 
         slice_assign_grad_1
             .to_data()

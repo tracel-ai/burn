@@ -40,8 +40,10 @@ impl GraphMemoryManagement {
 
     /// Free the node from the state.
     pub fn consume_node(&mut self, node_id: NodeID) {
-        self.leaves.remove(&node_id);
-        self.nodes.remove(&node_id);
+        if !self.is_referenced(node_id) {
+            self.leaves.remove(&node_id);
+            self.nodes.remove(&node_id);
+        }
     }
 
     /// Free all nodes whose backward call has become impossible
@@ -70,7 +72,7 @@ impl GraphMemoryManagement {
 
         // New leaves are the roots of a useful backward sub-tree.
         // Deletables are everything not marked as useful.
-        for leaf in leaves.clone() {
+        for leaf in leaves {
             self.identify_leaves_and_deletables(leaf, &mut new_leaves, &mut deletables);
         }
 
@@ -104,9 +106,8 @@ impl GraphMemoryManagement {
                 self.statuses.insert(node_id, node_status.clone());
                 node_status
             }
-            // If node does not exist, it was either
-            // - deleted, so this all its descendants are unavailable
-            // - not requiring grad or detached, the status remains unknown (TODO REGISTER THEM WITH EMPTY PARENTS LIKE THOSE WITH REGISTER_GRAD)
+            // If node does not exist, it was
+            // deleted, so this and all its descendants are unavailable
             None => {
                 self.statuses.insert(node_id, NodeMemoryStatus::Unavailable);
                 NodeMemoryStatus::Unavailable
