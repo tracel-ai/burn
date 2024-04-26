@@ -2,10 +2,10 @@ mod client;
 mod memory_management;
 mod server;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "async"))]
 pub mod mutex;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "async")]
 pub mod mspc;
 
 pub use client::*;

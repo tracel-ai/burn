@@ -1,278 +1,195 @@
 use crate::{tensor::NodeRefCount, NodeID};
 use std::{
     collections::{HashMap, HashSet},
+    mem,
     sync::Arc,
 };
 
-/// Keeps a version on the graphs created during autodiff with the reference count of each node.
-///
-/// When all nodes in a graph have only one reference, the graph can be freed.
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
-    graphs: HashMap<GraphId, GraphState>,
-    owned: HashSet<GraphId>,
+    nodes: HashMap<NodeRefCount, Vec<NodeID>>,
+    leaves: HashSet<NodeID>,
+    statuses: HashMap<NodeID, NodeMemoryStatus>,
 }
 
-#[derive(new, Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct GraphId {
-    node: NodeID,
+#[derive(Debug, Clone)]
+enum NodeMemoryStatus {
+    Useful,
+    Unavailable,
+    Unknown,
 }
 
-#[derive(Debug)]
-enum GraphState {
-    Merged(GraphId),
-    Owned(Vec<NodeRefCount>),
+#[derive(Clone)]
+enum Mode {
+    TagAsUseful,
+    Explore,
 }
 
 impl GraphMemoryManagement {
     /// Register a new node with its parent.
     pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
         let node_id = *node.as_ref();
-        let graph_id = GraphId::new(node_id);
 
-        self.insert_owned_graph(graph_id, vec![node.clone()]);
+        for parent_id in parents.iter() {
+            self.leaves.remove(parent_id);
+        }
 
-        if !parents.is_empty() {
-            let graph_ids = parents.into_iter().map(GraphId::new);
-            if let Some(parent_graph_id) = self.merge_graph(graph_ids) {
-                self.merge_graph([graph_id, parent_graph_id]);
-            }
+        self.leaves.insert(node_id);
+        self.nodes.insert(node, parents);
+    }
+
+    /// Free the node from the state.
+    pub fn consume_node(&mut self, node_id: NodeID) {
+        if !self.is_referenced(node_id) {
+            self.leaves.remove(&node_id);
+            self.nodes.remove(&node_id);
         }
     }
 
-    /// Free the given graph calling the given function for each node deleted.
-    pub fn free_graph<F>(&mut self, graph_id: GraphId, mut func: F)
-    where
-        F: FnMut(&NodeID),
-    {
-        self.owned.remove(&graph_id);
-        let graph = match self.graphs.remove(&graph_id) {
-            Some(graph) => graph,
-            None => return,
-        };
-
-        let graph = match graph {
-            GraphState::Merged(graph) => {
-                self.free_graph(graph, func);
-                return;
-            }
-            GraphState::Owned(graph) => graph,
-        };
-
-        for node_id in graph.into_iter() {
-            func(&node_id);
-            self.graphs.remove(&GraphId::new(*node_id));
-        }
-    }
-
-    /// Find the graphs where all nodes are orphan.
+    /// Free all nodes whose backward call has become impossible
     ///
-    /// The returned graphs can be safely freed.
-    pub fn find_orphan_graphs(&self) -> Vec<GraphId> {
-        self.owned
-            .iter()
-            .filter(|id| self.is_orphan(id))
-            .copied()
-            .collect()
+    /// This function goes into three steps, which must happen for all leaves
+    /// before going into the next step. Then it deletes what can be safely deleted
+    pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeID)) {
+        let leaves = self.leaves.clone();
+        let mut new_leaves = HashSet::new();
+        let mut deletables = Vec::new();
+
+        // When consuming nodes with a backward pass, some other backward passes become
+        // unavailable because some of their parents have been consumed. They are
+        // identified here.
+        for leaf in leaves.clone() {
+            self.unavailable_propagation(leaf);
+        }
+
+        // Among the available nodes that remain, some may be useless if no
+        // available node with a tensor reference exist in their descendance.
+        // But some may seem useless from some leaf but be useful from another one,
+        // hence the need to iterate on all leaves.
+        for leaf in leaves.clone() {
+            self.useful_propagation(leaf, Mode::Explore);
+        }
+
+        // New leaves are the roots of a useful backward sub-tree.
+        // Deletables are everything not marked as useful.
+        for leaf in leaves {
+            self.identify_leaves_and_deletables(leaf, &mut new_leaves, &mut deletables);
+        }
+
+        // Replace leaves by the new ones and delete everything not useful anymore
+        mem::swap(&mut self.leaves, &mut new_leaves);
+        self.statuses.clear();
+        for node_to_delete in deletables {
+            self.nodes.remove(&node_to_delete);
+            on_free_graph(&node_to_delete)
+        }
     }
 
-    fn is_orphan(&self, id: &GraphId) -> bool {
-        let graph = match self.graphs.get(id) {
-            Some(val) => val,
-            None => return false,
-        };
+    fn unavailable_propagation(&mut self, node_id: NodeID) -> NodeMemoryStatus {
+        // If already visited
+        if let Some(status) = self.statuses.get(&node_id) {
+            return status.clone();
+        }
 
-        let nodes = match graph {
-            GraphState::Merged(_) => return false,
-            GraphState::Owned(nodes) => nodes,
-        };
-
-        for node in nodes {
-            if Arc::strong_count(node) > 1 {
-                return false;
+        match self.nodes.get(&node_id).cloned() {
+            // If node exists and any of its parents is unavailable, it is unavailable as well
+            // If node exists but the parents vec is empty, it is a tensor that never had parents;
+            //  the status remains unknown
+            Some(parents) => {
+                let mut node_status = NodeMemoryStatus::Unknown;
+                for parent in parents {
+                    let parent_status = self.unavailable_propagation(parent);
+                    if let NodeMemoryStatus::Unavailable = parent_status {
+                        node_status = NodeMemoryStatus::Unavailable;
+                    }
+                }
+                self.statuses.insert(node_id, node_status.clone());
+                node_status
+            }
+            // If node does not exist, it was
+            // deleted, so this and all its descendants are unavailable
+            None => {
+                self.statuses.insert(node_id, NodeMemoryStatus::Unavailable);
+                NodeMemoryStatus::Unavailable
             }
         }
-
-        true
     }
 
-    fn insert_owned_graph(&mut self, graph_id: GraphId, nodes: Vec<NodeRefCount>) {
-        self.graphs.insert(graph_id, GraphState::Owned(nodes));
-        self.owned.insert(graph_id);
-    }
+    fn useful_propagation(&mut self, node_id: NodeID, mode: Mode) {
+        let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
 
-    fn merge_graph<I: IntoIterator<Item = GraphId>>(&mut self, graph_ids: I) -> Option<GraphId> {
-        let graph_ids = graph_ids.into_iter();
-        let graph_ids = graph_ids.collect::<Vec<_>>();
-
-        let mut merged = HashSet::new();
-
-        let mut updated_nodes = Vec::new();
-        let mut updated_graph_id = None;
-
-        for id in graph_ids {
-            let graph_id = match self.find_owned_graph(id) {
-                Some(val) => val,
-                None => continue,
-            };
-
-            if updated_graph_id.is_none() {
-                updated_graph_id = Some(graph_id);
+        match mode {
+            Mode::TagAsUseful => {
+                self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                for parent in parents {
+                    self.useful_propagation(parent, Mode::TagAsUseful)
+                }
             }
+            Mode::Explore => {
+                let node_status = self
+                    .statuses
+                    .get(&node_id)
+                    .expect("All nodes should have received a status at this point")
+                    .clone();
 
-            merged.insert(graph_id);
-        }
+                match node_status {
+                    NodeMemoryStatus::Useful => {
+                        // Nothing to do, was already tagged through some other path
+                    }
+                    NodeMemoryStatus::Unavailable => {
+                        // Even if this node is unavailable, it is still possible that an ancestor is useful if referenced
+                        for parent in parents {
+                            self.useful_propagation(parent, Mode::Explore);
+                        }
+                    }
+                    NodeMemoryStatus::Unknown => {
+                        // If this node is referenced and not unavailable,
+                        // then it is useful and we must retain all ancestors
 
-        let updated_graph_id = match updated_graph_id {
-            Some(val) => val,
-            None => return None,
-        };
+                        let mut mode = Mode::Explore;
+                        if self.is_referenced(node_id) {
+                            self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                            mode = Mode::TagAsUseful;
+                        }
 
-        for id in merged {
-            let mut updated_state = GraphState::Merged(updated_graph_id);
-            let state = self.graphs.get_mut(&id).unwrap();
-            self.owned.remove(&id);
-
-            core::mem::swap(state, &mut updated_state);
-
-            if let GraphState::Owned(nodes) = updated_state {
-                updated_nodes.extend(nodes)
-            };
-        }
-
-        self.insert_owned_graph(updated_graph_id, updated_nodes);
-
-        Some(updated_graph_id)
-    }
-
-    fn find_owned_graph(&mut self, graph_id: GraphId) -> Option<GraphId> {
-        let graph = match self.graphs.get(&graph_id) {
-            Some(val) => val,
-            None => return None,
-        };
-
-        let merged_graph_id = match graph {
-            GraphState::Merged(graph_id) => graph_id,
-            GraphState::Owned(_) => return Some(graph_id),
-        };
-
-        self.find_owned_graph(*merged_graph_id)
-    }
-}
-
-impl core::fmt::Display for GraphMemoryManagement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "Graphs Memory Management with {} owned graphs and total of {} graphs\n",
-            self.owned.len(),
-            self.graphs.len()
-        ))?;
-        for (id, state) in self.graphs.iter() {
-            f.write_fmt(format_args!("Graph {} => ", id.node.value))?;
-            match state {
-                GraphState::Merged(id) => f.write_fmt(format_args!("Merged {}", id.node.value))?,
-                GraphState::Owned(nodes) => {
-                    f.write_str("Owned")?;
-                    for node in nodes {
-                        f.write_fmt(format_args!(" {}", node.value))?;
+                        for parent in parents {
+                            self.useful_propagation(parent, mode.clone());
+                        }
                     }
                 }
             }
-            f.write_str("\n")?;
         }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-
-    #[test]
-    fn test_graph_memory_management_connect_graphs() {
-        let mut graph_mm = GraphMemoryManagement::default();
-
-        let node_1 = Arc::new(NodeID::new());
-        let node_2 = Arc::new(NodeID::new());
-        let node_3 = Arc::new(NodeID::new());
-        let node_4 = Arc::new(NodeID::new());
-        let node_5 = Arc::new(NodeID::new());
-
-        graph_mm.register(node_1.clone(), vec![]);
-        graph_mm.register(node_2.clone(), vec![*node_1]);
-        assert_eq!(graph_mm.owned.len(), 1, "A single connected graph.");
-
-        graph_mm.register(node_3.clone(), vec![]);
-        graph_mm.register(node_4.clone(), vec![*node_3]);
-        assert_eq!(graph_mm.owned.len(), 2, "Two connected graphs.");
-
-        graph_mm.register(node_5.clone(), vec![*node_1, *node_3]);
-        assert_eq!(
-            graph_mm.owned.len(),
-            1,
-            "Two connected graphs are merged into one."
-        );
     }
 
-    #[test]
-    fn test_graph_memory_management_find_orphans() {
-        let mut graph_mm = GraphMemoryManagement::default();
-
-        let node_1 = Arc::new(NodeID::new());
-        let node_2 = Arc::new(NodeID::new());
-
-        graph_mm.register(node_1.clone(), vec![]);
-        graph_mm.register(node_2.clone(), vec![*node_1]);
-
-        core::mem::drop(node_1);
-        assert_eq!(
-            graph_mm.find_orphan_graphs().len(),
-            0,
-            "Not all nodes are dropped"
-        );
-
-        core::mem::drop(node_2);
-        assert_eq!(
-            graph_mm.find_orphan_graphs().len(),
-            1,
-            "All nodes are dropped"
-        );
+    fn is_referenced(&self, node_id: NodeID) -> bool {
+        match self.nodes.get_key_value(&node_id) {
+            Some((key, _value)) => Arc::strong_count(key) > 1,
+            None => panic!("Node should be in the nodes map"),
+        }
     }
 
-    #[test]
-    fn test_graph_memory_management_free_graph_from_any_node() {
-        let mut graph_mm = GraphMemoryManagement::default();
+    fn identify_leaves_and_deletables(
+        &self,
+        node_id: NodeID,
+        new_leaves: &mut HashSet<NodeID>,
+        to_delete: &mut Vec<NodeID>,
+    ) {
+        let current_status = self
+            .statuses
+            .get(&node_id)
+            .expect("Node should have status");
 
-        // Create a graph and free(node_1)
-        let node_1 = Arc::new(NodeID::new());
-        let node_2 = Arc::new(NodeID::new());
-
-        graph_mm.register(node_1.clone(), vec![]);
-        graph_mm.register(node_2.clone(), vec![*node_1]);
-
-        let mut node_ids = Vec::new();
-        graph_mm.free_graph(GraphId::new(*node_1.as_ref()), |id| node_ids.push(*id));
-
-        assert!(node_ids.contains(&node_1));
-        assert!(node_ids.contains(&node_2));
-
-        assert_eq!(graph_mm.graphs.len(), 0);
-        assert_eq!(graph_mm.owned.len(), 0);
-
-        // Same but with free(node_2);
-        graph_mm.register(node_1.clone(), vec![]);
-        graph_mm.register(node_2.clone(), vec![*node_1]);
-
-        let mut node_ids = Vec::new();
-        graph_mm.free_graph(GraphId::new(*node_2.as_ref()), |id| node_ids.push(*id));
-
-        assert!(node_ids.contains(&node_1));
-        assert!(node_ids.contains(&node_2));
-
-        assert_eq!(graph_mm.graphs.len(), 0);
-        assert_eq!(graph_mm.owned.len(), 0);
+        match current_status {
+            NodeMemoryStatus::Useful => {
+                new_leaves.insert(node_id);
+            }
+            _ => {
+                let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
+                for parent in parents {
+                    self.identify_leaves_and_deletables(parent, new_leaves, to_delete)
+                }
+                to_delete.push(node_id);
+            }
+        }
     }
 }
