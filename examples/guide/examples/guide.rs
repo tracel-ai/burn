@@ -1,26 +1,16 @@
-use burn::{
-    backend::{wgpu::AutoGraphicsApi, Autodiff, Wgpu},
-    data::dataset::Dataset,
-    optim::AdamConfig,
-};
-use guide::{model::ModelConfig, training::TrainingConfig};
+//
+// Note: If you are following the Burn Book guide this file can be ignored.
+//
+// This example file is added only for convenience and consistency so that
+// the guide example can be executed like any other examples using:
+//
+//     cargo run --release --example guide
+//
+use std::process::Command;
 
 fn main() {
-    type MyBackend = Wgpu<AutoGraphicsApi, f32, i32>;
-    type MyAutodiffBackend = Autodiff<MyBackend>;
-
-    let device = burn::backend::wgpu::WgpuDevice::default();
-    let artifact_dir = "/tmp/guide";
-    guide::training::train::<MyAutodiffBackend>(
-        artifact_dir,
-        TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
-        device.clone(),
-    );
-    guide::inference::infer::<MyBackend>(
-        artifact_dir,
-        device,
-        burn::data::dataset::vision::MnistDataset::test()
-            .get(42)
-            .unwrap(),
-    );
+    Command::new("cargo")
+        .args(["run", "--bin", "guide"])
+        .status()
+        .expect("guide example should run");
 }

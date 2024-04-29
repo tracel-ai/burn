@@ -16,7 +16,7 @@ std = ["serde/std"]
 doc = ["default"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
 burn-common = { path = "../burn-common", version = "0.14.0" }
 hashbrown = { workspace = true }
 derive-new = {workspace = true }

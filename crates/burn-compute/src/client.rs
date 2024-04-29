@@ -1,6 +1,6 @@
 use crate::{
     channel::ComputeChannel,
-    server::{ComputeServer, Handle},
+    server::{Binding, ComputeServer, Handle},
     tune::{AutotuneOperationSet, Tuner},
 };
 use alloc::vec::Vec;
@@ -39,9 +39,9 @@ where
         Self { channel, tuner }
     }
 
-    /// Given a handle, returns owned resource as bytes.
-    pub fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.channel.read(handle)
+    /// Given a binding, returns owned resource as bytes.
+    pub fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
+        self.channel.read(binding)
     }
 
     /// Given a resource, stores it and returns the resource handle.
@@ -54,9 +54,9 @@ where
         self.channel.empty(size)
     }
 
-    /// Executes the `kernel` over the given `handles`.
-    pub fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.channel.execute(kernel, handles)
+    /// Executes the `kernel` over the given `bindings`.
+    pub fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
+        self.channel.execute(kernel, bindings)
     }
 
     /// Wait for the completion of every task in the server.

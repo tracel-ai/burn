@@ -1,3 +1,4 @@
+use super::layer_norm::LayerNormNode;
 use super::mask_where::WhereNode;
 use super::unsqueeze::UnsqueezeNode;
 use super::{
@@ -87,6 +88,7 @@ pub enum Node<PS: PrecisionSettings> {
     Dropout(DropoutNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    LayerNorm(LayerNormNode<PS>),
     Linear(LinearNode<PS>),
     Matmul(MatmulNode),
     MaxPool2d(MaxPool2dNode),
@@ -112,6 +114,7 @@ macro_rules! match_all {
             Node::Dropout(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::LayerNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
@@ -147,6 +150,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Dropout(_) => "dropout",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::LayerNorm(_) => "layer_norm",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",
             Node::MaxPool2d(_) => "max_pool2d",
@@ -236,6 +240,7 @@ pub(crate) mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -243,6 +248,7 @@ pub(crate) mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
 
@@ -290,6 +296,7 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -306,6 +313,7 @@ pub(crate) mod tests {
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
@@ -366,6 +374,7 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -382,6 +391,7 @@ pub(crate) mod tests {
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

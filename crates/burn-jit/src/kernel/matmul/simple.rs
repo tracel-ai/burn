@@ -18,10 +18,11 @@ use std::marker::PhantomData;
 use super::simple_launch_options;
 
 #[derive(new, Debug)]
-struct MatmulEagerKernel<R: Runtime> {
+struct MatmulEagerKernel<R: Runtime, E: JitElement> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
     _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
 }
 
 struct MatmulComputeShader {
@@ -151,7 +152,7 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: Runtime> GpuComputeShaderPhase for MatmulEagerKernel<R> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
@@ -159,9 +160,17 @@ impl<R: Runtime> GpuComputeShaderPhase for MatmulEagerKernel<R> {
         );
 
         let mut scope = gpu::Scope::root();
-        let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
-        let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
-        let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
+        let elem = E::gpu_elem();
+        assert!(
+            elem == gpu::Elem::Float(gpu::FloatKind::F32)
+                || elem == gpu::Elem::Float(gpu::FloatKind::F64),
+            "Only float elements are supported."
+        );
+        let item = elem.into();
+
+        let lhs = gpu::Variable::GlobalInputArray(0, item);
+        let rhs = gpu::Variable::GlobalInputArray(1, item);
+        let out = gpu::Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(out);
 
@@ -172,16 +181,14 @@ impl<R: Runtime> GpuComputeShaderPhase for MatmulEagerKernel<R> {
         .expand(&mut scope);
 
         let lhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
+            item,
             visibility: gpu::Visibility::Read,
         };
         let rhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
+            item,
             visibility: gpu::Visibility::Read,
         };
-        let out = OutputInfo::Array {
-            item: gpu::Elem::Float.into(),
-        };
+        let out = OutputInfo::Array { item };
 
         let info = CompilationInfo {
             inputs: vec![lhs, rhs],
@@ -236,7 +243,7 @@ pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
         workgroup_size_y,
     );
 
-    let kernel = MatmulEagerKernel::<R>::new(workgroup_size_x, workgroup_size_y);
+    let kernel = MatmulEagerKernel::<R, E>::new(workgroup_size_x, workgroup_size_y);
 
     Execution::start(kernel, rhs.client)
         .inputs(&[

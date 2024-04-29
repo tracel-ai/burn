@@ -36,6 +36,7 @@ include_models!(
     gather,
     gelu,
     global_avr_pool,
+    layer_norm,
     leaky_relu,
     linear,
     log_softmax,
@@ -53,6 +54,7 @@ include_models!(
     reshape,
     shape,
     sigmoid,
+    sign,
     sin,
     softmax,
     sqrt,
@@ -600,6 +602,40 @@ mod tests {
     }
 
     #[test]
+    fn layer_norm() {
+        let device = Default::default();
+        let model: layer_norm::Model<Backend> = layer_norm::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::from_floats(
+            [
+                [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
+                [
+                    [12., 13., 14., 15.],
+                    [16., 17., 18., 19.],
+                    [20., 21., 22., 23.],
+                ],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([
+            [
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+            ],
+            [
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+                [-1.3416, -0.4472, 0.4472, 1.3416],
+            ],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
     fn leaky_relu() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -1032,8 +1068,9 @@ mod tests {
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(expected_shape, output.shape());
+        let output = model.forward(input, 1.0);
+        assert_eq!(expected_shape, output.0.shape());
+        assert_eq!(Shape::from([1]), output.1.shape());
     }
 
     #[test]
@@ -1043,8 +1080,9 @@ mod tests {
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(expected_shape, output.shape());
+        let output = model.forward(input, 1.0);
+        assert_eq!(expected_shape, output.0.shape());
+        assert_eq!(Shape::from([1]), output.1.shape());
     }
 
     #[test]
@@ -1111,5 +1149,18 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
         assert_eq!(output_broadcasted.to_data(), expected);
+    }
+
+    #[test]
+    fn sign() {
+        let device = Default::default();
+        let model: sign::Model<Backend> = sign::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-1.0, 2.0, 0.0, -4.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[-1.0, 1.0, 0.0, -1.0]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }

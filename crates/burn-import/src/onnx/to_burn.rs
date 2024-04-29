@@ -25,6 +25,7 @@ use crate::{
             dropout::DropoutNode,
             gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
+            layer_norm::LayerNormNode,
             linear::LinearNode,
             mask_where::WhereNode,
             matmul::MatmulNode,
@@ -239,6 +240,9 @@ impl OnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::LayerNormalization => {
+                    graph.register(Self::layer_norm_conversion::<PS>(node))
+                }
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
                     graph.register(Self::batch_norm_conversion::<PS>(node))
@@ -274,6 +278,7 @@ impl OnnxGraph {
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
+                NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -496,7 +501,7 @@ impl OnnxGraph {
     }
 
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
+        let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let dims = unsqueeze_config(&node);
 
@@ -634,6 +639,21 @@ impl OnnxGraph {
         )
     }
 
+    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode<PS> {
+        let (config, full_precision) = layer_norm_config(&node);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        // Scale tensor (aka gamma)
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
+        // Bias (B) optional tensor
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node);
+
+        let name = &node.name;
+
+        LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
+    }
+
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode<PS> {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -752,6 +772,12 @@ impl OnnxGraph {
             },
             _ => panic!("pow function only supports RHS scalar or tensor types"),
         }
+    }
+
+    fn sign_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        UnaryNode::sign(input, output)
     }
 }
 

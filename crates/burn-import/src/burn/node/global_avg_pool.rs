@@ -139,6 +139,7 @@ mod tests {
             pub struct Model <B: Backend> {
                 global_avg_pool1: AdaptiveAvgPool2d,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -150,6 +151,7 @@ mod tests {
                     Self {
                         global_avg_pool1,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
@@ -188,6 +190,7 @@ mod tests {
             pub struct Model <B: Backend> {
                 global_avg_pool1: AdaptiveAvgPool1d,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -199,6 +202,7 @@ mod tests {
                     Self {
                         global_avg_pool1,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

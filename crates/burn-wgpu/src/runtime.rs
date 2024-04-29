@@ -1,7 +1,7 @@
 use crate::{
     compiler::wgsl,
     compute::{WgpuServer, WgpuStorage},
-    FloatElement, GraphicsApi, IntElement, WgpuDevice,
+    GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -13,18 +13,16 @@ use burn_compute::{
     ComputeRuntime,
 };
 use burn_jit::Runtime;
+use burn_tensor::backend::{DeviceId, DeviceOps};
 use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
-/// The [graphics api](GraphicsApi), the [float element](FloatElement) and the
-/// [int element](IntElement) types are passed as generic.
+/// The [graphics api](GraphicsApi) type is passed as generic.
 #[derive(Debug)]
-pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct WgpuRuntime<G: GraphicsApi> {
     _g: PhantomData<G>,
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
@@ -33,9 +31,8 @@ static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> 
 
 type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
-    type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
-    type Compiler = wgsl::WgslCompiler<F, I>;
+impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
+    type Compiler = wgsl::WgslCompiler;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
     type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;
@@ -52,6 +49,18 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, 
     }
 }
 
+impl DeviceOps for WgpuDevice {
+    fn id(&self) -> DeviceId {
+        match self {
+            WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
+            WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
+            WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
+            WgpuDevice::Cpu => DeviceId::new(3, 0),
+            WgpuDevice::BestAvailable => DeviceId::new(4, 0),
+        }
+    }
+}
+
 /// The values that control how a WGPU Runtime will perform its calculations.
 pub struct RuntimeOptions {
     /// How the buffers are deallocated.
@@ -59,22 +68,24 @@ pub struct RuntimeOptions {
     /// Control the slicing strategy.
     pub slice_strategy: SliceStrategy,
     /// Control the amount of compute tasks to be aggregated into a single GPU command.
-    pub max_tasks: usize,
+    pub tasks_max: usize,
 }
 
 impl Default for RuntimeOptions {
     fn default() -> Self {
-        let max_tasks = match std::env::var("BURN_WGPU_MAX_TASKS") {
+        const DEFAULT_MAX_TASKS: usize = 16;
+
+        let tasks_max = match std::env::var("BURN_WGPU_MAX_TASKS") {
             Ok(value) => value
                 .parse::<usize>()
                 .expect("BURN_WGPU_MAX_TASKS should be a positive integer."),
-            Err(_) => 64, // 64 tasks by default
+            Err(_) => DEFAULT_MAX_TASKS,
         };
 
         Self {
-            dealloc_strategy: DeallocStrategy::new_period_tick(max_tasks * 2),
+            dealloc_strategy: DeallocStrategy::new_period_tick(tasks_max * 2),
             slice_strategy: SliceStrategy::Ratio(0.8),
-            max_tasks,
+            tasks_max,
         }
     }
 }
@@ -114,7 +125,7 @@ async fn create_client<G: GraphicsApi>(
     let storage = WgpuStorage::new(device.clone());
     let memory_management =
         SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
-    let server = WgpuServer::new(memory_management, device, queue, options.max_tasks);
+    let server = WgpuServer::new(memory_management, device, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
 
     let tuner_device_id = tuner_device_id(info);
@@ -137,8 +148,8 @@ pub async fn select_device<G: GraphicsApi>(
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits,
+                required_features: wgpu::Features::empty(),
+                required_limits: limits,
             },
             None,
         )
@@ -179,6 +190,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
 
     instance
         .enumerate_adapters(G::backend().into())
+        .into_iter()
         .for_each(|adapter| {
             let device_type = adapter.get_info().device_type;
 

@@ -2,7 +2,7 @@ use crate::NdArrayTensor;
 use crate::{element::FloatNdArrayElement, PrecisionBridge};
 use alloc::string::String;
 use burn_common::stub::Mutex;
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -13,6 +13,14 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 pub enum NdArrayDevice {
     /// The CPU device.
     Cpu,
+}
+
+impl DeviceOps for NdArrayDevice {
+    fn id(&self) -> burn_tensor::backend::DeviceId {
+        match self {
+            NdArrayDevice::Cpu => DeviceId::new(0, 0),
+        }
+    }
 }
 
 impl Default for NdArrayDevice {

@@ -390,13 +390,13 @@ impl From<bool> for Variable {
 
 impl From<i32> for Variable {
     fn from(value: i32) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Int)
+        Self::ConstantScalar(value as f64, super::Elem::Int(super::IntKind::I32))
     }
 }
 
 impl From<f32> for Variable {
     fn from(value: f32) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Float)
+        Self::ConstantScalar(value as f64, super::Elem::Float(super::FloatKind::F32))
     }
 }
 

@@ -17,12 +17,13 @@ struct InterpolateNearestBackwardEagerKernel<R, E> {
     _elem: PhantomData<E>,
 }
 
-struct InterpolateNearestBackwardShader {
+struct InterpolateNearestBackwardShader<E> {
     out_grad: Variable,
     output: Variable,
+    _elem: PhantomData<E>,
 }
 
-impl InterpolateNearestBackwardShader {
+impl<E: JitElement> InterpolateNearestBackwardShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.out_grad;
         let output = self.output;
@@ -134,8 +135,9 @@ impl InterpolateNearestBackwardShader {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
         gpu!(scope, index = input_index * output_size);
@@ -154,8 +156,9 @@ impl InterpolateNearestBackwardShader {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let numerator_float = scope.create_local(Elem::Float);
-        let div = scope.create_local(Elem::Float);
+        let elem = E::gpu_elem();
+        let numerator_float = scope.create_local(elem);
+        let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
@@ -189,7 +192,12 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
         let out_grad = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
 
-        InterpolateNearestBackwardShader { out_grad, output }.expand(&mut scope);
+        InterpolateNearestBackwardShader {
+            out_grad,
+            output,
+            _elem: PhantomData::<E>,
+        }
+        .expand(&mut scope);
 
         scope.write_global_custom(output);
 

@@ -1,10 +1,12 @@
 use crate::{
-    stream::{Operation, OperationDescription, StreamId},
-    FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
+    stream::{execution::Operation, StreamId},
+    FusionBackend, FusionTensor, Handle,
 };
 use burn_tensor::{
+    backend::Backend,
     ops::{FloatElem, IntElem},
-    Data, Reader,
+    repr::{OperationDescription, TensorDescription, TensorId},
+    Data, Device, Reader,
 };
 
 /// Define how to interact with the fusion server.
@@ -12,8 +14,8 @@ pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion backend](FusionBackend) associated type.
     type FusionBackend: FusionBackend;
 
-    /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
-    fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
+    /// Create a new client for the given [device](Backend::Device).
+    fn new(device: Device<Self::FusionBackend>) -> Self;
     /// Register a new [tensor operation description](OperationDescription).
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
@@ -24,7 +26,7 @@ pub trait FusionClient: Send + Sync + Clone {
     /// Register all lazy computation.
     fn drain(&self);
     /// Get the current device used by all operations handled by this client.
-    fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice;
+    fn device(&self) -> &<Self::FusionBackend as Backend>::Device;
     /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self>;
     /// Create a tensor with the given handle and shape.

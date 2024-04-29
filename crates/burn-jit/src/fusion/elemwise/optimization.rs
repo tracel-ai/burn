@@ -8,7 +8,7 @@ use crate::{
     codegen::dialect::gpu::WorkgroupSize,
     compute::JitAutotuneKey,
     fusion::{kernel::FusionKernel, tracing::Trace},
-    JitBackend, Runtime,
+    FloatElement, IntElement, JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
@@ -66,7 +66,10 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
 }
 
 impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitBackend<R>>) {
+    pub(crate) fn execute<F: FloatElement, I: IntElement>(
+        &mut self,
+        context: &mut Context<'_, JitBackend<R, F, I>>,
+    ) {
         let client = R::client(&self.device);
 
         let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
@@ -81,9 +84,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         }
     }
 
-    fn run_kernel(
+    fn run_kernel<F: FloatElement, I: IntElement>(
         &mut self,
-        context: &mut Context<'_, JitBackend<R>>,
+        context: &mut Context<'_, JitBackend<R, F, I>>,
         client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
@@ -106,9 +109,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         kernel.execute();
     }
 
-    fn run_autotune(
+    fn run_autotune<F: FloatElement, I: IntElement>(
         &mut self,
-        context: &mut Context<'_, JitBackend<R>>,
+        context: &mut Context<'_, JitBackend<R, F, I>>,
         client: ComputeClient<R::Server, R::Channel>,
         key: JitAutotuneKey,
     ) {
@@ -152,9 +155,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     }
 
     /// The first output is chosen when possible, otherwise the first input is chosen.
-    pub(crate) fn autotune_shape<'a>(
+    pub(crate) fn autotune_shape<'a, F: FloatElement, I: IntElement>(
         &self,
-        context: &mut Context<'a, JitBackend<R>>,
+        context: &mut Context<'a, JitBackend<R, F, I>>,
     ) -> &'a [usize] {
         let info = self.trace.running();
 

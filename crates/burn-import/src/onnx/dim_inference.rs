@@ -33,6 +33,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::GatherElements => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::LayerNormalization => same_as_input(node),
         NodeType::Linear => linear_update_outputs(node),
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
@@ -48,6 +49,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
@@ -117,16 +119,17 @@ fn linear_update_outputs(node: &mut Node) {
     // known, we can calculate the output shape.
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
         let mut tensor = tensor.clone();
-        let mut shape = tensor.shape.clone().unwrap();
 
-        if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
-            let last = shape.last_mut().unwrap();
-            *last = *weight_tensor.shape.unwrap().first().unwrap();
-        } else {
-            panic!("Weight must be a tensor");
+        // Update the shape of the output tensor if it's known
+        if let Some(mut shape) = tensor.shape.clone() {
+            if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
+                let last = shape.last_mut().unwrap();
+                *last = *weight_tensor.shape.unwrap().first().unwrap();
+            } else {
+                panic!("Weight must be a tensor");
+            }
+            tensor.shape = Some(shape);
         }
-
-        tensor.shape = Some(shape);
 
         // Update the output tensor
         node.outputs[0].ty = ArgType::Tensor(tensor);
@@ -195,28 +198,30 @@ fn concat_update_outputs(node: &mut Node) {
 }
 
 fn reshape_update_outputs(node: &mut Node) {
-    assert_eq!(node.inputs.len(), 2);
-
-    let shape = if let Some(Data::Int64s(ref shape)) = node.inputs[1].value {
-        shape
+    let shape = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(shape) => Some(shape.clone()),
+                _ => panic!("Reshape: invalid input types"),
+            },
+            None => None,
+        }
     } else {
-        panic!("Reshape: int64s shape is expected per ONNX spec");
+        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
     };
 
-    // The output dimension is the same as the shape length
-    let dim = shape.len();
-    let elem_type = match node.inputs[0].ty.clone() {
-        ArgType::Tensor(tensor) => tensor.elem_type,
-        _ => panic!("Reshape: invalid input type"),
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Reshape: invalid output types"),
     };
 
-    let shape = shape.iter().map(|&dim| dim as usize).collect();
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        dim,
-        shape: Some(shape),
-    });
+    if let Some(shape) = shape {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: shape.len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
+    }
 }
 
 fn reduce_mean_update_outputs(node: &mut Node) {
@@ -254,7 +259,6 @@ fn reduce_mean_update_outputs(node: &mut Node) {
 /// Update the output tensor dimension based on the "axes" attribute or the second input
 fn unsqueeze_update_output(node: &mut Node) {
     let axes = if node.inputs.len() == 2 {
-        // get the values while making sure the types are correct
         match &node.inputs[1].value {
             Some(value) => match value {
                 Data::Int64s(axes) => Some(axes.clone()),
@@ -263,30 +267,30 @@ fn unsqueeze_update_output(node: &mut Node) {
             None => None,
         }
     } else {
-        node.attrs
-            .iter()
-            .find_map(|(key, value)| match key.as_str() {
-                "axes" => Some(value.clone().into_i64s()),
-                _ => None,
-            })
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
-    // need output way up here to avoid borrowing issues
-    let input = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Unsqueeze: invalid output types"),
+    if axes.is_none() {
+        return;
+    }
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Scalar(_) => 0, // treat scalar as 0-dim tensor
+        _ => panic!("Unsqueeze: invalid input type"),
     };
 
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Unsqueeze: invalid output types"),
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Scalar(elem_type) => elem_type.clone(),
+        _ => panic!("Unsqueeze: invalid output type"),
     };
 
-    if axes.is_some() {
+    if let Some(axes) = axes {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: input.dim + axes.unwrap().len(),
-            shape: None, // shape is calculated at runtime
-            ..output
+            dim: input_dim + axes.len(),
+            shape: None, // shape is tracked and calculated at runtime
+            elem_type: output_elem,
         });
     }
 }

@@ -1,10 +1,11 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
-    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, JitBackend, Runtime,
+    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, FloatElement, IntElement,
+    JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend};
-use burn_tensor::Shape;
+use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
@@ -25,8 +26,13 @@ pub enum JitOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R> {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R>>) {
+impl<R, F, I> burn_fusion::Optimization<JitBackend<R, F, I>> for JitOptimization<R>
+where
+    R: Runtime,
+    F: FloatElement,
+    I: IntElement,
+{
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R, F, I>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -53,50 +59,58 @@ impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R>
     }
 }
 
-impl<R: Runtime> FusionBackend for JitBackend<R> {
-    type OptimizationState = JitOptimizationState;
-    type Optimization = JitOptimization<R>;
-    type FusionDevice = R::Device;
+impl<R: Runtime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
     type Handle = JitFusionHandle<R>;
-    type FusionClient = MutexFusionClient<Self>;
-
-    fn optimizations(
-        device: R::Device,
-    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::new(device))]
-    }
 
     fn float_tensor<const D: usize>(
         handle: Self::Handle,
         shape: Shape<D>,
-    ) -> Self::FloatTensorPrimitive<D> {
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
         handle.into_tensor(shape)
     }
 
     fn int_tensor<const D: usize>(
         handle: Self::Handle,
         shape: Shape<D>,
-    ) -> Self::IntTensorPrimitive<D> {
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
         handle.into_tensor(shape)
     }
 
     fn bool_tensor<const D: usize>(
         handle: Self::Handle,
         shape: Shape<D>,
-    ) -> Self::BoolTensorPrimitive<D> {
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
         handle.into_tensor(shape)
     }
 
-    fn float_tensor_handle<const D: usize>(tensor: Self::FloatTensorPrimitive<D>) -> Self::Handle {
+    fn float_tensor_handle<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> Self::Handle {
         tensor.into()
     }
 
-    fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle {
+    fn int_tensor_handle<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+    ) -> Self::Handle {
         tensor.into()
     }
 
-    fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle {
+    fn bool_tensor_handle<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+    ) -> Self::Handle {
         tensor.into()
+    }
+}
+
+impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
+    type OptimizationState = JitOptimizationState;
+    type Optimization = JitOptimization<R>;
+    type FusionClient = MutexFusionClient<Self>;
+
+    fn optimizations(
+        device: R::Device,
+    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
+        vec![Box::new(ElementWiseBuilder::<R, F, I>::new(device))]
     }
 }
 

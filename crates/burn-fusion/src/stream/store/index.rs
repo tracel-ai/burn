@@ -1,4 +1,5 @@
-use crate::stream::{store::ExecutionPlanId, OperationDescription};
+use crate::stream::store::ExecutionPlanId;
+use burn_tensor::repr::OperationDescription;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -115,13 +116,12 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        stream::{
-            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-        },
+    use burn_tensor::repr::{
+        BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
         TensorDescription, TensorId, TensorStatus,
     };
+
+    use super::*;
 
     #[test]
     fn should_find_optimization_id_based_on_tensor_ops() {

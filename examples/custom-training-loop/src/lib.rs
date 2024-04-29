@@ -95,8 +95,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
             println!(
                 "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
-                iteration,
                 epoch,
+                iteration,
                 loss.clone().into_scalar(),
                 accuracy,
             );

@@ -10,9 +10,6 @@ mod element;
 mod graphics;
 mod runtime;
 
-#[cfg(feature = "fusion")]
-mod fusion;
-
 #[cfg(feature = "template")]
 pub use burn_jit::{
     compute::Kernel,
@@ -48,7 +45,7 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
 pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
-    burn_fusion::Fusion<JitBackend<WgpuRuntime<G, F, I>>>;
+    burn_fusion::Fusion<JitBackend<WgpuRuntime<G>, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -67,13 +64,13 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G>, F, I>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi, f32, i32>;
+    pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi>;
 
     burn_jit::testgen_all!();
 }

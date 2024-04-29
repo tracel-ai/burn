@@ -20,7 +20,7 @@ pub(crate) fn into_data<R: Runtime, E: JitElement, const D: usize>(
 
     tensor
         .client
-        .read(&tensor.handle)
+        .read(tensor.handle.binding())
         .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
 }
 
@@ -29,7 +29,7 @@ pub(crate) fn bool_into_data<R: Runtime, const D: usize>(
 ) -> Reader<Data<bool, D>> {
     let tensor = kernel::into_contiguous(tensor);
 
-    tensor.client.read(&tensor.handle).map(|bytes| {
+    tensor.client.read(tensor.handle.binding()).map(|bytes| {
         Data::new(
             u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
             tensor.shape,

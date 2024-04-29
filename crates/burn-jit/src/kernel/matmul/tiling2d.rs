@@ -26,18 +26,27 @@ struct MatmulTiling2d<E: JitElement> {
 }
 
 #[derive(new, Debug)]
-struct MatmulTiling2dEagerKernel<R: Runtime> {
+struct MatmulTiling2dEagerKernel<R: Runtime, E: JitElement> {
     config: Tiling2dConfig,
     bounds_check_required: bool,
     _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
 }
 
-impl<R: Runtime> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R> {
+impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
-        let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
-        let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
-        let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
+        let elem = E::gpu_elem();
+        assert!(
+            elem == gpu::Elem::Float(gpu::FloatKind::F32)
+                || elem == gpu::Elem::Float(gpu::FloatKind::F64),
+            "Only float elements are supported."
+        );
+        let item = elem.into();
+
+        let lhs = gpu::Variable::GlobalInputArray(0, item);
+        let rhs = gpu::Variable::GlobalInputArray(1, item);
+        let out = gpu::Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(out);
 
@@ -49,16 +58,14 @@ impl<R: Runtime> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R> {
         .expand(&mut scope);
 
         let lhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
+            item,
             visibility: gpu::Visibility::Read,
         };
         let rhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
+            item,
             visibility: gpu::Visibility::Read,
         };
-        let out = OutputInfo::Array {
-            item: gpu::Elem::Float.into(),
-        };
+        let out = OutputInfo::Array { item };
 
         let info = CompilationInfo {
             inputs: vec![lhs, rhs],
@@ -94,7 +101,7 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
 ) -> JitTensor<R, E, D> {
     let bounds_check_required = check_bound_requirement(&lhs.shape, &rhs.shape, &config);
 
-    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), bounds_check_required);
+    let kernel = MatmulTiling2dEagerKernel::<R, E>::new(config.clone(), bounds_check_required);
     let client = lhs.client.clone();
 
     let lhs = match lhs.batch_swapped_with_row_col() {
@@ -126,7 +133,7 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
     out: JitTensor<R, E, D>,
     config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
-    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone(), false);
+    let kernel = MatmulTiling2dEagerKernel::<R, E>::new(config.clone(), false);
     let client = lhs.client.clone();
 
     // A tensor may need to be padded, in which case it will implicitly become contiguous
