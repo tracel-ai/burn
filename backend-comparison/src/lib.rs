@@ -70,13 +70,6 @@ macro_rules! bench_on_backend {
             );
         }
 
-        #[cfg(feature = "cuda")]
-        {
-            use burn::backend::Cuda;
-
-            bench::<Cuda>(&Default::default(), url, token);
-        }
-
         #[cfg(feature = "tch-gpu")]
         {
             use burn::backend::{libtorch::LibTorchDevice, LibTorch};

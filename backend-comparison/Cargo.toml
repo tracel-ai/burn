@@ -24,8 +24,6 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu", "burn/autotune"]
 wgpu-fusion = ["wgpu", "burn/fusion"]
-cuda = ["burn/cuda", "burn/autotune"]
-cuda-fusion = ["cuda", "burn/fusion"]
 
 [dependencies]
 arboard = { workspace = true }

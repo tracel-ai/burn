@@ -55,7 +55,7 @@ pub struct CompiledKernel {
     pub source: String,
     /// Size of a workgroup for the compiled kernel
     pub workgroup_size: WorkgroupSize,
-    /// TODO:
+    /// The number of bytes used by the share memory
     pub shared_mem_bytes: usize,
 }
 
