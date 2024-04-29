@@ -49,6 +49,12 @@ impl From<bool> for ExpandElement {
     }
 }
 
+impl From<f32> for ExpandElement {
+    fn from(value: f32) -> Self {
+        ExpandElement::new(Rc::new(Variable::from(value)))
+    }
+}
+
 impl core::ops::Deref for ExpandElement {
     type Target = Variable;
 
@@ -129,6 +135,16 @@ impl RuntimeType for u32 {
 impl From<u32> for UInt {
     fn from(value: u32) -> Self {
         UInt::new(value, 1)
+    }
+}
+
+impl RuntimeType for f32 {
+    type ExpandType = f32;
+}
+
+impl From<f32> for Float {
+    fn from(value: f32) -> Self {
+        Float::new(value, 1)
     }
 }
 

@@ -1,9 +1,9 @@
 mod analysis;
-mod statement;
+mod codegen;
 
 use analysis::VariableAnalyses;
 use proc_macro::TokenStream;
-use statement::codegen_statement;
+use codegen::codegen_statement;
 
 /// Derive macro for the module.
 #[proc_macro_attribute]
@@ -32,6 +32,7 @@ fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut VariableAnalyses) ->
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
+    // panic!("WG");
     for statement in func.block.stmts.iter() {
         let tokens = codegen_statement(statement, 0, variable_analyses);
         body.extend(tokens);

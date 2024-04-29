@@ -1,66 +1,58 @@
-// use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt};
-// use burn_jit::gpu;
-// use burn_jit::gpu::FloatKind::F32;
-// use burn_jit::gpu::{Elem, Item, Variable};
+use burn_cube::{cube, CubeContext, Int};
+use burn_jit::gpu;
+use burn_jit::gpu::Branch;
+use burn_jit::gpu::IntKind::I32;
+use burn_jit::gpu::{Elem, Item, Variable};
 
-// #[cube]
-// pub fn gcd(lhs: Float, rhs: Float) {
-//     let tmp1 = rhs * rhs;
-//     let tmp2 = tmp1 + rhs;
+#[cube]
+pub fn gcd(lhs: Int, rhs: Int) {
+    while rhs != 0u32 {
+        let tmp = rhs;
+        rhs = lhs % rhs;
+        lhs = tmp
+    }
+    // use lhs as output
+}
 
-//     for i in range(0usize, end, unroll) {
-//         lhs[i] = tmp2 + lhs[i];
-//     }
-// }
+#[test]
+fn cube_function_test() {
+    let mut context = CubeContext::root();
 
-// #[test]
-// fn cube_function_test() {
-//     let mut context = CubeContext::root();
-// // 
-//     let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
-//     let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
-//     let end = context.create_local(Item::Scalar(Elem::UInt));
+    let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
+    let rhs = context.create_local(Item::Scalar(Elem::Int(I32)));
 
-//     kernel_expand(&mut context, lhs, rhs, end, false);
-//     let scope = context.into_scope();
+    gcd_expand(&mut context, lhs, rhs);
+    let scope = context.into_scope();
 
-//     let mut ops = String::new();
-//     for op in scope.operations.iter() {
-//         ops.push_str(&format!("{op:?}"));
-//     }
+    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
+}
 
-//     assert_eq!(ops, gpu_macro_ref());
-// }
+fn gpu_macro_ref() -> String {
+    let mut context = CubeContext::root();
+    let item = Item::Scalar(Elem::Int(I32));
 
-// fn gpu_macro_ref() -> String {
-//     let mut context = CubeContext::root();
-//     let item = Item::Scalar(Elem::Float(F32));
+    let lhs = context.create_local(item);
+    let rhs = context.create_local(item);
+    let lhs: Variable = lhs.into();
+    let rhs: Variable = rhs.into();
+    let mut scope = context.into_scope();
 
-//     let lhs = context.create_local(item);
-//     let rhs = context.create_local(item);
-//     let lhs: Variable = lhs.into();
-//     let rhs: Variable = rhs.into();
-//     let end = context.create_local(Item::Scalar(Elem::UInt));
-//     let mut scope = context.into_scope();
+    // Kernel
+    let cond = scope.create_local(Item::Scalar(Elem::Bool));
+    let tmp = scope.create_local(Item::Scalar(Elem::Int(I32)));
+    gpu!(
+        &mut scope,
+        loop(|scope| {
+            gpu!(scope, cond = rhs != 0);
+            gpu!(scope, if(cond).then(|scope|{
+                scope.register(Branch::Break);
+            }));
 
-//     // Kernel
-//     let tmp1 = scope.create_local(item);
-//     let tmp2 = scope.create_local(item);
-//     gpu!(scope, tmp1 = rhs * rhs);
-//     gpu!(scope, tmp2 = tmp1 + rhs);
+            gpu!(scope, tmp = rhs);
+            gpu!(scope, rhs = lhs % rhs);
+            gpu!(scope, lhs = tmp);
+        })
+    );
 
-//     gpu!(
-//         &mut scope,
-//         range(0usize, end).for_each(|i, scope| {
-//             gpu!(scope, rhs = lhs[i]);
-//             gpu!(scope, tmp1 = tmp2 + rhs);
-//             gpu!(scope, lhs[i] = tmp1);
-//         })
-//     );
-
-//     let mut ops = String::new();
-//     for op in scope.operations.iter() {
-//         ops.push_str(&format!("{op:?}"));
-//     }
-//     ops
-// }
+    format!("{:?}", scope.operations)
+}

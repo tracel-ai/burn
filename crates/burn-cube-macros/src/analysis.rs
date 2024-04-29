@@ -96,10 +96,10 @@ fn signature_declarations(sig: &syn::Signature, declarations: &mut Vec<(Variable
                         let id = &pat_ident.ident;
                         declarations.push((id.into(), 0));
                     }
-                    _ => todo!(),
+                    _ => todo!("Analysis: unsupported ident {ident:?}"),
                 }
             }
-            _ => todo!(),
+            _ => todo!("Analysis: unsupported input {input:?}"),
         }
     }
 }
@@ -113,19 +113,22 @@ fn stmts_occurrences(
     for stmt in stmts {
         match stmt {
             // Declaration
-            syn::Stmt::Local(local) => match &local.pat {
-                syn::Pat::Ident(pat_ident) => {
-                    let id = &pat_ident.ident;
-                    declarations.push((id.into(), depth));
-
-                    if let Some(local_init) = &local.init {
-                        expr_occurrences(&local_init.expr, depth, declarations, uses)
-                    }
+            syn::Stmt::Local(local) => {
+                let id = match &local.pat {
+                    syn::Pat::Ident(pat_ident) => &pat_ident.ident,
+                    syn::Pat::Type(pat_type) => match &*pat_type.pat {
+                        syn::Pat::Ident(pat_ident) => &pat_ident.ident,
+                        _ => todo!("Analysis: unsupported typed path {:?}", pat_type.pat),
+                    },
+                    _ => todo!("Analysis: unsupported path {:?}", local.pat),
+                };
+                declarations.push((id.into(), depth));
+                if let Some(local_init) = &local.init {
+                    expr_occurrences(&local_init.expr, depth, declarations, uses)
                 }
-                _ => todo!(),
-            },
+            }
             syn::Stmt::Expr(expr, _) => expr_occurrences(expr, depth, declarations, uses),
-            _ => todo!(),
+            _ => todo!("Analysis: unsupported stmt {stmt:?}"),
         }
     }
 }
@@ -148,6 +151,12 @@ fn expr_occurrences(
 
             stmts_occurrences(&expr.body.stmts, depth, declarations, uses);
         }
+        syn::Expr::While(expr) => {
+            let depth = depth + 1;
+
+            expr_occurrences(&expr.cond, depth, declarations, uses);
+            stmts_occurrences(&expr.body.stmts, depth, declarations, uses);
+        }
         syn::Expr::Assign(expr) => {
             expr_occurrences(&expr.left, depth, declarations, uses);
             expr_occurrences(&expr.right, depth, declarations, uses);
@@ -160,7 +169,7 @@ fn expr_occurrences(
             let ident = expr
                 .path
                 .get_ident()
-                .expect("Only ident path are supported.");
+                .expect("Analysis: only ident path are supported.");
 
             // Use
             uses.push(ident.into());
@@ -169,6 +178,11 @@ fn expr_occurrences(
             expr_occurrences(&expr.left, depth, declarations, uses);
             expr_occurrences(&expr.right, depth, declarations, uses);
         }
-        _ => todo!(),
+        syn::Expr::MethodCall(expr) => {
+            if expr.args.is_empty() {
+                panic!("Analysis: method call with args is unsupported")
+            }
+        }
+        _ => todo!("Analysis: unsupported expr {expr:?}"),
     }
 }

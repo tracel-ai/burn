@@ -34,7 +34,11 @@ fn codegen_local(
         .expect("Can't use let without an initialization.");
     let ident = match &local.pat {
         syn::Pat::Ident(ident) => ident,
-        _ => panic!("Only ident declaration is supported."),
+        syn::Pat::Type(pat_type) => match &*pat_type.pat {
+            syn::Pat::Ident(pat_ident) => pat_ident,
+            _ => todo!("Codegen: Unsupported typed path {:?}", pat_type.pat),
+        },
+        _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
     let init = codegen_expr(&init.expr, loop_level, variable_analyses);
 
@@ -54,15 +58,22 @@ fn codegen_expr(
         syn::Expr::Binary(op) => codegen_binary(op, loop_level, variable_analyses),
         syn::Expr::Path(path) => codegen_path(path, loop_level, variable_analyses),
         syn::Expr::Call(call) => codegen_call(call, loop_level, variable_analyses),
-        syn::Expr::Lit(lit) => quote::quote! { #lit.into() },
+        syn::Expr::Lit(lit) => codegen_lit(lit),
         syn::Expr::Closure(closure) => codegen_closure(closure, loop_level, variable_analyses),
         syn::Expr::Block(block) => codegen_expr_block(block, loop_level, variable_analyses),
         syn::Expr::Assign(assign) => codegen_assign(assign, loop_level, variable_analyses),
         syn::Expr::ForLoop(for_loop) => codegen_for_loop(for_loop, loop_level, variable_analyses),
+        syn::Expr::While(while_loop) => {
+            codegen_while_loop(while_loop, loop_level, variable_analyses)
+        }
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_expr_index(index, loop_level, variable_analyses),
         _ => panic!("Unsupported {:?}", expr),
     }
+}
+
+fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
+    quote::quote! { #lit.into() }
 }
 
 fn codegen_expr_index(
@@ -98,7 +109,7 @@ fn codegen_for_loop(
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {
                 syn::Expr::Path(path) => path.path.get_ident().unwrap(),
-                _ => todo!("Only path call supported"),
+                _ => todo!("Codegen: Only path call supported"),
             };
 
             if &func_name.to_string() == "range" {
@@ -115,10 +126,28 @@ fn codegen_for_loop(
                     range_expand(#args |context, #i| #block);
                 }
             } else {
-                todo!("Only range is supported")
+                todo!("Codegen: Only range is supported")
             }
         }
-        _ => todo!("Only call is supported {for_loop:?}"),
+        _ => todo!("Codegen: Only call is supported {for_loop:?}"),
+    }
+}
+
+fn codegen_while_loop(
+    while_loop: &syn::ExprWhile,
+    loop_level: usize,
+    variable_analyses: &mut VariableAnalyses,
+) -> TokenStream {
+    let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
+
+    let cond = match while_loop.cond.as_ref() {
+        syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_analyses),
+        syn::Expr::Lit(expr) => codegen_lit(expr),
+        _ => todo!("{while_loop:?} cond not supported"),
+    };
+
+    quote::quote! {
+        loop_expand(#cond |context| #block);
     }
 }
 
@@ -189,7 +218,7 @@ fn codegen_closure(
     for input in closure.inputs.iter() {
         let ident = match input {
             syn::Pat::Ident(ident) => &ident.ident,
-            _ => panic!("Unsupported {:?}", input),
+            _ => panic!("Codegen: Unsupported {:?}", input),
         };
         inputs.extend(quote::quote! {
             #ident,
@@ -210,7 +239,7 @@ fn codegen_call(
 ) -> TokenStream {
     let func_name = match call.func.as_ref() {
         syn::Expr::Path(path) => path.path.get_ident().unwrap(),
-        _ => todo!("Only path call supported"),
+        _ => todo!("Codegen: Only path call supported"),
     };
 
     let mut args = quote::quote! {
@@ -238,7 +267,7 @@ fn codegen_path(
     let ident = path
         .path
         .get_ident()
-        .expect("Only ident path are supported.");
+        .expect("Codegen: Only ident path are supported.");
 
     let will_be_used_again = variable_analyses.should_clone(ident, loop_level);
 
@@ -290,6 +319,20 @@ fn codegen_binary(
                 burn_cube::div::expand(context, _lhs, _rhs)
             }
         },
-        _ => todo!("{:?}", binary.op),
+        syn::BinOp::Rem(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::rem::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::Ne(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::ne::expand(context, _lhs, _rhs)
+            }
+        },
+        _ => todo!("Codegen: unsupported op {:?}", binary.op),
     }
 }

@@ -1,5 +1,6 @@
-use crate::{Array, CubeContext, ExpandElement, Float, Int, UInt};
-use burn_jit::gpu::{self, Variable};
+use crate::operation::base::binary_expand;
+use crate::{CubeContext, ExpandElement, Float, Int, UInt};
+use burn_jit::gpu::{self};
 
 pub mod add {
     use super::*;
@@ -145,95 +146,38 @@ pub mod div {
     }
 }
 
-pub mod assign {
+pub mod rem {
     use super::*;
 
     pub fn expand(
         context: &mut CubeContext,
-        input: ExpandElement,
-        output: ExpandElement,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
     ) -> ExpandElement {
-        let input = *input;
-        let out = *output;
-
-        context.register(gpu::Operator::Assign(gpu::UnaryOperator { input, out }));
-
-        output
-    }
-}
-
-pub mod index {
-    use crate::RuntimeType;
-
-    use super::*;
-
-    pub fn expand(
-        context: &mut CubeContext,
-        array: ExpandElement,
-        index: ExpandElement,
-    ) -> ExpandElement {
-        binary_expand(context, array, index, gpu::Operator::Index)
+        binary_expand(context, lhs, rhs, gpu::Operator::Modulo)
     }
 
-    impl<E: RuntimeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
-        type Output = E;
+    impl core::ops::Rem for Float {
+        type Output = Self;
 
-        fn index(&self, index: I) -> &Self::Output {
-            let index = index.into().val;
-            &self.vals[index as usize]
+        fn rem(self, rhs: Self) -> Self::Output {
+            Float::new(self.val % rhs.val, 1)
         }
     }
-}
 
-pub mod index_assign {
-    use crate::RuntimeType;
+    impl core::ops::Rem for Int {
+        type Output = Self;
 
-    use super::*;
-
-    pub fn expand(
-        context: &mut CubeContext,
-        array: ExpandElement,
-        index: ExpandElement,
-        value: ExpandElement,
-    ) {
-        context.register(gpu::Operator::IndexAssign(gpu::BinaryOperator {
-            lhs: *index,
-            rhs: *value,
-            out: *array,
-        }))
-    }
-
-    impl<E: RuntimeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
-        fn index_mut(&mut self, index: I) -> &mut Self::Output {
-            let index = index.into().val;
-            &mut self.vals[index as usize]
+        fn rem(self, rhs: Self) -> Self::Output {
+            Int::new(self.val % rhs.val, 1)
         }
     }
-}
 
-fn binary_expand<F>(
-    context: &mut CubeContext,
-    lhs: ExpandElement,
-    rhs: ExpandElement,
-    func: F,
-) -> ExpandElement
-where
-    F: Fn(gpu::BinaryOperator) -> gpu::Operator,
-{
-    let lhs: Variable = *lhs;
-    let rhs: Variable = *rhs;
+    impl core::ops::Rem for UInt {
+        type Output = Self;
 
-    let item = lhs.item();
-    let out = context.create_local(item);
-    let out_var = *out;
-
-    let op = func(gpu::BinaryOperator {
-        lhs,
-        rhs,
-        out: out_var,
-    });
-
-    context.register(op);
-
-    out
+        fn rem(self, rhs: Self) -> Self::Output {
+            UInt::new(self.val % rhs.val, 1)
+        }
+    }
 }

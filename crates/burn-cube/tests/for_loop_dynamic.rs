@@ -20,6 +20,7 @@ fn test_for_loop() {
     let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
     let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
     let end = context.create_local(Item::Scalar(Elem::UInt));
+    // let end =Variable::ConstantScalar(5.0, Item::Scalar(Elem::UInt));
 
     kernel_expand(&mut context, lhs, rhs, end, false);
     let scope = context.into_scope();
