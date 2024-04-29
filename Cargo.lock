@@ -412,7 +412,7 @@ dependencies = [
  "burn-common",
  "derive-new",
  "dirs 5.0.1",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "log",
  "md5",
  "rand",
@@ -440,7 +440,7 @@ dependencies = [
  "derive-new",
  "flate2",
  "half",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "log",
  "num-traits",
  "rand",
@@ -501,7 +501,7 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "derive-new",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "log",
  "serde",
  "spin",
@@ -549,7 +549,7 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "derive-new",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "log",
  "num-traits",
  "rand",
@@ -607,7 +607,7 @@ dependencies = [
  "burn-tensor-testgen",
  "derive-new",
  "half",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "num-traits",
  "rand",
  "rand_distr",
@@ -653,7 +653,7 @@ dependencies = [
  "bytemuck",
  "derive-new",
  "futures-intrusive",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "log",
  "pollster",
  "wgpu",
@@ -1284,7 +1284,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
 dependencies = [
  "cfg-if",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
  "lock_api",
  "once_cell",
  "parking_lot_core 0.9.9",
@@ -2110,7 +2110,7 @@ checksum = "cc11df1ace8e7e564511f53af41f3e42ddc95b56fd07b3f4445d2a6048bc682c"
 dependencies = [
  "bitflags 2.5.0",
  "gpu-descriptor-types",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
 ]
 
 [[package]]
@@ -2182,9 +2182,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.14.3"
+version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
@@ -2197,7 +2197,7 @@ version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8094feaf31ff591f651a2664fb9cfd92bba7a60ce3197265e9482ebe753c8f7"
 dependencies = [
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
 ]
 
 [[package]]
@@ -2476,7 +2476,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "168fb715dda47215e360912c096649d23d58bf392ac62f73919e831745e40f26"
 dependencies = [
  "equivalent",
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
 ]
 
 [[package]]
@@ -2689,7 +2689,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3262e75e648fce39813cb56ac41f3c3e3f65217ebf3844d818d1f9398cfb0dc"
 dependencies = [
- "hashbrown 0.14.3",
+ "hashbrown 0.14.5",
 ]
 
 [[package]]
