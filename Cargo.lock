@@ -439,7 +439,6 @@ dependencies = [
  "burn-autodiff",
  "burn-candle",
  "burn-common",
- "burn-cuda",
  "burn-dataset",
  "burn-derive",
  "burn-ndarray",

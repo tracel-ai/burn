@@ -42,7 +42,6 @@ fusion = ["burn-core/fusion"]
 
 ## Backend features
 candle-cuda = ["burn-core/candle-cuda"]
-cuda = ["burn-core/cuda"]
 metal = ["burn-core/metal"]
 accelerate = ["burn-core/accelerate"]
 openblas = ["burn-core/openblas"]
