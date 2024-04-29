@@ -1,14 +1,13 @@
 use crate as burn;
 
 use crate::module::Module;
-use crate::nn::Initializer;
-use crate::nn::Linear;
-use crate::nn::LinearConfig;
-use burn_tensor::backend::Backend;
+use crate::nn::{Initializer, Linear, LinearConfig};
+use burn_tensor::{backend::Backend, Tensor};
 
 /// A GateController represents a gate in an LSTM cell. An
 /// LSTM cell generally contains three gates: an input gate,
-/// forget gate, and cell gate.
+/// forget gate, and output gate. Additionally, cell gate
+/// is just used to compute the cell state.
 ///
 /// An Lstm gate is modeled as two linear transformations.
 /// The results of these transformations are used to calculate
@@ -16,9 +15,9 @@ use burn_tensor::backend::Backend;
 #[derive(Module, Debug)]
 pub struct GateController<B: Backend> {
     /// Represents the affine transformation applied to input vector
-    pub(crate) input_transform: Linear<B>,
+    pub input_transform: Linear<B>,
     /// Represents the affine transformation applied to the hidden state
-    pub(crate) hidden_transform: Linear<B>,
+    pub hidden_transform: Linear<B>,
 }
 
 impl<B: Backend> GateController<B> {
@@ -46,6 +45,19 @@ impl<B: Backend> GateController<B> {
             }
             .init(device),
         }
+    }
+
+    /// Helper function for performing weighted matrix product for a gate and adds
+    /// bias, if any.
+    ///
+    ///  Mathematically, performs `Wx*X + Wh*H + b`, where:
+    ///     Wx = weight matrix for the connection to input vector X
+    ///     Wh = weight matrix for the connection to hidden state H
+    ///     X = input vector
+    ///     H = hidden state
+    ///     b = bias terms
+    pub fn gate_product(&self, input: Tensor<B, 2>, hidden: Tensor<B, 2>) -> Tensor<B, 2> {
+        self.input_transform.forward(input) + self.hidden_transform.forward(hidden)
     }
 
     /// Used to initialize a gate controller with known weight layers,
