@@ -34,7 +34,7 @@ csv = "1.3.0"
 dashmap = "5.5.3"
 dirs = "5.0.1"
 fake = "2.9.1"
-flate2 = "1.0.28"
+flate2 = "1.0.29"
 float-cmp = "0.9.0"
 getrandom = { version = "0.2.14", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
