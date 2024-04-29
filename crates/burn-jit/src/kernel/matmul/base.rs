@@ -105,8 +105,6 @@ pub enum MatmulStrategy {
 }
 
 #[cfg(feature = "autotune")]
-
-
 #[cfg(not(feature = "autotune"))]
 impl Default for MatmulStrategy {
     fn default() -> Self {

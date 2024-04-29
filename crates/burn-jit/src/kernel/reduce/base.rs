@@ -111,8 +111,6 @@ pub enum ReduceStrategy {
 }
 
 #[cfg(feature = "autotune")]
-
-
 #[cfg(not(feature = "autotune"))]
 impl Default for ReduceStrategy {
     fn default() -> Self {
