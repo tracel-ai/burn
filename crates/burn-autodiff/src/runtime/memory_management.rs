@@ -67,7 +67,7 @@ impl GraphMemoryManagement {
         // But some may seem useless from some leaf but be useful from another one,
         // hence the need to iterate on all leaves.
         for leaf in leaves.clone() {
-            self.useful_propagation(leaf, Mode::Explore);
+            self.useful_propagation(leaf);
         }
 
         // New leaves are the roots of a useful backward sub-tree.
@@ -115,47 +115,59 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn useful_propagation(&mut self, node_id: NodeID, mode: Mode) {
-        let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
+    fn useful_propagation(&mut self, leaf_id: NodeID) {
+        let mut visited = HashSet::new();
+        let mut to_visit = Vec::new();
 
-        match mode {
-            Mode::TagAsUseful => {
-                self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                for parent in parents {
-                    self.useful_propagation(parent, Mode::TagAsUseful)
+        to_visit.push((leaf_id, Mode::Explore));
+
+        while let Some((node_id, current_mode)) = to_visit.pop() {
+            visited.insert(node_id);
+
+            let next_mode = match current_mode {
+                Mode::TagAsUseful => {
+                    self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                    Mode::TagAsUseful
                 }
-            }
-            Mode::Explore => {
-                let node_status = self
-                    .statuses
-                    .get(&node_id)
-                    .expect("All nodes should have received a status at this point")
-                    .clone();
+                Mode::Explore => {
+                    let node_status = self
+                        .statuses
+                        .get(&node_id)
+                        .expect("All nodes should have received a status at this point")
+                        .clone();
 
-                match node_status {
-                    NodeMemoryStatus::Useful => {
-                        // Nothing to do, was already tagged through some other path
-                    }
-                    NodeMemoryStatus::Unavailable => {
-                        // Even if this node is unavailable, it is still possible that an ancestor is useful if referenced
-                        for parent in parents {
-                            self.useful_propagation(parent, Mode::Explore);
+                    match node_status {
+                        NodeMemoryStatus::Useful => {
+                            // Nothing to do, was already tagged through some other path
+                            continue;
+                        }
+                        NodeMemoryStatus::Unavailable => {
+                            // Even if this node is unavailable, it is still possible that an ancestor is useful if referenced
+                            Mode::Explore
+                        }
+                        NodeMemoryStatus::Unknown => {
+                            // If this node is referenced and not unavailable,
+                            // then it is useful and we must retain all ancestors
+                            if self.is_referenced(node_id) {
+                                self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                                Mode::TagAsUseful
+                            } else {
+                                Mode::Explore
+                            }
                         }
                     }
-                    NodeMemoryStatus::Unknown => {
-                        // If this node is referenced and not unavailable,
-                        // then it is useful and we must retain all ancestors
+                }
+            };
 
-                        let mut mode = Mode::Explore;
-                        if self.is_referenced(node_id) {
-                            self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                            mode = Mode::TagAsUseful;
-                        }
-
-                        for parent in parents {
-                            self.useful_propagation(parent, mode.clone());
-                        }
-                    }
+            for parent in self
+                .nodes
+                .get(&node_id)
+                .cloned()
+                .unwrap_or(vec![])
+                .into_iter()
+            {
+                if !visited.contains(&parent) {
+                    to_visit.push((parent, next_mode.clone()));
                 }
             }
         }
