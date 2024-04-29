@@ -144,7 +144,7 @@ fn output_shape<const D: usize>(
         let l_dim = lsh.dims[i];
         let r_dim = rsh.dims[i];
 
-        // Compatible dmensions are:
+        // Compatible dimensions are:
         //   1. Both dimensions are equal.
         //   2. One of the dimensions is equal to 1.
         let o_dim: usize;
@@ -161,7 +161,7 @@ fn output_shape<const D: usize>(
             l_strides.push(cur_l_stride);
             r_strides.push(0);
         } else {
-            panic!("Dimensions differ and cannot be broadcast.");
+            panic!("Dimensions differ and cannot be broadcasted.");
         }
         osh[i] = o_dim;
         o_strides.push(cur_o_stride);
@@ -274,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Dimensions differ and cannot be broadcast.")]
+    #[should_panic(expected = "Dimensions differ and cannot be broadcasted.")]
     fn test_output_shape_non_broadcast() {
         output_shape(&Shape::from([4, 5, 3]), &Shape::from([2, 3, 7]));
     }
