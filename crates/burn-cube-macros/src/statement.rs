@@ -240,16 +240,15 @@ fn codegen_path(
         .get_ident()
         .expect("Only ident path are supported.");
 
-    // TODO: Check in the following statements if the ident is overriden, or reused.
     let will_be_used_again = variable_analyses.should_clone(ident, loop_level);
 
     if will_be_used_again {
         quote::quote! {
-            #ident.clone()
+            #ident.clone().into()
         }
     } else {
         quote::quote! {
-            #ident
+            #ident.into()
         }
     }
 }

@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cube"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "burn-cube-macros",
  "burn-jit",
@@ -465,12 +465,12 @@ dependencies = [
 
 [[package]]
 name = "burn-cube-macros"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "derive-new",
  "proc-macro2",
  "quote",
- "syn 2.0.55",
+ "syn 2.0.60",
 ]
 
 [[package]]

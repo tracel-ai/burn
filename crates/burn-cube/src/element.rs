@@ -122,6 +122,10 @@ impl RuntimeType for bool {
     type ExpandType = bool;
 }
 
+impl RuntimeType for u32 {
+    type ExpandType = u32;
+}
+
 impl From<u32> for UInt {
     fn from(value: u32) -> Self {
         UInt::new(value, 1)
