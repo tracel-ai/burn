@@ -39,7 +39,7 @@ float-cmp = "0.9.0"
 getrandom = { version = "0.2.14", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
 globwalk = "0.9.1"
-hashbrown = "0.14.2"
+hashbrown = "0.14.5"
 indicatif = "0.17.8"
 js-sys = "0.3.69"
 libm = "0.2.8"
