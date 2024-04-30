@@ -30,7 +30,7 @@ impl<B: FusionBackend> MultiStream<B> {
         streams: Vec<StreamId>,
         desc: OperationDescription,
         operation: Box<dyn Operation<B>>,
-        handles: &mut HandleContainer<B>,
+        handles: &mut HandleContainer<B::Handle>,
     ) {
         let id = self.maybe_drain(streams, handles);
 
@@ -65,7 +65,7 @@ impl<B: FusionBackend> MultiStream<B> {
     }
 
     /// Drain the streams.
-    pub fn drain(&mut self, handles: &mut HandleContainer<B>, id: StreamId) {
+    pub fn drain(&mut self, handles: &mut HandleContainer<B::Handle>, id: StreamId) {
         if let Some(mut stream) = self.streams.remove(&id) {
             stream.processor.process(
                 Segment::new(&mut stream.queue, handles),
@@ -80,7 +80,7 @@ impl<B: FusionBackend> MultiStream<B> {
     fn maybe_drain(
         &mut self,
         streams: Vec<StreamId>,
-        handles: &mut HandleContainer<B>,
+        handles: &mut HandleContainer<B::Handle>,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
@@ -113,7 +113,7 @@ impl<B: FusionBackend> MultiStream<B> {
         output
     }
 
-    fn free_orphans(&self, handles: &mut HandleContainer<B>) {
+    fn free_orphans(&self, handles: &mut HandleContainer<B::Handle>) {
         let nodes = self
             .streams
             .values()
@@ -134,7 +134,7 @@ struct Stream<B: FusionBackend> {
 #[derive(new)]
 struct Segment<'a, B: FusionBackend> {
     queue: &'a mut OperationQueue<B>,
-    handles: &'a mut HandleContainer<B>,
+    handles: &'a mut HandleContainer<B::Handle>,
 }
 
 impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {

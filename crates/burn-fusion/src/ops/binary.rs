@@ -11,12 +11,12 @@ macro_rules! binary_float_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
-                let rhs = handles.get_float_tensor(&self.desc.rhs);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<<B as ReprBackend>::Handle>) {
+                let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
+                let rhs = handles.get_float_tensor::<B, D>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
     };
@@ -35,12 +35,12 @@ macro_rules! binary_float_cmp_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
-                let rhs = handles.get_float_tensor(&self.desc.rhs);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
+                let rhs = handles.get_float_tensor::<B, D>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
     };
@@ -59,12 +59,12 @@ macro_rules! binary_int_cmp_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
-                let rhs = handles.get_int_tensor(&self.desc.rhs);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B, D>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
     };
@@ -93,12 +93,12 @@ macro_rules! binary_int_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
-                let rhs = handles.get_int_tensor(&self.desc.rhs);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B, D>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_int_tensor(&self.desc.out.id, output);
+                handles.register_int_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
     };

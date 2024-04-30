@@ -63,10 +63,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for IntoIntOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let output = B::bool_into_int(input);
-                handles.register_int_tensor(&self.desc.out.id, output);
+                handles.register_int_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -96,10 +96,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for IntoFloatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let output = B::bool_into_float(input);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -155,10 +155,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for ReshapeDimsOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D1>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D1>(&self.desc.input);
                 let output = B::bool_reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D2>(&self.desc.out.id, output);
             }
         }
 
@@ -189,13 +189,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_bool_tensor::<D1>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B, D1>(&self.desc.tensor);
 
                 let output =
                     B::bool_slice::<D1, D2>(tensor, self.desc.ranges.clone().try_into().unwrap());
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D1>(&self.desc.out.id, output);
             }
         }
 
@@ -233,9 +233,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceAssignOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_bool_tensor::<D1>(&self.desc.tensor);
-                let value = handles.get_bool_tensor::<D1>(&self.desc.value);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B, D1>(&self.desc.tensor);
+                let value = handles.get_bool_tensor::<B, D1>(&self.desc.value);
 
                 let output = B::bool_slice_assign::<D1, D2>(
                     tensor,
@@ -243,7 +243,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                     value,
                 );
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D1>(&self.desc.out.id, output);
             }
         }
 
@@ -278,17 +278,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for CatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensors = self
                     .desc
                     .tensors
                     .iter()
-                    .map(|tensor| handles.get_bool_tensor(tensor))
+                    .map(|tensor| handles.get_bool_tensor::<B, D>(tensor))
                     .collect();
 
                 let output = B::bool_cat::<D>(tensors, self.desc.dim);
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -330,11 +330,11 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for EqualOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let lhs = handles.get_bool_tensor::<D>(&self.desc.lhs);
-                let rhs = handles.get_bool_tensor(&self.desc.rhs);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_bool_tensor::<B, D>(&self.desc.lhs);
+                let rhs = handles.get_bool_tensor::<B, D>(&self.desc.rhs);
                 let output = B::bool_equal(lhs, rhs);
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -365,10 +365,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for NotOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let output = B::bool_not(input);
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -400,10 +400,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SwapDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let output = B::bool_swap_dims(input, self.desc.dim1, self.desc.dim2);
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -439,11 +439,11 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let axes: [usize; D] = self.desc.axes.try_into().unwrap();
                 let output = B::bool_permute(input, axes);
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -479,12 +479,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
                 let output = B::bool_expand(input, shape.into());
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D2>(&self.desc.out.id, output);
             }
         }
 
@@ -517,10 +517,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for FlipOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B, D>(&self.desc.input);
                 let output = B::bool_flip(input, self.desc.axes.as_slice());
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -553,12 +553,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for RepeatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_bool_tensor::<D>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B, D>(&self.desc.tensor);
 
                 let output = B::bool_repeat::<D>(tensor, self.desc.dim, self.desc.times);
 
-                handles.register_bool_tensor(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 

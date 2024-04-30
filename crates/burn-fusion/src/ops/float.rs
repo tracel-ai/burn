@@ -7,20 +7,9 @@ use crate::{
     stream::{execution::Operation, StreamId},
     unary_float_ops, Fusion, FusionBackend,
 };
-
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    repr::{
-        BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-        FloatOperationDescription, GatherOperationDescription, HandleContainer,
-        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-        OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-        ReduceDimWithIndicesDescription, RepeatOperationDescription, ReshapeDescription,
-        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
-        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
-        SwapDimsDescription, TensorDescription, UnaryOperationDescription,
-    },
+    repr::*,
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
@@ -47,16 +36,17 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct RandomOps<const D: usize> {
+        struct RandomOps<B: FusionBackend, const D: usize> {
             desc: RandomOperationDescription,
+            device: Device<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for RandomOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+        impl<const D: usize, B: FusionBackend> Operation<B> for RandomOps<B, D> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::FloatTensorPrimitive<D> =
-                    B::float_random(shape, self.desc.distribution, &handles.device);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                    B::float_random(shape, self.desc.distribution, &self.device);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -72,7 +62,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationDescription::Float(FloatOperationDescription::Random(desc.clone())),
-            RandomOps::<D>::new(desc),
+            RandomOps::<B, D>::new(desc, device.clone()),
         );
 
         out
@@ -80,15 +70,16 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct ZerosOps<const D: usize> {
+        struct ZerosOps<B: FusionBackend, const D: usize> {
             out: TensorDescription,
+            device: Device<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for ZerosOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+        impl<const D: usize, B: FusionBackend> Operation<B> for ZerosOps<B, D> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
-                let output = B::float_zeros::<D>(shape, &handles.device);
-                handles.register_float_tensor(&self.out.id, output);
+                let output = B::float_zeros::<D>(shape, &self.device);
+                handles.register_float_tensor::<B, D>(&self.out.id, output);
             }
         }
 
@@ -101,7 +92,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationDescription::NumericFloat(NumericOperationDescription::Zeros(desc.clone())),
-            ZerosOps::<D>::new(desc),
+            ZerosOps::<B, D>::new(desc, device.clone()),
         );
 
         out
@@ -109,15 +100,16 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct OnesOps<const D: usize> {
+        struct OnesOps<B: FusionBackend, const D: usize> {
             out: TensorDescription,
+            device: Device<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for OnesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+        impl<const D: usize, B: FusionBackend> Operation<B> for OnesOps<B, D> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
-                let output = B::float_ones::<D>(shape, &handles.device);
-                handles.register_float_tensor(&self.out.id, output);
+                let output = B::float_ones::<D>(shape, &self.device);
+                handles.register_float_tensor::<B, D>(&self.out.id, output);
             }
         }
 
@@ -130,7 +122,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationDescription::NumericFloat(NumericOperationDescription::Ones(desc.clone())),
-            OnesOps::<D>::new(desc),
+            OnesOps::<B, D>::new(desc, device.clone()),
         );
 
         out
@@ -142,17 +134,18 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct FullOps<const D: usize> {
+        struct FullOps<B: FusionBackend, const D: usize> {
             out: TensorDescription,
             elem: f32,
+            device: Device<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for FullOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+        impl<const D: usize, B: FusionBackend> Operation<B> for FullOps<B, D> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output: B::FloatTensorPrimitive<D> =
-                    B::float_full(shape, self.elem.elem(), &handles.device);
-                handles.register_float_tensor(&self.out.id, output);
+                    B::float_full(shape, self.elem.elem(), &self.device);
+                handles.register_float_tensor::<B, D>(&self.out.id, output);
             }
         }
 
@@ -165,7 +158,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationDescription::NumericFloat(NumericOperationDescription::Full(desc.clone())),
-            FullOps::<D>::new(desc.0, desc.1),
+            FullOps::<B, D>::new(desc.0, desc.1, device.clone()),
         );
 
         out
@@ -214,11 +207,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for IntoIntOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let output = B::float_into_int(input);
 
-                handles.register_int_tensor(&self.desc.out.id, output);
+                handles.register_int_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -309,11 +302,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for ClampOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.tensor);
                 let output = B::float_clamp(input, self.desc.min.elem(), self.desc.max.elem());
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -553,10 +546,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SwapDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let output = B::float_swap_dims(input, self.desc.dim1, self.desc.dim2);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -593,10 +586,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for ReshapeDimsOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D1>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D1>(&self.desc.input);
                 let output = B::float_reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D2>(&self.desc.out.id, output);
             }
         }
 
@@ -628,12 +621,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for GatherOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let indices = handles.get_int_tensor(&self.desc.indices);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B, D>(&self.desc.indices);
 
                 let output = B::float_gather(self.desc.dim, tensor, indices);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -669,14 +662,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for ScatterOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let indices = handles.get_int_tensor(&self.desc.indices);
-                let value = handles.get_float_tensor(&self.desc.value);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B, D>(&self.desc.indices);
+                let value = handles.get_float_tensor::<B, D>(&self.desc.value);
 
                 let output = B::float_scatter(self.desc.dim, tensor, indices, value);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -714,13 +707,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SelectOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let indices = handles.get_int_tensor(&self.desc.indices);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B, 1>(&self.desc.indices);
 
                 let output = B::float_select(tensor, self.desc.dim, indices);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -756,14 +749,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for SelectAssignOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let indices = handles.get_int_tensor(&self.desc.indices);
-                let value = handles.get_float_tensor(&self.desc.value);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B, 1>(&self.desc.indices);
+                let value = handles.get_float_tensor::<B, D>(&self.desc.value);
 
                 let output = B::float_select_assign(tensor, self.desc.dim, indices, value);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -801,13 +794,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D1>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D1>(&self.desc.tensor);
 
                 let output =
                     B::float_slice::<D1, D2>(tensor, self.desc.ranges.clone().try_into().unwrap());
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D1>(&self.desc.out.id, output);
             }
         }
         let stream = tensor.stream;
@@ -844,9 +837,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceAssignOps<D1, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D1>(&self.desc.tensor);
-                let value = handles.get_float_tensor::<D1>(&self.desc.value);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D1>(&self.desc.tensor);
+                let value = handles.get_float_tensor::<B, D1>(&self.desc.value);
 
                 let output = B::float_slice_assign::<D1, D2>(
                     tensor,
@@ -854,7 +847,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                     value,
                 );
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D1>(&self.desc.out.id, output);
             }
         }
 
@@ -889,14 +882,14 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaskWhereOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let value = handles.get_float_tensor(&self.desc.value);
-                let mask = handles.get_bool_tensor(&self.desc.mask);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let value = handles.get_float_tensor::<B, D>(&self.desc.value);
+                let mask = handles.get_bool_tensor::<B, D>(&self.desc.mask);
 
                 let output = B::float_mask_where(tensor, mask, value);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -934,13 +927,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaskFillOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
-                let mask = handles.get_bool_tensor(&self.desc.mask);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
+                let mask = handles.get_bool_tensor::<B, D>(&self.desc.mask);
 
                 let output = B::float_mask_fill(tensor, mask, self.desc.value.elem());
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -1223,7 +1216,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        unary_float_ops!(SumOps, B::float_sum);
+        unary_float_ops!(SumOps, B::float_sum, reduce);
 
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
@@ -1267,7 +1260,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        unary_float_ops!(MeanOps, B::float_mean);
+        unary_float_ops!(MeanOps, B::float_mean, reduce);
 
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
@@ -1532,17 +1525,17 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for CatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensors = self
                     .desc
                     .tensors
                     .iter()
-                    .map(|tensor| handles.get_float_tensor(tensor))
+                    .map(|tensor| handles.get_float_tensor::<B, D>(tensor))
                     .collect();
 
                 let output = B::float_cat::<D>(tensors, self.desc.dim);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -1609,12 +1602,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for RepeatOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
 
                 let output = B::float_repeat::<D>(tensor, self.desc.dim, self.desc.times);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -1664,7 +1657,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        unary_float_ops!(MaxOps, B::float_max);
+        unary_float_ops!(MaxOps, B::float_max, reduce);
 
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
@@ -1717,12 +1710,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MaxDimWithIndicesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
                 let (output, indices) = B::float_max_dim_with_indices(tensor, self.desc.dim);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
-                handles.register_int_tensor(&self.desc.out_indices.id, indices);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B, D>(&self.desc.out_indices.id, indices);
             }
         }
 
@@ -1751,7 +1744,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_min<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        unary_float_ops!(MinOps, B::float_min);
+        unary_float_ops!(MinOps, B::float_min, reduce);
 
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
@@ -1804,12 +1797,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for MinDimWithIndicesOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
                 let (output, indices) = B::float_min_dim_with_indices(tensor, self.desc.dim);
 
-                handles.register_float_tensor(&self.desc.out.id, output);
-                handles.register_int_tensor(&self.desc.out_indices.id, indices);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B, D>(&self.desc.out_indices.id, indices);
             }
         }
 
@@ -1873,11 +1866,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let axes: [usize; D] = self.desc.axes.try_into().unwrap();
                 let output = B::float_permute(input, axes);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 
@@ -1913,12 +1906,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, const D2: usize, B: FusionBackend> Operation<B> for ExpandOps<D, D2> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let shape: [usize; D2] = self.desc.shape.try_into().unwrap();
                 let output = B::float_expand(input, shape.into());
 
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D2>(&self.desc.out.id, output);
             }
         }
 
@@ -1951,10 +1944,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B> for FlipOps<D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let output = B::float_flip(input, &self.desc.axes);
-                handles.register_float_tensor(&self.desc.out.id, output);
+                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
         }
 

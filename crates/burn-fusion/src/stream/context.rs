@@ -13,7 +13,7 @@ pub struct Context<'a, B: FusionBackend> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
     pub tensors: &'a HashMap<TensorId, TensorDescription>,
     /// Handle container to retrieve tensors based on their description.
-    pub handles: &'a mut HandleContainer<B>,
+    pub handles: &'a mut HandleContainer<B::Handle>,
     /// Float scalars found in the graph in the order they appeared.
     pub scalar_floats: &'a Vec<f32>,
     /// Int scalars found in the graph in the order they appeared.
@@ -44,7 +44,7 @@ trait RelativeOpsScalar<E: Element> {
 impl OperationConverter {
     pub(crate) fn context<'a, B: FusionBackend>(
         &'a self,
-        handles: &'a mut HandleContainer<B>,
+        handles: &'a mut HandleContainer<B::Handle>,
     ) -> Context<'a, B> {
         Context {
             handles,

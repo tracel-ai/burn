@@ -13,7 +13,7 @@ where
     B: FusionBackend,
 {
     streams: MultiStream<B>,
-    pub(crate) handles: HandleContainer<B>,
+    pub(crate) handles: HandleContainer<B::Handle>,
     pub device: B::Device,
 }
 
@@ -24,7 +24,7 @@ where
     pub fn new(device: B::Device) -> Self {
         Self {
             streams: MultiStream::new(device.clone()),
-            handles: HandleContainer::new(device.clone()),
+            handles: HandleContainer::new(),
             device,
         }
     }
@@ -56,7 +56,7 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_float_tensor(&tensor);
+        let tensor = self.handles.get_float_tensor::<B, D>(&tensor);
         B::float_into_data(tensor)
     }
 
@@ -69,7 +69,7 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_int_tensor(&tensor);
+        let tensor = self.handles.get_int_tensor::<B, D>(&tensor);
         B::int_into_data(tensor)
     }
 
@@ -82,7 +82,7 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_bool_tensor(&tensor);
+        let tensor = self.handles.get_bool_tensor::<B, D>(&tensor);
         B::bool_into_data(tensor)
     }
 
@@ -92,45 +92,47 @@ where
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {
-        let tensor = self.handles.get_float_tensor::<D>(tensor);
+        let tensor = self.handles.get_float_tensor::<B, D>(tensor);
         let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_float_tensor(&id, tensor.clone());
+            .register_float_tensor::<B, D>(&id, tensor.clone());
 
         id
     }
+
     pub fn change_server_int<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {
-        let tensor = self.handles.get_int_tensor::<D>(tensor);
+        let tensor = self.handles.get_int_tensor::<B, D>(tensor);
         let tensor = B::int_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_int_tensor(&id, tensor.clone());
+            .register_int_tensor::<B, D>(&id, tensor.clone());
 
         id
     }
+
     pub fn change_server_bool<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
         device: &B::Device,
         server_device: &mut Self,
     ) -> Arc<TensorId> {
-        let tensor = self.handles.get_bool_tensor::<D>(tensor);
+        let tensor = self.handles.get_bool_tensor::<B, D>(tensor);
         let tensor = B::bool_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_bool_tensor(&id, tensor.clone());
+            .register_bool_tensor::<B, D>(&id, tensor.clone());
 
         id
     }

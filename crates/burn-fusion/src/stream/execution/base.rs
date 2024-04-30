@@ -18,7 +18,7 @@ pub(crate) enum ExecutionMode {
 /// General trait to abstract how a single operation is executed.
 pub trait Operation<B: FusionBackend>: Send + Sync {
     /// Execute the operation.
-    fn execute(self: Box<Self>, handles: &mut HandleContainer<B>);
+    fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>);
 }
 
 impl<B: FusionBackend> OperationQueue<B> {
@@ -26,7 +26,7 @@ impl<B: FusionBackend> OperationQueue<B> {
     pub(crate) fn execute(
         &mut self,
         id: ExecutionPlanId,
-        handles: &mut HandleContainer<B>,
+        handles: &mut HandleContainer<B::Handle>,
         store: &mut ExecutionPlanStore<B::Optimization>,
     ) {
         match &mut store.get_mut_unchecked(id).strategy {
@@ -39,7 +39,7 @@ impl<B: FusionBackend> OperationQueue<B> {
 
     fn execute_optimization(
         &mut self,
-        handles: &mut HandleContainer<B>,
+        handles: &mut HandleContainer<B::Handle>,
         optimization: &mut B::Optimization,
     ) {
         let num_drained = optimization.len();
@@ -51,7 +51,7 @@ impl<B: FusionBackend> OperationQueue<B> {
         self.operations.drain(0..num_drained);
     }
 
-    fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
+    fn execute_operations(&mut self, handles: &mut HandleContainer<B::Handle>) {
         let num_drained = self.operations.len();
 
         for operation in self.operations.drain(0..num_drained) {
@@ -61,7 +61,7 @@ impl<B: FusionBackend> OperationQueue<B> {
         self.drain_stream(num_drained, handles);
     }
 
-    fn drain_stream(&mut self, num_drained: usize, handles: &mut HandleContainer<B>) {
+    fn drain_stream(&mut self, num_drained: usize, handles: &mut HandleContainer<B::Handle>) {
         self.global[0..num_drained]
             .iter()
             .flat_map(|desc| desc.nodes())
