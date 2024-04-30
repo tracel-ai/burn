@@ -195,6 +195,8 @@ pub enum BaseOperationDescription {
     /// Int => [cat](crate::ops::IntTensorOps::int_cat).
     /// Bool => [cat](crate::ops::BoolTensorOps::bool_cat).
     Cat(CatOperationDescription),
+    /// Cast operation, no direct operation and should be supported by fusion backend.
+    Cast(CastOperationDescription),
 }
 
 /// Numeric operations on int and float tensors.
@@ -1005,6 +1007,13 @@ pub struct InterpolateDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CastOperationDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+}
+
 impl From<InterpolateModeDescription> for InterpolateMode {
     fn from(val: InterpolateModeDescription) -> Self {
         match val {
@@ -1102,6 +1111,7 @@ impl BaseOperationDescription {
                 vec![&desc.tensor, &desc.out]
             }
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
+            BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
         }
     }
 }

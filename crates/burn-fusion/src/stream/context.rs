@@ -849,6 +849,12 @@ impl RelativeOps for BaseOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            BaseOperationDescription::Cast(desc) => {
+                BaseOperationDescription::Cast(CastOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

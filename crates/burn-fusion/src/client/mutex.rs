@@ -38,6 +38,7 @@ where
     B: FusionBackend,
 {
     type FusionBackend = B;
+    type Client<B1: FusionBackend> = MutexFusionClient<B1>;
 
     fn new(device: B::Device) -> Self {
         Self {
@@ -168,5 +169,27 @@ where
 
     fn register_orphan(&self, id: &TensorId) {
         self.server.lock().drop_tensor_handle(*id);
+    }
+
+    fn to_backend<B1>(&self, tensor: FusionTensor<Self>) -> FusionTensor<Self::Client<B1>>
+    where
+        B1: FusionBackend<
+            FusionRuntime = <Self::FusionBackend as FusionBackend>::FusionRuntime,
+            Device = <Self::FusionBackend as Backend>::Device,
+        >,
+    {
+        let client = MutexFusionClient {
+            server: self.server.clone(),
+            device: self.device.clone(),
+        };
+
+        FusionTensor {
+            id: tensor.id.clone(),
+            shape: tensor.shape.clone(),
+            client,
+            dtype: tensor.dtype,
+            is_orphan: tensor.is_orphan,
+            stream: tensor.stream,
+        }
     }
 }

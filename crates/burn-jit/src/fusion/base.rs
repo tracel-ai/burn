@@ -1,11 +1,11 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
-    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, FloatElement, IntElement,
-    JitBackend, Runtime,
+    element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
+    IntElement, JitBackend, PrecisionBridge, Runtime,
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_tensor::{repr::ReprBackend, Shape};
+use burn_tensor::{backend::BackendBridge, repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
@@ -118,8 +118,22 @@ pub struct FusionJitRuntime<R: Runtime> {
 }
 
 impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
-    type FusionClient = MutexFusionClient<Self>;
     type FusionRuntime = FusionJitRuntime<R>;
+
+    type FullPrecisionBackend = JitBackend<R, f32, i32>;
+
+    fn cast_float<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        dtype: burn_tensor::DType,
+    ) -> Self::Handle {
+        match dtype {
+            burn_tensor::DType::F32 => {
+                let tensor = kernel::cast::<R, Self::FloatElem, f32, D>(tensor);
+                JitFusionHandle::from(tensor)
+            }
+            _ => panic!("Unsupported"),
+        }
+    }
 }
 
 pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {

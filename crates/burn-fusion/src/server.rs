@@ -50,7 +50,7 @@ where
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
@@ -66,7 +66,7 @@ where
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
@@ -82,7 +82,7 @@ where
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
@@ -99,7 +99,7 @@ where
         server_device: &mut Self,
     ) -> Arc<TensorId>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let tensor = self.handles.get_float_tensor::<B, D>(tensor);
         let tensor = B::float_to_device(tensor, device);
@@ -119,7 +119,7 @@ where
         server_device: &mut Self,
     ) -> Arc<TensorId>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let tensor = self.handles.get_int_tensor::<B, D>(tensor);
         let tensor = B::int_to_device(tensor, device);
@@ -139,7 +139,7 @@ where
         server_device: &mut Self,
     ) -> Arc<TensorId>
     where
-        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let tensor = self.handles.get_bool_tensor::<B, D>(tensor);
         let tensor = B::bool_to_device(tensor, device);

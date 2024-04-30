@@ -1,8 +1,11 @@
 use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
+    client::{FusionClient, MutexFusionClient},
+    stream::Context,
+    FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{
-    backend::Backend,
+    backend::{Backend, DeviceOps},
+    ops::FloatTensor,
     repr::{OperationDescription, ReprBackend},
     Device,
 };
@@ -11,7 +14,7 @@ use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> B::FusionClient {
+pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> MutexFusionClient<B> {
     CLIENTS.client(device)
 }
 
@@ -21,20 +24,23 @@ pub struct Fusion<B> {
     _backend: PhantomData<B>,
 }
 
-impl<B: FusionBackend> Backend for Fusion<B> {
+impl<B> Backend for Fusion<B>
+where
+    B: FusionBackend,
+{
     type Device = B::Device;
 
-    type FullPrecisionBridge = PrecisionBridge;
+    type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type FloatTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -45,9 +51,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<B::FusionClient>(&device.clone());
+        let client = CLIENTS.client::<MutexFusionClient<B>>(&device.clone());
         client.drain();
         B::sync(device)
+    }
+
+    fn ad_enabled() -> bool {
+        false
     }
 }
 
@@ -127,9 +137,9 @@ where
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
     /// Handle
-    type FusionHandle: Clone;
+    type FusionHandle: Clone + Send;
     /// Device
-    type FusionDevice: Clone;
+    type FusionDevice: DeviceOps;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
@@ -139,9 +149,20 @@ where
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
-pub trait FusionBackend: ReprBackend {
-    /// What kind of client should be used.
-    type FusionClient: FusionClient<FusionBackend = Self>;
+pub trait FusionBackend:
+    ReprBackend<
+    Handle = <Self::FusionRuntime as FusionRuntime>::FusionHandle,
+    Device = <Self::FusionRuntime as FusionRuntime>::FusionDevice,
+>
+{
     /// The runtime.
-    type FusionRuntime: FusionRuntime<FusionHandle = Self::Handle, FusionDevice = Self::Device>;
+    type FusionRuntime: FusionRuntime;
+
+    fn cast_float<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dtype: burn_tensor::DType,
+    ) -> Self::Handle;
+
+    /// Pointer to the full precision fusion backend.
+    type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
 }

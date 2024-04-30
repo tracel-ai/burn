@@ -13,6 +13,7 @@ use burn_tensor::{
 pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion backend](FusionBackend) associated type.
     type FusionBackend: FusionBackend;
+    type Client<B: FusionBackend>: FusionClient;
 
     /// Create a new client for the given [device](Backend::Device).
     fn new(device: Device<Self::FusionBackend>) -> Self;
@@ -75,4 +76,10 @@ pub trait FusionClient: Send + Sync + Clone {
     ) -> FusionTensor<Self>;
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
+    fn to_backend<B>(&self, tensor: FusionTensor<Self>) -> FusionTensor<Self::Client<B>>
+    where
+        B: FusionBackend<
+            FusionRuntime = <Self::FusionBackend as FusionBackend>::FusionRuntime,
+            Device = <Self::FusionBackend as Backend>::Device,
+        >;
 }
