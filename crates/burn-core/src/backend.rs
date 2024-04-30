@@ -27,9 +27,3 @@ pub use burn_tch as libtorch;
 
 #[cfg(feature = "tch")]
 pub use burn_tch::LibTorch;
-
-#[cfg(feature = "cuda")]
-pub use burn_cuda as cuda;
-
-#[cfg(feature = "cuda")]
-pub use burn_cuda::Cuda;
