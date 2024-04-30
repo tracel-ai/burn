@@ -222,6 +222,8 @@ impl OnnxGraph {
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
+        let mut unsupported_ops = vec![];
+
         for node in self.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
@@ -279,8 +281,12 @@ impl OnnxGraph {
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
-                _ => panic!("Unsupported node conversion {}", node.node_type),
+                node_type => unsupported_ops.push(node_type),
             }
+        }
+
+        if !unsupported_ops.is_empty() {
+            panic!("Unsupported ops: {:?}", unsupported_ops);
         }
 
         // Get input and output names
