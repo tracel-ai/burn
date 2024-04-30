@@ -217,9 +217,21 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = unchecked(lhs[rhs])
+    ($scope:expr, $out:ident = unchecked($lhs:ident[$rhs:expr])) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::UncheckedIndex(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out[lhs] = rhs
     ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::IndexAssign(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // unchecked(out[lhs]) = rhs
+    ($scope:expr, unchecked($out:ident[$lhs:ident]) = $rhs:expr) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::UncheckedIndexAssign(
             gpu!(binary $lhs, $rhs, $out)
         ));
     };

@@ -219,6 +219,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::UncheckedIndex(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     gpu::Operator::Sub(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -343,6 +348,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::UncheckedIndexAssign(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     gpu::Operator::BitwiseAnd(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -378,6 +388,12 @@ impl TraceBuilder {
                             // Nothing to do here.
                         }
                         gpu::Procedure::WriteGlobal(_) => {
+                            // Nothing to do here.
+                        }
+                        gpu::Procedure::CheckedIndex(_) => {
+                            // Nothing to do here.
+                        }
+                        gpu::Procedure::CheckedIndexAssign(_) => {
                             // Nothing to do here.
                         }
                         gpu::Procedure::ConditionalAssign(proc) => {

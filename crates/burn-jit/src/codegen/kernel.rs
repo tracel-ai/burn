@@ -285,6 +285,19 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
         handles.push(output.handle.clone().binding());
     }
 
+    // [2, I0stride0, I0stride1, I0shape0, I0shape1i, I1... O0...,  I0len, I1len1, O0len]
+    if R::require_array_lengths() {
+        for input in inputs.iter() {
+            let len = calculate_num_elems_dyn_rank(input.shape);
+            info.push(len as u32);
+        }
+
+        for output in outputs.iter() {
+            let len = calculate_num_elems_dyn_rank(output.shape);
+            info.push(len as u32);
+        }
+    }
+
     let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.

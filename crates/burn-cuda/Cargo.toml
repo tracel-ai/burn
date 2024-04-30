@@ -1,0 +1,40 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "CUDA backend for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "gpu", "cuda"]
+license.workspace = true
+name = "burn-cuda"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-cuda"
+version.workspace = true
+
+[features]
+default = ["fusion", "burn-jit/default"]
+fusion = ["burn-fusion", "burn-jit/fusion"]
+autotune = ["burn-jit/autotune"]
+doc = ["burn-jit/doc"]
+std = ["burn-jit/std"]
+
+[dependencies]
+burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false }
+burn-compute = { path = "../burn-compute", version = "0.14.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
+burn-common = { path = "../burn-common", version = "0.14.0" }
+burn-fusion = { path = "../burn-fusion", version = "0.14.0", optional = true }
+half = { workspace = true }
+
+bytemuck = { workspace = true }
+cudarc = "0.10.0"
+
+log = { workspace = true }
+derive-new = { workspace = true }
+
+[dev-dependencies]
+burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false, features = [
+  "export_tests",
+] }
+
+[package.metadata.docs.rs]
+features = ["doc"]

@@ -92,5 +92,26 @@ impl JitElement for f32 {
     }
 }
 
+impl JitElement for half::bf16 {
+    fn type_name() -> &'static str {
+        "bf16"
+    }
+    fn as_bytes(slice: &[Self]) -> &[u8] {
+        bytemuck::cast_slice(slice)
+    }
+    fn from_bytes(bytes: &[u8]) -> &[Self] {
+        bytemuck::cast_slice(bytes)
+    }
+    fn gpu_elem() -> gpu::Elem {
+        gpu::Elem::Float(gpu::FloatKind::BF16)
+    }
+    fn maximum_value() -> Self {
+        half::bf16::MAX
+    }
+    fn minimum_value() -> Self {
+        half::bf16::MIN
+    }
+}
 impl FloatElement for f32 {}
+impl FloatElement for half::bf16 {}
 impl IntElement for i32 {}
