@@ -38,25 +38,21 @@ impl RepeatComputeShader {
 
         let stride_input = scope.create_local(Elem::UInt);
         let stride_output = scope.create_local(Elem::UInt);
-        let shape_output = scope.create_local(Elem::UInt);
-        let shape_input = scope.create_local(Elem::UInt);
+        let shape = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
             gpu!(scope, stride_input = stride(input, i));
             gpu!(scope, stride_output = stride(output, i));
-            gpu!(scope, shape_output = shape(output, i));
-            gpu!(scope, shape_input = shape(input, i));
             if i != self.dim {
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
-                gpu!(scope, offset_local = offset_local * stride_input);
-                gpu!(scope, offset_input += offset_local);
+                gpu!(scope, shape = shape(output, i));
             } else {
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_input);
-                gpu!(scope, offset_local = offset_local * stride_input);
-                gpu!(scope, offset_input += offset_local);
+                gpu!(scope, shape = shape(input, i));
             }
+
+            gpu!(scope, offset_local = id / stride_output);
+            gpu!(scope, offset_local = offset_local % shape);
+            gpu!(scope, offset_local = offset_local * stride_input);
+            gpu!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
