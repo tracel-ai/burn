@@ -282,7 +282,7 @@ mod tests {
             let tensor_7 = tensor_6.exp();
             let tensor_8 = tensor_7.exp();
 
-            // tensor_2 should be tagged unknown through thje leaf tensor_4, then useful through the leaf tensor_8
+            // tensor_2 should be tagged unknown through the leaf tensor_4, then useful through the leaf tensor_8
             // which should happen after because tensor_2 is deeper from tensor_8 point of view and we're in breadth first search
             tensor_3.backward();
             let grads = tensor_8.backward();

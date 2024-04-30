@@ -146,12 +146,8 @@ impl GraphMemoryManagement {
                 .unwrap_or_default()
                 .into_iter()
             {
-                if !visited_as_useful.contains(&parent) {
-                    if Some(&NodeMemoryStatus::Useful) == self.statuses.get(&node_id)
-                        || !visited_as_unknown.contains(&parent)
-                    {
-                        to_visit.push((parent, Some(node_id)));
-                    }
+                if !visited_as_useful.contains(&parent) && (Some(&NodeMemoryStatus::Useful) == self.statuses.get(&node_id) || !visited_as_unknown.contains(&parent)) {
+                    to_visit.push((parent, Some(node_id)));
                 }
             }
         }
