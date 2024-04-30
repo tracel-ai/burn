@@ -9,9 +9,6 @@ use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::gpu::ComputeShader;
 use crate::kernel::GpuComputeShaderPhase;
-use crate::FloatElement;
-use crate::IntElement;
-use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
@@ -19,7 +16,6 @@ use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
-use burn_tensor::Device;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -108,18 +104,16 @@ impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
 }
 
 impl<R: Runtime> FusionKernel<R> {
-    pub fn create<K, F, I>(
+    pub fn create<K>(
         factory: &K,
         running_info: &ExecutionInfo<'_>,
-        context: &mut Context<'_, JitBackend<R, F, I>>,
-        device: Device<JitBackend<R, F, I>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
+        device: R::Device,
         client: ComputeClient<R::Server, R::Channel>,
         stateful: bool,
     ) -> ExecutableKernel<R>
     where
         K: FusionKernelFactory<R>,
-        F: FloatElement,
-        I: IntElement,
     {
         let (handles_input, inputs_description_updated, outputs_description_updated) =
             process_inputs_outputs(
@@ -273,10 +267,10 @@ fn register_info_tensor<R: Runtime>(
     }
 }
 
-fn process_inputs_outputs<'a, R, F, I>(
+fn process_inputs_outputs<'a, R>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, JitBackend<R, F, I>>,
+    context: &'a mut Context<'_, JitFusionHandle<R>>,
     stateful: bool,
 ) -> (
     Vec<JitFusionHandle<R>>,
@@ -285,8 +279,6 @@ fn process_inputs_outputs<'a, R, F, I>(
 )
 where
     R: Runtime,
-    F: FloatElement,
-    I: IntElement,
 {
     let mut inputs_description_updated = Vec::with_capacity(inputs.len());
     let mut outputs_description_updated = Vec::with_capacity(outputs.len());

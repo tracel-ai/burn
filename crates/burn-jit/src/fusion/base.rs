@@ -32,7 +32,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R, F, I>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }

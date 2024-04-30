@@ -7,8 +7,8 @@ use super::{
 use crate::{
     codegen::dialect::gpu::WorkgroupSize,
     compute::JitAutotuneKey,
-    fusion::{kernel::FusionKernel, tracing::Trace},
-    FloatElement, IntElement, JitBackend, Runtime,
+    fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
+    Runtime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
@@ -66,10 +66,7 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
 }
 
 impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
-    pub(crate) fn execute<F: FloatElement, I: IntElement>(
-        &mut self,
-        context: &mut Context<'_, JitBackend<R, F, I>>,
-    ) {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         let client = R::client(&self.device);
 
         let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
@@ -84,9 +81,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         }
     }
 
-    fn run_kernel<F: FloatElement, I: IntElement>(
+    fn run_kernel(
         &mut self,
-        context: &mut Context<'_, JitBackend<R, F, I>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
@@ -109,9 +106,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         kernel.execute();
     }
 
-    fn run_autotune<F: FloatElement, I: IntElement>(
+    fn run_autotune(
         &mut self,
-        context: &mut Context<'_, JitBackend<R, F, I>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
         key: JitAutotuneKey,
     ) {
@@ -155,9 +152,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     }
 
     /// The first output is chosen when possible, otherwise the first input is chosen.
-    pub(crate) fn autotune_shape<'a, F: FloatElement, I: IntElement>(
+    pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, JitBackend<R, F, I>>,
+        context: &mut Context<'a, JitFusionHandle<R>>,
     ) -> &'a [usize] {
         let info = self.trace.running();
 
