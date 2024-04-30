@@ -1,3 +1,4 @@
+use burn_tensor::{DType, Element};
 use std::marker::PhantomData;
 
 use crate::{
@@ -28,6 +29,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             B::bool_tensor_handle(tensor),
             shape.dims.into(),
             StreamId::current(),
+            DType::Bool,
         )
     }
 
@@ -53,6 +55,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             B::bool_tensor_handle(tensor),
             shape.dims.into(),
             StreamId::current(),
+            DType::Bool,
         )
     }
 
@@ -74,7 +77,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),
@@ -108,7 +113,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),
@@ -171,7 +178,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let stream = tensor.stream;
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = ReshapeDescription {
             input: tensor.into_description(),
@@ -216,7 +223,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = SliceOperationDescription {
             tensor: tensor.into_description(),
@@ -263,7 +270,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let shape: Vec<usize> = tensor.shape.clone();
         let stream_1 = tensor.stream;
         let stream_2 = value.stream;
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = SliceAssignOperationDescription {
             tensor: tensor.into_description(),
@@ -318,7 +325,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             shape[dim] += tensor.shape[dim];
         }
 
-        let out = client.tensor_uninitialized(shape);
+        let out = client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = CatOperationDescription {
             tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
@@ -357,7 +364,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let stream_2 = rhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
         let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
@@ -389,7 +396,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), DType::Bool);
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),
@@ -429,7 +438,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = SwapDimsDescription {
             input: tensor.into_description(),
@@ -470,7 +479,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         // Change the shape of the tensor to match the new axes
         let shape = axes.into_iter().map(|x| tensor.shape[x]).collect();
 
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = PermuteOperationDescription {
             input: tensor.into_description(),
@@ -511,7 +520,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let stream = tensor.stream;
 
-        let out = tensor.client.tensor_uninitialized(shape.dims.into());
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape.dims.into(), DType::Bool);
 
         let desc = ExpandOperationDescription {
             input: tensor.into_description(),
@@ -547,7 +558,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), DType::Bool);
 
         let desc = FlipOperationDescription {
             input: tensor.into_description(),
@@ -588,7 +601,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = times;
-        let out = tensor.client.tensor_uninitialized(shape);
+        let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
         let desc = RepeatOperationDescription {
             tensor: tensor.into_description(),

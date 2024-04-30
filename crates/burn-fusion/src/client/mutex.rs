@@ -7,6 +7,7 @@ use burn_tensor::{
     backend::Backend,
     ops::FloatElem,
     repr::{OperationDescription, TensorDescription, TensorId},
+    DType,
 };
 use spin::Mutex;
 use std::sync::Arc;
@@ -59,10 +60,10 @@ where
         self.server.lock().drain_stream(id);
     }
 
-    fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
+    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
-        FusionTensor::new(id, shape, self.clone(), StreamId::current())
+        FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
     }
 
     fn device(&self) -> &<Self::FusionBackend as Backend>::Device {
@@ -73,13 +74,14 @@ where
         handle: Handle<Self::FusionBackend>,
         shape: Vec<usize>,
         stream: StreamId,
+        dtype: DType,
     ) -> FusionTensor<Self> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(*id.as_ref(), handle);
         core::mem::drop(server);
 
-        FusionTensor::new(id, shape, self.clone(), stream)
+        FusionTensor::new(id, shape, dtype, self.clone(), stream)
     }
 
     fn read_tensor_float<const D: usize>(
@@ -123,7 +125,7 @@ where
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client, StreamId::current())
+        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
     fn change_client_int<const D: usize>(
@@ -142,7 +144,7 @@ where
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client, StreamId::current())
+        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
     fn change_client_bool<const D: usize>(
@@ -161,7 +163,7 @@ where
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client, StreamId::current())
+        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
     fn register_orphan(&self, id: &TensorId) {

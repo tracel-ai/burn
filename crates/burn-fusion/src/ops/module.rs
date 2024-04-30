@@ -10,6 +10,7 @@ use burn_tensor::{
         ModuleOps,
     },
     repr::*,
+    Element,
 };
 use std::marker::PhantomData;
 
@@ -64,7 +65,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_2 = weight.stream;
         let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let description = Conv1dDescription {
             x: x.into_description(),
@@ -129,7 +130,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_2 = weight.stream;
         let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = Conv2dDescription {
             x: x.into_description(),
@@ -188,7 +189,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_2 = weight.stream;
         let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = ConvTranspose1dDescription {
             x: x.into_description(),
@@ -255,7 +256,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_2 = weight.stream;
         let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = ConvTranspose2dDescription {
             x: x.into_description(),
@@ -305,7 +306,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream = x.stream;
         let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = AvgPool1dDescription {
             x: x.into_description(),
@@ -355,7 +356,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = AvgPool2dDescription {
             x: x.into_description(),
@@ -403,7 +404,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = grad.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = AvgPool1dBackwardDescription {
             x: x.into_description(),
@@ -454,7 +457,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = grad.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = AvgPool2dBackwardDescription {
             x: x.into_description(),
@@ -504,7 +509,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = MaxPool1dDescription {
             x: x.into_description(),
@@ -564,7 +569,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = MaxPool2dDescription {
             x: x.into_description(),
@@ -611,8 +616,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream = x.stream;
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.tensor_uninitialized(shape.clone());
-        let out_indices = x.client.tensor_uninitialized(shape);
+        let out = x
+            .client
+            .tensor_uninitialized(shape.clone(), B::FloatElem::dtype());
+        let out_indices = x.client.tensor_uninitialized(shape, B::IntElem::dtype());
 
         let desc = MaxPool1dWithIndicesDescription {
             x: x.into_description(),
@@ -676,8 +683,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape.clone());
-        let out_indices = x.client.tensor_uninitialized(shape);
+        let out = x
+            .client
+            .tensor_uninitialized(shape.clone(), B::FloatElem::dtype());
+        let out_indices = x.client.tensor_uninitialized(shape, B::IntElem::dtype());
 
         let desc = MaxPool2dWithIndicesDescription {
             x: x.into_description(),
@@ -733,7 +742,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_1 = x.stream;
         let stream_2 = output_grad.stream;
         let stream_3 = indices.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = MaxPool1dWithIndicesBackwardDescription {
             x: x.into_description(),
@@ -790,7 +801,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let stream_1 = x.stream;
         let stream_2 = output_grad.stream;
         let stream_3 = indices.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = MaxPool2dWithIndicesBackwardDescription {
             x: x.into_description(),
@@ -827,7 +840,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], output_size];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = AdaptiveAvgPool1dDescription {
             x: x.into_description(),
@@ -862,7 +875,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = AdaptiveAvgPool2dDescription {
             x: x.into_description(),
@@ -899,7 +912,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = grad.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
         let desc = AdaptiveAvgPool1dBackwardDescription {
             x: x.into_description(),
             grad: grad.into_description(),
@@ -936,7 +951,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = grad.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = AdaptiveAvgPool2dBackwardDescription {
             x: x.into_description(),
@@ -971,7 +988,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
-        let out = x.client.tensor_uninitialized(shape);
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
         let desc = InterpolateDescription {
             x: x.into_description(),
@@ -1010,7 +1027,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = grad.stream;
-        let out = x.client.tensor_uninitialized(x.shape.clone());
+        let out = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
 
         let desc = InterpolateBackwardDescription {
             x: x.into_description(),

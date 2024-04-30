@@ -109,7 +109,7 @@ impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R, f32, i32>::new(device))]
+        vec![Box::new(ElementWiseBuilder::<R>::new(device))]
     }
 }
 

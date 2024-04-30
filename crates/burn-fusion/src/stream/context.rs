@@ -883,6 +883,7 @@ impl RelativeOps for TensorDescription {
             id: relative_id,
             shape: relative_shape,
             status: self.status.clone(),
+            dtype: self.dtype,
         };
 
         // We update both mappings.
@@ -900,7 +901,10 @@ impl RelativeOps for TensorDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
+    use burn_tensor::{
+        repr::{TensorDescription, TensorId, TensorStatus},
+        DType,
+    };
 
     #[test]
     fn tensor_description_to_relative() {
@@ -908,11 +912,13 @@ mod tests {
             id: TensorId::new(500),
             shape: vec![512, 32, 2048],
             status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
         };
         let tensor2 = TensorDescription {
             id: TensorId::new(501),
             shape: vec![512, 128, 2048],
             status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
         };
         let mut converter = OperationConverter::default();
         let tensor1_local = tensor1.to_relative(&mut converter);
@@ -923,7 +929,8 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![0, 1, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32
             }
         );
         assert_eq!(
@@ -931,7 +938,8 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(1),
                 shape: vec![0, 3, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32
             }
         );
     }

@@ -6,7 +6,7 @@ use burn_tensor::{
     backend::Backend,
     ops::{FloatElem, IntElem},
     repr::{OperationDescription, TensorDescription, TensorId},
-    Data, Device, Reader,
+    DType, Data, Device, Reader,
 };
 
 /// Define how to interact with the fusion server.
@@ -25,13 +25,14 @@ pub trait FusionClient: Send + Sync + Clone {
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> &<Self::FusionBackend as Backend>::Device;
     /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
-    fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self>;
+    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<Self>;
     /// Create a tensor with the given handle and shape.
     fn register_tensor(
         &self,
         handle: Handle<Self::FusionBackend>,
         shape: Vec<usize>,
         stream: StreamId,
+        dtype: DType,
     ) -> FusionTensor<Self>;
     /// Read the values contained by a float tensor.
     fn read_tensor_float<const D: usize>(
