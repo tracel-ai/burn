@@ -111,7 +111,7 @@ impl GraphMemoryManagement {
         let mut visited_as_unknown = HashSet::new();
         let mut visited_as_useful = HashSet::new();
         let mut to_visit: Vec<(NodeID, Option<NodeID>)> =
-            leaves.iter().map(|leaf| (leaf.clone(), None)).collect();
+            leaves.iter().map(|leaf| (*leaf, None)).collect();
 
         while let Some((node_id, caller_id)) = to_visit.pop() {
             visited_as_unknown.insert(node_id);
@@ -127,16 +127,14 @@ impl GraphMemoryManagement {
                 if self.is_referenced(node_id) {
                     self.statuses.insert(node_id, NodeMemoryStatus::Useful);
                     visited_as_useful.insert(node_id);
-                } else {
-                    if let Some(caller_id) = caller_id {
-                        let caller_status = self
-                            .statuses
-                            .get(&caller_id)
-                            .expect("Caller should have status");
-                        if let NodeMemoryStatus::Useful = caller_status {
-                            self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                            visited_as_useful.insert(node_id);
-                        }
+                } else if let Some(caller_id) = caller_id {
+                    let caller_status = self
+                        .statuses
+                        .get(&caller_id)
+                        .expect("Caller should have status");
+                    if let NodeMemoryStatus::Useful = caller_status {
+                        self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                        visited_as_useful.insert(node_id);
                     }
                 }
             }

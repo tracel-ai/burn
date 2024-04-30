@@ -266,8 +266,8 @@ mod tests {
         let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
         let device = Default::default();
 
-        // but the test has 50% chance of starting with leaf tensor_8 instead of tensor_4, which is not informative
-        // by repeating it many times it becomes almost impossible that it passes if it shouldn't
+        // The test has 50% chance of starting with leaf tensor_8 instead of tensor_4, which is not informative
+        // By repeating it many times it becomes almost impossible that it passes if it shouldn't
         for _ in 0..12 {
             let tensor_0 =
                 Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
