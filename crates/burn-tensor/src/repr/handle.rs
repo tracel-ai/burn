@@ -66,7 +66,7 @@ impl<H: Clone> HandleContainer<H> {
         }
     }
 
-    /// Get the [float tensor](Backend::FloatTensorPrimitive) corresponding to the
+    /// Get the [float tensor](ReprBackend::FloatTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_float_tensor<B, const D: usize>(
         &mut self,
@@ -81,7 +81,7 @@ impl<H: Clone> HandleContainer<H> {
         )
     }
 
-    /// Get the [int tensor](Backend::IntTensorPrimitive) corresponding to the
+    /// Get the [int tensor](ReprBackend::IntTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_int_tensor<B, const D: usize>(
         &mut self,
@@ -96,7 +96,7 @@ impl<H: Clone> HandleContainer<H> {
         )
     }
 
-    /// Get the [bool tensor](Backend::BoolTensorPrimitive) corresponding to the
+    /// Get the [bool tensor](ReprBackend::BoolTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_bool_tensor<B, const D: usize>(
         &mut self,
@@ -111,7 +111,7 @@ impl<H: Clone> HandleContainer<H> {
         )
     }
 
-    /// Register a new [float tensor](Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [float tensor](ReprBackend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_float_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
@@ -123,7 +123,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [int tensor](Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [int tensor](ReprBackend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_int_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
@@ -135,7 +135,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [bool tensor](Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [bool tensor](ReprBackend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_bool_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
