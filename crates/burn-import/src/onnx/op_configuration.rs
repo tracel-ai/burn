@@ -569,8 +569,9 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         panic!("Zero shape size is not supported");
     }
 
+    // TODO: check "shape" attribute
     if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present");
+        panic!("Reshape: shape tensor must be present for {:?}", node);
     }
 
     let input_value = &node.inputs[1].value;
