@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 #[cfg(feature = "template")]
 use crate::template::TemplateKernel;
-use crate::{gpu::WorkgroupSize, kernel::GpuComputeShaderPhase, Compiler};
+use crate::{
+    codegen::CompilerRepresentation, gpu::WorkgroupSize, kernel::GpuComputeShaderPhase, Compiler,
+};
 use alloc::sync::Arc;
 
 /// Kernel for JIT backends
@@ -53,6 +55,8 @@ pub struct CompiledKernel {
     pub source: String,
     /// Size of a workgroup for the compiled kernel
     pub workgroup_size: WorkgroupSize,
+    /// The number of bytes used by the share memory
+    pub shared_mem_bytes: usize,
 }
 
 /// Information needed to launch the kernel
@@ -86,13 +90,14 @@ impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel.compile();
         let workgroup_size = gpu_ir.workgroup_size;
-
         let lower_level_ir = C::compile(gpu_ir);
+        let shared_mem_bytes = lower_level_ir.shared_memory_size();
         let source = lower_level_ir.to_string();
 
         CompiledKernel {
             source,
             workgroup_size,
+            shared_mem_bytes,
         }
     }
 

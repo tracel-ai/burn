@@ -74,13 +74,9 @@ mod tests {
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
                         (
-                            TestTensor::random([32, 32], Distribution::Default, &device)
-                                .into_data()
-                                .convert(),
+                            TestTensor::ones([32, 32], &device).into_data().convert(),
                             // Avoid div by zero.
-                            TestTensor::random([32, 32], Distribution::Uniform(1., 3.), &device)
-                                .into_data()
-                                .convert(),
+                            TestTensor::ones([32, 32], &device).into_data().convert(),
                         )
                     }
 

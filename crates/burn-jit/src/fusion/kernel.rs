@@ -1,3 +1,4 @@
+use crate::codegen::calculate_num_elems_dyn_rank;
 use crate::codegen::Compilation;
 use crate::codegen::CompilationInfo;
 use crate::codegen::CompilationSettings;
@@ -165,14 +166,14 @@ impl<R: Runtime> FusionKernel<R> {
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
         // We register the info and handles for the inputs.
-        for (handle, tensor) in handles_input.iter().zip(inputs_description_updated) {
+        for (handle, tensor) in handles_input.iter().zip(inputs_description_updated.iter()) {
             register_info_tensor(&mut info, tensor, handle);
             bindings.push(handle.handle.clone().binding());
         }
 
         // We register the info and handles for the outputs.
         for (tensor, output_info) in outputs_description_updated
-            .into_iter()
+            .iter()
             .zip(fusion_kernel.runtime_info.iter())
         {
             match output_info {
@@ -202,6 +203,19 @@ impl<R: Runtime> FusionKernel<R> {
                     output_register.push((tensor.id, handle_fusion));
                 }
             };
+        }
+
+        // [2, I0stride0, I0stride1, I0shape0, I0shape1i, I1... O0...,  I0len, I1len1, O0len]
+        if R::require_array_lengths() {
+            for input in inputs_description_updated.iter() {
+                let len = calculate_num_elems_dyn_rank(&input.shape);
+                info.push(len as u32);
+            }
+
+            for output in outputs_description_updated.iter() {
+                let len = calculate_num_elems_dyn_rank(&output.shape);
+                info.push(len as u32);
+            }
         }
 
         // Create the info buffer.

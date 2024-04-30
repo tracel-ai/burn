@@ -20,6 +20,8 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub enum FloatKind {
+    F16,
+    BF16,
     F32,
     F64,
 }
@@ -68,7 +70,8 @@ pub enum Item {
 }
 
 impl Item {
-    pub(crate) fn elem(&self) -> Elem {
+    /// Fetch the elem of the item.
+    pub fn elem(&self) -> Elem {
         match self {
             Self::Vec4(elem) => *elem,
             Self::Vec3(elem) => *elem,
