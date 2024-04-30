@@ -19,12 +19,6 @@ enum NodeMemoryStatus {
     Unknown,
 }
 
-#[derive(Clone)]
-enum Mode {
-    TagAsUseful,
-    Explore,
-}
-
 impl GraphMemoryManagement {
     /// Register a new node with its parent.
     pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
@@ -116,62 +110,106 @@ impl GraphMemoryManagement {
     }
 
     fn useful_propagation(&mut self, leaf_id: NodeID) {
-        let mut visited = HashSet::new();
-        let mut to_visit = Vec::new();
+        let mut visited = HashSet::with_capacity(self.nodes.len());
+        let mut to_visit = vec![(leaf_id, None)];
 
-        to_visit.push((leaf_id, Mode::Explore));
-
-        while let Some((node_id, current_mode)) = to_visit.pop() {
+        while let Some((node_id, caller_id)) = to_visit.pop() {
             visited.insert(node_id);
 
-            let next_mode = match current_mode {
-                Mode::TagAsUseful => {
-                    self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                    Mode::TagAsUseful
-                }
-                Mode::Explore => {
-                    let node_status = self
-                        .statuses
-                        .get(&node_id)
-                        .expect("All nodes should have received a status at this point")
-                        .clone();
+            let node_status = self
+                .statuses
+                .get(&node_id)
+                .expect("All nodes should have received a status at this point");
 
-                    match node_status {
-                        NodeMemoryStatus::Useful => {
-                            // Nothing to do, was already tagged through some other path
-                            continue;
-                        }
-                        NodeMemoryStatus::Unavailable => {
-                            // Even if this node is unavailable, it is still possible that an ancestor is useful if referenced
-                            Mode::Explore
-                        }
-                        NodeMemoryStatus::Unknown => {
-                            // If this node is referenced and not unavailable,
-                            // then it is useful and we must retain all ancestors
-                            if self.is_referenced(node_id) {
-                                self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                                Mode::TagAsUseful
-                            } else {
-                                Mode::Explore
-                            }
+            // A node is useful if it is not tagged as unavailable, and if
+            // it is directly referenced or needed by the node that called it
+            if let NodeMemoryStatus::Unknown = node_status {
+                if self.is_referenced(node_id) {
+                    self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                } else {
+                    if let Some(caller_id) = caller_id {
+                        let caller_status = self
+                            .statuses
+                            .get(&caller_id)
+                            .expect("Caller should have status");
+                        if let NodeMemoryStatus::Useful = caller_status {
+                            self.statuses.insert(node_id, NodeMemoryStatus::Useful);
                         }
                     }
                 }
-            };
+            }
 
             for parent in self
                 .nodes
                 .get(&node_id)
                 .cloned()
-                .unwrap_or(vec![])
+                .unwrap_or_default()
                 .into_iter()
             {
                 if !visited.contains(&parent) {
-                    to_visit.push((parent, next_mode.clone()));
+                    to_visit.push((parent, Some(node_id)));
                 }
             }
         }
     }
+
+    // fn useful_propagation(&mut self, leaf_id: NodeID) {
+    //     let mut visited = HashSet::with_capacity(self.nodes.len());
+    //     let mut to_visit = vec![(leaf_id, Mode::Explore)];
+
+    //     while let Some((node_id, current_mode)) = to_visit.pop() {
+    //         visited.insert(node_id);
+
+    //         let next_mode = match current_mode {
+    //             Mode::TagAsUseful => {
+    //                 self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+    //                 Mode::TagAsUseful
+    //             }
+    //             Mode::Explore => {
+    //                 let node_status = self
+    //                     .statuses
+    //                     .get(&node_id)
+    //                     .expect("All nodes should have received a status at this point")
+    //                     .clone();
+
+    //                 match node_status {
+    //                     NodeMemoryStatus::Useful => {
+    //                         // Nothing to do, was already tagged through some other path
+    //                         // Therefore its parents have already been inserted in to_visit
+    //                         continue;
+    //                     }
+    //                     NodeMemoryStatus::Unavailable => {
+    //                         // Even if this node is unavailable, it is still
+    //                         // possible that an ancestor is useful if referenced
+    //                         Mode::Explore
+    //                     }
+    //                     NodeMemoryStatus::Unknown => {
+    //                         // If this node is referenced and not unavailable,
+    //                         // then it is useful and we must retain all ancestors
+    //                         if self.is_referenced(node_id) {
+    //                             self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+    //                             Mode::TagAsUseful
+    //                         } else {
+    //                             Mode::Explore
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         };
+
+    //         for parent in self
+    //             .nodes
+    //             .get(&node_id)
+    //             .cloned()
+    //             .unwrap_or_default()
+    //             .into_iter()
+    //         {
+    //             if !visited.contains(&parent) {
+    //                 to_visit.push((parent, next_mode.clone()));
+    //             }
+    //         }
+    //     }
+    // }
 
     fn identify_leaves_and_deletables(
         &self,
@@ -180,9 +218,7 @@ impl GraphMemoryManagement {
         to_delete: &mut Vec<NodeID>,
     ) {
         let mut visited = HashSet::new();
-        let mut to_visit = Vec::new();
-
-        to_visit.push(leaf_id);
+        let mut to_visit = vec![leaf_id];
 
         while let Some(node_id) = to_visit.pop() {
             visited.insert(node_id);
@@ -202,7 +238,7 @@ impl GraphMemoryManagement {
                         .nodes
                         .get(&node_id)
                         .cloned()
-                        .unwrap_or(vec![])
+                        .unwrap_or_default()
                         .into_iter()
                     {
                         if !visited.contains(&parent) {
