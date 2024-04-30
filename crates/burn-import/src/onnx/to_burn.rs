@@ -286,7 +286,7 @@ impl OnnxGraph {
         }
 
         if !unsupported_ops.is_empty() {
-            log::warn!("Unsupported ops: {:?}", unsupported_ops);
+            panic!("Unsupported ops: {:?}", unsupported_ops);
         }
 
         // Get input and output names
