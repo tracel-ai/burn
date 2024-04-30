@@ -1,18 +1,16 @@
+use super::{execution::Operation, OperationConverter, RelativeOps};
+use crate::FusionRuntime;
 use burn_tensor::repr::OperationDescription;
 
-use crate::FusionBackend;
-
-use super::{execution::Operation, OperationConverter, RelativeOps};
-
 /// A growing list of [tensor operation descriptions](OperationDescription).
-pub struct OperationQueue<B: FusionBackend> {
+pub struct OperationQueue<R: FusionRuntime> {
     pub(crate) global: Vec<OperationDescription>,
     pub(crate) relative: Vec<OperationDescription>,
     pub(crate) converter: OperationConverter,
-    pub(crate) operations: Vec<Box<dyn Operation<B>>>,
+    pub(crate) operations: Vec<Box<dyn Operation<R>>>,
 }
 
-impl<B: FusionBackend> Default for OperationQueue<B> {
+impl<R: FusionRuntime> Default for OperationQueue<R> {
     fn default() -> Self {
         Self::new()
     }
@@ -56,7 +54,7 @@ impl core::fmt::Display for StreamId {
     }
 }
 
-impl<B: FusionBackend> OperationQueue<B> {
+impl<R: FusionRuntime> OperationQueue<R> {
     /// Create a new empty queue.
     pub fn new() -> Self {
         Self {
@@ -72,7 +70,7 @@ impl<B: FusionBackend> OperationQueue<B> {
     /// The new [operation description](OperationDescription) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<B>>) {
+    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<R>>) {
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
         self.global.push(global);

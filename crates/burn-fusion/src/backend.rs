@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &B::Device) -> B::FusionClient {
+pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> B::FusionClient {
     CLIENTS.client(device)
 }
 
@@ -101,9 +101,9 @@ pub trait OptimizationBuilder<O>: Send {
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
-pub trait Optimization<B: FusionBackend>: Send {
+pub trait Optimization<R: FusionRuntime>: Send {
     /// Execute the operation.
-    fn execute(&mut self, context: &mut Context<'_, B::Handle>);
+    fn execute(&mut self, context: &mut Context<'_, R::FusionHandle>);
     /// The number of registered operations in this optimization.
     fn len(&self) -> usize;
     /// If the current optimization is empty.
@@ -111,22 +111,37 @@ pub trait Optimization<B: FusionBackend>: Send {
         self.len() == 0
     }
     /// Returns the state that can be serialized.
-    fn to_state(&self) -> B::OptimizationState;
+    fn to_state(&self) -> R::OptimizationState;
     /// Create the optimization from the state.
-    fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
+    fn from_state(device: &R::FusionDevice, state: R::OptimizationState) -> Self;
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
-pub trait FusionBackend: Backend + ReprBackend {
+pub trait FusionRuntime: Send + Sync
+where
+    Self: Sized,
+{
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
-    /// What kind of client should be used.
-    type FusionClient: FusionClient<FusionBackend = Self>;
+    /// Handle
+    type FusionHandle: Clone;
+    /// Device
+    type FusionDevice: Clone;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: Device<Self>)
-        -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+    fn optimizations(
+        device: Self::FusionDevice,
+    ) -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+}
+
+/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
+/// [operation builder](crate::OptimizationBuilder).
+pub trait FusionBackend: ReprBackend {
+    /// What kind of client should be used.
+    type FusionClient: FusionClient<FusionBackend = Self>;
+    /// The runtime.
+    type FusionRuntime: FusionRuntime<FusionHandle = Self::Handle, FusionDevice = Self::Device>;
 }

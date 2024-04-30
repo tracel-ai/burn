@@ -1,6 +1,6 @@
 use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
-    FusionBackend,
+    FusionBackend, FusionRuntime,
 };
 use burn_tensor::{
     ops::{FloatElem, IntElem},
@@ -8,20 +8,17 @@ use burn_tensor::{
 };
 use std::sync::Arc;
 
-pub struct FusionServer<B>
-where
-    B: FusionBackend,
-{
-    streams: MultiStream<B>,
-    pub(crate) handles: HandleContainer<B::Handle>,
-    pub device: B::Device,
+pub struct FusionServer<R: FusionRuntime> {
+    streams: MultiStream<R>,
+    pub(crate) handles: HandleContainer<R::FusionHandle>,
+    pub device: R::FusionDevice,
 }
 
-impl<B> FusionServer<B>
+impl<R> FusionServer<R>
 where
-    B: FusionBackend,
+    R: FusionRuntime,
 {
-    pub fn new(device: B::Device) -> Self {
+    pub fn new(device: R::FusionDevice) -> Self {
         Self {
             streams: MultiStream::new(device.clone()),
             handles: HandleContainer::new(),
@@ -33,7 +30,7 @@ where
         &mut self,
         streams: Vec<StreamId>,
         desc: OperationDescription,
-        operation: Box<dyn Operation<B>>,
+        operation: Box<dyn Operation<R>>,
     ) {
         self.streams
             .register(streams, desc, operation, &mut self.handles)
@@ -47,11 +44,14 @@ where
         self.handles.create_tensor_uninit()
     }
 
-    pub fn read_float<const D: usize>(
+    pub fn read_float<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
+    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
@@ -60,11 +60,14 @@ where
         B::float_into_data(tensor)
     }
 
-    pub fn read_int<const D: usize>(
+    pub fn read_int<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
+    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
@@ -73,11 +76,14 @@ where
         B::int_into_data(tensor)
     }
 
-    pub fn read_bool<const D: usize>(
+    pub fn read_bool<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
+    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
@@ -86,12 +92,15 @@ where
         B::bool_into_data(tensor)
     }
 
-    pub fn change_server_float<const D: usize>(
+    pub fn change_server_float<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-        device: &B::Device,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         let tensor = self.handles.get_float_tensor::<B, D>(tensor);
         let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
@@ -103,12 +112,15 @@ where
         id
     }
 
-    pub fn change_server_int<const D: usize>(
+    pub fn change_server_int<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-        device: &B::Device,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         let tensor = self.handles.get_int_tensor::<B, D>(tensor);
         let tensor = B::int_to_device(tensor, device);
         let id = server_device.create_empty_handle();
@@ -120,12 +132,15 @@ where
         id
     }
 
-    pub fn change_server_bool<const D: usize>(
+    pub fn change_server_bool<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-        device: &B::Device,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<Handle = R::FusionHandle, Device = R::FusionDevice>,
+    {
         let tensor = self.handles.get_bool_tensor::<B, D>(tensor);
         let tensor = B::bool_to_device(tensor, device);
         let id = server_device.create_empty_handle();

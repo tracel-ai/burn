@@ -11,15 +11,17 @@ use burn_tensor::{
     },
     repr::*,
 };
+use std::marker::PhantomData;
 
 macro_rules! make_ops {
     ($name:ident, $desc:ty, $fn:expr) => {
         #[derive(new)]
-        struct $name {
+        struct $name<B: FusionBackend> {
             desc: $desc,
+            _b: PhantomData<B>,
         }
 
-        impl<B: FusionBackend> Operation<B> for $name {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 #[allow(clippy::redundant_closure_call)]
                 $fn(self.desc, handles)
@@ -79,7 +81,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.clone().register(
             streams,
             OperationDescription::Module(ModuleOperationDescription::Conv1d(description.clone())),
-            Conv1dOps::new(description),
+            Conv1dOps::<B>::new(description),
         );
 
         out
@@ -144,7 +146,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             streams,
             OperationDescription::Module(ModuleOperationDescription::Conv2d(desc.clone())),
-            Conv2dOps::new(desc),
+            Conv2dOps::<B>::new(desc),
         );
 
         out
@@ -203,7 +205,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             streams,
             OperationDescription::Module(ModuleOperationDescription::ConvTranspose1d(desc.clone())),
-            ConvTranspose1dOps::new(desc),
+            ConvTranspose1dOps::<B>::new(desc),
         );
 
         out
@@ -270,7 +272,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             streams,
             OperationDescription::Module(ModuleOperationDescription::ConvTranspose2d(desc.clone())),
-            ConvTranspose2dOps::new(desc),
+            ConvTranspose2dOps::<B>::new(desc),
         );
 
         out
@@ -316,7 +318,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::Module(ModuleOperationDescription::AvgPool1d(desc.clone())),
-            AvgPool1dOps::new(desc),
+            AvgPool1dOps::<B>::new(desc),
         );
 
         out
@@ -366,7 +368,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::Module(ModuleOperationDescription::AvgPool2d(desc.clone())),
-            AvgPool2dOps::new(desc),
+            AvgPool2dOps::<B>::new(desc),
         );
 
         out
@@ -417,7 +419,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AvgPool1dBackward(
                 desc.clone(),
             )),
-            AvgPool1dBackwardOps::new(desc),
+            AvgPool1dBackwardOps::<B>::new(desc),
         );
 
         out
@@ -468,7 +470,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AvgPool2dBackward(
                 desc.clone(),
             )),
-            AvgPool2dBackwardOps::new(desc),
+            AvgPool2dBackwardOps::<B>::new(desc),
         );
 
         out
@@ -515,7 +517,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::Module(ModuleOperationDescription::MaxPool1d(desc.clone())),
-            MaxPool1dOps::new(desc),
+            MaxPool1dOps::<B>::new(desc),
         );
 
         out
@@ -575,7 +577,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::Module(ModuleOperationDescription::MaxPool2d(desc.clone())),
-            MaxPool2dOps::new(desc),
+            MaxPool2dOps::<B>::new(desc),
         );
 
         out
@@ -626,7 +628,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::MaxPool1dWithIndices(
                 desc.clone(),
             )),
-            MaxPool1dWithIndicesOps::new(desc),
+            MaxPool1dWithIndicesOps::<B>::new(desc),
         );
 
         MaxPool1dWithIndices::new(out, out_indices)
@@ -691,7 +693,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::MaxPool2dWithIndices(
                 desc.clone(),
             )),
-            MaxPool2dWithIndicesOps::new(desc),
+            MaxPool2dWithIndicesOps::<B>::new(desc),
         );
 
         MaxPool2dWithIndices::new(out, out_indices)
@@ -748,7 +750,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::MaxPool1dWithIndicesBackward(
                 desc.clone(),
             )),
-            MaxPool1dWithIndicesBackwardOps::new(desc),
+            MaxPool1dWithIndicesBackwardOps::<B>::new(desc),
         );
 
         MaxPool1dBackward::new(out)
@@ -805,7 +807,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::MaxPool2dWithIndicesBackward(
                 desc.clone(),
             )),
-            MaxPool2dWithIndicesBackwardOps::new(desc),
+            MaxPool2dWithIndicesBackwardOps::<B>::new(desc),
         );
 
         MaxPool2dBackward::new(out)
@@ -837,7 +839,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool1d(
                 desc.clone(),
             )),
-            AdaptiveAvgPool1dOps::new(desc),
+            AdaptiveAvgPool1dOps::<B>::new(desc),
         );
 
         out
@@ -872,7 +874,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool2d(
                 desc.clone(),
             )),
-            AdaptiveAvgPool2dOps::new(desc),
+            AdaptiveAvgPool2dOps::<B>::new(desc),
         );
 
         out
@@ -909,7 +911,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool1dBackward(
                 desc.clone(),
             )),
-            AdaptiveAvgPool1dBackwardOps::new(desc),
+            AdaptiveAvgPool1dBackwardOps::<B>::new(desc),
         );
 
         out
@@ -946,7 +948,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::AdaptiveAvgPool2dBackward(
                 desc.clone(),
             )),
-            AdaptiveAvgPool2dBackwardOps::new(desc),
+            AdaptiveAvgPool2dBackwardOps::<B>::new(desc),
         );
 
         out
@@ -981,7 +983,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out.client.register(
             vec![stream],
             OperationDescription::Module(ModuleOperationDescription::Interpolate(desc.clone())),
-            InterpolateOps::new(desc),
+            InterpolateOps::<B>::new(desc),
         );
 
         out
@@ -1022,7 +1024,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::InterpolateBackward(
                 desc.clone(),
             )),
-            InterpolateBackwardOps::new(desc),
+            InterpolateBackwardOps::<B>::new(desc),
         );
         out
     }

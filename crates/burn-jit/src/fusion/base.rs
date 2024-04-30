@@ -4,7 +4,7 @@ use crate::{
     JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
-use burn_fusion::{client::MutexFusionClient, FusionBackend};
+use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
@@ -26,11 +26,9 @@ pub enum JitOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<R, F, I> burn_fusion::Optimization<JitBackend<R, F, I>> for JitOptimization<R>
+impl<R> burn_fusion::Optimization<FusionJitRuntime<R>> for JitOptimization<R>
 where
     R: Runtime,
-    F: FloatElement,
-    I: IntElement,
 {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
@@ -102,16 +100,26 @@ impl<R: Runtime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F
     }
 }
 
-impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
+impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
-    type FusionClient = MutexFusionClient<Self>;
+    type FusionHandle = JitFusionHandle<R>;
+    type FusionDevice = R::Device;
 
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R, F, I>::new(device))]
+        vec![Box::new(ElementWiseBuilder::<R, f32, i32>::new(device))]
     }
+}
+
+pub struct FusionJitRuntime<R: Runtime> {
+    _b: PhantomData<R>,
+}
+
+impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
+    type FusionClient = MutexFusionClient<Self>;
+    type FusionRuntime = FusionJitRuntime<R>;
 }
 
 pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {

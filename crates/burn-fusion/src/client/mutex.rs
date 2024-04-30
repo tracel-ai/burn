@@ -16,7 +16,7 @@ pub struct MutexFusionClient<B>
 where
     B: FusionBackend,
 {
-    server: Arc<Mutex<FusionServer<B>>>,
+    server: Arc<Mutex<FusionServer<B::FusionRuntime>>>,
     device: B::Device,
 }
 
@@ -45,12 +45,10 @@ where
         }
     }
 
-    fn register<O: Operation<Self::FusionBackend> + 'static>(
-        &self,
-        streams: Vec<StreamId>,
-        description: OperationDescription,
-        operation: O,
-    ) {
+    fn register<O>(&self, streams: Vec<StreamId>, description: OperationDescription, operation: O)
+    where
+        O: Operation<<Self::FusionBackend as FusionBackend>::FusionRuntime> + 'static,
+    {
         self.server
             .lock()
             .register(streams, description, Box::new(operation))
@@ -89,7 +87,7 @@ where
         tensor: TensorDescription,
         stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusionBackend>, D>> {
-        self.server.lock().read_float(tensor, stream)
+        self.server.lock().read_float::<B, D>(tensor, stream)
     }
 
     fn read_tensor_int<const D: usize>(
@@ -98,7 +96,7 @@ where
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusionBackend>, D>>
     {
-        self.server.lock().read_int(tensor, id)
+        self.server.lock().read_int::<B, D>(tensor, id)
     }
 
     fn read_tensor_bool<const D: usize>(
@@ -106,7 +104,7 @@ where
         tensor: TensorDescription,
         stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
-        self.server.lock().read_bool(tensor, stream)
+        self.server.lock().read_bool::<B, D>(tensor, stream)
     }
 
     fn change_client_float<const D: usize>(
@@ -120,7 +118,7 @@ where
         server_current.drain_stream(stream);
 
         let id =
-            server_current.change_server_float::<D>(&tensor, &client.device, &mut server_other);
+            server_current.change_server_float::<B, D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -138,7 +136,8 @@ where
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_int::<D>(&tensor, &client.device, &mut server_other);
+        let id =
+            server_current.change_server_int::<B, D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -156,7 +155,8 @@ where
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_bool::<D>(&tensor, &client.device, &mut server_other);
+        let id =
+            server_current.change_server_bool::<B, D>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);

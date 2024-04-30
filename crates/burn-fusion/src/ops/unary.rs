@@ -13,11 +13,12 @@ macro_rules! scalar_float_ops {
         $elem:ty
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<$elem>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
@@ -33,11 +34,12 @@ macro_rules! scalar_float_ops {
         noconvert
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<$elem>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs);
@@ -57,11 +59,12 @@ macro_rules! scalar_float2int_ops {
         $elem:ty
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<$elem>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs.clone());
@@ -80,11 +83,12 @@ macro_rules! unary_float_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let output = $ops(input);
@@ -99,11 +103,12 @@ macro_rules! unary_float_ops {
         reduce
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_float_tensor::<B, D>(&self.desc.input);
                 let output = $ops(input);
@@ -122,11 +127,12 @@ macro_rules! unary_int_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B, D>(&self.desc.input);
                 let output = $ops(input);
@@ -141,11 +147,12 @@ macro_rules! unary_int_ops {
         reduce
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B, D>(&self.desc.input);
                 let output = $ops(input);
@@ -164,11 +171,12 @@ macro_rules! scalar_float_cmp_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<f32>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
@@ -187,11 +195,12 @@ macro_rules! scalar_int_cmp_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<i32>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
@@ -217,11 +226,12 @@ macro_rules! scalar_int_ops {
         $elem:ty
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<$elem>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
@@ -237,11 +247,12 @@ macro_rules! scalar_int_ops {
         noconvert
     ) => {
         #[derive(new)]
-        struct $name<const D: usize> {
+        struct $name<B: FusionBackend, const D: usize> {
             desc: ScalarOperationDescription<$elem>,
+            _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
                 let output = $ops(lhs, self.desc.rhs);
