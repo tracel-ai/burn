@@ -307,7 +307,7 @@ fn same_as_input(node: &mut Node) {
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
 fn temporary_pass_through_stub(node: &mut Node) {
-    log::error!("Must implement dimension inference for {:?}", node);
+    log::warn!("Must implement dimension inference for {:?}", node);
     log::warn!("Temporarily setting the output type to the input type.");
     node.outputs[0].ty = node.inputs[0].ty.clone();
 }
