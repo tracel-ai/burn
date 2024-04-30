@@ -161,35 +161,51 @@ impl GraphMemoryManagement {
         }
     }
 
+    fn identify_leaves_and_deletables(
+        &self,
+        leaf_id: NodeID,
+        new_leaves: &mut HashSet<NodeID>,
+        to_delete: &mut Vec<NodeID>,
+    ) {
+        let mut visited = HashSet::new();
+        let mut to_visit = Vec::new();
+
+        to_visit.push(leaf_id);
+
+        while let Some(node_id) = to_visit.pop() {
+            visited.insert(node_id);
+
+            match self
+                .statuses
+                .get(&node_id)
+                .expect("Node should have status")
+            {
+                NodeMemoryStatus::Useful => {
+                    new_leaves.insert(node_id);
+                }
+                _ => {
+                    to_delete.push(node_id);
+
+                    for parent in self
+                        .nodes
+                        .get(&node_id)
+                        .cloned()
+                        .unwrap_or(vec![])
+                        .into_iter()
+                    {
+                        if !visited.contains(&parent) {
+                            to_visit.push(parent);
+                        }
+                    }
+                }
+            };
+        }
+    }
+
     fn is_referenced(&self, node_id: NodeID) -> bool {
         match self.nodes.get_key_value(&node_id) {
             Some((key, _value)) => Arc::strong_count(key) > 1,
             None => panic!("Node should be in the nodes map"),
-        }
-    }
-
-    fn identify_leaves_and_deletables(
-        &self,
-        node_id: NodeID,
-        new_leaves: &mut HashSet<NodeID>,
-        to_delete: &mut Vec<NodeID>,
-    ) {
-        let current_status = self
-            .statuses
-            .get(&node_id)
-            .expect("Node should have status");
-
-        match current_status {
-            NodeMemoryStatus::Useful => {
-                new_leaves.insert(node_id);
-            }
-            _ => {
-                let parents = self.nodes.get(&node_id).cloned().unwrap_or(vec![]);
-                for parent in parents {
-                    self.identify_leaves_and_deletables(parent, new_leaves, to_delete)
-                }
-                to_delete.push(node_id);
-            }
         }
     }
 }

@@ -238,4 +238,26 @@ mod tests {
         assert!(tensor_2.grad(&grads).is_some());
         assert!(tensor_3.grad(&grads).is_none());
     }
+
+    #[test]
+    #[should_panic]
+    fn test_mm_deletables_propagate_well() {
+        let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
+        let device = Default::default();
+
+        let tensor_0 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+        let tensor_1 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+
+        let tensor_2 = tensor_0 * tensor_1;
+        let tensor_3 = tensor_2.clone().exp();
+        let tensor_4 = tensor_3.clone().log();
+
+        let grads = tensor_2.backward();
+
+        // We are testing that after backward on tensor_2, not only the leaf tensor_4 is deleted, but
+        // the intermediate tensor_3 as well
+        let grads = tensor_3.backward();
+    }
 }

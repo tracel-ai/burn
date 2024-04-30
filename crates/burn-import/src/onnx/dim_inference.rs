@@ -119,16 +119,17 @@ fn linear_update_outputs(node: &mut Node) {
     // known, we can calculate the output shape.
     if let ArgType::Tensor(tensor) = node_input.clone().ty {
         let mut tensor = tensor.clone();
-        let mut shape = tensor.shape.clone().unwrap();
 
-        if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
-            let last = shape.last_mut().unwrap();
-            *last = *weight_tensor.shape.unwrap().first().unwrap();
-        } else {
-            panic!("Weight must be a tensor");
+        // Update the shape of the output tensor if it's known
+        if let Some(mut shape) = tensor.shape.clone() {
+            if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
+                let last = shape.last_mut().unwrap();
+                *last = *weight_tensor.shape.unwrap().first().unwrap();
+            } else {
+                panic!("Weight must be a tensor");
+            }
+            tensor.shape = Some(shape);
         }
-
-        tensor.shape = Some(shape);
 
         // Update the output tensor
         node.outputs[0].ty = ArgType::Tensor(tensor);
