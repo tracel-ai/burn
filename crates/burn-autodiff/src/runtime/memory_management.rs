@@ -12,7 +12,7 @@ pub struct GraphMemoryManagement {
     statuses: HashMap<NodeID, NodeMemoryStatus>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum NodeMemoryStatus {
     Useful,
     Unavailable,
@@ -60,9 +60,7 @@ impl GraphMemoryManagement {
         // available node with a tensor reference exist in their descendance.
         // But some may seem useless from some leaf but be useful from another one,
         // hence the need to iterate on all leaves.
-        for leaf in leaves.clone() {
-            self.useful_propagation(leaf);
-        }
+        self.useful_propagation(&leaves);
 
         // New leaves are the roots of a useful backward sub-tree.
         // Deletables are everything not marked as useful.
@@ -109,12 +107,14 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn useful_propagation(&mut self, leaf_id: NodeID) {
-        let mut visited = HashSet::with_capacity(self.nodes.len());
-        let mut to_visit = vec![(leaf_id, None)];
+    fn useful_propagation(&mut self, leaves: &HashSet<NodeID>) {
+        let mut visited_as_unknown = HashSet::new();
+        let mut visited_as_useful = HashSet::new();
+        let mut to_visit: Vec<(NodeID, Option<NodeID>)> =
+            leaves.iter().map(|leaf| (leaf.clone(), None)).collect();
 
         while let Some((node_id, caller_id)) = to_visit.pop() {
-            visited.insert(node_id);
+            visited_as_unknown.insert(node_id);
 
             let node_status = self
                 .statuses
@@ -126,6 +126,7 @@ impl GraphMemoryManagement {
             if let NodeMemoryStatus::Unknown = node_status {
                 if self.is_referenced(node_id) {
                     self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                    visited_as_useful.insert(node_id);
                 } else {
                     if let Some(caller_id) = caller_id {
                         let caller_status = self
@@ -134,6 +135,7 @@ impl GraphMemoryManagement {
                             .expect("Caller should have status");
                         if let NodeMemoryStatus::Useful = caller_status {
                             self.statuses.insert(node_id, NodeMemoryStatus::Useful);
+                            visited_as_useful.insert(node_id);
                         }
                     }
                 }
@@ -146,70 +148,16 @@ impl GraphMemoryManagement {
                 .unwrap_or_default()
                 .into_iter()
             {
-                if !visited.contains(&parent) {
-                    to_visit.push((parent, Some(node_id)));
+                if !visited_as_useful.contains(&parent) {
+                    if Some(&NodeMemoryStatus::Useful) == self.statuses.get(&node_id)
+                        || !visited_as_unknown.contains(&parent)
+                    {
+                        to_visit.push((parent, Some(node_id)));
+                    }
                 }
             }
         }
     }
-
-    // fn useful_propagation(&mut self, leaf_id: NodeID) {
-    //     let mut visited = HashSet::with_capacity(self.nodes.len());
-    //     let mut to_visit = vec![(leaf_id, Mode::Explore)];
-
-    //     while let Some((node_id, current_mode)) = to_visit.pop() {
-    //         visited.insert(node_id);
-
-    //         let next_mode = match current_mode {
-    //             Mode::TagAsUseful => {
-    //                 self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-    //                 Mode::TagAsUseful
-    //             }
-    //             Mode::Explore => {
-    //                 let node_status = self
-    //                     .statuses
-    //                     .get(&node_id)
-    //                     .expect("All nodes should have received a status at this point")
-    //                     .clone();
-
-    //                 match node_status {
-    //                     NodeMemoryStatus::Useful => {
-    //                         // Nothing to do, was already tagged through some other path
-    //                         // Therefore its parents have already been inserted in to_visit
-    //                         continue;
-    //                     }
-    //                     NodeMemoryStatus::Unavailable => {
-    //                         // Even if this node is unavailable, it is still
-    //                         // possible that an ancestor is useful if referenced
-    //                         Mode::Explore
-    //                     }
-    //                     NodeMemoryStatus::Unknown => {
-    //                         // If this node is referenced and not unavailable,
-    //                         // then it is useful and we must retain all ancestors
-    //                         if self.is_referenced(node_id) {
-    //                             self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-    //                             Mode::TagAsUseful
-    //                         } else {
-    //                             Mode::Explore
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         };
-
-    //         for parent in self
-    //             .nodes
-    //             .get(&node_id)
-    //             .cloned()
-    //             .unwrap_or_default()
-    //             .into_iter()
-    //         {
-    //             if !visited.contains(&parent) {
-    //                 to_visit.push((parent, next_mode.clone()));
-    //             }
-    //         }
-    //     }
-    // }
 
     fn identify_leaves_and_deletables(
         &self,
