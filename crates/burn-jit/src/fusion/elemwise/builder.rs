@@ -125,6 +125,9 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 .register_binary_ops(desc, |lhs, rhs, out| {
                     Operator::Equal(BinaryOperator { lhs, rhs, out })
                 }),
+            BaseOperationDescription::Cast(desc) => self.register_unary_ops(desc, |input, out| {
+                Operator::Assign(UnaryOperator { input, out })
+            }),
             _ => false,
         }
     }

@@ -1,7 +1,5 @@
 use crate::{
-    client::{FusionClient, MutexFusionClient},
-    stream::Context,
-    FusionClientLocator, FusionTensor, PrecisionBridge,
+    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
@@ -14,7 +12,7 @@ use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> MutexFusionClient<B> {
+pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
     CLIENTS.client(device)
 }
 
@@ -32,15 +30,15 @@ where
 
     type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
+    type FloatTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<MutexFusionClient<B>>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -51,7 +49,7 @@ where
     }
 
     fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<MutexFusionClient<B>>(&device.clone());
+        let client = CLIENTS.client::<Client<B::FusionRuntime>>(&device.clone());
         client.drain();
         B::sync(device)
     }
@@ -126,6 +124,13 @@ pub trait Optimization<R: FusionRuntime>: Send {
     fn from_state(device: &R::FusionDevice, state: R::OptimizationState) -> Self;
 }
 
+/// Type alias for `<R as FusionRuntime>::FusionDevice`.
+pub type FusionDevice<R> = <R as FusionRuntime>::FusionDevice;
+/// Type alias for `<R as FusionRuntime>::FusionHandle`.
+pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
+/// Type alias for `<R as FusionRuntime>::FusionClient`.
+pub type Client<R> = <R as FusionRuntime>::FusionClient;
+
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionRuntime: Send + Sync
@@ -140,6 +145,8 @@ where
     type FusionHandle: Clone + Send;
     /// Device
     type FusionDevice: DeviceOps;
+    /// The client to be used.
+    type FusionClient: FusionClient<FusionRuntime = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
@@ -158,6 +165,7 @@ pub trait FusionBackend:
     /// The runtime.
     type FusionRuntime: FusionRuntime;
 
+    /// Cast a float tensor.
     fn cast_float<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dtype: burn_tensor::DType,

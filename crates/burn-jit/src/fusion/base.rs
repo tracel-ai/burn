@@ -1,11 +1,11 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
-    IntElement, JitBackend, PrecisionBridge, Runtime,
+    IntElement, JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_tensor::{backend::BackendBridge, repr::ReprBackend, Shape};
+use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
@@ -105,6 +105,7 @@ impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     type Optimization = JitOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
     type FusionDevice = R::Device;
+    type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(
         device: R::Device,

@@ -5,7 +5,7 @@ use burn_tensor::{
     backend::BackendBridge,
     ops::FloatTensor,
     repr::{
-        BaseOperationDescription, CastOperationDescription, HandleContainer, OperationDescription,
+        BaseOperationDescription, HandleContainer, OperationDescription, UnaryOperationDescription,
     },
     Element,
 };
@@ -17,106 +17,73 @@ pub struct PrecisionBridge<B: FusionBackend> {
     _b: PhantomData<B>,
 }
 
-impl<BInput, BOutput> BackendBridge<Fusion<BInput>> for PrecisionBridge<BOutput>
+impl<BInput, BTarget> BackendBridge<Fusion<BInput>> for PrecisionBridge<BTarget>
 where
     BInput: FusionBackend,
-    BOutput: FusionBackend<FusionRuntime = BInput::FusionRuntime, Device = BInput::Device>,
+    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime, Device = BInput::Device>,
 {
-    type Target = Fusion<BOutput>;
+    type Target = Fusion<BTarget>;
 
     fn into_target<const D: usize>(
         tensor: FloatTensor<Fusion<BInput>, D>,
         _device: Option<burn_tensor::Device<Self::Target>>,
     ) -> FloatTensor<Self::Target, D> {
-        #[derive(new)]
-        struct Cast<BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
-            desc: CastOperationDescription,
-            _bi: PhantomData<BInput>,
-            _bt: PhantomData<BTarget>,
-        }
-
-        impl<const D: usize, BInput, BOutput> Operation<BOutput::FusionRuntime> for Cast<BInput, BOutput, D>
-        where
-            BInput: FusionBackend,
-            BOutput: FusionBackend<FusionRuntime = BInput::FusionRuntime, Device = BInput::Device>,
-        {
-            fn execute(
-                self: Box<Self>,
-                handles: &mut HandleContainer<
-                    <BOutput::FusionRuntime as FusionRuntime>::FusionHandle,
-                >,
-            ) {
-                let input = handles.get_float_tensor::<BInput, D>(&self.desc.input);
-                let output = BInput::cast_float(input, BOutput::FloatElem::dtype());
-
-                handles.register_handle(self.desc.out.id, output);
-            }
-        }
-
-        let stream = tensor.stream;
-        let out = tensor
-            .client
-            .tensor_uninitialized(tensor.shape.clone(), BOutput::FloatElem::dtype());
-
-        let desc = CastOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-
-        out.client.register(
-            vec![stream],
-            OperationDescription::BaseFloat(BaseOperationDescription::Cast(desc.clone())),
-            Cast::<BInput, BOutput, D>::new(desc),
-        );
-
-        out.client.clone().to_backend::<BOutput>(out)
+        cast::<BInput, BTarget, D>(tensor)
     }
 
     fn from_target<const D: usize>(
         tensor: FloatTensor<Self::Target, D>,
         _device: Option<burn_tensor::Device<Fusion<BInput>>>,
     ) -> FloatTensor<Fusion<BInput>, D> {
-        #[derive(new)]
-        struct Cast<BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
-            desc: CastOperationDescription,
-            _bi: PhantomData<BInput>,
-            _bt: PhantomData<BTarget>,
-        }
-
-        impl<const D: usize, BInput, BOutput> Operation<BInput::FusionRuntime> for Cast<BInput, BOutput, D>
-        where
-            BInput: FusionBackend,
-            BOutput: FusionBackend<FusionRuntime = BInput::FusionRuntime, Device = BInput::Device>,
-        {
-            fn execute(
-                self: Box<Self>,
-                handles: &mut HandleContainer<
-                    <BOutput::FusionRuntime as FusionRuntime>::FusionHandle,
-                >,
-            ) {
-                let input = handles.get_float_tensor::<BOutput, D>(&self.desc.input);
-                let output = BOutput::cast_float(input, BInput::FloatElem::dtype());
-
-                handles.register_handle(self.desc.out.id, output);
-            }
-        }
-
-        let stream = tensor.stream;
-        let out = tensor
-            .client
-            .tensor_uninitialized(tensor.shape.clone(), BOutput::FloatElem::dtype());
-
-        let desc = CastOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-
-        out.client.register(
-            vec![stream],
-            OperationDescription::BaseFloat(BaseOperationDescription::Cast(desc.clone())),
-            Cast::<BInput, BOutput, D>::new(desc),
-        );
-
-        out.client.clone().to_backend::<BInput>(out)
+        cast::<BTarget, BInput, D>(tensor)
     }
+}
+
+fn cast<BInput, BTarget, const D: usize>(
+    input: FloatTensor<Fusion<BInput>, D>,
+) -> FloatTensor<Fusion<BTarget>, D>
+where
+    BInput: FusionBackend,
+    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
+{
+    #[derive(new)]
+    struct Cast<BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
+        desc: UnaryOperationDescription,
+        _bi: PhantomData<BInput>,
+        _bt: PhantomData<BTarget>,
+    }
+
+    impl<const D: usize, BInput, BTarget> Operation<BTarget::FusionRuntime> for Cast<BInput, BTarget, D>
+    where
+        BInput: FusionBackend,
+        BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
+    {
+        fn execute(
+            self: Box<Self>,
+            handles: &mut HandleContainer<<BTarget::FusionRuntime as FusionRuntime>::FusionHandle>,
+        ) {
+            let input = handles.get_float_tensor::<BInput, D>(&self.desc.input);
+            let output = BInput::cast_float(input, BTarget::FloatElem::dtype());
+
+            handles.register_handle(self.desc.out.id, output);
+        }
+    }
+
+    let stream = input.stream;
+    let out = input
+        .client
+        .tensor_uninitialized(input.shape.clone(), BTarget::FloatElem::dtype());
+
+    let desc = UnaryOperationDescription {
+        input: input.into_description(),
+        out: out.to_description_out(),
+    };
+
+    out.client.register(
+        vec![stream],
+        OperationDescription::BaseFloat(BaseOperationDescription::Cast(desc.clone())),
+        Cast::<BInput, BTarget, D>::new(desc),
+    );
+
+    out
 }

@@ -196,7 +196,7 @@ pub enum BaseOperationDescription {
     /// Bool => [cat](crate::ops::BoolTensorOps::bool_cat).
     Cat(CatOperationDescription),
     /// Cast operation, no direct operation and should be supported by fusion backend.
-    Cast(CastOperationDescription),
+    Cast(UnaryOperationDescription),
 }
 
 /// Numeric operations on int and float tensors.
@@ -1004,13 +1004,6 @@ pub struct InterpolateDescription {
     pub x: TensorDescription,
     pub output_size: [usize; 2],
     pub options: InterpolateOptionsDescription,
-    pub out: TensorDescription,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct CastOperationDescription {
-    pub input: TensorDescription,
     pub out: TensorDescription,
 }
 

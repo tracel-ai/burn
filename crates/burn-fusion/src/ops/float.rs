@@ -172,7 +172,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_into_data<const D: usize>(
         tensor: FloatTensor<Self, D>,
     ) -> Reader<Data<FloatElem<Self>, D>> {
-        tensor.into_data()
+        tensor.into_data::<B, D>()
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -194,7 +194,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
-        client_original.clone().change_client_float::<D>(
+        client_original.clone().change_client_float::<B, D>(
             tensor.into_description(),
             client_target,
             id,

@@ -34,7 +34,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        tensor.int_into_data()
+        tensor.int_into_data::<B, D>()
     }
 
     fn int_from_data<const D: usize>(
@@ -73,9 +73,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_int::<D>(tensor.into_description(), client_target, id)
+        client_original.clone().change_client_int::<B, D>(
+            tensor.into_description(),
+            client_target,
+            id,
+        )
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(

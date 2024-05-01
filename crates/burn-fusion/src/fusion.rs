@@ -1,9 +1,9 @@
 use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{DeviceId, DeviceOps},
     repr::ReprBackend,
 };
 
-use crate::client::FusionClient;
+use crate::{client::FusionClient, FusionDevice};
 
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
@@ -26,10 +26,7 @@ impl FusionClientLocator {
     /// Get the fusion client for the given device.
     ///
     /// Provide the init function to create a new client if it isn't already initialized.
-    pub fn client<C: FusionClient + 'static>(
-        &self,
-        device: &<C::FusionBackend as Backend>::Device,
-    ) -> C {
+    pub fn client<C: FusionClient + 'static>(&self, device: &FusionDevice<C::FusionRuntime>) -> C {
         let device_id = device.id();
         let client_id = (core::any::TypeId::of::<C>(), device_id);
         let mut clients = self.clients.lock();

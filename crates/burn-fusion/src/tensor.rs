@@ -1,6 +1,5 @@
-use crate::{client::FusionClient, stream::StreamId};
+use crate::{client::FusionClient, stream::StreamId, FusionBackend};
 use burn_tensor::{
-    backend::Backend,
     ops::{FloatElem, IntElem},
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Data, Reader, Shape,
@@ -30,11 +29,10 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
             format!(
-                "{{ id: {:?}, shape: {:?}, should_drop: {:?}, backend: {:?}, device: {:?} }}",
+                "{{ id: {:?}, shape: {:?}, should_drop: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
                 self.is_orphan,
-                <C::FusionBackend as Backend>::name(),
                 self.client.device().clone(),
             )
             .as_str(),
@@ -99,27 +97,34 @@ impl<C: FusionClient> FusionTensor<C> {
         }
     }
 
-    pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
+    pub(crate) fn into_data<B, const D: usize>(self) -> Reader<Data<FloatElem<B>, D>>
+    where
+        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+    {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_float(self.into_description(), id)
+            .read_tensor_float::<B, D>(self.into_description(), id)
     }
 
-    pub(crate) fn int_into_data<const D: usize>(
-        self,
-    ) -> Reader<Data<IntElem<C::FusionBackend>, D>> {
+    pub(crate) fn int_into_data<B, const D: usize>(self) -> Reader<Data<IntElem<B>, D>>
+    where
+        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+    {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_int(self.into_description(), id)
+            .read_tensor_int::<B, D>(self.into_description(), id)
     }
 
-    pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
+    pub(crate) fn bool_into_data<B, const D: usize>(self) -> Reader<Data<bool, D>>
+    where
+        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+    {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_bool(self.into_description(), id)
+            .read_tensor_bool::<B, D>(self.into_description(), id)
     }
 }
 

@@ -1,85 +1,89 @@
 use crate::{
     stream::{execution::Operation, StreamId},
-    FusionBackend, FusionTensor, Handle,
+    FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
 use burn_tensor::{
-    backend::Backend,
     ops::{FloatElem, IntElem},
     repr::{OperationDescription, TensorDescription, TensorId},
-    DType, Data, Device, Reader,
+    DType, Data, Reader,
 };
 
 /// Define how to interact with the fusion server.
 pub trait FusionClient: Send + Sync + Clone {
-    /// The [fusion backend](FusionBackend) associated type.
-    type FusionBackend: FusionBackend;
-    type Client<B: FusionBackend>: FusionClient;
+    /// The [fusion runtime](FusionRuntime) associated type.
+    type FusionRuntime: FusionRuntime;
 
     /// Create a new client for the given [device](Backend::Device).
-    fn new(device: Device<Self::FusionBackend>) -> Self;
+    fn new(device: FusionDevice<Self::FusionRuntime>) -> Self;
     /// Register a new [tensor operation description](OperationDescription).
     fn register<O>(&self, streams: Vec<StreamId>, description: OperationDescription, operation: O)
     where
-        O: Operation<<Self::FusionBackend as FusionBackend>::FusionRuntime> + 'static;
+        O: Operation<Self::FusionRuntime> + 'static;
     /// Register all lazy computation.
     fn drain(&self);
     /// Get the current device used by all operations handled by this client.
-    fn device(&self) -> &<Self::FusionBackend as Backend>::Device;
+    fn device(&self) -> &FusionDevice<Self::FusionRuntime>;
     /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
     fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<Self>;
     /// Create a tensor with the given handle and shape.
     fn register_tensor(
         &self,
-        handle: Handle<Self::FusionBackend>,
+        handle: FusionHandle<Self::FusionRuntime>,
         shape: Vec<usize>,
         stream: StreamId,
         dtype: DType,
     ) -> FusionTensor<Self>;
     /// Read the values contained by a float tensor.
-    fn read_tensor_float<const D: usize>(
+    fn read_tensor_float<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<FloatElem<Self::FusionBackend>, D>>;
+    ) -> Reader<Data<FloatElem<B>, D>>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Read the values contained by an int tensor.
-    fn read_tensor_int<const D: usize>(
+    fn read_tensor_int<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<IntElem<Self::FusionBackend>, D>>;
+    ) -> Reader<Data<IntElem<B>, D>>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Read the values contained by a bool tensor.
-    fn read_tensor_bool<const D: usize>(
+    fn read_tensor_bool<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<Data<bool, D>>;
+    ) -> Reader<Data<bool, D>>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Change the client of the given float tensor.
-    fn change_client_float<const D: usize>(
+    fn change_client_float<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>;
+    ) -> FusionTensor<Self>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Change the client of the given int tensor.
-    fn change_client_int<const D: usize>(
+    fn change_client_int<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>;
+    ) -> FusionTensor<Self>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Change the client of the given bool tensor.
-    fn change_client_bool<const D: usize>(
+    fn change_client_bool<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>;
+    ) -> FusionTensor<Self>
+    where
+        B: FusionBackend<FusionRuntime = Self::FusionRuntime>;
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
-    fn to_backend<B>(&self, tensor: FusionTensor<Self>) -> FusionTensor<Self::Client<B>>
-    where
-        B: FusionBackend<
-            FusionRuntime = <Self::FusionBackend as FusionBackend>::FusionRuntime,
-            Device = <Self::FusionBackend as Backend>::Device,
-        >;
 }

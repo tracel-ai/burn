@@ -40,7 +40,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_into_data<const D: usize>(
         tensor: BoolTensor<Self, D>,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
-        tensor.bool_into_data()
+        tensor.bool_into_data::<B, D>()
     }
 
     fn bool_from_data<const D: usize>(
@@ -149,7 +149,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
-        client_original.clone().change_client_bool::<D>(
+        client_original.clone().change_client_bool::<B, D>(
             tensor.into_description(),
             client_target,
             id,
