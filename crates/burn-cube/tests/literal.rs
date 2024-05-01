@@ -1,10 +1,11 @@
 use burn_cube::{cube, CubeContext, Float};
+use burn_jit::gpu;
 use burn_jit::gpu::FloatKind::F32;
-use burn_jit::gpu::{Elem, Item, Variable};
+use burn_jit::gpu::{Elem, Item};
 
 #[cube]
 pub fn literal(lhs: Float) {
-    let rhs: Float = 5.9f32.into();
+    let _ = lhs + float_new(5.9);
 }
 
 #[test]
@@ -22,11 +23,11 @@ fn cube_literal_test() {
 fn gpu_macro_ref() -> String {
     let mut context = CubeContext::root();
     let item = Item::Scalar(Elem::Float(F32));
-
     let lhs = context.create_local(item);
-    let lhs: Variable = lhs.into();
+
     let mut scope = context.into_scope();
-    scope.create_with_value(5.9, item);
+    let out = scope.create_local(item);
+    gpu!(scope, out = lhs + 5.9f32);
 
     format!("{:?}", scope.operations)
 }

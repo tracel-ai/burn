@@ -1,11 +1,11 @@
 use proc_macro2::TokenStream;
 
-use crate::analysis::VariableAnalyses;
+use crate::analysis::CodeAnalysis;
 
 pub fn codegen_statement(
     statement: &syn::Stmt,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     match statement {
         syn::Stmt::Local(local) => codegen_local(local, loop_level, variable_analyses),
@@ -26,24 +26,32 @@ pub fn codegen_statement(
 fn codegen_local(
     local: &syn::Local,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let init = local
         .init
         .as_ref()
         .expect("Can't use let without an initialization.");
+
+    let init = codegen_expr(&init.expr, loop_level, variable_analyses);
+
+    let let_tok = local.let_token;
+
+    if let syn::Pat::Wild(_) = &local.pat {
+        return quote::quote! {
+            #let_tok _ = #init;
+        };
+    }
+
     let ident = match &local.pat {
         syn::Pat::Ident(ident) => ident,
         syn::Pat::Type(pat_type) => match &*pat_type.pat {
             syn::Pat::Ident(pat_ident) => pat_ident,
             _ => todo!("Codegen: Unsupported typed path {:?}", pat_type.pat),
         },
+        syn::Pat::Wild(_) => unreachable!(),
         _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
-    let init = codegen_expr(&init.expr, loop_level, variable_analyses);
-
-    let let_tok = local.let_token;
-
     quote::quote! {
         #let_tok #ident = #init;
     }
@@ -52,7 +60,7 @@ fn codegen_local(
 fn codegen_expr(
     expr: &syn::Expr,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     match expr {
         syn::Expr::Binary(op) => codegen_binary(op, loop_level, variable_analyses),
@@ -79,7 +87,7 @@ fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
 fn codegen_expr_index(
     index: &syn::ExprIndex,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let array = codegen_expr(&index.expr, loop_level, variable_analyses);
     let index = codegen_expr(&index.index, loop_level, variable_analyses);
@@ -100,7 +108,7 @@ fn codegen_expr_method_call(call: &syn::ExprMethodCall) -> TokenStream {
 fn codegen_for_loop(
     for_loop: &syn::ExprForLoop,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let i = &for_loop.pat;
     let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
@@ -108,7 +116,10 @@ fn codegen_for_loop(
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {
-                syn::Expr::Path(path) => path.path.get_ident().unwrap(),
+                syn::Expr::Path(path) => path
+                    .path
+                    .get_ident()
+                    .expect("Codegen: func in for loop should have ident"),
                 _ => todo!("Codegen: Only path call supported"),
             };
 
@@ -136,7 +147,7 @@ fn codegen_for_loop(
 fn codegen_while_loop(
     while_loop: &syn::ExprWhile,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
 
@@ -154,7 +165,7 @@ fn codegen_while_loop(
 fn codegen_assign(
     assign: &syn::ExprAssign,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     if let syn::Expr::Index(index) = assign.left.as_ref() {
         let array = codegen_expr(&index.expr, loop_level, variable_analyses);
@@ -186,7 +197,7 @@ fn codegen_assign(
 fn codegen_block(
     block: &syn::Block,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let mut statements = quote::quote!();
 
@@ -204,7 +215,7 @@ fn codegen_block(
 fn codegen_expr_block(
     block: &syn::ExprBlock,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     codegen_block(&block.block, loop_level, variable_analyses)
 }
@@ -212,7 +223,7 @@ fn codegen_expr_block(
 fn codegen_closure(
     closure: &syn::ExprClosure,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let mut inputs = quote::quote! {};
     for input in closure.inputs.iter() {
@@ -235,10 +246,13 @@ fn codegen_closure(
 fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let func_name = match call.func.as_ref() {
-        syn::Expr::Path(path) => path.path.get_ident().unwrap(),
+        syn::Expr::Path(path) => path
+            .path
+            .get_ident()
+            .expect("Codegen: func called path should have ident"),
         _ => todo!("Codegen: Only path call supported"),
     };
 
@@ -262,7 +276,7 @@ fn codegen_call(
 fn codegen_path(
     path: &syn::ExprPath,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let ident = path
         .path
@@ -285,7 +299,7 @@ fn codegen_path(
 fn codegen_binary(
     binary: &syn::ExprBinary,
     loop_level: usize,
-    variable_analyses: &mut VariableAnalyses,
+    variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let lhs = codegen_expr(&binary.left, loop_level, variable_analyses);
     let rhs = codegen_expr(&binary.right, loop_level, variable_analyses);

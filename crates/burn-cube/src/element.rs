@@ -55,6 +55,12 @@ impl From<f32> for ExpandElement {
     }
 }
 
+impl From<i32> for ExpandElement {
+    fn from(value: i32) -> Self {
+        ExpandElement::new(Rc::new(Variable::from(value)))
+    }
+}
+
 impl core::ops::Deref for ExpandElement {
     type Target = Variable;
 
@@ -71,7 +77,7 @@ pub struct Float {
 
 #[derive(new, Clone, Copy)]
 pub struct Int {
-    pub val: u32,
+    pub val: i32,
     pub vectorization: u8,
 }
 
@@ -151,6 +157,16 @@ impl From<f32> for Float {
 impl From<usize> for UInt {
     fn from(value: usize) -> Self {
         UInt::new(value as u32, 1)
+    }
+}
+
+impl RuntimeType for i32 {
+    type ExpandType = i32;
+}
+
+impl From<i32> for Int {
+    fn from(value: i32) -> Self {
+        Int::new(value, 1)
     }
 }
 

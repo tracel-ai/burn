@@ -22,17 +22,18 @@ impl VariableAnalysis {
 }
 
 #[derive(Debug)]
-pub(crate) struct VariableAnalyses {
-    pub analyses: HashMap<VariableKey, VariableAnalysis>,
+pub(crate) struct CodeAnalysis {
+    pub needed_functions: Vec<String>,
+    pub variable_analyses: HashMap<VariableKey, VariableAnalysis>,
 }
 
-impl VariableAnalyses {
+impl CodeAnalysis {
     pub fn should_clone(&mut self, ident: &syn::Ident, loop_level: usize) -> bool {
         let key: VariableKey = ident.into();
-        match self.analyses.remove(&key) {
+        match self.variable_analyses.remove(&key) {
             Some(mut var) => {
                 let should_clone = var.should_clone(loop_level);
-                self.analyses.insert(key, var);
+                self.variable_analyses.insert(key, var);
                 return should_clone;
             }
             None => panic!("Ident {ident} not part of analysis"),
@@ -41,8 +42,12 @@ impl VariableAnalyses {
 
     pub fn create(func: &syn::ItemFn) -> Self {
         let analyses = analyze(func);
+        // TODO WE WANT TO KEEP TRACK OF USED FUNCTIONS AS WELL
+        // AT THIS POINT LET'S MAKE A BUILDER PATTERN INSTEAD
 
-        Self { analyses }
+        Self {
+            variable_analyses: analyses,
+        }
     }
 }
 
@@ -115,14 +120,17 @@ fn stmts_occurrences(
             // Declaration
             syn::Stmt::Local(local) => {
                 let id = match &local.pat {
-                    syn::Pat::Ident(pat_ident) => &pat_ident.ident,
-                    syn::Pat::Type(pat_type) => match &*pat_type.pat {
+                    syn::Pat::Ident(pat_ident) => Some(&pat_ident.ident),
+                    syn::Pat::Type(pat_type) => Some(match &*pat_type.pat {
                         syn::Pat::Ident(pat_ident) => &pat_ident.ident,
                         _ => todo!("Analysis: unsupported typed path {:?}", pat_type.pat),
-                    },
+                    }),
+                    syn::Pat::Wild(_) => None,
                     _ => todo!("Analysis: unsupported path {:?}", local.pat),
                 };
-                declarations.push((id.into(), depth));
+                if let Some(id) = id {
+                    declarations.push((id.into(), depth));
+                }
                 if let Some(local_init) = &local.init {
                     expr_occurrences(&local_init.expr, depth, declarations, uses)
                 }
@@ -178,9 +186,16 @@ fn expr_occurrences(
             expr_occurrences(&expr.left, depth, declarations, uses);
             expr_occurrences(&expr.right, depth, declarations, uses);
         }
+        syn::Expr::Lit(_) => {}
+        syn::Expr::Call(expr) => {
+            for arg in expr.args.iter() {
+                expr_occurrences(arg, depth, declarations, uses);
+            }
+        }
         syn::Expr::MethodCall(expr) => {
-            if expr.args.is_empty() {
-                panic!("Analysis: method call with args is unsupported")
+            expr_occurrences(&expr.receiver, depth, declarations, uses);
+            for arg in expr.args.iter() {
+                expr_occurrences(arg, depth, declarations, uses);
             }
         }
         _ => todo!("Analysis: unsupported expr {expr:?}"),

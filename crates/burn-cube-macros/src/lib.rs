@@ -1,15 +1,17 @@
 mod analysis;
 mod codegen;
+mod prelude;
 
-use analysis::VariableAnalyses;
-use proc_macro::TokenStream;
+use analysis::CodeAnalysis;
 use codegen::codegen_statement;
+use prelude::get_prelude;
+use proc_macro::TokenStream;
 
 /// Derive macro for the module.
 #[proc_macro_attribute]
 pub fn cube(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let func: syn::ItemFn = syn::parse(tokens).unwrap();
-    let mut variable_analyses = VariableAnalyses::create(&func);
+    let mut variable_analyses = CodeAnalysis::create(&func);
 
     codegen_cube(&func, &mut variable_analyses)
 }
@@ -28,7 +30,8 @@ impl From<&syn::Ident> for VariableKey {
 }
 
 /// Generate the expanded version of a function marked with the cube macro
-fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut VariableAnalyses) -> TokenStream {
+fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut CodeAnalysis) -> TokenStream {
+    let prelude = get_prelude();
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
@@ -39,6 +42,8 @@ fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut VariableAnalyses) ->
     }
 
     let code = quote::quote! {
+        #prelude
+
         #func
 
         #[allow(unused_mut)]
