@@ -462,22 +462,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-cuda"
-version = "0.14.0"
-dependencies = [
- "burn-common",
- "burn-compute",
- "burn-fusion",
- "burn-jit",
- "burn-tensor",
- "bytemuck",
- "cudarc",
- "derive-new",
- "half",
- "log",
-]
-
-[[package]]
 name = "burn-dataset"
 version = "0.14.0"
 dependencies = [
@@ -3790,6 +3774,14 @@ dependencies = [
  "getrandom",
  "libredox",
  "thiserror",
+]
+
+[[package]]
+name = "refactor"
+version = "0.14.0"
+dependencies = [
+ "burn",
+ "serde",
 ]
 
 [[package]]
