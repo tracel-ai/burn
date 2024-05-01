@@ -1665,7 +1665,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
-        shape[dim] = times;
+        shape[dim] *= times;
         let out = tensor.client.tensor_uninitialized(shape);
 
         let desc = RepeatOperationDescription {

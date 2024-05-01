@@ -564,10 +564,6 @@ where
     }
 
     /// Repeat the tensor along the given dimension.
-    ///
-    /// # Panics
-    ///
-    /// If the selected dimension more than one item.
     pub fn repeat(self, dim: usize, times: usize) -> Self {
         Self::new(K::repeat(self.primitive, dim, times))
     }
