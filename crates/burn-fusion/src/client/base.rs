@@ -13,7 +13,7 @@ pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion runtime](FusionRuntime) associated type.
     type FusionRuntime: FusionRuntime;
 
-    /// Create a new client for the given [device](Backend::Device).
+    /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<Self::FusionRuntime>) -> Self;
     /// Register a new [tensor operation description](OperationDescription).
     fn register<O>(&self, streams: Vec<StreamId>, description: OperationDescription, operation: O)
