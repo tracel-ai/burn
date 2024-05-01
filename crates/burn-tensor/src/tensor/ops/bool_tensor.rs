@@ -1,4 +1,7 @@
-use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
+use super::{
+    cat::cat_with_slice_assign, repeat::repeat_with_slice_assign, BoolTensor, Device, FloatTensor,
+    IntTensor,
+};
 use crate::{
     backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
 };
@@ -174,28 +177,12 @@ pub trait BoolTensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> BoolTensor<B, D> {
-        let mut shape = Self::bool_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let ranges_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::bool_empty(shape, &Self::bool_device(&tensor));
-        for i in 0..times {
-            let mut ranges = ranges_select_all.clone();
-            ranges[dim] = i..i + 1;
-            tensor_output = Self::bool_slice_assign(tensor_output, ranges, tensor.clone());
-        }
-
-        tensor_output
+        repeat_with_slice_assign::<B, D, Bool>(
+            Tensor::<B, D, Bool>::from_primitive(tensor),
+            dim,
+            times,
+        )
+        .into_primitive()
     }
 
     /// Concatenates the tensors along the given dimension.
