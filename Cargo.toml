@@ -14,7 +14,10 @@ members = [
     "xtask",
 ]
 
-exclude = ["examples/notebook"]
+exclude = [
+    "examples/notebook",
+    "crates/burn-cuda"     # comment this line to work on burn-cuda
+]
 
 [workspace.package]
 edition = "2021"
