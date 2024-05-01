@@ -25,6 +25,15 @@ To use the debugger, follow these steps:
    that should be saved as `.vscode/launch.json`.
 2. Select the configuration from the "run and debug" side panel, then select the target from the
    list.
+   You may also want to enable debugging by creating a `.vscode/settings.json` file:
+    ```
+    {
+      "rust-analyzer.runnables.extraEnv": {
+        "CARGO_PROFILE_DEV_DEBUG": true
+      }
+    }
+    ```
+    since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
 3. Now you can enable breakpoints on code through IDE then start debugging the library/binary you
    want, like in the following example:
 
