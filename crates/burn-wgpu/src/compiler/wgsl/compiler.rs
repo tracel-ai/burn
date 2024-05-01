@@ -100,6 +100,8 @@ impl WgslCompiler {
     fn compile_elem(value: gpu::Elem) -> wgsl::Elem {
         match value {
             gpu::Elem::Float(f) => match f {
+                gpu::FloatKind::F16 => panic!("f16 is not yet supported"),
+                gpu::FloatKind::BF16 => panic!("f64 is not a valid WgpuElement"),
                 gpu::FloatKind::F32 => wgsl::Elem::F32,
                 gpu::FloatKind::F64 => panic!("f64 is not a valid WgpuElement"),
             },
@@ -317,6 +319,14 @@ impl WgslCompiler {
                 proc.expand(scope);
                 compile(scope);
             }
+            gpu::Procedure::CheckedIndex(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
+            gpu::Procedure::CheckedIndexAssign(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
             gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
                 proc.expand(scope);
                 compile(scope);
@@ -377,6 +387,11 @@ impl WgslCompiler {
                 out: self.compile_variable(op.out),
             },
             gpu::Operator::Index(op) => wgsl::Instruction::Index {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::UncheckedIndex(op) => wgsl::Instruction::Index {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
@@ -499,6 +514,11 @@ impl WgslCompiler {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::UncheckedIndexAssign(op) => wgsl::Instruction::IndexAssign {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::And(op) => wgsl::Instruction::And {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
@@ -592,6 +612,14 @@ fn register_extensions(instructions: &[wgsl::Instruction]) -> Vec<wgsl::Extensio
             #[cfg(target_os = "macos")]
             wgsl::Instruction::Tanh { input, out: _ } => {
                 register_extension(wgsl::Extension::SafeTanh(input.item()))
+            }
+            wgsl::Instruction::If {
+                cond: _,
+                instructions,
+            } => {
+                for extension in register_extensions(instructions) {
+                    register_extension(extension);
+                }
             }
             _ => {}
         }

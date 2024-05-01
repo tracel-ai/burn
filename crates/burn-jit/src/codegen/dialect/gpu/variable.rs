@@ -63,7 +63,8 @@ impl Variable {
             Variable::NumWorkgroupsZ => None,
         }
     }
-    pub(crate) fn item(&self) -> Item {
+    /// Fetch the item of the variable.
+    pub fn item(&self) -> Item {
         match self {
             Variable::GlobalInputArray(_, item) => *item,
             Variable::GlobalOutputArray(_, item) => *item,

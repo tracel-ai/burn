@@ -13,7 +13,7 @@ version.workspace = true
 # we depend on wgpu and autotune by default because we use the burn-wgpu crate to get system information
 default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
 candle-cpu = ["burn/candle"]
-candle-cuda = ["burn/candle", "burn/cuda"]
+candle-cuda = ["burn/candle-cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
 candle-accelerate = ["burn/candle", "burn/accelerate"]
 ndarray = ["burn/ndarray"]
