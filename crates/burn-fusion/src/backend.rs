@@ -141,9 +141,9 @@ where
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
-    /// Handle
+    /// Handle used to store tensor dynamically.
     type FusionHandle: Clone + Send;
-    /// Device
+    /// Device used by the runtime.
     type FusionDevice: DeviceOps;
     /// The client to be used.
     type FusionClient: FusionClient<FusionRuntime = Self>;
@@ -162,10 +162,10 @@ pub trait FusionBackend:
     Device = <Self::FusionRuntime as FusionRuntime>::FusionDevice,
 >
 {
-    /// The runtime.
+    /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;
 
-    /// Cast a float tensor.
+    /// Cast a float tensor and returns the resulting handle.
     fn cast_float<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dtype: burn_tensor::DType,

@@ -7,6 +7,7 @@ use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
+use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 /// Fusion optimization type for JIT.
@@ -127,12 +128,17 @@ impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R,
         tensor: burn_tensor::ops::FloatTensor<Self, D>,
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
+        fn cast<const D: usize, R: Runtime, F: FloatElement, FTarget: FloatElement>(
+            tensor: JitTensor<R, F, D>,
+        ) -> JitFusionHandle<R> {
+            JitFusionHandle::from(kernel::cast::<R, F, FTarget, D>(tensor))
+        }
+
         match dtype {
-            burn_tensor::DType::F32 => {
-                let tensor = kernel::cast::<R, Self::FloatElem, f32, D>(tensor);
-                JitFusionHandle::from(tensor)
-            }
-            _ => panic!("Unsupported"),
+            burn_tensor::DType::F32 => cast::<D, R, F, f32>(tensor),
+            burn_tensor::DType::F16 => cast::<D, R, F, f16>(tensor),
+            burn_tensor::DType::BF16 => cast::<D, R, F, bf16>(tensor),
+            _ => panic!("Casting error: {dtype:?} unsupported."),
         }
     }
 }
