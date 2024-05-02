@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub trait Tokenizer: Send + Sync {
     fn encode(&self, value: &str, special_tokens: bool) -> Vec<usize>;
     fn decode(&self, tokens: &[usize]) -> String;
