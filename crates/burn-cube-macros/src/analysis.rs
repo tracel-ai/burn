@@ -162,6 +162,16 @@ impl CodeAnalysisBuilder {
                 self.expr_occurrences(&expr.cond, depth);
                 self.stmts_occurrences(&expr.body.stmts, depth);
             }
+            syn::Expr::If(expr) => {
+                // Not sure if should update depth
+
+                if expr.else_branch.is_some() {
+                    todo!("Analysis: else branch not supported");
+                }
+
+                self.expr_occurrences(&expr.cond, depth);
+                self.stmts_occurrences(&expr.then_branch.stmts, depth);
+            }
             syn::Expr::Assign(expr) => {
                 self.expr_occurrences(&expr.left, depth);
                 self.expr_occurrences(&expr.right, depth);

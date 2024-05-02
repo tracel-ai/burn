@@ -13,6 +13,48 @@ pub fn kernel(mut lhs: Array<Float>, rhs: Float, end: UInt, unroll: bool) {
     }
 }
 
+// #[allow(unused_mut)]
+// pub fn kernel_expand(
+//     context: &mut burn_cube::CubeContext,
+//     mut lhs: <Array<Float> as burn_cube::RuntimeType>::ExpandType,
+//     rhs: <Float as burn_cube::RuntimeType>::ExpandType,
+//     end: <UInt as burn_cube::RuntimeType>::ExpandType,
+//     unroll: <bool as burn_cube::RuntimeType>::ExpandType,
+// ) -> () {
+//     let tmp1 = {
+//         let _lhs = rhs.clone().into();
+//         let _rhs = rhs.clone().into();
+//         burn_cube::mul::expand(context, _lhs, _rhs)
+//     };
+//     let tmp2 = {
+//         let _lhs = tmp1.into();
+//         let _rhs = rhs.into();
+//         burn_cube::add::expand(context, _lhs, _rhs)
+//     };
+//     range_expand(
+//         context,
+//         0u32.into(),
+//         end.into(),
+//         unroll.into(),
+//         |context, i| {
+//             {
+//                 let _array = lhs.clone().into();
+//                 let _index = i.clone().into();
+//                 let _value = {
+//                     let _lhs = tmp2.clone().into();
+//                     let _rhs = {
+//                         let _array = lhs.clone().into();
+//                         let _index = i.into();
+//                         burn_cube::index::expand(context, _array, _index)
+//                     };
+//                     burn_cube::add::expand(context, _lhs, _rhs)
+//                 };
+//                 burn_cube::index_assign::expand(context, _array, _index, _value)
+//             };
+//         },
+//     );
+// }
+
 #[test]
 fn test_for_loop_with_unroll() {
     let mut context = CubeContext::root();

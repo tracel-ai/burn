@@ -1,4 +1,5 @@
 use proc_macro2::TokenStream;
+use syn::token::If;
 
 use crate::analysis::CodeAnalysis;
 
@@ -9,7 +10,6 @@ pub fn codegen_statement(
 ) -> TokenStream {
     match statement {
         syn::Stmt::Local(local) => codegen_local(local, loop_level, variable_analyses),
-        syn::Stmt::Item(_) => todo!(),
         syn::Stmt::Expr(expr, semi) => {
             let expr = codegen_expr(expr, loop_level, variable_analyses);
             match semi {
@@ -19,7 +19,7 @@ pub fn codegen_statement(
                 None => expr,
             }
         }
-        syn::Stmt::Macro(_) => todo!(),
+        _ => todo!("Codegen: statement {statement:?} not supported"),
     }
 }
 
@@ -74,9 +74,10 @@ fn codegen_expr(
         syn::Expr::While(while_loop) => {
             codegen_while_loop(while_loop, loop_level, variable_analyses)
         }
+        syn::Expr::If(expr_if) => codegen_if(expr_if, variable_analyses),
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_expr_index(index, loop_level, variable_analyses),
-        _ => panic!("Unsupported {:?}", expr),
+        _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }
 
@@ -144,6 +145,10 @@ fn codegen_for_loop(
     }
 }
 
+fn codegen_if(expr_if: &syn::ExprIf, variable_analyses: &mut CodeAnalysis) {
+    todo!("RENDU ICITTE")
+}
+
 fn codegen_while_loop(
     while_loop: &syn::ExprWhile,
     loop_level: usize,
@@ -158,7 +163,7 @@ fn codegen_while_loop(
     };
 
     quote::quote! {
-        loop_expand(#cond |context| #block);
+        loop_expand(context, |context| #cond, |context| #block);
     }
 }
 

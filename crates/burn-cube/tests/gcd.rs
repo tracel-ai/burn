@@ -1,4 +1,4 @@
-// use burn_cube::cube;
+// use burn_cube::{cube, loop_expand, CubeContext, Int};
 // use burn_jit::gpu;
 // use burn_jit::gpu::Branch;
 // use burn_jit::gpu::IntKind::I32;
@@ -8,11 +8,76 @@
 // pub fn gcd(lhs: Int, rhs: Int) {
 //     while rhs != int_new(0) {
 //         let tmp = rhs;
-//         rhs = lhs % rhs;
-//         lhs = tmp
+//         // rhs = lhs % rhs;
+//         // lhs = tmp;
 //     }
 //     // TODO: use lhs as output
 // }
+
+// // pub fn int_new(val: i32) -> Int {
+// //     Int {
+// //         val,
+// //         vectorization: 1,
+// //     }
+// // }
+// // pub fn int_new_expand(
+// //     context: &mut CubeContext,
+// //     val: i32,
+// // ) -> <Int as burn_cube::RuntimeType>::ExpandType {
+// //     val.into()
+// // }
+// // pub fn gcd(lhs: Int, rhs: Int) {
+// //     while rhs != int_new(0) {
+// //         let tmp = rhs;
+// //     }
+// // }
+// // #[allow(unused_mut)]
+// // pub fn gcd_expand(
+// //     context: &mut burn_cube::CubeContext,
+// //     lhs: <Int as burn_cube::RuntimeType>::ExpandType,
+// //     rhs: <Int as burn_cube::RuntimeType>::ExpandType,
+// // ) -> () {
+// //     loop_expand(
+// //         context,
+// //         |context| {
+// //             let _lhs = rhs.into();
+// //             let _rhs = int_new_expand(context, 0.into());
+// //             burn_cube::ne::expand(context, _lhs, _rhs)
+// //         },
+// //         |context| {
+// //             let tmp = rhs.clone().into();
+// //         },
+// //     );
+// // }
+
+// // pub fn int_new(val: i32) -> Int {
+// //     Int {
+// //         val,
+// //         vectorization: 1,
+// //     }
+// // }
+// // pub fn int_new_expand(
+// //     context: &mut CubeContext,
+// //     val: i32,
+// // ) -> <Int as burn_cube::RuntimeType>::ExpandType {
+// //     val.into()
+// // }
+// // pub fn gcd(lhs: Int, rhs: Int) {
+// //     while rhs != int_new(0) {}
+// // }
+// // #[allow(unused_mut)]
+// // pub fn gcd_expand(
+// //     context: &mut burn_cube::CubeContext,
+// //     lhs: <Int as burn_cube::RuntimeType>::ExpandType,
+// //     rhs: <Int as burn_cube::RuntimeType>::ExpandType,
+// // ) -> () {
+// //     let _cond = {
+// //         let _lhs = rhs.into();
+// //         let _rhs = int_new_expand(context, 0.into());
+// //         burn_cube::ne::expand(context, _lhs, _rhs)
+// //     };
+// //     loop_expand(context, _cond, |context| {});
+// // }
 
 // #[test]
 // fn cube_function_test() {

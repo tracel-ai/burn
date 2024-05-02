@@ -35,7 +35,6 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
-    // panic!("WG");
     for statement in func.block.stmts.iter() {
         let tokens = codegen_statement(statement, 0, code_analysis);
         body.extend(tokens);

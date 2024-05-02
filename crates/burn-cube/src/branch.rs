@@ -55,3 +55,20 @@ pub fn range_expand<F>(
         }));
     }
 }
+
+// pub fn loop_expand<F>(context: &mut CubeContext, mut cond_fn: F, mut block: F)
+// where
+//     F: FnMut(&mut CubeContext),
+// {
+//     let mut child = context.child();
+//     // let cond: Variable = cond_fn...
+
+//     child.register(Branch::If(gpu::If {
+//         cond, scope: child.into_scope()
+//     }));
+
+//     block(&mut child);
+//     context.register(Branch::Loop(gpu::Loop {
+//         scope: child.into_scope(),
+//     }))
+// }
