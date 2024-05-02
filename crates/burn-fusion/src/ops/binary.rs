@@ -12,7 +12,7 @@ macro_rules! binary_float_ops {
         }
 
         impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<<B as ReprBackend>::Handle>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor::<B, D>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);

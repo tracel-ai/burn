@@ -31,7 +31,7 @@ where
 
 impl<R> FusionClient<R> for MutexFusionClient<R>
 where
-    R: FusionRuntime<FusionClient = Self>,
+    R: FusionRuntime,
 {
     fn new(device: FusionDevice<R>) -> Self {
         Self {

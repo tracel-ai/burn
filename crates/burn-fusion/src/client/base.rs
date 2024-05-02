@@ -11,7 +11,7 @@ use burn_tensor::{
 /// Define how to interact with the fusion server.
 pub trait FusionClient<R>: Send + Sync + Clone + Sized
 where
-    R: FusionRuntime<FusionClient = Self>,
+    R: FusionRuntime,
 {
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<R>) -> Self;

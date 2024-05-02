@@ -1,5 +1,7 @@
 use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
+    client::{FusionClient, MutexFusionClient},
+    stream::Context,
+    FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
@@ -126,7 +128,7 @@ pub type FusionDevice<R> = <R as FusionRuntime>::FusionDevice;
 /// Type alias for `<R as FusionRuntime>::FusionHandle`.
 pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
 /// Type alias for `<R as FusionRuntime>::FusionClient`.
-pub type Client<R> = <R as FusionRuntime>::FusionClient;
+pub type Client<R> = MutexFusionClient<R>;
 
 /// Trait that defines a runtime that will benefits from fused operations.
 pub trait FusionRuntime: Send + Sync + Sized {
@@ -138,8 +140,6 @@ pub trait FusionRuntime: Send + Sync + Sized {
     type FusionHandle: Clone + Send;
     /// Device used by the runtime.
     type FusionDevice: DeviceOps;
-    /// The client to be used.
-    type FusionClient: FusionClient<Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
