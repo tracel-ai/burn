@@ -1,4 +1,4 @@
-use crate::{graph::Node, tensor::NodeRefCount, NodeID};
+use crate::{tensor::NodeRefCount, NodeID};
 use std::{
     collections::{HashMap, HashSet},
     mem,
@@ -17,28 +17,6 @@ enum NodeMemoryStatus {
     Useful,
     Unavailable,
     Unknown,
-}
-
-// Wrapper over hash set for fast popping of any node
-#[derive(new, Default)]
-struct PopNodeSet {
-    hash_set: HashSet<NodeID>,
-}
-
-impl PopNodeSet {
-    fn pop(&mut self) -> Option<NodeID> {
-        self.hash_set
-            .iter()
-            .next()
-            .copied()
-            .and_then(|node_id| self.hash_set.take(&node_id))
-    }
-    fn contains(&self, node_id: &NodeID) -> bool {
-        self.hash_set.contains(node_id)
-    }
-    fn insert(&mut self, node_id: NodeID) {
-        self.hash_set.insert(node_id);
-    }
 }
 
 impl GraphMemoryManagement {
@@ -243,5 +221,32 @@ impl GraphMemoryManagement {
             Some((key, _value)) => Arc::strong_count(key) > 1,
             None => panic!("Node should be in the nodes map"),
         }
+    }
+}
+
+/// Wrapper over hash set for fast popping of any node
+#[derive(new, Default)]
+struct PopNodeSet {
+    hash_set: HashSet<NodeID>,
+}
+
+impl PopNodeSet {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<NodeID> {
+        self.hash_set
+            .iter()
+            .next()
+            .copied()
+            .and_then(|node_id| self.hash_set.take(&node_id))
+    }
+
+    #[inline(always)]
+    fn contains(&self, node_id: &NodeID) -> bool {
+        self.hash_set.contains(node_id)
+    }
+
+    #[inline(always)]
+    fn insert(&mut self, node_id: NodeID) {
+        self.hash_set.insert(node_id);
     }
 }
