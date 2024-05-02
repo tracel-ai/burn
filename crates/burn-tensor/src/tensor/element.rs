@@ -145,7 +145,7 @@ make_element!(
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f64, b: &f64| a.total_cmp(b),
-    dtype DType::F32
+    dtype DType::F64
 );
 
 make_element!(
