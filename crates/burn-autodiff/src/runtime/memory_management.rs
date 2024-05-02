@@ -1,4 +1,4 @@
-use crate::{tensor::NodeRefCount, NodeID};
+use crate::{graph::Node, tensor::NodeRefCount, NodeID};
 use std::{
     collections::{HashMap, HashSet},
     mem,
@@ -17,6 +17,28 @@ enum NodeMemoryStatus {
     Useful,
     Unavailable,
     Unknown,
+}
+
+// Wrapper over hash set for fast popping of any node
+#[derive(new, Default)]
+struct PopNodeSet {
+    hash_set: HashSet<NodeID>,
+}
+
+impl PopNodeSet {
+    fn pop(&mut self) -> Option<NodeID> {
+        self.hash_set
+            .iter()
+            .next()
+            .copied()
+            .and_then(|node_id| self.hash_set.take(&node_id))
+    }
+    fn contains(&self, node_id: &NodeID) -> bool {
+        self.hash_set.contains(node_id)
+    }
+    fn insert(&mut self, node_id: NodeID) {
+        self.hash_set.insert(node_id);
+    }
 }
 
 impl GraphMemoryManagement {
@@ -60,7 +82,7 @@ impl GraphMemoryManagement {
         // available node with a tensor reference exist in their descendance.
         // But some may seem useless from some leaf but be useful from another one,
         // hence the need to iterate on all leaves.
-        self.useful_propagation(&leaves);
+        self.useful_propagation(leaves.clone());
 
         // New leaves are the roots of a useful backward sub-tree.
         // Deletables are everything not marked as useful.
@@ -107,52 +129,72 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn useful_propagation(&mut self, leaves: &HashSet<NodeID>) {
-        let mut visited_as_unknown = HashSet::new();
-        let mut visited_as_useful = HashSet::new();
-        let mut to_visit: Vec<(NodeID, Option<NodeID>)> =
-            leaves.iter().map(|leaf| (*leaf, None)).collect();
+    fn useful_propagation(&mut self, leaves: HashSet<NodeID>) {
+        // Accumulate visited nodes
+        let mut explored = HashSet::new();
+        let mut tagged_useful = HashSet::new();
 
-        while let Some((node_id, caller_id)) = to_visit.pop() {
-            visited_as_unknown.insert(node_id);
+        // Queue of nodes to visit
+        let mut to_tag_useful = PopNodeSet::default();
+        let mut to_explore = PopNodeSet::new(leaves);
 
-            let node_status = self
-                .statuses
-                .get(&node_id)
-                .expect("All nodes should have received a status at this point");
-
-            // A node is useful if it is not tagged as unavailable, and if
-            // it is directly referenced or needed by the node that called it
-            if let NodeMemoryStatus::Unknown = node_status {
-                if self.is_referenced(node_id) {
-                    self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                    visited_as_useful.insert(node_id);
-                } else if let Some(caller_id) = caller_id {
-                    let caller_status = self
-                        .statuses
-                        .get(&caller_id)
-                        .expect("Caller should have status");
-                    if let NodeMemoryStatus::Useful = caller_status {
-                        self.statuses.insert(node_id, NodeMemoryStatus::Useful);
-                        visited_as_useful.insert(node_id);
-                    }
-                }
-            }
-
-            for parent in self
-                .nodes
+        // Utilitary function to iterate over a node's parents
+        let parents = |node_id| {
+            self.nodes
                 .get(&node_id)
                 .cloned()
                 .unwrap_or_default()
                 .into_iter()
-            {
-                if !visited_as_useful.contains(&parent)
-                    && (Some(&NodeMemoryStatus::Useful) == self.statuses.get(&node_id)
-                        || !visited_as_unknown.contains(&parent))
-                {
-                    to_visit.push((parent, Some(node_id)));
+        };
+
+        loop {
+            // Pop a node id, greedily looking at tag_useful ones first
+            let (node_id, status) = match to_tag_useful.pop() {
+                Some(node_id) => (node_id, NodeMemoryStatus::Useful),
+                None => match to_explore.pop() {
+                    Some(node_id) => {
+                        let node_status = self
+                            .statuses
+                            .get(&node_id)
+                            .expect("All nodes should have received a status during unavailable_propagation")
+                            .to_owned();
+
+                        if let NodeMemoryStatus::Unknown = node_status {
+                            match self.is_referenced(node_id) {
+                                true => (node_id, NodeMemoryStatus::Useful),
+                                false => (node_id, NodeMemoryStatus::Unknown),
+                            }
+                        } else {
+                            (node_id, node_status)
+                        }
+                    }
+                    None => {
+                        // There are no nodes in the queues anymore
+                        break;
+                    }
+                },
+            };
+
+            match status {
+                NodeMemoryStatus::Useful => {
+                    tagged_useful.insert(node_id);
+                    for parent in parents(node_id) {
+                        if !(tagged_useful.contains(&parent) || to_tag_useful.contains(&parent)) {
+                            to_tag_useful.insert(parent);
+                        }
+                    }
+                }
+                _ => {
+                    explored.insert(node_id);
+                    for parent in parents(node_id) {
+                        if !(explored.contains(&parent) || to_explore.contains(&parent)) {
+                            to_explore.insert(parent);
+                        }
+                    }
                 }
             }
+
+            self.statuses.insert(node_id, status);
         }
     }
 
