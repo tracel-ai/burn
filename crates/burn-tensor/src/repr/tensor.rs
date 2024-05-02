@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::DType;
+
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct TensorId {
@@ -35,6 +37,8 @@ pub struct TensorDescription {
     pub shape: Vec<usize>,
     /// The [status](TensorStatus) of the tensor when it was used.
     pub status: TensorStatus,
+    /// The [type](DType) of the tensor.
+    pub dtype: DType,
 }
 
 impl TensorId {

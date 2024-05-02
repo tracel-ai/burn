@@ -116,9 +116,12 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::repr::{
-        BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-        TensorDescription, TensorId, TensorStatus,
+    use burn_tensor::{
+        repr::{
+            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
+            TensorDescription, TensorId, TensorStatus,
+        },
+        DType,
     };
 
     use super::*;
@@ -221,16 +224,19 @@ mod tests {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: TensorDescription {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
             },
         ))
@@ -243,12 +249,14 @@ mod tests {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: 5.0,
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
             },
         ))
@@ -261,16 +269,19 @@ mod tests {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: TensorDescription {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
             },
         ))

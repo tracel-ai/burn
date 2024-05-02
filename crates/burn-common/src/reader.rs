@@ -100,11 +100,11 @@ impl<T> Reader<T> {
     }
 
     /// Map the current reader to another type.
-    pub fn map<O, F: FnOnce(T) -> O>(self, mapper: F) -> Reader<O>
+    pub fn map<O, F>(self, mapper: F) -> Reader<O>
     where
         T: 'static + Send,
         O: 'static + Send,
-        F: 'static + Send,
+        F: FnOnce(T) -> O + 'static + Send,
     {
         #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
         return Reader::Async(Box::new(MappedReader::new(self, mapper)));

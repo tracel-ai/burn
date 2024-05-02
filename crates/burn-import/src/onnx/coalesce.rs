@@ -173,5 +173,7 @@ fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
 
     // Push the bias input and update the output name
     current_node.inputs.push(bias_input);
-    current_node.outputs[0].name = bias_node.outputs[0].name.clone();
+    current_node.outputs[0]
+        .name
+        .clone_from(&bias_node.outputs[0].name);
 }

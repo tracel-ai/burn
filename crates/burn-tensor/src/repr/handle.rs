@@ -1,5 +1,4 @@
 use crate::{
-    backend::Backend,
     repr::{
         backend::ReprBackend,
         tensor::{TensorDescription, TensorId, TensorStatus},
@@ -11,36 +10,33 @@ use std::{collections::HashMap, sync::Arc};
 /// Keep all [tensor handles](ReprBackend::Handle) in one place and ensure that all resources
 /// are used optimally.
 #[derive(Default)]
-pub struct HandleContainer<B: ReprBackend> {
-    handles: HashMap<TensorId, Handle<B>>,
+pub struct HandleContainer<H> {
+    handles: HashMap<TensorId, Handle<H>>,
     counter: u64,
     /// Handle candidates to be freed.
     pub handles_orphan: Vec<TensorId>,
-    /// The device on which all tensors are held.
-    pub device: B::Device,
 }
 
 /// Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
-pub enum Handle<B: Backend + ReprBackend> {
+pub enum Handle<H> {
     /// No [tensor handle](ReprBackend::Handle) has been created yet
     NotInit,
     /// A [tensor handle](ReprBackend::Handle) has been created
-    Existing(B::Handle),
+    Existing(H),
 }
 
-impl<B: ReprBackend> HandleContainer<B> {
+impl<H: Clone> HandleContainer<H> {
     /// Create a new HandleContainer
-    pub fn new(device_handle: B::Device) -> Self {
+    pub fn new() -> Self {
         Self {
             handles: HashMap::new(),
             handles_orphan: Vec::new(),
             counter: 0,
-            device: device_handle.clone(),
         }
     }
 
     /// Register a handle for the given [tensor id](TensorId).
-    pub fn register_handle(&mut self, id: TensorId, handle: B::Handle) {
+    pub fn register_handle(&mut self, id: TensorId, handle: H) {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
@@ -51,7 +47,7 @@ impl<B: ReprBackend> HandleContainer<B> {
     ///
     /// Make sure the status corresponds to the operation you want to execute the handle on,
     /// otherwise you might remove a tensor handle that will be required in the future.
-    pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> B::Handle {
+    pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> H {
         let (id, handle) = self
             .handles
             .remove_entry(id)
@@ -70,68 +66,83 @@ impl<B: ReprBackend> HandleContainer<B> {
         }
     }
 
-    /// Get the [float tensor](Backend::FloatTensorPrimitive) corresponding to the
+    /// Get the [float tensor](crate::backend::Backend::FloatTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_float_tensor<const D: usize>(
+    pub fn get_float_tensor<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-    ) -> B::FloatTensorPrimitive<D> {
+    ) -> B::FloatTensorPrimitive<D>
+    where
+        B: ReprBackend<Handle = H>,
+    {
         B::float_tensor::<D>(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
     }
 
-    /// Get the [int tensor](Backend::IntTensorPrimitive) corresponding to the
+    /// Get the [int tensor](crate::backend::Backend::IntTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_int_tensor<const D: usize>(
+    pub fn get_int_tensor<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-    ) -> B::IntTensorPrimitive<D> {
+    ) -> B::IntTensorPrimitive<D>
+    where
+        B: ReprBackend<Handle = H>,
+    {
         B::int_tensor::<D>(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
     }
 
-    /// Get the [bool tensor](Backend::BoolTensorPrimitive) corresponding to the
+    /// Get the [bool tensor](crate::backend::Backend::BoolTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_bool_tensor<const D: usize>(
+    pub fn get_bool_tensor<B, const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-    ) -> B::BoolTensorPrimitive<D> {
+    ) -> B::BoolTensorPrimitive<D>
+    where
+        B: ReprBackend<Handle = H>,
+    {
         B::bool_tensor::<D>(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
     }
 
-    /// Register a new [float tensor](Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_float_tensor<const D: usize>(
+    /// Register a new [float tensor](crate::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
+    pub fn register_float_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
         tensor: B::FloatTensorPrimitive<D>,
-    ) {
+    ) where
+        B: ReprBackend<Handle = H>,
+    {
         let handle = B::float_tensor_handle::<D>(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [int tensor](Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_int_tensor<const D: usize>(
+    /// Register a new [int tensor](crate::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
+    pub fn register_int_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
         tensor: B::IntTensorPrimitive<D>,
-    ) {
+    ) where
+        B: ReprBackend<Handle = H>,
+    {
         let handle = B::int_tensor_handle::<D>(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [bool tensor](Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_bool_tensor<const D: usize>(
+    /// Register a new [bool tensor](crate::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
+    pub fn register_bool_tensor<B, const D: usize>(
         &mut self,
         id: &TensorId,
         tensor: B::BoolTensorPrimitive<D>,
-    ) {
+    ) where
+        B: ReprBackend<Handle = H>,
+    {
         let handle = B::bool_tensor_handle::<D>(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }

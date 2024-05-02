@@ -37,8 +37,9 @@ impl TraceBuilder {
     }
 
     /// Create a variable from an input [tensor description](TensorDescription).
-    pub fn input(&mut self, tensor: &TensorDescription, elem: gpu::Elem) -> gpu::Variable {
+    pub fn input(&mut self, tensor: &TensorDescription) -> gpu::Variable {
         let already_exists = self.tensors.contains_key(&tensor.id);
+        let elem = tensor.dtype.into();
 
         let variable = match already_exists {
             false => {
@@ -72,7 +73,8 @@ impl TraceBuilder {
     }
 
     /// Create a variable from an output [tensor description](TensorDescription).
-    pub fn output(&mut self, tensor: &TensorDescription, elem: gpu::Elem) -> gpu::Variable {
+    pub fn output(&mut self, tensor: &TensorDescription) -> gpu::Variable {
+        let elem = tensor.dtype.into();
         // Update the tensor description to the new version.
         self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
