@@ -1,9 +1,16 @@
 // TODO: in analysis, identify needed functions from prelude and add only those
 
-pub(crate) fn get_prelude(needed_functions: Vec<&str>) -> proc_macro2::TokenStream {
+use std::collections::HashSet;
+
+use crate::VariableKey;
+
+pub(crate) fn get_prelude(needed_functions: &HashSet<VariableKey>) -> proc_macro2::TokenStream {
     let mut prelude = proc_macro2::TokenStream::new();
 
-    for func_name in needed_functions {
+    for func_name in needed_functions
+        .iter()
+        .map(|variable| variable.name.as_str())
+    {
         let func_code = match func_name {
             "float_new" => Some(codegen_float_new()),
             "int_new" => Some(codegen_int_new()),

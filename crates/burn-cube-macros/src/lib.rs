@@ -30,14 +30,14 @@ impl From<&syn::Ident> for VariableKey {
 }
 
 /// Generate the expanded version of a function marked with the cube macro
-fn codegen_cube(func: &syn::ItemFn, variable_analyses: &mut CodeAnalysis) -> TokenStream {
-    let prelude = get_prelude();
+fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenStream {
+    let prelude = get_prelude(&code_analysis.needed_functions);
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
     // panic!("WG");
     for statement in func.block.stmts.iter() {
-        let tokens = codegen_statement(statement, 0, variable_analyses);
+        let tokens = codegen_statement(statement, 0, code_analysis);
         body.extend(tokens);
     }
 
