@@ -344,7 +344,7 @@ fn std_checks() {
         }
 
         group!("Checks: {}", member.name);
-        cargo_build(Params::from(["-p", &member.name]));
+        // cargo_build(Params::from(["-p", &member.name]));
         cargo_test(Params::from(["-p", &member.name]));
         endgroup!();
     }
