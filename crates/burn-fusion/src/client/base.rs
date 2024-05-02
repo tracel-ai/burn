@@ -9,7 +9,7 @@ use burn_tensor::{
 };
 
 /// Define how to interact with the fusion server.
-pub trait FusionClient: Send + Sync + Clone {
+pub trait FusionClient: Send + Sync + Clone + Sized {
     /// The [fusion runtime](FusionRuntime) associated type.
     type FusionRuntime: FusionRuntime;
 

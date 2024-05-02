@@ -133,10 +133,7 @@ pub type Client<R> = <R as FusionRuntime>::FusionClient;
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
-pub trait FusionRuntime: Send + Sync
-where
-    Self: Sized,
-{
+pub trait FusionRuntime: Send + Sync + Sized {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
@@ -158,9 +155,9 @@ where
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend:
     ReprBackend<
-    Handle = <Self::FusionRuntime as FusionRuntime>::FusionHandle,
-    Device = <Self::FusionRuntime as FusionRuntime>::FusionDevice,
->
+        Handle = <Self::FusionRuntime as FusionRuntime>::FusionHandle,
+        Device = <Self::FusionRuntime as FusionRuntime>::FusionDevice,
+    > + Sized
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;
