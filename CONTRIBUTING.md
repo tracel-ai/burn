@@ -69,6 +69,15 @@ the issue or issues that your changes address.
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
 2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
+You may also want to enable debugging by creating a `.vscode/settings.json` file:
+   ```json
+   {
+   "rust-analyzer.runnables.extraEnv": {
+      "CARGO_PROFILE_DEV_DEBUG": true
+   }
+   }
+   ```
+   since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
 
 3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
 
