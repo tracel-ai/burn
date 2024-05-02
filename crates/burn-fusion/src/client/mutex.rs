@@ -29,12 +29,7 @@ where
     }
 }
 
-impl<R> FusionClient for MutexFusionClient<R>
-where
-    R: FusionRuntime,
-{
-    type FusionRuntime = R;
-
+impl<R: FusionRuntime<FusionClient = Self>> FusionClient<R> for MutexFusionClient<R> {
     fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
@@ -56,7 +51,7 @@ where
         self.server.lock().drain_stream(id);
     }
 
-    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<Self> {
+    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<R> {
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
@@ -72,7 +67,7 @@ where
         shape: Vec<usize>,
         stream: StreamId,
         dtype: DType,
-    ) -> FusionTensor<Self> {
+    ) -> FusionTensor<R> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(*id.as_ref(), handle);
@@ -87,7 +82,7 @@ where
         stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         self.server.lock().read_float::<B, D>(tensor, stream)
     }
@@ -98,7 +93,7 @@ where
         id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<B>, D>>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         self.server.lock().read_int::<B, D>(tensor, id)
     }
@@ -109,7 +104,7 @@ where
         stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         self.server.lock().read_bool::<B, D>(tensor, stream)
     }
@@ -119,9 +114,9 @@ where
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>
+    ) -> FusionTensor<R>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
@@ -141,9 +136,9 @@ where
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>
+    ) -> FusionTensor<R>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
@@ -163,9 +158,9 @@ where
         tensor: TensorDescription,
         client: Self,
         stream: StreamId,
-    ) -> FusionTensor<Self>
+    ) -> FusionTensor<R>
     where
-        B: FusionBackend<FusionRuntime = Self::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();

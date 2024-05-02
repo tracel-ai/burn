@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
 pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
-    CLIENTS.client(device)
+    CLIENTS.client::<B::FusionRuntime>(device)
 }
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
@@ -22,23 +22,20 @@ pub struct Fusion<B> {
     _backend: PhantomData<B>,
 }
 
-impl<B> Backend for Fusion<B>
-where
-    B: FusionBackend,
-{
+impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
     type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
+    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<Client<B::FusionRuntime>>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -49,7 +46,7 @@ where
     }
 
     fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<Client<B::FusionRuntime>>(&device.clone());
+        let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
         client.drain();
         B::sync(device)
     }
@@ -131,8 +128,7 @@ pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
 /// Type alias for `<R as FusionRuntime>::FusionClient`.
 pub type Client<R> = <R as FusionRuntime>::FusionClient;
 
-/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [operation builder](crate::OptimizationBuilder).
+/// Trait that defines a runtime that will benefits from fused operations.
 pub trait FusionRuntime: Send + Sync + Sized {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
@@ -143,7 +139,7 @@ pub trait FusionRuntime: Send + Sync + Sized {
     /// Device used by the runtime.
     type FusionDevice: DeviceOps;
     /// The client to be used.
-    type FusionClient: FusionClient<FusionRuntime = Self>;
+    type FusionClient: FusionClient<Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
@@ -155,8 +151,8 @@ pub trait FusionRuntime: Send + Sync + Sized {
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend:
     ReprBackend<
-        Handle = <Self::FusionRuntime as FusionRuntime>::FusionHandle,
-        Device = <Self::FusionRuntime as FusionRuntime>::FusionDevice,
+        Handle = FusionHandle<Self::FusionRuntime>,
+        Device = FusionDevice<Self::FusionRuntime>,
     > + Sized
 {
     /// The runtime used for this backend.

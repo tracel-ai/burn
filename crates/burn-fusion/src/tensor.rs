@@ -1,4 +1,4 @@
-use crate::{client::FusionClient, stream::StreamId, FusionBackend};
+use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
 use burn_tensor::{
     ops::{FloatElem, IntElem},
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -7,14 +7,13 @@ use burn_tensor::{
 use std::sync::Arc;
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
-#[derive(Clone)]
-pub struct FusionTensor<C: FusionClient> {
+pub struct FusionTensor<R: FusionRuntime> {
     /// Tensor id.
     pub id: Arc<TensorId>,
     /// The shape of the tensor.
     pub shape: Vec<usize>,
     /// The [fusion client](FusionClient).
-    pub client: C,
+    pub client: Client<R>,
     /// The datatype of the tensor.
     pub dtype: DType,
     // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
@@ -25,7 +24,20 @@ pub struct FusionTensor<C: FusionClient> {
     pub(crate) stream: StreamId,
 }
 
-impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
+impl<R: FusionRuntime> Clone for FusionTensor<R> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            shape: self.shape.clone(),
+            client: self.client.clone(),
+            dtype: self.dtype,
+            is_orphan: self.is_orphan,
+            stream: self.stream,
+        }
+    }
+}
+
+impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
             format!(
@@ -40,12 +52,12 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
     }
 }
 
-impl<C: FusionClient> FusionTensor<C> {
+impl<R: FusionRuntime> FusionTensor<R> {
     pub(crate) fn new(
         id: Arc<TensorId>,
         shape: Vec<usize>,
         dtype: DType,
-        client: C,
+        client: Client<R>,
         stream: StreamId,
     ) -> Self {
         Self {
@@ -99,7 +111,7 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn into_data<B, const D: usize>(self) -> Reader<Data<FloatElem<B>, D>>
     where
-        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
@@ -109,7 +121,7 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn int_into_data<B, const D: usize>(self) -> Reader<Data<IntElem<B>, D>>
     where
-        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
@@ -119,7 +131,7 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn bool_into_data<B, const D: usize>(self) -> Reader<Data<bool, D>>
     where
-        B: FusionBackend<FusionRuntime = C::FusionRuntime>,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
@@ -128,7 +140,7 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 }
 
-impl<C: FusionClient> Drop for FusionTensor<C> {
+impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         if !self.is_orphan {
             return;
