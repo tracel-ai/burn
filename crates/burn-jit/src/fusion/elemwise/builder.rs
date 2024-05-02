@@ -381,7 +381,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape = out.shape.clone();
+            self.current_output_shape.clone_from(&out.shape);
         } else if self.current_output_shape != out.shape {
             return false;
         }
