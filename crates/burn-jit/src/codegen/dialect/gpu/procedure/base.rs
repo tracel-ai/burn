@@ -1,5 +1,6 @@
 use super::{
-    ConditionalAssign, IndexOffsetGlobalWithLayout, ReadGlobal, ReadGlobalWithLayout, WriteGlobal,
+    CheckedIndex, CheckedIndexAssign, ConditionalAssign, IndexOffsetGlobalWithLayout, ReadGlobal,
+    ReadGlobalWithLayout, WriteGlobal,
 };
 use crate::codegen::dialect::gpu::Vectorization;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,8 @@ pub enum Procedure {
     IndexOffsetGlobalWithLayout(IndexOffsetGlobalWithLayout),
     ReadGlobal(ReadGlobal),
     WriteGlobal(WriteGlobal),
+    CheckedIndex(CheckedIndex),
+    CheckedIndexAssign(CheckedIndexAssign),
     ConditionalAssign(ConditionalAssign),
 }
 
@@ -22,13 +25,17 @@ impl Procedure {
             Procedure::ReadGlobalWithLayout(op) => {
                 Procedure::ReadGlobalWithLayout(op.vectorize(vectorization))
             }
-            Procedure::ReadGlobal(op) => Procedure::ReadGlobal(op.vectorize(vectorization)),
-            Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
-            Procedure::ConditionalAssign(proc) => {
-                Procedure::ConditionalAssign(proc.vectorize(vectorization))
-            }
             Procedure::IndexOffsetGlobalWithLayout(op) => {
                 Procedure::IndexOffsetGlobalWithLayout(op.vectorize(vectorization))
+            }
+            Procedure::ReadGlobal(op) => Procedure::ReadGlobal(op.vectorize(vectorization)),
+            Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
+            Procedure::CheckedIndex(proc) => Procedure::CheckedIndex(proc.vectorize(vectorization)),
+            Procedure::CheckedIndexAssign(proc) => {
+                Procedure::CheckedIndexAssign(proc.vectorize(vectorization))
+            }
+            Procedure::ConditionalAssign(proc) => {
+                Procedure::ConditionalAssign(proc.vectorize(vectorization))
             }
         }
     }

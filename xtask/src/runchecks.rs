@@ -15,7 +15,7 @@ use crate::utils::cargo::{run_cargo, run_cargo_with_path};
 use crate::utils::process::{handle_child_process, run_command};
 use crate::utils::rustup::{rustup_add_component, rustup_add_target};
 use crate::utils::time::format_duration;
-use crate::utils::workspace::{get_workspaces, WorkspaceMemberType};
+use crate::utils::workspace::{get_workspace_members, WorkspaceMemberType};
 use crate::utils::Params;
 use crate::{endgroup, group};
 
@@ -310,9 +310,13 @@ fn std_checks() {
     // Check clippy lints
     cargo_clippy();
 
-    // Produce documentation for each workspace
-    group!("Docs: workspaces");
-    cargo_doc(["--workspace", "--no-deps"].into());
+    // Produce documentation for each workspace member
+    group!("Docs: crates");
+    let mut params = Params::from(["--workspace", "--no-deps"]);
+    // Exclude burn-cuda on all platforms
+    params.params.push("--exclude".to_string());
+    params.params.push("burn-cuda".to_string());
+    cargo_doc(params);
     endgroup!();
 
     // Setup code coverage
@@ -320,20 +324,23 @@ fn std_checks() {
         setup_coverage();
     }
 
-    // Build & test each workspace
-    let workspaces = get_workspaces(WorkspaceMemberType::Crate);
-    for workspace in workspaces {
-        if disable_wgpu && workspace.name == "burn-wgpu" {
+    // Build & test each member in workspace
+    let members = get_workspace_members(WorkspaceMemberType::Crate);
+    for member in members {
+        if disable_wgpu && member.name == "burn-wgpu" {
+            continue;
+        }
+        if member.name == "burn-cuda" {
+            // burn-cuda requires CUDA Toolkit which is not currently setup on our CI runners
+            continue;
+        }
+        if member.name == "burn-tch" {
             continue;
         }
 
-        if workspace.name == "burn-tch" {
-            continue;
-        }
-
-        group!("Checks: {}", workspace.name);
-        cargo_build(Params::from(["-p", &workspace.name]));
-        cargo_test(Params::from(["-p", &workspace.name]));
+        group!("Checks: {}", member.name);
+        cargo_build(Params::from(["-p", &member.name]));
+        cargo_test(Params::from(["-p", &member.name]));
         endgroup!();
     }
 
@@ -381,18 +388,18 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    let workspaces = get_workspaces(WorkspaceMemberType::Example);
-    for workspace in workspaces {
-        if workspace.name == "notebook" {
+    let members = get_workspace_members(WorkspaceMemberType::Example);
+    for member in members {
+        if member.name == "notebook" {
             continue;
         }
 
-        group!("Checks: Example - {}", workspace.name);
+        group!("Checks: Example - {}", member.name);
         run_cargo_with_path(
             "check",
             ["--examples"].into(),
             HashMap::new(),
-            Some(workspace.path),
+            Some(member.path),
             "Failed to check example",
         );
         endgroup!();

@@ -72,7 +72,6 @@ autodiff = ["burn-autodiff"]
 fusion = ["burn-wgpu?/fusion"]
 
 ## Backend features
-cuda = ["burn-candle?/cuda"]
 metal = ["burn-candle?/metal"]
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 openblas = ["burn-ndarray?/blas-openblas"]
@@ -84,6 +83,7 @@ template = ["burn-wgpu?/template"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 candle = ["burn-candle"]
+candle-cuda = ["candle", "burn-candle/cuda"]
 wgpu = ["burn-wgpu"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.

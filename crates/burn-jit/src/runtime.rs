@@ -28,4 +28,9 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
 
     /// The runtime name.
     fn name() -> &'static str;
+
+    /// Return true if global input array lengths should be added to kernel info.
+    fn require_array_lengths() -> bool {
+        false
+    }
 }

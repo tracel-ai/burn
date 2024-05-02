@@ -25,8 +25,8 @@ impl WorkspaceMember {
     }
 }
 
-/// Get project workspaces
-pub(crate) fn get_workspaces(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember> {
+/// Get workspace crates
+pub(crate) fn get_workspace_members(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember> {
     // Run `cargo metadata` command to get project metadata
     let output = Command::new("cargo")
         .arg("metadata")

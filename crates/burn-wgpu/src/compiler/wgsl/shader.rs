@@ -1,5 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_jit::gpu::WorkgroupSize;
+use burn_jit::{gpu::WorkgroupSize, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -216,5 +216,12 @@ impl Display for Visibility {
             Visibility::Read => f.write_str("read"),
             Visibility::ReadWrite => f.write_str("read_write"),
         }
+    }
+}
+
+impl CompilerRepresentation for ComputeShader {
+    fn shared_memory_size(&self) -> usize {
+        // not used in wgsl compiler
+        0
     }
 }

@@ -503,13 +503,12 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
             node_input.passed = false;
         }
     }
-    log::debug!("\n\nchecking outputs");
     let mut out_count = 1;
     if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
-        log::debug!("it's a constant");
         let new_name = format!("{}_out{}", node.name, out_count);
         graph_io.insert(&node.outputs[0], &new_name);
-        node.outputs[0].name = new_name;
+        node.outputs[0].name = new_name.clone();
+        log::debug!("Found {} constant", new_name);
     } else {
         for output in node.outputs.iter_mut() {
             log::debug!("output name: {}", &output.name);

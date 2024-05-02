@@ -6,7 +6,7 @@ pub(crate) mod time;
 pub(crate) mod workspace;
 
 pub(crate) struct Params {
-    params: Vec<String>,
+    pub params: Vec<String>,
 }
 
 impl<const N: usize> From<[&str; N]> for Params {
