@@ -4,7 +4,7 @@ use crate::{
     IntElement, JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
-use burn_fusion::{FusionBackend, FusionRuntime};
+use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use half::{bf16, f16};
@@ -106,6 +106,7 @@ impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     type Optimization = JitOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
     type FusionDevice = R::Device;
+    type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(
         device: R::Device,
@@ -114,6 +115,7 @@ impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     }
 }
 
+#[derive(Debug)]
 pub struct FusionJitRuntime<R: Runtime> {
     _b: PhantomData<R>,
 }

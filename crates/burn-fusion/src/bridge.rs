@@ -14,13 +14,14 @@ use std::marker::PhantomData;
 #[derive(Debug)]
 /// Fusion bridge.
 pub struct PrecisionBridge<B: FusionBackend> {
-    _b: PhantomData<B>,
+    _backend: PhantomData<B>,
 }
 
-impl<BInput, BTarget> BackendBridge<Fusion<BInput>> for PrecisionBridge<BTarget>
+impl<R, BInput, BTarget> BackendBridge<Fusion<BInput>> for PrecisionBridge<BTarget>
 where
-    BInput: FusionBackend,
-    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
+    BInput: FusionBackend<FusionRuntime = R>,
+    BTarget: FusionBackend<FusionRuntime = R>,
+    R: FusionRuntime + 'static,
 {
     type Target = Fusion<BTarget>;
 
@@ -28,35 +29,39 @@ where
         tensor: FloatTensor<Fusion<BInput>, D>,
         _device: Option<burn_tensor::Device<Self::Target>>,
     ) -> FloatTensor<Self::Target, D> {
-        cast::<BInput, BTarget, D>(tensor)
+        cast::<R, BInput, BTarget, D>(tensor)
     }
 
     fn from_target<const D: usize>(
         tensor: FloatTensor<Self::Target, D>,
         _device: Option<burn_tensor::Device<Fusion<BInput>>>,
     ) -> FloatTensor<Fusion<BInput>, D> {
-        cast::<BTarget, BInput, D>(tensor)
+        cast::<R, BTarget, BInput, D>(tensor)
     }
 }
 
-fn cast<BInput, BTarget, const D: usize>(
+fn cast<R, BInput, BTarget, const D: usize>(
     input: FloatTensor<Fusion<BInput>, D>,
 ) -> FloatTensor<Fusion<BTarget>, D>
 where
-    BInput: FusionBackend,
-    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
+    BInput: FusionBackend<FusionRuntime = R>,
+    BTarget: FusionBackend<FusionRuntime = R>,
+    R: FusionRuntime + 'static,
 {
     #[derive(new)]
-    struct Cast<BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
+    struct Cast<R: FusionRuntime, BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
         desc: UnaryOperationDescription,
         _bi: PhantomData<BInput>,
         _bt: PhantomData<BTarget>,
+        _runtime: PhantomData<R>,
     }
 
-    impl<const D: usize, BInput, BTarget> Operation<BTarget::FusionRuntime> for Cast<BInput, BTarget, D>
+    impl<const D: usize, R, BInput, BTarget> Operation<BTarget::FusionRuntime>
+        for Cast<R, BInput, BTarget, D>
     where
-        BInput: FusionBackend,
-        BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
+        BInput: FusionBackend<FusionRuntime = R>,
+        BTarget: FusionBackend<FusionRuntime = R>,
+        R: FusionRuntime,
     {
         fn execute(
             self: Box<Self>,
@@ -82,7 +87,7 @@ where
     out.client.register(
         vec![stream],
         OperationDescription::BaseFloat(BaseOperationDescription::Cast(desc.clone())),
-        Cast::<BInput, BTarget, D>::new(desc),
+        Cast::<R, BInput, BTarget, D>::new(desc),
     );
 
     out

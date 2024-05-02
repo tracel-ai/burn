@@ -108,7 +108,7 @@ fn cargo_test(params: Params) {
     // Run cargo test
     run_cargo(
         "test",
-        params + "--color=always" + "--verbose" + "--" + "--color=always",
+        params + "--color=always" + "--" + "--color=always",
         HashMap::new(),
         "Failed to run cargo test",
     );
@@ -305,33 +305,28 @@ fn std_checks() {
     let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     // Check format
-    // cargo_fmt();
+    cargo_fmt();
 
     // Check clippy lints
-    // cargo_clippy();
+    cargo_clippy();
 
     // Produce documentation for each workspace member
-    // group!("Docs: crates");
-    // let mut params = Params::from(["--workspace", "--no-deps"]);
-    // // Exclude burn-cuda on all platforms
-    // params.params.push("--exclude".to_string());
-    // params.params.push("burn-cuda".to_string());
-    // cargo_doc(params);
-    // endgroup!();
+    group!("Docs: crates");
+    let mut params = Params::from(["--workspace", "--no-deps"]);
+    // Exclude burn-cuda on all platforms
+    params.params.push("--exclude".to_string());
+    params.params.push("burn-cuda".to_string());
+    cargo_doc(params);
+    endgroup!();
 
     // Setup code coverage
-    // if is_coverage {
-    //     setup_coverage();
-    // }
+    if is_coverage {
+        setup_coverage();
+    }
 
     // Build & test each member in workspace
     let members = get_workspace_members(WorkspaceMemberType::Crate);
     for member in members {
-        // TODO: FOR TEST CI
-        if member.name != "burn-wgpu" {
-            continue;
-        }
-
         if disable_wgpu && member.name == "burn-wgpu" {
             continue;
         }
@@ -344,7 +339,7 @@ fn std_checks() {
         }
 
         group!("Checks: {}", member.name);
-        // cargo_build(Params::from(["-p", &member.name]));
+        cargo_build(Params::from(["-p", &member.name]));
         cargo_test(Params::from(["-p", &member.name]));
         endgroup!();
     }

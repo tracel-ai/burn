@@ -25,7 +25,6 @@ pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     let mut cargo = Command::new("cargo");
     cargo
         .env("CARGO_INCREMENTAL", "0")
-        .env("RUST_BACKTRACE", "full")
         .envs(&envs)
         .arg(command)
         .args(&params.params)
