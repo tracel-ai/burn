@@ -9,7 +9,10 @@ use burn_tensor::{
 };
 
 /// Define how to interact with the fusion server.
-pub trait FusionClient<R: FusionRuntime>: Send + Sync + Clone + Sized {
+pub trait FusionClient<R>: Send + Sync + Clone + Sized
+where
+    R: FusionRuntime<FusionClient = Self>,
+{
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<R>) -> Self;
     /// Register a new [tensor operation description](OperationDescription).

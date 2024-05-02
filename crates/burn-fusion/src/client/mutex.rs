@@ -29,7 +29,10 @@ where
     }
 }
 
-impl<R: FusionRuntime<FusionClient = Self>> FusionClient<R> for MutexFusionClient<R> {
+impl<R> FusionClient<R> for MutexFusionClient<R>
+where
+    R: FusionRuntime<FusionClient = Self>,
+{
     fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),

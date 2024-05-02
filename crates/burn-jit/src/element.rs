@@ -4,8 +4,6 @@ use burn_tensor::Element;
 /// The base element trait for the jit backend.
 pub trait JitElement:
     burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
-where
-    Self: Sized,
 {
     /// TODO: Remove when all wgsl static kernels are migrated.
     fn type_name() -> &'static str;

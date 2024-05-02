@@ -18,7 +18,7 @@ pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::Fusi
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
 #[derive(Clone, Debug, Default)]
-pub struct Fusion<B> {
+pub struct Fusion<B: FusionBackend> {
     _backend: PhantomData<B>,
 }
 
@@ -150,10 +150,7 @@ pub trait FusionRuntime: Send + Sync + Sized {
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend:
-    ReprBackend<
-        Handle = FusionHandle<Self::FusionRuntime>,
-        Device = FusionDevice<Self::FusionRuntime>,
-    > + Sized
+    ReprBackend<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;

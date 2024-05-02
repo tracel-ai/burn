@@ -56,9 +56,7 @@ pub trait ElementRandom {
     /// # Returns
     ///
     /// The random value.
-    fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self
-    where
-        Self: Sized;
+    fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self;
 }
 
 /// Element ordering trait.

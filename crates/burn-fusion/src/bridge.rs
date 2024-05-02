@@ -20,7 +20,7 @@ pub struct PrecisionBridge<B: FusionBackend> {
 impl<BInput, BTarget> BackendBridge<Fusion<BInput>> for PrecisionBridge<BTarget>
 where
     BInput: FusionBackend,
-    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime, Device = BInput::Device>,
+    BTarget: FusionBackend<FusionRuntime = BInput::FusionRuntime>,
 {
     type Target = Fusion<BTarget>;
 
