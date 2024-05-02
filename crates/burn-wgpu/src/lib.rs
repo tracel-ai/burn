@@ -1,4 +1,4 @@
-#![recursion_limit="50"]
+#![recursion_limit = "50"]
 
 #[macro_use]
 extern crate derive_new;
