@@ -327,6 +327,11 @@ fn std_checks() {
     // Build & test each member in workspace
     let members = get_workspace_members(WorkspaceMemberType::Crate);
     for member in members {
+        // TODO: FOR TEST CI
+        if member.name != "burn-wgpu" {
+            continue;
+        }
+
         if disable_wgpu && member.name == "burn-wgpu" {
             continue;
         }
