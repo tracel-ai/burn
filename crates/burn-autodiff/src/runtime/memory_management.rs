@@ -179,6 +179,7 @@ impl GraphMemoryManagement {
                 NodeMemoryStatus::Useful => {
                     tagged_useful.insert(node_id);
                     for parent in parents(node_id) {
+                        // The node can be explored, as long as it's not already tagged useful
                         if !(tagged_useful.contains(&parent) || to_tag_useful.contains(&parent)) {
                             to_tag_useful.insert(parent);
                         }
