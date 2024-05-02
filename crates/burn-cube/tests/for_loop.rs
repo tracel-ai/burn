@@ -14,21 +14,36 @@ pub fn kernel(mut lhs: Array<Float>, rhs: Float, end: UInt, unroll: bool) {
 }
 
 #[test]
-fn test_for_loop() {
+fn test_for_loop_with_unroll() {
     let mut context = CubeContext::root();
+    let unroll = true;
 
     let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
     let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
-    let end = context.create_local(Item::Scalar(Elem::UInt));
-    // let end =Variable::ConstantScalar(5.0, Item::Scalar(Elem::UInt));
+    let end = 4u32.into();
 
-    kernel_expand(&mut context, lhs, rhs, end, false);
+    kernel_expand(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
+    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
 }
 
-fn gpu_macro_ref() -> String {
+#[test]
+fn test_for_loop_no_unroll() {
+    let mut context = CubeContext::root();
+    let unroll = false;
+
+    let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let end = 4u32.into();
+
+    kernel_expand(&mut context, lhs, rhs, end, unroll);
+    let scope = context.into_scope();
+
+    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
+}
+
+fn gpu_macro_ref(unroll: bool) -> String {
     let mut context = CubeContext::root();
     let item = Item::Scalar(Elem::Float(F32));
 
@@ -36,7 +51,7 @@ fn gpu_macro_ref() -> String {
     let rhs = context.create_local(item);
     let lhs: Variable = lhs.into();
     let rhs: Variable = rhs.into();
-    let end = context.create_local(Item::Scalar(Elem::UInt));
+    let end = 4u32;
     let mut scope = context.into_scope();
 
     // Kernel
@@ -47,7 +62,7 @@ fn gpu_macro_ref() -> String {
 
     gpu!(
         &mut scope,
-        range(0usize, end).for_each(|i, scope| {
+        range(0u32, end, unroll).for_each(|i, scope| {
             gpu!(scope, rhs = lhs[i]);
             gpu!(scope, tmp1 = tmp2 + rhs);
             gpu!(scope, lhs[i] = tmp1);
