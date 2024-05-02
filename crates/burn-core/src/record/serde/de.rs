@@ -348,13 +348,13 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         fn clone_unsafely<T>(thing: &T) -> T {
             unsafe {
                 // Allocate memory for the clone.
-                let clone = ptr::null_mut();
-                // Correcting pointer usage based on feedback
-                let clone = ptr::addr_of_mut!(*clone);
+                let mut clone = std::mem::MaybeUninit::<T>::uninit();
+                // Get a mutable pointer to the allocated memory.
+                let clone_ptr = clone.as_mut_ptr();
                 // Copy the memory
-                ptr::copy_nonoverlapping(thing as *const T, clone, 1);
-                // Transmute the cloned data pointer into an owned instance of T.
-                ptr::read(clone)
+                ptr::copy_nonoverlapping(thing as *const T, clone_ptr, 1);
+                // Assume the cloned data is initialized and convert it to an owned instance of T.
+                clone.assume_init()
             }
         }
 
