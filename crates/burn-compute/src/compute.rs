@@ -8,6 +8,17 @@ pub struct ComputeRuntime<Device, Server: ComputeServer, Channel> {
     clients: spin::Mutex<Option<HashMap<Device, ComputeClient<Server, Channel>>>>,
 }
 
+impl<Device, Server, Channel> Default for ComputeRuntime<Device, Server, Channel>
+where
+    Device: core::hash::Hash + PartialEq + Eq + Clone + core::fmt::Debug,
+    Server: ComputeServer,
+    Channel: ComputeChannel<Server>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Device, Server, Channel> ComputeRuntime<Device, Server, Channel>
 where
     Device: core::hash::Hash + PartialEq + Eq + Clone + core::fmt::Debug,

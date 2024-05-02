@@ -29,7 +29,7 @@ impl Argument {
     /// Copy everything except the name from the other argument
     pub fn copy_value(&mut self, other_arg: &Argument) {
         self.ty = other_arg.ty.clone();
-        self.value = other_arg.value.clone();
+        self.value.clone_from(&other_arg.value);
     }
 
     pub fn from_initializer(initializer: &TensorProto) -> Argument {

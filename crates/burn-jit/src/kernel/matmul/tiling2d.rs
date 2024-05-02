@@ -21,11 +21,6 @@ use super::{
 };
 
 #[derive(new, Debug)]
-struct MatmulTiling2d<E: JitElement> {
-    _elem: PhantomData<E>,
-}
-
-#[derive(new, Debug)]
 struct MatmulTiling2dEagerKernel<R: Runtime, E: JitElement> {
     config: Tiling2dConfig,
     bounds_check_required: bool,

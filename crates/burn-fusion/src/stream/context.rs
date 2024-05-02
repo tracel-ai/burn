@@ -1,4 +1,3 @@
-use crate::FusionBackend;
 use burn_tensor::{repr::*, Element, ElementConversion};
 use hashbrown::HashMap;
 
@@ -9,11 +8,11 @@ use hashbrown::HashMap;
 /// It also contains all scalar values, which can change even for the same graph. They are sorted
 /// in the order in which they appear in the graph.
 #[derive(new)]
-pub struct Context<'a, B: FusionBackend> {
+pub struct Context<'a, H> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
     pub tensors: &'a HashMap<TensorId, TensorDescription>,
     /// Handle container to retrieve tensors based on their description.
-    pub handles: &'a mut HandleContainer<B>,
+    pub handles: &'a mut HandleContainer<H>,
     /// Float scalars found in the graph in the order they appeared.
     pub scalar_floats: &'a Vec<f32>,
     /// Int scalars found in the graph in the order they appeared.
@@ -42,10 +41,7 @@ trait RelativeOpsScalar<E: Element> {
 }
 
 impl OperationConverter {
-    pub(crate) fn context<'a, B: FusionBackend>(
-        &'a self,
-        handles: &'a mut HandleContainer<B>,
-    ) -> Context<'a, B> {
+    pub(crate) fn context<'a, H>(&'a self, handles: &'a mut HandleContainer<H>) -> Context<'a, H> {
         Context {
             handles,
             tensors: &self.tensors_relative2global,
@@ -853,6 +849,12 @@ impl RelativeOps for BaseOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            BaseOperationDescription::Cast(desc) => {
+                BaseOperationDescription::Cast(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
@@ -887,6 +889,7 @@ impl RelativeOps for TensorDescription {
             id: relative_id,
             shape: relative_shape,
             status: self.status.clone(),
+            dtype: self.dtype,
         };
 
         // We update both mappings.
@@ -904,7 +907,10 @@ impl RelativeOps for TensorDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
+    use burn_tensor::{
+        repr::{TensorDescription, TensorId, TensorStatus},
+        DType,
+    };
 
     #[test]
     fn tensor_description_to_relative() {
@@ -912,11 +918,13 @@ mod tests {
             id: TensorId::new(500),
             shape: vec![512, 32, 2048],
             status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
         };
         let tensor2 = TensorDescription {
             id: TensorId::new(501),
             shape: vec![512, 128, 2048],
             status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
         };
         let mut converter = OperationConverter::default();
         let tensor1_local = tensor1.to_relative(&mut converter);
@@ -927,7 +935,8 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![0, 1, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32
             }
         );
         assert_eq!(
@@ -935,7 +944,8 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(1),
                 shape: vec![0, 3, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32
             }
         );
     }

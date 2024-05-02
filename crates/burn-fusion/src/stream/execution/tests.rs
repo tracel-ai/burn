@@ -6,10 +6,13 @@
 //! To test these components effectively, we create mock types for the stream, optimization,
 //! optimization builder, and stream segment. These mock types aid in comprehensively
 //! understanding the process of optimizing streams.
-use burn_tensor::repr::{
-    BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
-    OperationDescription, ScalarOperationDescription, TensorDescription, TensorId, TensorStatus,
-    UnaryOperationDescription,
+use burn_tensor::{
+    repr::{
+        BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
+        OperationDescription, ScalarOperationDescription, TensorDescription, TensorId,
+        TensorStatus, UnaryOperationDescription,
+    },
+    DType,
 };
 
 use crate::{
@@ -523,16 +526,19 @@ fn operation_1() -> OperationDescription {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
             },
             rhs: TensorDescription {
                 id: TensorId::new(1),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
             },
             out: TensorDescription {
                 id: TensorId::new(2),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
+                dtype: DType::F32,
             },
         },
     ))
@@ -546,12 +552,14 @@ fn operation_2() -> OperationDescription {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
             },
             rhs: 5.0,
             out: TensorDescription {
                 id: TensorId::new(2),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
+                dtype: DType::F32,
             },
         },
     ))
@@ -564,11 +572,13 @@ fn operation_3() -> OperationDescription {
             id: TensorId::new(0),
             shape: vec![32, 32],
             status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
         },
         out: TensorDescription {
             id: TensorId::new(0),
             shape: vec![32, 32],
             status: TensorStatus::NotInit,
+            dtype: DType::F32,
         },
     }))
 }

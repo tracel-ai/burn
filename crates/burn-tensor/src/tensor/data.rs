@@ -112,9 +112,10 @@ impl Distribution {
     /// # Returns
     ///
     /// The distribution sampler.
-    pub fn sampler<R: RngCore, E: Element>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
+    pub fn sampler<R, E>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
     where
-        E: rand::distributions::uniform::SampleUniform,
+        R: RngCore,
+        E: Element + rand::distributions::uniform::SampleUniform,
         Standard: rand::distributions::Distribution<E>,
     {
         let kind = match self {
