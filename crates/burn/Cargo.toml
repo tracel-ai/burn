@@ -68,8 +68,8 @@ record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.13.2", default-features = false }
-burn-train = { path = "../burn-train", version = "0.13.2", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.13.3", default-features = false }
+burn-train = { path = "../burn-train", version = "0.13.3", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]
