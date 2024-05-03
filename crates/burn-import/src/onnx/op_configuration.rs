@@ -1,7 +1,7 @@
 use burn::nn::{
     conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool2dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PReluConfig, PaddingConfig1d,
     PaddingConfig2d,
 };
 
@@ -119,6 +119,21 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
+}
+pub fn prelu_config(curr: &Node) -> PReluConfig {
+    let mut alpha = 0.01;
+    let mut num_parameters = 0;
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32(),
+            "num_parameters" => num_parameters = value.clone().into_i32(),
+            _ => {}
+        }
+    }
+
+    PReluConfig::new()
+        .with_num_parameters(num_parameters as usize)
+        .with_alpha(alpha as f64)
 }
 
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
