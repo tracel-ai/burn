@@ -238,4 +238,56 @@ mod tests {
         assert!(tensor_2.grad(&grads).is_some());
         assert!(tensor_3.grad(&grads).is_none());
     }
+
+    #[test]
+    #[should_panic]
+    fn test_mm_deletables_propagate_well() {
+        let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
+        let device = Default::default();
+
+        let tensor_0 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+        let tensor_1 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+
+        let tensor_2 = tensor_0 * tensor_1;
+        let tensor_3 = tensor_2.clone().exp();
+        let tensor_4 = tensor_3.clone().log();
+
+        let grads = tensor_2.backward();
+
+        // We are testing that after backward on tensor_2, not only the leaf tensor_4 is deleted, but
+        // the intermediate tensor_3 as well
+        let grads = tensor_3.backward();
+    }
+
+    #[test]
+    fn test_mm_node_explored_once_can_still_be_tagged_as_useful_when_found_again_deeper() {
+        let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
+        let device = Default::default();
+
+        // The test has 50% chance of starting with leaf tensor_8 instead of tensor_4, which is not informative
+        // By repeating it many times it becomes almost impossible that it passes if it shouldn't
+        for _ in 0..12 {
+            let tensor_0 =
+                Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+            let tensor_1 =
+                Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+
+            let tensor_2 = tensor_1.clone().exp();
+            let tensor_3 = tensor_0.exp();
+            let tensor_4 = tensor_3.clone() * tensor_2.clone();
+            let tensor_5 = tensor_2.exp();
+            let tensor_6 = tensor_5.exp();
+            let tensor_7 = tensor_6.exp();
+            let tensor_8 = tensor_7.exp();
+
+            // tensor_2 should be tagged unknown through the leaf tensor_4, then useful through the leaf tensor_8
+            // which should happen after because tensor_2 is deeper from tensor_8 point of view and we're in breadth first search
+            tensor_3.backward();
+            let grads = tensor_8.backward();
+
+            assert!(tensor_1.grad(&grads).is_some());
+        }
+    }
 }
