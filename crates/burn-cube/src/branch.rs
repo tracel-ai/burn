@@ -70,7 +70,23 @@ where
     }));
 }
 
-pub fn loop_expand<FC, FB>(context: &mut CubeContext, mut cond_fn: FC, mut block: FB)
+pub fn break_expand(context: &mut CubeContext) {
+    context.register(Branch::Break);
+}
+
+pub fn loop_expand<FB>(context: &mut CubeContext, mut block: FB)
+where
+    FB: FnMut(&mut CubeContext),
+{
+    let mut inside_loop = context.child();
+
+    block(&mut inside_loop);
+    context.register(Branch::Loop(gpu::Loop {
+        scope: inside_loop.into_scope(),
+    }));
+}
+
+pub fn while_loop_expand<FC, FB>(context: &mut CubeContext, mut cond_fn: FC, mut block: FB)
 where
     FC: FnMut(&mut CubeContext) -> ExpandElement,
     FB: FnMut(&mut CubeContext),
@@ -78,9 +94,7 @@ where
     let mut inside_loop = context.child();
     let cond: ExpandElement = cond_fn(&mut inside_loop);
 
-    if_expand(&mut inside_loop, cond, |context| {
-        context.register(Branch::Break)
-    });
+    if_expand(&mut inside_loop, cond, |context| break_expand(context));
 
     block(&mut inside_loop);
     context.register(Branch::Loop(gpu::Loop {

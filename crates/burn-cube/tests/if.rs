@@ -16,7 +16,7 @@ fn cube_if_test() {
 
     let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
 
-    if_greater_expand(&mut context, lhs);
+    if_greater::expand(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());

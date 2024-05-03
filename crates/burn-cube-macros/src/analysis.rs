@@ -162,6 +162,11 @@ impl CodeAnalysisBuilder {
                 self.expr_occurrences(&expr.cond, depth);
                 self.stmts_occurrences(&expr.body.stmts, depth);
             }
+            syn::Expr::Loop(expr) => {
+                let depth = depth + 1;
+
+                self.stmts_occurrences(&expr.body.stmts, depth);
+            }
             syn::Expr::If(expr) => {
                 if expr.else_branch.is_some() {
                     todo!("Analysis: else branch not supported");
@@ -214,6 +219,7 @@ impl CodeAnalysisBuilder {
                     self.expr_occurrences(arg, depth);
                 }
             }
+            syn::Expr::Break(_) => {}
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

@@ -32,6 +32,7 @@ impl From<&syn::Ident> for VariableKey {
 /// Generate the expanded version of a function marked with the cube macro
 fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenStream {
     let prelude = get_prelude(&code_analysis.needed_functions);
+    let mod_name = get_name(&func.sig);
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
@@ -41,19 +42,31 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
     }
 
     let code = quote::quote! {
-        #prelude
+        mod #mod_name {
+            #prelude
 
-        #func
+            #[allow(dead_code)]
+            #func
 
-        #[allow(unused_mut)]
-        #signature {
-            #body
+            #[allow(unused_mut)]
+            #signature {
+                #body
+            }
         }
     }
     .into();
     // panic!("{code}");
 
     code
+}
+
+fn get_name(sig: &syn::Signature) -> proc_macro2::TokenStream {
+    let ident = &sig.ident;
+
+    quote::quote! {
+        #ident
+    }
+    .into()
 }
 
 fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
@@ -85,7 +98,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     }
 
     let ident = &sig.ident;
-    let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
+    let ident = syn::Ident::new("expand", ident.span());
 
     quote::quote! {
         pub fn #ident(context: &mut burn_cube::CubeContext, #inputs) -> #output

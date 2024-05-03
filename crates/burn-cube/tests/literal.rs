@@ -14,7 +14,7 @@ fn cube_literal_test() {
 
     let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
 
-    literal_expand(&mut context, lhs);
+    literal::expand(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());

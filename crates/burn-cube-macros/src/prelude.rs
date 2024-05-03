@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use crate::VariableKey;
 
 pub(crate) fn get_prelude(needed_functions: &HashSet<VariableKey>) -> proc_macro2::TokenStream {
-    let mut prelude = proc_macro2::TokenStream::new();
+    let mut prelude = quote::quote! {
+        use super::*;
+    };
 
     for func_name in needed_functions
         .iter()

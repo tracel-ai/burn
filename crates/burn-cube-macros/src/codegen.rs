@@ -1,5 +1,4 @@
 use proc_macro2::TokenStream;
-use syn::token::If;
 
 use crate::analysis::CodeAnalysis;
 
@@ -74,6 +73,8 @@ fn codegen_expr(
         syn::Expr::While(while_loop) => {
             codegen_while_loop(while_loop, loop_level, variable_analyses)
         }
+        syn::Expr::Loop(loop_expr) => codegen_loop(loop_expr, loop_level, variable_analyses),
+        syn::Expr::Break(_) => codegen_break(),
         syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_expr_index(index, loop_level, variable_analyses),
@@ -157,6 +158,12 @@ fn codegen_cond(
     }
 }
 
+fn codegen_break() -> TokenStream {
+    quote::quote! {
+        break_expand(context);
+    }
+}
+
 fn codegen_if(
     expr_if: &syn::ExprIf,
     loop_level: usize,
@@ -175,6 +182,18 @@ fn codegen_if(
     }
 }
 
+fn codegen_loop(
+    loop_expr: &syn::ExprLoop,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let block = codegen_block(&loop_expr.body, loop_level + 1, variable_analyses);
+
+    quote::quote! {
+        loop_expand(context, |context| #block);
+    }
+}
+
 fn codegen_while_loop(
     while_loop: &syn::ExprWhile,
     loop_level: usize,
@@ -184,7 +203,7 @@ fn codegen_while_loop(
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
 
     quote::quote! {
-        loop_expand(context, |context| #cond, |context| #block);
+        while_loop_expand(context, |context| #cond, |context| #block);
     }
 }
 
