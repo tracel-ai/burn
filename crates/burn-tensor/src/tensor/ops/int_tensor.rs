@@ -770,6 +770,18 @@ pub trait IntTensorOps<B: Backend> {
     /// The sum of all elements in the tensor along the dimension.
     fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
 
+    /// Cumulative Sum of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to perform cumulative sum on.
+    /// * `dim` - The dimension along which to perform cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the cumulative sum of all elements in `tensor` along `dim`.
+    fn int_cumsum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+
     /// Computes the product of all elements in the tensor.
     ///
     /// # Arguments

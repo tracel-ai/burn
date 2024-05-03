@@ -842,6 +842,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Cumulative Sum of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to perform cumulative sum on.
+    /// * `dim` - The dimension along which to perform cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the cumulative sum of all elements in `tensor` along `dim`.
+    fn float_cumsum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize)
+        -> FloatTensor<B, D>;
+
     /// Product of all elements in a tensor.
     ///
     /// # Arguments
@@ -867,6 +880,20 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the product of all elements in `tensor` along `dim`.
     fn float_prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
         // Product of all elements in a tensor along a dimension
+        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
+    }
+
+    /// Cumulative Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to perform cumulative product on.
+    ///
+    /// # Returns
+    ///
+    /// A tensor whose elements are the cumulative product of elements of `tensor` along dimension `dim`
+    fn float_cumprod<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+        // Cumulative product of all elements in a tensor along a dimension
         B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
     }
 

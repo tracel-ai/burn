@@ -142,6 +142,13 @@ where
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
+    /// Perform a cumulative sum on all elements along the given *dimension* or *axis*
+    /// in the tensor with the sum operation.
+    pub fn cumsum_dim(self, dim: usize) -> Self {
+        check!(TensorCheck::running_dim::<D>("Sum", dim));
+        Self::new(K::cumsum_dim(self.primitive, dim))
+    }
+
     /// Aggregate all elements along the given *dimension* or *axis*
     /// in the tensor with the product operation.
     pub fn prod(self) -> Tensor<B, 1, K> {
@@ -1173,6 +1180,27 @@ where
     /// which is more high-level and designed for public use.
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
+    /// Performs cumulative sum across  all the elements of the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to perform cumulative sum on.
+    /// * `dim` - The dimension along which to perform cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// The cumulative sum of all the elements of the tensor along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For performing cumulative sum across all the elements of a tensor along a dimension, users should prefer the [Tensor::cumsum_dim](Tensor::cumsum_dim) function,
+    /// which is more high-level and designed for public use.
+    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+
     /// Computes the product of all the elements of the tensor.
     ///
     /// # Arguments
@@ -2176,6 +2204,10 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_sum_dim(tensor, dim)
     }
 
+    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::int_cumsum_dim(tensor, dim)
+    }
+
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::int_prod(tensor)
     }
@@ -2519,6 +2551,10 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::float_sum_dim(tensor, dim)
+    }
+
+    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::float_cumsum_dim(tensor, dim)
     }
 
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
