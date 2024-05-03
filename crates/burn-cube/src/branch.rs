@@ -70,19 +70,20 @@ where
     }));
 }
 
-// pub fn loop_expand<F>(context: &mut CubeContext, mut cond_fn: F, mut block: F)
-// where
-//     F: FnMut(&mut CubeContext),
-// {
-//     let mut child = context.child();
-//     // let cond: Variable = cond_fn...
+pub fn loop_expand<FC, FB>(context: &mut CubeContext, mut cond_fn: FC, mut block: FB)
+where
+    FC: FnMut(&mut CubeContext) -> ExpandElement,
+    FB: FnMut(&mut CubeContext),
+{
+    let mut inside_loop = context.child();
+    let cond: ExpandElement = cond_fn(&mut inside_loop);
 
-//     child.register(Branch::If(gpu::If {
-//         cond, scope: child.into_scope()
-//     }));
+    if_expand(&mut inside_loop, cond, |context| {
+        context.register(Branch::Break)
+    });
 
-//     block(&mut child);
-//     context.register(Branch::Loop(gpu::Loop {
-//         scope: child.into_scope(),
-//     }))
-// }
+    block(&mut inside_loop);
+    context.register(Branch::Loop(gpu::Loop {
+        scope: inside_loop.into_scope(),
+    }));
+}

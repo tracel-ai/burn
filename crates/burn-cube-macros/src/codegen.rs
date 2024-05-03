@@ -167,7 +167,6 @@ fn codegen_if(
     }
 
     let cond = codegen_cond(&expr_if.cond, loop_level, variable_analyses);
-
     let block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_analyses);
 
     quote::quote! {
@@ -181,9 +180,8 @@ fn codegen_while_loop(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
+    let cond = codegen_cond(&while_loop.cond, loop_level + 1, variable_analyses);
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
-
-    let cond = codegen_cond(&while_loop.cond, loop_level, variable_analyses);
 
     quote::quote! {
         loop_expand(context, |context| #cond, |context| #block);
