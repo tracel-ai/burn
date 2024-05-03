@@ -89,7 +89,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PRelu");
         imports.register("burn::nn::prelu::PRelu");
         imports.register("burn::nn::prelu::PReluConfig");
     }

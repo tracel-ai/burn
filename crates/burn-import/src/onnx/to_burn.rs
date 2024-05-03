@@ -5,6 +5,7 @@ use std::{
 };
 
 use burn::{
+    nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
@@ -701,7 +702,7 @@ impl OnnxGraph {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
-        let config = prelu_config(&node);
+        let config = PReluConfig::new();
         let name = &node.name;
         PReluNode::<PS>::new(name, input, output, weight, config)
     }
