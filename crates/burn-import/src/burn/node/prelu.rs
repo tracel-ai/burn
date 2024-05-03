@@ -89,11 +89,72 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::prelu::PRelu");
-        imports.register("burn::nn::prelu::PReluConfig");
+        imports.register("burn::nn::PRelu");
+        imports.register("burn::nn::PReluConfig");
     }
 
     fn into_node(self) -> Node<PS> {
         Node::PRelu(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph,
+        node::{conv1d::Conv1dNode, test::assert_tokens},
+        TensorType,
+    };
+    use burn::{
+        nn::conv::Conv1dConfig, nn::PaddingConfig1d, record::FullPrecisionSettings, tensor::Data,
+    };
+
+    #[test]
+    fn test_codegen() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(PReluNode::new(
+            "prelu",
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
+            Data::from([2.]).serialize(),
+            PReluConfig::new(),
+        ));
+
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
+        let expected = quote! {
+        use burn::nn::prelu::PRelu;
+        use burn::nn::prelu::PReluConfig;
+        use burn::{
+            module::Module,
+            tensor::{backend::Backend, Tensor},
+        };
+        #[derive(Module, Debug)]
+        pub struct Model<B: Backend> {
+            prelu: PRelu<B>,
+            phantom: core::marker::PhantomData<B>,
+            device: burn::module::Ignored<B::Device>,
+        }
+        impl<B: Backend> Model<B> {
+            #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                let prelu = PReluConfig::new(1, 0.25).init(device);
+                Self {
+                    prelu,
+                    phantom: core::marker::PhantomData,
+                   device: burn::module::Ignored(device.clone()),
+                }
+            }
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+                let output = self.prelu.forward(input);
+                output
+            }
+        }
+        };
+
+        assert_tokens(graph.codegen(), expected);
     }
 }
