@@ -166,6 +166,7 @@ impl CodeAnalysisBuilder {
                 if expr.else_branch.is_some() {
                     todo!("Analysis: else branch not supported");
                 }
+                let depth = depth + 1;
 
                 self.expr_occurrences(&expr.cond, depth);
                 self.stmts_occurrences(&expr.then_branch.stmts, depth);

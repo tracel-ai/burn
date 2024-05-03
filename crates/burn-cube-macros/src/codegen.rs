@@ -168,7 +168,7 @@ fn codegen_if(
 
     let cond = codegen_cond(&expr_if.cond, loop_level, variable_analyses);
 
-    let block = codegen_block(&expr_if.then_branch, loop_level, variable_analyses);
+    let block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_analyses);
 
     quote::quote! {
         let _cond = #cond;

@@ -6,7 +6,7 @@ use burn_jit::gpu::{Elem, Item, Variable};
 #[cube]
 pub fn if_greater(lhs: Float) {
     if lhs > float_new(0.0) {
-        let _ = lhs;
+        let _ = lhs + float_new(4.0);
     }
 }
 
@@ -30,9 +30,12 @@ fn gpu_macro_ref() -> String {
     let mut scope = context.into_scope();
     let cond = scope.create_local(Item::Scalar(Elem::Bool));
     let lhs: Variable = lhs.into();
-    gpu!(scope, cond = lhs > 0f32);
+    let y = scope.create_local(item);
 
-    gpu!(&mut scope, if(cond).then(|_scope| {}));
+    gpu!(scope, cond = lhs > 0f32);
+    gpu!(&mut scope, if(cond).then(|scope| {
+        gpu!(scope, y = lhs + 4.0);
+    }));
 
     format!("{:?}", scope.operations)
 }
