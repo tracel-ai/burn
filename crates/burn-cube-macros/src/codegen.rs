@@ -169,16 +169,26 @@ fn codegen_if(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    if expr_if.else_branch.is_some() {
-        todo!("Codegen: else branch not supported");
-    }
-
     let cond = codegen_cond(&expr_if.cond, loop_level, variable_analyses);
-    let block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_analyses);
 
-    quote::quote! {
-        let _cond = #cond;
-        if_expand(context, _cond, |context| #block);
+    let then_block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_analyses);
+
+    if let Some((_, expr)) = &expr_if.else_branch {
+        if let syn::Expr::Block(expr_block) = &**expr {
+            let else_block = codegen_block(&expr_block.block, loop_level + 1, variable_analyses);
+
+            quote::quote! {
+                let _cond = #cond;
+                if_else_expand(context, _cond, |context| #then_block, |context| #else_block);
+            }
+        } else {
+            todo!("Analysis: Only block else expr is supported")
+        }
+    } else {
+        quote::quote! {
+            let _cond = #cond;
+            if_expand(context, _cond, |context| #then_block);
+        }
     }
 }
 
@@ -397,6 +407,20 @@ fn codegen_binary(
                 let _lhs = #lhs;
                 let _rhs = #rhs;
                 burn_cube::gt::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::Lt(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::lt::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::AddAssign(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::add_assign_op::expand(context, _lhs, _rhs)
             }
         },
         _ => todo!("Codegen: unsupported op {:?}", binary.op),

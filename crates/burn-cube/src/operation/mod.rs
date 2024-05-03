@@ -1,5 +1,5 @@
-mod base;
 mod assignation;
+mod base;
 mod binary;
 mod cmp;
 

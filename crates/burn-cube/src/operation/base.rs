@@ -59,3 +59,26 @@ where
 
     out
 }
+
+pub(crate) fn assign_op_expand<F>(
+    context: &mut CubeContext,
+    lhs: ExpandElement,
+    rhs: ExpandElement,
+    func: F,
+) -> ExpandElement
+where
+    F: Fn(gpu::BinaryOperator) -> gpu::Operator,
+{
+    let lhs_var: Variable = *lhs;
+    let rhs: Variable = *rhs;
+
+    let op = func(gpu::BinaryOperator {
+        lhs: lhs_var,
+        rhs,
+        out: lhs_var,
+    });
+
+    context.register(op);
+
+    lhs
+}

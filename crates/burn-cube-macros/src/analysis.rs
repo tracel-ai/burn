@@ -168,13 +168,17 @@ impl CodeAnalysisBuilder {
                 self.stmts_occurrences(&expr.body.stmts, depth);
             }
             syn::Expr::If(expr) => {
-                if expr.else_branch.is_some() {
-                    todo!("Analysis: else branch not supported");
-                }
                 let depth = depth + 1;
 
                 self.expr_occurrences(&expr.cond, depth);
                 self.stmts_occurrences(&expr.then_branch.stmts, depth);
+                if let Some((_, expr)) = &expr.else_branch {
+                    if let syn::Expr::Block(expr_block) = &**expr {
+                        self.stmts_occurrences(&expr_block.block.stmts, depth);
+                    } else {
+                        todo!("Analysis: Only block else expr is supported")
+                    }
+                }
             }
             syn::Expr::Assign(expr) => {
                 self.expr_occurrences(&expr.left, depth);

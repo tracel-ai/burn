@@ -80,3 +80,27 @@ pub mod gt {
         cmp_expand(context, lhs, rhs, gpu::Operator::Greater)
     }
 }
+
+pub mod lt {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, gpu::Operator::Lower)
+    }
+}
+
+pub mod add_assign {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, gpu::Operator::Add)
+    }
+}
