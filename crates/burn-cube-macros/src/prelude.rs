@@ -1,5 +1,3 @@
-// TODO: in analysis, identify needed functions from prelude and add only those
-
 use std::collections::HashSet;
 
 use crate::VariableKey;
@@ -37,6 +35,7 @@ fn codegen_float_new() -> proc_macro2::TokenStream {
             context: &mut CubeContext,
             val: f32,
         ) -> <Float as burn_cube::RuntimeType>::ExpandType {
+            // TODO: 0. becomes 0..into()
             val.into()
         }
     }

@@ -56,6 +56,20 @@ pub fn range_expand<F>(
     }
 }
 
+pub fn if_expand<IF>(context: &mut CubeContext, cond: ExpandElement, mut block: IF)
+where
+    IF: FnMut(&mut CubeContext),
+{
+    let mut child = context.child();
+
+    block(&mut child);
+
+    context.register(Branch::If(gpu::If {
+        cond: *cond,
+        scope: child.into_scope(),
+    }));
+}
+
 // pub fn loop_expand<F>(context: &mut CubeContext, mut cond_fn: F, mut block: F)
 // where
 //     F: FnMut(&mut CubeContext),

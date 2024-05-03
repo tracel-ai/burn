@@ -74,7 +74,7 @@ fn codegen_expr(
         syn::Expr::While(while_loop) => {
             codegen_while_loop(while_loop, loop_level, variable_analyses)
         }
-        syn::Expr::If(expr_if) => codegen_if(expr_if, variable_analyses),
+        syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_expr_index(index, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
@@ -145,8 +145,35 @@ fn codegen_for_loop(
     }
 }
 
-fn codegen_if(expr_if: &syn::ExprIf, variable_analyses: &mut CodeAnalysis) {
-    todo!("RENDU ICITTE")
+fn codegen_cond(
+    cond: &syn::Expr,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    match cond {
+        syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_analyses),
+        syn::Expr::Lit(expr) => codegen_lit(expr),
+        _ => todo!("{cond:?} cond not supported"),
+    }
+}
+
+fn codegen_if(
+    expr_if: &syn::ExprIf,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    if expr_if.else_branch.is_some() {
+        todo!("Codegen: else branch not supported");
+    }
+
+    let cond = codegen_cond(&expr_if.cond, loop_level, variable_analyses);
+
+    let block = codegen_block(&expr_if.then_branch, loop_level, variable_analyses);
+
+    quote::quote! {
+        let _cond = #cond;
+        if_expand(context, _cond, |context| #block);
+    }
 }
 
 fn codegen_while_loop(
@@ -156,11 +183,7 @@ fn codegen_while_loop(
 ) -> TokenStream {
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
 
-    let cond = match while_loop.cond.as_ref() {
-        syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_analyses),
-        syn::Expr::Lit(expr) => codegen_lit(expr),
-        _ => todo!("{while_loop:?} cond not supported"),
-    };
+    let cond = codegen_cond(&while_loop.cond, loop_level, variable_analyses);
 
     quote::quote! {
         loop_expand(context, |context| #cond, |context| #block);
@@ -292,11 +315,11 @@ fn codegen_path(
 
     if will_be_used_again {
         quote::quote! {
-            #ident.clone().into()
+            #ident.clone()
         }
     } else {
         quote::quote! {
-            #ident.into()
+            #ident
         }
     }
 }
@@ -350,6 +373,13 @@ fn codegen_binary(
                 let _lhs = #lhs;
                 let _rhs = #rhs;
                 burn_cube::ne::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::Gt(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::gt::expand(context, _lhs, _rhs)
             }
         },
         _ => todo!("Codegen: unsupported op {:?}", binary.op),

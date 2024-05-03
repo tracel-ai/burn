@@ -163,8 +163,6 @@ impl CodeAnalysisBuilder {
                 self.stmts_occurrences(&expr.body.stmts, depth);
             }
             syn::Expr::If(expr) => {
-                // Not sure if should update depth
-
                 if expr.else_branch.is_some() {
                     todo!("Analysis: else branch not supported");
                 }

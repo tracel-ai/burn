@@ -1,11 +1,11 @@
-use burn_cube::{cube, CubeContext, Float};
+use burn_cube::{cube, if_expand, CubeContext, Float};
 use burn_jit::gpu;
 use burn_jit::gpu::FloatKind::F32;
-use burn_jit::gpu::{Elem, Item};
+use burn_jit::gpu::{Elem, Item, Variable};
 
 #[cube]
 pub fn if_greater(lhs: Float) {
-    if lhs > float_new(0.) {
+    if lhs > float_new(0.0) {
         let _ = lhs;
     }
 }
@@ -29,12 +29,10 @@ fn gpu_macro_ref() -> String {
 
     let mut scope = context.into_scope();
     let cond = scope.create_local(Item::Scalar(Elem::Bool));
-    let out = scope.create_local(item);
+    let lhs: Variable = lhs.into();
     gpu!(scope, cond = lhs > 0f32);
 
-    gpu!(&mut scope, if(cond).then(|scope|{
-        gpu!(scope, out = lhs);
-    }));
+    gpu!(&mut scope, if(cond).then(|_scope| {}));
 
     format!("{:?}", scope.operations)
 }
