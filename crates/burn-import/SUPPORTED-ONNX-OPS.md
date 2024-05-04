@@ -126,7 +126,7 @@ represent the corresponding Burn Op.
 | [Or][119]                        |       ❌       |      ❌      |
 | [Pad][120]                       |       ❌       |      ✅      |
 | [Pow][121]                       |       ✅       |      ✅      |
-| [PRelu][122]                     |       ❌       |      ✅      |
+| [PRelu][122]                     |       ✅       |      ✅      |
 | [QLinearConv][123]               |       ❌       |      ❌      |
 | [QLinearMatMul][124]             |       ❌       |      ❌      |
 | [QuantizeLinear][125]            |       ❌       |      ❌      |
