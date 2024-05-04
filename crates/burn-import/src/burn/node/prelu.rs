@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, SerializationBackend};
-use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 use burn::{
     module::{Param, ParamId},
     nn::{PReluConfig, PReluRecord},
@@ -55,11 +55,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
 
     fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
-
-        let num_parameters = self.config.num_parameters.to_tokens();
-        let alpha = self.config.alpha.to_tokens();
         let tokens = quote! {
-            let #name = PReluConfig::new(#num_parameters, #alpha)
+            let #name = PReluConfig::new()
                 .init(device);
         };
 
@@ -101,14 +98,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{
-        graph::BurnGraph,
-        node::{conv1d::Conv1dNode, test::assert_tokens},
-        TensorType,
-    };
-    use burn::{
-        nn::conv::Conv1dConfig, nn::PaddingConfig1d, record::FullPrecisionSettings, tensor::Data,
-    };
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
+    use burn::{record::FullPrecisionSettings, tensor::Data};
 
     #[test]
     fn test_codegen() {
@@ -125,8 +116,8 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-        use burn::nn::prelu::PRelu;
-        use burn::nn::prelu::PReluConfig;
+        use burn::nn::PRelu;
+        use burn::nn::PReluConfig;
         use burn::{
             module::Module,
             tensor::{backend::Backend, Tensor},
@@ -140,7 +131,7 @@ mod tests {
         impl<B: Backend> Model<B> {
             #[allow(unused_variables)]
             pub fn new(device: &B::Device) -> Self {
-                let prelu = PReluConfig::new(1, 0.25).init(device);
+                let prelu = PReluConfig::new().init(device);
                 Self {
                     prelu,
                     phantom: core::marker::PhantomData,

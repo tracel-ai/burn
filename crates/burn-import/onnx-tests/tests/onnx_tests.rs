@@ -676,7 +676,7 @@ mod tests {
         let output = model.forward(input);
         let expected = Data::from([
             [0.33669037, 0.0, 0.23446237],
-            [0.23033303, -0.01122_856, -0.0018632829],
+            [0.23033303, -0.280714, -0.046582073],
         ]);
 
         assert_eq!(output.to_data(), expected);
