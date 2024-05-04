@@ -120,7 +120,6 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
-
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut attrs = curr.attrs.clone();
     let kernel_shape = attrs

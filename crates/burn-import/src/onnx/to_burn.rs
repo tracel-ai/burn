@@ -5,6 +5,7 @@ use std::{
 };
 
 use burn::{
+    nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
@@ -30,6 +31,7 @@ use crate::{
             mask_where::WhereNode,
             matmul::MatmulNode,
             max_pool2d::MaxPool2dNode,
+            prelu::PReluNode,
             reshape::ReshapeNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
@@ -238,6 +240,7 @@ impl OnnxGraph {
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
@@ -701,6 +704,14 @@ impl OnnxGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
+    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let config = PReluConfig::new();
+        let name = &node.name;
+        PReluNode::<PS>::new(name, input, output, weight, config)
+    }
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();

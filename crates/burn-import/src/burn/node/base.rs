@@ -1,5 +1,6 @@
 use super::layer_norm::LayerNormNode;
 use super::mask_where::WhereNode;
+use super::prelu::PReluNode;
 use super::unsqueeze::UnsqueezeNode;
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
@@ -85,6 +86,7 @@ pub enum Node<PS: PrecisionSettings> {
     Conv1d(Conv1dNode<PS>),
     Conv2d(Conv2dNode<PS>),
     ConvTranspose2d(ConvTranspose2dNode<PS>),
+    PRelu(PReluNode<PS>),
     Dropout(DropoutNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
@@ -111,6 +113,7 @@ macro_rules! match_all {
             Node::Conv1d(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
+            Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
@@ -147,6 +150,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
+            Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",

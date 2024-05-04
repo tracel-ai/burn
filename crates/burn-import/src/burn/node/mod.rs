@@ -17,6 +17,7 @@ pub(crate) mod linear;
 pub(crate) mod mask_where;
 pub(crate) mod matmul;
 pub(crate) mod max_pool2d;
+pub(crate) mod prelu;
 pub(crate) mod reshape;
 pub(crate) mod unary;
 pub(crate) mod unsqueeze;
