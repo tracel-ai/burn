@@ -34,6 +34,7 @@ pub enum UnaryNodeKind {
     Not,
     ReduceMax,
     ReduceMean,
+    ReduceSum,
     Reciprocal,
     Relu,
     Shape,
@@ -62,6 +63,7 @@ impl UnaryNodeKind {
             Self::Not => "not",
             Self::ReduceMax => "reduce_max",
             Self::ReduceMean => "reduce_mean",
+            Self::ReduceSum => "reduce_sum",
             Self::Reciprocal => "reciprocal",
             Self::Relu => "relu",
             Self::Shape => "shape",
@@ -355,6 +357,36 @@ impl UnaryNode {
         }
     }
 
+    pub(crate) fn reduce_sum(input: Type, output: Type, dim: Option<usize>) -> Self {
+        if let Type::Tensor(ref tensor) = output {
+            if let Some(dim) = dim {
+                if tensor.kind == TensorKind::Bool {
+                    // Sum is only implemented on numeric tensors
+                    panic!("ReduceSum is not supported for boolean");
+                }
+
+                // ReduceSum, keepdims=1, axes=[dim]
+                let dim = dim.to_tokens();
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceSum,
+                    Rc::new(move |input| quote! { #input.sum_dim(#dim) }),
+                )
+            } else {
+                // ReduceSum, keepdims=0, axes=None
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceSum,
+                    Rc::new(move |input| quote! { #input.sum() }),
+                )
+            }
+        } else {
+            panic!("ReduceSum only supports tensor output");
+        }
+    }
+
     pub(crate) fn shape(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
         // Shape as defined by the ONNX op should return a tensor because other ops
         // (e.g., Gather) will be used on a tensor
@@ -625,6 +657,43 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
                     let tensor2 = tensor1.mean();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_reduce_sum() {
+        one_node_graph(
+            UnaryNode::reduce_sum(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Some(1),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.sum_dim(1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::reduce_sum(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+                None,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.sum();
 
                     tensor2
                 }

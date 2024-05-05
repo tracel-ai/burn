@@ -143,7 +143,7 @@ represent the corresponding Burn Op.
 | [ReduceMean][136]                |       ✅       |      ✅      |
 | [ReduceMin][137]                 |       ❌       |      ✅      |
 | [ReduceProd][138]                |       ❌       |      ✅      |
-| [ReduceSum][139]                 |       ❌       |      ✅      |
+| [ReduceSum][139]                 |       ✅       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
 | [Reshape][142]                   |       ✅       |      ✅      |

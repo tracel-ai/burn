@@ -42,6 +42,8 @@ fn main() {
         .input("tests/prelu/prelu.onnx")
         .input("tests/reduce_max/reduce_max.onnx")
         .input("tests/reduce_mean/reduce_mean.onnx")
+        .input("tests/reduce_sum/reduce_sum_opset13.onnx")
+        .input("tests/reduce_sum/reduce_sum_opset11.onnx")
         .input("tests/reshape/reshape.onnx")
         .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")

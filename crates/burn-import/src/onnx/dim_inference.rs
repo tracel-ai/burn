@@ -45,6 +45,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
+        NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
@@ -457,6 +458,44 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+/// Infers the shape of a ReduceSum node and replaces the shape of the output tensor.
+fn reduce_sum_update_outputs(node: &mut Node) {
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    let dim_only = match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
+        Some(value) => match &value {
+            Data::Int64(_) => true,
+            Data::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => dim_only,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        // NOTE: ReduceSum w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.sum()`
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.sum()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
