@@ -217,7 +217,10 @@ mod tests {
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
         let temp_dir = TempDir::new().unwrap();
         BinFileRecorder::<FullPrecisionSettings>::default()
-            .record(optimizer.to_record(), temp_dir.path().join("test_optim"))
+            .record(
+                optimizer.to_record(),
+                temp_dir.path().join("test_optim_adamw"),
+            )
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
