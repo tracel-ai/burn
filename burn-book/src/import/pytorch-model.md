@@ -120,7 +120,7 @@ something like this:
 
    fn main() {
        let device = Default::default();
-       let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+       let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
        let record: model::NetRecord<B> = recorder
            .load("./conv2d.pt".into(), &device)
            .expect("Should decode state successfully");
@@ -152,7 +152,7 @@ configuration can then be used to initialize the model in Burn. Here is an examp
 the configuration from a `.pt` file:
 
 ```rust
-use hashbrown::HashMap;
+use std::collections::HashMap;
 
 use burn::config::Config;
 use burn_import::pytorch::config_from_file;
