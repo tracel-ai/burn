@@ -18,9 +18,9 @@ pub enum Kernel {
     Custom(Box<dyn JitKernel>),
 }
 
-impl Kernel {
+impl JitKernel for Kernel {
     /// ID of the kernel, for caching
-    pub fn id(&self) -> String {
+    fn id(&self) -> String {
         match self {
             Kernel::JitGpu(shader) => shader.id(),
             #[cfg(feature = "template")]
@@ -29,7 +29,7 @@ impl Kernel {
     }
 
     /// Source of the shader
-    pub fn compile(&self) -> CompiledKernel {
+    fn compile(&self) -> CompiledKernel {
         match self {
             Kernel::JitGpu(shader) => shader.compile(),
             #[cfg(feature = "template")]
@@ -38,7 +38,7 @@ impl Kernel {
     }
 
     /// Launch information of the kernel
-    pub fn launch_settings(&self) -> LaunchSettings {
+    fn launch_settings(&self) -> LaunchSettings {
         match self {
             Kernel::JitGpu(shader) => shader.launch_settings(),
             #[cfg(feature = "template")]
