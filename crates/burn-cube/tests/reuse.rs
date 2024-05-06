@@ -3,12 +3,21 @@ use burn_jit::gpu;
 use burn_jit::gpu::IntKind::I32;
 use burn_jit::gpu::{Branch, Elem, Item, Variable};
 
-// #[cube]
-// pub fn reuse(lhs: Int) {
-//     while lhs < int_new(10) {
-//         lhs = lhs + int_new(1);
-//     }
-// }
+#[cube]
+pub fn reuse_not_in_rhs(mut lhs: Int) {
+    while lhs < int_new(10) {
+        lhs = int_new(1);
+    }
+}
+// TODO: remove clone in lhs
+
+#[cube]
+pub fn reuse_in_rhs(mut lhs: Int) {
+    while lhs < int_new(10) {
+        lhs = lhs + int_new(1);
+    }
+}
+// TODO: allow to be borrowed immutably in rhs while being mutable in lhs :o
 
 #[cube]
 pub fn reuse_incr(mut lhs: Int) {
@@ -16,18 +25,6 @@ pub fn reuse_incr(mut lhs: Int) {
         lhs += int_new(1);
     }
 }
-
-// #[test]
-// fn cube_reuse_test() {
-//     let mut context = CubeContext::root();
-
-//     let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
-
-//     reuse::expand(&mut context, lhs);
-//     let scope = context.into_scope();
-
-//     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
-// }
 
 #[test]
 fn cube_reuse_incr_test() {
