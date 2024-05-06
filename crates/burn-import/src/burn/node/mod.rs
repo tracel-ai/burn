@@ -16,6 +16,7 @@ pub(crate) mod layer_norm;
 pub(crate) mod linear;
 pub(crate) mod mask_where;
 pub(crate) mod matmul;
+pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod prelu;
 pub(crate) mod reshape;
