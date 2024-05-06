@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-#[cfg(feature = "template")]
-use crate::template::TemplateKernel;
 use crate::{
     codegen::CompilerRepresentation, gpu::WorkgroupSize, kernel::GpuComputeShaderPhase, Compiler,
 };
@@ -17,7 +15,7 @@ pub enum Kernel {
     JitGpu(Box<dyn JitKernel>),
     #[cfg(feature = "template")]
     /// A kernel created from source
-    Custom(Box<dyn TemplateKernel>),
+    Custom(Box<dyn JitKernel>),
 }
 
 impl Kernel {
