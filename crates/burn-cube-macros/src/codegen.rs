@@ -355,17 +355,6 @@ fn codegen_path_rhs(
     }
 }
 
-fn codegen_path_lhs(path: &syn::ExprPath) -> TokenStream {
-    let ident = path
-        .path
-        .get_ident()
-        .expect("Codegen: Only ident path are supported.");
-
-    quote::quote! {
-        #ident
-    }
-}
-
 fn codegen_binary(
     binary: &syn::ExprBinary,
     loop_level: usize,
@@ -438,6 +427,22 @@ fn codegen_binary(
                 burn_cube::add_assign_op::expand(context, _lhs, _rhs)
             }
         },
+        syn::BinOp::BitAnd(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::and::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::And(_) => unimplemented!("Logical and (&&) not overridable in Rust due to its short circuiting nature. Use bitwise instead (&). "),
+        syn::BinOp::BitOr(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::or::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::Or(_) => unimplemented!("Logical or (||) not overridable in Rust due to its short circuiting nature. Use bitwise instead (|). "),
         _ => todo!("Codegen: unsupported op {:?}", binary.op),
     }
 }

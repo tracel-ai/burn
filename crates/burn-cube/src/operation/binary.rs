@@ -181,3 +181,47 @@ pub mod rem {
         }
     }
 }
+
+pub mod and {
+    use crate::Bool;
+
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, gpu::Operator::And)
+    }
+
+    impl core::ops::BitAnd for Bool {
+        type Output = Bool;
+
+        fn bitand(self, rhs: Self) -> Self::Output {
+            Bool::new(self.val && rhs.val, 1)
+        }
+    }
+}
+
+pub mod or {
+    use crate::Bool;
+
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, gpu::Operator::Or)
+    }
+
+    impl core::ops::BitOr for Bool {
+        type Output = Bool;
+
+        fn bitor(self, rhs: Self) -> Self::Output {
+            Bool::new(self.val || rhs.val, 1)
+        }
+    }
+}
