@@ -798,6 +798,60 @@ pub fn reduce_mean_config(node: &Node) -> Option<usize> {
     }
 }
 
+pub fn reduce_sum_config(node: &Node) -> Option<usize> {
+    let mut axes = Vec::new();
+    let mut keepdims = 1;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "keepdims" => keepdims = value.clone().into_i64(),
+            "axes" => axes = value.clone().into_i64s(),
+            // TODO: handle noop_with_empty_axes
+            _ => {}
+        }
+    }
+
+    // TODO: Handle case where axes are passed in. Will require its own ReduceSumNode instead of a UnaryNode.
+    if let Some(value) = node
+        .inputs
+        .get(1)
+        .and_then(|argument| argument.value.as_ref())
+    {
+        axes = value.clone().into_i64s();
+    }
+
+    if axes.len() > 1 {
+        panic!("ReduceMean: reducing on multiple dimensions is not supported")
+    }
+
+    if axes.is_empty() && keepdims == 1 {
+        panic!("ReduceMean: axes must be provided with keepdims")
+    }
+
+    if !axes.is_empty() && keepdims == 0 {
+        // Not supported in Burn
+        panic!("ReduceMean: the reduce operation must preserve the reduced dimension")
+    }
+
+    if axes.is_empty() {
+        None
+    } else {
+        let mut dim = axes[0];
+
+        if dim < 0 {
+            // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+            dim += tensor.dim as i64;
+        }
+        Some(dim as usize)
+    }
+}
+
 pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
         panic!(

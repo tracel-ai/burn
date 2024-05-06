@@ -51,6 +51,8 @@ include_models!(
     recip,
     reduce_max,
     reduce_mean,
+    reduce_sum_opset13,
+    reduce_sum_opset11,
     relu,
     reshape,
     shape,
@@ -539,6 +541,38 @@ mod tests {
         let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
         let expected_scalar = Data::from([9.75]);
         let expected = Data::from([[[[9.75]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
+    fn reduce_sum_opset11() {
+        let device = Default::default();
+        let model: reduce_sum_opset11::Model<Backend> = reduce_sum_opset11::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([39.]);
+        let expected = Data::from([[[[39.]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
+    fn reduce_sum_opset13() {
+        let device = Default::default();
+        let model: reduce_sum_opset13::Model<Backend> = reduce_sum_opset13::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([39.]);
+        let expected = Data::from([[[[39.]]]]);
 
         assert_eq!(output_scalar.to_data(), expected_scalar);
         assert_eq!(output_tensor.to_data(), input.to_data());
