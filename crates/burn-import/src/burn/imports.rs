@@ -1,6 +1,6 @@
+use hashbrown::HashSet;
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::HashSet;
 
 /// Keep track of imported modules.
 #[derive(Debug, Default)]

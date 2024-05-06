@@ -2,9 +2,9 @@ use crate::transform::{Mapper, MapperDataset};
 use crate::{Dataset, InMemDataset};
 
 use globwalk::{self, DirEntry};
+use hashbrown::{HashMap, HashSet};
 use image::{self, ColorType};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 

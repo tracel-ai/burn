@@ -43,6 +43,7 @@ fake = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 gix-tempfile = { workspace = true, optional = true }
 globwalk = { workspace = true, optional = true }
+hashbrown = { workspace = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }

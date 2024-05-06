@@ -63,7 +63,7 @@ where
 mod tests {
     use super::*;
     use crate::FakeDataset;
-    use std::collections::HashSet;
+    use hashbrown::HashSet;
 
     #[test]
     fn test_start_from_beginning() {

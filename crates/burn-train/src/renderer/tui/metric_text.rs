@@ -8,7 +8,6 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
     data: HashMap<String, MetricData>,

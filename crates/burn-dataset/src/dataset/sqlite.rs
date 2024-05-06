@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fs, io,
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -12,6 +11,7 @@ use gix_tempfile::{
     handle::{persist, Writable},
     AutoRemove, ContainingDirectory, Handle,
 };
+use hashbrown::HashSet;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::{
     rusqlite::{OpenFlags, OptionalExtension},

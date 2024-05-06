@@ -426,7 +426,7 @@ where
 
 /// A map access for a map in the nested value data structure.
 struct HashMapAccess<A: BurnModuleAdapter> {
-    iter: std::collections::hash_map::IntoIter<String, NestedValue>,
+    iter: hashbrown::hash_map::IntoIter<String, NestedValue>,
     next_value: Option<NestedValue>,
     default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,

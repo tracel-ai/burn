@@ -1,9 +1,6 @@
 use crate::{tensor::NodeRefCount, NodeID};
-use std::{
-    collections::{HashMap, HashSet},
-    mem,
-    sync::Arc,
-};
+use hashbrown::{HashMap, HashSet};
+use std::{mem, sync::Arc};
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {

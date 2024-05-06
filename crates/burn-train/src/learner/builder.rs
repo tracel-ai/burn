@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use hashbrown::HashSet;
 use std::rc::Rc;
 
 use super::log::install_file_logger;

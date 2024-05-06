@@ -1,6 +1,7 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
 use crate::metric::{MetricEntry, NumericEntry};
-use std::{collections::HashMap, fs};
+use hashbrown::HashMap;
+use std::fs;
 
 const EPOCH_PREFIX: &str = "epoch-";
 

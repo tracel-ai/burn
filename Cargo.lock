@@ -474,6 +474,7 @@ dependencies = [
  "flate2",
  "gix-tempfile",
  "globwalk",
+ "hashbrown 0.14.5",
  "hound",
  "image 0.24.9",
  "r2d2",
@@ -3574,6 +3575,7 @@ dependencies = [
  "burn-import",
  "burn-ndarray",
  "float-cmp",
+ "hashbrown 0.14.5",
  "serde",
 ]
 

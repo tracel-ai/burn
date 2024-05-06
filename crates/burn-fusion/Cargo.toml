@@ -18,7 +18,7 @@ doc = ["default"]
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
 burn-common = { path = "../burn-common", version = "0.14.0" }
-hashbrown = { workspace = true }
+hashbrown = { workspace = true, features = ["serde"] }
 derive-new = {workspace = true }
 spin = { workspace = true }
 log = { workspace = true }

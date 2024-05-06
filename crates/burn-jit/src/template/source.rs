@@ -1,4 +1,5 @@
-use hashbrown::HashMap;
+#![allow(clippy::disallowed_types)] // text_placeholder crate accept only std::collections::HashMap
+use std::collections::HashMap;
 
 /// Kernel source code abstraction allowing for templating.
 ///

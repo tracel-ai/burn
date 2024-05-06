@@ -1,8 +1,5 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    path::Path,
-};
+use hashbrown::{HashMap, HashSet};
+use std::{fs::File, path::Path};
 
 use crate::onnx::{node_remap::remap_node_type, proto_conversion::convert_node_proto};
 

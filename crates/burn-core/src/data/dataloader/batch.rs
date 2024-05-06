@@ -197,7 +197,7 @@ impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use hashbrown::HashSet;
 
     use super::*;
     use crate::data::dataloader::batcher::TestBatcher;

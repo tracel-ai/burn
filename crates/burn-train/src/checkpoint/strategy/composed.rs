@@ -1,7 +1,7 @@
 use crate::metric::store::EventStoreClient;
+use hashbrown::HashSet;
 
 use super::{CheckpointingAction, CheckpointingStrategy};
-use std::collections::HashSet;
 
 /// Compose multiple checkpointing strategy and only delete checkpoints when both strategy flag an
 /// epoch to be deleted.

@@ -1,6 +1,7 @@
 use crate::graph::NodeID;
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use hashbrown::HashMap;
+use std::{fmt::Debug, sync::Arc};
 
 use super::state::{BackwardStates, State};
 

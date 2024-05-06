@@ -1,8 +1,9 @@
 use crate::stream::store::ExecutionPlanId;
 use burn_tensor::repr::OperationDescription;
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
+    collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
 

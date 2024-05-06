@@ -7,13 +7,14 @@ use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
     PrecisionSettings, PrettyJsonFileRecorder, Recorder,
 };
+use hashbrown::HashMap;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
     ser::{SerializeMap, SerializeTuple},
     Serialize,
 };
-use std::{any::type_name, collections::HashMap, path::PathBuf};
+use std::{any::type_name, path::PathBuf};
 
 /// Type of the record to be saved.
 #[derive(Debug, Clone, Default, Copy)]

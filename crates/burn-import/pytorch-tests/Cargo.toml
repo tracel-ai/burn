@@ -11,7 +11,7 @@ burn-autodiff = { path = "../../burn-autodiff" }
 serde = { workspace = true }
 float-cmp = { workspace = true }
 burn-import = { path = "../", features = ["pytorch"] }
-
+hashbrown = { workspace = true }
 
 [build-dependencies]
 burn-import = { path = "../", features = ["pytorch"] }

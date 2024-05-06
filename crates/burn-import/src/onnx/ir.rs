@@ -1,6 +1,7 @@
 use core::fmt;
 use half::f16;
-use std::{collections::HashMap, fmt::Formatter};
+use hashbrown::HashMap;
+use std::fmt::Formatter;
 use strum_macros::{Display, EnumString};
 
 use super::protos::TensorProto;

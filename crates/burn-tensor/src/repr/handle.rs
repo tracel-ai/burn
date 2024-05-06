@@ -5,7 +5,8 @@ use crate::{
     },
     Shape,
 };
-use std::{collections::HashMap, sync::Arc};
+use hashbrown::HashMap;
+use std::sync::Arc;
 
 /// Keep all [tensor handles](ReprBackend::Handle) in one place and ensure that all resources
 /// are used optimally.

@@ -1,4 +1,5 @@
-use std::{any::Any, collections::HashMap};
+use hashbrown::HashMap;
+use std::any::Any;
 
 use crate::graph::NodeID;
 

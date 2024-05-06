@@ -5,7 +5,8 @@ use burn_tensor::{
 
 use crate::{client::FusionClient, Client, FusionDevice, FusionRuntime};
 
-use std::{any::Any, collections::HashMap, ops::DerefMut};
+use hashbrown::HashMap;
+use std::{any::Any, ops::DerefMut};
 
 /// Type alias for [representation backend handle](burn_tensor::repr::ReprBackend::Handle).
 pub type Handle<B> = <B as ReprBackend>::Handle;

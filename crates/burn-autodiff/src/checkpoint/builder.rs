@@ -3,7 +3,8 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use burn_tensor::backend::Backend;
-use std::{any::Any, collections::HashMap, sync::Arc};
+use hashbrown::HashMap;
+use std::{any::Any, sync::Arc};
 
 use super::{
     base::{Checkpointer, NodeTree},
