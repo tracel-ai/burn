@@ -159,7 +159,7 @@ There are two major things going on in this code sample.
 
    </details><br>
 
-Note that each time you create a new file in the `src` directory you also need to add explicitly this
+Note that each time you create a new file in the `src` directory you also need to explicitly add this
 module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the following
 at the top of the main file:
 
@@ -238,13 +238,13 @@ When creating a custom neural network module, it is often a good idea to create 
 the model struct. This allows you to define default values for your network, thanks to the `Config`
 attribute. The benefit of this attribute is that it makes the configuration serializable, enabling
 you to painlessly save your model hyperparameters, enhancing your experimentation process. Note that
-a constructor will automatically be generated for your configuration, which will take as input
-values for the parameter which do not have default values:
+a constructor will automatically be generated for your configuration, which will take in as input
+values the parameters which do not have default values:
 `let config = ModelConfig::new(num_classes, hidden_size);`. The default values can be overridden
 easily with builder-like methods: (e.g `config.with_dropout(0.2);`)
 
 The first implementation block is related to the initialization method. As we can see, all fields
-are set using the configuration of the corresponding neural network underlying module. In this
+are set using the configuration of the corresponding neural network's underlying module. In this
 specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then
 from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions. We also use the
 adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix,
