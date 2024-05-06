@@ -23,6 +23,7 @@ mod flatten;
 mod flip;
 mod full;
 mod gather_scatter;
+mod indices;
 mod init;
 mod iter_dim;
 mod log;

@@ -1,4 +1,5 @@
-use crate::{backend::Backend, Data, Float, Int, Tensor};
+use crate::{backend::Backend, Data, Float, Int, Shape, Tensor};
+use alloc::vec::Vec;
 use core::ops::Range;
 
 #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
@@ -68,6 +69,57 @@ where
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
         Tensor::new(B::int_into_float(self.primitive))
+    }
+
+    /// Produces an indices tensor for the given shape and device.
+    /// The resulting tensor contains coordinates corresponding to each element in the shape at dimension D.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape specifying the dimensions of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `D2` is not equal to `D+1`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    ///    use burn_tensor::Int;
+    ///    use burn_tensor::{backend::Backend, Shape, Tensor};
+    ///    fn example<B: Backend>() {
+    ///        let device = Default::default();
+    ///        let result = Tensor::<B, 2, Int>::indices::<3>(Shape { dims: [2, 3] }, &device);
+    ///        println!("{}", result);
+    ///    }
+    /// ```
+    pub fn indices<const D2: usize>(shape: Shape<D>, device: &B::Device) -> Tensor<B, D2, Int> {
+        if D2 != D + 1 {
+            panic!("D2 must equal D + 1 for Tensor::indices")
+        }
+
+        let Shape { dims } = shape;
+        let mut indices: Vec<Tensor<B, D, Int>> = Vec::new();
+
+        for dim in 0..D {
+            let dim_range: Tensor<B, 1, Int> = Tensor::arange(0..dims[dim] as i64, device);
+
+            let mut shape = [1; D];
+            shape[dim] = dims[dim];
+            let mut dim_range = dim_range.reshape(shape);
+
+            for (i, &item) in dims.iter().enumerate() {
+                if i == dim {
+                    continue;
+                }
+                dim_range = dim_range.repeat(i, item);
+            }
+
+            indices.push(dim_range);
+        }
+
+        Tensor::stack::<D2>(indices, D)
     }
 
     /// Sort the elements by value in ascending order along a given dimension.
