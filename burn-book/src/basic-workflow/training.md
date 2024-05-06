@@ -15,6 +15,23 @@ beyond the scope of this guide.
 Since the MNIST task is a classification problem, we will use the `ClassificationOutput` type.
 
 ```rust , ignore
+# use crate::{
+#     data::{MnistBatch, MnistBatcher},
+#     model::{Model, ModelConfig},
+# };
+# use burn::{
+#     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+#     nn::loss::CrossEntropyLossConfig,
+#     optim::AdamConfig,
+#     prelude::*,
+#     record::CompactRecorder,
+#     tensor::backend::AutodiffBackend,
+#     train::{
+#         metric::{AccuracyMetric, LossMetric},
+#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+#     },
+# };
+# 
 impl<B: Backend> Model<B> {
     pub fn forward_classification(
         &self,
@@ -43,6 +60,42 @@ Moving forward, we will proceed with the implementation of both the training and
 for our model.
 
 ```rust , ignore
+# use burn::{
+#     config::Config,
+#     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+#     module::Module,
+#     nn::loss::CrossEntropyLoss,
+#     optim::AdamConfig,
+#     record::CompactRecorder,
+#     tensor::{
+#         backend::{AutodiffBackend, Backend},
+#         Int, Tensor,
+#     },
+#     train::{
+#         metric::{AccuracyMetric, LossMetric},
+#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+#     },
+# };
+# 
+# use crate::{
+#     data::{MnistBatch, MnistBatcher},
+#     model::{Model, ModelConfig},
+# };
+# 
+# impl<B: Backend> Model<B> {
+#     pub fn forward_classification(
+#         &self,
+#         images: Tensor<B, 3>,
+#         targets: Tensor<B, 1, Int>,
+#     ) -> ClassificationOutput<B> {
+#         let output = self.forward(images);
+#         let loss =
+#             CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
+# 
+#         ClassificationOutput::new(loss, output, targets)
+#     }
+# }
+# 
 impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
@@ -94,6 +147,56 @@ Book.
 Let us move on to establishing the practical training configuration.
 
 ```rust , ignore
+# use burn::{
+#     config::Config,
+#     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+#     module::Module,
+#     nn::loss::CrossEntropyLoss,
+#     optim::AdamConfig,
+#     record::CompactRecorder,
+#     tensor::{
+#         backend::{AutodiffBackend, Backend},
+#         Int, Tensor,
+#     },
+#     train::{
+#         metric::{AccuracyMetric, LossMetric},
+#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+#     },
+# };
+# 
+# use crate::{
+#     data::{MnistBatch, MnistBatcher},
+#     model::{Model, ModelConfig},
+# };
+# 
+# impl<B: Backend> Model<B> {
+#     pub fn forward_classification(
+#         &self,
+#         images: Tensor<B, 3>,
+#         targets: Tensor<B, 1, Int>,
+#     ) -> ClassificationOutput<B> {
+#         let output = self.forward(images);
+#         let loss =
+#             CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
+# 
+#         ClassificationOutput::new(loss, output, targets)
+#     }
+# }
+# 
+# impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+#     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+#         let item = self.forward_classification(batch.images, batch.targets);
+# 
+#         TrainOutput::new(self, item.loss.backward(), item)
+#     }
+# }
+# 
+# impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+#     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
+#         self.forward_classification(batch.images, batch.targets)
+#     }
+# }
+# 
 #[derive(Config)]
 pub struct TrainingConfig {
     pub model: ModelConfig,

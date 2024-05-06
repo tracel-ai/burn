@@ -5,19 +5,27 @@ explicitly designated the backend to be used at any point. This will be defined 
 entrypoint of our program, namely the `main` function defined in `src/main.rs`.
 
 ```rust , ignore
-use burn::optim::AdamConfig;
-use burn::backend::{Autodiff, Wgpu, wgpu::AutoGraphicsApi};
-use crate::model::ModelConfig;
+# mod data;
+# mod model;
+# mod training;
+# 
+use crate::{model::ModelConfig, training::TrainingConfig};
+use burn::{
+    backend::{wgpu::AutoGraphicsApi, Autodiff, Wgpu},
+#     data::dataset::Dataset,
+    optim::AdamConfig,
+};
 
 fn main() {
     type MyBackend = Wgpu<AutoGraphicsApi, f32, i32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
 
     let device = burn::backend::wgpu::WgpuDevice::default();
+    let artifact_dir = "/tmp/guide";
     crate::training::train::<MyAutodiffBackend>(
-        "/tmp/guide",
-        crate::training::TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
-        device,
+        artifact_dir,
+        TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
+        device.clone(),
     );
 }
 ```
