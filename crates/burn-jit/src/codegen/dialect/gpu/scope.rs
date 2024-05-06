@@ -28,6 +28,8 @@ pub struct Scope {
     reads_scalar: Vec<(Variable, Variable)>,
     pub layout_ref: Option<Variable>,
     undeclared: u16,
+    /// The reference index indicates the variable to index element wise operations.
+    index_ref: Variable,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -57,6 +59,7 @@ impl Scope {
             reads_scalar: Vec::new(),
             layout_ref: None,
             undeclared: 0,
+            index_ref: Variable::Id,
         }
     }
 
@@ -178,6 +181,12 @@ impl Scope {
         }
     }
 
+    /// Update the index reference for the scope.
+    #[allow(dead_code)]
+    pub(crate) fn with_index_ref(&mut self, index_ref: Variable) {
+        self.index_ref = index_ref;
+    }
+
     /// Update the [reading strategy](ReadingStrategy) for an input array.
     ///
     /// Notes:
@@ -223,6 +232,7 @@ impl Scope {
             reads_scalar: Vec::new(),
             layout_ref: self.layout_ref,
             undeclared: 0,
+            index_ref: self.index_ref,
         }
     }
 
@@ -261,6 +271,7 @@ impl Scope {
                             globals: vec![input],
                             layout: output,
                             outs: vec![local],
+                            index_ref: self.index_ref,
                         },
                     )));
                 }
@@ -268,6 +279,7 @@ impl Scope {
                     operations.push(Operation::Procedure(Procedure::ReadGlobal(ReadGlobal {
                         global: input,
                         out: local,
+                        index_ref: self.index_ref,
                     })))
                 }
             }
@@ -292,6 +304,7 @@ impl Scope {
             operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
                 input,
                 global,
+                index_ref: self.index_ref,
             })))
         }
 

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct WriteGlobal {
     pub input: Variable,
     pub global: Variable,
+    pub index_ref: Variable,
 }
 
 impl WriteGlobal {
@@ -23,6 +24,7 @@ impl WriteGlobal {
         Self {
             input: self.input.vectorize(vectorization),
             global: self.global.vectorize(vectorization),
+            index_ref: self.index_ref,
         }
     }
 }

@@ -4,7 +4,7 @@ use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
 
 /// A trace encapsulates all information necessary to perform the compilation and execution of
-/// captured [tensor operations](burn_fusion::stream::OperationDescription).
+/// captured [tensor operations](burn_tensor::repr::OperationDescription).
 ///
 /// A trace should be built using a [builder](super::TraceBuilder).
 #[derive(new, Clone, Serialize, Deserialize)]

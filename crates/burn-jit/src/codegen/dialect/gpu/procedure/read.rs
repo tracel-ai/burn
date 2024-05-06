@@ -9,6 +9,8 @@ pub struct ReadGlobal {
     pub global: Variable,
     /// The output variable to write the result.
     pub out: Variable,
+    /// The reference index.
+    pub index_ref: Variable,
 }
 
 /// Read a global array with the given layout.
@@ -20,6 +22,8 @@ pub struct ReadGlobalWithLayout {
     pub outs: Vec<Variable>,
     /// The layout to be used.
     pub layout: Variable,
+    /// The reference index.
+    pub index_ref: Variable,
 }
 
 impl ReadGlobal {
@@ -27,7 +31,7 @@ impl ReadGlobal {
     pub fn expand(self, scope: &mut Scope) {
         scope.register(Operator::Index(BinaryOperator {
             lhs: self.global,
-            rhs: Variable::Id,
+            rhs: self.index_ref,
             out: self.out,
         }));
     }
@@ -35,6 +39,7 @@ impl ReadGlobal {
         Self {
             global: self.global.vectorize(vectorization),
             out: self.out.vectorize(vectorization),
+            index_ref: self.index_ref,
         }
     }
 }
@@ -44,6 +49,10 @@ impl ReadGlobalWithLayout {
     pub fn try_merge(&self, other: &Self) -> Option<Self> {
         // Can only merge two reads when they share the same reference layout.
         if self.layout != other.layout {
+            return None;
+        }
+
+        if self.index_ref != other.index_ref {
             return None;
         }
 
@@ -59,6 +68,7 @@ impl ReadGlobalWithLayout {
             globals,
             outs,
             layout: self.layout,
+            index_ref: self.index_ref,
         })
     }
 
@@ -75,7 +85,7 @@ impl ReadGlobalWithLayout {
             tensors: tensors.clone(),
             layout: self.layout,
             indexes: indexes.clone(),
-            index_ref: Variable::Id,
+            index_ref: self.index_ref,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }
@@ -103,6 +113,7 @@ impl ReadGlobalWithLayout {
                 .iter()
                 .map(|o| o.vectorize(vectorization))
                 .collect(),
+            index_ref: self.index_ref,
         }
     }
 }
