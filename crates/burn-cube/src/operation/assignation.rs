@@ -4,17 +4,13 @@ use burn_jit::gpu::{self};
 pub mod assign {
     use super::*;
 
-    pub fn expand(
-        context: &mut CubeContext,
-        input: ExpandElement,
-        output: ExpandElement,
-    ) -> ExpandElement {
+    pub fn expand(context: &mut CubeContext, input: ExpandElement, output: ExpandElement) {
         let input = *input;
         let out = *output;
 
         context.register(gpu::Operator::Assign(gpu::UnaryOperator { input, out }));
 
-        output
+        // output
     }
 }
 

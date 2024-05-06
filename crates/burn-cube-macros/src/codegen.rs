@@ -63,7 +63,7 @@ fn codegen_expr(
 ) -> TokenStream {
     match expr {
         syn::Expr::Binary(op) => codegen_binary(op, loop_level, variable_analyses),
-        syn::Expr::Path(path) => codegen_path(path, loop_level, variable_analyses),
+        syn::Expr::Path(path) => codegen_path_rhs(path, loop_level, variable_analyses),
         syn::Expr::Call(call) => codegen_call(call, loop_level, variable_analyses),
         syn::Expr::Lit(lit) => codegen_lit(lit),
         syn::Expr::Closure(closure) => codegen_closure(closure, loop_level, variable_analyses),
@@ -222,30 +222,34 @@ fn codegen_assign(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    if let syn::Expr::Index(index) = assign.left.as_ref() {
-        let array = codegen_expr(&index.expr, loop_level, variable_analyses);
-        let index = codegen_expr(&index.index, loop_level, variable_analyses);
-        let value = codegen_expr(&assign.right, loop_level, variable_analyses);
+    match assign.left.as_ref() {
+        syn::Expr::Index(index) => {
+            let array = codegen_expr(&index.expr, loop_level, variable_analyses);
+            let index = codegen_expr(&index.index, loop_level, variable_analyses);
+            let value = codegen_expr(&assign.right, loop_level, variable_analyses);
 
-        return quote::quote! {
-            {
-            let _array = #array;
-            let _index = #index;
-            let _value = #value;
-            burn_cube::index_assign::expand(context, _array, _index, _value)
+            quote::quote! {
+                {
+                let _array = #array;
+                let _index = #index;
+                let _value = #value;
+                burn_cube::index_assign::expand(context, _array, _index, _value)
+                }
             }
-        };
-    };
-
-    let lhs = codegen_expr(&assign.left, loop_level, variable_analyses);
-    let rhs = codegen_expr(&assign.right, loop_level, variable_analyses);
-
-    quote::quote! {
-        {
-            let _assign_lhs = #lhs;
-            let _assign_rhs = #rhs;
-            #lhs = burn_cube::assign::expand(context, _assign_lhs, _assign_rhs)
         }
+        syn::Expr::Path(_) => {
+            let lhs = codegen_expr(&assign.left, loop_level, variable_analyses);
+            let rhs = codegen_expr(&assign.right, loop_level, variable_analyses);
+
+            quote::quote! {
+                {
+                    let _assign_lhs = #lhs;
+                    let _assign_rhs = #rhs;
+                    burn_cube::assign::expand(context, _assign_rhs, _assign_lhs)
+                }
+            }
+        }
+        _ => todo!("Assign of expr {:?} unsupported", assign.left),
     }
 }
 
@@ -328,7 +332,7 @@ fn codegen_call(
     }
 }
 
-fn codegen_path(
+fn codegen_path_rhs(
     path: &syn::ExprPath,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
@@ -348,6 +352,17 @@ fn codegen_path(
         quote::quote! {
             #ident
         }
+    }
+}
+
+fn codegen_path_lhs(path: &syn::ExprPath) -> TokenStream {
+    let ident = path
+        .path
+        .get_ident()
+        .expect("Codegen: Only ident path are supported.");
+
+    quote::quote! {
+        #ident
     }
 }
 

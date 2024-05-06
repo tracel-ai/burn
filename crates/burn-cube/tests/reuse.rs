@@ -3,27 +3,35 @@ use burn_jit::gpu;
 use burn_jit::gpu::IntKind::I32;
 use burn_jit::gpu::{Branch, Elem, Item, Variable};
 
-#[cube]
-pub fn reuse_not_in_rhs(mut lhs: Int) {
-    while lhs < int_new(10) {
-        lhs = int_new(1);
-    }
-}
-// TODO: remove clone in lhs
+// TODO
+// a += b is more efficient than a = a + b
+// because the latter does not assume that a is the same in lhs and rhs
+// It could be detected and optimized
 
 #[cube]
-pub fn reuse_in_rhs(mut lhs: Int) {
-    while lhs < int_new(10) {
-        lhs = lhs + int_new(1);
+pub fn reuse(mut x: Int) {
+    while x < int_new(10) {
+        x = x + int_new(1);
     }
 }
-// TODO: allow to be borrowed immutably in rhs while being mutable in lhs :o
 
 #[cube]
-pub fn reuse_incr(mut lhs: Int) {
-    while lhs < int_new(10) {
-        lhs += int_new(1);
+pub fn reuse_incr(mut x: Int) {
+    while x < int_new(10) {
+        x += int_new(1);
     }
+}
+
+#[test]
+fn cube_reuse_assign_test() {
+    let mut context = CubeContext::root();
+
+    let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
+
+    reuse::expand(&mut context, lhs);
+    let scope = context.into_scope();
+
+    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref_assign());
 }
 
 #[test]
@@ -35,10 +43,36 @@ fn cube_reuse_incr_test() {
     reuse_incr::expand(&mut context, lhs);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
+    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref_incr());
 }
 
-fn gpu_macro_ref() -> String {
+fn gpu_macro_ref_assign() -> String {
+    let mut context = CubeContext::root();
+    let item = Item::Scalar(Elem::Int(I32));
+    let lhs = context.create_local(item);
+
+    let mut scope = context.into_scope();
+    let cond = scope.create_local(Item::Scalar(Elem::Bool));
+    let lhs: Variable = lhs.into();
+    let tmp = scope.create_local(item);
+
+    gpu!(
+        &mut scope,
+        loop(|scope| {
+            gpu!(scope, cond = lhs < 10);
+            gpu!(scope, if(cond).then(|scope|{
+                scope.register(Branch::Break);
+            }));
+
+            gpu!(scope, tmp = lhs + 1);
+            gpu!(scope, lhs = tmp);
+        })
+    );
+
+    format!("{:?}", scope.operations)
+}
+
+fn gpu_macro_ref_incr() -> String {
     let mut context = CubeContext::root();
     let item = Item::Scalar(Elem::Int(I32));
     let lhs = context.create_local(item);

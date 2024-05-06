@@ -72,7 +72,7 @@ impl CodeAnalysisBuilder {
             let id = declaration.0.clone();
             let new_analysis = match variable_analyses.remove(&id) {
                 Some(_) => {
-                    panic!("Multiple variables with the same identifier is not supported")
+                    panic!("Analysis: Multiple variables with the same identifier is not supported")
                 }
                 None => VariableAnalysis {
                     num_used: 0,
@@ -85,7 +85,7 @@ impl CodeAnalysisBuilder {
 
         for id in self.var_uses.iter() {
             let prev_analysis = variable_analyses.remove(&id).expect(&format!(
-                "Variable {:?} should be declared before it's used",
+                "Analyis: Variable {:?} should be declared before it's used",
                 id
             ));
             let new_analysis = VariableAnalysis {
