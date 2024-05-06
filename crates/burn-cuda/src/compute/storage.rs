@@ -1,6 +1,6 @@
 use burn_compute::storage::{ComputeStorage, StorageHandle, StorageId, StorageUtilization};
 use cudarc::driver::sys::CUstream;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Buffer storage for cuda.
 pub struct CudaStorage {

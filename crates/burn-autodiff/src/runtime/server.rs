@@ -6,7 +6,7 @@ use crate::{
     tensor::NodeRefCount,
     NodeID,
 };
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 #[derive(Default)]
 pub struct AutodiffServer {

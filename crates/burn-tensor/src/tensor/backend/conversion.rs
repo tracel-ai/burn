@@ -1,5 +1,5 @@
 use crate::tensor::Shape;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 #[derive(Debug)]
 pub struct Convertor {

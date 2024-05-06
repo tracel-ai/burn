@@ -8,7 +8,7 @@ use ratatui::{
     text::Line,
     widgets::{Axis, Block, Borders, Chart, Paragraph, Tabs},
 };
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// 1000 seems to be required to see some improvement.
 const MAX_NUM_SAMPLES_RECENT: usize = 1000;

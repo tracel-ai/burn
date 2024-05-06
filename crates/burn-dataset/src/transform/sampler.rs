@@ -98,7 +98,7 @@ where
 mod tests {
     use super::*;
     use crate::FakeDataset;
-    use std::collections::HashMap;
+    use hashbrown::HashMap;
 
     #[test]
     fn sampler_dataset_with_replacement_iter() {

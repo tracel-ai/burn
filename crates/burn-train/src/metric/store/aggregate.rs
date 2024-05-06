@@ -1,5 +1,5 @@
 use crate::{logger::MetricLogger, metric::NumericEntry};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use super::{Aggregate, Direction};
 

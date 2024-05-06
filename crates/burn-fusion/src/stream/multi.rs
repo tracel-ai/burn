@@ -6,7 +6,7 @@ use super::{
     OperationQueue, StreamId,
 };
 use crate::FusionRuntime;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Keep track of multiple concurrent streams of operations.
 pub struct MultiStream<R: FusionRuntime> {

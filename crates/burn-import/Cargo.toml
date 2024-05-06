@@ -25,6 +25,7 @@ bytemuck = { workspace = true }
 candle-core = { workspace = true }
 derive-new = { workspace = true }
 half = { workspace = true }
+hashbrown = { workspace = true }
 log = { workspace = true }
 proc-macro2 = { workspace = true }
 protobuf = { workspace = true, features = ["with-bytes"] }

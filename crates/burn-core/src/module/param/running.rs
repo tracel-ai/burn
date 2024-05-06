@@ -10,7 +10,7 @@ use burn_tensor::{
 
 #[cfg(feature = "std")]
 mod threading {
-    pub(super) use std::collections::HashMap;
+    pub(super) use hashbrown::HashMap;
     pub(super) use std::thread::ThreadId;
 
     #[inline(always)]

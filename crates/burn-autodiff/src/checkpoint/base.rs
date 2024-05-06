@@ -3,7 +3,7 @@ use super::{
     state::{BackwardStates, State},
 };
 use crate::graph::NodeID;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]

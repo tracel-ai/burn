@@ -2,7 +2,7 @@ use super::TensorType;
 use derive_new::new;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// The scope struct ensures that ownership rules are respected during the forward pass.
 #[derive(Clone, Debug, Default)]

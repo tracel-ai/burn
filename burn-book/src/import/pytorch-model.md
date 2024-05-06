@@ -152,7 +152,7 @@ configuration can then be used to initialize the model in Burn. Here is an examp
 the configuration from a `.pt` file:
 
 ```rust
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use burn::config::Config;
 use burn_import::pytorch::config_from_file;

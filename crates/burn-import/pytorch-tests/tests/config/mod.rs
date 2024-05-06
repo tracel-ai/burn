@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)] // To mute derive Config warning
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use burn::config::Config;
 

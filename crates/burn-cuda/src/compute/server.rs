@@ -8,7 +8,7 @@ use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
 use burn_jit::gpu::WorkgroupSize;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::ffi::CStr;
 use std::ffi::CString;
 

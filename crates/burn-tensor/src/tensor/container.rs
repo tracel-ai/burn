@@ -5,7 +5,7 @@ use core::any::Any;
 use hashbrown::HashMap;
 
 #[cfg(feature = "std")]
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use crate::{backend::Backend, Tensor};
 

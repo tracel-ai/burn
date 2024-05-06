@@ -1,5 +1,5 @@
 use core::ptr;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use super::data::NestedValue;
 use super::{adapter::BurnModuleAdapter, error::Error};

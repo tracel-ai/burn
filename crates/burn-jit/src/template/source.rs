@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 /// Kernel source code abstraction allowing for templating.
 ///

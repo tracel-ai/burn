@@ -1,5 +1,5 @@
 use core::ops::Deref;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::path::Path;
 
 use super::{adapter::PyTorchAdapter, error::Error};

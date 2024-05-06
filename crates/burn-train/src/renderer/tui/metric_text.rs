@@ -6,7 +6,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
