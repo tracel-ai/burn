@@ -1,13 +1,11 @@
-use super::layer_norm::LayerNormNode;
-use super::mask_where::WhereNode;
-use super::prelu::PReluNode;
-use super::unsqueeze::UnsqueezeNode;
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
     conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
-    global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
-    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
+    global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
+    mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
+    max_pool2d::MaxPool2dNode, prelu::PReluNode, reshape::ReshapeNode, unary::UnaryNode,
+    unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -93,6 +91,7 @@ pub enum Node<PS: PrecisionSettings> {
     LayerNorm(LayerNormNode<PS>),
     Linear(LinearNode<PS>),
     Matmul(MatmulNode),
+    MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
     Reshape(ReshapeNode),
     Unary(UnaryNode),
@@ -120,6 +119,7 @@ macro_rules! match_all {
             Node::LayerNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
+            Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Unary(node) => $func(node),
@@ -157,6 +157,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::LayerNorm(_) => "layer_norm",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",
+            Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Reshape(_) => "reshape",
             Node::Unary(unary) => unary.kind.as_str(),

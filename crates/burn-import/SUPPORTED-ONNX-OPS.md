@@ -102,7 +102,7 @@ represent the corresponding Burn Op.
 | [MatMul][94]                     |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
 | [Max][96]                        |       ❌       |      ✅      |
-| [MaxPool1d][97]                  |       ❌       |      ✅      |
+| [MaxPool1d][97]                  |       ✅       |      ✅      |
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |
 | [MaxUnpool][100]                 |       ❌       |      ❌      |

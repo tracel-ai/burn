@@ -1,6 +1,6 @@
 use burn::nn::{
     conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
-    pool::{AvgPool2dConfig, MaxPool2dConfig},
+    pool::{AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
     PaddingConfig2d,
 };
@@ -94,6 +94,33 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     .with_groups(group as usize)
     .with_bias(bias)
     .with_padding(padding)
+}
+
+/// Create a MaxPool2dConfig from the attributes of the node
+pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
+    let mut kernel_shape = Vec::new();
+    let mut stride = vec![1];
+    let mut pads = vec![0, 0];
+    let mut dilation = vec![1];
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => stride = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilation = value.clone().into_i64s(),
+            _ => {}
+        }
+    }
+    assert_eq!(kernel_shape.len(), 1);
+    assert_eq!(dilation.len(), 1);
+    assert_eq!(stride.len(), 1);
+    let padding = padding_config_1d(&pads);
+
+    MaxPool1dConfig::new(kernel_shape[0] as usize)
+        .with_stride(stride[0] as usize)
+        .with_padding(padding)
+        .with_dilation(dilation[0] as usize)
 }
 
 /// Create a MaxPool2dConfig from the attributes of the node
