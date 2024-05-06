@@ -2,13 +2,13 @@ use crate::renderer::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use crossterm::event::{Event, KeyCode, KeyEventKind};
+use hashbrown::HashMap;
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
     widgets::{Axis, Block, Borders, Chart, Paragraph, Tabs},
 };
-use hashbrown::HashMap;
 
 /// 1000 seems to be required to see some improvement.
 const MAX_NUM_SAMPLES_RECENT: usize = 1000;

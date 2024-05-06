@@ -1,8 +1,8 @@
 use super::TensorType;
 use derive_new::new;
+use hashbrown::HashMap;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use hashbrown::HashMap;
 
 /// The scope struct ensures that ownership rules are respected during the forward pass.
 #[derive(Clone, Debug, Default)]

@@ -1,12 +1,13 @@
 use super::TerminalFrame;
 use crate::metric::MetricEntry;
+use hashbrown::HashMap;
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use hashbrown::HashMap;
+
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
