@@ -23,7 +23,7 @@ fn main() {
 ```
 
 In this example, we use the `Wgpu` backend which is compatible with any operating system and will
-use the GPU. For other options, see the Burn README. This backend type takes the graphics api, the
+use the GPU. For other options, see the Burn README. This backend type takes the graphics API, the
 float type and the int type as generic arguments that will be used during the training. By leaving
 the graphics API as `AutoGraphicsApi`, it should automatically use an API available on your machine.
 The autodiff backend is simply the same backend, wrapped within the `Autodiff` struct which imparts
