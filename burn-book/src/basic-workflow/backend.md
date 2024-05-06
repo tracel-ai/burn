@@ -4,7 +4,7 @@ We have effectively written most of the necessary code to train our model. Howev
 explicitly designated the backend to be used at any point. This will be defined in the main
 entrypoint of our program, namely the `main` function defined in `src/main.rs`.
 
-```rust , ignore
+```rust, ignore
 # mod data;
 # mod model;
 # mod training;
