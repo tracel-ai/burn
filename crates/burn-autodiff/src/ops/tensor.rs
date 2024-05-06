@@ -1098,7 +1098,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 (
                     dim,
                     indices.clone(),
-                    B::float_shape(&tensor.primitive),
+                    B::float_shape(&value.primitive),
                     B::float_device(&value.primitive),
                 ),
                 B::float_select_assign(tensor.primitive, dim, indices, value.primitive),
