@@ -1058,7 +1058,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for IndexSelectDimAssign<D> {
-            type State = (usize, IntTensor<B, 1>, Shape<D>, Shape<D>, B::Device);
+            type State = (usize, IntTensor<B, 1>, Shape<D>, B::Device);
 
             fn backward(
                 self,
@@ -1066,7 +1066,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (dim, indices, shape_lhs, shape_rhs, device) = ops.state;
+                let (dim, indices, shape_lhs, device) = ops.state;
                 let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
                 binary::<B, D, D, D, _, _>(
@@ -1077,10 +1077,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let zeros = B::float_zeros(shape_lhs, &device);
                         B::float_select_assign(grad, dim, indices_4lhs.unwrap(), zeros)
                     },
-                    |grad| {
-                        let zeros = B::float_zeros(shape_rhs, &device);
-                        B::float_select_assign(zeros, dim, indices_4rhs.unwrap(), grad)
-                    },
+                    |grad| B::float_select(grad, dim, indices_4rhs.unwrap()),
                 );
             }
         }
@@ -1102,7 +1099,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     dim,
                     indices.clone(),
                     B::float_shape(&tensor.primitive),
-                    B::float_shape(&value.primitive),
                     B::float_device(&value.primitive),
                 ),
                 B::float_select_assign(tensor.primitive, dim, indices, value.primitive),

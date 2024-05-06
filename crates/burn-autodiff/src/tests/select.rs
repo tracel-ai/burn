@@ -54,4 +54,23 @@ mod tests {
             Data::from([[64., 64., 64.], [19., 19., 19.]])
         );
     }
+
+    #[test]
+    fn test_select_assign_grad_different_shapes() {
+        let device = Default::default();
+
+        let indices: Tensor<TestAutodiffBackend, 1, Int> = Tensor::from_ints([1], &device);
+        let x: Tensor<TestAutodiffBackend, 2> = Tensor::ones([1, 1], &device).require_grad();
+        let y = Tensor::ones([2, 1], &device).require_grad();
+
+        let w = y.clone().select_assign(0, indices, x.clone());
+        let w = w.matmul(y.clone().transpose());
+
+        let grads = w.backward();
+        let x_grad = x.grad(&grads).unwrap();
+        let y_grad = y.grad(&grads).unwrap();
+
+        assert_eq!(x_grad.into_data(), Data::from([[2.0]]));
+        assert_eq!(y_grad.into_data(), Data::from([[5.0], [5.0]]));
+    }
 }
