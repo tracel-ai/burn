@@ -2,6 +2,7 @@ use crate as burn;
 
 use crate::nn::Initializer;
 use crate::config::Config;
+use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -27,11 +28,12 @@ pub struct LayerNormConfig {
 /// - `β` is the learnable bias#[derive(Module, Debug)]
 /// 
 /// Should be created using the [LayerNormConfig](LayerNormConfig) struct.
+#[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.
-    pub gamma: Param<Tensor<B, 1>>,
+    gamma: Param<Tensor<B, 1>>,
     /// The learnable bias.
-    pub beta: Param<Tensor<B, 1>>,
+    beta: Param<Tensor<B, 1>>,
     epsilon: f64,
 }
 
