@@ -42,6 +42,8 @@ pub struct Conv1dConfig {
 }
 
 /// Applies a 1D convolution over input tensors.
+/// 
+/// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
