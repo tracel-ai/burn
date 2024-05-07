@@ -11,7 +11,8 @@ use burn_tensor::ops::ConvTransposeOptions;
 
 use super::checks;
 
-/// Configuration to create an [1D transposed convolution](ConvTranspose1d) layer.
+/// Configuration to create an [1D transposed convolution](ConvTranspose1d) layer
+/// using the [init function](ConvTranspose1dConfig::init).
 #[derive(Config, Debug)]
 pub struct ConvTranspose1dConfig {
     /// The number of channels.
@@ -44,12 +45,6 @@ pub struct ConvTranspose1dConfig {
 }
 
 /// Applies a 1D transposed convolution over input tensors.
-///
-/// # Params
-///
-/// - weight: Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
-///
-/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct ConvTranspose1d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
@@ -104,12 +99,14 @@ impl ConvTranspose1dConfig {
 impl<B: Backend> ConvTranspose1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [conv_transpose1d](crate::tensor::module::conv_transpose1d).
+    /// 
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, length_in],
-    /// - output: [batch_size, channels_out, length_out],
+    /// - input: `[batch_size, channels_in, length_in]`
+    /// - output: [batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        conv_transpose1d(
+        crate::tensor::module::conv_transpose1d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
