@@ -17,7 +17,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [Transformer Encoder](TransformerEncoder) layer.
+/// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
 #[derive(Config)]
 pub struct TransformerEncoderConfig {
     /// The size of the model.
@@ -54,6 +54,8 @@ pub struct TransformerEncoderConfig {
 /// # Params
 ///
 /// - layers: transformer encoder layers with `d_model` input and output features.
+///
+/// Should be created using [TransformerEncoderConfig]
 #[derive(Module, Debug)]
 pub struct TransformerEncoder<B: Backend> {
     layers: Vec<TransformerEncoderLayer<B>>,

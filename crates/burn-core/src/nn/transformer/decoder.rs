@@ -17,7 +17,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer.
+/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
 #[derive(Config)]
 pub struct TransformerDecoderConfig {
     /// The size of the model.
@@ -54,6 +54,8 @@ pub struct TransformerDecoderConfig {
 /// # Params
 ///
 /// - layers: transformer decoder layers with `d_model` input and output features.
+///
+/// Should be created using [TransformerDecoderConfig]
 #[derive(Module, Debug)]
 pub struct TransformerDecoder<B: Backend> {
     layers: Vec<TransformerDecoderLayer<B>>,
@@ -203,7 +205,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
             norm_first: config.norm_first,
         }
     }
-
+    /// forward pass for the TransformerDecoder layer
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
