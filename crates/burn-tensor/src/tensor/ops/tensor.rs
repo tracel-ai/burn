@@ -883,20 +883,6 @@ pub trait FloatTensorOps<B: Backend> {
         B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
     }
 
-    /// Cumulative Product of all elements in a tensor along a dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to perform cumulative product on.
-    ///
-    /// # Returns
-    ///
-    /// A tensor whose elements are the cumulative product of elements of `tensor` along dimension `dim`
-    fn float_cumprod<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
-        // Cumulative product of all elements in a tensor along a dimension
-        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
-    }
-
     /// Mean of all elements in a tensor.
     ///
     /// # Arguments
