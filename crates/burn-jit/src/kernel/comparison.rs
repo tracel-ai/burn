@@ -1,6 +1,6 @@
 use crate::{
     binary,
-    codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
+    codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, Variable},
     element::JitElement,
     kernel::{binary::binary, unary::unary},
     tensor::JitTensor,
@@ -55,9 +55,9 @@ pub fn equal<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |scope: &mut Scope, elem: Elem| Operator::Equal(BinaryOperator {
-            lhs: scope.read_array(0, elem),
-            rhs: scope.read_array(1, elem),
+        binary: |scope: &mut Scope, elem: Elem, index_ref: Variable| Operator::Equal(BinaryOperator {
+            lhs: scope.read_array(0, elem, index_ref),
+            rhs: scope.read_array(1, elem, index_ref),
             out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
@@ -71,9 +71,9 @@ pub fn greater<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |scope: &mut Scope, elem: Elem| Operator::Greater(BinaryOperator {
-            lhs: scope.read_array(0, elem),
-            rhs: scope.read_array(1, elem),
+        binary: |scope: &mut Scope, elem: Elem, index_ref: Variable| Operator::Greater(BinaryOperator {
+            lhs: scope.read_array(0, elem, index_ref),
+            rhs: scope.read_array(1, elem, index_ref),
             out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
@@ -87,7 +87,7 @@ pub fn greater_equal<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |scope: &mut Scope, elem: Elem| Operator::GreaterEqual(BinaryOperator {
+        binary: |scope: &mut Scope, elem: Elem, index_ref: Variable| Operator::GreaterEqual(BinaryOperator {
             lhs: scope.read_array(0, elem),
             rhs: scope.read_array(1, elem),
             out: scope.create_local(Elem::Bool),

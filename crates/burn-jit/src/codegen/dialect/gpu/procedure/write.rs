@@ -15,7 +15,7 @@ impl WriteGlobal {
     pub fn expand(self, scope: &mut Scope) {
         let output = self.global;
         let input = self.input;
-        let position = Variable::Id;
+        let position = self.index_ref;
 
         gpu!(scope, output[position] = input);
     }
