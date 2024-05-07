@@ -8,6 +8,7 @@ fn main() {
     ModelGen::new()
         .input("tests/add/add_int.onnx")
         .input("tests/add/add.onnx")
+        .input("tests/avg_pool1d/avg_pool1d.onnx")
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/batch_norm/batch_norm.onnx")
         .input("tests/cast/cast.onnx")
