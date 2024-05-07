@@ -4,9 +4,9 @@ use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Applies the rectified linear unit function element-wise:
+/// Applies the rectified linear unit function element-wise
+/// See also [relu](burn::tensor::activation::relu)
 ///
-/// `y = max(0, x)`
 #[derive(Module, Clone, Debug, Default)]
 pub struct Relu {}
 
