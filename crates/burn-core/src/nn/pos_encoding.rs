@@ -10,7 +10,7 @@ use burn_tensor::Data;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create an [PositionalEncoding](PositionalEncoding) layer.
+/// Configuration to create an [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
 #[derive(Config)]
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.
@@ -37,6 +37,8 @@ pub struct PositionalEncodingConfig {
 /// The reference implementation can be found here:
 /// [LANGUAGE MODELING WITH NN.TRANSFORMER AND TORCHTEXT
 /// ](https://pytorch.org/tutorials/beginner/transformer_tutorial.html)
+///
+/// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
 pub struct PositionalEncoding<B: Backend> {
     sinusoids: Tensor<B, 3>,
