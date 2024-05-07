@@ -1,9 +1,9 @@
 use crate as burn;
 
+use crate::tensor::activation::log_sigmoid;
+use crate::tensor::{backend::Backend, Int, Tensor};
 use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
-use burn_tensor::activation::log_sigmoid;
-use burn_tensor::{backend::Backend, Int, Tensor};
 
 /// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss) using the [init function](BinaryCrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
@@ -17,11 +17,11 @@ pub struct BinaryCrossEntropyLossConfig {
     ///
     /// Hard labels {0, 1} will be changed to `y_smoothed = y(1 - a) + a / num_classes`.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
     /// Treat the inputs as logits, applying a sigmoid activation when computing the loss.
     #[config(default = false)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl BinaryCrossEntropyLossConfig {
@@ -148,8 +148,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{activation::sigmoid, Data};
     use crate::TestBackend;
-    use burn_tensor::{activation::sigmoid, Data};
 
     #[test]
     fn test_binary_cross_entropy() {

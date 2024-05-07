@@ -10,19 +10,19 @@ use crate::nn::Initializer;
 #[derive(Debug, Config)]
 pub struct InstanceNormConfig {
     /// The number of channels expected in the input
-    num_channels: usize,
+    pub num_channels: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    epsilon: f64,
+    pub epsilon: f64,
     /// A boolean value that when set to `true`, this module has learnable
     /// per-channel affine parameters initialized to ones (for weights)
     /// and zeros (for biases). Default: `true`
     #[config(default = true)]
-    affine: bool,
+    pub affine: bool,
 }
 
 /// Applies Instance Normalization over a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
-/// 
+///
 /// Should be created using the [InstanceNormConfig](InstanceNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct InstanceNorm<B: Backend> {
@@ -63,7 +63,7 @@ impl<B: Backend> InstanceNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [InstanceNormConfig](InstanceNormConfig) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, num_channels, *]`
@@ -84,8 +84,8 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn instance_norm_forward_affine_false() {

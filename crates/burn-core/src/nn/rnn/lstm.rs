@@ -4,9 +4,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -38,9 +38,9 @@ pub struct LstmConfig {
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
-/// 
+///
 /// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
-/// 
+///
 /// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
@@ -190,9 +190,9 @@ pub struct BiLstmConfig {
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
-/// 
+///
 /// Introduced in the paper: [Framewise phoneme classification with bidirectional LSTM and other neural network architectures](https://www.cs.toronto.edu/~graves/ijcnn_2005.pdf).
-/// 
+///
 /// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
 pub struct BiLstm<B: Backend> {
@@ -306,8 +306,8 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Device, Distribution};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Device, Distribution};
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
-        use burn_tensor::Shape;
+        use crate::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
         let shape: Shape<3> = [8, 10, 64].into();

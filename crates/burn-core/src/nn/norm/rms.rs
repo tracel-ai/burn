@@ -11,17 +11,17 @@ use crate::tensor::Tensor;
 #[derive(Config)]
 pub struct RmsNormConfig {
     /// The size of the input features.
-    d_model: usize,
+    pub d_model: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    epsilon: f64,
+    pub epsilon: f64,
 }
 
 impl RmsNormConfig {
     /// Initialize a new [RMS Norm](RmsNorm) module.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `epsilon` is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
@@ -45,7 +45,7 @@ impl RmsNormConfig {
 /// - `gamma` is the learnable weight
 /// - `mean` is the mean operation
 /// - `eps` is a small value to avoid division by zero.
-/// 
+///
 /// Should be created using the [RmsNormConfig](RmsNormConfig) configuration.
 #[derive(Module, Debug)]
 pub struct RmsNorm<B: Backend> {
@@ -59,7 +59,7 @@ impl<B: Backend> RmsNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [RmsNorm](RmsNorm) documentation for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`
@@ -74,8 +74,8 @@ impl<B: Backend> RmsNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn rms_norm_forward() {

@@ -1,8 +1,8 @@
 use crate as burn;
 
+use crate::tensor::backend::Backend;
+use crate::tensor::Tensor;
 use crate::{config::Config, module::Module};
-use burn_tensor::backend::Backend;
-use burn_tensor::Tensor;
 use core::marker::PhantomData;
 
 use super::Reduction;
@@ -124,8 +124,8 @@ impl<B: Backend> HuberLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     #[test]

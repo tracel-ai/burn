@@ -23,14 +23,14 @@ pub struct BatchNormConfig {
 /// Applies Batch Normalization over a tensor as described in the paper [Batch Normalization](https://arxiv.org/abs/1502.03167)
 ///
 /// `Y = norm(X) * γ + β`
-/// 
+///
 /// Where:
 /// - `X` is the input tensor
 /// - `norm` is the normalization function
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
 /// - `Y` is the output tensor
-/// 
+///
 /// Should be created using [BatchNormConfig].
 #[derive(Module, Debug)]
 pub struct BatchNorm<B: Backend, const D: usize> {
@@ -70,14 +70,14 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [BatchNorm](BatchNorm) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, channels, ...]`
     /// - output: `[batch_size, channels, ...]`
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// This function will panic if the input tensor has a dimension different from `D + 2`.
     pub fn forward<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         // Should be move to a compilation error when const generic support that kind of
@@ -187,8 +187,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {
@@ -247,8 +247,8 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {

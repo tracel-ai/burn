@@ -4,9 +4,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
@@ -25,9 +25,9 @@ pub struct GruConfig {
 }
 
 /// The Gru (Gated recurrent unit) module. This implementation is for a unidirectional, stateless, Gru.
-/// 
+///
 /// Introduced in the paper: [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/abs/1406.1078).
-/// 
+///
 /// Should be created with [GruConfig].
 #[derive(Module, Debug)]
 pub struct Gru<B: Backend> {
@@ -79,7 +79,7 @@ impl<B: Backend> Gru<B> {
     ///
     /// # Shapes
     /// - batched_input: `[batch_size, sequence_length, input_size]`.
-    /// - state: An optional tensor representing an initial cell state with the same dimensions 
+    /// - state: An optional tensor representing an initial cell state with the same dimensions
     ///          as batched_input. If none is provided, one will be generated.
     /// - output: `[batch_size, sequence_length, hidden_size]`.
     pub fn forward(
@@ -179,8 +179,8 @@ impl<B: Backend> Gru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Distribution};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///

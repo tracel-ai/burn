@@ -1,5 +1,5 @@
+use crate::tensor::Bool;
 use alloc::vec::Vec;
-use burn_tensor::Bool;
 
 use crate::{
     self as burn,
@@ -340,8 +340,8 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Distribution;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
-    use burn_tensor::Distribution;
 
     #[test]
     fn test_autoregressive_norm_last() {

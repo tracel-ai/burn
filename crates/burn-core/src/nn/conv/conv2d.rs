@@ -6,9 +6,9 @@ use crate::module::Param;
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 use crate::tensor::module::conv2d;
 use crate::tensor::ops::ConvOptions;
+use crate::tensor::Tensor;
 
 use crate::nn::conv::checks;
 
@@ -42,7 +42,7 @@ pub struct Conv2dConfig {
 }
 
 /// Applies a 2D convolution over input tensors.
-/// 
+///
 /// Should be created with [Conv2dConfig].
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
@@ -103,7 +103,7 @@ impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv2d](crate::tensor::module::conv2d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, channels_in, height_in, width_in]`
@@ -125,8 +125,8 @@ impl<B: Backend> Conv2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

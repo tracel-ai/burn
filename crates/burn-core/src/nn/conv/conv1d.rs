@@ -3,12 +3,12 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::conv::checks;
 use crate::nn::{Initializer, PaddingConfig1d};
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 use crate::tensor::module::conv1d;
 use crate::tensor::ops::ConvOptions;
-use crate::nn::conv::checks;
+use crate::tensor::Tensor;
 
 /// Configuration to create an [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
@@ -42,7 +42,7 @@ pub struct Conv1dConfig {
 }
 
 /// Applies a 1D convolution over input tensors.
-/// 
+///
 /// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
@@ -98,7 +98,7 @@ impl<B: Backend> Conv1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv1d](crate::tensor::module::conv1d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, channels_in, length_in]`
@@ -121,8 +121,8 @@ impl<B: Backend> Conv1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

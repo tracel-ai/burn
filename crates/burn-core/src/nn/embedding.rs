@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 use crate::tensor::Int;
+use crate::tensor::Tensor;
 
 use crate::tensor::module::embedding;
 
@@ -14,16 +14,16 @@ use crate::tensor::module::embedding;
 #[derive(Config)]
 pub struct EmbeddingConfig {
     /// The number of embedding vectors.
-    n_embedding: usize,
+    pub n_embedding: usize,
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::Normal{mean:0.0, std:1.0}")]
     pub initializer: Initializer,
 }
 
 /// Lookup table to store a fix number of vectors.
-/// 
+///
 /// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {
@@ -60,8 +60,8 @@ impl<B: Backend> Embedding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

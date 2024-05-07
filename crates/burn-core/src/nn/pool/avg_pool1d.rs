@@ -9,7 +9,7 @@ use crate::tensor::Tensor;
 use crate::tensor::module::avg_pool1d;
 
 /// Configuration to create a [1D avg pooling](AvgPool1d) layer using the [init function](AvgPool1dConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AvgPool1dConfig {
     /// The size of the kernel.
     pub kernel_size: usize,
@@ -21,7 +21,7 @@ pub struct AvgPool1dConfig {
     pub padding: PaddingConfig1d,
     /// If the padding is counted in the denominator when computing the average.
     #[config(default = "true")]
-    count_include_pad: bool,
+    pub count_include_pad: bool,
 }
 
 /// Applies a 1D avg pooling over input tensors.
@@ -63,11 +63,11 @@ impl AvgPool1d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [avg_pool1d](crate::tensor::module::avg_pool1d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels, length_in]
-    /// - output: [batch_size, channels, length_out]
+    /// - input: `[batch_size, channels, length_in]`
+    /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self

@@ -86,8 +86,8 @@ impl<B: Backend> Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Shape};
     use crate::TestBackend;
-    use burn_tensor::{Data, Shape};
 
     #[test]
     fn initializer_default() {
