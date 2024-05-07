@@ -16,16 +16,4 @@ mod tests {
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }
-
-    // #[test]
-    // #[should_panic(expected = "attempt to add with overflow")]
-    // fn should_panic_on_int_overflow() {
-    //     let data = Data::from([[std::i64::MAX, 1], [std::i64::MAX, 2]]);
-    //     let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
-
-    //     let dim = 1;
-
-    //     // This should trigger an overflow panic when cumulating sums
-    //     let _ = tensor.cumsum_dim(dim).into_data();
-    // }
 }
