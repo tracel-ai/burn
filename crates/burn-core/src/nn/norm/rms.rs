@@ -11,10 +11,10 @@ use crate::tensor::Tensor;
 #[derive(Config)]
 pub struct RmsNormConfig {
     /// The size of the input features.
-    d_model: usize,
+    pub d_model: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    epsilon: f64,
+    pub epsilon: f64,
 }
 
 impl RmsNormConfig {

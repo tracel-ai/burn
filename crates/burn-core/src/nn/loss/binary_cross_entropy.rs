@@ -17,11 +17,11 @@ pub struct BinaryCrossEntropyLossConfig {
     ///
     /// Hard labels {0, 1} will be changed to `y_smoothed = y(1 - a) + a / num_classes`.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
     /// Treat the inputs as logits, applying a sigmoid activation when computing the loss.
     #[config(default = false)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl BinaryCrossEntropyLossConfig {

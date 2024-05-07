@@ -16,17 +16,17 @@ use num_traits::Float;
 #[derive(Config)]
 pub struct MultiHeadAttentionConfig {
     /// The size of each linear layer.
-    d_model: usize,
+    pub d_model: usize,
     /// The number of heads.
-    n_heads: usize,
+    pub n_heads: usize,
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
-    dropout: f64,
+    pub dropout: f64,
     /// The minimum value a float can take. Default: -1.0e4
     /// This is used to mask attention scores before calculating attention weights.
     /// A value too low might result in NaN.
     #[config(default = -1.0e4)]
-    min_float: f64,
+    pub min_float: f64,
     /// Use "quiet softmax" instead of regular softmax.
     ///
     /// - Usage may improve performance by allowing attention heads to deposit no information (if the sequence contains no information relevant to that head).
@@ -34,7 +34,7 @@ pub struct MultiHeadAttentionConfig {
     ///
     /// Reference: <https://www.evanmiller.org/attention-is-off-by-one.html>
     #[config(default = false)]
-    quiet_softmax: bool,
+    pub quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"

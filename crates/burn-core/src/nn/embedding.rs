@@ -14,9 +14,9 @@ use crate::tensor::module::embedding;
 #[derive(Config)]
 pub struct EmbeddingConfig {
     /// The number of embedding vectors.
-    n_embedding: usize,
+    pub n_embedding: usize,
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::Normal{mean:0.0, std:1.0}")]
     pub initializer: Initializer,

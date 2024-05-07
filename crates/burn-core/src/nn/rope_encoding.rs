@@ -13,14 +13,14 @@ use num_traits::Float;
 #[derive(Config, Debug)]
 pub struct RotaryEncodingConfig {
     /// Maximum sequence length of input
-    max_sequence_length: usize,
+    pub max_sequence_length: usize,
 
     /// Size of the input embedding or hidden dimension
-    d_model: usize,
+    pub d_model: usize,
 
     /// Scaling factor for frequency computation. Defaults to 10000.0
     #[config(default = "10000.0")]
-    theta: f32,
+    pub theta: f32,
 }
 
 impl RotaryEncodingConfig {

@@ -15,14 +15,14 @@ use num_traits::Float;
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.
     #[config(default = "5_000")]
-    max_sequence_size: usize,
+    pub max_sequence_size: usize,
 
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
 
     /// Max time scale to use.
     #[config(default = "10_000")]
-    max_timescale: usize,
+    pub max_timescale: usize,
 }
 
 /// Positional encoding layer for transformer models.

@@ -12,7 +12,7 @@ pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
     /// Prevents pad tokens from impacting loss calculation.
-    pad_tokens: Option<Vec<usize>>,
+    pub pad_tokens: Option<Vec<usize>>,
 
     /// Create weighted cross-entropy.
     ///
@@ -21,18 +21,18 @@ pub struct CrossEntropyLossConfig {
     /// # Pre-conditions
     ///   - The order of the weight vector should correspond to the label integer assignment.
     ///   - Targets assigned negative Int's will not be allowed.
-    weights: Option<Vec<f32>>,
+    pub weights: Option<Vec<f32>>,
 
     /// Create cross-entropy with label smoothing.
     ///
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
     /// Create cross-entropy with probabilities as input instead of logits.    
     ///
     #[config(default = true)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl CrossEntropyLossConfig {
