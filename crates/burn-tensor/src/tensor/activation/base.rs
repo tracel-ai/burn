@@ -28,7 +28,7 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
 }
 
-/// Applies Parametric ReLu activation
+/// Applies Parametric ReLu activation function as described in the paper [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
 /// ` PReLu(x) = max(0,x) + \alpha * min(0,x)`
 /// tensor is assumed to be of shape \[batch_size, channels, ...\]
 /// alpha is assumed to be of shape \[channels\] or \[1\]
