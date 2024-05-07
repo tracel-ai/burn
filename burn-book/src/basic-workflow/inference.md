@@ -10,6 +10,16 @@ cost. Let's create a simple `infer` method in a new file `src/inference.rs` whic
 load our trained model.
 
 ```rust , ignore
+# use burn::{
+#     config::Config,
+#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+#     module::Module,
+#     record::{CompactRecorder, Recorder},
+#     tensor::backend::Backend,
+# };
+# 
+# use crate::{data::MnistBatcher, training::TrainingConfig};
+# 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model");
@@ -39,6 +49,29 @@ By running the infer function, you should see the predictions of your model!
 Add the call to `infer` to the `main.rs` file after the `train` function call:
 
 ```rust , ignore
+# mod data;
+# mod inference;
+# mod model;
+# mod training;
+# 
+# use crate::{model::ModelConfig, training::TrainingConfig};
+# use burn::{
+#     backend::{wgpu::AutoGraphicsApi, Autodiff, Wgpu},
+#     data::dataset::Dataset,
+#     optim::AdamConfig,
+# };
+# 
+# fn main() {
+#     type MyBackend = Wgpu<AutoGraphicsApi, f32, i32>;
+#     type MyAutodiffBackend = Autodiff<MyBackend>;
+# 
+#     let device = burn::backend::wgpu::WgpuDevice::default();
+#     let artifact_dir = "/tmp/guide";
+#     crate::training::train::<MyAutodiffBackend>(
+#         artifact_dir,
+#         TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
+#         device.clone(),
+#     );
     crate::inference::infer::<MyBackend>(
         artifact_dir,
         device,
@@ -46,6 +79,7 @@ Add the call to `infer` to the `main.rs` file after the `train` function call:
             .get(42)
             .unwrap(),
     );
+# }
 ```
 
 The number `42` is the index of the image in the MNIST dataset. You can explore and verify them using
