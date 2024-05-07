@@ -58,6 +58,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Transpose => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
+        NodeType::CumSum => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.

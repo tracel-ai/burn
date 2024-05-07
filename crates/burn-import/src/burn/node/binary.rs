@@ -14,6 +14,8 @@ pub enum BinaryType {
     Equal,
     Powf,
     Powi,
+    FloatCumsum,
+    IntCumsum,
 }
 
 impl BinaryType {
@@ -26,6 +28,8 @@ impl BinaryType {
             BinaryType::Equal => "equal",
             BinaryType::Powi => "powi",
             BinaryType::Powf => "powf",
+            BinaryType::FloatCumsum => "float_cumsum",
+            BinaryType::IntCumsum => "int_cumsum",
         }
     }
 }
@@ -173,6 +177,28 @@ impl BinaryNode {
         };
         Self::new(lhs, rhs, output, BinaryType::Powi, Arc::new(function))
     }
+    pub(crate) fn float_cumsum(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Scalar(_)) => {
+                move |lhs, rhs| quote! { #lhs.float_cumsum(#rhs) }
+            }
+            _ => panic!("cumsum is is supported for tensor-scalar input pairs  only"),
+        };
+        Self::new(
+            lhs,
+            rhs,
+            output,
+            BinaryType::FloatCumsum,
+            Arc::new(function),
+        )
+    }
+    pub(crate) fn int_cumsum(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.int_cumsum(#rhs) },
+            _ => panic!("cumsum is is supported for tensor-scalar input pairs  only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::IntCumsum, Arc::new(function))
+    }
 }
 
 #[cfg(test)]
@@ -311,6 +337,15 @@ mod tests {
     #[test]
     fn test_binary_codegen_powf_scalar() {
         test_binary_operator_on_tensor_and_scalar!(powf, powf_scalar);
+    }
+    #[test]
+    fn test_binary_codegen_int_cumsum() {
+        test_binary_operator_on_tensor_and_scalar!(int_cumsum, int_cumsum_scalar);
+    }
+
+    #[test]
+    fn test_binary_codegen_float_cumsum() {
+        test_binary_operator_on_tensor_and_scalar!(float_cumsum, float_cumsum_scalar);
     }
 
     #[test]

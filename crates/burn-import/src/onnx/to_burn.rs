@@ -278,6 +278,7 @@ impl OnnxGraph {
                     graph.register(Self::conv_transpose2d_conversion(node))
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
+                NodeType::CumSum => graph.register(Self::cumsum_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
@@ -777,6 +778,19 @@ impl OnnxGraph {
                 _ => panic!("pow function requires RHS to be int or float type"),
             },
             _ => panic!("pow function only supports RHS scalar or tensor types"),
+        }
+    }
+    fn cumsum_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        match &lhs {
+            Type::Tensor(x) => match x.kind {
+                TensorKind::Int => BinaryNode::int_cumsum(lhs, rhs, output),
+                TensorKind::Float => BinaryNode::float_cumsum(lhs, rhs, output),
+                _ => panic!("cumsum function requires LHS to be int or float type"),
+            },
+            _ => panic!("cumsum function only supports LHS tensor type"),
         }
     }
 
