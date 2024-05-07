@@ -23,7 +23,7 @@ impl<B: Backend, const D: usize> LstmState<B, D> {
     }
 }
 
-/// The configuration for a [lstm](Lstm) module.
+/// Configuration to create a [Lstm](Lstm) module using the [init function](LstmConfig::init).
 #[derive(Config)]
 pub struct LstmConfig {
     /// The size of the input features.
@@ -38,6 +38,10 @@ pub struct LstmConfig {
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
+/// 
+/// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
+/// 
+/// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
     /// The input gate regulates which information to update and store in the cell state at each time step.
@@ -171,7 +175,7 @@ impl<B: Backend> Lstm<B> {
     }
 }
 
-/// The configuration for a [Bidirectional LSTM](BiLstm) module.
+/// Configuration to create a [BiLstm](BiLstm) module using the [init function](BiLstmConfig::init).
 #[derive(Config)]
 pub struct BiLstmConfig {
     /// The size of the input features.
@@ -186,6 +190,10 @@ pub struct BiLstmConfig {
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
+/// 
+/// Introduced in the paper: [Framewise phoneme classification with bidirectional LSTM and other neural network architectures](https://www.cs.toronto.edu/~graves/ijcnn_2005.pdf).
+/// 
+/// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
 pub struct BiLstm<B: Backend> {
     /// LSTM for the forward direction.
