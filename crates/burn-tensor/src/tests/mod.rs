@@ -50,6 +50,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_close!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_create_like!();
+        burn_tensor::testgen_cumsum_dim!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();

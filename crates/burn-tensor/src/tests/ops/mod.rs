@@ -15,6 +15,7 @@ mod clamp;
 mod close;
 mod cos;
 mod create_like;
+mod cumsum_dim;
 mod div;
 mod erf;
 mod exp;
