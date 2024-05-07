@@ -18,6 +18,7 @@ include_models!(
     add_int,
     add,
     avg_pool2d,
+    avg_pool1d,
     batch_norm,
     cast,
     clip_opset16,
@@ -496,6 +497,53 @@ mod tests {
         ]]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn avg_pool1d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: avg_pool1d::Model<Backend> = avg_pool1d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[
+                [-1.526, -0.750, -0.654, -1.609, -0.100],
+                [-0.609, -0.980, -1.609, -0.712, 1.171],
+                [1.767, -0.095, 0.139, -1.579, -0.321],
+                [-0.299, 1.879, 0.336, 0.275, 1.716],
+                [-0.056, 0.911, -1.392, 2.689, -0.111],
+            ]],
+            &device,
+        );
+        let (output1, output2, output3) = model.forward(input.clone(), input.clone(), input);
+        let expected1 = Data::from([[[-1.135], [-0.978], [0.058], [0.548], [0.538]]]);
+        let expected2 = Data::from([[
+            [-0.569, -1.135, -0.591],
+            [-0.397, -0.978, -0.288],
+            [0.418, 0.058, -0.440],
+            [0.395, 0.548, 0.582],
+            [0.214, 0.538, 0.296],
+        ]]);
+        let expected3 = Data::from([[
+            [-1.138, -1.135, -0.788],
+            [-0.794, -0.978, -0.383],
+            [0.836, 0.058, -0.587],
+            [0.790, 0.548, 0.776],
+            [0.427, 0.538, 0.395],
+        ]]);
+
+        let expected_shape1 = Shape::from([1, 5, 1]);
+        let expected_shape2 = Shape::from([1, 5, 3]);
+        let expected_shape3 = Shape::from([1, 5, 3]);
+
+        assert_eq!(output1.shape(), expected_shape1);
+        assert_eq!(output2.shape(), expected_shape2);
+        assert_eq!(output3.shape(), expected_shape3);
+
+        output1.to_data().assert_approx_eq(&expected1, 3);
+        output2.to_data().assert_approx_eq(&expected2, 3);
+        output3.to_data().assert_approx_eq(&expected3, 3);
     }
 
     #[test]

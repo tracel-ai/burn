@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 use burn_tensor::module::avg_pool1d;
 
 /// Configuration to create a [1D avg pooling](AvgPool1d) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AvgPool1dConfig {
     /// The size of the kernel.
     pub kernel_size: usize,
@@ -20,7 +20,7 @@ pub struct AvgPool1dConfig {
     pub padding: PaddingConfig1d,
     /// If the padding is counted in the denominator when computing the average.
     #[config(default = "true")]
-    count_include_pad: bool,
+    pub count_include_pad: bool,
 }
 
 /// Applies a 1D avg pooling over input tensors.
