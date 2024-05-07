@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use burn_tensor::activation::log_softmax;
 use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
-/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss).
+/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
@@ -68,6 +68,8 @@ impl CrossEntropyLossConfig {
 }
 
 /// Calculate the cross entropy loss from the input logits and the targets.
+///
+/// Should be created using [CrossEntropyLossConfig]
 #[derive(Module, Debug)]
 pub struct CrossEntropyLoss<B: Backend> {
     pad_tokens: Option<Vec<usize>>,
