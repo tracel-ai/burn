@@ -106,8 +106,8 @@ impl<B: Backend> Conv2d<B> {
     /// 
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, height_in, width_in]
-    /// - output: [batch_size, channels_out, height_out, width_out]
+    /// - input: `[batch_size, channels_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
