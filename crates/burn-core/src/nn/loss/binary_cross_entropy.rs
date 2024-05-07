@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use burn_tensor::activation::log_sigmoid;
 use burn_tensor::{backend::Backend, Int, Tensor};
 
-/// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss).
+/// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss) using the [init function](BinaryCrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct BinaryCrossEntropyLossConfig {
     /// Create weighted binary cross-entropy with a weight for each class.
@@ -56,6 +56,8 @@ impl BinaryCrossEntropyLossConfig {
 }
 
 /// Calculate the binary cross entropy loss from the input logits and the targets.
+///
+/// Should be created using [BinaryCrossEntropyLossConfig]
 #[derive(Module, Debug)]
 pub struct BinaryCrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
