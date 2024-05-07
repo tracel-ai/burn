@@ -12,7 +12,7 @@ use crate::{
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
+/// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer using the [init function](MultiHeadAttentionConfig::init).
 #[derive(Config)]
 pub struct MultiHeadAttentionConfig {
     /// The size of each linear layer.
@@ -50,6 +50,8 @@ pub struct MultiHeadAttentionConfig {
 /// - key: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - value: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - output: [Linear](nn::Linear) layer with `d_model` input and output features.
+/// 
+/// Should be created with [MultiHeadAttentionConfig].
 #[derive(Module, Debug)]
 pub struct MultiHeadAttention<B: Backend> {
     query: nn::Linear<B>,
@@ -67,8 +69,11 @@ pub struct MultiHeadAttention<B: Backend> {
 /// [Multihead attention](MultiHeadAttention) forward pass input argument.
 #[derive(Debug, Clone)]
 pub struct MhaInput<B: Backend> {
+    // Shape `[batch_size, seq_length_1, d_model]`
     query: Tensor<B, 3>,
+    // Shape `[batch_size, seq_length_2, d_model]`
     key: Tensor<B, 3>,
+    // Shape `[batch_size, seq_length_2, d_model]`
     value: Tensor<B, 3>,
     mask_pad: Option<Tensor<B, 2, Bool>>,
     mask_attn: Option<Tensor<B, 3, Bool>>,
@@ -101,6 +106,9 @@ impl MultiHeadAttentionConfig {
 impl<B: Backend> MhaInput<B> {
     /// Create a [multihead attention](MultiHeadAttention) input argument
     /// by setting the query, key and value to the given tensor.
+    /// 
+    /// # Shape
+    /// - tensor: `[batch_size, seq_length, d_model]`
     pub fn self_attn(tensor: Tensor<B, 3>) -> Self {
         Self {
             query: tensor.clone(),
@@ -138,15 +146,17 @@ impl<B: Backend> MhaInput<B> {
 /// [Multihead attention](MultiHeadAttention) outputs.
 #[derive(Debug, Clone)]
 pub struct MhaOutput<B: Backend> {
-    /// The attention weights [batch_size, n_heads, seq_length_1, seq_length_2].
+    /// The attention weights `[batch_size, n_heads, seq_length_1, seq_length_2]`.
     pub weights: Tensor<B, 4>,
-    /// The context tensor [batch_size, seq_length_1, d_model].
+    /// The context tensor `[batch_size, seq_length_1, d_model]`.
     pub context: Tensor<B, 3>,
 }
 
 impl<B: Backend> MultiHeadAttention<B> {
     /// Applies the forward pass on the input tensors.
     ///
+    /// See [MultiHeadAttention](MultiHeadAttention) for more information.
+    /// 
     /// # Shapes
     ///
     /// - query: `[batch_size, seq_length_1, d_model]`
