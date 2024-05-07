@@ -7,7 +7,7 @@ use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Configuration to create a [RMS Norm](RmsNorm) layer.
+/// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
 #[derive(Config)]
 pub struct RmsNormConfig {
     /// The size of the input features.
@@ -19,6 +19,10 @@ pub struct RmsNormConfig {
 
 impl RmsNormConfig {
     /// Initialize a new [RMS Norm](RmsNorm) module.
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `epsilon` is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
 
@@ -35,11 +39,18 @@ impl RmsNormConfig {
 ///
 /// `Y = X / sqrt(mean(X^2) + eps) * gamma`
 ///
-/// where `eps` is a small value to avoid division by zero.
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `gamma` is the learnable weight
+/// - `mean` is the mean operation
+/// - `eps` is a small value to avoid division by zero.
+/// 
+/// Should be created using the [RmsNormConfig](RmsNormConfig) configuration.
 #[derive(Module, Debug)]
 pub struct RmsNorm<B: Backend> {
     /// The learnable parameter to scale the normalized tensor
-    gamma: Param<Tensor<B, 1>>,
+    pub gamma: Param<Tensor<B, 1>>,
     /// A value required for numerical stability
     epsilon: f64,
 }
@@ -47,6 +58,8 @@ pub struct RmsNorm<B: Backend> {
 impl<B: Backend> RmsNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See the [RmsNorm](RmsNorm) documentation for more information.
+    /// 
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`
