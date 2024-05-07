@@ -6,7 +6,9 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::Int;
+use crate::tensor::Int;
+
+use crate::tensor::module::embedding;
 
 /// Configuration to create an [Embedding](Embedding) layer using the [init function](EmbeddingConfig::init).
 #[derive(Config)]
@@ -21,6 +23,8 @@ pub struct EmbeddingConfig {
 }
 
 /// Lookup table to store a fix number of vectors.
+/// 
+/// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {
     /// The learnable weights of the module of shape `[n_embedding, d_model]` initialized
@@ -43,13 +47,13 @@ impl<B: Backend> Embedding<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [embedding](crate::tensor::module::embedding).
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, seq_length]`
     /// - output: `[batch_size, d_model]`
     pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 3> {
-        crate::tensor::module::embedding(self.weight.val(), input)
+        embedding(self.weight.val(), input)
     }
 }
 
