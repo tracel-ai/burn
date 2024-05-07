@@ -7,7 +7,7 @@ use crate::tensor::{backend::Backend, Tensor};
 
 use super::{Initializer, Linear, LinearConfig};
 
-/// Configuration to create a [SwiGlu](SwiGlu) activation layer.
+/// Configuration to create a [SwiGlu](SwiGlu) activation layer using the [init function](SwiGluConfig::init).
 #[derive(Config, Debug)]
 pub struct SwiGluConfig {
     /// The size of the input features.
@@ -28,16 +28,13 @@ pub struct SwiGluConfig {
 /// Applies the SwiGLU or Swish Gated Linear Unit to the input tensor.
 /// The SwiGLU activation function is defined as:
 /// `SwiGLU(x) = Swish(W_inner * x + b_inner) * (W_outer * x + b_outer)`
-///
-/// # Params
-///
-/// - linear inner: The inner linear layer for Swish activation function
-/// with `d_input` input features and `d_output` output features.
-/// - linear outer: Outer Linear layer for element wise multiplication
-/// with `d_input` input features and `d_output` output features.
 #[derive(Module, Debug)]
 pub struct SwiGlu<B: Backend> {
+    /// The inner linear layer for Swish activation function
+    /// with `d_input` input features and `d_output` output features.
     linear_inner: Linear<B>,
+    /// The outer linear layer for element wise multiplication
+    /// with `d_input` input features and `d_output` output features.
     linear_outer: Linear<B>,
 }
 
@@ -58,11 +55,11 @@ impl SwiGluConfig {
 }
 
 impl<B: Backend> SwiGlu<B> {
-    /// Applies the forward pass on the input tensor.
+    /// Applies the Swish Gated Linear Unit to the input tensor.
     ///
     /// # Shapes
     ///
-    /// - tensor: `[batch_size, seq_length, d_input]`
+    /// - input: `[batch_size, seq_length, d_input]`  
     /// - output: `[batch_size, seq_length, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input.clone());
