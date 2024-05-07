@@ -7,7 +7,7 @@ use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Configuration to create a [GroupNorm](GroupNorm) layer.
+/// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
 pub struct GroupNormConfig {
     /// The number of groups to separate the channels into
@@ -24,15 +24,25 @@ pub struct GroupNormConfig {
     pub affine: bool,
 }
 
-/// Applies Group Normalization over a mini-batch of inputs.
+/// Applies Group Normalization over a mini-batch of inputs as described in the paper [Group Normalization](https://arxiv.org/abs/1803.08494).
 ///
 /// `Y = groupnorm(X) * γ + β`
+/// 
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
+/// 
+/// Should be created using the [GroupNormConfig](GroupNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct GroupNorm<B: Backend> {
     num_groups: usize,
     num_channels: usize,
-    gamma: Option<Param<Tensor<B, 1>>>,
-    beta: Option<Param<Tensor<B, 1>>>,
+    /// The learnable weight
+    pub gamma: Option<Param<Tensor<B, 1>>>,
+    /// The learnable bias
+    pub beta: Option<Param<Tensor<B, 1>>>,
     epsilon: f64,
     affine: bool,
 }
@@ -69,10 +79,12 @@ impl GroupNormConfig {
 impl<B: Backend> GroupNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [GroupNorm](GroupNorm) for more information.
+    /// 
     /// # Shapes
     ///
-    /// - input: `[..., any, d_model]`
-    /// - output: `[..., any, d_model]`
+    /// - input: `[batch_size, num_channels, any]`
+    /// - output: `[batch_size, num_channels, any]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let shape = input.shape();
         if shape.num_elements() <= 2 {
