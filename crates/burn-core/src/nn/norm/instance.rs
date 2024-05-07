@@ -4,9 +4,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::{backend::Backend, Tensor};
 
-use super::{GroupNorm, GroupNormConfig};
+use crate::nn::norm::{GroupNorm, GroupNormConfig};
 
-/// Configuration to create a [InstanceNorm](InstanceNorm) layer.
+/// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
 pub struct InstanceNormConfig {
     /// The number of channels expected in the input
@@ -21,7 +21,9 @@ pub struct InstanceNormConfig {
     affine: bool,
 }
 
-/// Applies Instance Normalization over  a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
+/// Applies Instance Normalization over a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
+/// 
+/// Should be created using the [InstanceNormConfig](InstanceNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct InstanceNorm<B: Backend> {
     group_norm: GroupNorm<B>,
@@ -50,6 +52,8 @@ impl InstanceNormConfig {
 impl<B: Backend> InstanceNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [InstanceNormConfig](InstanceNormConfig) for more information.
+    /// 
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`
