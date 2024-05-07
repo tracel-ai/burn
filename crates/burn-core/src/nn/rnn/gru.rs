@@ -179,8 +179,8 @@ impl<B: Backend> Gru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Distribution};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///

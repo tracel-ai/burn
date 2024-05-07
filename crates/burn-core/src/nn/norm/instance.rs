@@ -66,8 +66,8 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn instance_norm_forward_affine_false() {

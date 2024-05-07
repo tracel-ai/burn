@@ -216,8 +216,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{loss::cross_entropy_with_logits, Data, Distribution};
     use crate::TestBackend;
-    use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
 
     macro_rules! setup {
         () => {{

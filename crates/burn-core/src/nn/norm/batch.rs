@@ -187,8 +187,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {
@@ -247,8 +247,8 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {

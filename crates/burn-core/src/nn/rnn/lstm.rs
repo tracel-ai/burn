@@ -306,8 +306,8 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Device, Distribution};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Device, Distribution};
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
-        use burn_tensor::Shape;
+        use crate::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
         let shape: Shape<3> = [8, 10, 64].into();

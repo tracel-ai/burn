@@ -121,8 +121,8 @@ impl<B: Backend> Conv1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

@@ -55,8 +55,8 @@ impl<B: Backend> MseLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn test_mse_loss() {

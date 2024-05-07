@@ -148,8 +148,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{activation::sigmoid, Data};
     use crate::TestBackend;
-    use burn_tensor::{activation::sigmoid, Data};
 
     #[test]
     fn test_binary_cross_entropy() {

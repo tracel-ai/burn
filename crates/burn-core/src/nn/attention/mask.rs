@@ -89,9 +89,9 @@ pub fn generate_padding_mask<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
     use alloc::vec;
-    use burn_tensor::Data;
 
     #[test]
     fn test_generate_autoregressive_mask() {

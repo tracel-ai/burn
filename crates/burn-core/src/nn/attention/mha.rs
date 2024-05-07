@@ -320,10 +320,10 @@ impl<B: Backend, const D: usize> MhaLinearCache<B, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Int;
+    use crate::tensor::{Distribution, Shape};
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use alloc::vec::Vec;
-    use burn::tensor::{Distribution, Shape};
-    use burn_tensor::Int;
 
     #[test]
     fn test_self_attention_shapes() {

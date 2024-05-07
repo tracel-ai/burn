@@ -131,8 +131,8 @@ impl<B: Backend> GroupNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn group_norm_forward_affine_false() {

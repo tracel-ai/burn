@@ -124,8 +124,8 @@ impl<B: Backend> HuberLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     #[test]

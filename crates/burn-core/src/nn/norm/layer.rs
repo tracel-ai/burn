@@ -74,7 +74,7 @@ impl<B: Backend> LayerNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use crate::tensor::Data;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};
