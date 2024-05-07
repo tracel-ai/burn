@@ -9,7 +9,7 @@ use burn_tensor::Int;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer.
+/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer using the [init function](RotaryEncodingConfig::init).
 #[derive(Config, Debug)]
 pub struct RotaryEncodingConfig {
     /// Maximum sequence length of input
@@ -84,6 +84,8 @@ impl RotaryEncodingConfig {
 /// explicit relative position dependency in self-attention formulation.
 ///
 /// Introduced in the paper: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
+///
+/// Should be created using [RotaryEncodingConfig].
 #[derive(Module, Debug)]
 pub struct RotaryEncoding<B: Backend> {
     /// Frequency Tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
