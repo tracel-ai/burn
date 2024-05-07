@@ -1,9 +1,9 @@
 use crate as burn;
 
-use crate::nn::Initializer;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -20,13 +20,13 @@ pub struct LayerNormConfig {
 /// Applies Layer Normalization over an input tensor as described in the paper [Layer Normalization](https://arxiv.org/abs/1607.06450).
 ///
 /// `Y = norm(X) * γ + β`
-/// 
+///
 /// Where:
 /// - `X` is the input tensor
 /// - `Y` is the output tensor
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias#[derive(Module, Debug)]
-/// 
+///
 /// Should be created using the [LayerNormConfig](LayerNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
@@ -55,7 +55,7 @@ impl<B: Backend> LayerNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [LayerNorm](LayerNorm) documentation for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`

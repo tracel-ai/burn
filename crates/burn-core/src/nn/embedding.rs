@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 use crate::tensor::Int;
+use crate::tensor::Tensor;
 
 use crate::tensor::module::embedding;
 
@@ -23,7 +23,7 @@ pub struct EmbeddingConfig {
 }
 
 /// Lookup table to store a fix number of vectors.
-/// 
+///
 /// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {

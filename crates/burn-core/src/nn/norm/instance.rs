@@ -22,7 +22,7 @@ pub struct InstanceNormConfig {
 }
 
 /// Applies Instance Normalization over a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
-/// 
+///
 /// Should be created using the [InstanceNormConfig](InstanceNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct InstanceNorm<B: Backend> {
@@ -53,7 +53,7 @@ impl<B: Backend> InstanceNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [InstanceNormConfig](InstanceNormConfig) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`

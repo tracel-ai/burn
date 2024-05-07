@@ -38,9 +38,9 @@ pub struct LstmConfig {
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
-/// 
+///
 /// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
-/// 
+///
 /// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
 pub struct Lstm<B: Backend> {
@@ -190,9 +190,9 @@ pub struct BiLstmConfig {
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
-/// 
+///
 /// Introduced in the paper: [Framewise phoneme classification with bidirectional LSTM and other neural network architectures](https://www.cs.toronto.edu/~graves/ijcnn_2005.pdf).
-/// 
+///
 /// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
 pub struct BiLstm<B: Backend> {

@@ -23,7 +23,7 @@ pub struct Unfold4dConfig {
 }
 
 /// Four-dimensional unfolding.
-/// 
+///
 /// Should be created with [Unfold4dConfig].
 #[derive(Module, Clone, Debug)]
 pub struct Unfold4d {
@@ -43,7 +43,7 @@ impl Unfold4d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [unfold4d](crate::tensor::module::unfold4d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// input:   `[batch_size, channels_in, height, width]`  

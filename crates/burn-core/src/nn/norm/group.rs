@@ -27,13 +27,13 @@ pub struct GroupNormConfig {
 /// Applies Group Normalization over a mini-batch of inputs as described in the paper [Group Normalization](https://arxiv.org/abs/1803.08494).
 ///
 /// `Y = groupnorm(X) * γ + β`
-/// 
+///
 /// Where:
 /// - `X` is the input tensor
 /// - `Y` is the output tensor
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
-/// 
+///
 /// Should be created using the [GroupNormConfig](GroupNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct GroupNorm<B: Backend> {
@@ -80,7 +80,7 @@ impl<B: Backend> GroupNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [GroupNorm](GroupNorm) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, num_channels, any]`

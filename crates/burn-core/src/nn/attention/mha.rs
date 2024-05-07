@@ -50,7 +50,7 @@ pub struct MultiHeadAttentionConfig {
 /// - key: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - value: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - output: [Linear](nn::Linear) layer with `d_model` input and output features.
-/// 
+///
 /// Should be created with [MultiHeadAttentionConfig].
 #[derive(Module, Debug)]
 pub struct MultiHeadAttention<B: Backend> {
@@ -106,7 +106,7 @@ impl MultiHeadAttentionConfig {
 impl<B: Backend> MhaInput<B> {
     /// Create a [multihead attention](MultiHeadAttention) input argument
     /// by setting the query, key and value to the given tensor.
-    /// 
+    ///
     /// # Shape
     /// - tensor: `[batch_size, seq_length, d_model]`
     pub fn self_attn(tensor: Tensor<B, 3>) -> Self {
@@ -156,7 +156,7 @@ impl<B: Backend> MultiHeadAttention<B> {
     /// Applies the forward pass on the input tensors.
     ///
     /// See [MultiHeadAttention](MultiHeadAttention) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - query: `[batch_size, seq_length_1, d_model]`

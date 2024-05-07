@@ -19,9 +19,9 @@ pub struct RmsNormConfig {
 
 impl RmsNormConfig {
     /// Initialize a new [RMS Norm](RmsNorm) module.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `epsilon` is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
@@ -45,7 +45,7 @@ impl RmsNormConfig {
 /// - `gamma` is the learnable weight
 /// - `mean` is the mean operation
 /// - `eps` is a small value to avoid division by zero.
-/// 
+///
 /// Should be created using the [RmsNormConfig](RmsNormConfig) configuration.
 #[derive(Module, Debug)]
 pub struct RmsNorm<B: Backend> {
@@ -59,7 +59,7 @@ impl<B: Backend> RmsNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [RmsNorm](RmsNorm) documentation for more information.
-    /// 
+    ///
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`
