@@ -34,10 +34,10 @@ pub struct SwiGluConfig {
 pub struct SwiGlu<B: Backend> {
     /// The inner linear layer for Swish activation function
     /// with `d_input` input features and `d_output` output features.
-    linear_inner: Linear<B>,
+    pub linear_inner: Linear<B>,
     /// The outer linear layer for element wise multiplication
     /// with `d_input` input features and `d_output` output features.
-    linear_outer: Linear<B>,
+    pub linear_outer: Linear<B>,
 }
 
 impl SwiGluConfig {
