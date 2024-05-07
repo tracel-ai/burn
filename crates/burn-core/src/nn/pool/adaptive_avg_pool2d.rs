@@ -15,7 +15,7 @@ pub struct AdaptiveAvgPool2dConfig {
 }
 
 /// Applies a 2D adaptive avg pooling over input tensors.
-/// 
+///
 /// Should be created with [AdaptiveAvgPool2dConfig].
 #[derive(Module, Clone, Debug)]
 pub struct AdaptiveAvgPool2d {
@@ -35,11 +35,11 @@ impl AdaptiveAvgPool2d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [adaptive_avg_pool2d](crate::tensor::module::adaptive_avg_pool2d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels, height_in, width_in]
-    /// - output: [batch_size, channels, height_out, width_out]
+    /// - input: `[batch_size, channels, height_in, width_in]`
+    /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         adaptive_avg_pool2d(input, self.output_size)
     }

@@ -63,11 +63,11 @@ impl AvgPool1d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [avg_pool1d](crate::tensor::module::avg_pool1d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels, length_in]
-    /// - output: [batch_size, channels, length_out]
+    /// - input: `[batch_size, channels, length_in]`
+    /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self

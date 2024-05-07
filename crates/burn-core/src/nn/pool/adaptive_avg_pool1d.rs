@@ -15,7 +15,7 @@ pub struct AdaptiveAvgPool1dConfig {
 }
 
 /// Applies a 1D adaptive avg pooling over input tensors.
-/// 
+///
 /// Should be created with [AdaptiveAvgPool1dConfig].
 #[derive(Module, Clone, Debug)]
 pub struct AdaptiveAvgPool1d {
@@ -35,11 +35,11 @@ impl AdaptiveAvgPool1d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [adaptive_avg_pool1d](crate::tensor::module::adaptive_avg_pool1d) for more information.
-    /// 
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels, length]
-    /// - output: [batch_size, channels, length_out]
+    /// - input: `[batch_size, channels, length]`
+    /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         adaptive_avg_pool1d(input, self.output_size)
     }
