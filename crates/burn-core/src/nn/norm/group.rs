@@ -37,14 +37,15 @@ pub struct GroupNormConfig {
 /// Should be created using the [GroupNormConfig](GroupNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct GroupNorm<B: Backend> {
-    num_groups: usize,
-    num_channels: usize,
     /// The learnable weight
     pub gamma: Option<Param<Tensor<B, 1>>>,
     /// The learnable bias
     pub beta: Option<Param<Tensor<B, 1>>>,
-    epsilon: f64,
-    affine: bool,
+    
+    pub(crate) num_groups: usize,
+    pub(crate) num_channels: usize,
+    pub(crate) epsilon: f64,
+    pub(crate) affine: bool,
 }
 
 impl GroupNormConfig {
@@ -83,8 +84,8 @@ impl<B: Backend> GroupNorm<B> {
     /// 
     /// # Shapes
     ///
-    /// - input: `[batch_size, num_channels, any]`
-    /// - output: `[batch_size, num_channels, any]`
+    /// - input: `[batch_size, num_channels, *]`
+    /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let shape = input.shape();
         if shape.num_elements() <= 2 {

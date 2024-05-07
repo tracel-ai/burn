@@ -1,10 +1,10 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Module, Param};
 use crate::tensor::{backend::Backend, Tensor};
-
-use crate::nn::norm::{GroupNorm, GroupNormConfig};
+use crate::nn::norm::GroupNorm;
+use crate::nn::Initializer;
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -26,22 +26,32 @@ pub struct InstanceNormConfig {
 /// Should be created using the [InstanceNormConfig](InstanceNormConfig) struct.
 #[derive(Module, Debug)]
 pub struct InstanceNorm<B: Backend> {
-    group_norm: GroupNorm<B>,
+    /// The learnable weight
+    pub gamma: Option<Param<Tensor<B, 1>>>,
+    /// The learnable bias
+    pub beta: Option<Param<Tensor<B, 1>>>,
+
+    num_channels: usize,
+    epsilon: f64,
+    affine: bool,
 }
 
 impl InstanceNormConfig {
     /// Initialize a new [instance norm](InstanceNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
-        InstanceNorm {
-            group_norm: self.to_group_norm().init(device),
-        }
-    }
+        
+        let (gamma, beta) = if self.affine {
+            let gamma = Initializer::Ones.init([self.num_channels], device);
+            let beta = Initializer::Zeros.init([self.num_channels], device);
 
-    fn to_group_norm(&self) -> GroupNormConfig {
-        GroupNormConfig {
-            // Group norm is equivalent to instance norm, when the number of groups is
-            // equal to the number of channels.
-            num_groups: self.num_channels,
+            (Some(gamma), Some(beta))
+        } else {
+            (None, None)
+        };
+
+        InstanceNorm {
+            gamma,
+            beta,
             num_channels: self.num_channels,
             epsilon: self.epsilon,
             affine: self.affine,
@@ -56,10 +66,18 @@ impl<B: Backend> InstanceNorm<B> {
     /// 
     /// # Shapes
     ///
-    /// - input: `[..., any, d_model]`
-    /// - output: `[..., any, d_model]`
+    /// - input: `[batch_size, num_channels, *]`
+    /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        self.group_norm.forward(input)
+        // Instance norm is equivalent to group norm when the number of groups is equal to the number of channels.
+        GroupNorm {
+            gamma: self.gamma.clone(),
+            beta: self.beta.clone(),
+            num_groups: self.num_channels,
+            num_channels: self.num_channels,
+            epsilon: self.epsilon,
+            affine: self.affine,
+        }.forward(input)
     }
 }
 
