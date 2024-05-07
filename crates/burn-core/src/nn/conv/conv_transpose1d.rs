@@ -6,10 +6,9 @@ use crate::module::Param;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv_transpose1d;
-use burn_tensor::ops::ConvTransposeOptions;
-
-use super::checks;
+use crate::tensor::module::conv_transpose1d;
+use crate::tensor::ops::ConvTransposeOptions;
+use crate::nn::conv::checks;
 
 /// Configuration to create an [1D transposed convolution](ConvTranspose1d) layer
 /// using the [init function](ConvTranspose1dConfig::init).
@@ -104,9 +103,9 @@ impl<B: Backend> ConvTranspose1d<B> {
     /// # Shapes
     ///
     /// - input: `[batch_size, channels_in, length_in]`
-    /// - output: [batch_size, channels_out, length_out]`
+    /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        crate::tensor::module::conv_transpose1d(
+        conv_transpose1d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),

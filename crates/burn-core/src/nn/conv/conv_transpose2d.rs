@@ -1,15 +1,14 @@
 use crate as burn;
 
-use super::checks;
+use crate::nn::conv::checks;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-
-use burn_tensor::module::conv_transpose2d;
-use burn_tensor::ops::ConvTransposeOptions;
+use crate::tensor::module::conv_transpose2d;
+use crate::tensor::ops::ConvTransposeOptions;
 
 /// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer
 /// using the [init function](ConvTranspose2dConfig::init).
@@ -104,8 +103,8 @@ impl<B: Backend> ConvTranspose2d<B> {
     ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, height_in, width_in],
-    /// - output: [batch_size, channels_out, height_out, width_out],
+    /// - input: `[batch_size, channels_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         conv_transpose2d(
             input,
