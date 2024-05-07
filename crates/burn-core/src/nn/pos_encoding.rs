@@ -4,8 +4,8 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
+use crate::tensor::Data;
 use crate::tensor::Tensor;
-use burn_tensor::Data;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;

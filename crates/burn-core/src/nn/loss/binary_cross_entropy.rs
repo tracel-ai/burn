@@ -1,9 +1,9 @@
 use crate as burn;
 
+use crate::tensor::activation::log_sigmoid;
+use crate::tensor::{backend::Backend, Int, Tensor};
 use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
-use burn_tensor::activation::log_sigmoid;
-use burn_tensor::{backend::Backend, Int, Tensor};
 
 /// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss) using the [init function](BinaryCrossEntropyLossConfig::init).
 #[derive(Config, Debug)]

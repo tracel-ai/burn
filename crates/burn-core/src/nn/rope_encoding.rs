@@ -2,9 +2,9 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
+use crate::tensor::Int;
 use crate::tensor::Tensor;
 use alloc::vec;
-use burn_tensor::Int;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;

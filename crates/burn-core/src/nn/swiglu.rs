@@ -28,6 +28,8 @@ pub struct SwiGluConfig {
 /// Applies the SwiGLU or Swish Gated Linear Unit to the input tensor.
 /// The SwiGLU activation function is defined as:
 /// `SwiGLU(x) = Swish(W_inner * x + b_inner) * (W_outer * x + b_outer)`
+///
+/// Should be created with [SwiGluConfig].
 #[derive(Module, Debug)]
 pub struct SwiGlu<B: Backend> {
     /// The inner linear layer for Swish activation function

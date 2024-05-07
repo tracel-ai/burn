@@ -1,10 +1,10 @@
 use crate as burn;
 
+use crate::tensor::activation::log_softmax;
+use crate::tensor::{backend::Backend, Bool, Int, Tensor};
 use crate::{config::Config, module::Module};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::activation::log_softmax;
-use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
 /// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]

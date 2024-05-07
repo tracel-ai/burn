@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use crate::tensor::Shape;
 
 use crate::config::Config;
 use crate::module::{Param, ParamId};

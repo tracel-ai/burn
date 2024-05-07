@@ -2,9 +2,11 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
-use burn_tensor::backend::Backend;
-use burn_tensor::ops::UnfoldOptions;
-use burn_tensor::Tensor;
+use crate::tensor::backend::Backend;
+use crate::tensor::ops::UnfoldOptions;
+use crate::tensor::Tensor;
+
+use crate::tensor::module::unfold4d;
 
 /// Configuration to create an [unfold 4d](Unfold4d) layer using the [init function](Unfold4dConfig::init).
 #[derive(Config, Debug)]
@@ -49,7 +51,7 @@ impl Unfold4d {
     /// input:   `[batch_size, channels_in, height, width]`  
     /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 3> {
-        crate::tensor::module::unfold4d(
+        unfold4d(
             input,
             self.config.kernel_size,
             UnfoldOptions::new(

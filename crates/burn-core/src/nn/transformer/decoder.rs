@@ -1,5 +1,5 @@
+use crate::tensor::Bool;
 use alloc::vec::Vec;
-use burn_tensor::Bool;
 
 use crate::{
     self as burn,

@@ -1,7 +1,7 @@
 use crate::nn::loss::reduction::Reduction;
 use core::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Tensor};
+use crate::tensor::{backend::Backend, Tensor};
 
 /// Calculate the mean squared error loss from the input logits and the targets.
 #[derive(Clone, Debug)]

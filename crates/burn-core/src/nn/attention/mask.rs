@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use burn_tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Shape, Tensor};
+use crate::tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Shape, Tensor};
 
 /// Generate an autoregressive attention mask.
 ///

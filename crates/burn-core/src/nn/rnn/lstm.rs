@@ -4,9 +4,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
