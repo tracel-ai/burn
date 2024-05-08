@@ -11,7 +11,6 @@ mod tests {
         let dim = 1;
 
         let data_actual = tensor.cumsum_dim(dim).into_data();
-        dbg!(data_actual.clone());
         let data_expected = Data::from([[0.0, 1.0, 3.0], [3.0, 7.0, 12.0], [6.0, 13.0, 21.0]]);
 
         data_expected.assert_approx_eq(&data_actual, 3);

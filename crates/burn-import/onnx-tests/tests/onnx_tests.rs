@@ -1049,6 +1049,35 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
     }
+    #[test]
+    fn cumsum() {
+        let device = Default::default();
+        let model: pow::Model<Backend> = cumsum::Model::new(&device);
+
+        let input1 =
+            Tensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]], &device);
+        let input2 = 1;
+
+        let output = model.forward(input1, input2);
+
+        let expected = Data::from([[0.0, 1.0, 3.0], [3.0, 7.0, 12.0], [6.0, 13.0, 21.0]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+    #[test]
+    fn cumsum_int() {
+        let device = Default::default();
+        let model: pow::Model<Backend> = cumsum_int::Model::new(&device);
+
+        let input1 = Tensor::from_ints([[0, 1, 2], [3, 4, 5], [6, 7, 8]], &device);
+        let input2 = 1;
+
+        let output = model.forward(input1, input2);
+
+        let expected = Data::from([[0, 1, 3], [3, 7, 12], [6, 13, 21]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
 
     #[test]
     fn unsqueeze() {
