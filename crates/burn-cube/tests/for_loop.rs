@@ -1,10 +1,10 @@
-use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt};
+use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, FloatKind_, UInt, F32_};
 use burn_jit::gpu;
 use burn_jit::gpu::FloatKind::F32;
 use burn_jit::gpu::{Elem, Item, Variable};
 
 #[cube]
-pub fn for_loop(mut lhs: Array<Float>, rhs: Float, end: UInt, unroll: bool) {
+pub fn for_loop<F: FloatKind_>(mut lhs: Array<Float<F>>, rhs: Float<F>, end: UInt, unroll: bool) {
     let tmp1 = rhs * rhs;
     let tmp2 = tmp1 + rhs;
 
@@ -22,7 +22,7 @@ fn test_for_loop_with_unroll() {
     let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
     let end = 4u32.into();
 
-    for_loop::expand(&mut context, lhs, rhs, end, unroll);
+    for_loop::expand::<F32_>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
@@ -37,7 +37,7 @@ fn test_for_loop_no_unroll() {
     let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
     let end = 4u32.into();
 
-    for_loop::expand(&mut context, lhs, rhs, end, unroll);
+    for_loop::expand::<F32_>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));

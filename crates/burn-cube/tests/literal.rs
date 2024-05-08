@@ -1,18 +1,18 @@
-use burn_cube::{cube, CubeContext, Float};
+use burn_cube::{cube, CubeContext, Float, F32_};
 use burn_jit::gpu;
-use burn_jit::gpu::FloatKind::F32;
+use burn_jit::gpu::FloatKind;
 use burn_jit::gpu::{Elem, Item};
 
 #[cube]
-pub fn literal(lhs: Float) {
-    let _ = lhs + float_new(5.9);
+pub fn literal(lhs: Float<F32_>) {
+    let _ = lhs + float_new::<F32_>(5.9);
 }
 
 #[test]
 fn cube_literal_test() {
     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let lhs = context.create_local(Item::Scalar(Elem::Float(FloatKind::F32)));
 
     literal::expand(&mut context, lhs);
     let scope = context.into_scope();
@@ -22,7 +22,7 @@ fn cube_literal_test() {
 
 fn gpu_macro_ref() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(F32));
+    let item = Item::Scalar(Elem::Float(FloatKind::F32));
     let lhs = context.create_local(item);
 
     let mut scope = context.into_scope();

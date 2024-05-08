@@ -1,5 +1,7 @@
+use std::marker::PhantomData;
+
 use alloc::rc::Rc;
-use burn_jit::gpu::{Item, Variable};
+use burn_jit::gpu::{Elem, Item, Variable};
 
 /// Types used in a cube function must implement this trait
 ///
@@ -69,11 +71,58 @@ impl core::ops::Deref for ExpandElement {
     }
 }
 
-#[derive(new, Clone, Copy)]
-pub struct Float {
+// Why _ suffixes? Just to avoid clashing with JIT float kind types
+// TODO refactor
+pub trait FloatKind_: Clone + Copy {
+    fn to_elem() -> Elem;
+}
+#[derive(Clone, Copy)]
+pub struct F32_;
+#[derive(Clone, Copy)]
+pub struct BF16_;
+#[derive(Clone, Copy)]
+pub struct F32_;
+#[derive(Clone, Copy)]
+pub struct F64_;
+impl FloatKind_ for F32_ {
+    fn to_elem() -> Elem {
+        Elem::Float(burn_jit::gpu::FloatKind::F32)
+    }
+}
+impl FloatKind_ for BF16_ {
+    fn to_elem() -> Elem {
+        Elem::Float(burn_jit::gpu::FloatKind::BF16)
+    }
+}
+impl FloatKind_ for F32_ {
+    fn to_elem() -> Elem {
+        Elem::Float(burn_jit::gpu::FloatKind::F32)
+    }
+}
+impl FloatKind_ for F64_ {
+    fn to_elem() -> Elem {
+        Elem::Float(burn_jit::gpu::FloatKind::F64)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Float<F: FloatKind_> {
     pub val: f32,
     pub vectorization: u8,
+    pub _type: PhantomData<F>,
 }
+
+impl<F: FloatKind_> Float<F> {
+    pub fn new(val: f32, vectorization: u8) -> Self {
+        Self {
+            val,
+            vectorization,
+            _type: PhantomData,
+        }
+    }
+}
+
+pub type Float_ = Float<F32_>;
 
 #[derive(new, Clone, Copy)]
 pub struct Int {
@@ -98,11 +147,11 @@ pub struct Array<E> {
     pub vals: Vec<E>,
 }
 
-impl RuntimeType for Float {
+impl<F: FloatKind_> RuntimeType for Float<F> {
     type ExpandType = ExpandElement;
 }
 
-impl RuntimeType for Array<Float> {
+impl<F: FloatKind_> RuntimeType for Array<Float<F>> {
     type ExpandType = ExpandElement;
 }
 
@@ -148,7 +197,7 @@ impl RuntimeType for f32 {
     type ExpandType = f32;
 }
 
-impl From<f32> for Float {
+impl<F: FloatKind_> From<f32> for Float<F> {
     fn from(value: f32) -> Self {
         Float::new(value, 1)
     }

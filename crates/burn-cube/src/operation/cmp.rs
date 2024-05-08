@@ -1,8 +1,8 @@
 use crate::operation::base::cmp_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, UInt};
+use crate::{CubeContext, ExpandElement, Float, FloatKind_, Int, UInt};
 use burn_jit::gpu::{self};
 
-impl core::cmp::PartialEq for Float {
+impl<F: FloatKind_> core::cmp::PartialEq for Float<F> {
     fn eq(&self, other: &Self) -> bool {
         self.val == other.val && self.vectorization == other.vectorization
     }
@@ -20,13 +20,13 @@ impl core::cmp::PartialEq for UInt {
     }
 }
 
-impl core::cmp::Eq for Float {}
+impl<F: FloatKind_> core::cmp::Eq for Float<F> {}
 
 impl core::cmp::Eq for Int {}
 
 impl core::cmp::Eq for UInt {}
 
-impl core::cmp::PartialOrd for Float {
+impl<F: FloatKind_> core::cmp::PartialOrd for Float<F> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match self.val.partial_cmp(&other.val) {
             Some(core::cmp::Ordering::Equal) => {}

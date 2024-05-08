@@ -29,12 +29,6 @@ impl VariablePool {
             }
         }
 
-        // println!("New var");
-        // for variable in variables {
-        //     let count = Rc::strong_count(&variable.inner);
-        //     println!("{:?} => {}", variable.inner, count);
-        // }
-
         // If no candidate was found, a new var will be needed
         None
     }

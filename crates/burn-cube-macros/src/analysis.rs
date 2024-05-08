@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use syn::Stmt;
+use syn::{PathArguments, Stmt};
 
 use crate::VariableKey;
 
@@ -205,11 +205,25 @@ impl CodeAnalysisBuilder {
             syn::Expr::Call(expr) => {
                 match &*expr.func {
                     syn::Expr::Path(expr_path) => {
-                        let ident = expr_path
-                            .path
-                            .get_ident()
-                            .expect("Analysis: only ident supported for function call");
-                        self.function_calls.insert(ident.into());
+                        if let Some(first_segment) = expr_path.path.segments.first() {
+                            // Extract the identifier of the path segment
+                            let ident = &first_segment.ident;
+                            self.function_calls.insert(ident.into());
+
+                            // Check if the path segment has generic arguments
+                            if let PathArguments::AngleBracketed(arguments) =
+                                &first_segment.arguments
+                            {
+                                // Extract the generic arguments
+                                for arg in &arguments.args {
+                                    match arg {
+                                        syn::GenericArgument::Type(_)
+                                        | syn::GenericArgument::Constraint(_) => {}
+                                        _ => todo!("Analysis: Generic {:?} not supported", arg),
+                                    }
+                                }
+                            }
+                        }
                     }
                     _ => todo!("Analysis: unsupported func expr {:?}", expr.func),
                 }

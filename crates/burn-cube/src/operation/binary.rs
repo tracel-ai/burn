@@ -3,6 +3,8 @@ use crate::{CubeContext, ExpandElement, Float, Int, UInt};
 use burn_jit::gpu::{self};
 
 pub mod add {
+    use crate::FloatKind_;
+
     use super::*;
 
     pub fn expand(
@@ -13,11 +15,11 @@ pub mod add {
         binary_expand(context, lhs, rhs, gpu::Operator::Add)
     }
 
-    impl core::ops::Add for Float {
+    impl<F: FloatKind_> core::ops::Add for Float<F> {
         type Output = Self;
 
         fn add(self, rhs: Self) -> Self::Output {
-            Float::new(self.val + rhs.val, 1)
+            Float::<F>::new(self.val + rhs.val, 1)
         }
     }
 
@@ -39,6 +41,8 @@ pub mod add {
 }
 
 pub mod sub {
+    use crate::FloatKind_;
+
     use super::*;
 
     pub fn expand(
@@ -49,7 +53,7 @@ pub mod sub {
         binary_expand(context, lhs, rhs, gpu::Operator::Sub)
     }
 
-    impl core::ops::Sub for Float {
+    impl<F: FloatKind_> core::ops::Sub for Float<F> {
         type Output = Self;
 
         fn sub(self, rhs: Self) -> Self::Output {
@@ -75,6 +79,8 @@ pub mod sub {
 }
 
 pub mod mul {
+    use crate::FloatKind_;
+
     use super::*;
 
     pub fn expand(
@@ -85,7 +91,7 @@ pub mod mul {
         binary_expand(context, lhs, rhs, gpu::Operator::Mul)
     }
 
-    impl core::ops::Mul for Float {
+    impl<F: FloatKind_> core::ops::Mul for Float<F> {
         type Output = Self;
 
         fn mul(self, rhs: Self) -> Self::Output {
@@ -111,6 +117,8 @@ pub mod mul {
 }
 
 pub mod div {
+    use crate::FloatKind_;
+
     use super::*;
 
     pub fn expand(
@@ -121,7 +129,7 @@ pub mod div {
         binary_expand(context, lhs, rhs, gpu::Operator::Div)
     }
 
-    impl core::ops::Div for Float {
+    impl<F: FloatKind_> core::ops::Div for Float<F> {
         type Output = Self;
 
         fn div(self, rhs: Self) -> Self::Output {
@@ -147,6 +155,8 @@ pub mod div {
 }
 
 pub mod rem {
+    use crate::FloatKind_;
+
     use super::*;
 
     pub fn expand(
@@ -157,7 +167,7 @@ pub mod rem {
         binary_expand(context, lhs, rhs, gpu::Operator::Modulo)
     }
 
-    impl core::ops::Rem for Float {
+    impl<F: FloatKind_> core::ops::Rem for Float<F> {
         type Output = Self;
 
         fn rem(self, rhs: Self) -> Self::Output {

@@ -1,4 +1,5 @@
 use proc_macro2::TokenStream;
+use syn::PathArguments;
 
 use crate::analysis::CodeAnalysis;
 
@@ -307,16 +308,33 @@ fn codegen_call(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    let func_name = match call.func.as_ref() {
-        syn::Expr::Path(path) => path
-            .path
-            .get_ident()
-            .expect("Codegen: func called path should have ident"),
-        _ => todo!("Codegen: Only path call supported"),
+    let (func_name, generics) = match call.func.as_ref() {
+        syn::Expr::Path(expr_path) => {
+            if let Some(first_segment) = expr_path.path.segments.first() {
+                // Extract the identifier of the path segment
+                let ident = &first_segment.ident;
+                let generics =
+                    if let PathArguments::AngleBracketed(arguments) = &first_segment.arguments {
+                        Some(arguments)
+                    } else {
+                        None
+                    };
+
+                (ident, generics)
+            } else {
+                panic!("Codegen: func call must have an ident");
+            }
+        }
+        _ => todo!("Codegen: func call {:?} not supported", call.func),
     };
 
     let mut args = quote::quote! {
         context,
+    };
+
+    let generics = match generics {
+        Some(generics) => quote::quote! { #generics },
+        None => quote::quote! {},
     };
 
     let func_name_expand =
@@ -328,7 +346,7 @@ fn codegen_call(
     }
 
     quote::quote! {
-        #func_name_expand(#args)
+        #func_name_expand #generics (#args)
     }
 }
 
