@@ -4,7 +4,7 @@ use burn_jit::gpu::FloatKind;
 use burn_jit::gpu::{Elem, Item};
 
 #[cube]
-pub fn cast_kind<F1: FloatKind_, F2: FloatKind_>(input: Float<F1>) {
+pub fn cast_float_kind<F1: FloatKind_, F2: FloatKind_>(input: Float<F1>) {
     let x = input + float_new::<F1>(5.9f32);
     let y = to_float::<Float<F1>, F2>(x);
     let _ = y + float_new::<F2>(2.3f32);
@@ -18,7 +18,7 @@ fn cube_cast_kind_test() {
     let input = context.create_local(item);
 
     // F16 not testable with the gpu macro, but should work the same
-    cast_kind::expand::<F64_, F32_>(&mut context, input);
+    cast_float_kind::expand::<F64_, F32_>(&mut context, input);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
@@ -37,7 +37,7 @@ fn gpu_macro_ref() -> String {
 
     gpu!(scope, x = input + 5.9f32 as f64);
     gpu!(scope, y = cast(x));
-    gpu!(scope, z = y + 2.9f32);
+    gpu!(scope, z = y + 2.3f32);
 
     format!("{:?}", scope.operations)
 }

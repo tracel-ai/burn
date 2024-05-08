@@ -77,16 +77,16 @@ pub trait FloatKind_: Clone + Copy {
     fn to_elem() -> Elem;
 }
 #[derive(Clone, Copy)]
-pub struct F32_;
+pub struct F16_;
 #[derive(Clone, Copy)]
 pub struct BF16_;
 #[derive(Clone, Copy)]
 pub struct F32_;
 #[derive(Clone, Copy)]
 pub struct F64_;
-impl FloatKind_ for F32_ {
+impl FloatKind_ for F16_ {
     fn to_elem() -> Elem {
-        Elem::Float(burn_jit::gpu::FloatKind::F32)
+        Elem::Float(burn_jit::gpu::FloatKind::F16)
     }
 }
 impl FloatKind_ for BF16_ {
