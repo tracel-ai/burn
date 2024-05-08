@@ -144,9 +144,9 @@ where
 
     /// Perform a cumulative sum on all elements along the given *dimension* or *axis*
     /// in the tensor with the sum operation.
-    pub fn cumsum_dim(self, dim: usize) -> Self {
+    pub fn cumsum(self, dim: usize) -> Self {
         check!(TensorCheck::running_dim::<D>("Sum", dim));
-        Self::new(K::cumsum_dim(self.primitive, dim))
+        Self::new(K::cumsum(self.primitive, dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis*
@@ -1197,9 +1197,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing cumulative sum across all the elements of a tensor along a dimension, users should prefer the [Tensor::cumsum_dim](Tensor::cumsum_dim) function,
+    /// For performing cumulative sum across all the elements of a tensor along a dimension, users should prefer the [Tensor::cumsum](Tensor::cumsum) function,
     /// which is more high-level and designed for public use.
-    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn cumsum<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Computes the product of all the elements of the tensor.
     ///
@@ -2204,8 +2204,8 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_sum_dim(tensor, dim)
     }
 
-    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::int_cumsum_dim(tensor, dim)
+    fn cumsum<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::int_cumsum(tensor, dim)
     }
 
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
@@ -2553,8 +2553,8 @@ impl<B: Backend> Numeric<B> for Float {
         B::float_sum_dim(tensor, dim)
     }
 
-    fn cumsum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::float_cumsum_dim(tensor, dim)
+    fn cumsum<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+        B::float_cumsum(tensor, dim)
     }
 
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {

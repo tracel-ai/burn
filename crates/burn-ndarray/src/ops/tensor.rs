@@ -338,7 +338,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
-    fn float_cumsum_dim<const D: usize>(
+    fn float_cumsum<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
     ) -> NdArrayTensor<E, D> {

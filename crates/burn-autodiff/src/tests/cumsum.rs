@@ -1,17 +1,17 @@
-#[burn_tensor_testgen::testgen(ad_cumsum_dim)]
+#[burn_tensor_testgen::testgen(ad_cumsum)]
 mod tests {
     use super::*;
     use burn_tensor::Data;
 
     #[test]
-    fn should_diff_cumsum_dim() {
+    fn should_diff_cumsum() {
         let device = Default::default();
         let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]);
         // Original Tensor
         let tensor_0 = TestAutodiffTensor::from_data(data, &device).require_grad();
         // Cumsum Tensor
         let dim = 1;
-        let tensor_1 = tensor_0.clone().cumsum_dim(dim);
+        let tensor_1 = tensor_0.clone().cumsum(dim);
         // Fake loss
         let loss = tensor_1.clone().sum();
         // Gradients with respect to the original tensor

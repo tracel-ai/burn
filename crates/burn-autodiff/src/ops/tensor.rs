@@ -1600,7 +1600,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_cumsum_dim<const D: usize>(
+    fn float_cumsum<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
@@ -1619,7 +1619,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, dim) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let cumsum_grad = B::float_cumsum_dim(grad.clone(), dim);
+                    let cumsum_grad = B::float_cumsum(grad.clone(), dim);
                     B::float_flip(cumsum_grad.clone(), &[dim])
                 });
             }
@@ -1632,9 +1632,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => prep.finish(
                 (B::float_shape(&tensor.primitive), dim),
-                B::float_cumsum_dim(tensor.primitive, dim),
+                B::float_cumsum(tensor.primitive, dim),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_cumsum_dim(tensor.primitive, dim)),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cumsum(tensor.primitive, dim)),
         }
     }
 

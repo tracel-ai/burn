@@ -780,7 +780,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the cumulative sum of all elements in `tensor` along `dim`.
-    fn int_cumsum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+    fn int_cumsum<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D>;
 
     /// Computes the product of all elements in the tensor.
     ///

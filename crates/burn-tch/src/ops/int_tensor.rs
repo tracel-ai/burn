@@ -270,8 +270,8 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::sum_dim(tensor, dim)
     }
 
-    fn int_cumsum_dim<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
-        TchOps::cumsum_dim(tensor, dim)
+    fn int_cumsum<const D: usize>(tensor: TchTensor<i64, D>, dim: usize) -> TchTensor<i64, D> {
+        TchOps::cumsum(tensor, dim)
     }
 
     fn int_prod<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, 1> {
