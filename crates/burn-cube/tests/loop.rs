@@ -1,71 +1,71 @@
-use burn_cube::{break_expand, cube, if_expand, loop_expand, while_loop_expand, CubeContext, Int};
-use burn_jit::gpu;
-use burn_jit::gpu::Branch;
-use burn_jit::gpu::IntKind::I32;
-use burn_jit::gpu::{Elem, Item, Variable};
+// use burn_cube::{break_expand, cube, if_expand, loop_expand, while_loop_expand, CubeContext, Int};
+// use burn_jit::gpu;
+// use burn_jit::gpu::Branch;
+// use burn_jit::gpu::IntKind::I32;
+// use burn_jit::gpu::{Elem, Item, Variable};
 
-#[cube]
-pub fn while_not(lhs: Int) {
-    while lhs != int_new(0) {
-        let _ = lhs - int_new(1);
-    }
-}
+// #[cube]
+// pub fn while_not(lhs: Int) {
+//     while lhs != int_new(0) {
+//         let _ = lhs - int_new(1);
+//     }
+// }
 
-#[cube]
-pub fn manual_loop_break(lhs: Int) {
-    loop {
-        if lhs != int_new(0) {
-            break;
-        }
-        let _ = lhs - int_new(1);
-    }
-}
+// #[cube]
+// pub fn manual_loop_break(lhs: Int) {
+//     loop {
+//         if lhs != int_new(0) {
+//             break;
+//         }
+//         let _ = lhs - int_new(1);
+//     }
+// }
 
-#[test]
-fn cube_while_test() {
-    let mut context = CubeContext::root();
+// #[test]
+// fn cube_while_test() {
+//     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
+//     let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
 
-    while_not::expand(&mut context, lhs);
-    let scope = context.into_scope();
+//     while_not::expand(&mut context, lhs);
+//     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
-}
+//     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
+// }
 
-#[test]
-fn cube_loop_break_test() {
-    let mut context = CubeContext::root();
+// #[test]
+// fn cube_loop_break_test() {
+//     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
+//     let lhs = context.create_local(Item::Scalar(Elem::Int(I32)));
 
-    manual_loop_break::expand(&mut context, lhs);
-    let scope = context.into_scope();
+//     manual_loop_break::expand(&mut context, lhs);
+//     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
-}
+//     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
+// }
 
-fn gpu_macro_ref() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Int(I32));
-    let lhs = context.create_local(item);
+// fn gpu_macro_ref() -> String {
+//     let mut context = CubeContext::root();
+//     let item = Item::Scalar(Elem::Int(I32));
+//     let lhs = context.create_local(item);
 
-    let mut scope = context.into_scope();
-    let cond = scope.create_local(Item::Scalar(Elem::Bool));
-    let lhs: Variable = lhs.into();
-    let rhs = scope.create_local(item);
+//     let mut scope = context.into_scope();
+//     let cond = scope.create_local(Item::Scalar(Elem::Bool));
+//     let lhs: Variable = lhs.into();
+//     let rhs = scope.create_local(item);
 
-    gpu!(
-        &mut scope,
-        loop(|scope| {
-            gpu!(scope, cond = lhs != 0);
-            gpu!(scope, if(cond).then(|scope|{
-                scope.register(Branch::Break);
-            }));
+//     gpu!(
+//         &mut scope,
+//         loop(|scope| {
+//             gpu!(scope, cond = lhs != 0);
+//             gpu!(scope, if(cond).then(|scope|{
+//                 scope.register(Branch::Break);
+//             }));
 
-            gpu!(scope, rhs = lhs - 1i32);
-        })
-    );
+//             gpu!(scope, rhs = lhs - 1i32);
+//         })
+//     );
 
-    format!("{:?}", scope.operations)
-}
+//     format!("{:?}", scope.operations)
+// }

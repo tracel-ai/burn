@@ -1,10 +1,11 @@
-use burn_cube::{cube, if_else_expand, CubeContext, Float, FloatKind_, F32_};
+use burn_cube::{cube, if_else_expand, CubeContext, Float, F32};
 use burn_jit::gpu;
-use burn_jit::gpu::FloatKind::F32;
 use burn_jit::gpu::{Elem, Item, Variable};
 
+type ElemType = F32;
+
 #[cube]
-pub fn if_else<F: FloatKind_>(lhs: Float<F>) {
+pub fn if_else<F: Float>(lhs: F) {
     if lhs < float_new::<F>(0.0) {
         let _ = lhs + float_new::<F>(4.0);
     } else {
@@ -16,9 +17,9 @@ pub fn if_else<F: FloatKind_>(lhs: Float<F>) {
 fn cube_if_else_test() {
     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
 
-    if_else::expand::<F32_>(&mut context, lhs);
+    if_else::expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref());
@@ -26,7 +27,7 @@ fn cube_if_else_test() {
 
 fn gpu_macro_ref() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(F32));
+    let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
     let lhs = context.create_local(item);
 
     let mut scope = context.into_scope();

@@ -1,60 +1,33 @@
 use crate::operation::base::cmp_expand;
-use crate::{CubeContext, ExpandElement, Float, FloatKind_, Int, UInt};
+use crate::{CubeContext, ExpandElement, Int, UInt, BF16, F16, F32, F64};
 use burn_jit::gpu::{self};
 
-impl<F: FloatKind_> core::cmp::PartialEq for Float<F> {
-    fn eq(&self, other: &Self) -> bool {
-        self.val == other.val && self.vectorization == other.vectorization
-    }
-}
-
-impl core::cmp::PartialEq for Int {
-    fn eq(&self, other: &Self) -> bool {
-        self.val == other.val && self.vectorization == other.vectorization
-    }
-}
-
-impl core::cmp::PartialEq for UInt {
-    fn eq(&self, other: &Self) -> bool {
-        self.val == other.val && self.vectorization == other.vectorization
-    }
-}
-
-impl<F: FloatKind_> core::cmp::Eq for Float<F> {}
-
-impl core::cmp::Eq for Int {}
-
-impl core::cmp::Eq for UInt {}
-
-impl<F: FloatKind_> core::cmp::PartialOrd for Float<F> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.val.partial_cmp(&other.val) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
+macro_rules! impl_cmp {
+    ($type:ty) => {
+        impl core::cmp::PartialEq for $type {
+            fn eq(&self, other: &Self) -> bool {
+                self.val == other.val && self.vectorization == other.vectorization
+            }
         }
-        self.vectorization.partial_cmp(&other.vectorization)
-    }
+        impl core::cmp::Eq for $type {}
+        impl core::cmp::PartialOrd for $type {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                match self.val.partial_cmp(&other.val) {
+                    Some(core::cmp::Ordering::Equal) => {}
+                    ord => return ord,
+                }
+                self.vectorization.partial_cmp(&other.vectorization)
+            }
+        }
+    };
 }
 
-impl core::cmp::PartialOrd for Int {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.val.partial_cmp(&other.val) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.vectorization.partial_cmp(&other.vectorization)
-    }
-}
-
-impl core::cmp::PartialOrd for UInt {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.val.partial_cmp(&other.val) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.vectorization.partial_cmp(&other.vectorization)
-    }
-}
+impl_cmp!(F16);
+impl_cmp!(BF16);
+impl_cmp!(F32);
+impl_cmp!(F64);
+impl_cmp!(Int);
+impl_cmp!(UInt);
 
 pub mod ne {
 

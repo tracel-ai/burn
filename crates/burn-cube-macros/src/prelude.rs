@@ -36,14 +36,14 @@ fn codegen_float_new() -> proc_macro2::TokenStream {
         use std::{rc::Rc};
         use burn_cube::ExpandElement;
         use burn_jit::gpu::Variable;
-        pub fn float_new<F: burn_cube::FloatKind_>(val: f32) -> Float<F> {
-            Float::new(val, 1)
+        pub fn float_new<F: burn_cube::Float>(val: f32) -> F {
+            F::new(val, 1)
         }
-        pub fn float_new_expand<F: burn_cube::FloatKind_>(
+        pub fn float_new_expand<F: burn_cube::Float>(
             context: &mut CubeContext,
             val: f32,
-        ) -> <Float<F> as burn_cube::RuntimeType>::ExpandType {
-            let elem = F::to_elem();
+        ) -> <F as burn_cube::RuntimeType>::ExpandType {
+            let elem = Elem::Float(F::into_kind());
             let new_var = Variable::ConstantScalar(val as f64, elem);
             ExpandElement::new(Rc::new(new_var))
         }
@@ -130,15 +130,15 @@ fn codegen_to_float() -> proc_macro2::TokenStream {
     // R: type we come from
     // F: kind of float we want as output
     quote::quote! {
-        pub fn to_float<R: burn_cube::RuntimeType, F: FloatKind_>(input: R) -> Float<F> {
+        pub fn to_float<R: burn_cube::RuntimeType, F: Float>(input: R) -> F {
             // TODO: make val and vectorization accessible through trait
-            Float::new(0., 1)
+            F::new(0., 1)
         }
-        pub fn to_float_expand<R: burn_cube::RuntimeType, F: FloatKind_>(
+        pub fn to_float_expand<R: burn_cube::RuntimeType, F: Float>(
             context: &mut CubeContext,
             val: burn_cube::ExpandElement,
-        ) -> <Float<F> as burn_cube::RuntimeType>::ExpandType {
-            let elem = F::to_elem();
+        ) -> burn_cube::ExpandElement {
+            let elem = Elem::Float(F::into_kind());
             let new_var = context.create_local(match val.item() {
                 Item::Vec4(_) => Item::Vec4(elem),
                 Item::Vec3(_) => Item::Vec3(elem),

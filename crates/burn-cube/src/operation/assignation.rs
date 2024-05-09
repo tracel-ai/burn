@@ -64,7 +64,7 @@ pub mod index {
 }
 
 pub mod add_assign_op {
-    use crate::{operation::base::assign_op_expand, Float, FloatKind_, Int};
+    use crate::{operation::base::assign_op_expand, Int, BF16, F16, F32, F64};
 
     use super::*;
 
@@ -76,21 +76,20 @@ pub mod add_assign_op {
         assign_op_expand(context, lhs, rhs, gpu::Operator::Add)
     }
 
-    impl<F: FloatKind_> core::ops::AddAssign for Float<F> {
-        fn add_assign(&mut self, rhs: Self) {
-            self.val += rhs.val
-        }
+    macro_rules! impl_add_assign {
+        ($type:ty) => {
+            impl core::ops::AddAssign for $type {
+                fn add_assign(&mut self, rhs: Self) {
+                    self.val += rhs.val
+                }
+            }
+        };
     }
 
-    impl core::ops::AddAssign for Int {
-        fn add_assign(&mut self, rhs: Self) {
-            self.val += rhs.val
-        }
-    }
-
-    impl core::ops::AddAssign for UInt {
-        fn add_assign(&mut self, rhs: Self) {
-            self.val += rhs.val
-        }
-    }
+    impl_add_assign!(F16);
+    impl_add_assign!(BF16);
+    impl_add_assign!(F32);
+    impl_add_assign!(F64);
+    impl_add_assign!(Int);
+    impl_add_assign!(UInt);
 }

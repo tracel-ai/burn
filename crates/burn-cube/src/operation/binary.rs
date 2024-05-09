@@ -1,9 +1,8 @@
 use crate::operation::base::binary_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, UInt};
+use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64};
 use burn_jit::gpu::{self};
 
 pub mod add {
-    use crate::FloatKind_;
 
     use super::*;
 
@@ -15,34 +14,27 @@ pub mod add {
         binary_expand(context, lhs, rhs, gpu::Operator::Add)
     }
 
-    impl<F: FloatKind_> core::ops::Add for Float<F> {
-        type Output = Self;
+    macro_rules! impl_add {
+        ($type:ty) => {
+            impl core::ops::Add for $type {
+                type Output = Self;
 
-        fn add(self, rhs: Self) -> Self::Output {
-            Float::<F>::new(self.val + rhs.val, 1)
-        }
+                fn add(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val + rhs.val, 1)
+                }
+            }
+        };
     }
 
-    impl core::ops::Add for Int {
-        type Output = Self;
-
-        fn add(self, rhs: Self) -> Self::Output {
-            Int::new(self.val + rhs.val, 1)
-        }
-    }
-
-    impl core::ops::Add for UInt {
-        type Output = Self;
-
-        fn add(self, rhs: Self) -> Self::Output {
-            UInt::new(self.val + rhs.val, 1)
-        }
-    }
+    impl_add!(F16);
+    impl_add!(BF16);
+    impl_add!(F32);
+    impl_add!(F64);
+    impl_add!(Int);
+    impl_add!(UInt);
 }
 
 pub mod sub {
-    use crate::FloatKind_;
-
     use super::*;
 
     pub fn expand(
@@ -53,33 +45,28 @@ pub mod sub {
         binary_expand(context, lhs, rhs, gpu::Operator::Sub)
     }
 
-    impl<F: FloatKind_> core::ops::Sub for Float<F> {
-        type Output = Self;
+    macro_rules! impl_sub {
+        ($type:ty) => {
+            impl core::ops::Sub for $type {
+                type Output = Self;
 
-        fn sub(self, rhs: Self) -> Self::Output {
-            Float::new(self.val - rhs.val, 1)
-        }
+                fn sub(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val - rhs.val, 1)
+                }
+            }
+        };
     }
 
-    impl core::ops::Sub for Int {
-        type Output = Self;
-
-        fn sub(self, rhs: Self) -> Self::Output {
-            Int::new(self.val - rhs.val, 1)
-        }
-    }
-
-    impl core::ops::Sub for UInt {
-        type Output = Self;
-
-        fn sub(self, rhs: Self) -> Self::Output {
-            UInt::new(self.val - rhs.val, 1)
-        }
-    }
+    impl_sub!(F16);
+    impl_sub!(BF16);
+    impl_sub!(F32);
+    impl_sub!(F64);
+    impl_sub!(Int);
+    impl_sub!(UInt);
 }
 
 pub mod mul {
-    use crate::FloatKind_;
+    use crate::Float;
 
     use super::*;
 
@@ -91,33 +78,28 @@ pub mod mul {
         binary_expand(context, lhs, rhs, gpu::Operator::Mul)
     }
 
-    impl<F: FloatKind_> core::ops::Mul for Float<F> {
-        type Output = Self;
+    macro_rules! impl_mul {
+        ($type:ty) => {
+            impl core::ops::Mul for $type {
+                type Output = Self;
 
-        fn mul(self, rhs: Self) -> Self::Output {
-            Float::new(self.val * rhs.val, 1)
-        }
+                fn mul(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val * rhs.val, 1)
+                }
+            }
+        };
     }
 
-    impl core::ops::Mul for Int {
-        type Output = Self;
-
-        fn mul(self, rhs: Self) -> Self::Output {
-            Int::new(self.val * rhs.val, 1)
-        }
-    }
-
-    impl core::ops::Mul for UInt {
-        type Output = Self;
-
-        fn mul(self, rhs: Self) -> Self::Output {
-            UInt::new(self.val * rhs.val, 1)
-        }
-    }
+    impl_mul!(F16);
+    impl_mul!(BF16);
+    impl_mul!(F32);
+    impl_mul!(F64);
+    impl_mul!(Int);
+    impl_mul!(UInt);
 }
 
 pub mod div {
-    use crate::FloatKind_;
+    use crate::Float;
 
     use super::*;
 
@@ -129,33 +111,28 @@ pub mod div {
         binary_expand(context, lhs, rhs, gpu::Operator::Div)
     }
 
-    impl<F: FloatKind_> core::ops::Div for Float<F> {
-        type Output = Self;
+    macro_rules! impl_div {
+        ($type:ty) => {
+            impl core::ops::Div for $type {
+                type Output = Self;
 
-        fn div(self, rhs: Self) -> Self::Output {
-            Float::new(self.val / rhs.val, 1)
-        }
+                fn div(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val / rhs.val, 1)
+                }
+            }
+        };
     }
 
-    impl core::ops::Div for Int {
-        type Output = Self;
-
-        fn div(self, rhs: Self) -> Self::Output {
-            Int::new(self.val / rhs.val, 1)
-        }
-    }
-
-    impl core::ops::Div for UInt {
-        type Output = Self;
-
-        fn div(self, rhs: Self) -> Self::Output {
-            UInt::new(self.val / rhs.val, 1)
-        }
-    }
+    impl_div!(F16);
+    impl_div!(BF16);
+    impl_div!(F32);
+    impl_div!(F64);
+    impl_div!(Int);
+    impl_div!(UInt);
 }
 
 pub mod rem {
-    use crate::FloatKind_;
+    use crate::Float;
 
     use super::*;
 
@@ -167,29 +144,24 @@ pub mod rem {
         binary_expand(context, lhs, rhs, gpu::Operator::Modulo)
     }
 
-    impl<F: FloatKind_> core::ops::Rem for Float<F> {
-        type Output = Self;
+    macro_rules! impl_rem {
+        ($type:ty) => {
+            impl core::ops::Rem for $type {
+                type Output = Self;
 
-        fn rem(self, rhs: Self) -> Self::Output {
-            Float::new(self.val % rhs.val, 1)
-        }
+                fn rem(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val % rhs.val, 1)
+                }
+            }
+        };
     }
 
-    impl core::ops::Rem for Int {
-        type Output = Self;
-
-        fn rem(self, rhs: Self) -> Self::Output {
-            Int::new(self.val % rhs.val, 1)
-        }
-    }
-
-    impl core::ops::Rem for UInt {
-        type Output = Self;
-
-        fn rem(self, rhs: Self) -> Self::Output {
-            UInt::new(self.val % rhs.val, 1)
-        }
-    }
+    impl_rem!(F16);
+    impl_rem!(BF16);
+    impl_rem!(F32);
+    impl_rem!(F64);
+    impl_rem!(Int);
+    impl_rem!(UInt);
 }
 
 pub mod and {

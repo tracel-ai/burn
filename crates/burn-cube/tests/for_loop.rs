@@ -1,10 +1,11 @@
-use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, FloatKind_, UInt, F32_};
+use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt, F32};
 use burn_jit::gpu;
-use burn_jit::gpu::FloatKind::F32;
 use burn_jit::gpu::{Elem, Item, Variable};
 
+type ElemType = F32;
+
 #[cube]
-pub fn for_loop<F: FloatKind_>(mut lhs: Array<Float<F>>, rhs: Float<F>, end: UInt, unroll: bool) {
+pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: bool) {
     let tmp1 = rhs * rhs;
     let tmp2 = tmp1 + rhs;
 
@@ -18,11 +19,11 @@ fn test_for_loop_with_unroll() {
     let mut context = CubeContext::root();
     let unroll = true;
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
-    let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
     let end = 4u32.into();
 
-    for_loop::expand::<F32_>(&mut context, lhs, rhs, end, unroll);
+    for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
@@ -33,11 +34,11 @@ fn test_for_loop_no_unroll() {
     let mut context = CubeContext::root();
     let unroll = false;
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(F32)));
-    let rhs = context.create_local(Item::Scalar(Elem::Float(F32)));
+    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
     let end = 4u32.into();
 
-    for_loop::expand::<F32_>(&mut context, lhs, rhs, end, unroll);
+    for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
@@ -45,7 +46,7 @@ fn test_for_loop_no_unroll() {
 
 fn gpu_macro_ref(unroll: bool) -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(F32));
+    let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
 
     let lhs = context.create_local(item);
     let rhs = context.create_local(item);
