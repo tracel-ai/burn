@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
+        dialect::gpu::{cube_inline, Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         WorkgroupLaunch,
     },
@@ -41,65 +41,65 @@ impl SelectAssignComputeShader {
         let shape_value_dim = scope.create_local(Elem::UInt);
 
         let num_elems = scope.create_local(Elem::UInt);
-        gpu!(scope, num_elems = cast(1u32));
+        cube_inline!(scope, num_elems = cast(1u32));
 
-        gpu!(
+        cube_inline!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let shape_value = scope.create_local(Elem::UInt);
                 let stride_tensor = scope.create_local(Elem::UInt);
                 let stride_value = scope.create_local(Elem::UInt);
 
-                gpu!(scope, stride_tensor = stride(tensor, i));
-                gpu!(scope, stride_value = stride(value, i));
-                gpu!(scope, shape_value = shape(value, i));
+                cube_inline!(scope, stride_tensor = stride(tensor, i));
+                cube_inline!(scope, stride_value = stride(value, i));
+                cube_inline!(scope, shape_value = shape(value, i));
 
                 let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
+                cube_inline!(scope, dim_index = i == self.dim);
 
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, shape_value_dim = shape_value);
-                    gpu!(scope, stride_tensor_dim = stride_tensor);
-                    gpu!(scope, stride_value_dim = stride_value);
+                cube_inline!(scope, if(dim_index).then(|scope| {
+                    cube_inline!(scope, shape_value_dim = shape_value);
+                    cube_inline!(scope, stride_tensor_dim = stride_tensor);
+                    cube_inline!(scope, stride_value_dim = stride_value);
                 }).else(|scope| {
                     let stride_tmp = scope.create_local(Elem::UInt);
                     let shape_tensor = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, stride_tmp = stride(indices, i));
-                    gpu!(scope, shape_tensor = shape(tensor, i));
+                    cube_inline!(scope, stride_tmp = stride(indices, i));
+                    cube_inline!(scope, shape_tensor = shape(tensor, i));
 
-                    gpu!(scope, num_elems = num_elems * shape_tensor);
+                    cube_inline!(scope, num_elems = num_elems * shape_tensor);
 
                     let offset_local = scope.create_local(Elem::UInt);
                     let offset_local_tensor = scope.create_local(Elem::UInt);
                     let offset_local_value = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, offset_local = id / stride_tmp);
+                    cube_inline!(scope, offset_local = id / stride_tmp);
 
-                    gpu!(scope, offset_local_tensor = offset_local % shape_tensor);
-                    gpu!(
+                    cube_inline!(scope, offset_local_tensor = offset_local % shape_tensor);
+                    cube_inline!(
                         scope,
                         offset_local_tensor = offset_local_tensor * stride_tensor
                     );
-                    gpu!(scope, offset_tensor += offset_local_tensor);
+                    cube_inline!(scope, offset_tensor += offset_local_tensor);
 
-                    gpu!(scope, offset_local_value = offset_local % shape_value);
-                    gpu!(
+                    cube_inline!(scope, offset_local_value = offset_local % shape_value);
+                    cube_inline!(
                         scope,
                         offset_local_value = offset_local_value * stride_value
                     );
-                    gpu!(scope, offset_value += offset_local_value);
+                    cube_inline!(scope, offset_value += offset_local_value);
                 }));
             })
         );
 
         let should_stop = scope.create_local(Elem::Bool);
-        gpu!(scope, should_stop = id >= num_elems);
-        gpu!(scope, if(should_stop).then(|scope| {
+        cube_inline!(scope, should_stop = id >= num_elems);
+        cube_inline!(scope, if(should_stop).then(|scope| {
             scope.register(Branch::Return);
         }));
 
-        gpu!(
+        cube_inline!(
             scope,
             range(0u32, shape_value_dim).for_each(|i, scope| {
                 let index = scope.create_local(Elem::UInt);
@@ -110,19 +110,19 @@ impl SelectAssignComputeShader {
                 let result_value = scope.create_local(value.item());
                 let result = scope.create_local(tensor.item());
 
-                gpu!(scope, index = indices[i]);
+                cube_inline!(scope, index = indices[i]);
 
-                gpu!(scope, index_tensor = index * stride_tensor_dim);
-                gpu!(scope, index_tensor += offset_tensor);
+                cube_inline!(scope, index_tensor = index * stride_tensor_dim);
+                cube_inline!(scope, index_tensor += offset_tensor);
 
-                gpu!(scope, index_value = i * stride_value_dim);
-                gpu!(scope, index_value += offset_value);
+                cube_inline!(scope, index_value = i * stride_value_dim);
+                cube_inline!(scope, index_value += offset_value);
 
-                gpu!(scope, result_tensor = tensor[index_tensor]);
-                gpu!(scope, result_value = value[index_value]);
-                gpu!(scope, result = result_value + result_tensor);
+                cube_inline!(scope, result_tensor = tensor[index_tensor]);
+                cube_inline!(scope, result_value = value[index_value]);
+                cube_inline!(scope, result = result_value + result_tensor);
 
-                gpu!(scope, tensor[index_tensor] = result);
+                cube_inline!(scope, tensor[index_tensor] = result);
             })
         );
     }

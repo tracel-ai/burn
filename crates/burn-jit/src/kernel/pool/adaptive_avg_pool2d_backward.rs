@@ -6,7 +6,7 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
+    gpu::{cube_inline, ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     Runtime,
@@ -48,40 +48,40 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
-        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
-        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
-        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
+        cube_inline!(scope, grad_stride_0 = stride(grad, 0u32));
+        cube_inline!(scope, grad_stride_1 = stride(grad, 1u32));
+        cube_inline!(scope, grad_stride_2 = stride(grad, 2u32));
+        cube_inline!(scope, grad_stride_3 = stride(grad, 3u32));
 
-        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
-        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
+        cube_inline!(scope, grad_shape_2 = shape(grad, 2u32));
+        cube_inline!(scope, grad_shape_3 = shape(grad, 3u32));
 
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
+        cube_inline!(scope, output_stride_0 = stride(output, 0u32));
+        cube_inline!(scope, output_stride_1 = stride(output, 1u32));
+        cube_inline!(scope, output_stride_2 = stride(output, 2u32));
+        cube_inline!(scope, output_stride_3 = stride(output, 3u32));
 
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cube_inline!(scope, output_shape_0 = shape(output, 0u32));
+        cube_inline!(scope, output_shape_1 = shape(output, 1u32));
+        cube_inline!(scope, output_shape_2 = shape(output, 2u32));
+        cube_inline!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let ih = scope.create_local(Elem::UInt);
         let iw = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cube_inline!(scope, b = id / output_stride_0);
+        cube_inline!(scope, b = b % output_shape_0);
 
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
+        cube_inline!(scope, c = id / output_stride_1);
+        cube_inline!(scope, c = c % output_shape_1);
 
-        gpu!(scope, ih = id / output_stride_2);
-        gpu!(scope, ih = ih % output_shape_2);
+        cube_inline!(scope, ih = id / output_stride_2);
+        cube_inline!(scope, ih = ih % output_shape_2);
 
-        gpu!(scope, iw = id / output_stride_3);
-        gpu!(scope, iw = iw % output_shape_3);
+        cube_inline!(scope, iw = id / output_stride_3);
+        cube_inline!(scope, iw = iw % output_shape_3);
 
         let oh_start = Self::start_index(scope, ih, output_shape_2, grad_shape_2);
         let oh_end = Self::end_index(scope, ih, output_shape_2, grad_shape_2);
@@ -103,46 +103,46 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let index_base = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
         let index = scope.create_local(Elem::UInt);
-        gpu!(scope, index_base = b * grad_stride_0);
-        gpu!(scope, index_tmp = c * grad_stride_1);
-        gpu!(scope, index_base += index_tmp);
+        cube_inline!(scope, index_base = b * grad_stride_0);
+        cube_inline!(scope, index_tmp = c * grad_stride_1);
+        cube_inline!(scope, index_base += index_tmp);
 
-        gpu!(
+        cube_inline!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
                 let ih_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
                 let ih_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
-                gpu!(scope, contributed_h = ih >= ih_start);
-                gpu!(scope, contributed_tmp = ih < ih_end);
-                gpu!(scope, contributed_h = contributed_h && contributed_tmp);
+                cube_inline!(scope, contributed_h = ih >= ih_start);
+                cube_inline!(scope, contributed_tmp = ih < ih_end);
+                cube_inline!(scope, contributed_h = contributed_h && contributed_tmp);
 
-                gpu!(scope, if(contributed_h).then(|scope|{
-                    gpu!(
+                cube_inline!(scope, if(contributed_h).then(|scope|{
+                    cube_inline!(
                         scope,
                         range(ow_start, ow_end).for_each(|ow, scope| {
                             let iw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
                             let iw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
 
-                            gpu!(scope, contributed_w = iw >= iw_start);
-                            gpu!(scope, contributed_tmp = iw < iw_end);
-                            gpu!(scope, contributed_w = contributed_w && contributed_tmp);
+                            cube_inline!(scope, contributed_w = iw >= iw_start);
+                            cube_inline!(scope, contributed_tmp = iw < iw_end);
+                            cube_inline!(scope, contributed_w = contributed_w && contributed_tmp);
 
 
-                            gpu!(scope, if(contributed_w).then(|scope|{
-                                gpu!(scope, count = ih_end - ih_start);
-                                gpu!(scope, count_tmp = iw_end - iw_start);
-                                gpu!(scope, count *= count_tmp);
-                                gpu!(scope, count_float = cast(count));
+                            cube_inline!(scope, if(contributed_w).then(|scope|{
+                                cube_inline!(scope, count = ih_end - ih_start);
+                                cube_inline!(scope, count_tmp = iw_end - iw_start);
+                                cube_inline!(scope, count *= count_tmp);
+                                cube_inline!(scope, count_float = cast(count));
 
-                                gpu!(scope, index = index_base);
-                                gpu!(scope, index_tmp = oh * grad_stride_2);
-                                gpu!(scope, index += index_tmp);
-                                gpu!(scope, index_tmp = ow * grad_stride_3);
-                                gpu!(scope, index += index_tmp);
+                                cube_inline!(scope, index = index_base);
+                                cube_inline!(scope, index_tmp = oh * grad_stride_2);
+                                cube_inline!(scope, index += index_tmp);
+                                cube_inline!(scope, index_tmp = ow * grad_stride_3);
+                                cube_inline!(scope, index += index_tmp);
 
-                                gpu!(scope, the_grad = grad[index]);
-                                gpu!(scope, avg = the_grad / count_float);
-                                gpu!(scope, grad_acc += avg);
+                                cube_inline!(scope, the_grad = grad[index]);
+                                cube_inline!(scope, avg = the_grad / count_float);
+                                cube_inline!(scope, grad_acc += avg);
                             }));
                         })
                     );
@@ -150,7 +150,7 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
             })
         );
 
-        gpu!(scope, output[id] = grad_acc);
+        cube_inline!(scope, output[id] = grad_acc);
     }
 
     fn start_index(
@@ -164,12 +164,12 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = output_size_index * input_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(output_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = floor(div));
-        gpu!(scope, index = cast(div));
+        cube_inline!(scope, index = output_size_index * input_size);
+        cube_inline!(scope, numerator_float = cast(index));
+        cube_inline!(scope, div = cast(output_size));
+        cube_inline!(scope, div = numerator_float / div);
+        cube_inline!(scope, div = floor(div));
+        cube_inline!(scope, index = cast(div));
         index
     }
 
@@ -186,19 +186,19 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = output_size_index + 1u32);
-        gpu!(scope, index *= input_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(output_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = ceil(div));
-        gpu!(scope, index = cast(div));
+        cube_inline!(scope, index = output_size_index + 1u32);
+        cube_inline!(scope, index *= input_size);
+        cube_inline!(scope, numerator_float = cast(index));
+        cube_inline!(scope, div = cast(output_size));
+        cube_inline!(scope, div = numerator_float / div);
+        cube_inline!(scope, div = ceil(div));
+        cube_inline!(scope, index = cast(div));
 
-        gpu!(scope, min = input_size < index);
-        gpu!(scope, if(min).then(|scope|{
-            gpu!(scope, end_index = input_size);
+        cube_inline!(scope, min = input_size < index);
+        cube_inline!(scope, if(min).then(|scope|{
+            cube_inline!(scope, end_index = input_size);
         }).else(|scope|{
-            gpu!(scope, end_index = index);
+            cube_inline!(scope, end_index = index);
         }));
         end_index
     }

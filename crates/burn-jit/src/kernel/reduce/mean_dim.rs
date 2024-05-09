@@ -1,5 +1,5 @@
 use crate::{
-    codegen::dialect::gpu::{gpu, Item, Scope, Variable},
+    codegen::dialect::gpu::{cube_inline, Item, Scope, Variable},
     JitElement,
 };
 
@@ -15,7 +15,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
     }
 
     fn inner_loop_naive(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
-        gpu!(scope, accumulator += value);
+        cube_inline!(scope, accumulator += value);
     }
 
     fn assign_naive(
@@ -26,9 +26,9 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
     ) {
         let id = Variable::Id;
         let denominator = scope.create_local(accumulator.item());
-        gpu!(scope, denominator = cast(shape_reduce_dim));
-        gpu!(scope, accumulator = accumulator / denominator);
-        gpu!(scope, output[id] = accumulator);
+        cube_inline!(scope, denominator = cast(shape_reduce_dim));
+        cube_inline!(scope, accumulator = accumulator / denominator);
+        cube_inline!(scope, output[id] = accumulator);
     }
 
     fn initialize_shared(
@@ -39,7 +39,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
     ) -> Self::Accumulator {
         let shared_memory = scope.create_shared(input_item, shared_memory_size);
         let neutral_element = scope.zero(shared_memory.item());
-        gpu!(scope, shared_memory[write_position] = neutral_element);
+        cube_inline!(scope, shared_memory[write_position] = neutral_element);
         shared_memory
     }
 
@@ -51,9 +51,9 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
     ) {
         let current_value = scope.create_local(value.item());
         let computed = scope.create_local(value.item());
-        gpu!(scope, current_value = shared_memory[write_position]);
-        gpu!(scope, computed = current_value + value);
-        gpu!(scope, shared_memory[write_position] = computed);
+        cube_inline!(scope, current_value = shared_memory[write_position]);
+        cube_inline!(scope, computed = current_value + value);
+        cube_inline!(scope, shared_memory[write_position] = computed);
     }
 
     fn read_from_input(
@@ -63,7 +63,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
         _i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
+        cube_inline!(scope, value = input[read_position]);
         value
     }
 
@@ -73,7 +73,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
         read_position: Variable,
     ) -> Variable {
         let read_value = scope.create_local(shared_memory.item());
-        gpu!(scope, read_value = shared_memory[read_position]);
+        cube_inline!(scope, read_value = shared_memory[read_position]);
         read_value
     }
 
@@ -85,11 +85,11 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for MeanDim {
         shape_reduce_dim: Variable,
     ) {
         let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = shared_memory[0]);
+        cube_inline!(scope, final_value = shared_memory[0]);
 
         let denominator = scope.create_local(output.item());
-        gpu!(scope, denominator = cast(shape_reduce_dim));
-        gpu!(scope, final_value = final_value / denominator);
-        gpu!(scope, output[write_position] = final_value);
+        cube_inline!(scope, denominator = cast(shape_reduce_dim));
+        cube_inline!(scope, final_value = final_value / denominator);
+        cube_inline!(scope, output[write_position] = final_value);
     }
 }

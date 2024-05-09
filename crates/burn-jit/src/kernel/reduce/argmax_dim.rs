@@ -1,5 +1,5 @@
 use crate::{
-    codegen::dialect::gpu::{gpu, Elem, Item, Scope, Variable},
+    codegen::dialect::gpu::{cube_inline, Elem, Item, Scope, Variable},
     JitElement,
 };
 
@@ -19,7 +19,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         let max = scope.create_local(input_item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
-        gpu!(scope, max = max_initial);
+        cube_inline!(scope, max = max_initial);
 
         (max, index)
     }
@@ -31,10 +31,10 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         i: Variable,
     ) {
         let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value > max);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, max = value);
-            gpu!(scope, index = i);
+        cube_inline!(scope, condition = value > max);
+        cube_inline!(scope, if(condition).then(|scope| {
+            cube_inline!(scope, max = value);
+            cube_inline!(scope, index = i);
         }));
     }
 
@@ -45,7 +45,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         _shape_reduce_dim: Variable,
     ) {
         let id = Variable::Id;
-        gpu!(scope, output[id] = index);
+        cube_inline!(scope, output[id] = index);
     }
 
     fn initialize_shared(
@@ -58,7 +58,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
 
         let max = Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
-        gpu!(scope, value_shared_memory[write_position] = max);
+        cube_inline!(scope, value_shared_memory[write_position] = max);
         (value_shared_memory, index_shared_memory)
     }
 
@@ -70,13 +70,13 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) {
         let (value_shared_memory, index_shared_memory) = shared_memory;
         let current_value = scope.create_local(value.item());
-        gpu!(scope, current_value = value_shared_memory[write_position]);
+        cube_inline!(scope, current_value = value_shared_memory[write_position]);
 
         let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value > current_value);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, value_shared_memory[write_position] = value);
-            gpu!(scope, index_shared_memory[write_position] = index);
+        cube_inline!(scope, condition = value > current_value);
+        cube_inline!(scope, if(condition).then(|scope| {
+            cube_inline!(scope, value_shared_memory[write_position] = value);
+            cube_inline!(scope, index_shared_memory[write_position] = index);
         }));
     }
 
@@ -87,7 +87,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
+        cube_inline!(scope, value = input[read_position]);
         (value, i)
     }
 
@@ -98,9 +98,9 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) -> Self::Accumulator {
         let (value_shared_memory, index_shared_memory) = shared_memory;
         let value = scope.create_local(value_shared_memory.item());
-        gpu!(scope, value = value_shared_memory[read_position]);
+        cube_inline!(scope, value = value_shared_memory[read_position]);
         let index = scope.create_local(index_shared_memory.item());
-        gpu!(scope, index = index_shared_memory[read_position]);
+        cube_inline!(scope, index = index_shared_memory[read_position]);
         (value, index)
     }
 
@@ -113,7 +113,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) {
         let (_, index_shared_memory) = shared_memory;
         let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = index_shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
+        cube_inline!(scope, final_value = index_shared_memory[0]);
+        cube_inline!(scope, output[write_position] = final_value);
     }
 }

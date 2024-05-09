@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{cube_inline, Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -42,25 +42,25 @@ impl SliceComputeShader {
         let range_start = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
-            gpu!(scope, stride_input = stride(input, i));
-            gpu!(scope, stride_output = stride(output, i));
-            gpu!(scope, shape_output = shape(output, i));
-            gpu!(
+            cube_inline!(scope, stride_input = stride(input, i));
+            cube_inline!(scope, stride_output = stride(output, i));
+            cube_inline!(scope, shape_output = shape(output, i));
+            cube_inline!(
                 scope,
                 range_start = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
 
-            gpu!(scope, offset_local = id / stride_output);
-            gpu!(scope, offset_local = offset_local % shape_output);
-            gpu!(scope, offset_local = offset_local + range_start);
-            gpu!(scope, offset_local = offset_local * stride_input);
+            cube_inline!(scope, offset_local = id / stride_output);
+            cube_inline!(scope, offset_local = offset_local % shape_output);
+            cube_inline!(scope, offset_local = offset_local + range_start);
+            cube_inline!(scope, offset_local = offset_local * stride_input);
 
-            gpu!(scope, offset_input += offset_local);
+            cube_inline!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = input[offset_input]);
-        gpu!(scope, output[id] = result);
+        cube_inline!(scope, result = input[offset_input]);
+        cube_inline!(scope, output[id] = result);
     }
 }
 

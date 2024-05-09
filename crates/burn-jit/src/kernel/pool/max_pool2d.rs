@@ -3,7 +3,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use crate::{
     codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
-    gpu::{gpu, Elem, Item, Scope},
+    gpu::{cube_inline, Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -24,7 +24,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         let max_val = scope.create_local(item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
-        gpu!(scope, max_val = max_initial);
+        cube_inline!(scope, max_val = max_initial);
         max_val
     }
 
@@ -36,9 +36,9 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         _idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
-        gpu!(scope, is_max = result > accumulator);
-        gpu!(scope, if(is_max).then(|scope|{
-            gpu!(scope, accumulator = result);
+        cube_inline!(scope, is_max = result > accumulator);
+        cube_inline!(scope, if(is_max).then(|scope|{
+            cube_inline!(scope, accumulator = result);
         }));
         accumulator
     }
@@ -51,7 +51,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         _indices: Option<Variable>,
         accumulator: Self::Accumulator,
     ) {
-        gpu!(scope, output[id] = accumulator);
+        cube_inline!(scope, output[id] = accumulator);
     }
 
     fn with_indices() -> bool {
@@ -71,7 +71,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         let max_val = scope.create_local(item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
-        gpu!(scope, max_val = max_initial);
+        cube_inline!(scope, max_val = max_initial);
         let max_index = scope.create_local(Elem::UInt);
         (max_val, max_index)
     }
@@ -84,10 +84,10 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
-        gpu!(scope, is_max = result > max_val);
-        gpu!(scope, if(is_max).then(|scope|{
-            gpu!(scope, max_val = result);
-            gpu!(scope, max_index = idx);
+        cube_inline!(scope, is_max = result > max_val);
+        cube_inline!(scope, if(is_max).then(|scope|{
+            cube_inline!(scope, max_val = result);
+            cube_inline!(scope, max_index = idx);
         }));
         (max_val, max_index)
     }
@@ -101,8 +101,8 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         (max_val, max_index): Self::Accumulator,
     ) {
         let indices = indices.unwrap();
-        gpu!(scope, output[id] = max_val);
-        gpu!(scope, indices[id] = max_index);
+        cube_inline!(scope, output[id] = max_val);
+        cube_inline!(scope, indices[id] = max_index);
     }
 
     fn with_indices() -> bool {

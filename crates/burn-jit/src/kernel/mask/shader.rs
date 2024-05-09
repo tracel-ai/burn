@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{
-        gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
+        cube_inline, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
     },
     kernel::GpuComputeShaderPhase,
     JitElement, Runtime,
@@ -30,7 +30,7 @@ impl MaskStrategy for MaskFill {
         value: Variable,
         _index: Variable,
     ) -> Variable {
-        gpu!(scope, masked_value = value);
+        cube_inline!(scope, masked_value = value);
         masked_value
     }
 
@@ -55,7 +55,7 @@ impl MaskStrategy for MaskWhere {
         value: Variable,
         index: Variable,
     ) -> Variable {
-        gpu!(scope, masked_value = value[index]);
+        cube_inline!(scope, masked_value = value[index]);
         masked_value
     }
 
@@ -248,22 +248,22 @@ impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
 
         // Determine if index should be masked
         let value_in_mask = scope.create_local(mask.item());
-        gpu!(scope, value_in_mask = mask[index_mask]);
+        cube_inline!(scope, value_in_mask = mask[index_mask]);
         let masked = scope.create_local(Elem::Bool);
         let zero = scope.zero(value_in_mask.item());
         if self.reversed {
-            gpu!(scope, masked = value_in_mask == zero);
+            cube_inline!(scope, masked = value_in_mask == zero);
         } else {
-            gpu!(scope, masked = value_in_mask != zero);
+            cube_inline!(scope, masked = value_in_mask != zero);
         }
 
         // Assign a value at the index
         let used_value = scope.create_local(output.item());
-        gpu!(scope, if(masked).then(|scope| {
+        cube_inline!(scope, if(masked).then(|scope| {
             M::mask(scope, used_value, value, index_input );
         }).else(|scope| {
-            gpu!(scope, used_value = input[index_input]);
+            cube_inline!(scope, used_value = input[index_input]);
         }));
-        gpu!(scope, output[id] = used_value);
+        cube_inline!(scope, output[id] = used_value);
     }
 }

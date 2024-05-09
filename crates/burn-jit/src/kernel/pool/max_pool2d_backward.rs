@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, IntKind, Item, Scope, Variable, Visibility},
+        dialect::gpu::{cube_inline, Elem, IntKind, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -52,47 +52,47 @@ impl MaxPool2dBackwardComputeShader {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
-        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
-        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
-        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
+        cube_inline!(scope, grad_stride_0 = stride(grad, 0u32));
+        cube_inline!(scope, grad_stride_1 = stride(grad, 1u32));
+        cube_inline!(scope, grad_stride_2 = stride(grad, 2u32));
+        cube_inline!(scope, grad_stride_3 = stride(grad, 3u32));
 
-        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
-        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
+        cube_inline!(scope, grad_shape_2 = shape(grad, 2u32));
+        cube_inline!(scope, grad_shape_3 = shape(grad, 3u32));
 
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
+        cube_inline!(scope, output_stride_0 = stride(output, 0u32));
+        cube_inline!(scope, output_stride_1 = stride(output, 1u32));
+        cube_inline!(scope, output_stride_2 = stride(output, 2u32));
+        cube_inline!(scope, output_stride_3 = stride(output, 3u32));
 
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cube_inline!(scope, output_shape_0 = shape(output, 0u32));
+        cube_inline!(scope, output_shape_1 = shape(output, 1u32));
+        cube_inline!(scope, output_shape_2 = shape(output, 2u32));
+        cube_inline!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let ih = scope.create_local(Elem::UInt);
         let iw = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cube_inline!(scope, b = id / output_stride_0);
+        cube_inline!(scope, b = b % output_shape_0);
 
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
+        cube_inline!(scope, c = id / output_stride_1);
+        cube_inline!(scope, c = c % output_shape_1);
 
-        gpu!(scope, ih = id / output_stride_2);
-        gpu!(scope, ih = ih % output_shape_2);
+        cube_inline!(scope, ih = id / output_stride_2);
+        cube_inline!(scope, ih = ih % output_shape_2);
 
-        gpu!(scope, iw = id / output_stride_3);
-        gpu!(scope, iw = iw % output_shape_3);
+        cube_inline!(scope, iw = id / output_stride_3);
+        cube_inline!(scope, iw = iw % output_shape_3);
 
         let index_current = scope.create_local(Elem::UInt);
         let index_current_tmp = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index_current = ih * output_stride_2);
-        gpu!(scope, index_current_tmp = iw * output_stride_3);
-        gpu!(scope, index_current += index_current_tmp);
+        cube_inline!(scope, index_current = ih * output_stride_2);
+        cube_inline!(scope, index_current_tmp = iw * output_stride_3);
+        cube_inline!(scope, index_current += index_current_tmp);
 
         let index_select = scope.create_local(Elem::Int(IntKind::I32));
 
@@ -116,37 +116,37 @@ impl MaxPool2dBackwardComputeShader {
             output_stride_3,
         );
 
-        gpu!(scope, index_base = b * grad_stride_0);
-        gpu!(scope, index_tmp = c * grad_stride_1);
-        gpu!(scope, index_base += index_tmp);
+        cube_inline!(scope, index_base = b * grad_stride_0);
+        cube_inline!(scope, index_tmp = c * grad_stride_1);
+        cube_inline!(scope, index_base += index_tmp);
 
-        gpu!(
+        cube_inline!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
-                gpu!(
+                cube_inline!(
                     scope,
                     range(ow_start, ow_end).for_each(|ow, scope| {
-                        gpu!(scope, index = index_base);
-                        gpu!(scope, index_tmp = oh * grad_stride_2);
-                        gpu!(scope, index += index_tmp);
-                        gpu!(scope, index_tmp = ow * grad_stride_3);
-                        gpu!(scope, index += index_tmp);
+                        cube_inline!(scope, index = index_base);
+                        cube_inline!(scope, index_tmp = oh * grad_stride_2);
+                        cube_inline!(scope, index += index_tmp);
+                        cube_inline!(scope, index_tmp = ow * grad_stride_3);
+                        cube_inline!(scope, index += index_tmp);
 
-                        gpu!(scope, index_select = indices[index]);
-                        gpu!(scope, index_max = cast(index_select));
+                        cube_inline!(scope, index_select = indices[index]);
+                        cube_inline!(scope, index_max = cast(index_select));
 
-                        gpu!(scope, is_max = index_max == index_current);
+                        cube_inline!(scope, is_max = index_max == index_current);
 
-                        gpu!(scope, if(is_max).then(|scope|{
-                            gpu!(scope, result = grad[index]);
-                            gpu!(scope, grad_accumulation += result);
+                        cube_inline!(scope, if(is_max).then(|scope|{
+                            cube_inline!(scope, result = grad[index]);
+                            cube_inline!(scope, grad_accumulation += result);
                         }));
                     })
                 );
             })
         );
 
-        gpu!(scope, output[id] = grad_accumulation);
+        cube_inline!(scope, output[id] = grad_accumulation);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -181,53 +181,53 @@ impl MaxPool2dBackwardComputeShader {
         let signed_kernel_size_0 = scope.create_local(Elem::Int(IntKind::I32));
         let signed_kernel_size_1 = scope.create_local(Elem::Int(IntKind::I32));
 
-        gpu!(scope, signed_pool_stride_0 = cast(pool_stride_0));
-        gpu!(scope, signed_pool_stride_1 = cast(pool_stride_1));
-        gpu!(scope, signed_dilation_0 = cast(dilation_0));
-        gpu!(scope, signed_dilation_1 = cast(dilation_1));
-        gpu!(scope, signed_padding_0 = cast(padding_0));
-        gpu!(scope, signed_padding_1 = cast(padding_1));
+        cube_inline!(scope, signed_pool_stride_0 = cast(pool_stride_0));
+        cube_inline!(scope, signed_pool_stride_1 = cast(pool_stride_1));
+        cube_inline!(scope, signed_dilation_0 = cast(dilation_0));
+        cube_inline!(scope, signed_dilation_1 = cast(dilation_1));
+        cube_inline!(scope, signed_padding_0 = cast(padding_0));
+        cube_inline!(scope, signed_padding_1 = cast(padding_1));
 
-        gpu!(scope, signed_kernel_size_0 = cast(kernel_size_0));
-        gpu!(scope, signed_kernel_size_1 = cast(kernel_size_1));
+        cube_inline!(scope, signed_kernel_size_0 = cast(kernel_size_0));
+        cube_inline!(scope, signed_kernel_size_1 = cast(kernel_size_1));
 
-        gpu!(scope, signed_ih = cast(ih));
-        gpu!(scope, signed_iw = cast(iw));
+        cube_inline!(scope, signed_ih = cast(ih));
+        cube_inline!(scope, signed_iw = cast(iw));
 
         let kms_0 = scope.create_local(Elem::Int(IntKind::I32));
         let kms_1 = scope.create_local(Elem::Int(IntKind::I32));
 
-        gpu!(scope, kms_0 = signed_dilation_0 * signed_kernel_size_0);
-        gpu!(scope, kms_0 = kms_0 - signed_pool_stride_0);
+        cube_inline!(scope, kms_0 = signed_dilation_0 * signed_kernel_size_0);
+        cube_inline!(scope, kms_0 = kms_0 - signed_pool_stride_0);
 
-        gpu!(scope, kms_1 = signed_dilation_1 * signed_kernel_size_1);
-        gpu!(scope, kms_1 = kms_1 - signed_pool_stride_1);
+        cube_inline!(scope, kms_1 = signed_dilation_1 * signed_kernel_size_1);
+        cube_inline!(scope, kms_1 = kms_1 - signed_pool_stride_1);
 
         let oh_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
         let ow_start_tmp = scope.create_local(Elem::Int(IntKind::I32));
 
-        gpu!(scope, oh_start_tmp = signed_ih + signed_padding_0);
-        gpu!(scope, oh_start_tmp = oh_start_tmp - kms_0);
-        gpu!(scope, oh_start_tmp = oh_start_tmp / signed_pool_stride_0);
+        cube_inline!(scope, oh_start_tmp = signed_ih + signed_padding_0);
+        cube_inline!(scope, oh_start_tmp = oh_start_tmp - kms_0);
+        cube_inline!(scope, oh_start_tmp = oh_start_tmp / signed_pool_stride_0);
 
-        gpu!(scope, ow_start_tmp = signed_iw + signed_padding_1);
-        gpu!(scope, ow_start_tmp = ow_start_tmp - kms_1);
-        gpu!(scope, ow_start_tmp = ow_start_tmp / signed_pool_stride_1);
+        cube_inline!(scope, ow_start_tmp = signed_iw + signed_padding_1);
+        cube_inline!(scope, ow_start_tmp = ow_start_tmp - kms_1);
+        cube_inline!(scope, ow_start_tmp = ow_start_tmp / signed_pool_stride_1);
 
-        gpu!(scope, oh_start_tmp = max(oh_start_tmp, 0i32));
-        gpu!(scope, ow_start_tmp = max(ow_start_tmp, 0i32));
+        cube_inline!(scope, oh_start_tmp = max(oh_start_tmp, 0i32));
+        cube_inline!(scope, ow_start_tmp = max(ow_start_tmp, 0i32));
 
         let oh_start = scope.create_local(Elem::UInt);
         let ow_start = scope.create_local(Elem::UInt);
 
-        gpu!(scope, oh_start = cast(oh_start_tmp));
-        gpu!(scope, ow_start = cast(ow_start_tmp));
+        cube_inline!(scope, oh_start = cast(oh_start_tmp));
+        cube_inline!(scope, ow_start = cast(ow_start_tmp));
 
         let oh_end_tmp = scope.create_local(Elem::Int(IntKind::I32));
         let ow_end_tmp = scope.create_local(Elem::Int(IntKind::I32));
 
-        gpu!(scope, oh_end_tmp = max(kms_0, 0i32));
-        gpu!(scope, ow_end_tmp = max(kms_1, 0i32));
+        cube_inline!(scope, oh_end_tmp = max(kms_0, 0i32));
+        cube_inline!(scope, ow_end_tmp = max(kms_1, 0i32));
 
         let oh_end = scope.create_local(Elem::UInt);
         let ow_end = scope.create_local(Elem::UInt);
@@ -235,27 +235,27 @@ impl MaxPool2dBackwardComputeShader {
         let oh_end_limit = scope.create_local(Elem::UInt);
         let ow_end_limit = scope.create_local(Elem::UInt);
 
-        gpu!(scope, oh_end = cast(oh_end_tmp));
-        gpu!(scope, ow_end = cast(ow_end_tmp));
+        cube_inline!(scope, oh_end = cast(oh_end_tmp));
+        cube_inline!(scope, ow_end = cast(ow_end_tmp));
 
-        gpu!(scope, oh_end = oh_end + oh_start);
-        gpu!(scope, oh_end_limit = grad_shape_2 - 1u32);
+        cube_inline!(scope, oh_end = oh_end + oh_start);
+        cube_inline!(scope, oh_end_limit = grad_shape_2 - 1u32);
 
-        gpu!(scope, ow_end = ow_end + ow_start);
-        gpu!(scope, ow_end_limit = grad_shape_3 - 1u32);
+        cube_inline!(scope, ow_end = ow_end + ow_start);
+        cube_inline!(scope, ow_end_limit = grad_shape_3 - 1u32);
 
-        gpu!(scope, oh_end = min(oh_end, oh_end_limit));
-        gpu!(scope, ow_end = min(ow_end, ow_end_limit));
+        cube_inline!(scope, oh_end = min(oh_end, oh_end_limit));
+        cube_inline!(scope, ow_end = min(ow_end, ow_end_limit));
 
         let index_current = scope.create_local(Elem::UInt);
         let index_current_tmp = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index_current = ih * output_stride_2);
-        gpu!(scope, index_current_tmp = iw * output_stride_3);
-        gpu!(scope, index_current += index_current_tmp);
+        cube_inline!(scope, index_current = ih * output_stride_2);
+        cube_inline!(scope, index_current_tmp = iw * output_stride_3);
+        cube_inline!(scope, index_current += index_current_tmp);
 
-        gpu!(scope, oh_end = oh_end + 1u32);
-        gpu!(scope, ow_end = ow_end + 1u32);
+        cube_inline!(scope, oh_end = oh_end + 1u32);
+        cube_inline!(scope, ow_end = ow_end + 1u32);
 
         (oh_start, oh_end, ow_start, ow_end)
     }

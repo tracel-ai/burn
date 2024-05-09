@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{cube_inline, Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -42,29 +42,29 @@ impl FlipComputeShader {
         let flip_bool = scope.create_local(Elem::Bool);
 
         for i in 0..self.rank {
-            gpu!(scope, stride = stride(input, i));
-            gpu!(scope, shape = shape(output, i));
-            gpu!(
+            cube_inline!(scope, stride = stride(input, i));
+            cube_inline!(scope, shape = shape(output, i));
+            cube_inline!(
                 scope,
                 flip = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
-            gpu!(scope, flip_bool = flip == 1u32);
+            cube_inline!(scope, flip_bool = flip == 1u32);
 
-            gpu!(scope, offset_local = id / stride);
-            gpu!(scope, offset_local = offset_local % shape);
+            cube_inline!(scope, offset_local = id / stride);
+            cube_inline!(scope, offset_local = offset_local % shape);
 
-            gpu!(scope, if(flip_bool).then(|scope| {
-                gpu!(scope, offset_local = shape - offset_local);
-                gpu!(scope, offset_local = offset_local - 1u32);
+            cube_inline!(scope, if(flip_bool).then(|scope| {
+                cube_inline!(scope, offset_local = shape - offset_local);
+                cube_inline!(scope, offset_local = offset_local - 1u32);
             }));
-            gpu!(scope, offset_local = offset_local * stride);
+            cube_inline!(scope, offset_local = offset_local * stride);
 
-            gpu!(scope, offset_input += offset_local);
+            cube_inline!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = input[offset_input]);
-        gpu!(scope, output[id] = result);
+        cube_inline!(scope, result = input[offset_input]);
+        cube_inline!(scope, output[id] = result);
     }
 }
 

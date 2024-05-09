@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{
         dialect::gpu::{
-            gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
+            cube_inline, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
@@ -124,41 +124,41 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         let workgroup_size_y = Variable::WorkgroupSizeY;
 
         let stride_reduce_dim_input = scope.create_local(Elem::UInt);
-        gpu!(scope, stride_reduce_dim_input = stride(tensor, dim));
+        cube_inline!(scope, stride_reduce_dim_input = stride(tensor, dim));
         let shape_reduce_dim_input = scope.create_local(Elem::UInt);
-        gpu!(scope, shape_reduce_dim_input = shape(tensor, dim));
+        cube_inline!(scope, shape_reduce_dim_input = shape(tensor, dim));
 
         // To determine which reduce_group (not position, but absolute id)
         let reduce_group_id = scope.create_local(Elem::UInt);
-        gpu!(scope, reduce_group_id = workgroup_id_y * num_workgroups_x);
-        gpu!(scope, reduce_group_id += workgroup_id_x);
+        cube_inline!(scope, reduce_group_id = workgroup_id_y * num_workgroups_x);
+        cube_inline!(scope, reduce_group_id += workgroup_id_x);
 
         // nth thread in the workgroup
         let local_id = scope.create_local(Elem::UInt);
-        gpu!(scope, local_id = local_invocation_id_y * workgroup_size_x);
-        gpu!(scope, local_id += local_invocation_id_x);
+        cube_inline!(scope, local_id = local_invocation_id_y * workgroup_size_x);
+        cube_inline!(scope, local_id += local_invocation_id_x);
 
         let n_threads = scope.create_local(Elem::UInt);
-        gpu!(scope, n_threads = workgroup_size_x * workgroup_size_y);
+        cube_inline!(scope, n_threads = workgroup_size_x * workgroup_size_y);
 
         let index_offset = scope.zero(Elem::UInt);
 
-        gpu!(
+        cube_inline!(
             scope,
             range(0u32, rank).for_each(|i, scope| {
                 let stride_input = scope.create_local(Elem::UInt);
                 let stride_output = scope.create_local(Elem::UInt);
                 let shape_output = scope.create_local(Elem::UInt);
 
-                gpu!(scope, stride_input = stride(tensor, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
+                cube_inline!(scope, stride_input = stride(tensor, i));
+                cube_inline!(scope, stride_output = stride(output, i));
+                cube_inline!(scope, shape_output = shape(output, i));
 
                 let num_block = scope.create_local(Elem::UInt);
-                gpu!(scope, num_block = reduce_group_id / stride_output);
-                gpu!(scope, num_block = num_block % shape_output);
-                gpu!(scope, num_block = num_block * stride_input);
-                gpu!(scope, index_offset += num_block);
+                cube_inline!(scope, num_block = reduce_group_id / stride_output);
+                cube_inline!(scope, num_block = num_block % shape_output);
+                cube_inline!(scope, num_block = num_block * stride_input);
+                cube_inline!(scope, index_offset += num_block);
             })
         );
 
@@ -170,28 +170,28 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         );
 
         // Load to shared memory, unrolled
-        gpu!(
+        cube_inline!(
             scope,
             range(0u32, self.n_input_values_per_thread).for_each(|i, scope| {
                 let nth = scope.create_local(Elem::UInt);
-                gpu!(scope, nth = i * n_threads);
-                gpu!(scope, nth += local_id);
+                cube_inline!(scope, nth = i * n_threads);
+                cube_inline!(scope, nth += local_id);
 
                 let within_shape = scope.create_local(Elem::Bool);
 
                 if self.divisible_shape {
                     let current_position = scope.create_local(Elem::UInt);
-                    gpu!(scope, current_position = nth * stride_reduce_dim_input);
-                    gpu!(scope, current_position += index_offset);
+                    cube_inline!(scope, current_position = nth * stride_reduce_dim_input);
+                    cube_inline!(scope, current_position += index_offset);
 
                     let new_value = RD::read_from_input(scope, tensor, current_position, nth);
                     RD::write_to_shared(scope, shared_memory, local_id, new_value);
                 } else {
-                    gpu!(scope, within_shape = nth < shape_reduce_dim_input);
-                    gpu!(scope, if(within_shape).then(|scope|{
+                    cube_inline!(scope, within_shape = nth < shape_reduce_dim_input);
+                    cube_inline!(scope, if(within_shape).then(|scope|{
                         let current_position = scope.create_local(Elem::UInt);
-                        gpu!(scope, current_position = nth * stride_reduce_dim_input);
-                        gpu!(scope, current_position += index_offset);
+                        cube_inline!(scope, current_position = nth * stride_reduce_dim_input);
+                        cube_inline!(scope, current_position += index_offset);
 
                         let new_value = RD::read_from_input(scope, tensor, current_position, nth);
                         RD::write_to_shared(scope, shared_memory, local_id, new_value);
@@ -204,19 +204,19 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
 
         let several_threads_active = scope.create_local(Elem::Bool);
 
-        gpu!(scope, loop(|scope|{
-            gpu!(scope, several_threads_active = n_threads <= 1u32);
-            gpu!(scope, if(several_threads_active).then(|scope|{
+        cube_inline!(scope, loop(|scope|{
+            cube_inline!(scope, several_threads_active = n_threads <= 1u32);
+            cube_inline!(scope, if(several_threads_active).then(|scope|{
                 scope.register(Branch::Break);
             }));
 
-            gpu!(scope, n_threads = n_threads / 2u32);
+            cube_inline!(scope, n_threads = n_threads / 2u32);
 
             let updating_thread = scope.create_local(Elem::Bool);
-            gpu!(scope, updating_thread = local_id < n_threads);
-            gpu!(scope, if(updating_thread).then(|scope|{
+            cube_inline!(scope, updating_thread = local_id < n_threads);
+            cube_inline!(scope, if(updating_thread).then(|scope|{
                 let read_position = scope.create_local(Elem::UInt);
-                gpu!(scope, read_position = n_threads + local_id);
+                cube_inline!(scope, read_position = n_threads + local_id);
 
                 let read_value = RD::read_from_shared(scope, shared_memory, read_position);
                 RD::write_to_shared(scope, shared_memory, local_id, read_value);
@@ -226,8 +226,8 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
         }));
 
         let is_first_thread = scope.create_local(Elem::Bool);
-        gpu!(scope, is_first_thread = local_id == 0u32);
-        gpu!(scope, if(is_first_thread).then(|scope|{
+        cube_inline!(scope, is_first_thread = local_id == 0u32);
+        cube_inline!(scope, if(is_first_thread).then(|scope|{
             RD::assign_shared(scope, shared_memory, output, reduce_group_id, shape_reduce_dim_input);
         }));
     }

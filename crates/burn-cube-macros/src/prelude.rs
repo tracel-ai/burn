@@ -33,8 +33,6 @@ pub(crate) fn get_prelude(needed_functions: &HashSet<VariableKey>) -> proc_macro
 
 fn codegen_float_new() -> proc_macro2::TokenStream {
     quote::quote! {
-        // TODO ENCAPSULATE IMPORTS
-
         pub fn float_new<F: burn_cube::Float>(val: f32) -> F {
             F::new(val, 1)
         }

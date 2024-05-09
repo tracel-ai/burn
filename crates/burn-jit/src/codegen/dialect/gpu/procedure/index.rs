@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{macros::gpu, Item, Scope, Variable, Vectorization};
+use crate::codegen::dialect::gpu::{macros::cube_inline, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Perform a check bound on the index (lhs) of value (rhs)
@@ -19,13 +19,13 @@ impl CheckedIndex {
         let array_len = scope.create_local(Item::Scalar(crate::gpu::Elem::UInt));
         let inside_bound = scope.create_local(Item::Scalar(crate::gpu::Elem::Bool));
 
-        gpu!(scope, array_len = len(lhs));
-        gpu!(scope, inside_bound = rhs < array_len);
+        cube_inline!(scope, array_len = len(lhs));
+        cube_inline!(scope, inside_bound = rhs < array_len);
 
-        gpu!(scope, if(inside_bound).then(|scope| {
-            gpu!(scope, out = unchecked(lhs[rhs]));
+        cube_inline!(scope, if(inside_bound).then(|scope| {
+            cube_inline!(scope, out = unchecked(lhs[rhs]));
         }).else(|scope| {
-            gpu!(scope, out = cast(0));
+            cube_inline!(scope, out = cast(0));
         }));
     }
 
@@ -56,11 +56,11 @@ impl CheckedIndexAssign {
         let array_len = scope.create_local(Item::Scalar(crate::gpu::Elem::UInt));
         let inside_bound = scope.create_local(Item::Scalar(crate::gpu::Elem::Bool));
 
-        gpu!(scope, array_len = len(out));
-        gpu!(scope, inside_bound = lhs < array_len);
+        cube_inline!(scope, array_len = len(out));
+        cube_inline!(scope, inside_bound = lhs < array_len);
 
-        gpu!(scope, if(inside_bound).then(|scope| {
-            gpu!(scope, unchecked(out[lhs]) = rhs);
+        cube_inline!(scope, if(inside_bound).then(|scope| {
+            cube_inline!(scope, unchecked(out[lhs]) = rhs);
         }));
     }
 

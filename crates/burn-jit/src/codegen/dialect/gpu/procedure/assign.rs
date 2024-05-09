@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{macros::gpu, Item, Scope, Variable, Vectorization};
+use crate::codegen::dialect::gpu::{macros::cube_inline, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.
@@ -23,7 +23,7 @@ impl ConditionalAssign {
             Item::Scalar(_) => var,
             _ => {
                 let out = scope.create_local(var.item().elem());
-                gpu!(scope, out = var[index]);
+                cube_inline!(scope, out = var[index]);
                 out
             }
         };
@@ -31,14 +31,14 @@ impl ConditionalAssign {
         let mut assign_index = |index: usize| {
             let cond = index_var(scope, cond, index);
 
-            gpu!(scope, if (cond).then(|scope| {
+            cube_inline!(scope, if (cond).then(|scope| {
                 let lhs = index_var(scope, lhs, index);
                 let index: Variable = index.into();
-                gpu!(scope, out[index] = lhs);
+                cube_inline!(scope, out[index] = lhs);
             }).else(|scope| {
                 let rhs = index_var(scope, rhs, index);
                 let index: Variable = index.into();
-                gpu!(scope, out[index] = rhs);
+                cube_inline!(scope, out[index] = rhs);
             }));
         };
 
@@ -59,10 +59,10 @@ impl ConditionalAssign {
                 assign_index(1);
             }
             Item::Scalar(_) => {
-                gpu!(scope, if (cond).then(|scope| {
-                    gpu!(scope, out = lhs);
+                cube_inline!(scope, if (cond).then(|scope| {
+                    cube_inline!(scope, out = lhs);
                 }).else(|scope| {
-                    gpu!(scope, out = rhs);
+                    cube_inline!(scope, out = rhs);
                 }));
             }
         };

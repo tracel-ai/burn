@@ -5,7 +5,7 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+    gpu::{cube_inline, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
     JitElement, Runtime,
 };
@@ -110,7 +110,7 @@ impl IntoContiguousShader {
         .expand(scope);
 
         let value = scope.create_local(tensor.item());
-        gpu!(scope, value = tensor[offset_input]);
-        gpu!(scope, output[id] = value);
+        cube_inline!(scope, value = tensor[offset_input]);
+        cube_inline!(scope, output[id] = value);
     }
 }

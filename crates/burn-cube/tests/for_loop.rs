@@ -1,6 +1,8 @@
 use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt, F32};
-use burn_jit::gpu;
-use burn_jit::gpu::{Elem, Item, Variable};
+use burn_jit::{
+    cube_inline,
+    gpu::{Elem, Item, Variable},
+};
 
 type ElemType = F32;
 
@@ -26,7 +28,7 @@ fn test_for_loop_with_unroll() {
     for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));
 }
 
 #[test]
@@ -41,10 +43,10 @@ fn test_for_loop_no_unroll() {
     for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref(unroll));
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));
 }
 
-fn gpu_macro_ref(unroll: bool) -> String {
+fn inline_macro_ref(unroll: bool) -> String {
     let mut context = CubeContext::root();
     let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
 
@@ -58,15 +60,15 @@ fn gpu_macro_ref(unroll: bool) -> String {
     // Kernel
     let tmp1 = scope.create_local(item);
     let tmp2 = scope.create_local(item);
-    gpu!(scope, tmp1 = rhs * rhs);
-    gpu!(scope, tmp2 = tmp1 + rhs);
+    cube_inline!(scope, tmp1 = rhs * rhs);
+    cube_inline!(scope, tmp2 = tmp1 + rhs);
 
-    gpu!(
+    cube_inline!(
         &mut scope,
         range(0u32, end, unroll).for_each(|i, scope| {
-            gpu!(scope, rhs = lhs[i]);
-            gpu!(scope, tmp1 = tmp2 + rhs);
-            gpu!(scope, lhs[i] = tmp1);
+            cube_inline!(scope, rhs = lhs[i]);
+            cube_inline!(scope, tmp1 = tmp2 + rhs);
+            cube_inline!(scope, lhs[i] = tmp1);
         })
     );
 

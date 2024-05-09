@@ -97,7 +97,7 @@ impl Variable {
     }
 }
 
-// Useful with the gpu! macro.
+// Useful with the cube_inline macro.
 impl From<&Variable> for Variable {
     fn from(value: &Variable) -> Self {
         *value

@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, IntKind, Item, Scope, Variable, Visibility},
+        dialect::gpu::{cube_inline, Elem, IntKind, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -35,38 +35,38 @@ impl SelectComputeShader {
         let id = Variable::Id;
         let offset_input = scope.zero(Elem::UInt);
 
-        gpu!(
+        cube_inline!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let stride_input = scope.create_local(Elem::UInt);
                 let stride_output = scope.create_local(Elem::UInt);
                 let shape_output = scope.create_local(Elem::UInt);
 
-                gpu!(scope, stride_input = stride(input, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
+                cube_inline!(scope, stride_input = stride(input, i));
+                cube_inline!(scope, stride_output = stride(output, i));
+                cube_inline!(scope, shape_output = shape(output, i));
 
                 let offset_local = scope.create_local(Elem::UInt);
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
+                cube_inline!(scope, offset_local = id / stride_output);
+                cube_inline!(scope, offset_local = offset_local % shape_output);
 
                 let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
+                cube_inline!(scope, dim_index = i == self.dim);
 
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, offset_local = indices[offset_local]);
-                    gpu!(scope, offset_local = offset_local * stride_input);
+                cube_inline!(scope, if(dim_index).then(|scope| {
+                    cube_inline!(scope, offset_local = indices[offset_local]);
+                    cube_inline!(scope, offset_local = offset_local * stride_input);
                 }).else(|scope| {
-                    gpu!(scope, offset_local = offset_local * stride_input);
+                    cube_inline!(scope, offset_local = offset_local * stride_input);
                 }));
 
-                gpu!(scope, offset_input += offset_local);
+                cube_inline!(scope, offset_input += offset_local);
             })
         );
 
         let value = scope.create_local(input.item());
-        gpu!(scope, value = input[offset_input]);
-        gpu!(scope, output[id] = value);
+        cube_inline!(scope, value = input[offset_input]);
+        cube_inline!(scope, output[id] = value);
     }
 }
 

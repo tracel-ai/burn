@@ -1,7 +1,8 @@
 use burn_cube::{cube, CubeContext, Float, Int, F32, F64, I32, I64};
-use burn_jit::gpu;
-// use burn_jit::gpu::FloatKind;
-use burn_jit::gpu::{Elem, Item};
+use burn_jit::{
+    cube_inline,
+    gpu::{Elem, Item},
+};
 
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
@@ -28,7 +29,7 @@ fn cube_cast_float_kind_test() {
     cast_float_kind::expand::<F64, F32>(&mut context, input);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref_float());
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_float());
 }
 
 #[test]
@@ -41,10 +42,10 @@ fn cube_cast_int_kind_test() {
     cast_int_kind::expand::<I32, I64>(&mut context, input);
     let scope = context.into_scope();
 
-    assert_eq!(format!("{:?}", scope.operations), gpu_macro_ref_int());
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());
 }
 
-fn gpu_macro_ref_float() -> String {
+fn inline_macro_ref_float() -> String {
     let mut context = CubeContext::root();
     let float_64 = Item::Scalar(Elem::Float(F64::into_kind()));
     let float_32 = Item::Scalar(Elem::Float(F32::into_kind()));
@@ -55,14 +56,14 @@ fn gpu_macro_ref_float() -> String {
     let y = scope.create_local(float_32);
     let z = scope.create_local(float_32);
 
-    gpu!(scope, x = input + 5.9f32 as f64);
-    gpu!(scope, y = cast(x));
-    gpu!(scope, z = y + 2.3f32);
+    cube_inline!(scope, x = input + 5.9f32 as f64);
+    cube_inline!(scope, y = cast(x));
+    cube_inline!(scope, z = y + 2.3f32);
 
     format!("{:?}", scope.operations)
 }
 
-fn gpu_macro_ref_int() -> String {
+fn inline_macro_ref_int() -> String {
     let mut context = CubeContext::root();
     let int_32 = Item::Scalar(Elem::Int(I32::into_kind()));
     let int_64 = Item::Scalar(Elem::Int(I64::into_kind()));
@@ -73,9 +74,9 @@ fn gpu_macro_ref_int() -> String {
     let y = scope.create_local(int_64);
     let z = scope.create_local(int_64);
 
-    gpu!(scope, x = input + 5i32);
-    gpu!(scope, y = cast(x));
-    gpu!(scope, z = y + 2i64);
+    cube_inline!(scope, x = input + 5i32);
+    cube_inline!(scope, y = cast(x));
+    cube_inline!(scope, z = y + 2i64);
 
     format!("{:?}", scope.operations)
 }
