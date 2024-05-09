@@ -295,9 +295,9 @@ Those operations are only available for `Bool` tensors.
 
 | Burn API                            | PyTorch Equivalent              |
 | ----------------------------------- | ------------------------------- |
-| `Tensor.diag_mask(shape, diagonal)` | N/A                             |
-| `Tensor.tril_mask(shape, diagonal)` | N/A                             |
-| `Tensor.triu_mask(shape, diagonal)` | N/A                             |
+| `Tensor::diag_mask(shape, diagonal)`| N/A                             |
+| `Tensor::tril_mask(shape, diagonal)`| N/A                             |
+| `Tensor::triu_mask(shape, diagonal)`| N/A                             |
 | `tensor.argwhere()`                 | `tensor.argwhere()`             |
 | `tensor.float()`                    | `tensor.to(torch.float)`        |
 | `tensor.int()`                      | `tensor.to(torch.long)`         |

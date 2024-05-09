@@ -42,6 +42,22 @@ not all backends expose the same devices. As an example, the Libtorch-based back
 Next, we need to actually implement the batching logic.
 
 ```rust , ignore
+# use burn::{
+#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+#     prelude::*,
+# };
+# 
+# #[derive(Clone)]
+# pub struct MnistBatcher<B: Backend> {
+#     device: B::Device,
+# }
+# 
+# impl<B: Backend> MnistBatcher<B> {
+#     pub fn new(device: B::Device) -> Self {
+#         Self { device }
+#     }
+# }
+#
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,

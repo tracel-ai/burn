@@ -1,11 +1,11 @@
 use super::{
-    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
-    concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
-    global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
-    mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
-    max_pool2d::MaxPool2dNode, prelu::PReluNode, reshape::ReshapeNode, unary::UnaryNode,
-    unsqueeze::UnsqueezeNode,
+    avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode,
+    binary::BinaryNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
+    conv1d::Conv1dNode, conv2d::Conv2dNode, conv_transpose_2d::ConvTranspose2dNode,
+    dropout::DropoutNode, gather::GatherNode, global_avg_pool::GlobalAvgPoolNode,
+    layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
+    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode, reshape::ReshapeNode,
+    unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -75,6 +75,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
+    AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode<PS>),
     Binary(BinaryNode),
@@ -103,6 +104,7 @@ macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         #[allow(clippy::redundant_closure_call)]
         match $self {
+            Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::Binary(node) => $func(node),
@@ -141,6 +143,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
+            Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
             Node::Binary(binary) => binary.binary_type.as_str(),

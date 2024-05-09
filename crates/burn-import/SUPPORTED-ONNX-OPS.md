@@ -17,7 +17,7 @@ represent the corresponding Burn Op.
 | [Asinh][9]                       |       ❌       |      ❌      |
 | [Atan][10]                       |       ❌       |      ❌      |
 | [Atanh][11]                      |       ❌       |      ❌      |
-| [AveragePool1d][12]              |       ❌       |      ✅      |
+| [AveragePool1d][12]              |       ✅       |      ✅      |
 | [AveragePool2d][12]              |       ✅       |      ✅      |
 | [BatchNormalization][14]         |       ✅       |      ✅      |
 | [Bernoulli][15]                  |       ❌       |      ❌      |

@@ -14,6 +14,7 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
@@ -243,6 +244,7 @@ impl OnnxGraph {
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
+                NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
@@ -745,6 +747,14 @@ impl OnnxGraph {
 
         let name = &node.name;
         ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+    fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = avg_pool1d_config(&node);
+
+        let name = &node.name;
+        AvgPool1dNode::new(name, input, output, config)
     }
 
     fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {

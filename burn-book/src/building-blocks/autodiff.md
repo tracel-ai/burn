@@ -1,11 +1,11 @@
 # Autodiff
 
-Burn's tensor also supports autodifferentiation, which is an essential part of any deep learning
+Burn's tensor also supports auto-differentiation, which is an essential part of any deep learning
 framework. We introduced the `Backend` trait in the [previous section](./backend.md), but Burn also
 has another trait for autodiff: `AutodiffBackend`.
 
 However, not all tensors support auto-differentiation; you need a backend that implements both the
-`Backend` and `AutodiffBackend` traits. Fortunately, you can add autodifferentiation capabilities to any
+`Backend` and `AutodiffBackend` traits. Fortunately, you can add auto-differentiation capabilities to any
 backend using a backend decorator: `type MyAutodiffBackend = Autodiff<MyBackend>`. This
 decorator implements both the `AutodiffBackend` and `Backend` traits by maintaining a dynamic
 computational graph and utilizing the inner backend to execute tensor operations.

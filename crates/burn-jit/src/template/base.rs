@@ -1,5 +1,5 @@
 use crate::{
-    compute::{CompiledKernel, LaunchSettings, WorkGroup},
+    compute::{CompiledKernel, JitKernel, LaunchSettings, WorkGroup},
     element::JitElement,
     gpu::WorkgroupSize,
     tensor::JitTensor,
@@ -14,21 +14,8 @@ pub trait KernelSource: Send + 'static + Sync {
     fn source(&self) -> SourceTemplate;
 }
 
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
-/// provided id.
-///
-/// The kernel will be launched with the given [launch settings](LaunchSettings)
-pub trait TemplateKernel: 'static + Send + Sync {
-    /// Convert to source
-    fn compile(&self) -> CompiledKernel;
-    /// Identifier for the kernel, used for caching kernel compilation.
-    fn id(&self) -> String;
-    /// Launch information.
-    fn launch_settings(&self) -> LaunchSettings;
-}
-
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [template kernel](TemplateKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [JIT kernel](JitKernel) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
@@ -36,7 +23,7 @@ pub struct SourceKernel<K> {
     workgroup_size: WorkgroupSize,
 }
 
-impl<K> TemplateKernel for SourceKernel<K>
+impl<K> JitKernel for SourceKernel<K>
 where
     K: KernelSource + 'static,
 {
