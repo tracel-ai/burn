@@ -1,17 +1,48 @@
 use crate::{ExpandElement, RuntimeType};
 
-#[derive(new, Clone, Copy)]
-pub struct Int {
-    pub val: i32,
-    pub vectorization: u8,
+pub trait Int:
+    Clone
+    + Copy
+    + RuntimeType<ExpandType = ExpandElement>
+    + std::cmp::PartialOrd
+    + std::ops::Add<Output = Self>
+    + std::ops::Sub<Output = Self>
+    + std::ops::Mul<Output = Self>
+    + std::ops::Div<Output = Self>
+    + std::ops::AddAssign
+{
+    fn into_kind() -> burn_jit::gpu::IntKind;
+    fn new(val: i32, vectorization: usize) -> Self;
 }
 
-impl RuntimeType for Int {
-    type ExpandType = ExpandElement;
+macro_rules! impl_int {
+    ($type:ident) => {
+        #[derive(Clone, Copy)]
+        pub struct $type {
+            pub val: i32,
+            pub vectorization: usize,
+        }
+
+        impl RuntimeType for $type {
+            type ExpandType = ExpandElement;
+        }
+
+        impl Int for $type {
+            fn into_kind() -> burn_jit::gpu::IntKind {
+                burn_jit::gpu::IntKind::$type
+            }
+            fn new(val: i32, vectorization: usize) -> Self {
+                Self { val, vectorization }
+            }
+        }
+
+        impl From<i32> for $type {
+            fn from(value: i32) -> Self {
+                $type::new(value, 1)
+            }
+        }
+    };
 }
 
-impl From<i32> for Int {
-    fn from(value: i32) -> Self {
-        Int::new(value, 1)
-    }
-}
+impl_int!(I32);
+impl_int!(I64);

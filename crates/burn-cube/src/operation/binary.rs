@@ -1,5 +1,5 @@
 use crate::operation::base::binary_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64};
+use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64};
 use burn_jit::gpu::{self};
 
 pub mod add {
@@ -30,7 +30,8 @@ pub mod add {
     impl_add!(BF16);
     impl_add!(F32);
     impl_add!(F64);
-    impl_add!(Int);
+    impl_add!(I32);
+    impl_add!(I64);
     impl_add!(UInt);
 }
 
@@ -61,7 +62,8 @@ pub mod sub {
     impl_sub!(BF16);
     impl_sub!(F32);
     impl_sub!(F64);
-    impl_sub!(Int);
+    impl_sub!(I32);
+    impl_sub!(I64);
     impl_sub!(UInt);
 }
 
@@ -94,7 +96,8 @@ pub mod mul {
     impl_mul!(BF16);
     impl_mul!(F32);
     impl_mul!(F64);
-    impl_mul!(Int);
+    impl_mul!(I32);
+    impl_mul!(I64);
     impl_mul!(UInt);
 }
 
@@ -127,13 +130,12 @@ pub mod div {
     impl_div!(BF16);
     impl_div!(F32);
     impl_div!(F64);
-    impl_div!(Int);
+    impl_div!(I32);
+    impl_div!(I64);
     impl_div!(UInt);
 }
 
 pub mod rem {
-    use crate::Float;
-
     use super::*;
 
     pub fn expand(
@@ -156,11 +158,8 @@ pub mod rem {
         };
     }
 
-    impl_rem!(F16);
-    impl_rem!(BF16);
-    impl_rem!(F32);
-    impl_rem!(F64);
-    impl_rem!(Int);
+    impl_rem!(I32);
+    impl_rem!(I64);
     impl_rem!(UInt);
 }
 

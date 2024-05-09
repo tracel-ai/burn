@@ -1,5 +1,5 @@
 use crate::operation::base::cmp_expand;
-use crate::{CubeContext, ExpandElement, Int, UInt, BF16, F16, F32, F64};
+use crate::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
 use burn_jit::gpu::{self};
 
 macro_rules! impl_cmp {
@@ -26,7 +26,8 @@ impl_cmp!(F16);
 impl_cmp!(BF16);
 impl_cmp!(F32);
 impl_cmp!(F64);
-impl_cmp!(Int);
+impl_cmp!(I32);
+impl_cmp!(I64);
 impl_cmp!(UInt);
 
 pub mod ne {

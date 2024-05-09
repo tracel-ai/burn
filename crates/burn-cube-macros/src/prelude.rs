@@ -33,35 +33,29 @@ pub(crate) fn get_prelude(needed_functions: &HashSet<VariableKey>) -> proc_macro
 
 fn codegen_float_new() -> proc_macro2::TokenStream {
     quote::quote! {
-        use std::{rc::Rc};
-        use burn_cube::ExpandElement;
-        use burn_jit::gpu::Variable;
         pub fn float_new<F: burn_cube::Float>(val: f32) -> F {
             F::new(val, 1)
         }
+
         pub fn float_new_expand<F: burn_cube::Float>(
             context: &mut CubeContext,
             val: f32,
         ) -> <F as burn_cube::RuntimeType>::ExpandType {
-            let elem = Elem::Float(F::into_kind());
-            let new_var = Variable::ConstantScalar(val as f64, elem);
-            ExpandElement::new(Rc::new(new_var))
+            val.into()
         }
     }
 }
 
 fn codegen_int_new() -> proc_macro2::TokenStream {
     quote::quote! {
-        pub fn int_new(val: i32) -> Int {
-            Int {
-                val,
-                vectorization: 1,
-            }
+        pub fn int_new<I: burn_cube::Int>(val: i32) -> I {
+            I::new(val, 1)
         }
-        pub fn int_new_expand(
+
+        pub fn int_new_expand<I: burn_cube::Int>(
             context: &mut CubeContext,
             val: i32,
-        ) -> <Int as burn_cube::RuntimeType>::ExpandType {
+        ) -> <I as burn_cube::RuntimeType>::ExpandType {
             val.into()
         }
     }
@@ -103,17 +97,14 @@ fn codegen_bool_new() -> proc_macro2::TokenStream {
 
 fn codegen_to_int() -> proc_macro2::TokenStream {
     quote::quote! {
-        pub fn to_int<R: burn_cube::RuntimeType>(input: R) -> Int {
-            Int {
-                val: 0,
-                vectorization: 1,
-            }
+        pub fn to_int<R: burn_cube::RuntimeType, I: Int>(input: R) -> I {
+            I::new(0, 1)
         }
-        pub fn to_int_expand(
+        pub fn to_int_expand<R: burn_cube::RuntimeType, I: Int>(
             context: &mut CubeContext,
             val: burn_cube::ExpandElement,
-        ) -> <Int as burn_cube::RuntimeType>::ExpandType {
-            let elem = Elem::Int(I32);
+        ) -> <I as burn_cube::RuntimeType>::ExpandType {
+            let elem = Elem::Int(I::into_kind());
             let new_var = context.create_local(match val.item() {
                 Item::Vec4(_) => Item::Vec4(elem),
                 Item::Vec3(_) => Item::Vec3(elem),

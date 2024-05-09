@@ -64,7 +64,7 @@ pub mod index {
 }
 
 pub mod add_assign_op {
-    use crate::{operation::base::assign_op_expand, Int, BF16, F16, F32, F64};
+    use crate::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use super::*;
 
@@ -90,6 +90,7 @@ pub mod add_assign_op {
     impl_add_assign!(BF16);
     impl_add_assign!(F32);
     impl_add_assign!(F64);
-    impl_add_assign!(Int);
+    impl_add_assign!(I32);
+    impl_add_assign!(I64);
     impl_add_assign!(UInt);
 }
