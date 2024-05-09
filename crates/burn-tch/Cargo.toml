@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-tch"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-tch"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tch"
 version.workspace = true
 
 [features]

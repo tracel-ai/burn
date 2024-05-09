@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "gpu", "cuda"]
 license.workspace = true
 name = "burn-cuda"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-cuda"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cuda"
 version.workspace = true
 
 [features]
