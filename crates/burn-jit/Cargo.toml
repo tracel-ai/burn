@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
 name = "burn-jit"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-jit"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-jit"
 version.workspace = true
 
 [features]
