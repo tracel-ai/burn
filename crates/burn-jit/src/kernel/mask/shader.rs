@@ -240,7 +240,7 @@ impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
             tensors: vec![input, mask],
             indexes: vec![index_input, index_mask],
             layout: output,
-            index_ref: id,
+            position: id,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }

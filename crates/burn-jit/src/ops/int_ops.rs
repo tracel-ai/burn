@@ -1,5 +1,6 @@
 use super::{expand, numeric, permute};
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
+use crate::gpu::Variable;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::{kernel, unary, FloatElement, IntElement, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
@@ -293,8 +294,8 @@ where
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, Item::Scalar(elem)),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Abs(UnaryOperator {
+                input: scope.read_array(0, Item::Scalar(elem), position),
                 out: scope.create_local(elem),
             }),
             runtime: R,

@@ -67,7 +67,7 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem());
+            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -143,7 +143,7 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem());
+            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
