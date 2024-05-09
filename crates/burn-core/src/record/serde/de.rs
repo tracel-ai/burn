@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use super::data::NestedValue;
 use super::{adapter::BurnModuleAdapter, error::Error};
 
+use serde::de::value::SeqDeserializer;
 use serde::de::{EnumAccess, VariantAccess};
 use serde::{
     de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
@@ -286,13 +287,20 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        if let Some(NestedValue::Vec(vec)) = self.value {
-            visitor.visit_seq(VecSeqAccess::<A>::new(vec, self.default_for_missing_fields))
-        } else {
-            Err(de::Error::custom(format!(
+        match self.value {
+            Some(NestedValue::Vec(vec)) => {
+                visitor.visit_seq(VecSeqAccess::<A>::new(vec, self.default_for_missing_fields))
+            }
+            Some(NestedValue::U16s(vec)) => {
+                visitor.visit_seq(SeqDeserializer::new(vec.into_iter()))
+            }
+            Some(NestedValue::F32s(vec)) => {
+                visitor.visit_seq(SeqDeserializer::new(vec.into_iter()))
+            }
+            _ => Err(de::Error::custom(format!(
                 "Expected Vec but got {:?}",
                 self.value
-            )))
+            ))),
         }
     }
 
