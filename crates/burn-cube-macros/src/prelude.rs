@@ -33,15 +33,16 @@ pub(crate) fn get_prelude(needed_functions: &HashSet<VariableKey>) -> proc_macro
 
 fn codegen_float_new() -> proc_macro2::TokenStream {
     quote::quote! {
+        // TODO ENCAPSULATE IMPORTS
+
         pub fn float_new<F: burn_cube::Float>(val: f32) -> F {
             F::new(val, 1)
         }
-
         pub fn float_new_expand<F: burn_cube::Float>(
             context: &mut CubeContext,
             val: f32,
         ) -> <F as burn_cube::RuntimeType>::ExpandType {
-            val.into()
+            F::new_expand(val)
         }
     }
 }
@@ -51,12 +52,11 @@ fn codegen_int_new() -> proc_macro2::TokenStream {
         pub fn int_new<I: burn_cube::Int>(val: i32) -> I {
             I::new(val, 1)
         }
-
         pub fn int_new_expand<I: burn_cube::Int>(
             context: &mut CubeContext,
             val: i32,
         ) -> <I as burn_cube::RuntimeType>::ExpandType {
-            val.into()
+            I::new_expand(val)
         }
     }
 }

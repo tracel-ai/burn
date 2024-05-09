@@ -408,6 +408,12 @@ impl From<i32> for Variable {
     }
 }
 
+impl From<i64> for Variable {
+    fn from(value: i64) -> Self {
+        Self::ConstantScalar(value as f64, super::Elem::Int(super::IntKind::I64))
+    }
+}
+
 impl From<f32> for Variable {
     fn from(value: f32) -> Self {
         Self::ConstantScalar(value as f64, super::Elem::Float(super::FloatKind::F32))

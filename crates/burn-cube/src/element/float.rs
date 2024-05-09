@@ -1,4 +1,6 @@
 use crate::{ExpandElement, RuntimeType};
+use burn_jit::gpu::{Elem, FloatKind, Variable};
+use std::rc::Rc;
 
 pub trait Float:
     Clone
@@ -10,8 +12,9 @@ pub trait Float:
     + std::ops::Mul<Output = Self>
     + std::ops::Div<Output = Self>
 {
-    fn into_kind() -> burn_jit::gpu::FloatKind;
+    fn into_kind() -> FloatKind;
     fn new(val: f32, vectorization: usize) -> Self;
+    fn new_expand(val: f32) -> ExpandElement;
 }
 
 macro_rules! impl_float {
@@ -27,16 +30,16 @@ macro_rules! impl_float {
         }
 
         impl Float for $type {
-            fn into_kind() -> burn_jit::gpu::FloatKind {
-                burn_jit::gpu::FloatKind::$type
+            fn into_kind() -> FloatKind {
+                FloatKind::$type
             }
             fn new(val: f32, vectorization: usize) -> Self {
                 Self { val, vectorization }
             }
-        }
-        impl From<f32> for $type {
-            fn from(value: f32) -> Self {
-                $type::new(value, 1)
+            fn new_expand(val: f32) -> ExpandElement {
+                let elem = Elem::Float(Self::into_kind());
+                let new_var = Variable::ConstantScalar(val as f64, elem);
+                ExpandElement::new(Rc::new(new_var))
             }
         }
     };

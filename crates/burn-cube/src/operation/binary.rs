@@ -68,8 +68,6 @@ pub mod sub {
 }
 
 pub mod mul {
-    use crate::Float;
-
     use super::*;
 
     pub fn expand(
@@ -102,8 +100,6 @@ pub mod mul {
 }
 
 pub mod div {
-    use crate::Float;
-
     use super::*;
 
     pub fn expand(
