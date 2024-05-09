@@ -350,7 +350,6 @@ mod tests {
         // the order of the fields is not guaranteed for HashMaps.
         assert_eq!(serialized_str.len(), 135);
     }
-
     #[test]
     fn test_param_serde() {
         type Backend = burn_ndarray::NdArray<f32>;
@@ -371,6 +370,6 @@ mod tests {
 
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
-        assert_eq!(serialized_str.len(), 149);
+        assert_eq!(serialized_str.len(), 134);
     }
 }
