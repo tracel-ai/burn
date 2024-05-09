@@ -284,13 +284,13 @@ impl OutputInfo {
             OutputInfo::ArrayWrite {
                 item,
                 local: _,
-                index_ref: _,
+                position: _,
             } => *item,
             OutputInfo::InputArrayWrite {
                 item,
                 input: _,
                 local: _,
-                index_ref: _,
+                position: _,
             } => *item,
             OutputInfo::Array { item } => *item,
         }
@@ -306,14 +306,14 @@ pub enum OutputInfo {
     ArrayWrite {
         item: Item,
         local: u16,
-        index_ref: Variable,
+        position: Variable,
     },
     /// Write the local variable to an existing input binding.
     InputArrayWrite {
         item: Item,
         input: u16,
         local: u16,
-        index_ref: Variable,
+        position: Variable,
     },
     /// Simply register the output, but don't automatically add a write to it.
     ///
@@ -329,13 +329,13 @@ impl OutputInfo {
             OutputInfo::ArrayWrite {
                 item,
                 local: _,
-                index_ref: _,
+                position: _,
             } => bool_elem(item.elem()),
             OutputInfo::InputArrayWrite {
                 item,
                 input: _,
                 local: _,
-                index_ref: _,
+                position: _,
             } => bool_elem(item.elem()),
             OutputInfo::Array { item } => bool_elem(item.elem()),
         };
@@ -446,7 +446,7 @@ impl Compilation {
                 OutputInfo::ArrayWrite {
                     item,
                     local,
-                    index_ref,
+                    position,
                 } => {
                     let item = if let Some(vectorization) = settings.vectorization {
                         item.vectorize(vectorization)
@@ -464,7 +464,7 @@ impl Compilation {
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalOutputArray(index, elem_adapted),
-                        index_ref,
+                        position,
                     );
                     index += 1;
                 }
@@ -472,7 +472,7 @@ impl Compilation {
                     item,
                     input,
                     local,
-                    index_ref,
+                    position,
                 } => {
                     let item = if let Some(vectorization) = settings.vectorization {
                         item.vectorize(vectorization)
@@ -483,7 +483,7 @@ impl Compilation {
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalInputArray(input, bool_item(item)),
-                        index_ref,
+                        position,
                     );
                 }
                 OutputInfo::Array { item } => {
@@ -513,13 +513,13 @@ impl Compilation {
             None => panic!("No output found."),
         };
 
-        let (item, local, index_ref) = match output {
-            OutputInfo::ArrayWrite { item, local, index_ref } => (item, local, index_ref),
+        let (item, local, position) = match output {
+            OutputInfo::ArrayWrite { item, local, position } => (item, local, position),
             OutputInfo::InputArrayWrite {
                 item: _,
                 input,
                 local: _,
-                index_ref: _,
+                position: _,
             } => {
                 assert_eq!(
                     *input, mapping.pos_input as u16,
@@ -552,7 +552,7 @@ impl Compilation {
             item,
             input: mapping.pos_input as u16,
             local: *local,
-            index_ref: *index_ref,
+            position: *position,
         };
     }
 }

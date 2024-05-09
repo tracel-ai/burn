@@ -55,7 +55,7 @@ impl Trace {
                 |((_tensor, elem, index_ref), local)| OutputInfo::ArrayWrite {
                     item: gpu::Item::Scalar(*elem),
                     local: *local,
-                    index_ref: *index_ref,
+                    position: *index_ref,
                 },
             )
             .collect::<Vec<_>>();

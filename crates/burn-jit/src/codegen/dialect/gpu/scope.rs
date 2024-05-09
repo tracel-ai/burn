@@ -167,12 +167,12 @@ impl Scope {
     /// Notes:
     ///
     /// This should only be used when doing compilation.
-    pub(crate) fn write_global(&mut self, input: Variable, output: Variable, index_ref: Variable) {
+    pub(crate) fn write_global(&mut self, input: Variable, output: Variable, position: Variable) {
         // This assumes that all outputs have the same layout
         if self.layout_ref.is_none() {
             self.layout_ref = Some(output);
         }
-        self.writes_global.push((input, output, index_ref));
+        self.writes_global.push((input, output, position));
     }
 
     /// Writes a variable to given output.
@@ -215,11 +215,6 @@ impl Scope {
 
     /// Register an [operation](Operation) into the scope.
     pub(crate) fn register<T: Into<Operation>>(&mut self, operation: T) {
-        // input45[24] => (list elemwise ops)
-        //
-        // let aa = input2[24];
-        // let bb = input3[24];
-        // let input45 = aa + bb;
         self.operations.push(operation.into())
     }
 
@@ -304,11 +299,11 @@ impl Scope {
             operations.push(op);
         }
 
-        for (input, global, index_ref) in self.writes_global.drain(..) {
+        for (input, global, position) in self.writes_global.drain(..) {
             operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
                 input,
                 global,
-                position: index_ref,
+                position,
             })))
         }
 

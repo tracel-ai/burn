@@ -37,7 +37,7 @@ impl TraceBuilder {
     }
 
     /// Create a variable from an input [tensor description](TensorDescription).
-    pub fn input(&mut self, tensor: &TensorDescription, index_ref: Variable) -> gpu::Variable {
+    pub fn input(&mut self, tensor: &TensorDescription, position: Variable) -> gpu::Variable {
         let already_exists = self.tensors.contains_key(&tensor.id);
         let elem = tensor.dtype.into();
 
@@ -47,7 +47,7 @@ impl TraceBuilder {
                 let index = self.inputs.len() as u16;
                 let item = gpu::Item::Scalar(elem);
 
-                let local = self.scope.read_array(index, item, index_ref);
+                let local = self.scope.read_array(index, item, position);
                 self.inputs.push((tensor.clone(), local));
                 local
             }
@@ -68,17 +68,17 @@ impl TraceBuilder {
 
         // Update the tensor description with the new version.
         self.tensors
-            .insert(tensor.id, (tensor.clone(), elem, index_ref));
+            .insert(tensor.id, (tensor.clone(), elem, position));
 
         variable
     }
 
     /// Create a variable from an output [tensor description](TensorDescription).
-    pub fn output(&mut self, tensor: &TensorDescription, index_ref: Variable) -> gpu::Variable {
+    pub fn output(&mut self, tensor: &TensorDescription, position: Variable) -> gpu::Variable {
         let elem = tensor.dtype.into();
         // Update the tensor description to the new version.
         self.tensors
-            .insert(tensor.id, (tensor.clone(), elem, index_ref));
+            .insert(tensor.id, (tensor.clone(), elem, position));
 
         // Output already registered as a local variable.
         if let Some(index) = self.output_to_local.get(&tensor.id) {
@@ -436,7 +436,7 @@ impl TraceBuilder {
         // All tensors where their latest description is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for entry in self.tensors.values() {
-            let (tensor, _, _index_ref) = &entry;
+            let (tensor, _, _position) = &entry;
             if let TensorStatus::ReadOnly = tensor.status {
                 if self.output_to_local.contains_key(&tensor.id) {
                     outputs.push(entry.clone());
