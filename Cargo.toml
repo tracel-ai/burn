@@ -136,7 +136,7 @@ serde_json = { version = "1.0.117", default-features = false }
 uuid = { version = "1.8.0", default-features = false }
 
 libc = "0.2.154"
-tch = "0.16.0"
+tch = "0.15.0"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.30.12"
 systemstat = "0.2.3"
