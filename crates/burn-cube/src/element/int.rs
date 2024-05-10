@@ -12,7 +12,6 @@ pub trait Int:
     + std::ops::AddAssign
     + Numeric
 {
-    fn into_elem() -> Elem;
     fn from(val: i64) -> Self;
     fn from_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }
@@ -30,9 +29,6 @@ macro_rules! impl_int {
         }
 
         impl Int for $type {
-            fn into_elem() -> Elem {
-                Elem::Int(IntKind::$type)
-            }
             fn from(val: i64) -> Self {
                 Self {
                     val,
@@ -54,6 +50,9 @@ macro_rules! impl_int {
             }
             fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement {
                 <Self as Int>::from_expand(context, val)
+            }
+            fn into_elem() -> Elem {
+                Elem::Int(IntKind::$type)
             }
         }
     };

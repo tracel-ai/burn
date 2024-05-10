@@ -4,21 +4,21 @@ use burn_jit::{cube_inline, gpu::Item};
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
     let x = input + F1::from(5.9);
-    let y = to_float::<F1, F2>(x);
+    let y = cast::<F1, F2>(x);
     let _ = y + F2::from(2.3);
 }
 
 #[cube]
 pub fn cast_int_kind<I1: Int, I2: Int>(input: I1) {
     let x = input + I1::from(5);
-    let y = to_int::<I1, I2>(x);
+    let y = cast::<I1, I2>(x);
     let _ = y + I2::from(2);
 }
 
 #[cube]
 pub fn cast_numeric_to_kind<T: Numeric, I2: Int>(input: T) {
     let x = input + T::new(5);
-    let y = to_int::<T, I2>(x);
+    let y = cast::<T, I2>(x);
     let _ = y + I2::new(2);
 }
 

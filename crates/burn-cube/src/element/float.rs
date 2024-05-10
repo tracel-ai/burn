@@ -12,7 +12,6 @@ pub trait Float:
     + std::ops::Div<Output = Self>
     + Numeric
 {
-    fn into_elem() -> Elem;
     fn from(val: f64) -> Self;
     fn from_expand(context: &mut CubeContext, val: f64) -> ExpandElement;
 }
@@ -30,9 +29,6 @@ macro_rules! impl_float {
         }
 
         impl Float for $type {
-            fn into_elem() -> Elem {
-                Elem::Float(FloatKind::$type)
-            }
             fn from(val: f64) -> Self {
                 Self {
                     val,
@@ -54,6 +50,9 @@ macro_rules! impl_float {
             }
             fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement {
                 <Self as Float>::from_expand(context, val as f64)
+            }
+            fn into_elem() -> Elem {
+                Elem::Float(FloatKind::$type)
             }
         }
     };

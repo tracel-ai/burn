@@ -4,7 +4,7 @@ use burn_jit::gpu::{Item, Variable};
 /// Types used in a cube function must implement this trait
 ///
 /// Variables whose values will be known at runtime must
-/// have ExpandElement as associated type (using RuntimeType)
+/// have ExpandElement as associated type
 /// Variables whose values will be known at compile time
 /// must have the primitive type as associated type
 ///

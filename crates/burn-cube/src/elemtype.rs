@@ -1,6 +1,6 @@
 use burn_jit::gpu::{Elem, Item};
 
-use crate::{assign, Bool, CubeContext, CubeType, ExpandElement, Float, Int, UInt};
+use crate::{assign, Bool, CubeContext, CubeType, ExpandElement, Numeric, UInt};
 
 pub fn uint_new(val: u32) -> UInt {
     UInt {
@@ -22,28 +22,19 @@ pub fn bool_new_expand(_context: &mut CubeContext, val: bool) -> <Bool as CubeTy
     val.into()
 }
 
-pub fn to_int<R: CubeType, I: Int>(_input: R) -> I {
-    I::new(0)
-}
-pub fn to_int_expand<R: CubeType, I: Int>(
-    context: &mut CubeContext,
-    val: ExpandElement,
-) -> <I as CubeType>::ExpandType {
-    let new_var = context.create_local(Item::Scalar(I::into_elem()));
-    assign::expand(context, val.into(), new_var.clone());
-    new_var
-}
-
-pub fn to_float<R: CubeType, F: Float>(_input: R) -> F {
+// Why i'm stuck with this kind of cast
+// R is useless, but removing it I can't compile because of the input
+// Any would need boxing
+// Might as well use R to figure the val to cast
+pub fn cast<R: CubeType, T: Numeric>(_input: R) -> T {
     // TODO: make val accessible through trait
-    F::new(0)
+    T::new(0)
 }
-
-pub fn to_float_expand<R: CubeType, F: Float>(
+pub fn cast_expand<R: CubeType, T: Numeric>(
     context: &mut CubeContext,
     val: ExpandElement,
 ) -> ExpandElement {
-    let new_var = context.create_local(Item::Scalar(F::into_elem()));
+    let new_var = context.create_local(Item::Scalar(T::into_elem()));
     assign::expand(context, val.into(), new_var.clone());
     new_var
 }
