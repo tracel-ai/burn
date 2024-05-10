@@ -1,7 +1,7 @@
 use burn_cube::{branch::*, cube, Array, CubeContext, Float, UInt, F32};
 use burn_jit::{
     cube_inline,
-    gpu::{Elem, Item, Variable},
+    gpu::{Item, Variable},
 };
 
 type ElemType = F32;
@@ -21,8 +21,8 @@ fn test_for_loop_with_unroll() {
     let mut context = CubeContext::root();
     let unroll = true;
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
-    let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
+    let rhs = context.create_local(Item::Scalar(ElemType::into_elem()));
     let end = 4u32.into();
 
     for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
@@ -36,8 +36,8 @@ fn test_for_loop_no_unroll() {
     let mut context = CubeContext::root();
     let unroll = false;
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
-    let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
+    let rhs = context.create_local(Item::Scalar(ElemType::into_elem()));
     let end = 4u32.into();
 
     for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
@@ -48,7 +48,7 @@ fn test_for_loop_no_unroll() {
 
 fn inline_macro_ref(unroll: bool) -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
+    let item = Item::Scalar(ElemType::into_elem());
 
     let lhs = context.create_local(item);
     let rhs = context.create_local(item);

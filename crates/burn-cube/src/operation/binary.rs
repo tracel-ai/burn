@@ -1,5 +1,5 @@
 use crate::operation::base::binary_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, Numeric, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64};
 use burn_jit::gpu::{self};
 
 pub mod add {
@@ -20,7 +20,7 @@ pub mod add {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
-                    <$type as Numeric>::new(self.val + rhs.val)
+                    <$type as $trait>::from(self.val + rhs.val)
                 }
             }
         };
@@ -62,7 +62,7 @@ pub mod sub {
                 type Output = Self;
 
                 fn sub(self, rhs: Self) -> Self::Output {
-                    <$type as Numeric>::new(self.val - rhs.val)
+                    <$type as $trait>::from(self.val - rhs.val)
                 }
             }
         };
@@ -104,7 +104,7 @@ pub mod mul {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type as Numeric>::new(self.val * rhs.val)
+                    <$type as $trait>::from(self.val * rhs.val)
                 }
             }
         };
@@ -146,7 +146,7 @@ pub mod div {
                 type Output = Self;
 
                 fn div(self, rhs: Self) -> Self::Output {
-                    <$type as Numeric>::new(self.val / rhs.val)
+                    <$type as $trait>::from(self.val / rhs.val)
                 }
             }
         };
@@ -187,7 +187,7 @@ pub mod rem {
                 type Output = Self;
 
                 fn rem(self, rhs: Self) -> Self::Output {
-                    <$type as Numeric>::new(self.val % rhs.val)
+                    <$type as $trait>::from(self.val % rhs.val)
                 }
             }
         };

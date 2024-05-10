@@ -5,6 +5,7 @@ use crate::{CubeContext, CubeType, ExpandElement};
 pub trait Numeric:
     Clone + Copy + CubeType<ExpandType = ExpandElement> + std::ops::Add<Output = Self>
 {
-    fn new(val: f64) -> Self;
-    fn new_expand(context: &mut CubeContext, val: f64) -> ExpandElement;
+    // If we use numeric then constants are necessarily ints
+    fn new(val: i64) -> Self;
+    fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }

@@ -1,34 +1,31 @@
 use burn_cube::{cube, elemtype::*, CubeContext, Float, Int, Numeric, F32, F64, I32, I64};
-use burn_jit::{
-    cube_inline,
-    gpu::{Elem, Item},
-};
+use burn_jit::{cube_inline, gpu::Item};
 
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
-    let x = input + F1::new(5.9);
+    let x = input + F1::from(5.9);
     let y = to_float::<F1, F2>(x);
-    let _ = y + F2::new(2.3);
+    let _ = y + F2::from(2.3);
 }
 
 #[cube]
 pub fn cast_int_kind<I1: Int, I2: Int>(input: I1) {
-    let x = input + I1::new(5.);
+    let x = input + I1::from(5);
     let y = to_int::<I1, I2>(x);
-    let _ = y + I2::new(2.);
+    let _ = y + I2::from(2);
 }
 
 #[cube]
 pub fn cast_numeric_to_kind<T: Numeric, I2: Int>(input: T) {
-    let x = input + T::new(5.);
+    let x = input + T::new(5);
     let y = to_int::<T, I2>(x);
-    let _ = y + I2::new(2.);
+    let _ = y + I2::new(2);
 }
 
 #[test]
 fn cube_cast_float_kind_test() {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(F64::into_kind()));
+    let item = Item::Scalar(F64::into_elem());
 
     let input = context.create_local(item);
 
@@ -42,7 +39,7 @@ fn cube_cast_float_kind_test() {
 #[test]
 fn cube_cast_int_kind_test() {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Int(I32::into_kind()));
+    let item = Item::Scalar(I32::into_elem());
 
     let input = context.create_local(item);
 
@@ -55,7 +52,7 @@ fn cube_cast_int_kind_test() {
 #[test]
 fn cube_cast_numeric_kind_test() {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Int(I32::into_kind()));
+    let item = Item::Scalar(I32::into_elem());
 
     let input = context.create_local(item);
 
@@ -67,8 +64,8 @@ fn cube_cast_numeric_kind_test() {
 
 fn inline_macro_ref_float() -> String {
     let mut context = CubeContext::root();
-    let float_64 = Item::Scalar(Elem::Float(F64::into_kind()));
-    let float_32 = Item::Scalar(Elem::Float(F32::into_kind()));
+    let float_64 = Item::Scalar(F64::into_elem());
+    let float_32 = Item::Scalar(F32::into_elem());
     let input = context.create_local(float_64);
 
     let mut scope = context.into_scope();
@@ -85,8 +82,8 @@ fn inline_macro_ref_float() -> String {
 
 fn inline_macro_ref_int() -> String {
     let mut context = CubeContext::root();
-    let int_32 = Item::Scalar(Elem::Int(I32::into_kind()));
-    let int_64 = Item::Scalar(Elem::Int(I64::into_kind()));
+    let int_32 = Item::Scalar(I32::into_elem());
+    let int_64 = Item::Scalar(I64::into_elem());
     let input = context.create_local(int_32);
 
     let mut scope = context.into_scope();

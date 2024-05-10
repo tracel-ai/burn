@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, elemtype::*, CubeContext, Float, F32};
+use burn_cube::{branch::*, cube, CubeContext, Float, F32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -8,8 +8,8 @@ type ElemType = F32;
 
 #[cube]
 pub fn if_greater<F: Float>(lhs: F) {
-    if lhs > F::new(0.0) {
-        let _ = lhs + F::new(4.0);
+    if lhs > F::new(0) {
+        let _ = lhs + F::new(4);
     }
 }
 
@@ -17,7 +17,7 @@ pub fn if_greater<F: Float>(lhs: F) {
 fn cube_if_test() {
     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
 
     if_greater_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
@@ -27,7 +27,7 @@ fn cube_if_test() {
 
 fn inline_macro_ref() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
+    let item = Item::Scalar(ElemType::into_elem());
     let lhs = context.create_local(item);
 
     let mut scope = context.into_scope();

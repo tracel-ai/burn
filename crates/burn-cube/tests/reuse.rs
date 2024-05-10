@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, elemtype::*, CubeContext, Int, I32};
+use burn_cube::{branch::*, cube, CubeContext, Int, I32};
 use burn_jit::{
     cube_inline,
     gpu::{Branch, Elem, Item, Variable},
@@ -12,15 +12,15 @@ type ElemType = I32;
 
 #[cube]
 pub fn reuse<I: Int>(mut x: I) {
-    while x < I::new(10.) {
-        x = x + I::new(1.);
+    while x < I::new(10) {
+        x = x + I::new(1);
     }
 }
 
 #[cube]
 pub fn reuse_incr<I: Int>(mut x: I) {
-    while x < I::new(10.) {
-        x += I::new(1.);
+    while x < I::new(10) {
+        x += I::new(1);
     }
 }
 
@@ -28,7 +28,7 @@ pub fn reuse_incr<I: Int>(mut x: I) {
 fn cube_reuse_assign_test() {
     let mut context = CubeContext::root();
 
-    let x = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
+    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
 
     reuse_expand::<ElemType>(&mut context, x);
     let scope = context.into_scope();
@@ -40,7 +40,7 @@ fn cube_reuse_assign_test() {
 fn cube_reuse_incr_test() {
     let mut context = CubeContext::root();
 
-    let x = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
+    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
 
     reuse_incr_expand::<ElemType>(&mut context, x);
     let scope = context.into_scope();
@@ -50,7 +50,7 @@ fn cube_reuse_incr_test() {
 
 fn inline_macro_ref_assign() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Int(ElemType::into_kind()));
+    let item = Item::Scalar(ElemType::into_elem());
     let x = context.create_local(item);
 
     let mut scope = context.into_scope();
@@ -76,7 +76,7 @@ fn inline_macro_ref_assign() -> String {
 
 fn inline_macro_ref_incr() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Int(ElemType::into_kind()));
+    let item = Item::Scalar(ElemType::into_elem());
     let x = context.create_local(item);
 
     let mut scope = context.into_scope();

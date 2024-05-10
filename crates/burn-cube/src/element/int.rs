@@ -12,14 +12,16 @@ pub trait Int:
     + std::ops::AddAssign
     + Numeric
 {
-    fn into_kind() -> IntKind;
+    fn into_elem() -> Elem;
+    fn from(val: i64) -> Self;
+    fn from_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }
 
 macro_rules! impl_int {
     ($type:ident) => {
         #[derive(Clone, Copy)]
         pub struct $type {
-            pub val: f64,
+            pub val: i64,
             pub vectorization: usize,
         }
 
@@ -28,22 +30,30 @@ macro_rules! impl_int {
         }
 
         impl Int for $type {
-            fn into_kind() -> IntKind {
-                IntKind::$type
+            fn into_elem() -> Elem {
+                Elem::Int(IntKind::$type)
             }
-        }
-
-        impl Numeric for $type {
-            fn new(val: f64) -> Self {
+            fn from(val: i64) -> Self {
                 Self {
                     val,
                     vectorization: 1,
                 }
             }
-            fn new_expand(_context: &mut CubeContext, val: f64) -> ExpandElement {
-                let elem = Elem::Int(Self::into_kind());
-                let new_var = Variable::ConstantScalar(val, elem);
+            fn from_expand(_context: &mut CubeContext, val: i64) -> ExpandElement {
+                let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
                 ExpandElement::new(Rc::new(new_var))
+            }
+        }
+
+        impl Numeric for $type {
+            fn new(val: i64) -> Self {
+                Self {
+                    val,
+                    vectorization: 1,
+                }
+            }
+            fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement {
+                <Self as Int>::from_expand(context, val)
             }
         }
     };

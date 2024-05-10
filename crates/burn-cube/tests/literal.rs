@@ -1,21 +1,18 @@
-use burn_cube::{cube, elemtype::*, CubeContext, Float, F32};
-use burn_jit::{
-    cube_inline,
-    gpu::{Elem, Item},
-};
+use burn_cube::{cube, CubeContext, Float, F32};
+use burn_jit::{cube_inline, gpu::Item};
 
 type ElemType = F32;
 
 #[cube]
 pub fn literal<F: Float>(lhs: F) {
-    let _ = lhs + F::new(5.);
+    let _ = lhs + F::new(5);
 }
 
 #[test]
 fn cube_literal_test() {
     let mut context = CubeContext::root();
 
-    let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
+    let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
     // let lhs = context.create_local(ElemType::into_item());
 
     literal_expand::<ElemType>(&mut context, lhs);
@@ -26,7 +23,7 @@ fn cube_literal_test() {
 
 fn inline_macro_ref() -> String {
     let mut context = CubeContext::root();
-    let item = Item::Scalar(Elem::Float(ElemType::into_kind()));
+    let item = Item::Scalar(ElemType::into_elem());
     let lhs = context.create_local(item);
 
     let mut scope = context.into_scope();
