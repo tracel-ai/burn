@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
-use syn::PathArguments;
+use quote::{quote_spanned, ToTokens};
+use syn::{Lit, PathArguments};
 
 use crate::analysis::CodeAnalysis;
 
@@ -28,32 +29,31 @@ fn codegen_local(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    let init = local
-        .init
-        .as_ref()
-        .expect("Can't use let without an initialization.");
-
-    let init = codegen_expr(&init.expr, loop_level, variable_analyses);
-
     let let_tok = local.let_token;
 
-    if let syn::Pat::Wild(_) = &local.pat {
-        return quote::quote! {
-            #let_tok _ = #init;
-        };
-    }
-
     let ident = match &local.pat {
-        syn::Pat::Ident(ident) => ident,
+        syn::Pat::Ident(ident) => ident.to_token_stream(),
         syn::Pat::Type(pat_type) => match &*pat_type.pat {
-            syn::Pat::Ident(pat_ident) => pat_ident,
+            syn::Pat::Ident(pat_ident) => pat_ident.to_token_stream(),
             _ => todo!("Codegen: Unsupported typed path {:?}", pat_type.pat),
         },
-        syn::Pat::Wild(_) => unreachable!(),
+        syn::Pat::Wild(wild) => wild.underscore_token.to_token_stream(),
         _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
-    quote::quote! {
-        #let_tok #ident = #init;
+
+    match local.init.as_ref() {
+        Some(init) => {
+            let init = codegen_expr(&init.expr, loop_level, variable_analyses);
+
+            quote::quote! {
+                #let_tok #ident = #init;
+            }
+        }
+        None => {
+            quote::quote! {
+                #let_tok #ident;
+            }
+        }
     }
 }
 
@@ -84,7 +84,17 @@ fn codegen_expr(
 }
 
 fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
-    quote::quote! { #lit.into() }
+    match lit.lit {
+        // We treat floats differently to avoid getting 4..into() for instance
+        Lit::Float(_) => {
+            let lit_str = lit.lit.to_token_stream().to_string();
+            let float_lit = lit_str.parse::<f32>().unwrap();
+            quote::quote! { #float_lit.into() }
+        }
+        _ => {
+            quote::quote! { #lit.into() }
+        }
+    }
 }
 
 fn codegen_expr_index(
@@ -308,45 +318,57 @@ fn codegen_call(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    let (func_name, generics) = match call.func.as_ref() {
+    // Possibilities:
+    // a()
+    // a::<T>()
+    // T::a
+    let (mut idents, generics) = match call.func.as_ref() {
         syn::Expr::Path(expr_path) => {
-            if let Some(first_segment) = expr_path.path.segments.first() {
-                // Extract the identifier of the path segment
-                let ident = &first_segment.ident;
-                let generics =
-                    if let PathArguments::AngleBracketed(arguments) = &first_segment.arguments {
-                        Some(arguments)
-                    } else {
-                        None
-                    };
+            let mut idents = Vec::new();
+            let mut generics = None;
+            for (index, segment) in expr_path.path.segments.iter().enumerate() {
+                idents.push(&segment.ident);
 
-                (ident, generics)
-            } else {
-                panic!("Codegen: func call must have an ident");
+                if index == expr_path.path.segments.len() - 1 {
+                    if let PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                        generics = Some(arguments)
+                    }
+                }
             }
+            (idents, generics)
         }
         _ => todo!("Codegen: func call {:?} not supported", call.func),
     };
 
-    let mut args = quote::quote! {
-        context,
-    };
+    let func_name = idents
+        .pop()
+        .expect("Codegen: Func should have at least one ident");
+
+    let mut previous_tokens = TokenStream::new();
+    for ident in idents.iter() {
+        previous_tokens.extend(quote_spanned! {ident.span() => #ident :: });
+    }
+
+    let func_name_expand = syn::Ident::new(
+        format!("{func_name}_expand").as_str(),
+        proc_macro2::Span::call_site(),
+    );
 
     let generics = match generics {
         Some(generics) => quote::quote! { #generics },
         None => quote::quote! {},
     };
 
-    let func_name_expand =
-        syn::Ident::new(format!("{func_name}_expand").as_str(), func_name.span());
-
+    let mut args = quote::quote! {
+        context,
+    };
     for argument in call.args.iter() {
         let arg = codegen_expr(argument, loop_level, variable_analyses);
         args.extend(quote::quote! { #arg, });
     }
 
     quote::quote! {
-        #func_name_expand #generics (#args)
+        #previous_tokens #func_name_expand #generics (#args)
     }
 }
 

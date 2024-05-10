@@ -1,4 +1,4 @@
-use burn_cube::{cube, Bool, CubeContext, Float, Int, UInt, F32, I32};
+use burn_cube::{cube, elemtype::*, Bool, CubeContext, Float, Int, Numeric, UInt, F32, I32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -12,7 +12,7 @@ macro_rules! cast_test {
 
             let x = context.create_local($from);
 
-            $module::expand(&mut context, x);
+            $module(&mut context, x);
             let scope = context.into_scope();
 
             assert_eq!(
@@ -29,7 +29,7 @@ macro_rules! cast_test {
 
             let x = context.create_local($ty);
 
-            $module::expand(&mut context, x);
+            $module(&mut context, x);
             let scope = context.into_scope();
 
             assert_eq!(
@@ -43,51 +43,51 @@ macro_rules! cast_test {
 // From float
 #[cube]
 pub fn float_to_float(x: F32) {
-    let y = x + float_new::<F32>(2.0);
-    let _ = to_float::<F32, F32>(y) + float_new::<F32>(34.0);
+    let y = x + F32::new(2.0);
+    let _ = to_float::<F32, F32>(y) + F32::new(34.0);
 }
 
 #[cube]
 pub fn float_to_int(x: F32) {
-    let y = x + float_new::<F32>(2.0);
-    let _ = to_int::<F32, I32>(y) + int_new::<I32>(34);
+    let y = x + F32::new(2.0);
+    let _ = to_int::<F32, I32>(y) + I32::new(34.);
 }
 
 #[cube]
 pub fn float_to_uint(x: F32) {
-    let y = x + float_new::<F32>(2.0);
+    let y = x + F32::new(2.0);
     let _ = to_uint(y) + uint_new(34u32);
 }
 
 #[cube]
 pub fn float_to_bool(x: F32) {
-    let y = x + float_new::<F32>(2.0);
+    let y = x + F32::new(2.0);
     let _ = to_bool(y) | bool_new(true);
 }
 
 cast_test!(
     cube_float_to_float_test,
-    float_to_float,
+    float_to_float_expand,
     Item::Scalar(Elem::Float(F32::into_kind()))
 );
 
 cast_test!(
     cube_float_to_int_test,
-    float_to_int,
+    float_to_int_expand,
     Item::Scalar(Elem::Float(F32::into_kind())),
     Item::Scalar(Elem::Int(I32::into_kind()))
 );
 
 cast_test!(
     cube_float_to_uint_test,
-    float_to_uint,
+    float_to_uint_expand,
     Item::Scalar(Elem::Float(F32::into_kind())),
     Item::Scalar(Elem::UInt)
 );
 
 cast_test!(
     cube_float_to_bool_test,
-    float_to_bool,
+    float_to_bool_expand,
     Item::Scalar(Elem::Float(F32::into_kind())),
     Item::Scalar(Elem::Bool)
 );
@@ -95,51 +95,51 @@ cast_test!(
 // // From int
 #[cube]
 pub fn int_to_float(x: I32) {
-    let y = x + int_new::<I32>(2);
-    let _ = to_float::<I32, F32>(y) + float_new::<F32>(34.0);
+    let y = x + I32::new(2.);
+    let _ = to_float::<I32, F32>(y) + F32::new(34.0);
 }
 
 #[cube]
 pub fn int_to_int(x: I32) {
-    let y = x + int_new::<I32>(2);
-    let _ = to_int::<I32, I32>(y) + int_new::<I32>(34);
+    let y = x + I32::new(2.);
+    let _ = to_int::<I32, I32>(y) + I32::new(34.);
 }
 
 #[cube]
 pub fn int_to_uint(x: I32) {
-    let y = x + int_new::<I32>(2);
+    let y = x + I32::new(2.);
     let _ = to_uint(y) + uint_new(34u32);
 }
 
 #[cube]
 pub fn int_to_bool(x: I32) {
-    let y = x + int_new::<I32>(2);
+    let y = x + I32::new(2.);
     let _ = to_bool(y) | bool_new(true);
 }
 
 cast_test!(
     cube_int_to_float_test,
-    int_to_float,
+    int_to_float_expand,
     Item::Scalar(Elem::Int(I32::into_kind())),
     Item::Scalar(Elem::Float(F32::into_kind()))
 );
 
 cast_test!(
     cube_int_to_int_test,
-    int_to_int,
+    int_to_int_expand,
     Item::Scalar(Elem::Int(I32::into_kind()))
 );
 
 cast_test!(
     cube_int_to_uint_test,
-    int_to_uint,
+    int_to_uint_expand,
     Item::Scalar(Elem::Int(I32::into_kind())),
     Item::Scalar(Elem::UInt)
 );
 
 cast_test!(
     cube_int_to_bool_test,
-    int_to_bool,
+    int_to_bool_expand,
     Item::Scalar(Elem::Int(I32::into_kind())),
     Item::Scalar(Elem::Bool)
 );
@@ -148,13 +148,13 @@ cast_test!(
 #[cube]
 pub fn uint_to_float(x: UInt) {
     let y = x + uint_new(2u32);
-    let _ = to_float::<UInt, F32>(y) + float_new::<F32>(34.0);
+    let _ = to_float::<UInt, F32>(y) + F32::new(34.0);
 }
 
 #[cube]
 pub fn uint_to_int(x: UInt) {
     let y = x + uint_new(2u32);
-    let _ = to_int::<UInt, I32>(y) + int_new::<I32>(34);
+    let _ = to_int::<UInt, I32>(y) + I32::new(34.);
 }
 
 #[cube]
@@ -171,27 +171,27 @@ pub fn uint_to_bool(x: UInt) {
 
 cast_test!(
     cube_uint_to_float_test,
-    uint_to_float,
+    uint_to_float_expand,
     Item::Scalar(Elem::UInt),
     Item::Scalar(Elem::Float(F32::into_kind()))
 );
 
 cast_test!(
     cube_uint_to_int_test,
-    uint_to_int,
+    uint_to_int_expand,
     Item::Scalar(Elem::UInt),
     Item::Scalar(Elem::Int(I32::into_kind()))
 );
 
 cast_test!(
     cube_uint_to_uint_test,
-    uint_to_uint,
+    uint_to_uint_expand,
     Item::Scalar(Elem::UInt)
 );
 
 cast_test!(
     cube_uint_to_bool_test,
-    uint_to_bool,
+    uint_to_bool_expand,
     Item::Scalar(Elem::UInt),
     Item::Scalar(Elem::Bool)
 );
@@ -200,13 +200,13 @@ cast_test!(
 #[cube]
 pub fn bool_to_float(x: Bool) {
     let y = x & bool_new(false);
-    let _ = to_float::<Bool, F32>(y) + float_new::<F32>(34.0);
+    let _ = to_float::<Bool, F32>(y) + F32::new(34.0);
 }
 
 #[cube]
 pub fn bool_to_int(x: Bool) {
     let y = x & bool_new(false);
-    let _ = to_int::<Bool, I32>(y) + int_new::<I32>(34);
+    let _ = to_int::<Bool, I32>(y) + I32::new(34.);
 }
 
 #[cube]
@@ -223,28 +223,28 @@ pub fn bool_to_bool(x: Bool) {
 
 cast_test!(
     cube_bool_to_float_test,
-    bool_to_float,
+    bool_to_float_expand,
     Item::Scalar(Elem::Bool),
     Item::Scalar(Elem::Float(F32::into_kind()))
 );
 
 cast_test!(
     cube_bool_to_int_test,
-    bool_to_int,
+    bool_to_int_expand,
     Item::Scalar(Elem::Bool),
     Item::Scalar(Elem::Int(I32::into_kind()))
 );
 
 cast_test!(
     cube_bool_to_uint_test,
-    bool_to_uint,
+    bool_to_uint_expand,
     Item::Scalar(Elem::Bool),
     Item::Scalar(Elem::UInt)
 );
 
 cast_test!(
     cube_bool_to_bool_test,
-    bool_to_bool,
+    bool_to_bool_expand,
     Item::Scalar(Elem::Bool)
 );
 

@@ -1,4 +1,4 @@
-use crate::{ExpandElement, RuntimeType};
+use crate::{CubeType, ExpandElement};
 
 #[derive(new, Clone, Copy)]
 pub struct Bool {
@@ -6,6 +6,6 @@ pub struct Bool {
     pub vectorization: u8,
 }
 
-impl RuntimeType for Bool {
+impl CubeType for Bool {
     type ExpandType = ExpandElement;
 }

@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeContext, Float, Int, F32, F64, I32, I64};
+use burn_cube::{cube, elemtype::*, CubeContext, Float, Int, Numeric, F32, F64, I32, I64};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item},
@@ -6,16 +6,23 @@ use burn_jit::{
 
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
-    let x = input + float_new::<F1>(5.9);
+    let x = input + F1::new(5.9);
     let y = to_float::<F1, F2>(x);
-    let _ = y + float_new::<F2>(2.3);
+    let _ = y + F2::new(2.3);
 }
 
 #[cube]
 pub fn cast_int_kind<I1: Int, I2: Int>(input: I1) {
-    let x = input + int_new::<I1>(5);
+    let x = input + I1::new(5.);
     let y = to_int::<I1, I2>(x);
-    let _ = y + int_new::<I2>(2);
+    let _ = y + I2::new(2.);
+}
+
+#[cube]
+pub fn cast_numeric_to_kind<T: Numeric, I2: Int>(input: T) {
+    let x = input + T::new(5.);
+    let y = to_int::<T, I2>(x);
+    let _ = y + I2::new(2.);
 }
 
 #[test]
@@ -26,7 +33,7 @@ fn cube_cast_float_kind_test() {
     let input = context.create_local(item);
 
     // F16 not testable with the gpu macro, but should work the same
-    cast_float_kind::expand::<F64, F32>(&mut context, input);
+    cast_float_kind_expand::<F64, F32>(&mut context, input);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_float());
@@ -39,7 +46,20 @@ fn cube_cast_int_kind_test() {
 
     let input = context.create_local(item);
 
-    cast_int_kind::expand::<I32, I64>(&mut context, input);
+    cast_int_kind_expand::<I32, I64>(&mut context, input);
+    let scope = context.into_scope();
+
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());
+}
+
+#[test]
+fn cube_cast_numeric_kind_test() {
+    let mut context = CubeContext::root();
+    let item = Item::Scalar(Elem::Int(I32::into_kind()));
+
+    let input = context.create_local(item);
+
+    cast_numeric_to_kind_expand::<I32, I64>(&mut context, input);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());

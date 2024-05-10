@@ -9,13 +9,11 @@ pub mod assign {
         let out = *output;
 
         context.register(gpu::Operator::Assign(gpu::UnaryOperator { input, out }));
-
-        // output
     }
 }
 
 pub mod index_assign {
-    use crate::RuntimeType;
+    use crate::CubeType;
 
     use super::*;
 
@@ -32,7 +30,7 @@ pub mod index_assign {
         }))
     }
 
-    impl<E: RuntimeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
+    impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
         fn index_mut(&mut self, index: I) -> &mut Self::Output {
             let index = index.into().val;
             &mut self.vals[index as usize]
@@ -41,7 +39,7 @@ pub mod index_assign {
 }
 
 pub mod index {
-    use crate::{operation::base::binary_expand, RuntimeType};
+    use crate::{operation::base::binary_expand, CubeType};
 
     use super::*;
 
@@ -53,7 +51,7 @@ pub mod index {
         binary_expand(context, array, index, gpu::Operator::Index)
     }
 
-    impl<E: RuntimeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
+    impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
         type Output = E;
 
         fn index(&self, index: I) -> &Self::Output {

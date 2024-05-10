@@ -1,10 +1,8 @@
 mod analysis;
 mod codegen;
-mod prelude;
 
 use analysis::CodeAnalysis;
 use codegen::codegen_statement;
-use prelude::get_prelude;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, Meta};
@@ -59,8 +57,8 @@ impl From<&syn::Ident> for VariableKey {
 
 /// Generate the expanded version of a function marked with the cube macro
 fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenStream {
-    let prelude = get_prelude(&code_analysis.needed_functions);
-    let mod_name = get_name(&func.sig);
+    // let prelude = get_prelude(&code_analysis.needed_functions);
+    // let mod_name = get_name(&func.sig);
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
@@ -70,8 +68,8 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
     }
 
     let code = quote::quote! {
-        mod #mod_name {
-            #prelude
+        // mod #mod_name {
+            // #prelude
 
             #[allow(dead_code)]
             #func
@@ -80,21 +78,21 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
             #signature {
                 #body
             }
-        }
+        // }
     }
     .into();
 
     code
 }
 
-fn get_name(sig: &syn::Signature) -> proc_macro2::TokenStream {
-    let ident = &sig.ident;
+// fn get_name(sig: &syn::Signature) -> proc_macro2::TokenStream {
+//     let ident = &sig.ident;
 
-    quote::quote! {
-        #ident
-    }
-    .into()
-}
+//     quote::quote! {
+//         #ident
+//     }
+//     .into()
+// }
 
 fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
@@ -106,7 +104,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
                 let ident = pat.pat.clone();
 
                 inputs.extend(quote::quote! {
-                    #ident: <#ty as burn_cube::RuntimeType>::ExpandType,
+                    #ident: <#ty as burn_cube::CubeType>::ExpandType,
                 });
             }
             _ => todo!(),
@@ -119,13 +117,13 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
         syn::ReturnType::Default => output.extend(quote::quote! { ()}),
         syn::ReturnType::Type(_, ty) => {
             output.extend(quote::quote! {
-                <#ty as burn_cube::RuntimeType>::ExpandType
+                <#ty as burn_cube::CubeType>::ExpandType
             });
         }
     }
 
     let ident = &sig.ident;
-    let ident = syn::Ident::new("expand", ident.span());
+    let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
 
     let generics = sig.generics.clone().into_token_stream();
 

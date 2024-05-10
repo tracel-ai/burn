@@ -1,5 +1,5 @@
 use crate::operation::base::binary_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::{CubeContext, ExpandElement, Float, Int, Numeric, UInt, BF16, F16, F32, F64, I32, I64};
 use burn_jit::gpu::{self};
 
 pub mod add {
@@ -15,23 +15,33 @@ pub mod add {
     }
 
     macro_rules! impl_add {
+        ($type:ty, $trait:ty) => {
+            impl core::ops::Add for $type {
+                type Output = Self;
+
+                fn add(self, rhs: Self) -> Self::Output {
+                    <$type as Numeric>::new(self.val + rhs.val)
+                }
+            }
+        };
+
         ($type:ty) => {
             impl core::ops::Add for $type {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val + rhs.val, 1)
+                    <$type>::new(self.val + rhs.val)
                 }
             }
         };
     }
 
-    impl_add!(F16);
-    impl_add!(BF16);
-    impl_add!(F32);
-    impl_add!(F64);
-    impl_add!(I32);
-    impl_add!(I64);
+    impl_add!(F16, Float);
+    impl_add!(BF16, Float);
+    impl_add!(F32, Float);
+    impl_add!(F64, Float);
+    impl_add!(I32, Int);
+    impl_add!(I64, Int);
     impl_add!(UInt);
 }
 
@@ -47,23 +57,33 @@ pub mod sub {
     }
 
     macro_rules! impl_sub {
+        ($type:ty, $trait:ty) => {
+            impl core::ops::Sub for $type {
+                type Output = Self;
+
+                fn sub(self, rhs: Self) -> Self::Output {
+                    <$type as Numeric>::new(self.val - rhs.val)
+                }
+            }
+        };
+
         ($type:ty) => {
             impl core::ops::Sub for $type {
                 type Output = Self;
 
                 fn sub(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val - rhs.val, 1)
+                    <$type>::new(self.val - rhs.val)
                 }
             }
         };
     }
 
-    impl_sub!(F16);
-    impl_sub!(BF16);
-    impl_sub!(F32);
-    impl_sub!(F64);
-    impl_sub!(I32);
-    impl_sub!(I64);
+    impl_sub!(F16, Float);
+    impl_sub!(BF16, Float);
+    impl_sub!(F32, Float);
+    impl_sub!(F64, Float);
+    impl_sub!(I32, Int);
+    impl_sub!(I64, Int);
     impl_sub!(UInt);
 }
 
@@ -79,23 +99,33 @@ pub mod mul {
     }
 
     macro_rules! impl_mul {
+        ($type:ty, $trait:ty) => {
+            impl core::ops::Mul for $type {
+                type Output = Self;
+
+                fn mul(self, rhs: Self) -> Self::Output {
+                    <$type as Numeric>::new(self.val * rhs.val)
+                }
+            }
+        };
+
         ($type:ty) => {
             impl core::ops::Mul for $type {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val * rhs.val, 1)
+                    <$type>::new(self.val - rhs.val)
                 }
             }
         };
     }
 
-    impl_mul!(F16);
-    impl_mul!(BF16);
-    impl_mul!(F32);
-    impl_mul!(F64);
-    impl_mul!(I32);
-    impl_mul!(I64);
+    impl_mul!(F16, Float);
+    impl_mul!(BF16, Float);
+    impl_mul!(F32, Float);
+    impl_mul!(F64, Float);
+    impl_mul!(I32, Int);
+    impl_mul!(I64, Int);
     impl_mul!(UInt);
 }
 
@@ -111,24 +141,33 @@ pub mod div {
     }
 
     macro_rules! impl_div {
+        ($type:ty, $trait:ty) => {
+            impl core::ops::Div for $type {
+                type Output = Self;
+
+                fn div(self, rhs: Self) -> Self::Output {
+                    <$type as Numeric>::new(self.val / rhs.val)
+                }
+            }
+        };
+
         ($type:ty) => {
             impl core::ops::Div for $type {
                 type Output = Self;
 
                 fn div(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val / rhs.val, 1)
+                    <$type>::new(self.val / rhs.val)
                 }
             }
         };
     }
 
-    impl_div!(F16);
-    impl_div!(BF16);
-    impl_div!(F32);
-    impl_div!(F64);
-    impl_div!(I32);
-    impl_div!(I64);
-    impl_div!(UInt);
+    impl_div!(F16, Float);
+    impl_div!(BF16, Float);
+    impl_div!(F32, Float);
+    impl_div!(F64, Float);
+    impl_div!(I32, Int);
+    impl_div!(I64, Int);
 }
 
 pub mod rem {
@@ -143,19 +182,29 @@ pub mod rem {
     }
 
     macro_rules! impl_rem {
-        ($type:ty) => {
+        ($type:ty, $trait:ty) => {
             impl core::ops::Rem for $type {
                 type Output = Self;
 
                 fn rem(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val % rhs.val, 1)
+                    <$type as Numeric>::new(self.val % rhs.val)
+                }
+            }
+        };
+
+        ($type:ty) => {
+            impl core::ops::Div for $type {
+                type Output = Self;
+
+                fn div(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val / rhs.val)
                 }
             }
         };
     }
 
-    impl_rem!(I32);
-    impl_rem!(I64);
+    impl_rem!(I32, Int);
+    impl_rem!(I64, Int);
     impl_rem!(UInt);
 }
 

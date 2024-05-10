@@ -15,6 +15,7 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
+/// Useful in Cube, should be moved over there
 pub mod codegen;
 pub(crate) mod tune;
 

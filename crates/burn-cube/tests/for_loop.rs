@@ -1,4 +1,4 @@
-use burn_cube::{cube, range, range_expand, Array, CubeContext, Float, UInt, F32};
+use burn_cube::{branch::*, cube, Array, CubeContext, Float, UInt, F32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -25,7 +25,7 @@ fn test_for_loop_with_unroll() {
     let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
     let end = 4u32.into();
 
-    for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
+    for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));
@@ -40,7 +40,7 @@ fn test_for_loop_no_unroll() {
     let rhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
     let end = 4u32.into();
 
-    for_loop::expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
+    for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));

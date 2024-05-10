@@ -1,6 +1,4 @@
-use burn_cube::{
-    break_expand, cube, if_expand, loop_expand, while_loop_expand, CubeContext, Int, I32,
-};
+use burn_cube::{branch::*, cube, elemtype::*, CubeContext, Int, I32};
 use burn_jit::cube_inline;
 use burn_jit::gpu::Branch;
 use burn_jit::gpu::{Elem, Item, Variable};
@@ -9,18 +7,18 @@ type ElemType = I32;
 
 #[cube]
 pub fn while_not<I: Int>(lhs: I) {
-    while lhs != int_new::<I>(0) {
-        let _ = lhs - int_new::<I>(1);
+    while lhs != I::new(0.) {
+        let _ = lhs - I::new(1.);
     }
 }
 
 #[cube]
 pub fn manual_loop_break<I: Int>(lhs: I) {
     loop {
-        if lhs != int_new::<I>(0) {
+        if lhs != I::new(0.) {
             break;
         }
-        let _ = lhs - int_new::<I>(1);
+        let _ = lhs - I::new(1.);
     }
 }
 
@@ -30,7 +28,7 @@ fn cube_while_test() {
 
     let lhs = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
 
-    while_not::expand::<ElemType>(&mut context, lhs);
+    while_not_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
@@ -42,7 +40,7 @@ fn cube_loop_break_test() {
 
     let lhs = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
 
-    manual_loop_break::expand::<ElemType>(&mut context, lhs);
+    manual_loop_break_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());

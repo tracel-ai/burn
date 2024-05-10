@@ -1,4 +1,4 @@
-use burn_cube::{cube, if_else_expand, CubeContext, Float, F32};
+use burn_cube::{branch::*, cube, elemtype::*, CubeContext, Float, F32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -7,11 +7,11 @@ use burn_jit::{
 type ElemType = F32;
 
 #[cube]
-pub fn if_else<F: Float>(lhs: F) {
-    if lhs < float_new::<F>(0.0) {
-        let _ = lhs + float_new::<F>(4.0);
+pub fn if_then_else<F: Float>(lhs: F) {
+    if lhs < F::new(0.0) {
+        let _ = lhs + F::new(4.0);
     } else {
-        let _ = lhs - float_new::<F>(5.0);
+        let _ = lhs - F::new(5.0);
     }
 }
 
@@ -21,7 +21,7 @@ fn cube_if_else_test() {
 
     let lhs = context.create_local(Item::Scalar(Elem::Float(ElemType::into_kind())));
 
-    if_else::expand::<ElemType>(&mut context, lhs);
+    if_then_else_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());

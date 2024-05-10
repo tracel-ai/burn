@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use syn::{PathArguments, Stmt};
 
@@ -23,7 +23,6 @@ impl VariableAnalysis {
 
 #[derive(Debug)]
 pub(crate) struct CodeAnalysis {
-    pub needed_functions: HashSet<VariableKey>,
     pub variable_analyses: HashMap<VariableKey, VariableAnalysis>,
 }
 
@@ -31,7 +30,6 @@ pub(crate) struct CodeAnalysis {
 pub(crate) struct CodeAnalysisBuilder {
     declarations: Vec<(VariableKey, usize)>,
     var_uses: Vec<VariableKey>,
-    function_calls: HashSet<VariableKey>,
 }
 
 impl CodeAnalysis {
@@ -61,7 +59,6 @@ impl CodeAnalysisBuilder {
 
         CodeAnalysis {
             variable_analyses: self.to_map(),
-            needed_functions: self.function_calls,
         }
     }
 
@@ -206,10 +203,6 @@ impl CodeAnalysisBuilder {
                 match &*expr.func {
                     syn::Expr::Path(expr_path) => {
                         if let Some(first_segment) = expr_path.path.segments.first() {
-                            // Extract the identifier of the path segment
-                            let ident = &first_segment.ident;
-                            self.function_calls.insert(ident.into());
-
                             // Check if the path segment has generic arguments
                             if let PathArguments::AngleBracketed(arguments) =
                                 &first_segment.arguments

@@ -1,10 +1,10 @@
-use crate::{ExpandElement, RuntimeType};
+use crate::{ExpandElement, CubeType};
 
 #[derive(new, Clone)]
 pub struct Array<E> {
     pub vals: Vec<E>,
 }
 
-impl<R: RuntimeType> RuntimeType for Array<R> {
+impl<C: CubeType> CubeType for Array<C> {
     type ExpandType = ExpandElement;
 }

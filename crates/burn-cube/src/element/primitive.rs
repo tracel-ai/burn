@@ -2,21 +2,21 @@ use std::rc::Rc;
 
 use burn_jit::gpu::Variable;
 
-use crate::{ExpandElement, RuntimeType};
+use crate::{ExpandElement, CubeType};
 
-impl RuntimeType for bool {
+impl CubeType for bool {
     type ExpandType = bool;
 }
 
-impl RuntimeType for u32 {
+impl CubeType for u32 {
     type ExpandType = u32;
 }
 
-impl RuntimeType for f32 {
+impl CubeType for f32 {
     type ExpandType = f32;
 }
 
-impl RuntimeType for i32 {
+impl CubeType for i32 {
     type ExpandType = i32;
 }
 

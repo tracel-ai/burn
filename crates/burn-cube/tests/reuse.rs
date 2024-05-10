@@ -1,4 +1,4 @@
-use burn_cube::{cube, while_loop_expand, CubeContext, Int, I32};
+use burn_cube::{branch::*, cube, elemtype::*, CubeContext, Int, I32};
 use burn_jit::{
     cube_inline,
     gpu::{Branch, Elem, Item, Variable},
@@ -12,15 +12,15 @@ type ElemType = I32;
 
 #[cube]
 pub fn reuse<I: Int>(mut x: I) {
-    while x < int_new::<I>(10) {
-        x = x + int_new::<I>(1);
+    while x < I::new(10.) {
+        x = x + I::new(1.);
     }
 }
 
 #[cube]
 pub fn reuse_incr<I: Int>(mut x: I) {
-    while x < int_new::<I>(10) {
-        x += int_new::<I>(1);
+    while x < I::new(10.) {
+        x += I::new(1.);
     }
 }
 
@@ -30,7 +30,7 @@ fn cube_reuse_assign_test() {
 
     let x = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
 
-    reuse::expand::<ElemType>(&mut context, x);
+    reuse_expand::<ElemType>(&mut context, x);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_assign());
@@ -42,7 +42,7 @@ fn cube_reuse_incr_test() {
 
     let x = context.create_local(Item::Scalar(Elem::Int(ElemType::into_kind())));
 
-    reuse_incr::expand::<ElemType>(&mut context, x);
+    reuse_incr_expand::<ElemType>(&mut context, x);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_incr());
