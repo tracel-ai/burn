@@ -5,7 +5,7 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{cube_inline, ComputeShader, Elem, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, Runtime,
@@ -49,42 +49,42 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, grad_stride_0 = stride(grad, 0u32));
-        cube_inline!(scope, grad_stride_1 = stride(grad, 1u32));
-        cube_inline!(scope, grad_stride_2 = stride(grad, 2u32));
-        cube_inline!(scope, grad_stride_3 = stride(grad, 3u32));
+        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
+        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
+        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
+        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
 
-        cube_inline!(scope, grad_shape_0 = shape(grad, 0u32));
-        cube_inline!(scope, grad_shape_1 = shape(grad, 1u32));
-        cube_inline!(scope, grad_shape_2 = shape(grad, 2u32));
-        cube_inline!(scope, grad_shape_3 = shape(grad, 3u32));
+        gpu!(scope, grad_shape_0 = shape(grad, 0u32));
+        gpu!(scope, grad_shape_1 = shape(grad, 1u32));
+        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
+        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
 
-        cube_inline!(scope, output_stride_0 = stride(output, 0u32));
-        cube_inline!(scope, output_stride_1 = stride(output, 1u32));
-        cube_inline!(scope, output_stride_2 = stride(output, 2u32));
-        cube_inline!(scope, output_stride_3 = stride(output, 3u32));
+        gpu!(scope, output_stride_0 = stride(output, 0u32));
+        gpu!(scope, output_stride_1 = stride(output, 1u32));
+        gpu!(scope, output_stride_2 = stride(output, 2u32));
+        gpu!(scope, output_stride_3 = stride(output, 3u32));
 
-        cube_inline!(scope, output_shape_0 = shape(output, 0u32));
-        cube_inline!(scope, output_shape_1 = shape(output, 1u32));
-        cube_inline!(scope, output_shape_2 = shape(output, 2u32));
-        cube_inline!(scope, output_shape_3 = shape(output, 3u32));
+        gpu!(scope, output_shape_0 = shape(output, 0u32));
+        gpu!(scope, output_shape_1 = shape(output, 1u32));
+        gpu!(scope, output_shape_2 = shape(output, 2u32));
+        gpu!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let oh = scope.create_local(Elem::UInt);
         let ow = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, b = id / output_stride_0);
-        cube_inline!(scope, b = b % output_shape_0);
+        gpu!(scope, b = id / output_stride_0);
+        gpu!(scope, b = b % output_shape_0);
 
-        cube_inline!(scope, c = id / output_stride_1);
-        cube_inline!(scope, c = c % output_shape_1);
+        gpu!(scope, c = id / output_stride_1);
+        gpu!(scope, c = c % output_shape_1);
 
-        cube_inline!(scope, oh = id / output_stride_2);
-        cube_inline!(scope, oh = oh % output_shape_2);
+        gpu!(scope, oh = id / output_stride_2);
+        gpu!(scope, oh = oh % output_shape_2);
 
-        cube_inline!(scope, ow = id / output_stride_3);
-        cube_inline!(scope, ow = ow % output_shape_3);
+        gpu!(scope, ow = id / output_stride_3);
+        gpu!(scope, ow = ow % output_shape_3);
 
         let gh_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
         let gh_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
@@ -99,34 +99,34 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let index_grad_2 = scope.create_local(Elem::UInt);
         let index_grad_3 = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index_grad_0 = b * grad_stride_0);
-        cube_inline!(scope, index_grad_1 = c * grad_stride_1);
+        gpu!(scope, index_grad_0 = b * grad_stride_0);
+        gpu!(scope, index_grad_1 = c * grad_stride_1);
 
         let sum = scope.zero(output.item());
 
-        cube_inline!(
+        gpu!(
             scope,
             range(gh_start, gh_end).for_each(|gh, scope| {
-                cube_inline!(
+                gpu!(
                     scope,
                     range(gw_start, gw_end).for_each(|gw, scope| {
-                        cube_inline!(scope, index_grad_2 = gh * grad_stride_2);
-                        cube_inline!(scope, index_grad_3 = gw * grad_stride_3);
+                        gpu!(scope, index_grad_2 = gh * grad_stride_2);
+                        gpu!(scope, index_grad_3 = gw * grad_stride_3);
 
-                        cube_inline!(scope, index_grad = index_grad_0);
-                        cube_inline!(scope, index_grad += index_grad_1);
-                        cube_inline!(scope, index_grad += index_grad_2);
-                        cube_inline!(scope, index_grad += index_grad_3);
+                        gpu!(scope, index_grad = index_grad_0);
+                        gpu!(scope, index_grad += index_grad_1);
+                        gpu!(scope, index_grad += index_grad_2);
+                        gpu!(scope, index_grad += index_grad_3);
 
-                        cube_inline!(scope, result = grad[index_grad]);
+                        gpu!(scope, result = grad[index_grad]);
 
-                        cube_inline!(scope, sum += result);
+                        gpu!(scope, sum += result);
                     })
                 );
             })
         );
 
-        cube_inline!(scope, output[id] = sum);
+        gpu!(scope, output[id] = sum);
     }
 
     fn start_index(
@@ -140,12 +140,12 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index = input_index * output_size);
-        cube_inline!(scope, numerator_float = cast(index));
-        cube_inline!(scope, div = cast(input_size));
-        cube_inline!(scope, div = numerator_float / div);
-        cube_inline!(scope, div = ceil(div));
-        cube_inline!(scope, index = cast(div));
+        gpu!(scope, index = input_index * output_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(input_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
 
         index
     }
@@ -163,19 +163,19 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index = input_index + 1u32);
-        cube_inline!(scope, index *= output_size);
-        cube_inline!(scope, numerator_float = cast(index));
-        cube_inline!(scope, div = cast(input_size));
-        cube_inline!(scope, div = numerator_float / div);
-        cube_inline!(scope, div = ceil(div));
-        cube_inline!(scope, index = cast(div));
+        gpu!(scope, index = input_index + 1u32);
+        gpu!(scope, index *= output_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(input_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
 
-        cube_inline!(scope, min = output_size < index);
-        cube_inline!(scope, if(min).then(|scope|{
-            cube_inline!(scope, end_index = output_size);
+        gpu!(scope, min = output_size < index);
+        gpu!(scope, if(min).then(|scope|{
+            gpu!(scope, end_index = output_size);
         }).else(|scope|{
-            cube_inline!(scope, end_index = index);
+            gpu!(scope, end_index = index);
         }));
 
         end_index

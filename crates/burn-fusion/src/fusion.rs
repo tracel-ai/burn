@@ -1,9 +1,9 @@
 use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{DeviceId, DeviceOps},
     repr::ReprBackend,
 };
 
-use crate::client::FusionClient;
+use crate::{client::FusionClient, Client, FusionDevice, FusionRuntime};
 
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
@@ -26,27 +26,24 @@ impl FusionClientLocator {
     /// Get the fusion client for the given device.
     ///
     /// Provide the init function to create a new client if it isn't already initialized.
-    pub fn client<C: FusionClient + 'static>(
-        &self,
-        device: &<C::FusionBackend as Backend>::Device,
-    ) -> C {
+    pub fn client<R: FusionRuntime + 'static>(&self, device: &FusionDevice<R>) -> Client<R> {
         let device_id = device.id();
-        let client_id = (core::any::TypeId::of::<C>(), device_id);
+        let client_id = (core::any::TypeId::of::<R>(), device_id);
         let mut clients = self.clients.lock();
 
         if clients.is_none() {
-            let client = C::new(device.clone());
-            Self::register_inner::<C>(client_id, client, &mut clients);
+            let client = Client::<R>::new(device.clone());
+            Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
         match clients.deref_mut() {
             Some(clients) => match clients.get(&client_id) {
                 Some(client) => {
-                    let client: &C = client.downcast_ref().unwrap();
+                    let client: &Client<R> = client.downcast_ref().unwrap();
                     client.clone()
                 }
                 None => {
-                    let client = C::new(device.clone());
+                    let client = Client::<R>::new(device.clone());
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client
@@ -56,9 +53,9 @@ impl FusionClientLocator {
         }
     }
 
-    fn register_inner<C: FusionClient + 'static>(
+    fn register_inner<R: FusionRuntime + 'static>(
         key: Key,
-        client: C,
+        client: Client<R>,
         clients: &mut Option<HashMap<Key, Box<dyn Any + Send>>>,
     ) {
         if clients.is_none() {

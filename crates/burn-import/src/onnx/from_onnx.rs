@@ -17,7 +17,7 @@ use super::ir::{ArgType, Argument, Node, NodeType};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 8] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -25,6 +25,7 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::Dropout,
     NodeType::Reshape,
     NodeType::Unsqueeze,
+    NodeType::ReduceSum,
 ];
 
 #[derive(Debug)]
@@ -322,7 +323,7 @@ impl OnnxGraphBuilder {
             node.node_type, self.node_name_counter[&node.node_type]
         )
         .to_lowercase();
-        node.name = new_name.clone();
+        node.name.clone_from(&new_name);
     }
 
     fn check_constants(&mut self, node: &mut Node, i: usize, _graph_io: &mut OnnxGraphIO) {
@@ -343,7 +344,7 @@ impl OnnxGraphBuilder {
                     );
                     if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
                         // The value comes from Identity inputs
-                        input.value = constant.inputs[0].value.clone();
+                        input.value.clone_from(&constant.inputs[0].value);
                         input.ty = constant.inputs[0].ty.clone();
                     } else {
                         let arg = convert_constant_value(constant);
@@ -383,7 +384,7 @@ impl OnnxGraphBuilder {
                 if let Some(identity_idx) = self.identity_idx.get(&x.name) {
                     let input_name = &self.nodes[*identity_idx].inputs[0].name;
 
-                    x.name = input_name.clone();
+                    x.name.clone_from(input_name);
                 }
             });
         }
@@ -454,7 +455,7 @@ fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
             if let ArgType::Tensor(arg_tensor) = &out_arg.ty {
-                tensor_type.shape = arg_tensor.shape.clone();
+                tensor_type.shape.clone_from(&arg_tensor.shape);
                 let inner = arg_tensor
                     .shape
                     .clone()
@@ -497,19 +498,18 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     for node_input in node.inputs.iter_mut() {
         if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
             node_input.passed = true;
-            node_input.name = input_name.clone();
+            node_input.name.clone_from(&input_name);
         } else {
             node_input.name = "".to_string();
             node_input.passed = false;
         }
     }
-    log::debug!("\n\nchecking outputs");
     let mut out_count = 1;
     if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
-        log::debug!("it's a constant");
         let new_name = format!("{}_out{}", node.name, out_count);
         graph_io.insert(&node.outputs[0], &new_name);
-        node.outputs[0].name = new_name;
+        node.outputs[0].name.clone_from(&new_name);
+        log::debug!("Found {} constant", new_name);
     } else {
         for output in node.outputs.iter_mut() {
             log::debug!("output name: {}", &output.name);
@@ -518,7 +518,7 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 
             graph_io.update_name(output, &new_name);
 
-            output.name = new_name.clone();
+            output.name.clone_from(&new_name);
             out_count += 1;
         }
     }

@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "gpu", "cuda"]
 license.workspace = true
 name = "burn-cuda"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-cuda"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cuda"
 version.workspace = true
 
 [features]
@@ -18,11 +18,11 @@ doc = ["burn-jit/doc"]
 std = ["burn-jit/std"]
 
 [dependencies]
-burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false }
-burn-compute = { path = "../burn-compute", version = "0.14.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
-burn-common = { path = "../burn-common", version = "0.14.0" }
-burn-fusion = { path = "../burn-fusion", version = "0.14.0", optional = true }
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false }
+burn-compute = { path = "../burn-compute", version = "0.15.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.15.0" }
+burn-common = { path = "../burn-common", version = "0.15.0" }
+burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
 half = { workspace = true }
 
 bytemuck = { workspace = true }
@@ -32,7 +32,7 @@ log = { workspace = true }
 derive-new = { workspace = true }
 
 [dev-dependencies]
-burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false, features = [
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
 

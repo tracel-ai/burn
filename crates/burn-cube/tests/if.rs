@@ -1,6 +1,6 @@
 use burn_cube::{branch::*, cube, CubeContext, Numeric, RuntimeType, F32};
 use burn_jit::{
-    cube_inline,
+    gpu,
     gpu::{Elem, Item, Variable},
 };
 
@@ -35,9 +35,9 @@ fn inline_macro_ref() -> String {
     let lhs: Variable = lhs.into();
     let y = scope.create_local(item);
 
-    cube_inline!(scope, cond = lhs > 0f32);
-    cube_inline!(&mut scope, if(cond).then(|scope| {
-        cube_inline!(scope, y = lhs + 4.0f32);
+    gpu!(scope, cond = lhs > 0f32);
+    gpu!(&mut scope, if(cond).then(|scope| {
+        gpu!(scope, y = lhs + 4.0f32);
     }));
 
     format!("{:?}", scope.operations)

@@ -1,6 +1,6 @@
 use burn_cube::{branch::*, cube, Array, CubeContext, Float, RuntimeType, UInt, F32};
 use burn_jit::{
-    cube_inline,
+    gpu,
     gpu::{Item, Variable},
 };
 
@@ -60,15 +60,15 @@ fn inline_macro_ref(unroll: bool) -> String {
     // Kernel
     let tmp1 = scope.create_local(item);
     let tmp2 = scope.create_local(item);
-    cube_inline!(scope, tmp1 = rhs * rhs);
-    cube_inline!(scope, tmp2 = tmp1 + rhs);
+    gpu!(scope, tmp1 = rhs * rhs);
+    gpu!(scope, tmp2 = tmp1 + rhs);
 
-    cube_inline!(
+    gpu!(
         &mut scope,
         range(0u32, end, unroll).for_each(|i, scope| {
-            cube_inline!(scope, rhs = lhs[i]);
-            cube_inline!(scope, tmp1 = tmp2 + rhs);
-            cube_inline!(scope, lhs[i] = tmp1);
+            gpu!(scope, rhs = lhs[i]);
+            gpu!(scope, tmp1 = tmp2 + rhs);
+            gpu!(scope, lhs[i] = tmp1);
         })
     );
 

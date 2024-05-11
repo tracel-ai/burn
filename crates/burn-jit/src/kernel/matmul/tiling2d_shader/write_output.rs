@@ -1,4 +1,4 @@
-use crate::gpu::{cube_inline, Elem, Scope, Variable};
+use crate::gpu::{gpu, Elem, Scope, Variable};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -21,22 +21,22 @@ pub fn write_to_output(
         let within_output = scope.create_local(Elem::Bool);
         let within_output_tmp = scope.create_local(Elem::Bool);
 
-        cube_inline!(
+        gpu!(
             scope,
             range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
-                    cube_inline!(
+                    gpu!(
                         scope,
                         range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                             .for_each(|res_idx_n, scope| {
-                                cube_inline!(scope, row_index = row + res_idx_m);
-                                cube_inline!(scope, col_index = col + res_idx_n);
+                                gpu!(scope, row_index = row + res_idx_m);
+                                gpu!(scope, col_index = col + res_idx_n);
 
-                                cube_inline!(scope, within_output = row_index < dim_m);
-                                cube_inline!(scope, within_output_tmp = col_index < dim_n);
-                                cube_inline!(scope, within_output = within_output && within_output_tmp);
+                                gpu!(scope, within_output = row_index < dim_m);
+                                gpu!(scope, within_output_tmp = col_index < dim_n);
+                                gpu!(scope, within_output = within_output && within_output_tmp);
 
-                                cube_inline!(scope, if(within_output).then(|scope|{
+                                gpu!(scope, if(within_output).then(|scope|{
                                     write_inner(
                                         scope,
                                         shader,
@@ -53,16 +53,16 @@ pub fn write_to_output(
             )
         );
     } else {
-        cube_inline!(
+        gpu!(
             scope,
             range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
-                    cube_inline!(
+                    gpu!(
                         scope,
                         range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                             .for_each(|res_idx_n, scope| {
-                                cube_inline!(scope, row_index = row + res_idx_m);
-                                cube_inline!(scope, col_index = col + res_idx_n);
+                                gpu!(scope, row_index = row + res_idx_m);
+                                gpu!(scope, col_index = col + res_idx_n);
 
                                 write_inner(
                                     scope,
@@ -102,18 +102,18 @@ fn write_inner(
     let result = scope.create_local(elem);
     let output_position = scope.create_local(Elem::UInt);
 
-    cube_inline!(
+    gpu!(
         scope,
         results_position = res_idx_m * shader.config.tile_size_n
     );
-    cube_inline!(scope, results_position += res_idx_n);
+    gpu!(scope, results_position += res_idx_n);
 
-    cube_inline!(scope, result = results[results_position]);
+    gpu!(scope, result = results[results_position]);
 
-    cube_inline!(scope, row_index *= out_stride_row);
-    cube_inline!(scope, col_index *= out_stride_col);
-    cube_inline!(scope, output_position = row_index + col_index);
-    cube_inline!(scope, output_position += offset_output);
+    gpu!(scope, row_index *= out_stride_row);
+    gpu!(scope, col_index *= out_stride_col);
+    gpu!(scope, output_position = row_index + col_index);
+    gpu!(scope, output_position += offset_output);
 
-    cube_inline!(scope, out[output_position] = result);
+    gpu!(scope, out[output_position] = result);
 }

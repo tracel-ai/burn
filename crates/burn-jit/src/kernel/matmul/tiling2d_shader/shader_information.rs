@@ -1,4 +1,4 @@
-use crate::gpu::{cube_inline, Elem, Item, Scope, Variable};
+use crate::gpu::{gpu, Elem, Item, Scope, Variable};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -32,11 +32,11 @@ pub(crate) fn gather_shader_information(
     let dim_m = scope.create_local(Elem::UInt);
     let dim_k = scope.create_local(Elem::UInt);
     let dim_n = scope.create_local(Elem::UInt);
-    cube_inline!(scope, last_dim = rank - 1u32);
-    cube_inline!(scope, second_to_last_dim = rank - 2u32);
-    cube_inline!(scope, dim_m = shape(lhs, second_to_last_dim));
-    cube_inline!(scope, dim_k = shape(lhs, last_dim));
-    cube_inline!(scope, dim_n = shape(rhs, last_dim));
+    gpu!(scope, last_dim = rank - 1u32);
+    gpu!(scope, second_to_last_dim = rank - 2u32);
+    gpu!(scope, dim_m = shape(lhs, second_to_last_dim));
+    gpu!(scope, dim_k = shape(lhs, last_dim));
+    gpu!(scope, dim_n = shape(rhs, last_dim));
 
     // Strides
     let lhs_stride_row = scope.create_local(Elem::UInt);
@@ -45,48 +45,48 @@ pub(crate) fn gather_shader_information(
     let rhs_stride_col = scope.create_local(Elem::UInt);
     let out_stride_row = scope.create_local(Elem::UInt);
     let out_stride_col = scope.create_local(Elem::UInt);
-    cube_inline!(scope, lhs_stride_row = stride(lhs, second_to_last_dim));
-    cube_inline!(scope, lhs_stride_col = stride(lhs, last_dim));
-    cube_inline!(scope, rhs_stride_row = stride(rhs, second_to_last_dim));
-    cube_inline!(scope, rhs_stride_col = stride(rhs, last_dim));
-    cube_inline!(scope, out_stride_row = stride(out, second_to_last_dim));
-    cube_inline!(scope, out_stride_col = stride(out, last_dim));
+    gpu!(scope, lhs_stride_row = stride(lhs, second_to_last_dim));
+    gpu!(scope, lhs_stride_col = stride(lhs, last_dim));
+    gpu!(scope, rhs_stride_row = stride(rhs, second_to_last_dim));
+    gpu!(scope, rhs_stride_col = stride(rhs, last_dim));
+    gpu!(scope, out_stride_row = stride(out, second_to_last_dim));
+    gpu!(scope, out_stride_col = stride(out, last_dim));
 
     // Workgroup offset
     let skip_row = scope.create_local(Elem::UInt);
     let skip_col = scope.create_local(Elem::UInt);
     let workgroup_id_x = Variable::WorkgroupIdX;
     let workgroup_id_y = Variable::WorkgroupIdY;
-    cube_inline!(scope, skip_row = workgroup_id_x);
-    cube_inline!(scope, skip_row *= block_size_m);
-    cube_inline!(scope, skip_col = workgroup_id_y);
-    cube_inline!(scope, skip_col *= block_size_n);
+    gpu!(scope, skip_row = workgroup_id_x);
+    gpu!(scope, skip_row *= block_size_m);
+    gpu!(scope, skip_col = workgroup_id_y);
+    gpu!(scope, skip_col *= block_size_n);
 
     // Position of the first element of the thread, relative to the block
     let thread_row = scope.create_local(Elem::UInt);
     let thread_col = scope.create_local(Elem::UInt);
-    cube_inline!(scope, thread_row = local_idx / n_threads_per_row);
-    cube_inline!(scope, thread_row *= tile_size_m);
-    cube_inline!(scope, thread_col = local_idx % n_threads_per_row);
-    cube_inline!(scope, thread_col *= tile_size_n);
+    gpu!(scope, thread_row = local_idx / n_threads_per_row);
+    gpu!(scope, thread_row *= tile_size_m);
+    gpu!(scope, thread_col = local_idx % n_threads_per_row);
+    gpu!(scope, thread_col *= tile_size_n);
 
     // Position of the first element of the thread, in absolute (in one batch)
     let row = scope.create_local(Elem::UInt);
     let col = scope.create_local(Elem::UInt);
-    cube_inline!(scope, row = skip_row + thread_row);
-    cube_inline!(scope, col = skip_col + thread_col);
+    gpu!(scope, row = skip_row + thread_row);
+    gpu!(scope, col = skip_col + thread_col);
 
     // Calculate offset.
     let offset_lhs = scope.create_local(Elem::UInt);
     let offset_rhs = scope.create_local(Elem::UInt);
-    cube_inline!(scope, offset_lhs = skip_row * lhs_stride_row);
-    cube_inline!(scope, offset_rhs = skip_col * rhs_stride_col);
+    gpu!(scope, offset_lhs = skip_row * lhs_stride_row);
+    gpu!(scope, offset_rhs = skip_col * rhs_stride_col);
 
     // Batch offset for the output.
     let offset_output = scope.create_local(Elem::UInt);
     let batch_dims = scope.create_local(Elem::UInt);
-    cube_inline!(scope, offset_output = dim_m * dim_n);
-    cube_inline!(scope, offset_output = offset_output * batch);
+    gpu!(scope, offset_output = dim_m * dim_n);
+    gpu!(scope, offset_output = offset_output * batch);
 
     // Batch offset for the lhs & rhs matrices.
     let stride_lhs = scope.create_local(Elem::UInt);
@@ -97,24 +97,24 @@ pub(crate) fn gather_shader_information(
     let tmp = scope.create_local(Elem::UInt);
     let tmp_lhs = scope.create_local(Elem::UInt);
     let tmp_rhs = scope.create_local(Elem::UInt);
-    cube_inline!(scope, batch_dims = rank - 2u32);
-    cube_inline!(
+    gpu!(scope, batch_dims = rank - 2u32);
+    gpu!(
         scope,
         range(0u32, batch_dims).for_each(|b, scope| {
-            cube_inline!(scope, stride_lhs = stride(lhs, b));
-            cube_inline!(scope, stride_rhs = stride(rhs, b));
-            cube_inline!(scope, stride_output = stride(out, b));
-            cube_inline!(scope, shape_lhs = shape(lhs, b));
-            cube_inline!(scope, shape_rhs = shape(rhs, b));
+            gpu!(scope, stride_lhs = stride(lhs, b));
+            gpu!(scope, stride_rhs = stride(rhs, b));
+            gpu!(scope, stride_output = stride(out, b));
+            gpu!(scope, shape_lhs = shape(lhs, b));
+            gpu!(scope, shape_rhs = shape(rhs, b));
 
-            cube_inline!(scope, tmp = offset_output / stride_output);
-            cube_inline!(scope, tmp_lhs = tmp % shape_lhs);
-            cube_inline!(scope, tmp_lhs = tmp_lhs * stride_lhs);
-            cube_inline!(scope, offset_lhs += tmp_lhs);
+            gpu!(scope, tmp = offset_output / stride_output);
+            gpu!(scope, tmp_lhs = tmp % shape_lhs);
+            gpu!(scope, tmp_lhs = tmp_lhs * stride_lhs);
+            gpu!(scope, offset_lhs += tmp_lhs);
 
-            cube_inline!(scope, tmp_rhs = tmp % shape_rhs);
-            cube_inline!(scope, tmp_rhs = tmp_rhs * stride_rhs);
-            cube_inline!(scope, offset_rhs += tmp_rhs);
+            gpu!(scope, tmp_rhs = tmp % shape_rhs);
+            gpu!(scope, tmp_rhs = tmp_rhs * stride_rhs);
+            gpu!(scope, offset_rhs += tmp_rhs);
         })
     );
 
@@ -140,13 +140,13 @@ pub(crate) fn gather_shader_information(
         let dim_k_float = scope.create_local(elem);
         let block_size_k_float = scope.create_local(elem);
         let n_loops_float = scope.create_local(elem);
-        cube_inline!(scope, dim_k_float = dim_k);
-        cube_inline!(scope, block_size_k_float = block_size_k);
-        cube_inline!(scope, n_loops_float = dim_k_float / block_size_k_float);
-        cube_inline!(scope, n_loops_float = ceil(n_loops_float));
-        cube_inline!(scope, n_loops = n_loops_float);
+        gpu!(scope, dim_k_float = dim_k);
+        gpu!(scope, block_size_k_float = block_size_k);
+        gpu!(scope, n_loops_float = dim_k_float / block_size_k_float);
+        gpu!(scope, n_loops_float = ceil(n_loops_float));
+        gpu!(scope, n_loops = n_loops_float);
     } else {
-        cube_inline!(scope, n_loops = dim_k / block_size_k);
+        gpu!(scope, n_loops = dim_k / block_size_k);
     }
 
     Tiling2dState {

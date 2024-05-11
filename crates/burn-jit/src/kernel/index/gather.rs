@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{cube_inline, Elem, Scope, Variable};
+use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
 use crate::codegen::Execution;
 use crate::gpu::{ComputeShader, IntKind};
 use crate::{
@@ -43,9 +43,9 @@ impl GatherComputeShader {
         let offset = scope.create_local(Elem::UInt);
 
         // The offset of the `dim` dimension is obtained by the indices tensor.
-        cube_inline!(scope, offset = cast(self.indices));
-        cube_inline!(scope, stride = stride(tensor, self.dim));
-        cube_inline!(scope, offset = offset * stride);
+        gpu!(scope, offset = cast(self.indices));
+        gpu!(scope, stride = stride(tensor, self.dim));
+        gpu!(scope, offset = offset * stride);
 
         // We fetch the offset before the `dim` dimension.
         if self.dim > 0 {
@@ -58,7 +58,7 @@ impl GatherComputeShader {
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
-            cube_inline!(scope, offset += offset_before);
+            gpu!(scope, offset += offset_before);
         }
 
         let offset_after = scope.create_local(Elem::UInt);
@@ -70,9 +70,9 @@ impl GatherComputeShader {
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
-        cube_inline!(scope, offset += offset_after);
+        gpu!(scope, offset += offset_after);
 
-        cube_inline!(scope, output = tensor[offset]);
+        gpu!(scope, output = tensor[offset]);
     }
 }
 

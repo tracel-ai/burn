@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{cube_inline, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -38,24 +38,26 @@ impl RepeatComputeShader {
 
         let stride_input = scope.create_local(Elem::UInt);
         let stride_output = scope.create_local(Elem::UInt);
-        let shape_output = scope.create_local(Elem::UInt);
+        let shape = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
+            gpu!(scope, stride_input = stride(input, i));
+            gpu!(scope, stride_output = stride(output, i));
             if i != self.dim {
-                cube_inline!(scope, stride_input = stride(input, i));
-                cube_inline!(scope, stride_output = stride(output, i));
-                cube_inline!(scope, shape_output = shape(output, i));
-
-                cube_inline!(scope, offset_local = id / stride_output);
-                cube_inline!(scope, offset_local = offset_local % shape_output);
-                cube_inline!(scope, offset_local = offset_local * stride_input);
-                cube_inline!(scope, offset_input += offset_local);
+                gpu!(scope, shape = shape(output, i));
+            } else {
+                gpu!(scope, shape = shape(input, i));
             }
+
+            gpu!(scope, offset_local = id / stride_output);
+            gpu!(scope, offset_local = offset_local % shape);
+            gpu!(scope, offset_local = offset_local * stride_input);
+            gpu!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        cube_inline!(scope, result = input[offset_input]);
-        cube_inline!(scope, output[id] = result);
+        gpu!(scope, result = input[offset_input]);
+        gpu!(scope, output[id] = result);
     }
 }
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
@@ -108,12 +110,9 @@ pub(crate) fn repeat<R: Runtime, E: JitElement, const D1: usize>(
     times: usize,
 ) -> JitTensor<R, E, D1> {
     let mut shape = input.shape.clone();
-    if shape.dims[dim] != 1 {
-        panic!("Can only repeat dimension with dim=1");
-    }
 
     // Create output handle
-    shape.dims[dim] = times;
+    shape.dims[dim] *= times;
     let num_elems_output = shape.num_elements();
     let handle = input
         .client

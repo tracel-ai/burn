@@ -1,4 +1,4 @@
-use super::super::{cube_inline, Elem, Item, Operator, Scope, Variable};
+use super::super::{gpu, Elem, Item, Operator, Scope, Variable};
 use crate::codegen::dialect::gpu::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
@@ -86,7 +86,7 @@ impl ReadGlobalWithLayout {
             let output = outputs[i];
             let index = indexes[i];
 
-            cube_inline!(scope, output = tensor[index]);
+            gpu!(scope, output = tensor[index]);
         }
     }
 
@@ -141,36 +141,36 @@ impl IndexOffsetGlobalWithLayout {
         .into();
 
         for index in self.indexes.iter() {
-            cube_inline!(scope, index = zero);
+            gpu!(scope, index = zero);
         }
 
-        cube_inline!(
+        gpu!(
             scope,
             range(self.dim_start, self.dim_end).for_each(|i, scope| {
                 let stride_layout = scope.create_local(index_item_ty);
                 let ogwl = scope.create_local(index_item_ty);
 
-                cube_inline!(scope, stride_layout = stride(layout, i));
-                cube_inline!(scope, ogwl = offset_ref * vectorization_factor);
-                cube_inline!(scope, ogwl = ogwl / stride_layout);
+                gpu!(scope, stride_layout = stride(layout, i));
+                gpu!(scope, ogwl = offset_ref * vectorization_factor);
+                gpu!(scope, ogwl = ogwl / stride_layout);
 
                 for (tensor, index) in self.tensors.iter().zip(self.indexes.iter()) {
                     let stride = scope.create_local(index_item_ty);
                     let shape = scope.create_local(index_item_ty);
                     let tmp = scope.create_local(index_item_ty);
 
-                    cube_inline!(scope, stride = stride(tensor, i));
-                    cube_inline!(scope, shape = shape(tensor, i));
+                    gpu!(scope, stride = stride(tensor, i));
+                    gpu!(scope, shape = shape(tensor, i));
 
-                    cube_inline!(scope, tmp = ogwl % shape);
-                    cube_inline!(scope, tmp = tmp * stride);
-                    cube_inline!(scope, index = index + tmp);
+                    gpu!(scope, tmp = ogwl % shape);
+                    gpu!(scope, tmp = tmp * stride);
+                    gpu!(scope, index = index + tmp);
                 }
             })
         );
 
         for index in self.indexes {
-            cube_inline!(scope, index = index / vectorization_factor);
+            gpu!(scope, index = index / vectorization_factor);
         }
     }
 

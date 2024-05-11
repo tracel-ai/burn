@@ -14,6 +14,7 @@ use super::{
 pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
+        NodeType::AveragePool1d => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
         NodeType::BatchNormalization => same_as_input(node),
         NodeType::Cast => cast_update_outputs(node),
@@ -38,6 +39,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
         NodeType::MatMul => matmul_update_outputs(node),
+        NodeType::MaxPool1d => same_as_input(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
@@ -45,6 +47,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
+        NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
@@ -59,6 +62,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Pow => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
+        NodeType::PRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
@@ -182,6 +186,12 @@ fn cast_update_outputs(node: &mut Node) {
         }
         _ => panic!("Cast: only scalar and tensor inputs are valid"),
     }
+
+    log::debug!(
+        "Cast: input type: {:?}, output type: {:?}",
+        input.ty,
+        output.ty
+    );
 }
 
 fn concat_update_outputs(node: &mut Node) {
@@ -300,11 +310,10 @@ fn same_as_input(node: &mut Node) {
 }
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
-fn temporary_pass_through_stub(node: &Node) {
-    log::warn!(
-        "Must implement dimension inference for {:?}",
-        node.node_type
-    );
+fn temporary_pass_through_stub(node: &mut Node) {
+    log::warn!("Must implement dimension inference for {:?}", node);
+    log::warn!("Temporarily setting the output type to the input type.");
+    node.outputs[0].ty = node.inputs[0].ty.clone();
 }
 
 fn equal_update_outputs(node: &mut Node) {
@@ -451,6 +460,44 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+/// Infers the shape of a ReduceSum node and replaces the shape of the output tensor.
+fn reduce_sum_update_outputs(node: &mut Node) {
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    let dim_only = match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
+        Some(value) => match &value {
+            Data::Int64(_) => true,
+            Data::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => dim_only,
+    };
+
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        // NOTE: ReduceSum w/o keepdims reduces to a scalar value, but Burn doesn't have
+        // 0-dim tensor so we can't track or perform other ops on that value if we call
+        // `.into_scalar()` on the result of `tensor.sum()`
+        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // Instead, we return a tensor of rank 1 (the result of `tensor.sum()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }

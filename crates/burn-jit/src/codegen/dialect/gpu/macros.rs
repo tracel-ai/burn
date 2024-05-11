@@ -2,336 +2,336 @@ use super::Variable;
 
 #[macro_export(local_inner_macros)]
 /// Macro for generating JIT intermediate representation, in a concise way
-macro_rules! cube_inline {
+macro_rules! gpu {
     // out = lhs + rhs
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {
-        cube_inline!($scope, $out = add($lhs, $rhs))
+        gpu!($scope, $out = add($lhs, $rhs))
     };
     // out += input
     ($scope:expr, $out:ident += $input:ident) => {
-        cube_inline!($scope, $out = add($out, $input))
+        gpu!($scope, $out = add($out, $input))
     };
     // out = add(lhs, rhs)
     ($scope:expr, $out:ident = add($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Add(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs - rhs
     ($scope:expr, $out:ident = $lhs:ident - $rhs:expr) => {
-        cube_inline!($scope, $out = sub($lhs, $rhs))
+        gpu!($scope, $out = sub($lhs, $rhs))
     };
     // out = sub(lhs, rhs)
     ($scope:expr, $out:ident = sub($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Sub(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs * rhs
     ($scope:expr, $out:ident = $lhs:ident * $rhs:expr) => {
-        cube_inline!($scope, $out = mul($lhs, $rhs))
+        gpu!($scope, $out = mul($lhs, $rhs))
     };
     // out *= input
     ($scope:expr, $out:ident *= $input:ident) => {
-        cube_inline!($scope, $out = mul($out, $input))
+        gpu!($scope, $out = mul($out, $input))
     };
     // out = mul(lhs, rhs)
     ($scope:expr, $out:ident = mul($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Mul(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs / rhs
     ($scope:expr, $out:ident = $lhs:ident / $rhs:expr) => {
-        cube_inline!($scope, $out = div($lhs, $rhs))
+        gpu!($scope, $out = div($lhs, $rhs))
     };
     // out = div(lhs, rhs)
     ($scope:expr, $out:ident = div($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Div(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs % rhs
     ($scope:expr, $out:ident = $lhs:ident % $rhs:expr) => {
-        cube_inline!($scope, $out = modulo($lhs, $rhs))
+        gpu!($scope, $out = modulo($lhs, $rhs))
     };
     // out = modulo(lhs, rhs)
     ($scope:expr, $out:ident = modulo($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Modulo(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = powf(lhs, rhs)
     ($scope:expr, $out:ident = powf($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Powf(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs && rhs
     ($scope:expr, $out:ident = $lhs:ident && $rhs:expr) => {
-        cube_inline!($scope, $out = and($lhs, $rhs))
+        gpu!($scope, $out = and($lhs, $rhs))
     };
     // out = and(lhs, rhs)
     ($scope:expr, $out:ident = and($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::And(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs || rhs
     ($scope:expr, $out:ident = $lhs:ident || $rhs:expr) => {
-        cube_inline!($scope, $out = or($lhs, $rhs))
+        gpu!($scope, $out = or($lhs, $rhs))
     };
     // out = or(lhs, rhs)
     ($scope:expr, $out:ident = or($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Or(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = !input
     ($scope:expr, $out:ident = !$input:expr) => {
-        cube_inline!($scope, $out = not($input))
+        gpu!($scope, $out = not($input))
     };
     // out = not(input)
     ($scope:expr, $out:ident = not($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Not(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = lhs & rhs
     ($scope:expr, $out: ident = $lhs:ident & $rhs:ident) => {
-        cube_inline!($scope, $out = bitwise_and($lhs, $rhs))
+        gpu!($scope, $out = bitwise_and($lhs, $rhs))
     };
     // out = bitwise_and(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_and($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::BitwiseAnd(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs ^ rhs
     ($scope:expr, $out: ident = $lhs:ident ^ $rhs:ident) => {
-        cube_inline!($scope, $out = bitwise_xor($lhs, $rhs))
+        gpu!($scope, $out = bitwise_xor($lhs, $rhs))
     };
     // out = bitwise_xor(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_xor($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::BitwiseXor(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs << rhs
     ($scope:expr, $out: ident = $lhs:ident << $rhs:ident) => {
-        cube_inline!($scope, $out = shift_left($lhs, $rhs))
+        gpu!($scope, $out = shift_left($lhs, $rhs))
     };
     // out = shift_left(lhs, rhs)
     ($scope:expr, $out:ident = shift_left($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::ShiftLeft(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs >> rhs
     ($scope:expr, $out: ident = $lhs:ident >> $rhs:ident) => {
-        cube_inline!($scope, $out = shift_right($lhs, $rhs))
+        gpu!($scope, $out = shift_right($lhs, $rhs))
     };
     // out = shift_right(lhs, rhs)
     ($scope:expr, $out:ident = shift_right($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::ShiftRight(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
-        cube_inline!($scope, $out = equal($lhs, $rhs))
+        gpu!($scope, $out = equal($lhs, $rhs))
     };
     // out = equal(lhs, rhs)
     ($scope:expr, $out:ident = equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Equal(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs != rhs
     ($scope:expr, $out:ident = $lhs:ident != $rhs:expr) => {
-        cube_inline!($scope, $out = not_equal($lhs, $rhs))
+        gpu!($scope, $out = not_equal($lhs, $rhs))
     };
     // out = not_equal(lhs, rhs)
     ($scope:expr, $out:ident = not_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::NotEqual(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs > rhs
     ($scope:expr, $out:ident = $lhs:ident > $rhs:expr) => {
-        cube_inline!($scope, $out = greater($lhs, $rhs))
+        gpu!($scope, $out = greater($lhs, $rhs))
     };
     // out = greater(lhs, rhs)
     ($scope:expr, $out:ident = greater($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Greater(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs >= rhs
     ($scope:expr, $out:ident = $lhs:ident >= $rhs:expr) => {
-        cube_inline!($scope, $out = greater_equal($lhs, $rhs))
+        gpu!($scope, $out = greater_equal($lhs, $rhs))
     };
     // out = greater_equal(lhs, rhs)
     ($scope:expr, $out:ident = greater_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::GreaterEqual(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs < rhs
     ($scope:expr, $out:ident = $lhs:ident < $rhs:expr) => {
-        cube_inline!($scope, $out = lower($lhs, $rhs))
+        gpu!($scope, $out = lower($lhs, $rhs))
     };
     // out = lower(lhs, rhs)
     ($scope:expr, $out:ident = lower($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Lower(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs <= rhs
     ($scope:expr, $out:ident = $lhs:ident <= $rhs:expr) => {
-        cube_inline!($scope, $out = lower_equal($lhs, $rhs))
+        gpu!($scope, $out = lower_equal($lhs, $rhs))
     };
     // out = lower_equal(lhs, rhs)
     ($scope:expr, $out:ident = lower_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::LowerEqual(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = max(lhs, rhs)
     ($scope:expr, $out:ident = max($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Max(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = min(lhs, rhs)
     ($scope:expr, $out:ident = min($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Min(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs[rhs]
     ($scope:expr, $out:ident = $lhs:ident[$rhs:expr]) => {
-        cube_inline!($scope, $out = index($lhs, $rhs))
+        gpu!($scope, $out = index($lhs, $rhs))
     };
     // out = index(lhs, rhs)
     ($scope:expr, $out:ident = index($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Index(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = unchecked(lhs[rhs])
     ($scope:expr, $out:ident = unchecked($lhs:ident[$rhs:expr])) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::UncheckedIndex(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out[lhs] = rhs
     ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::IndexAssign(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // unchecked(out[lhs]) = rhs
     ($scope:expr, unchecked($out:ident[$lhs:ident]) = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::UncheckedIndexAssign(
-            cube_inline!(binary $lhs, $rhs, $out)
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = |input|
     ($scope:expr, $out:ident = |$input:ident|) => {
-        cube_inline!($scope, $out = abs($input))
+        gpu!($scope, $out = abs($input))
     };
     // out = abs(input)
     ($scope:expr, $out:ident = abs($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Abs(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = exp(input)
     ($scope:expr, $out:ident = exp($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Exp(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = log(input)
     ($scope:expr, $out:ident = log($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Log(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = log1p(input)
     ($scope:expr, $out:ident = log1p($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Log1p(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = cos(input)
     ($scope:expr, $out:ident = cos($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Cos(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = sin(input)
     ($scope:expr, $out:ident = sin($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Sin(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = tanh(input)
     ($scope:expr, $out:ident = tanh($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Tanh(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = sqrt(input)
     ($scope:expr, $out:ident = sqrt($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Sqrt(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = floor(input)
     ($scope:expr, $out:ident = floor($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Floor(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = ceil(input)
     ($scope:expr, $out:ident = ceil($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Ceil(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = erf(input)
     ($scope:expr, $out:ident = erf($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Erf(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = vec4(a, b, c, d)
     ($scope:expr, $out:ident = vec4($a:ident,$b:ident,$c:ident,$d:ident)) => {
         let i = $scope.zero(Elem::UInt);
-        cube_inline!($scope, $out[i] = $a);
-        cube_inline!($scope, i = i + 1u32);
-        cube_inline!($scope, $out[i] = $b);
-        cube_inline!($scope, i = i + 1u32);
-        cube_inline!($scope, $out[i] = $c);
-        cube_inline!($scope, i = i + 1u32);
-        cube_inline!($scope, $out[i] = $d);
+        gpu!($scope, $out[i] = $a);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $b);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $c);
+        gpu!($scope, i = i + 1u32);
+        gpu!($scope, $out[i] = $d);
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        cube_inline!($scope, $out = cast($input))
+        gpu!($scope, $out = cast($input))
     };
     // out = cast(input)
     ($scope:expr, $out:ident = cast($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
-            cube_inline!(unary $input, $out)
+            gpu!(unary $input, $out)
         ));
     };
     // out = shape(tensor, dim)
@@ -438,4 +438,4 @@ impl From<usize> for Variable {
     }
 }
 
-pub(crate) use cube_inline;
+pub(crate) use gpu;

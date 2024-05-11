@@ -1,5 +1,5 @@
 use burn_cube::{cube, CubeContext, Float, RuntimeType, F32};
-use burn_jit::{cube_inline, gpu::Item};
+use burn_jit::{gpu, gpu::Item};
 
 type ElemType = F32;
 
@@ -27,7 +27,7 @@ fn inline_macro_ref() -> String {
 
     let mut scope = context.into_scope();
     let out = scope.create_local(item);
-    cube_inline!(scope, out = lhs + 5.0f32);
+    gpu!(scope, out = lhs + 5.0f32);
 
     format!("{:?}", scope.operations)
 }

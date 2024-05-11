@@ -4,8 +4,6 @@ use burn_tensor::Element;
 /// The base element trait for the jit backend.
 pub trait JitElement:
     burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
-where
-    Self: Sized,
 {
     /// TODO: Remove when all wgsl static kernels are migrated.
     fn type_name() -> &'static str;
@@ -92,6 +90,27 @@ impl JitElement for f32 {
     }
 }
 
+impl JitElement for half::f16 {
+    fn type_name() -> &'static str {
+        "f16"
+    }
+    fn as_bytes(slice: &[Self]) -> &[u8] {
+        bytemuck::cast_slice(slice)
+    }
+    fn from_bytes(bytes: &[u8]) -> &[Self] {
+        bytemuck::cast_slice(bytes)
+    }
+    fn gpu_elem() -> gpu::Elem {
+        gpu::Elem::Float(gpu::FloatKind::F16)
+    }
+    fn maximum_value() -> Self {
+        half::f16::MAX
+    }
+    fn minimum_value() -> Self {
+        half::f16::MIN
+    }
+}
+
 impl JitElement for half::bf16 {
     fn type_name() -> &'static str {
         "bf16"
@@ -114,4 +133,5 @@ impl JitElement for half::bf16 {
 }
 impl FloatElement for f32 {}
 impl FloatElement for half::bf16 {}
+impl FloatElement for half::f16 {}
 impl IntElement for i32 {}

@@ -1,5 +1,5 @@
 use burn_cube::{cube, CubeContext, Numeric, RuntimeType, F32, I32};
-use burn_jit::{cube_inline, gpu::Item};
+use burn_jit::{gpu, gpu::Item};
 
 #[cube]
 pub fn generic_kernel<T: Numeric>(lhs: T) {
@@ -37,7 +37,7 @@ fn inline_macro_ref_float() -> String {
 
     let mut scope = context.into_scope();
     let out = scope.create_local(item);
-    cube_inline!(scope, out = lhs + 5.0f32);
+    gpu!(scope, out = lhs + 5.0f32);
 
     format!("{:?}", scope.operations)
 }
@@ -49,7 +49,7 @@ fn inline_macro_ref_int() -> String {
 
     let mut scope = context.into_scope();
     let out = scope.create_local(item);
-    cube_inline!(scope, out = lhs + 5);
+    gpu!(scope, out = lhs + 5);
 
     format!("{:?}", scope.operations)
 }

@@ -1,6 +1,6 @@
 use burn_cube::{branch::*, cube, CubeContext, Int, RuntimeType, I32};
 use burn_jit::{
-    cube_inline,
+    gpu,
     gpu::{Branch, Elem, Item, Variable},
 };
 
@@ -58,16 +58,16 @@ fn inline_macro_ref_assign() -> String {
     let x: Variable = x.into();
     let tmp = scope.create_local(item);
 
-    cube_inline!(
+    gpu!(
         &mut scope,
         loop(|scope| {
-            cube_inline!(scope, cond = x < 10);
-            cube_inline!(scope, if(cond).then(|scope|{
+            gpu!(scope, cond = x < 10);
+            gpu!(scope, if(cond).then(|scope|{
                 scope.register(Branch::Break);
             }));
 
-            cube_inline!(scope, tmp = x + 1);
-            cube_inline!(scope, x = tmp);
+            gpu!(scope, tmp = x + 1);
+            gpu!(scope, x = tmp);
         })
     );
 
@@ -83,15 +83,15 @@ fn inline_macro_ref_incr() -> String {
     let cond = scope.create_local(Item::Scalar(Elem::Bool));
     let x: Variable = x.into();
 
-    cube_inline!(
+    gpu!(
         &mut scope,
         loop(|scope| {
-            cube_inline!(scope, cond = x < 10);
-            cube_inline!(scope, if(cond).then(|scope|{
+            gpu!(scope, cond = x < 10);
+            gpu!(scope, if(cond).then(|scope|{
                 scope.register(Branch::Break);
             }));
 
-            cube_inline!(scope, x = x + 1);
+            gpu!(scope, x = x + 1);
         })
     );
 

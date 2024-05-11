@@ -1,5 +1,5 @@
 use crate::codegen::dialect::gpu::{
-    cube_inline, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
+    gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
 };
 use crate::codegen::Execution;
 use crate::gpu::ComputeShader;
@@ -50,17 +50,17 @@ impl MatmulComputeShader {
         let col = scope.create_local(Elem::UInt);
 
         // Row position.
-        cube_inline!(scope, tmp_index = local_idx / block_size);
-        cube_inline!(scope, row = block_size * Variable::WorkgroupIdX);
-        cube_inline!(scope, row = row + tmp_index);
+        gpu!(scope, tmp_index = local_idx / block_size);
+        gpu!(scope, row = block_size * Variable::WorkgroupIdX);
+        gpu!(scope, row = row + tmp_index);
 
         // Col position.
-        cube_inline!(scope, tmp_index = local_idx % block_size);
-        cube_inline!(scope, col = block_size * Variable::WorkgroupIdY);
-        cube_inline!(scope, col = col + tmp_index);
+        gpu!(scope, tmp_index = local_idx % block_size);
+        gpu!(scope, col = block_size * Variable::WorkgroupIdY);
+        gpu!(scope, col = col + tmp_index);
 
         // Batch position.
-        cube_inline!(scope, batch_dims = rank - 2u32);
+        gpu!(scope, batch_dims = rank - 2u32);
 
         // Define the matrix size.
         let n_rows = scope.create_local(Elem::UInt);
@@ -68,24 +68,24 @@ impl MatmulComputeShader {
         let k = scope.create_local(Elem::UInt);
 
         // Number of rows.
-        cube_inline!(scope, n_rows = shape(out, batch_dims));
+        gpu!(scope, n_rows = shape(out, batch_dims));
 
         // Number of cols.
-        cube_inline!(scope, tmp_index = batch_dims + 1u32);
-        cube_inline!(scope, n_cols = shape(out, tmp_index));
+        gpu!(scope, tmp_index = batch_dims + 1u32);
+        gpu!(scope, n_cols = shape(out, tmp_index));
 
         // The dimension that is going to be squashed.
-        cube_inline!(scope, k = shape(lhs, tmp_index));
+        gpu!(scope, k = shape(lhs, tmp_index));
 
         // Check if there is some work to be done.
         let should_stop = scope.create_local(Elem::Bool);
-        cube_inline!(scope, should_stop = row >= n_rows);
-        cube_inline!(scope, if (should_stop).then(|scope| {
+        gpu!(scope, should_stop = row >= n_rows);
+        gpu!(scope, if (should_stop).then(|scope| {
             scope.register(Branch::Return);
         }));
 
-        cube_inline!(scope, should_stop = col >= n_cols);
-        cube_inline!(scope, if (should_stop).then(|scope| {
+        gpu!(scope, should_stop = col >= n_cols);
+        gpu!(scope, if (should_stop).then(|scope| {
             scope.register(Branch::Return);
         }));
 
@@ -95,8 +95,8 @@ impl MatmulComputeShader {
         let offset_output = scope.create_local(Elem::UInt);
 
         // Batch offset for the output.
-        cube_inline!(scope, offset_output = n_rows * n_cols);
-        cube_inline!(scope, offset_output = offset_output * batch);
+        gpu!(scope, offset_output = n_rows * n_cols);
+        gpu!(scope, offset_output = offset_output * batch);
 
         // Batch offset for the lhs & rhs matrices.
         IndexOffsetGlobalWithLayout {
@@ -114,10 +114,10 @@ impl MatmulComputeShader {
 
         // Initialize the sum to zero.
         let zero: Variable = 0f32.into();
-        cube_inline!(scope, sum = zero);
+        gpu!(scope, sum = zero);
 
         // Loop over the k dimension.
-        cube_inline!(
+        gpu!(
             scope,
             range(0u32, k).for_each(|i, scope| {
                 let lhs_index = scope.create_local(Elem::UInt);
@@ -127,28 +127,28 @@ impl MatmulComputeShader {
                 let rhs_value = scope.create_local(rhs.item());
                 let out_value = scope.create_local(out.item());
 
-                cube_inline!(scope, lhs_index = row * k);
-                cube_inline!(scope, lhs_index = lhs_index + i);
-                cube_inline!(scope, lhs_index = lhs_index + offset_lhs);
+                gpu!(scope, lhs_index = row * k);
+                gpu!(scope, lhs_index = lhs_index + i);
+                gpu!(scope, lhs_index = lhs_index + offset_lhs);
 
-                cube_inline!(scope, rhs_index = i * n_cols);
-                cube_inline!(scope, rhs_index = rhs_index + col);
-                cube_inline!(scope, rhs_index = rhs_index + offset_rhs);
+                gpu!(scope, rhs_index = i * n_cols);
+                gpu!(scope, rhs_index = rhs_index + col);
+                gpu!(scope, rhs_index = rhs_index + offset_rhs);
 
-                cube_inline!(scope, lhs_value = lhs[lhs_index]);
-                cube_inline!(scope, rhs_value = rhs[rhs_index]);
+                gpu!(scope, lhs_value = lhs[lhs_index]);
+                gpu!(scope, rhs_value = rhs[rhs_index]);
 
-                cube_inline!(scope, out_value = lhs_value * rhs_value);
-                cube_inline!(scope, sum += out_value);
+                gpu!(scope, out_value = lhs_value * rhs_value);
+                gpu!(scope, sum += out_value);
             })
         );
 
         let out_index = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, out_index = row * n_cols);
-        cube_inline!(scope, out_index += col);
-        cube_inline!(scope, out_index += offset_output);
-        cube_inline!(scope, out[out_index] = sum);
+        gpu!(scope, out_index = row * n_cols);
+        gpu!(scope, out_index += col);
+        gpu!(scope, out_index += offset_output);
+        gpu!(scope, out[out_index] = sum);
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{cube_inline, ComputeShader, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, Runtime,
@@ -103,7 +103,7 @@ impl CastShader {
         let output = self.output;
 
         let value = scope.create_local(output.item());
-        cube_inline!(scope, value = tensor[id]);
-        cube_inline!(scope, output[id] = value);
+        gpu!(scope, value = tensor[id]);
+        gpu!(scope, output[id] = value);
     }
 }

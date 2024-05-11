@@ -28,8 +28,8 @@ wgpu-fusion = ["wgpu", "burn/fusion"]
 [dependencies]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
-burn-common = { path = "../crates/burn-common", version = "0.14.0" }
-burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.14.0" }
+burn-common = { path = "../crates/burn-common", version = "0.15.0" }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.15.0" }
 clap = { workspace = true }
 colored = { workspace = true }
 derive-new = { workspace = true }

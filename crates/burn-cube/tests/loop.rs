@@ -1,5 +1,5 @@
 use burn_cube::{branch::*, cube, CubeContext, Int, RuntimeType, I32};
-use burn_jit::cube_inline;
+use burn_jit::gpu;
 use burn_jit::gpu::Branch;
 use burn_jit::gpu::{Elem, Item, Variable};
 
@@ -56,15 +56,15 @@ fn inline_macro_ref() -> String {
     let lhs: Variable = lhs.into();
     let rhs = scope.create_local(item);
 
-    cube_inline!(
+    gpu!(
         &mut scope,
         loop(|scope| {
-            cube_inline!(scope, cond = lhs != 0);
-            cube_inline!(scope, if(cond).then(|scope|{
+            gpu!(scope, cond = lhs != 0);
+            gpu!(scope, if(cond).then(|scope|{
                 scope.register(Branch::Break);
             }));
 
-            cube_inline!(scope, rhs = lhs % 1i32);
+            gpu!(scope, rhs = lhs % 1i32);
         })
     );
 

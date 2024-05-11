@@ -1,12 +1,13 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
-    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, FloatElement, IntElement,
-    JitBackend, Runtime,
+    element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
+    IntElement, JitBackend, Runtime,
 };
 use burn_compute::client::ComputeClient;
-use burn_fusion::{client::MutexFusionClient, FusionBackend};
+use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
+use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 /// Fusion optimization type for JIT.
@@ -26,13 +27,11 @@ pub enum JitOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<R, F, I> burn_fusion::Optimization<JitBackend<R, F, I>> for JitOptimization<R>
+impl<R> burn_fusion::Optimization<FusionJitRuntime<R>> for JitOptimization<R>
 where
     R: Runtime,
-    F: FloatElement,
-    I: IntElement,
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R, F, I>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -102,15 +101,46 @@ impl<R: Runtime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F
     }
 }
 
-impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
+impl<R: Runtime> FusionRuntime for FusionJitRuntime<R> {
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
+    type FusionHandle = JitFusionHandle<R>;
+    type FusionDevice = R::Device;
     type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R, F, I>::new(device))]
+        vec![Box::new(ElementWiseBuilder::<R>::new(device))]
+    }
+}
+
+#[derive(Debug)]
+pub struct FusionJitRuntime<R: Runtime> {
+    _b: PhantomData<R>,
+}
+
+impl<R: Runtime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
+    type FusionRuntime = FusionJitRuntime<R>;
+
+    type FullPrecisionBackend = JitBackend<R, f32, i32>;
+
+    fn cast_float<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        dtype: burn_tensor::DType,
+    ) -> Self::Handle {
+        fn cast<const D: usize, R: Runtime, F: FloatElement, FTarget: FloatElement>(
+            tensor: JitTensor<R, F, D>,
+        ) -> JitFusionHandle<R> {
+            JitFusionHandle::from(kernel::cast::<R, F, FTarget, D>(tensor))
+        }
+
+        match dtype {
+            burn_tensor::DType::F32 => cast::<D, R, F, f32>(tensor),
+            burn_tensor::DType::F16 => cast::<D, R, F, f16>(tensor),
+            burn_tensor::DType::BF16 => cast::<D, R, F, bf16>(tensor),
+            _ => panic!("Casting error: {dtype:?} unsupported."),
+        }
     }
 }
 

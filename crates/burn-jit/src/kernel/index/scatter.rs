@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{cube_inline, Branch, Elem, Scope, Variable};
+use crate::codegen::dialect::gpu::{gpu, Branch, Elem, Scope, Variable};
 use crate::codegen::Execution;
 use crate::gpu::ComputeShader;
 use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
@@ -48,22 +48,22 @@ impl ScatterComputeShader {
         let stride_input = scope.create_local(Elem::UInt);
         let shape_value = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, stride_input = stride(input, self.dim));
-        cube_inline!(scope, shape_value = shape(value, self.dim));
+        gpu!(scope, stride_input = stride(input, self.dim));
+        gpu!(scope, shape_value = shape(value, self.dim));
 
         let id = Variable::Id;
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
 
         let num_elems = scope.create_local(Elem::UInt);
-        cube_inline!(scope, num_elems = cast(1usize));
-        cube_inline!(
+        gpu!(scope, num_elems = cast(1usize));
+        gpu!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let should_skip = scope.create_local(Elem::Bool);
-                cube_inline!(scope, should_skip = i == self.dim);
+                gpu!(scope, should_skip = i == self.dim);
 
-                cube_inline!(scope, if(should_skip).then(|_| {
+                gpu!(scope, if(should_skip).then(|_| {
                     // Nothing to do.
                 }).else(|scope| {
                     let shape_input_loop = scope.create_local(Elem::UInt);
@@ -75,30 +75,30 @@ impl ScatterComputeShader {
                     let offset_tmp = scope.create_local(Elem::UInt);
                     let stride_input_loop = scope.create_local(Elem::UInt);
 
-                    cube_inline!(scope, stride_value_loop = stride(value, i));
-                    cube_inline!(scope, stride_input_loop = stride(input, i));
-                    cube_inline!(scope, stride_tmp = stride(indices, i));
+                    gpu!(scope, stride_value_loop = stride(value, i));
+                    gpu!(scope, stride_input_loop = stride(input, i));
+                    gpu!(scope, stride_tmp = stride(indices, i));
 
-                    cube_inline!(scope, shape_value_loop = shape(value, i));
-                    cube_inline!(scope, shape_input_loop = shape(input, i));
+                    gpu!(scope, shape_value_loop = shape(value, i));
+                    gpu!(scope, shape_input_loop = shape(input, i));
 
-                    cube_inline!(scope, num_blocks = id / stride_tmp);
-                    cube_inline!(scope, num_blocks = num_blocks % shape_input_loop);
+                    gpu!(scope, num_blocks = id / stride_tmp);
+                    gpu!(scope, num_blocks = num_blocks % shape_input_loop);
 
-                    cube_inline!(scope, offset_tmp = num_blocks * stride_input_loop);
-                    cube_inline!(scope, offset_input += offset_tmp);
+                    gpu!(scope, offset_tmp = num_blocks * stride_input_loop);
+                    gpu!(scope, offset_input += offset_tmp);
 
-                    cube_inline!(scope, offset_tmp = num_blocks * stride_value_loop);
-                    cube_inline!(scope, offset_value += offset_tmp);
+                    gpu!(scope, offset_tmp = num_blocks * stride_value_loop);
+                    gpu!(scope, offset_value += offset_tmp);
 
-                    cube_inline!(scope, num_elems = num_elems * shape_value_loop);
+                    gpu!(scope, num_elems = num_elems * shape_value_loop);
                 }));
             })
         );
 
         let should_stop = scope.create_local(Elem::Bool);
-        cube_inline!(scope, should_stop = id >= num_elems);
-        cube_inline!(scope, if (should_stop).then(|scope|{
+        gpu!(scope, should_stop = id >= num_elems);
+        gpu!(scope, if (should_stop).then(|scope|{
             scope.register(Branch::Return);
         }));
 
@@ -109,21 +109,21 @@ impl ScatterComputeShader {
         let result_value = scope.create_local(value.item());
         let result_indices = scope.create_local(Elem::UInt);
 
-        cube_inline!(
+        gpu!(
             scope,
             range(0u32, shape_value).for_each(|i, scope| {
-                cube_inline!(scope, index = stride_input * i);
-                cube_inline!(scope, index += offset_value);
+                gpu!(scope, index = stride_input * i);
+                gpu!(scope, index += offset_value);
 
-                cube_inline!(scope, result_value = value[index]);
-                cube_inline!(scope, result_indices = indices[index]);
+                gpu!(scope, result_value = value[index]);
+                gpu!(scope, result_indices = indices[index]);
 
-                cube_inline!(scope, index_input = stride_input * result_indices);
-                cube_inline!(scope, index_input += offset_input);
+                gpu!(scope, index_input = stride_input * result_indices);
+                gpu!(scope, index_input += offset_input);
 
-                cube_inline!(scope, result_input = input[index_input]);
-                cube_inline!(scope, result_input += result_value);
-                cube_inline!(scope, input[index_input] = result_input);
+                gpu!(scope, result_input = input[index_input]);
+                gpu!(scope, result_input += result_value);
+                gpu!(scope, input[index_input] = result_input);
             })
         );
     }

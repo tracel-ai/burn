@@ -1,6 +1,6 @@
 use burn::nn::{
     conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
-    pool::{AvgPool2dConfig, MaxPool2dConfig},
+    pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
     PaddingConfig2d,
 };
@@ -97,6 +97,33 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
 }
 
 /// Create a MaxPool2dConfig from the attributes of the node
+pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
+    let mut kernel_shape = Vec::new();
+    let mut stride = vec![1];
+    let mut pads = vec![0, 0];
+    let mut dilation = vec![1];
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => stride = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilation = value.clone().into_i64s(),
+            _ => {}
+        }
+    }
+    assert_eq!(kernel_shape.len(), 1);
+    assert_eq!(dilation.len(), 1);
+    assert_eq!(stride.len(), 1);
+    let padding = padding_config_1d(&pads);
+
+    MaxPool1dConfig::new(kernel_shape[0] as usize)
+        .with_stride(stride[0] as usize)
+        .with_padding(padding)
+        .with_dilation(dilation[0] as usize)
+}
+
+/// Create a MaxPool2dConfig from the attributes of the node
 pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1, 1];
@@ -120,7 +147,6 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
-
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut attrs = curr.attrs.clone();
     let kernel_shape = attrs
@@ -174,6 +200,37 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_bias(bias)
 }
 
+pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
+    let mut kernel_shape = Vec::new();
+    let mut strides = vec![1];
+    let mut pads = vec![0, 0];
+    let mut count_include_pad: i64 = 0;
+    let mut ceil_mode: i64 = 0;
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => strides = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "count_include_pad" => count_include_pad = value.clone().into_i64(),
+            "ceil_mode" => ceil_mode = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+    assert_eq!(kernel_shape.len(), 1);
+    assert_eq!(strides.len(), 1);
+
+    if ceil_mode == 1 {
+        panic!("ceil_mode is not supported");
+    }
+
+    let padding = padding_config_1d(&pads);
+
+    AvgPool1dConfig::new(kernel_shape[0] as usize)
+        .with_stride(strides[0] as usize)
+        .with_padding(padding)
+        .with_count_include_pad(count_include_pad == 1)
+}
 /// Create a AvgPool2dConfig from the attributes of the node
 pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
     let mut kernel_shape = Vec::new();
@@ -569,8 +626,9 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         panic!("Zero shape size is not supported");
     }
 
+    // TODO: check "shape" attribute
     if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present");
+        panic!("Reshape: shape tensor must be present for {:?}", node);
     }
 
     let input_value = &node.inputs[1].value;
@@ -770,6 +828,60 @@ pub fn reduce_mean_config(node: &Node) -> Option<usize> {
             "keepdims" => keepdims = value.clone().into_i64(),
             _ => {}
         }
+    }
+
+    if axes.len() > 1 {
+        panic!("ReduceMean: reducing on multiple dimensions is not supported")
+    }
+
+    if axes.is_empty() && keepdims == 1 {
+        panic!("ReduceMean: axes must be provided with keepdims")
+    }
+
+    if !axes.is_empty() && keepdims == 0 {
+        // Not supported in Burn
+        panic!("ReduceMean: the reduce operation must preserve the reduced dimension")
+    }
+
+    if axes.is_empty() {
+        None
+    } else {
+        let mut dim = axes[0];
+
+        if dim < 0 {
+            // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+            dim += tensor.dim as i64;
+        }
+        Some(dim as usize)
+    }
+}
+
+pub fn reduce_sum_config(node: &Node) -> Option<usize> {
+    let mut axes = Vec::new();
+    let mut keepdims = 1;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "keepdims" => keepdims = value.clone().into_i64(),
+            "axes" => axes = value.clone().into_i64s(),
+            // TODO: handle noop_with_empty_axes
+            _ => {}
+        }
+    }
+
+    // TODO: Handle case where axes are passed in. Will require its own ReduceSumNode instead of a UnaryNode.
+    if let Some(value) = node
+        .inputs
+        .get(1)
+        .and_then(|argument| argument.value.as_ref())
+    {
+        axes = value.clone().into_i64s();
     }
 
     if axes.len() > 1 {

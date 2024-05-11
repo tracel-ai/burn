@@ -18,4 +18,4 @@ pub use synchronization::*;
 pub use variable::*;
 pub use vectorization::*;
 
-pub(crate) use macros::cube_inline;
+pub(crate) use macros::gpu;

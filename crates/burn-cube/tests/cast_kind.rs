@@ -1,5 +1,5 @@
 use burn_cube::{cube, CubeContext, Float, Int, Numeric, RuntimeType, F32, F64, I32, I64};
-use burn_jit::{cube_inline, gpu::Item};
+use burn_jit::{gpu, gpu::Item};
 
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float + From<F1>>(input: F1) {
@@ -73,9 +73,9 @@ fn inline_macro_ref_float() -> String {
     let y = scope.create_local(float_32);
     let z = scope.create_local(float_32);
 
-    cube_inline!(scope, x = input + 5.9f32 as f64);
-    cube_inline!(scope, y = cast(x));
-    cube_inline!(scope, z = y + 2.3f32);
+    gpu!(scope, x = input + 5.9f32 as f64);
+    gpu!(scope, y = cast(x));
+    gpu!(scope, z = y + 2.3f32);
 
     format!("{:?}", scope.operations)
 }
@@ -91,9 +91,9 @@ fn inline_macro_ref_int() -> String {
     let y = scope.create_local(int_64);
     let z = scope.create_local(int_64);
 
-    cube_inline!(scope, x = input + 5i32);
-    cube_inline!(scope, y = cast(x));
-    cube_inline!(scope, z = y + 2i64);
+    gpu!(scope, x = input + 5i32);
+    gpu!(scope, y = cast(x));
+    gpu!(scope, z = y + 2i64);
 
     format!("{:?}", scope.operations)
 }

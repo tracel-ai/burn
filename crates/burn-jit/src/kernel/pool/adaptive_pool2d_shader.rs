@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{cube_inline, ComputeShader, Elem, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     JitElement, Runtime,
 };
@@ -40,42 +40,42 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, input_stride_0 = stride(input, 0u32));
-        cube_inline!(scope, input_stride_1 = stride(input, 1u32));
-        cube_inline!(scope, input_stride_2 = stride(input, 2u32));
-        cube_inline!(scope, input_stride_3 = stride(input, 3u32));
+        gpu!(scope, input_stride_0 = stride(input, 0u32));
+        gpu!(scope, input_stride_1 = stride(input, 1u32));
+        gpu!(scope, input_stride_2 = stride(input, 2u32));
+        gpu!(scope, input_stride_3 = stride(input, 3u32));
 
-        cube_inline!(scope, input_shape_0 = shape(input, 2u32));
-        cube_inline!(scope, input_shape_1 = shape(input, 3u32));
-        cube_inline!(scope, input_shape_2 = shape(input, 2u32));
-        cube_inline!(scope, input_shape_3 = shape(input, 3u32));
+        gpu!(scope, input_shape_0 = shape(input, 2u32));
+        gpu!(scope, input_shape_1 = shape(input, 3u32));
+        gpu!(scope, input_shape_2 = shape(input, 2u32));
+        gpu!(scope, input_shape_3 = shape(input, 3u32));
 
-        cube_inline!(scope, output_stride_0 = stride(output, 0u32));
-        cube_inline!(scope, output_stride_1 = stride(output, 1u32));
-        cube_inline!(scope, output_stride_2 = stride(output, 2u32));
-        cube_inline!(scope, output_stride_3 = stride(output, 3u32));
+        gpu!(scope, output_stride_0 = stride(output, 0u32));
+        gpu!(scope, output_stride_1 = stride(output, 1u32));
+        gpu!(scope, output_stride_2 = stride(output, 2u32));
+        gpu!(scope, output_stride_3 = stride(output, 3u32));
 
-        cube_inline!(scope, output_shape_0 = shape(output, 0u32));
-        cube_inline!(scope, output_shape_1 = shape(output, 1u32));
-        cube_inline!(scope, output_shape_2 = shape(output, 2u32));
-        cube_inline!(scope, output_shape_3 = shape(output, 3u32));
+        gpu!(scope, output_shape_0 = shape(output, 0u32));
+        gpu!(scope, output_shape_1 = shape(output, 1u32));
+        gpu!(scope, output_shape_2 = shape(output, 2u32));
+        gpu!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let oh = scope.create_local(Elem::UInt);
         let ow = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, b = id / output_stride_0);
-        cube_inline!(scope, b = b % output_shape_0);
+        gpu!(scope, b = id / output_stride_0);
+        gpu!(scope, b = b % output_shape_0);
 
-        cube_inline!(scope, c = id / output_stride_1);
-        cube_inline!(scope, c = c % output_shape_1);
+        gpu!(scope, c = id / output_stride_1);
+        gpu!(scope, c = c % output_shape_1);
 
-        cube_inline!(scope, oh = id / output_stride_2);
-        cube_inline!(scope, oh = oh % output_shape_2);
+        gpu!(scope, oh = id / output_stride_2);
+        gpu!(scope, oh = oh % output_shape_2);
 
-        cube_inline!(scope, ow = id / output_stride_3);
-        cube_inline!(scope, ow = ow % output_shape_3);
+        gpu!(scope, ow = id / output_stride_3);
+        gpu!(scope, ow = ow % output_shape_3);
 
         let ih_start = Self::start_index(scope, oh, output_shape_2, input_shape_2);
         let ih_end = Self::end_index(scope, oh, output_shape_2, input_shape_2);
@@ -90,28 +90,28 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         let index_input_2 = scope.create_local(Elem::UInt);
         let index_input_3 = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index_input_0 = b * input_stride_0);
-        cube_inline!(scope, index_input_1 = c * input_stride_1);
+        gpu!(scope, index_input_0 = b * input_stride_0);
+        gpu!(scope, index_input_1 = c * input_stride_1);
 
         let sum = scope.zero(output.item());
 
-        cube_inline!(
+        gpu!(
             scope,
             range(ih_start, ih_end).for_each(|ih, scope| {
-                cube_inline!(
+                gpu!(
                     scope,
                     range(iw_start, iw_end).for_each(|iw, scope| {
-                        cube_inline!(scope, index_input_2 = ih * input_stride_2);
-                        cube_inline!(scope, index_input_3 = iw * input_stride_3);
+                        gpu!(scope, index_input_2 = ih * input_stride_2);
+                        gpu!(scope, index_input_3 = iw * input_stride_3);
 
-                        cube_inline!(scope, index_input = index_input_0);
-                        cube_inline!(scope, index_input += index_input_1);
-                        cube_inline!(scope, index_input += index_input_2);
-                        cube_inline!(scope, index_input += index_input_3);
+                        gpu!(scope, index_input = index_input_0);
+                        gpu!(scope, index_input += index_input_1);
+                        gpu!(scope, index_input += index_input_2);
+                        gpu!(scope, index_input += index_input_3);
 
-                        cube_inline!(scope, result = input[index_input]);
+                        gpu!(scope, result = input[index_input]);
 
-                        cube_inline!(scope, sum += result);
+                        gpu!(scope, sum += result);
                     })
                 );
             })
@@ -122,13 +122,13 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         let count_float = scope.create_local(output.item());
         let avg = scope.create_local(output.item());
 
-        cube_inline!(scope, count = ih_end - ih_start);
-        cube_inline!(scope, count_tmp = iw_end - iw_start);
-        cube_inline!(scope, count *= count_tmp);
+        gpu!(scope, count = ih_end - ih_start);
+        gpu!(scope, count_tmp = iw_end - iw_start);
+        gpu!(scope, count *= count_tmp);
 
-        cube_inline!(scope, count_float = cast(count));
-        cube_inline!(scope, avg = sum / count_float);
-        cube_inline!(scope, output[id] = avg);
+        gpu!(scope, count_float = cast(count));
+        gpu!(scope, avg = sum / count_float);
+        gpu!(scope, output[id] = avg);
     }
 
     fn start_index(
@@ -142,12 +142,12 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index = output_size_index * input_size);
-        cube_inline!(scope, numerator_float = cast(index));
-        cube_inline!(scope, div = cast(output_size));
-        cube_inline!(scope, div = numerator_float / div);
-        cube_inline!(scope, div = floor(div));
-        cube_inline!(scope, index = cast(div));
+        gpu!(scope, index = output_size_index * input_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(output_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = floor(div));
+        gpu!(scope, index = cast(div));
         index
     }
 
@@ -164,19 +164,19 @@ impl<R: Runtime, E: JitElement> AdaptivePool2dComputeShader<R, E> {
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
 
-        cube_inline!(scope, index = output_size_index + 1u32);
-        cube_inline!(scope, index *= input_size);
-        cube_inline!(scope, numerator_float = cast(index));
-        cube_inline!(scope, div = cast(output_size));
-        cube_inline!(scope, div = numerator_float / div);
-        cube_inline!(scope, div = ceil(div));
-        cube_inline!(scope, index = cast(div));
+        gpu!(scope, index = output_size_index + 1u32);
+        gpu!(scope, index *= input_size);
+        gpu!(scope, numerator_float = cast(index));
+        gpu!(scope, div = cast(output_size));
+        gpu!(scope, div = numerator_float / div);
+        gpu!(scope, div = ceil(div));
+        gpu!(scope, index = cast(div));
 
-        cube_inline!(scope, min = input_size < index);
-        cube_inline!(scope, if(min).then(|scope|{
-            cube_inline!(scope, end_index = input_size);
+        gpu!(scope, min = input_size < index);
+        gpu!(scope, if(min).then(|scope|{
+            gpu!(scope, end_index = input_size);
         }).else(|scope|{
-            cube_inline!(scope, end_index = index);
+            gpu!(scope, end_index = index);
         }));
         end_index
     }

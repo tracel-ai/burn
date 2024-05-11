@@ -252,7 +252,7 @@ uses the library. We even have some Burn examples that uses the library crate of
 The examples are unique files under the `examples` directory. Each file produces an executable file
 with the same name. Each example can then be executed with `cargo run --example <executable name>`.
 
-Below is an file tree of a typical Burn example package:
+Below is a file tree of a typical Burn example package:
 
 ```
 examples/burn-example

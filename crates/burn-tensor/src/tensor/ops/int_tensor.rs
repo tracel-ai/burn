@@ -1,4 +1,5 @@
 use super::cat::cat_with_slice_assign;
+use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
@@ -270,28 +271,12 @@ pub trait IntTensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> IntTensor<B, D> {
-        let mut shape = Self::int_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let indices_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::int_empty(shape, &Self::int_device(&tensor));
-        for i in 0..times {
-            let mut indices = indices_select_all.clone();
-            indices[dim] = i..i + 1;
-            tensor_output = Self::int_slice_assign(tensor_output, indices, tensor.clone());
-        }
-
-        tensor_output
+        repeat_with_slice_assign::<B, D, Int>(
+            Tensor::<B, D, Int>::from_primitive(tensor),
+            dim,
+            times,
+        )
+        .into_primitive()
     }
 
     /// Concatenates the given tensors along the given dimension.

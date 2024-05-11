@@ -15,8 +15,8 @@ default = []
 std = []
 
 [dependencies]
-burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false, features= ["autotune"] }
-burn-cube-macros = { path = "../burn-cube-macros", version = "0.14.0" }
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features= ["autotune"] }
+burn-cube-macros = { path = "../burn-cube-macros", version = "0.15.0" }
 derive-new = { workspace = true }
 
 log = { workspace = true }

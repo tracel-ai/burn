@@ -1,4 +1,4 @@
-use crate::gpu::{cube_inline, Elem, Scope, Variable};
+use crate::gpu::{gpu, Elem, Scope, Variable};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -31,7 +31,7 @@ pub fn computation_loop(
     let results_before = scope.create_local(elem);
     let results_after = scope.create_local(elem);
 
-    cube_inline!(
+    gpu!(
         scope,
         range(
             0u32,
@@ -40,40 +40,40 @@ pub fn computation_loop(
         )
         .for_each(|dot_index, scope| {
             // Load a subcolumn of values from lhs
-            cube_inline!(scope, lhs_sm_position = thread_row / 4u32);
-            cube_inline!(scope, lhs_sm_position *= block_size_k);
-            cube_inline!(scope, lhs_sm_position += dot_index);
-            cube_inline!(scope, register_m = shared_lhs[lhs_sm_position]);
+            gpu!(scope, lhs_sm_position = thread_row / 4u32);
+            gpu!(scope, lhs_sm_position *= block_size_k);
+            gpu!(scope, lhs_sm_position += dot_index);
+            gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
 
             // Load a subrow of values from rhs
-            cube_inline!(scope, rhs_sm_position = dot_index * block_size_n);
-            cube_inline!(scope, rhs_sm_position += thread_col);
-            cube_inline!(scope, rhs_sm_position = rhs_sm_position / 4u32);
-            cube_inline!(scope, register_n = shared_rhs[rhs_sm_position]);
+            gpu!(scope, rhs_sm_position = dot_index * block_size_n);
+            gpu!(scope, rhs_sm_position += thread_col);
+            gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
+            gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
 
-            cube_inline!(
+            gpu!(
                 scope,
                 range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                     |res_idx_m, scope| {
-                        cube_inline!(
+                        gpu!(
                             scope,
                             range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                                 .for_each(|res_idx_n, scope| {
-                                    cube_inline!(scope, registered_m = register_m[res_idx_m]);
-                                    cube_inline!(scope, registered_n = register_n[res_idx_n]);
+                                    gpu!(scope, registered_m = register_m[res_idx_m]);
+                                    gpu!(scope, registered_n = register_n[res_idx_n]);
 
-                                    cube_inline!(scope, multiplied = registered_m * registered_n);
+                                    gpu!(scope, multiplied = registered_m * registered_n);
 
-                                    cube_inline!(
+                                    gpu!(
                                         scope,
                                         results_position = res_idx_m * shader.config.tile_size_n
                                     );
-                                    cube_inline!(scope, results_position += res_idx_n);
+                                    gpu!(scope, results_position += res_idx_n);
 
-                                    cube_inline!(scope, results_before = results[results_position]);
-                                    cube_inline!(scope, results_after = results_before + multiplied);
+                                    gpu!(scope, results_before = results[results_position]);
+                                    gpu!(scope, results_after = results_before + multiplied);
 
-                                    cube_inline!(scope, results[results_position] = results_after);
+                                    gpu!(scope, results[results_position] = results_after);
                                 })
                         );
                     }

@@ -1,4 +1,4 @@
-use crate::gpu::{cube_inline, Elem, Scope, Variable};
+use crate::gpu::{gpu, Elem, Scope, Variable};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -68,7 +68,7 @@ fn load_shared_memory_with_bound_check(
     // How close is the thread to the end of the matrix.
     // If < 4 then it is an edge case
     let remain = scope.create_local(Elem::UInt);
-    cube_inline!(scope, remain = dim - pos_in_dim);
+    gpu!(scope, remain = dim - pos_in_dim);
 
     let block_size_k: Variable = shader.config.block_size_k.into();
     let block_size_n: Variable = shader.config.block_size_n.into();
@@ -96,88 +96,88 @@ fn load_shared_memory_with_bound_check(
     let val_3 = scope.create_local(elem);
     let zero: Variable = 0u32.into();
 
-    cube_inline!(
+    gpu!(
         scope,
         range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
-            cube_inline!(scope, current = thread_idx_1 + j);
+            gpu!(scope, current = thread_idx_1 + j);
 
-            cube_inline!(scope, aligned_with_shared_memory = current < block_size_k);
+            gpu!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
-            cube_inline!(scope, if(aligned_with_shared_memory).then(|scope|{
+            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                 // Position in shared memory
                 match input_identifier {
                     InputIdentifier::Lhs => {
-                        cube_inline!(scope, sm_position = thread_idx_2 / 4u32);
-                        cube_inline!(scope, sm_position *= block_size_k);
-                        cube_inline!(scope, sm_position += current);
+                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                        gpu!(scope, sm_position *= block_size_k);
+                        gpu!(scope, sm_position += current);
                 },
                     InputIdentifier::Rhs => {
-                        cube_inline!(scope, sm_position = current * block_size_n);
-                        cube_inline!(scope, sm_position += thread_idx_2);
-                        cube_inline!(scope, sm_position = sm_position / 4u32);
+                        gpu!(scope, sm_position = current * block_size_n);
+                        gpu!(scope, sm_position += thread_idx_2);
+                        gpu!(scope, sm_position = sm_position / 4u32);
                     }
                 }
 
                 // To pad with zeros if outside lhs
-                cube_inline!(scope, current_with_k = current + k);
-                cube_inline!(scope, within_input = current_with_k < dim_k);
-                cube_inline!(scope, remain_at_least_1 = remain >= 1u32);
-                cube_inline!(scope, read_condition = within_input && remain_at_least_1);
+                gpu!(scope, current_with_k = current + k);
+                gpu!(scope, within_input = current_with_k < dim_k);
+                gpu!(scope, remain_at_least_1 = remain >= 1u32);
+                gpu!(scope, read_condition = within_input && remain_at_least_1);
 
-                cube_inline!(scope, if(read_condition).then(|scope| {
-                    cube_inline!(scope, position_0 = k + current);
-                    cube_inline!(scope, position_0 *= stride_1);
-                    cube_inline!(scope, tmp = thread_idx_2 * stride_2);
-                    cube_inline!(scope, position_0 += tmp);
-                    cube_inline!(scope, position_0 += input_offset);
-                    cube_inline!(scope, position_1 = position_0 + stride_2);
-                    cube_inline!(scope, position_2 = position_1 + stride_2);
-                    cube_inline!(scope, position_3 = position_2 + stride_2);
+                gpu!(scope, if(read_condition).then(|scope| {
+                    gpu!(scope, position_0 = k + current);
+                    gpu!(scope, position_0 *= stride_1);
+                    gpu!(scope, tmp = thread_idx_2 * stride_2);
+                    gpu!(scope, position_0 += tmp);
+                    gpu!(scope, position_0 += input_offset);
+                    gpu!(scope, position_1 = position_0 + stride_2);
+                    gpu!(scope, position_2 = position_1 + stride_2);
+                    gpu!(scope, position_3 = position_2 + stride_2);
 
-                    cube_inline!(scope, remain_n = remain >= 4u32);
-                    cube_inline!(scope, if(remain_n).then(|scope|{
-                        cube_inline!(scope, val_0 = input[position_0]);
-                        cube_inline!(scope, val_1 = input[position_1]);
-                        cube_inline!(scope, val_2 = input[position_2]);
-                        cube_inline!(scope, val_3 = input[position_3]);
+                    gpu!(scope, remain_n = remain >= 4u32);
+                    gpu!(scope, if(remain_n).then(|scope|{
+                        gpu!(scope, val_0 = input[position_0]);
+                        gpu!(scope, val_1 = input[position_1]);
+                        gpu!(scope, val_2 = input[position_2]);
+                        gpu!(scope, val_3 = input[position_3]);
 
                     }).else(|scope|{
-                        cube_inline!(scope, remain_n = remain == 3u32);
-                        cube_inline!(scope, if(remain_n).then(|scope|{
-                            cube_inline!(scope, val_0 = input[position_0]);
-                            cube_inline!(scope, val_1 = input[position_1]);
-                            cube_inline!(scope, val_2 = input[position_2]);
-                            cube_inline!(scope, val_3 = zero);
+                        gpu!(scope, remain_n = remain == 3u32);
+                        gpu!(scope, if(remain_n).then(|scope|{
+                            gpu!(scope, val_0 = input[position_0]);
+                            gpu!(scope, val_1 = input[position_1]);
+                            gpu!(scope, val_2 = input[position_2]);
+                            gpu!(scope, val_3 = zero);
 
                         }).else(|scope|{
-                            cube_inline!(scope, remain_n = remain == 2u32);
-                            cube_inline!(scope, if(remain_n).then(|scope|{
-                                cube_inline!(scope, val_0 = input[position_0]);
-                                cube_inline!(scope, val_1 = input[position_1]);
-                                cube_inline!(scope, val_2 = zero);
-                                cube_inline!(scope, val_3 = zero);
+                            gpu!(scope, remain_n = remain == 2u32);
+                            gpu!(scope, if(remain_n).then(|scope|{
+                                gpu!(scope, val_0 = input[position_0]);
+                                gpu!(scope, val_1 = input[position_1]);
+                                gpu!(scope, val_2 = zero);
+                                gpu!(scope, val_3 = zero);
 
                             }).else(|scope|{
-                                cube_inline!(scope, remain_n = remain == 1u32);
-                                cube_inline!(scope, if(remain_n).then(|scope|{
-                                    cube_inline!(scope, val_0 = input[position_0]);
-                                    cube_inline!(scope, val_1 = zero);
-                                    cube_inline!(scope, val_2 = zero);
-                                    cube_inline!(scope, val_3 = zero);
+                                gpu!(scope, remain_n = remain == 1u32);
+                                gpu!(scope, if(remain_n).then(|scope|{
+                                    gpu!(scope, val_0 = input[position_0]);
+                                    gpu!(scope, val_1 = zero);
+                                    gpu!(scope, val_2 = zero);
+                                    gpu!(scope, val_3 = zero);
                                 }));
                             }));
                         }));
                     }));
 
-                    cube_inline!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
-                    cube_inline!(scope, shared_memory[sm_position] = val_vec4);
+                    gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                    gpu!(scope, shared_memory[sm_position] = val_vec4);
 
                 }).else(|scope|{
-                    cube_inline!(scope, val_0 = zero);
-                    cube_inline!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
-                    cube_inline!(scope, shared_memory[sm_position] = val_vec4);
+                    gpu!(scope, val_0 = zero);
+                    gpu!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
+                    gpu!(scope, shared_memory[sm_position] = val_vec4);
                 }));
             }));
         })
@@ -233,45 +233,45 @@ fn load_shared_memory_no_bound_check(
     let val_3 = scope.create_local(elem);
     let val_vec4 = scope.create_local(shared_memory.item());
 
-    cube_inline!(
+    gpu!(
         scope,
         range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
-            cube_inline!(scope, current = thread_idx_1 + j);
+            gpu!(scope, current = thread_idx_1 + j);
 
-            cube_inline!(scope, aligned_with_shared_memory = current < block_size_k);
+            gpu!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
-            cube_inline!(scope, if(aligned_with_shared_memory).then(|scope|{
+            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                 match input_identifier {
                     InputIdentifier::Lhs => {
-                        cube_inline!(scope, sm_position = thread_idx_2 / 4u32);
-                        cube_inline!(scope, sm_position *= block_size_k);
-                        cube_inline!(scope, sm_position += current);
+                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
+                        gpu!(scope, sm_position *= block_size_k);
+                        gpu!(scope, sm_position += current);
                 },
                     InputIdentifier::Rhs => {
-                        cube_inline!(scope, sm_position = current * block_size_n);
-                        cube_inline!(scope, sm_position += thread_idx_2);
-                        cube_inline!(scope, sm_position = sm_position / 4u32);
+                        gpu!(scope, sm_position = current * block_size_n);
+                        gpu!(scope, sm_position += thread_idx_2);
+                        gpu!(scope, sm_position = sm_position / 4u32);
                     }
                 }
 
-                cube_inline!(scope, position_0 = k + current);
-                cube_inline!(scope, position_0 *= stride_1);
-                cube_inline!(scope, tmp = thread_idx_2 * stride_2);
-                cube_inline!(scope, position_0 += tmp);
-                cube_inline!(scope, position_0 += input_offset);
-                cube_inline!(scope, position_1 = position_0 + stride_2);
-                cube_inline!(scope, position_2 = position_1 + stride_2);
-                cube_inline!(scope, position_3 = position_2 + stride_2);
+                gpu!(scope, position_0 = k + current);
+                gpu!(scope, position_0 *= stride_1);
+                gpu!(scope, tmp = thread_idx_2 * stride_2);
+                gpu!(scope, position_0 += tmp);
+                gpu!(scope, position_0 += input_offset);
+                gpu!(scope, position_1 = position_0 + stride_2);
+                gpu!(scope, position_2 = position_1 + stride_2);
+                gpu!(scope, position_3 = position_2 + stride_2);
 
-                cube_inline!(scope, val_0 = input[position_0]);
-                cube_inline!(scope, val_1 = input[position_1]);
-                cube_inline!(scope, val_2 = input[position_2]);
-                cube_inline!(scope, val_3 = input[position_3]);
+                gpu!(scope, val_0 = input[position_0]);
+                gpu!(scope, val_1 = input[position_1]);
+                gpu!(scope, val_2 = input[position_2]);
+                gpu!(scope, val_3 = input[position_3]);
 
-                cube_inline!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
-                cube_inline!(scope, shared_memory[sm_position] = val_vec4);
+                gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                gpu!(scope, shared_memory[sm_position] = val_vec4);
             }));
         })
     );

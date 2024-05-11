@@ -5,6 +5,7 @@ use std::{
 };
 
 use burn::{
+    nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
@@ -13,6 +14,7 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
@@ -29,7 +31,9 @@ use crate::{
             linear::LinearNode,
             mask_where::WhereNode,
             matmul::MatmulNode,
+            max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            prelu::PReluNode,
             reshape::ReshapeNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
@@ -222,6 +226,8 @@ impl OnnxGraph {
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
+        let mut unsupported_ops = vec![];
+
         for node in self.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
@@ -235,7 +241,10 @@ impl OnnxGraph {
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
+                NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
+                NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
@@ -260,6 +269,7 @@ impl OnnxGraph {
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
+                NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
@@ -279,8 +289,12 @@ impl OnnxGraph {
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
-                _ => panic!("Unsupported node conversion {}", node.node_type),
+                node_type => unsupported_ops.push(node_type),
             }
+        }
+
+        if !unsupported_ops.is_empty() {
+            panic!("Unsupported ops: {:?}", unsupported_ops);
         }
 
         // Get input and output names
@@ -492,6 +506,14 @@ impl OnnxGraph {
         UnaryNode::reduce_mean(input, output, dim)
     }
 
+    fn reduce_sum_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_sum_config(&node);
+
+        UnaryNode::reduce_sum(input, output, dim)
+    }
+
     fn shape_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
@@ -685,6 +707,14 @@ impl OnnxGraph {
         let name = &node.name;
         Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
+    fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = max_pool1d_config(&node);
+
+        let name = &node.name;
+        MaxPool1dNode::new(name, input, output, config)
+    }
 
     fn max_pool2d_conversion(node: Node) -> MaxPool2dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
@@ -695,6 +725,14 @@ impl OnnxGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
+    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let config = PReluConfig::new();
+        let name = &node.name;
+        PReluNode::<PS>::new(name, input, output, weight, config)
+    }
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -709,6 +747,14 @@ impl OnnxGraph {
 
         let name = &node.name;
         ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+    fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = avg_pool1d_config(&node);
+
+        let name = &node.name;
+        AvgPool1dNode::new(name, input, output, config)
     }
 
     fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {

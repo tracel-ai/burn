@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{cube_inline, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         WorkgroupLaunch,
     },
@@ -46,32 +46,32 @@ impl SliceAssignComputeShader {
         let range_start = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
-            cube_inline!(scope, stride_input = stride(input, i));
-            cube_inline!(scope, stride_value = stride(value, i));
-            cube_inline!(scope, shape_value = shape(value, i));
-            cube_inline!(scope, shape_input = shape(input, i));
-            cube_inline!(
+            gpu!(scope, stride_input = stride(input, i));
+            gpu!(scope, stride_value = stride(value, i));
+            gpu!(scope, shape_value = shape(value, i));
+            gpu!(scope, shape_input = shape(input, i));
+            gpu!(
                 scope,
                 range_start = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
 
-            cube_inline!(scope, offset_local = id / stride_value);
-            cube_inline!(scope, offset_local = offset_local % shape_value);
+            gpu!(scope, offset_local = id / stride_value);
+            gpu!(scope, offset_local = offset_local % shape_value);
 
-            cube_inline!(scope, offset_local_value = offset_local * stride_value);
-            cube_inline!(scope, offset_local_input = offset_local + range_start);
-            cube_inline!(
+            gpu!(scope, offset_local_value = offset_local * stride_value);
+            gpu!(scope, offset_local_input = offset_local + range_start);
+            gpu!(
                 scope,
                 offset_local_input = offset_local_input * stride_input
             );
 
-            cube_inline!(scope, offset_value += offset_local_value);
-            cube_inline!(scope, offset_input += offset_local_input);
+            gpu!(scope, offset_value += offset_local_value);
+            gpu!(scope, offset_input += offset_local_input);
         }
 
         let result = scope.create_local(input.item());
-        cube_inline!(scope, result = value[offset_value]);
-        cube_inline!(scope, input[offset_input] = result);
+        gpu!(scope, result = value[offset_value]);
+        gpu!(scope, input[offset_input] = result);
     }
 }
 

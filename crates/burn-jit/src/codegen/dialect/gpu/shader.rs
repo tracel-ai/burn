@@ -1,5 +1,6 @@
 use super::Scope;
 use crate::kernel::WORKGROUP_DEFAULT;
+use burn_tensor::DType;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -45,6 +46,25 @@ pub enum Elem {
 impl From<Elem> for Item {
     fn from(val: Elem) -> Self {
         Item::Scalar(val)
+    }
+}
+
+impl From<DType> for Elem {
+    fn from(dtype: DType) -> Self {
+        match dtype {
+            DType::F64 => Elem::Float(FloatKind::F64),
+            DType::F32 => Elem::Float(FloatKind::F32),
+            DType::F16 => Elem::Float(FloatKind::F16),
+            DType::BF16 => Elem::Float(FloatKind::BF16),
+            DType::I64 => Elem::Int(IntKind::I64),
+            DType::I32 => Elem::Int(IntKind::I32),
+            DType::I16 => panic!("i16 isn't supported yet."),
+            DType::I8 => panic!("i8 isn't supported yet."),
+            DType::U64 => Elem::UInt,
+            DType::U32 => Elem::UInt,
+            DType::U8 => panic!("u8 isn't supported yet."),
+            DType::Bool => Elem::Bool,
+        }
     }
 }
 

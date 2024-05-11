@@ -1,7 +1,7 @@
 use crate::JitElement;
 
 use super::{
-    cube_inline, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
+    gpu, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
     Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
     WriteGlobal,
 };
@@ -64,7 +64,7 @@ impl Scope {
     pub(crate) fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
         let local = self.create_local(item);
         let zero: Variable = 0u32.into();
-        cube_inline!(self, local = zero);
+        gpu!(self, local = zero);
         local
     }
 
@@ -76,7 +76,7 @@ impl Scope {
     ) -> Variable {
         let local = self.create_local(item);
         let value = Variable::ConstantScalar(value.to_f64().unwrap(), item.into().elem());
-        cube_inline!(self, local = value);
+        gpu!(self, local = value);
         local
     }
 

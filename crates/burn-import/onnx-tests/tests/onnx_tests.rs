@@ -18,6 +18,7 @@ include_models!(
     add_int,
     add,
     avg_pool2d,
+    avg_pool1d,
     batch_norm,
     cast,
     clip_opset16,
@@ -43,13 +44,17 @@ include_models!(
     log,
     mask_where,
     matmul,
+    maxpool1d,
     maxpool2d,
     mul,
     neg,
     not,
+    prelu,
     recip,
     reduce_max,
     reduce_mean,
+    reduce_sum_opset13,
+    reduce_sum_opset11,
     relu,
     reshape,
     shape,
@@ -441,6 +446,31 @@ mod tests {
         assert_eq!(output1.to_data(), expected1);
         assert_eq!(output2, expected2);
     }
+    #[test]
+    fn maxpool1d() {
+        let device = Default::default();
+
+        let model: maxpool1d::Model<Backend> = maxpool1d::Model::new(&device);
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[
+                [1.927, 1.487, 0.901, -2.106, 0.678],
+                [-1.235, -0.043, -1.605, -0.752, -0.687],
+                [-0.493, 0.241, -1.111, 0.092, -2.317],
+                [-0.217, -1.385, -0.396, 0.803, -0.622],
+                [-0.592, -0.063, -0.829, 0.331, -1.558],
+            ]],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([[
+            [1.927, 1.927, 0.901],
+            [-0.043, -0.043, -0.687],
+            [0.241, 0.241, 0.092],
+            [-0.217, 0.803, 0.803],
+            [-0.063, 0.331, 0.331],
+        ]]);
+        assert_eq!(output.to_data(), expected);
+    }
 
     #[test]
     fn maxpool2d() {
@@ -467,6 +497,53 @@ mod tests {
         ]]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn avg_pool1d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: avg_pool1d::Model<Backend> = avg_pool1d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[
+                [-1.526, -0.750, -0.654, -1.609, -0.100],
+                [-0.609, -0.980, -1.609, -0.712, 1.171],
+                [1.767, -0.095, 0.139, -1.579, -0.321],
+                [-0.299, 1.879, 0.336, 0.275, 1.716],
+                [-0.056, 0.911, -1.392, 2.689, -0.111],
+            ]],
+            &device,
+        );
+        let (output1, output2, output3) = model.forward(input.clone(), input.clone(), input);
+        let expected1 = Data::from([[[-1.135], [-0.978], [0.058], [0.548], [0.538]]]);
+        let expected2 = Data::from([[
+            [-0.569, -1.135, -0.591],
+            [-0.397, -0.978, -0.288],
+            [0.418, 0.058, -0.440],
+            [0.395, 0.548, 0.582],
+            [0.214, 0.538, 0.296],
+        ]]);
+        let expected3 = Data::from([[
+            [-1.138, -1.135, -0.788],
+            [-0.794, -0.978, -0.383],
+            [0.836, 0.058, -0.587],
+            [0.790, 0.548, 0.776],
+            [0.427, 0.538, 0.395],
+        ]]);
+
+        let expected_shape1 = Shape::from([1, 5, 1]);
+        let expected_shape2 = Shape::from([1, 5, 3]);
+        let expected_shape3 = Shape::from([1, 5, 3]);
+
+        assert_eq!(output1.shape(), expected_shape1);
+        assert_eq!(output2.shape(), expected_shape2);
+        assert_eq!(output3.shape(), expected_shape3);
+
+        output1.to_data().assert_approx_eq(&expected1, 3);
+        output2.to_data().assert_approx_eq(&expected2, 3);
+        output3.to_data().assert_approx_eq(&expected3, 3);
     }
 
     #[test]
@@ -538,6 +615,38 @@ mod tests {
         let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
         let expected_scalar = Data::from([9.75]);
         let expected = Data::from([[[[9.75]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
+    fn reduce_sum_opset11() {
+        let device = Default::default();
+        let model: reduce_sum_opset11::Model<Backend> = reduce_sum_opset11::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([39.]);
+        let expected = Data::from([[[[39.]]]]);
+
+        assert_eq!(output_scalar.to_data(), expected_scalar);
+        assert_eq!(output_tensor.to_data(), input.to_data());
+        assert_eq!(output_value.to_data(), expected);
+    }
+
+    #[test]
+    fn reduce_sum_opset13() {
+        let device = Default::default();
+        let model: reduce_sum_opset13::Model<Backend> = reduce_sum_opset13::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = Data::from([39.]);
+        let expected = Data::from([[[[39.]]]]);
 
         assert_eq!(output_scalar.to_data(), expected_scalar);
         assert_eq!(output_tensor.to_data(), input.to_data());
@@ -653,6 +762,29 @@ mod tests {
         let expected = Data::from([
             [0.33669037, 0.0, 0.23446237],
             [0.23033303, -0.01122_856, -0.0018632829],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn prelu() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: prelu::Model<Backend> = prelu::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [
+                [0.33669037, 0.0, 0.23446237],
+                [0.23033303, -1.122_856, -0.18632829],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.0, 0.23446237],
+            [0.23033303, -0.280714, -0.046582073],
         ]);
 
         assert_eq!(output.to_data(), expected);

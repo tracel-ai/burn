@@ -5,7 +5,7 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{cube_inline, ComputeShader, Elem, Item, Scope, Variable, Visibility},
+    gpu::{gpu, ComputeShader, Elem, Item, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, Runtime,
@@ -99,11 +99,11 @@ impl BoolCastShader {
         let output = self.output;
 
         let represents_true = scope.create_local(Elem::Bool);
-        cube_inline!(scope, represents_true = tensor[id]);
-        cube_inline!(scope, if(represents_true).then(|scope|{
-            cube_inline!(scope, output[id] = 1);
+        gpu!(scope, represents_true = tensor[id]);
+        gpu!(scope, if(represents_true).then(|scope|{
+            gpu!(scope, output[id] = 1);
         }).else(|scope|{
-            cube_inline!(scope, output[id] = 0);
+            gpu!(scope, output[id] = 0);
         }));
     }
 }

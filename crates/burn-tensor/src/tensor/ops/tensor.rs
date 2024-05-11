@@ -1,4 +1,5 @@
 use super::cat::cat_with_slice_assign;
+use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::Tensor;
@@ -193,28 +194,8 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> FloatTensor<B, D> {
-        let mut shape = B::float_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let indices_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = B::float_empty(shape, &B::float_device(&tensor));
-        for i in 0..times {
-            let mut indices = indices_select_all.clone();
-            indices[dim] = i..i + 1;
-            tensor_output = B::float_slice_assign(tensor_output, indices, tensor.clone());
-        }
-
-        tensor_output
+        repeat_with_slice_assign::<B, D, Float>(Tensor::<B, D>::from_primitive(tensor), dim, times)
+            .into_primitive()
     }
 
     /// Adds two tensors together.

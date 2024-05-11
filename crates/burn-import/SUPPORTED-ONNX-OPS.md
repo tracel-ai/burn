@@ -17,7 +17,7 @@ represent the corresponding Burn Op.
 | [Asinh][9]                       |       ❌       |      ❌      |
 | [Atan][10]                       |       ❌       |      ❌      |
 | [Atanh][11]                      |       ❌       |      ❌      |
-| [AveragePool1d][12]              |       ❌       |      ✅      |
+| [AveragePool1d][12]              |       ✅       |      ✅      |
 | [AveragePool2d][12]              |       ✅       |      ✅      |
 | [BatchNormalization][14]         |       ✅       |      ✅      |
 | [Bernoulli][15]                  |       ❌       |      ❌      |
@@ -63,8 +63,8 @@ represent the corresponding Burn Op.
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |
-| [Gather][58]                     |       ✅       |      ✅      |
-| [GatherElements][59]             |       ❌       |      ❌      |
+| [Gather][58]                     |       ❌       |      ✅      |
+| [GatherElements][59]             |       ✅       |      ✅      |
 | [GatherND][60]                   |       ❌       |      ❌      |
 | [Gelu][61]                       |       ✅       |      ✅      |
 | [Gemm][62]                       |       ❌       |      ❌      |
@@ -102,7 +102,7 @@ represent the corresponding Burn Op.
 | [MatMul][94]                     |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
 | [Max][96]                        |       ❌       |      ✅      |
-| [MaxPool1d][97]                  |       ❌       |      ✅      |
+| [MaxPool1d][97]                  |       ✅       |      ✅      |
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |
 | [MaxUnpool][100]                 |       ❌       |      ❌      |
@@ -126,7 +126,7 @@ represent the corresponding Burn Op.
 | [Or][119]                        |       ❌       |      ❌      |
 | [Pad][120]                       |       ❌       |      ✅      |
 | [Pow][121]                       |       ✅       |      ✅      |
-| [PRelu][122]                     |       ❌       |      ✅      |
+| [PRelu][122]                     |       ✅       |      ✅      |
 | [QLinearConv][123]               |       ❌       |      ❌      |
 | [QLinearMatMul][124]             |       ❌       |      ❌      |
 | [QuantizeLinear][125]            |       ❌       |      ❌      |
@@ -143,7 +143,7 @@ represent the corresponding Burn Op.
 | [ReduceMean][136]                |       ✅       |      ✅      |
 | [ReduceMin][137]                 |       ❌       |      ✅      |
 | [ReduceProd][138]                |       ❌       |      ✅      |
-| [ReduceSum][139]                 |       ❌       |      ✅      |
+| [ReduceSum][139]                 |       ✅       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
 | [Reshape][142]                   |       ✅       |      ✅      |

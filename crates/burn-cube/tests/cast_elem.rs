@@ -1,6 +1,6 @@
 use burn_cube::{cube, Bool, CubeContext, Numeric, RuntimeType, UInt, F32, I32};
 use burn_jit::{
-    cube_inline,
+    gpu,
     gpu::{Elem, Item, Variable},
 };
 
@@ -259,19 +259,19 @@ fn inline_macro_ref_cast(from_item: Item, to_item: Item) -> String {
     let z = scope.create_local(to_item);
 
     match from_item.elem() {
-        Elem::Float(_) => cube_inline!(scope, y = x + 2f32),
-        Elem::Int(_) => cube_inline!(scope, y = x + 2i32),
-        Elem::UInt => cube_inline!(scope, y = x + 2u32),
-        Elem::Bool => cube_inline!(scope, y = x && false),
+        Elem::Float(_) => gpu!(scope, y = x + 2f32),
+        Elem::Int(_) => gpu!(scope, y = x + 2i32),
+        Elem::UInt => gpu!(scope, y = x + 2u32),
+        Elem::Bool => gpu!(scope, y = x && false),
     }
 
-    cube_inline!(scope, y_casted = cast(y));
+    gpu!(scope, y_casted = cast(y));
 
     match to_item.elem() {
-        Elem::Float(_) => cube_inline!(scope, z = y_casted + 34f32),
-        Elem::Int(_) => cube_inline!(scope, z = y_casted + 34i32),
-        Elem::UInt => cube_inline!(scope, z = y_casted + 34u32),
-        Elem::Bool => cube_inline!(scope, z = y_casted || true),
+        Elem::Float(_) => gpu!(scope, z = y_casted + 34f32),
+        Elem::Int(_) => gpu!(scope, z = y_casted + 34i32),
+        Elem::UInt => gpu!(scope, z = y_casted + 34u32),
+        Elem::Bool => gpu!(scope, z = y_casted || true),
     }
 
     format!("{:?}", scope.operations)
@@ -287,19 +287,19 @@ fn inline_macro_ref_identity(item: Item) -> String {
     let y = scope.create_local(item);
 
     match item.elem() {
-        Elem::Float(_) => cube_inline!(scope, y = x + 2f32),
-        Elem::Int(_) => cube_inline!(scope, y = x + 2i32),
-        Elem::UInt => cube_inline!(scope, y = x + 2u32),
-        Elem::Bool => cube_inline!(scope, y = x && false),
+        Elem::Float(_) => gpu!(scope, y = x + 2f32),
+        Elem::Int(_) => gpu!(scope, y = x + 2i32),
+        Elem::UInt => gpu!(scope, y = x + 2u32),
+        Elem::Bool => gpu!(scope, y = x && false),
     }
 
-    cube_inline!(scope, x = cast(y));
+    gpu!(scope, x = cast(y));
 
     match item.elem() {
-        Elem::Float(_) => cube_inline!(scope, y = x + 34f32),
-        Elem::Int(_) => cube_inline!(scope, y = x + 34i32),
-        Elem::UInt => cube_inline!(scope, y = x + 34u32),
-        Elem::Bool => cube_inline!(scope, y = x || true),
+        Elem::Float(_) => gpu!(scope, y = x + 34f32),
+        Elem::Int(_) => gpu!(scope, y = x + 34i32),
+        Elem::UInt => gpu!(scope, y = x + 34u32),
+        Elem::Bool => gpu!(scope, y = x || true),
     }
 
     format!("{:?}", scope.operations)

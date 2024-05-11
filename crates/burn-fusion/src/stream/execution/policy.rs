@@ -265,9 +265,12 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::repr::{
-        FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
-        UnaryOperationDescription,
+    use burn_tensor::{
+        repr::{
+            FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
+            UnaryOperationDescription,
+        },
+        DType,
     };
 
     use super::*;
@@ -557,6 +560,7 @@ mod tests {
                 id: TensorId::new(id),
                 shape: vec![32, 32, 1],
                 status: TensorStatus::NotInit,
+                dtype: DType::F32,
             });
         }
 

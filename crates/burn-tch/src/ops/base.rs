@@ -125,18 +125,12 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     pub fn select_assign<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
-        indices_tensor: TchTensor<i64, 1>,
+        indices: TchTensor<i64, 1>,
         value: TchTensor<E, D>,
     ) -> TchTensor<E, D> {
-        let mut indices = Vec::with_capacity(D);
-        for _ in 0..D {
-            indices.push(None);
-        }
-        indices[dim] = Some(indices_tensor.tensor);
-
-        tensor.unary_ops(
-            |mut tensor| tensor.index_put_(&indices, &value.tensor, true),
-            |tensor| tensor.index_put(&indices, &value.tensor, true),
+        tensor.clone().unary_ops(
+            |mut tensor| tensor.index_add_(dim as i64, &indices.tensor, &value.tensor),
+            |tensor| tensor.index_add(dim as i64, &indices.tensor, &value.tensor),
         )
     }
 

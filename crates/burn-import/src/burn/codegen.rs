@@ -9,10 +9,10 @@ fn convert_primitive<T: ToString>(primitive: T) -> TokenStream {
     value.parse().unwrap()
 }
 
-fn convert_to_array<'a, I, T: ToTokens>(list: I) -> TokenStream
+fn convert_to_array<'a, I, T>(list: I) -> TokenStream
 where
     I: Iterator<Item = &'a T>,
-    T: 'a,
+    T: ToTokens + 'a,
 {
     let mut body = quote! {};
 

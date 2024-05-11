@@ -1,4 +1,4 @@
-use crate::gpu::{cube_inline, BinaryOperator, Scope, Synchronization, Variable};
+use crate::gpu::{gpu, BinaryOperator, Scope, Synchronization, Variable};
 
 use crate::kernel::matmul::tiling2d_shader::{
     computation_loop, gather_shader_information, load_shared_memory, write_to_output,
@@ -45,12 +45,12 @@ impl MatmulTiling2dShader {
         let shader_state = gather_shader_information(scope, &self);
 
         let block_size_k: Variable = self.config.block_size_k.into();
-        cube_inline!(
+        gpu!(
             scope,
             range(0u32, shader_state.n_loops).for_each(|i, scope| {
                 // From 0 to K with steps block_size_k
                 let k = shader_state.k;
-                cube_inline!(scope, k = i * block_size_k);
+                gpu!(scope, k = i * block_size_k);
 
                 load_shared_memory(scope, &self, &shader_state);
 
