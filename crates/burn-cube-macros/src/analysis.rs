@@ -81,7 +81,7 @@ impl CodeAnalysisBuilder {
         }
 
         for id in self.var_uses.iter() {
-            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| panic!("Analyis: Variable {:?} should be declared before it's used",
+            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| panic!("Analysis: Variable {:?} should be declared before it's used",
                 id));
             let new_analysis = VariableAnalysis {
                 num_used: prev_analysis.num_used + 1,
