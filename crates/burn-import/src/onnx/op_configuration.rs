@@ -971,3 +971,32 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
 
     perm
 }
+
+pub fn squeeze_config(curr: &Node) -> Vec<i64> {
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "axes" => return value.clone().into_i64s(),
+            _ => {}
+        }
+    }
+
+    assert!(
+        !curr.inputs.is_empty(),
+        "Squeeze: axes tensor must be present"
+    );
+
+    let input_value = &curr.inputs[1];
+
+    match &curr.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
+                shape.clone()
+            } else {
+                println!("###{:?}###", input_value.value);
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Arg for squeeze must be tensor or scalar"),
+    }
+}
