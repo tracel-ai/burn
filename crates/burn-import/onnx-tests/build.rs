@@ -64,6 +64,7 @@ fn main() {
         .input("tests/unsqueeze/unsqueeze_opset16.onnx")
         .input("tests/unsqueeze/unsqueeze_opset11.onnx")
         .input("tests/mask_where/mask_where.onnx")
+        .input("tests/squeeze/squeeze.onnx")
         .out_dir("model/")
         .run_from_script();
 
