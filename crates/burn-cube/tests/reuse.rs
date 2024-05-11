@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, CubeContext, Int, Numeric, I32};
+use burn_cube::{branch::*, cube, CubeContext, Int, RuntimeType, I32};
 use burn_jit::{
     cube_inline,
     gpu::{Branch, Elem, Item, Variable},

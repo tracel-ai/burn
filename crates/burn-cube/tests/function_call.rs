@@ -1,4 +1,4 @@
-use burn_cube::{cube, elemtype::*, CubeContext, UInt};
+use burn_cube::{cube, CubeContext, UInt};
 use burn_jit::gpu::{Elem, Item};
 
 #[cube]
@@ -8,12 +8,12 @@ pub fn caller_no_arg(x: UInt) {
 
 #[cube]
 pub fn callee_no_arg() -> UInt {
-    uint_new(8u32)
+    UInt::new(8)
 }
 
 #[cube]
 pub fn no_call_no_arg(x: UInt) {
-    let _ = x + uint_new(8u32);
+    let _ = x + UInt::new(8);
 }
 
 #[cube]
@@ -23,12 +23,12 @@ pub fn caller_with_arg(x: UInt) {
 
 #[cube]
 pub fn callee_with_arg(x: UInt) -> UInt {
-    x * uint_new(8u32)
+    x * UInt::new(8)
 }
 
 #[cube]
 pub fn no_call_with_arg(x: UInt) {
-    let _ = x + x * uint_new(8u32);
+    let _ = x + x * UInt::new(8);
 }
 
 #[test]

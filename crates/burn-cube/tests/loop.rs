@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, CubeContext, Int, Numeric, I32};
+use burn_cube::{branch::*, cube, CubeContext, Int, RuntimeType, I32};
 use burn_jit::cube_inline;
 use burn_jit::gpu::Branch;
 use burn_jit::gpu::{Elem, Item, Variable};
@@ -8,7 +8,7 @@ type ElemType = I32;
 #[cube]
 pub fn while_not<I: Int>(lhs: I) {
     while lhs != I::new(0) {
-        let _ = lhs - I::new(1);
+        let _ = lhs % I::new(1);
     }
 }
 
@@ -18,7 +18,7 @@ pub fn manual_loop_break<I: Int>(lhs: I) {
         if lhs != I::new(0) {
             break;
         }
-        let _ = lhs - I::new(1);
+        let _ = lhs % I::new(1);
     }
 }
 
@@ -64,7 +64,7 @@ fn inline_macro_ref() -> String {
                 scope.register(Branch::Break);
             }));
 
-            cube_inline!(scope, rhs = lhs - 1i32);
+            cube_inline!(scope, rhs = lhs % 1i32);
         })
     );
 

@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, CubeContext, Float, Numeric, F32};
+use burn_cube::{branch::*, cube, CubeContext, Numeric, RuntimeType, F32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -7,9 +7,9 @@ use burn_jit::{
 type ElemType = F32;
 
 #[cube]
-pub fn if_greater<F: Float>(lhs: F) {
-    if lhs > F::new(0) {
-        let _ = lhs + F::new(4);
+pub fn if_greater<T: Numeric>(lhs: T) {
+    if lhs > T::new(0) {
+        let _ = lhs + T::new(4);
     }
 }
 

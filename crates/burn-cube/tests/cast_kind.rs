@@ -1,24 +1,24 @@
-use burn_cube::{cube, elemtype::*, CubeContext, Float, Int, Numeric, F32, F64, I32, I64};
+use burn_cube::{cube, CubeContext, Float, Int, Numeric, RuntimeType, F32, F64, I32, I64};
 use burn_jit::{cube_inline, gpu::Item};
 
 #[cube]
-pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
-    let x = input + F1::from(5.9);
-    let y = cast::<F1, F2>(x);
-    let _ = y + F2::from(2.3);
+pub fn cast_float_kind<F1: Float, F2: Float + From<F1>>(input: F1) {
+    let x = input + F1::from_primitive(5.9);
+    let y = F2::from(x);
+    let _ = y + F2::from_primitive(2.3);
 }
 
 #[cube]
-pub fn cast_int_kind<I1: Int, I2: Int>(input: I1) {
-    let x = input + I1::from(5);
-    let y = cast::<I1, I2>(x);
-    let _ = y + I2::from(2);
+pub fn cast_int_kind<I1: Int, I2: Int + From<I1>>(input: I1) {
+    let x = input + I1::from_primitive(5);
+    let y = I2::from(x);
+    let _ = y + I2::from_primitive(2);
 }
 
 #[cube]
-pub fn cast_numeric_to_kind<T: Numeric, I2: Int>(input: T) {
+pub fn cast_numeric_to_kind<T: Numeric, I2: Int + From<T>>(input: T) {
     let x = input + T::new(5);
-    let y = cast::<T, I2>(x);
+    let y = I2::from(x);
     let _ = y + I2::new(2);
 }
 

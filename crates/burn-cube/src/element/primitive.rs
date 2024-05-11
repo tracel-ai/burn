@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use burn_jit::gpu::Variable;
 
-use crate::{ExpandElement, CubeType};
+use crate::{CubeType, ExpandElement};
 
 impl CubeType for bool {
     type ExpandType = bool;
@@ -46,6 +46,12 @@ impl From<f32> for ExpandElement {
 
 impl From<i32> for ExpandElement {
     fn from(value: i32) -> Self {
+        ExpandElement::new(Rc::new(Variable::from(value)))
+    }
+}
+
+impl From<i64> for ExpandElement {
+    fn from(value: i64) -> Self {
         ExpandElement::new(Rc::new(Variable::from(value)))
     }
 }

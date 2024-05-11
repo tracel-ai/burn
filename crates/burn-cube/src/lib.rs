@@ -5,7 +5,6 @@ extern crate derive_new;
 
 // For use with *
 pub mod branch;
-pub mod elemtype;
 
 mod context;
 mod element;

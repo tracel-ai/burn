@@ -1,4 +1,4 @@
-use burn_cube::{cube, elemtype::*, Bool, CubeContext, Numeric, UInt, F32, I32};
+use burn_cube::{cube, Bool, CubeContext, Numeric, RuntimeType, UInt, F32, I32};
 use burn_jit::{
     cube_inline,
     gpu::{Elem, Item, Variable},
@@ -44,25 +44,25 @@ macro_rules! cast_test {
 #[cube]
 pub fn float_to_float(x: F32) {
     let y = x + F32::new(2);
-    let _ = cast::<F32, F32>(y) + F32::new(34);
+    let _ = F32::from(y) + F32::new(34);
 }
 
 #[cube]
 pub fn float_to_int(x: F32) {
     let y = x + F32::new(2);
-    let _ = cast::<F32, I32>(y) + I32::new(34);
+    let _ = I32::from(y) + I32::new(34);
 }
 
 #[cube]
 pub fn float_to_uint(x: F32) {
     let y = x + F32::new(2);
-    let _ = to_uint(y) + uint_new(34u32);
+    let _ = UInt::from(y) + UInt::new(34);
 }
 
 #[cube]
 pub fn float_to_bool(x: F32) {
     let y = x + F32::new(2);
-    let _ = to_bool(y) | bool_new(true);
+    let _ = Bool::from(y) | Bool::new(true);
 }
 
 cast_test!(
@@ -96,25 +96,25 @@ cast_test!(
 #[cube]
 pub fn int_to_float(x: I32) {
     let y = x + I32::new(2);
-    let _ = cast::<I32, F32>(y) + F32::new(34);
+    let _ = F32::from(y) + F32::new(34);
 }
 
 #[cube]
 pub fn int_to_int(x: I32) {
     let y = x + I32::new(2);
-    let _ = cast::<I32, I32>(y) + I32::new(34);
+    let _ = I32::from(y) + I32::new(34);
 }
 
 #[cube]
 pub fn int_to_uint(x: I32) {
     let y = x + I32::new(2);
-    let _ = to_uint(y) + uint_new(34u32);
+    let _ = UInt::from(y) + UInt::new(34);
 }
 
 #[cube]
 pub fn int_to_bool(x: I32) {
     let y = x + I32::new(2);
-    let _ = to_bool(y) | bool_new(true);
+    let _ = Bool::from(y) | Bool::new(true);
 }
 
 cast_test!(
@@ -147,26 +147,26 @@ cast_test!(
 // // From uint
 #[cube]
 pub fn uint_to_float(x: UInt) {
-    let y = x + uint_new(2u32);
-    let _ = cast::<UInt, F32>(y) + F32::new(34);
+    let y = x + UInt::new(2);
+    let _ = F32::from(y) + F32::new(34);
 }
 
 #[cube]
 pub fn uint_to_int(x: UInt) {
-    let y = x + uint_new(2u32);
-    let _ = cast::<UInt, I32>(y) + I32::new(34);
+    let y = x + UInt::new(2);
+    let _ = I32::from(y) + I32::new(34);
 }
 
 #[cube]
 pub fn uint_to_uint(x: UInt) {
-    let y = x + uint_new(2u32);
-    let _ = to_uint(y) + uint_new(34u32);
+    let y = x + UInt::new(2);
+    let _ = UInt::from(y) + UInt::new(34);
 }
 
 #[cube]
 pub fn uint_to_bool(x: UInt) {
-    let y = x + uint_new(2u32);
-    let _ = to_bool(y) | bool_new(true);
+    let y = x + UInt::new(2);
+    let _ = Bool::from(y) | Bool::new(true);
 }
 
 cast_test!(
@@ -199,26 +199,26 @@ cast_test!(
 // From bool
 #[cube]
 pub fn bool_to_float(x: Bool) {
-    let y = x & bool_new(false);
-    let _ = cast::<Bool, F32>(y) + F32::new(34);
+    let y = x & Bool::new(false);
+    let _ = F32::from(y) + F32::new(34);
 }
 
 #[cube]
 pub fn bool_to_int(x: Bool) {
-    let y = x & bool_new(false);
-    let _ = cast::<Bool, I32>(y) + I32::new(34);
+    let y = x & Bool::new(false);
+    let _ = I32::from(y) + I32::new(34);
 }
 
 #[cube]
 pub fn bool_to_uint(x: Bool) {
-    let y = x & bool_new(false);
-    let _ = to_uint(y) + uint_new(34u32);
+    let y = x & Bool::new(false);
+    let _ = UInt::from(y) + UInt::new(34);
 }
 
 #[cube]
 pub fn bool_to_bool(x: Bool) {
-    let y = x & bool_new(false);
-    let _ = to_bool(y) | bool_new(true);
+    let y = x & Bool::new(false);
+    let _ = Bool::from(y) | Bool::new(true);
 }
 
 cast_test!(

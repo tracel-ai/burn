@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeContext, Float, Numeric, F32};
+use burn_cube::{cube, CubeContext, Float, RuntimeType, F32};
 use burn_jit::{cube_inline, gpu::Item};
 
 type ElemType = F32;
@@ -13,7 +13,6 @@ fn cube_literal_test() {
     let mut context = CubeContext::root();
 
     let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
-    // let lhs = context.create_local(ElemType::into_item());
 
     literal_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();

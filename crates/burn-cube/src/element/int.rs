@@ -1,4 +1,4 @@
-use crate::{CubeContext, CubeType, ExpandElement, Numeric};
+use crate::{CubeContext, CubeType, ExpandElement, Numeric, RuntimeType};
 use burn_jit::gpu::{Elem, IntKind, Variable};
 use std::rc::Rc;
 
@@ -6,14 +6,16 @@ pub trait Int:
     Clone
     + Copy
     + std::cmp::PartialOrd
+    + std::ops::Add<Output = Self>
     + std::ops::Sub<Output = Self>
     + std::ops::Mul<Output = Self>
     + std::ops::Div<Output = Self>
     + std::ops::AddAssign
+    + std::ops::Rem<Output = Self>
     + Numeric
 {
-    fn from(val: i64) -> Self;
-    fn from_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
+    fn from_primitive(val: i64) -> Self;
+    fn from_primitive_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }
 
 macro_rules! impl_int {
@@ -28,14 +30,25 @@ macro_rules! impl_int {
             type ExpandType = ExpandElement;
         }
 
+        impl RuntimeType for $type {
+            type Primitive = i64;
+            fn val(&self) -> Self::Primitive {
+                self.val
+            }
+            fn into_elem() -> Elem {
+                Elem::Int(IntKind::$type)
+            }
+        }
+
         impl Int for $type {
-            fn from(val: i64) -> Self {
+            fn from_primitive(val: i64) -> Self {
                 Self {
                     val,
                     vectorization: 1,
                 }
             }
-            fn from_expand(_context: &mut CubeContext, val: i64) -> ExpandElement {
+
+            fn from_primitive_expand(_context: &mut CubeContext, val: i64) -> ExpandElement {
                 let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
@@ -48,11 +61,9 @@ macro_rules! impl_int {
                     vectorization: 1,
                 }
             }
+
             fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement {
-                <Self as Int>::from_expand(context, val)
-            }
-            fn into_elem() -> Elem {
-                Elem::Int(IntKind::$type)
+                <Self as Int>::from_primitive_expand(context, val)
             }
         }
     };
