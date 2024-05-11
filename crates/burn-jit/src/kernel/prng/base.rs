@@ -285,7 +285,7 @@ pub(crate) fn lcg_step(scope: &mut Scope, z: Variable) {
 }
 
 pub(crate) fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_random: Variable) {
-    let tmp: Variable = 2.328_306_4e-10.into();
+    let tmp: Variable = 2.328_306_4e-10f32.into();
     gpu!(scope, float_random = cast(int_random));
     gpu!(scope, float_random *= tmp);
 }
