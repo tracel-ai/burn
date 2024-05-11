@@ -64,6 +64,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::PRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
+        NodeType::Squeeze => squeeze_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -264,6 +265,33 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
+}
+
+/// Update the output tensor dimension based on the "axes" attribute
+fn squeeze_update_output(node: &mut Node) {
+    if let Some(Data::Int64s(axes)) = &node.inputs[1].value {
+        if axes.len() != 1 {
+            panic!("Squeeze: Only one axis should be specified for squeezing.");
+        }
+    } else {
+        panic!("Squeeze: Axes input must be an integer list.");
+    };
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("Squeeze: invalid input type"),
+    };
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("Squeeze: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: input_dim - 1,
+        shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_elem,
+    });
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input
