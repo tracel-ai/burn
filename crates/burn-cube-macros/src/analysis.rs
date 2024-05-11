@@ -39,7 +39,7 @@ impl CodeAnalysis {
             Some(mut var) => {
                 let should_clone = var.should_clone(loop_level);
                 self.variable_analyses.insert(key, var);
-                return should_clone;
+                should_clone
             }
             None => panic!("Ident {ident} not part of analysis"),
         }
@@ -81,10 +81,8 @@ impl CodeAnalysisBuilder {
         }
 
         for id in self.var_uses.iter() {
-            let prev_analysis = variable_analyses.remove(&id).expect(&format!(
-                "Analyis: Variable {:?} should be declared before it's used",
-                id
-            ));
+            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| panic!("Analyis: Variable {:?} should be declared before it's used",
+                id));
             let new_analysis = VariableAnalysis {
                 num_used: prev_analysis.num_used + 1,
                 loop_level_declared: prev_analysis.loop_level_declared,

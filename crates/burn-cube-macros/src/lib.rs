@@ -67,7 +67,9 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
         body.extend(tokens);
     }
 
-    let code = quote::quote! {
+    
+
+    quote::quote! {
         // mod #mod_name {
             // #prelude
 
@@ -80,9 +82,7 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
             }
         // }
     }
-    .into();
-
-    code
+    .into()
 }
 
 // fn get_name(sig: &syn::Signature) -> proc_macro2::TokenStream {
@@ -130,5 +130,4 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     quote::quote! {
         pub fn #ident #generics (context: &mut burn_cube::CubeContext, #inputs) -> #output
     }
-    .into()
 }
