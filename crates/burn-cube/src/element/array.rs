@@ -1,4 +1,4 @@
-use crate::{ExpandElement, CubeType};
+use crate::{CubeType, ExpandElement};
 
 #[derive(new, Clone)]
 pub struct Array<E> {
