@@ -993,7 +993,6 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
             if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
                 shape.clone()
             } else {
-                println!("###{:?}###", input_value.value);
                 panic!("Tensor data type must be int64")
             }
         }

@@ -267,7 +267,7 @@ fn reduce_mean_update_outputs(node: &mut Node) {
     }
 }
 
-/// Update the output tensor dimension based on the "axes" attribute
+/// Update the output tensor dimension
 fn squeeze_update_output(node: &mut Node) {
     if let Some(Data::Int64s(axes)) = &node.inputs[1].value {
         if axes.len() != 1 {
