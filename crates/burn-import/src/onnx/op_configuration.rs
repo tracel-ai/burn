@@ -995,7 +995,7 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
                 if let Some(Data::Int64s(data)) = &input_value.value {
-                    axes = data.clone();
+                    axes.clone_from(data)
                 } else {
                     panic!("Squeeze: Tensor data type must be int64");
                 }
