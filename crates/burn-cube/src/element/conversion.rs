@@ -1,5 +1,7 @@
 use crate::{Bool, Float, Int, PrimitiveVariable, UInt, BF16, F16, F32, F64, I32, I64};
 
+// Enable elegant casting from any to any primitive variable
+
 macro_rules! impl_to_float {
     ($to:ident, $from1:ident) => {
         impl From<$from1> for $to {

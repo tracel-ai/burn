@@ -3,12 +3,7 @@ use burn_jit::gpu::{Elem, IntKind, Variable};
 use std::rc::Rc;
 
 /// Signed integer. Used as input in int kernels
-pub trait Int:
-    Clone
-    + Copy
-    + std::ops::Rem<Output = Self>
-    + Numeric
-{
+pub trait Int: Numeric + std::ops::Rem<Output = Self> {
     fn from_primitive(val: i64) -> Self;
     fn from_primitive_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }

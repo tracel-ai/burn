@@ -5,8 +5,8 @@ mod conversion;
 mod float;
 mod int;
 mod numeric;
-mod static_type;
 mod primitive;
+mod static_type;
 mod uint;
 
 pub use array::*;

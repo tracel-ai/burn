@@ -3,11 +3,7 @@ use burn_jit::gpu::{Elem, FloatKind, Variable};
 use std::rc::Rc;
 
 /// Floating point numbers. Used as input in float kernels
-pub trait Float:
-    Clone
-    + Copy
-    + Numeric
-{
+pub trait Float: Numeric {
     /// Create a Float from a float literal
     fn from_primitive(val: f64) -> Self;
     /// Expand version of from_primitive

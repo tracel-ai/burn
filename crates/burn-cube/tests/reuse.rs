@@ -4,15 +4,14 @@ use burn_jit::{
     gpu::{Branch, Elem, Item, Variable},
 };
 
-// a += b is more efficient than a = a + b
-// because the latter does not assume that a is the same in lhs and rhs
-// It could be detected and optimized
-
 type ElemType = I32;
 
 #[cube]
 #[allow(clippy::assign_op_pattern)]
 pub fn reuse<I: Int>(mut x: I) {
+    // a += b is more efficient than a = a + b
+    // Because the latter does not assume that a is the same in lhs and rhs
+    // Normally clippy should detect it
     while x < I::new(10) {
         x = x + I::new(1);
     }

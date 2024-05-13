@@ -10,7 +10,7 @@ use super::{
 };
 
 /// Codegen for a statement (generally one line)
-/// Entry point of codegen
+/// Entry point of code generation
 pub fn codegen_statement(
     statement: &syn::Stmt,
     loop_level: usize,
