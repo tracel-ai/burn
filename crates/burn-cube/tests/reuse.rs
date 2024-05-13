@@ -11,6 +11,7 @@ use burn_jit::{
 type ElemType = I32;
 
 #[cube]
+#[allow(clippy::assign_op_pattern)]
 pub fn reuse<I: Int>(mut x: I) {
     while x < I::new(10) {
         x = x + I::new(1);

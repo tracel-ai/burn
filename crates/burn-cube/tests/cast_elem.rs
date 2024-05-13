@@ -42,6 +42,7 @@ macro_rules! cast_test {
 
 // From float
 #[cube]
+#[allow(clippy::useless_conversion)]
 pub fn float_to_float(x: F32) {
     let y = x + F32::new(2);
     let _ = F32::from(y) + F32::new(34);
@@ -100,6 +101,7 @@ pub fn int_to_float(x: I32) {
 }
 
 #[cube]
+#[allow(clippy::useless_conversion)]
 pub fn int_to_int(x: I32) {
     let y = x + I32::new(2);
     let _ = I32::from(y) + I32::new(34);
@@ -158,6 +160,7 @@ pub fn uint_to_int(x: UInt) {
 }
 
 #[cube]
+#[allow(clippy::useless_conversion)]
 pub fn uint_to_uint(x: UInt) {
     let y = x + UInt::new(2);
     let _ = UInt::from(y) + UInt::new(34);
@@ -216,6 +219,7 @@ pub fn bool_to_uint(x: Bool) {
 }
 
 #[cube]
+#[allow(clippy::useless_conversion)]
 pub fn bool_to_bool(x: Bool) {
     let y = x & Bool::new(false);
     let _ = Bool::from(y) | Bool::new(true);
