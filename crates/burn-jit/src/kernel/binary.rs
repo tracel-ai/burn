@@ -61,7 +61,9 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, I::gpu_elem());
+            let position = $crate::codegen::dialect::gpu::Variable::Id;
+
+            let op = $ops(&mut scope, I::gpu_elem(), position);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -77,6 +79,7 @@ macro_rules! binary {
             let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                 local,
+                position,
             };
             let info = $crate::codegen::CompilationInfo {
                 inputs: vec![lhs, rhs],

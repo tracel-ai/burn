@@ -9,6 +9,8 @@ pub struct ReadGlobal {
     pub global: Variable,
     /// The output variable to write the result.
     pub out: Variable,
+    /// The reference position index.
+    pub position: Variable,
 }
 
 /// Read a global array with the given layout.
@@ -20,6 +22,8 @@ pub struct ReadGlobalWithLayout {
     pub outs: Vec<Variable>,
     /// The layout to be used.
     pub layout: Variable,
+    /// The reference position index.
+    pub position: Variable,
 }
 
 impl ReadGlobal {
@@ -27,7 +31,7 @@ impl ReadGlobal {
     pub fn expand(self, scope: &mut Scope) {
         scope.register(Operator::Index(BinaryOperator {
             lhs: self.global,
-            rhs: Variable::Id,
+            rhs: self.position,
             out: self.out,
         }));
     }
@@ -35,6 +39,7 @@ impl ReadGlobal {
         Self {
             global: self.global.vectorize(vectorization),
             out: self.out.vectorize(vectorization),
+            position: self.position,
         }
     }
 }
@@ -44,6 +49,10 @@ impl ReadGlobalWithLayout {
     pub fn try_merge(&self, other: &Self) -> Option<Self> {
         // Can only merge two reads when they share the same reference layout.
         if self.layout != other.layout {
+            return None;
+        }
+
+        if self.position != other.position {
             return None;
         }
 
@@ -59,6 +68,7 @@ impl ReadGlobalWithLayout {
             globals,
             outs,
             layout: self.layout,
+            position: self.position,
         })
     }
 
@@ -75,7 +85,7 @@ impl ReadGlobalWithLayout {
             tensors: tensors.clone(),
             layout: self.layout,
             indexes: indexes.clone(),
-            index_ref: Variable::Id,
+            position: self.position,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }
@@ -103,6 +113,7 @@ impl ReadGlobalWithLayout {
                 .iter()
                 .map(|o| o.vectorize(vectorization))
                 .collect(),
+            position: self.position,
         }
     }
 }
@@ -117,10 +128,10 @@ pub struct IndexOffsetGlobalWithLayout {
     pub indexes: Vec<Variable>,
     /// Reference layout.
     pub layout: Variable,
-    /// Index that corresponds to the reference layout.
+    /// Position index that corresponds to the reference layout.
     ///
     /// All other indexes will be made to be compatible with this one.
-    pub index_ref: Variable,
+    pub position: Variable,
     pub dim_start: Variable,
     pub dim_end: Variable,
 }
@@ -130,7 +141,7 @@ impl IndexOffsetGlobalWithLayout {
     pub fn expand(self, scope: &mut Scope) {
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
-        let offset_ref = self.index_ref;
+        let offset_ref = self.position;
         let zero: Variable = 0u32.into();
         let vectorization_factor: Variable = match self.tensors[0].item() {
             Item::Vec4(_) => 4u32,
@@ -187,7 +198,7 @@ impl IndexOffsetGlobalWithLayout {
                 .map(|t| t.vectorize(vectorization))
                 .collect(),
             layout: self.layout.vectorize(vectorization),
-            index_ref: self.index_ref.vectorize(vectorization),
+            position: self.position.vectorize(vectorization),
             dim_start: self.dim_start,
             dim_end: self.dim_end,
         }

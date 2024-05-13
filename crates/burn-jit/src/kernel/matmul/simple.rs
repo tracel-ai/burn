@@ -103,7 +103,7 @@ impl MatmulComputeShader {
             tensors: vec![lhs, rhs],
             indexes: vec![offset_lhs, offset_rhs],
             layout: out,
-            index_ref: offset_output,
+            position: offset_output,
             dim_start: 0u32.into(),
             dim_end: batch_dims,
         }
