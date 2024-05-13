@@ -973,29 +973,48 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
 }
 
 pub fn squeeze_config(curr: &Node) -> Vec<i64> {
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "axes" => return value.clone().into_i64s(),
-            _ => {}
-        }
-    }
-
-    assert!(
-        !curr.inputs.is_empty(),
-        "Squeeze: axes tensor must be present"
-    );
-
-    let input_value = &curr.inputs[1];
-
-    match &curr.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
-                shape.clone()
+    let mut axes = curr
+        .attrs
+        .iter()
+        .filter_map(|(key, value)| {
+            if key == "axes" {
+                Some(value.clone().into_i64s())
             } else {
-                panic!("Tensor data type must be int64")
+                None
             }
+        })
+        .next()
+        .unwrap_or_else(Vec::new);
+
+    // If axes are not found in attributes, try to extract them from input tensor
+    if axes.is_empty() {
+        assert!(!curr.inputs.is_empty(), "Squeeze: input must be present");
+
+        let input_value = &curr.inputs[1];
+        match &input_value.ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
+                if let Some(Data::Int64s(data)) = &input_value.value {
+                    axes = data.clone();
+                } else {
+                    panic!("Squeeze: Tensor data type must be int64");
+                }
+            }
+            _ => panic!("Squeeze: Argument for axes must be a tensor"),
         }
-        _ => panic!("Arg for squeeze must be tensor or scalar"),
     }
+
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Adjust negative axes
+    axes.iter_mut().for_each(|x| {
+        if *x < 0 {
+            *x += tensor.dim as i64;
+        }
+    });
+
+    axes
 }
