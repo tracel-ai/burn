@@ -8,6 +8,11 @@ pub fn literal<F: Float>(lhs: F) {
     let _ = lhs + F::new(5);
 }
 
+#[cube]
+pub fn literal_float_no_decimals<F: Float>(lhs: F) {
+    let _ = lhs + F::from_primitive(5.);
+}
+
 #[test]
 fn cube_literal_test() {
     let mut context = CubeContext::root();
@@ -15,6 +20,18 @@ fn cube_literal_test() {
     let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
 
     literal_expand::<ElemType>(&mut context, lhs);
+    let scope = context.into_scope();
+
+    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+}
+
+#[test]
+fn cube_literal_float_no_decimal_test() {
+    let mut context = CubeContext::root();
+
+    let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
+
+    literal_float_no_decimals_expand::<ElemType>(&mut context, lhs);
     let scope = context.into_scope();
 
     assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());

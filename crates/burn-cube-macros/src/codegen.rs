@@ -4,6 +4,35 @@ use syn::{Lit, PathArguments};
 
 use crate::analysis::CodeAnalysis;
 
+/// Codegen for a code block (a list of statements)
+fn codegen_block(
+    block: &syn::Block,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let mut statements = quote::quote!();
+
+    for statement in block.stmts.iter() {
+        statements.extend(codegen_statement(statement, loop_level, variable_analyses));
+    }
+
+    quote::quote! {
+        {
+            #statements
+        }
+    }
+}
+
+/// Codegen for an expression containing a block
+fn codegen_expr_block(
+    block: &syn::ExprBlock,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    codegen_block(&block.block, loop_level, variable_analyses)
+}
+
+/// Codegen for a statement (generally one line)
 pub fn codegen_statement(
     statement: &syn::Stmt,
     loop_level: usize,
@@ -24,6 +53,11 @@ pub fn codegen_statement(
     }
 }
 
+/// Codegen for a local declaration (let ...)
+/// Supports:
+/// let x = ...
+/// let x: T = ...
+/// let _ = ...
 fn codegen_local(
     local: &syn::Local,
     loop_level: usize,
@@ -57,6 +91,8 @@ fn codegen_local(
     }
 }
 
+/// Codegen for expressions
+/// There are many variants of expression, treated differently
 fn codegen_expr(
     expr: &syn::Expr,
     loop_level: usize,
@@ -78,11 +114,12 @@ fn codegen_expr(
         syn::Expr::Break(_) => codegen_break(),
         syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
-        syn::Expr::Index(index) => codegen_expr_index(index, loop_level, variable_analyses),
+        syn::Expr::Index(index) => codegen_index(index, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }
 
+/// Codegen for literals
 fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
     match lit.lit {
         // We treat floats differently to avoid getting 4..into() for instance
@@ -97,7 +134,8 @@ fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
     }
 }
 
-fn codegen_expr_index(
+/// Codegen for indexed access
+fn codegen_index(
     index: &syn::ExprIndex,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
@@ -107,17 +145,21 @@ fn codegen_expr_index(
 
     quote::quote! {
         {
-        let _array = #array;
-        let _index = #index;
-        burn_cube::index::expand(context, _array, _index)
+            let _array = #array;
+            let _index = #index;
+            burn_cube::index::expand(context, _array, _index)
         }
     }
 }
 
+/// Codegen for method call
 fn codegen_expr_method_call(call: &syn::ExprMethodCall) -> TokenStream {
     quote::quote!( #call )
 }
 
+/// Codegen for for loops
+/// Supports range:
+/// for i in range(start, end, unroll) {...}
 fn codegen_for_loop(
     for_loop: &syn::ExprForLoop,
     loop_level: usize,
@@ -157,6 +199,7 @@ fn codegen_for_loop(
     }
 }
 
+/// Codegen for condition of an if or a while
 fn codegen_cond(
     cond: &syn::Expr,
     loop_level: usize,
@@ -169,12 +212,17 @@ fn codegen_cond(
     }
 }
 
+/// Codegen for break statement
 fn codegen_break() -> TokenStream {
     quote::quote! {
         break_expand(context);
     }
 }
 
+/// Codegen for if and if/else statements
+/// Supports:
+/// if cond {...}
+/// if cond {...} else {...}
 fn codegen_if(
     expr_if: &syn::ExprIf,
     loop_level: usize,
@@ -203,6 +251,7 @@ fn codegen_if(
     }
 }
 
+/// Codegen for loop
 fn codegen_loop(
     loop_expr: &syn::ExprLoop,
     loop_level: usize,
@@ -215,6 +264,7 @@ fn codegen_loop(
     }
 }
 
+/// Codegen for while loop
 fn codegen_while_loop(
     while_loop: &syn::ExprWhile,
     loop_level: usize,
@@ -228,6 +278,10 @@ fn codegen_while_loop(
     }
 }
 
+/// Codegen for assignation
+/// Supports:
+/// - scalar
+/// - indexed array
 fn codegen_assign(
     assign: &syn::ExprAssign,
     loop_level: usize,
@@ -264,32 +318,7 @@ fn codegen_assign(
     }
 }
 
-fn codegen_block(
-    block: &syn::Block,
-    loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
-) -> TokenStream {
-    let mut statements = quote::quote!();
-
-    for statement in block.stmts.iter() {
-        statements.extend(codegen_statement(statement, loop_level, variable_analyses));
-    }
-
-    quote::quote! {
-        {
-            #statements
-        }
-    }
-}
-
-fn codegen_expr_block(
-    block: &syn::ExprBlock,
-    loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
-) -> TokenStream {
-    codegen_block(&block.block, loop_level, variable_analyses)
-}
-
+/// Codegen for a closure
 fn codegen_closure(
     closure: &syn::ExprClosure,
     loop_level: usize,
@@ -313,15 +342,17 @@ fn codegen_closure(
     }
 }
 
+/// Codegen for a function call
+/// Supports:
+/// func()
+/// func::<T>()
+/// T::func()
 fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    // Possibilities:
-    // a()
-    // a::<T>()
-    // T::a
+    // We start with parsing the function path
     let (mut idents, generics) = match call.func.as_ref() {
         syn::Expr::Path(expr_path) => {
             let mut idents = Vec::new();
@@ -340,6 +371,7 @@ fn codegen_call(
         _ => todo!("Codegen: func call {:?} not supported", call.func),
     };
 
+    // Function name with support for longer path
     let func_name = idents
         .pop()
         .expect("Codegen: Func should have at least one ident");
@@ -348,17 +380,18 @@ fn codegen_call(
     for ident in idents.iter() {
         previous_tokens.extend(quote_spanned! {ident.span() => #ident :: });
     }
-
     let func_name_expand = syn::Ident::new(
         format!("{func_name}_expand").as_str(),
         proc_macro2::Span::call_site(),
     );
 
+    // Generics
     let generics = match generics {
         Some(generics) => quote::quote! { #generics },
         None => quote::quote! {},
     };
 
+    // Arguments
     let mut args = quote::quote! {
         context,
     };
@@ -367,11 +400,14 @@ fn codegen_call(
         args.extend(quote::quote! { #arg, });
     }
 
+    // Codegen
     quote::quote! {
         #previous_tokens #func_name_expand #generics (#args)
     }
 }
 
+/// Codegen for a variable used in rhs of a statement
+/// This function adds cloning when necessary
 fn codegen_path_rhs(
     path: &syn::ExprPath,
     loop_level: usize,
@@ -395,6 +431,7 @@ fn codegen_path_rhs(
     }
 }
 
+/// Codegen for binary operations (+, -, *, etc.)
 fn codegen_binary(
     binary: &syn::ExprBinary,
     loop_level: usize,

@@ -5,6 +5,8 @@ use syn::{PathArguments, Stmt};
 use crate::VariableKey;
 
 #[derive(Debug)]
+/// Information about a single variable's use in Cube code
+/// Useful to figure out when the generated variable will need cloning
 pub(crate) struct VariableAnalysis {
     num_used: usize,
     loop_level_declared: usize,
@@ -22,11 +24,13 @@ impl VariableAnalysis {
 }
 
 #[derive(Debug)]
+/// Information about all variables in the Cube code, transmitted to codegen
 pub(crate) struct CodeAnalysis {
     pub variable_analyses: HashMap<VariableKey, VariableAnalysis>,
 }
 
 #[derive(Debug, Default)]
+/// Reads the Cube code and accumulates information, to generate a CodeAnalysis artefact
 pub(crate) struct CodeAnalysisBuilder {
     declarations: Vec<(VariableKey, usize)>,
     var_uses: Vec<VariableKey>,
@@ -55,7 +59,7 @@ impl CodeAnalysisBuilder {
     fn analyze(mut self, func: &syn::ItemFn) -> CodeAnalysis {
         // Build the vector of (Id, depth), using recursion
         self.signature_declarations(&func.sig);
-        self.stmts_occurrences(&func.block.stmts, 0);
+        self.find_occurrences_in_stmts(&func.block.stmts, 0);
 
         CodeAnalysis {
             variable_analyses: self.to_map(),
@@ -81,8 +85,12 @@ impl CodeAnalysisBuilder {
         }
 
         for id in self.var_uses.iter() {
-            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| panic!("Analysis: Variable {:?} should be declared before it's used",
-                id));
+            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| {
+                panic!(
+                    "Analysis: Variable {:?} should be declared before it's used",
+                    id
+                )
+            });
             let new_analysis = VariableAnalysis {
                 num_used: prev_analysis.num_used + 1,
                 loop_level_declared: prev_analysis.loop_level_declared,
@@ -111,7 +119,7 @@ impl CodeAnalysisBuilder {
         }
     }
 
-    fn stmts_occurrences(&mut self, stmts: &Vec<Stmt>, depth: usize) {
+    fn find_occurrences_in_stmts(&mut self, stmts: &Vec<Stmt>, depth: usize) {
         for stmt in stmts {
             match stmt {
                 // Declaration
@@ -129,16 +137,16 @@ impl CodeAnalysisBuilder {
                         self.declarations.push((id.into(), depth));
                     }
                     if let Some(local_init) = &local.init {
-                        self.expr_occurrences(&local_init.expr, depth)
+                        self.find_occurrences_in_expr(&local_init.expr, depth)
                     }
                 }
-                syn::Stmt::Expr(expr, _) => self.expr_occurrences(expr, depth),
+                syn::Stmt::Expr(expr, _) => self.find_occurrences_in_expr(expr, depth),
                 _ => todo!("Analysis: unsupported stmt {stmt:?}"),
             }
         }
     }
 
-    fn expr_occurrences(&mut self, expr: &syn::Expr, depth: usize) {
+    fn find_occurrences_in_expr(&mut self, expr: &syn::Expr, depth: usize) {
         match expr {
             syn::Expr::ForLoop(expr) => {
                 let depth = depth + 1;
@@ -149,39 +157,39 @@ impl CodeAnalysisBuilder {
                     self.declarations.push((id.into(), depth));
                 }
 
-                self.stmts_occurrences(&expr.body.stmts, depth);
+                self.find_occurrences_in_stmts(&expr.body.stmts, depth);
             }
             syn::Expr::While(expr) => {
                 let depth = depth + 1;
 
-                self.expr_occurrences(&expr.cond, depth);
-                self.stmts_occurrences(&expr.body.stmts, depth);
+                self.find_occurrences_in_expr(&expr.cond, depth);
+                self.find_occurrences_in_stmts(&expr.body.stmts, depth);
             }
             syn::Expr::Loop(expr) => {
                 let depth = depth + 1;
 
-                self.stmts_occurrences(&expr.body.stmts, depth);
+                self.find_occurrences_in_stmts(&expr.body.stmts, depth);
             }
             syn::Expr::If(expr) => {
                 let depth = depth + 1;
 
-                self.expr_occurrences(&expr.cond, depth);
-                self.stmts_occurrences(&expr.then_branch.stmts, depth);
+                self.find_occurrences_in_expr(&expr.cond, depth);
+                self.find_occurrences_in_stmts(&expr.then_branch.stmts, depth);
                 if let Some((_, expr)) = &expr.else_branch {
                     if let syn::Expr::Block(expr_block) = &**expr {
-                        self.stmts_occurrences(&expr_block.block.stmts, depth);
+                        self.find_occurrences_in_stmts(&expr_block.block.stmts, depth);
                     } else {
                         todo!("Analysis: Only block else expr is supported")
                     }
                 }
             }
             syn::Expr::Assign(expr) => {
-                self.expr_occurrences(&expr.left, depth);
-                self.expr_occurrences(&expr.right, depth);
+                self.find_occurrences_in_expr(&expr.left, depth);
+                self.find_occurrences_in_expr(&expr.right, depth);
             }
             syn::Expr::Index(expr) => {
-                self.expr_occurrences(&expr.expr, depth);
-                self.expr_occurrences(&expr.index, depth);
+                self.find_occurrences_in_expr(&expr.expr, depth);
+                self.find_occurrences_in_expr(&expr.index, depth);
             }
             syn::Expr::Path(expr) => {
                 let ident = expr
@@ -193,8 +201,8 @@ impl CodeAnalysisBuilder {
                 self.var_uses.push(ident.into());
             }
             syn::Expr::Binary(expr) => {
-                self.expr_occurrences(&expr.left, depth);
-                self.expr_occurrences(&expr.right, depth);
+                self.find_occurrences_in_expr(&expr.left, depth);
+                self.find_occurrences_in_expr(&expr.right, depth);
             }
             syn::Expr::Lit(_) => {}
             syn::Expr::Call(expr) => {
@@ -219,13 +227,13 @@ impl CodeAnalysisBuilder {
                     _ => todo!("Analysis: unsupported func expr {:?}", expr.func),
                 }
                 for arg in expr.args.iter() {
-                    self.expr_occurrences(arg, depth);
+                    self.find_occurrences_in_expr(arg, depth);
                 }
             }
             syn::Expr::MethodCall(expr) => {
-                self.expr_occurrences(&expr.receiver, depth);
+                self.find_occurrences_in_expr(&expr.receiver, depth);
                 for arg in expr.args.iter() {
-                    self.expr_occurrences(arg, depth);
+                    self.find_occurrences_in_expr(arg, depth);
                 }
             }
             syn::Expr::Break(_) => {}

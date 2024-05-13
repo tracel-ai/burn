@@ -5,21 +5,41 @@ use analysis::CodeAnalysis;
 use codegen::codegen_statement;
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::{parse_macro_input, punctuated::Punctuated, Meta};
+use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
+
+enum CubeMode {
+    /// Generates the expanded version of the function
+    Default,
+    /// Panics and prints the generated code, useful when debugging
+    /// Use by writing #[cube(panic)]
+    Panic,
+}
 
 /// Derive macro for the module.
 #[proc_macro_attribute]
 pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
+    let mode = parse_mode(args);
+    let func: syn::ItemFn = syn::parse(tokens).unwrap();
+    let mut variable_analyses = CodeAnalysis::create(&func);
 
-    let mut panic_mode = false;
+    let code = codegen_cube(&func, &mut variable_analyses);
+    match mode {
+        CubeMode::Default => code,
+        CubeMode::Panic => panic!("{code}"),
+    }
+}
+
+fn parse_mode(args: Punctuated<Meta, Comma>) -> CubeMode {
+    let mut mode = CubeMode::Default;
+
     if let Some(arg) = args.first() {
         match arg {
             Meta::Path(path) => {
                 if let Some(ident) = path.get_ident().map(|id| id.to_string()) {
                     match ident.as_str() {
                         "panic" => {
-                            panic_mode = true;
+                            mode = CubeMode::Panic;
                         }
                         _ => panic!("Attribute {ident} is not supported"),
                     }
@@ -32,14 +52,7 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
         }
     }
 
-    let func: syn::ItemFn = syn::parse(tokens).unwrap();
-    let mut variable_analyses = CodeAnalysis::create(&func);
-
-    let code = codegen_cube(&func, &mut variable_analyses);
-    match panic_mode {
-        true => panic!("{code}"),
-        false => code,
-    }
+    mode
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -57,8 +70,6 @@ impl From<&syn::Ident> for VariableKey {
 
 /// Generate the expanded version of a function marked with the cube macro
 fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenStream {
-    // let prelude = get_prelude(&code_analysis.needed_functions);
-    // let mod_name = get_name(&func.sig);
     let signature = expand_sig(&func.sig);
     let mut body = quote::quote! {};
 
@@ -67,32 +78,17 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> TokenSt
         body.extend(tokens);
     }
 
-    
-
     quote::quote! {
-        // mod #mod_name {
-            // #prelude
+        #[allow(dead_code)]
+        #func
 
-            #[allow(dead_code)]
-            #func
-
-            #[allow(unused_mut)]
-            #signature {
-                #body
-            }
-        // }
+        #[allow(unused_mut)]
+        #signature {
+            #body
+        }
     }
     .into()
 }
-
-// fn get_name(sig: &syn::Signature) -> proc_macro2::TokenStream {
-//     let ident = &sig.ident;
-
-//     quote::quote! {
-//         #ident
-//     }
-//     .into()
-// }
 
 fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
@@ -107,7 +103,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
                     #ident: <#ty as burn_cube::CubeType>::ExpandType,
                 });
             }
-            _ => todo!(),
+            _ => todo!("Only Typed inputs are supported"),
         }
     }
 
