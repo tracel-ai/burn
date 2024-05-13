@@ -4,13 +4,13 @@ use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
 
 /// A trace encapsulates all information necessary to perform the compilation and execution of
-/// captured [tensor operations](burn_fusion::stream::OperationDescription).
+/// captured [tensor operations](burn_tensor::repr::OperationDescription).
 ///
 /// A trace should be built using a [builder](super::TraceBuilder).
 #[derive(new, Clone, Serialize, Deserialize)]
 pub struct Trace {
-    inputs: Vec<(TensorDescription, gpu::Elem)>,
-    outputs: Vec<(TensorDescription, gpu::Elem)>,
+    inputs: Vec<(TensorDescription, gpu::Elem, gpu::Variable)>,
+    output_writes: Vec<(TensorDescription, gpu::Elem, gpu::Variable)>,
     locals: Vec<u16>,
     scalars: Scalars,
     scope: gpu::Scope,
@@ -31,7 +31,7 @@ impl Trace {
     pub fn running(&self) -> ExecutionInfo<'_> {
         ExecutionInfo {
             inputs: self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            outputs: self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            outputs: self.output_writes.iter().map(|a| &a.0).collect::<Vec<_>>(),
             scalars: &self.scalars,
         }
     }
@@ -41,20 +41,23 @@ impl Trace {
         let mut inputs = self
             .inputs
             .iter()
-            .map(|(_tensor, elem)| InputInfo::Array {
+            .map(|(_tensor, elem, _)| InputInfo::Array {
                 item: gpu::Item::Scalar(*elem),
                 visibility: gpu::Visibility::Read,
             })
             .collect::<Vec<_>>();
 
         let outputs = self
-            .outputs
+            .output_writes
             .iter()
             .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| OutputInfo::ArrayWrite {
-                item: gpu::Item::Scalar(*elem),
-                local: *local,
-            })
+            .map(
+                |((_tensor, elem, index_ref), local)| OutputInfo::ArrayWrite {
+                    item: gpu::Item::Scalar(*elem),
+                    local: *local,
+                    position: *index_ref,
+                },
+            )
             .collect::<Vec<_>>();
 
         // NOTE: we might want to pass a struct including all inputs/outputs metadata instead of 3 arrays

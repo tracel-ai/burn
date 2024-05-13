@@ -281,11 +281,16 @@ impl OutputInfo {
     #[allow(dead_code)]
     pub fn item(&self) -> Item {
         match self {
-            OutputInfo::ArrayWrite { item, local: _ } => *item,
+            OutputInfo::ArrayWrite {
+                item,
+                local: _,
+                position: _,
+            } => *item,
             OutputInfo::InputArrayWrite {
                 item,
                 input: _,
                 local: _,
+                position: _,
             } => *item,
             OutputInfo::Array { item } => *item,
         }
@@ -298,9 +303,18 @@ pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
     /// This will create a new binding in the [compute shader](ComputeShader).
-    ArrayWrite { item: Item, local: u16 },
+    ArrayWrite {
+        item: Item,
+        local: u16,
+        position: Variable,
+    },
     /// Write the local variable to an existing input binding.
-    InputArrayWrite { item: Item, input: u16, local: u16 },
+    InputArrayWrite {
+        item: Item,
+        input: u16,
+        local: u16,
+        position: Variable,
+    },
     /// Simply register the output, but don't automatically add a write to it.
     ///
     /// Useful when a [procedure](gpu::Procedure) writes to the output using
@@ -312,11 +326,16 @@ impl OutputInfo {
     #[allow(dead_code)]
     pub fn elem_size<R: Runtime>(&self) -> usize {
         let elem = match self {
-            OutputInfo::ArrayWrite { item, local: _ } => bool_elem(item.elem()),
+            OutputInfo::ArrayWrite {
+                item,
+                local: _,
+                position: _,
+            } => bool_elem(item.elem()),
             OutputInfo::InputArrayWrite {
                 item,
                 input: _,
                 local: _,
+                position: _,
             } => bool_elem(item.elem()),
             OutputInfo::Array { item } => bool_elem(item.elem()),
         };
@@ -424,7 +443,11 @@ impl Compilation {
 
         for array in self.info.outputs.drain(..) {
             match array {
-                OutputInfo::ArrayWrite { item, local } => {
+                OutputInfo::ArrayWrite {
+                    item,
+                    local,
+                    position,
+                } => {
                     let item = if let Some(vectorization) = settings.vectorization {
                         item.vectorize(vectorization)
                     } else {
@@ -441,10 +464,16 @@ impl Compilation {
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalOutputArray(index, elem_adapted),
+                        position,
                     );
                     index += 1;
                 }
-                OutputInfo::InputArrayWrite { item, input, local } => {
+                OutputInfo::InputArrayWrite {
+                    item,
+                    input,
+                    local,
+                    position,
+                } => {
                     let item = if let Some(vectorization) = settings.vectorization {
                         item.vectorize(vectorization)
                     } else {
@@ -454,6 +483,7 @@ impl Compilation {
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalInputArray(input, bool_item(item)),
+                        position,
                     );
                 }
                 OutputInfo::Array { item } => {
@@ -483,12 +513,13 @@ impl Compilation {
             None => panic!("No output found."),
         };
 
-        let (item, local) = match output {
-            OutputInfo::ArrayWrite { item, local } => (item, local),
+        let (item, local, position) = match output {
+            OutputInfo::ArrayWrite { item, local, position } => (item, local, position),
             OutputInfo::InputArrayWrite {
                 item: _,
                 input,
                 local: _,
+                position: _,
             } => {
                 assert_eq!(
                     *input, mapping.pos_input as u16,
@@ -521,6 +552,7 @@ impl Compilation {
             item,
             input: mapping.pos_input as u16,
             local: *local,
+            position: *position,
         };
     }
 }

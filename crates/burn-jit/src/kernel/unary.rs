@@ -67,7 +67,7 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem());
+            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -79,6 +79,7 @@ macro_rules! unary {
             let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
+                position: $crate::codegen::dialect::gpu::Variable::Id,
             };
             let info = $crate::codegen::CompilationInfo {
                 inputs: vec![input],
@@ -142,7 +143,7 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem());
+            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -158,6 +159,7 @@ macro_rules! unary {
             let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
+                position: $crate::codegen::dialect::gpu::Variable::Id,
             };
             let info = $crate::codegen::CompilationInfo {
                 inputs: vec![input, scalars],

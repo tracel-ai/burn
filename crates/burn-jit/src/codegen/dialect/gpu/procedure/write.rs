@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct WriteGlobal {
     pub input: Variable,
     pub global: Variable,
+    pub position: Variable,
 }
 
 impl WriteGlobal {
@@ -14,7 +15,7 @@ impl WriteGlobal {
     pub fn expand(self, scope: &mut Scope) {
         let output = self.global;
         let input = self.input;
-        let position = Variable::Id;
+        let position = self.position;
 
         gpu!(scope, output[position] = input);
     }
@@ -23,6 +24,7 @@ impl WriteGlobal {
         Self {
             input: self.input.vectorize(vectorization),
             global: self.global.vectorize(vectorization),
+            position: self.position,
         }
     }
 }

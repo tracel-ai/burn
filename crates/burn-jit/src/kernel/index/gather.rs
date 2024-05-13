@@ -54,7 +54,7 @@ impl GatherComputeShader {
                 tensors: vec![tensor],
                 indexes: vec![offset_before],
                 layout: Variable::Id, // Will be updated.
-                index_ref: Variable::Id,
+                position: Variable::Id,
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
@@ -66,7 +66,7 @@ impl GatherComputeShader {
             tensors: vec![tensor],
             indexes: vec![offset_after],
             layout: Variable::Id, // Will be updated.
-            index_ref: Variable::Id,
+            position: Variable::Id,
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
@@ -83,7 +83,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
         let item_indices: gpu::Item = gpu::Elem::Int(IntKind::I32).into();
 
         let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);
-        let indices = scope.read_array(1, item_indices);
+        let indices = scope.read_array(1, item_indices, Variable::Id);
 
         let output_array = gpu::Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
@@ -96,7 +96,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
         }
         .expand(&mut scope);
 
-        scope.write_global(output_local, output_array);
+        scope.write_global(output_local, output_array, Variable::Id);
 
         let tensor = InputInfo::Array {
             item: item_tensor,

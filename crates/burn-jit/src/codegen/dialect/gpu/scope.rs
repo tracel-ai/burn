@@ -22,9 +22,9 @@ pub struct Scope {
     locals: Vec<Variable>,
     shared_memories: Vec<Variable>,
     local_arrays: Vec<Variable>,
-    reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
+    reads_global: Vec<(Variable, ReadingStrategy, Variable, Variable)>,
     index_offset_with_output_layout_position: Vec<usize>,
-    writes_global: Vec<(Variable, Variable)>,
+    writes_global: Vec<(Variable, Variable, Variable)>,
     reads_scalar: Vec<(Variable, Variable)>,
     pub layout_ref: Option<Variable>,
     undeclared: u16,
@@ -102,8 +102,13 @@ impl Scope {
     /// Reads an input array to a local variable.
     ///
     /// The index refers to the argument position of the array in the compute shader.
-    pub(crate) fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
-        self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
+    pub(crate) fn read_array<I: Into<Item>>(
+        &mut self,
+        index: u16,
+        item: I,
+        position: Variable,
+    ) -> Variable {
+        self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout, position)
     }
 
     /// Add the procedure into the scope.
@@ -143,14 +148,18 @@ impl Scope {
         self.locals
             .iter_mut()
             .for_each(|var| *var = var.vectorize(vectorization));
-        self.reads_global.iter_mut().for_each(|(input, _, output)| {
-            *input = input.vectorize(vectorization);
-            *output = output.vectorize(vectorization);
-        });
-        self.writes_global.iter_mut().for_each(|(input, output)| {
-            *input = input.vectorize(vectorization);
-            *output = output.vectorize(vectorization);
-        });
+        self.reads_global
+            .iter_mut()
+            .for_each(|(input, _, output, _position)| {
+                *input = input.vectorize(vectorization);
+                *output = output.vectorize(vectorization);
+            });
+        self.writes_global
+            .iter_mut()
+            .for_each(|(input, output, _)| {
+                *input = input.vectorize(vectorization);
+                *output = output.vectorize(vectorization);
+            });
     }
 
     /// Writes a variable to given output.
@@ -158,12 +167,12 @@ impl Scope {
     /// Notes:
     ///
     /// This should only be used when doing compilation.
-    pub(crate) fn write_global(&mut self, input: Variable, output: Variable) {
+    pub(crate) fn write_global(&mut self, input: Variable, output: Variable, position: Variable) {
         // This assumes that all outputs have the same layout
         if self.layout_ref.is_none() {
             self.layout_ref = Some(output);
         }
-        self.writes_global.push((input, output));
+        self.writes_global.push((input, output, position));
     }
 
     /// Writes a variable to given output.
@@ -184,10 +193,10 @@ impl Scope {
     ///
     /// This should only be used when doing compilation.
     pub(crate) fn update_read(&mut self, index: u16, strategy: ReadingStrategy) {
-        if let Some((_, strategy_old, _)) = self
+        if let Some((_, strategy_old, _, _position)) = self
             .reads_global
             .iter_mut()
-            .find(|(var, _, _)| var.index() == Some(index))
+            .find(|(var, _, _, _)| var.index() == Some(index))
         {
             *strategy_old = strategy;
         }
@@ -197,7 +206,7 @@ impl Scope {
     pub(crate) fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
         self.reads_global
             .iter()
-            .map(|(var, strategy, _)| match var {
+            .map(|(var, strategy, _, _)| match var {
                 Variable::GlobalInputArray(id, _) => (*id, *strategy),
                 _ => panic!("Can only read global input arrays."),
             })
@@ -250,7 +259,7 @@ impl Scope {
 
         let mut operations = Vec::new();
 
-        for (input, strategy, local) in self.reads_global.drain(..) {
+        for (input, strategy, local, position) in self.reads_global.drain(..) {
             match strategy {
                 ReadingStrategy::OutputLayout => {
                     let output = self.layout_ref.expect(
@@ -261,6 +270,7 @@ impl Scope {
                             globals: vec![input],
                             layout: output,
                             outs: vec![local],
+                            position,
                         },
                     )));
                 }
@@ -268,6 +278,7 @@ impl Scope {
                     operations.push(Operation::Procedure(Procedure::ReadGlobal(ReadGlobal {
                         global: input,
                         out: local,
+                        position,
                     })))
                 }
             }
@@ -288,10 +299,11 @@ impl Scope {
             operations.push(op);
         }
 
-        for (input, global) in self.writes_global.drain(..) {
+        for (input, global, position) in self.writes_global.drain(..) {
             operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
                 input,
                 global,
+                position,
             })))
         }
 
@@ -323,6 +335,7 @@ impl Scope {
         index: u16,
         item: Item,
         strategy: ReadingStrategy,
+        position: Variable,
     ) -> Variable {
         let item_global = match item.elem() {
             Elem::Bool => match item {
@@ -336,7 +349,7 @@ impl Scope {
         let input = Variable::GlobalInputArray(index, item_global);
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
-        self.reads_global.push((input, strategy, local));
+        self.reads_global.push((input, strategy, local, position));
         self.locals.push(local);
         local
     }

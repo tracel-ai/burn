@@ -1,5 +1,6 @@
 use crate::codegen::dialect::gpu::{Elem, Operator, Scope, UnaryOperator};
 use crate::element::JitElement;
+use crate::gpu::Variable;
 use crate::{unary, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
@@ -145,8 +146,8 @@ where
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Assign(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Assign(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
