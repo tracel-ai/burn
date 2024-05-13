@@ -41,6 +41,6 @@ impl core::ops::Deref for ExpandElement {
 
 impl From<ExpandElement> for Variable {
     fn from(value: ExpandElement) -> Self {
-        (*value.inner).clone()
+        *value.inner
     }
 }

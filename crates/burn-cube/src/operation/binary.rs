@@ -114,7 +114,7 @@ pub mod mul {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val - rhs.val)
+                    <$type>::new(self.val * rhs.val)
                 }
             }
         };
@@ -193,11 +193,11 @@ pub mod rem {
         };
 
         ($type:ty) => {
-            impl core::ops::Div for $type {
+            impl core::ops::Rem for $type {
                 type Output = Self;
 
-                fn div(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val / rhs.val)
+                fn rem(self, rhs: Self) -> Self::Output {
+                    <$type>::new(self.val % rhs.val)
                 }
             }
         };

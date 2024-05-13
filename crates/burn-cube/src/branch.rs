@@ -116,7 +116,7 @@ where
     let mut inside_loop = context.child();
 
     let cond: ExpandElement = cond_fn(&mut inside_loop);
-    if_expand(&mut inside_loop, cond, |context| break_expand(context));
+    if_expand(&mut inside_loop, cond, break_expand);
 
     block(&mut inside_loop);
     context.register(Branch::Loop(gpu::Loop {

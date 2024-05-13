@@ -422,7 +422,7 @@ impl From<f32> for Variable {
 
 impl From<f64> for Variable {
     fn from(value: f64) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Float(super::FloatKind::F64))
+        Self::ConstantScalar(value, super::Elem::Float(super::FloatKind::F64))
     }
 }
 
