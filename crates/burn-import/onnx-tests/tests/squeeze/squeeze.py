@@ -31,10 +31,10 @@ def main():
     model = Model()
 
     # Export to ONNX
-    file_name = "squeeze.onnx"
-    torch.onnx.export(model, test_input, file_name, verbose=False, opset_version=16)
+    torch.onnx.export(model, test_input, "squeeze_opset16.onnx", verbose=False, opset_version=16)
+    torch.onnx.export(model, test_input, "squeeze_opset13.onnx", verbose=False, opset_version=13)
 
-    print(f"Finished exporting model to {file_name}")
+    print(f"Finished exporting model to 16 and 13")
 
     # Output some test data for use in the test
     output = model(test_input)
