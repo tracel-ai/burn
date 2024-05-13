@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeContext, Float, RuntimeType, F32};
+use burn_cube::{cube, CubeContext, Float, PrimitiveVariable, F32};
 use burn_jit::{gpu, gpu::Item};
 
 type ElemType = F32;

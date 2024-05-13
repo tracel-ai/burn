@@ -1,57 +1,43 @@
 use std::rc::Rc;
 
-use burn_jit::gpu::Variable;
+use burn_jit::gpu::{Elem, Item, Variable};
 
-use crate::{CubeType, ExpandElement};
+use crate::{assign, CubeContext, CubeType, ExpandElement};
 
-impl CubeType for bool {
-    type ExpandType = bool;
-}
+/// Form of CubeType that encapsulates all primitive types:
+/// Numeric, UInt, Bool
+pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
+    /// Type of the value kept CPU-side.
+    /// Does not necessarily match the GPU type.
+    type Primitive;
 
-impl CubeType for u32 {
-    type ExpandType = u32;
-}
+    /// Return the value of the float on CPU
+    fn val(&self) -> Self::Primitive;
 
-impl CubeType for f32 {
-    type ExpandType = f32;
-}
+    /// Return the element type to use on GPU
+    fn into_elem() -> Elem;
 
-impl CubeType for i32 {
-    type ExpandType = i32;
-}
-
-impl From<u32> for ExpandElement {
-    fn from(value: u32) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
+    /// Expand version of from, of the trait From
+    fn from_expand(context: &mut CubeContext, val: ExpandElement) -> ExpandElement {
+        let new_var = context.create_local(Item::Scalar(<Self as PrimitiveVariable>::into_elem()));
+        assign::expand(context, val, new_var.clone());
+        new_var
     }
 }
 
-impl From<usize> for ExpandElement {
-    fn from(value: usize) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
-    }
+macro_rules! impl_into_expand_element {
+    ($type:ty) => {
+        impl From<$type> for ExpandElement {
+            fn from(value: $type) -> Self {
+                ExpandElement::new(Rc::new(Variable::from(value)))
+            }
+        }
+    };
 }
 
-impl From<bool> for ExpandElement {
-    fn from(value: bool) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
-    }
-}
-
-impl From<f32> for ExpandElement {
-    fn from(value: f32) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
-    }
-}
-
-impl From<i32> for ExpandElement {
-    fn from(value: i32) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
-    }
-}
-
-impl From<i64> for ExpandElement {
-    fn from(value: i64) -> Self {
-        ExpandElement::new(Rc::new(Variable::from(value)))
-    }
-}
+impl_into_expand_element!(u32);
+impl_into_expand_element!(usize);
+impl_into_expand_element!(bool);
+impl_into_expand_element!(f32);
+impl_into_expand_element!(i32);
+impl_into_expand_element!(i64);

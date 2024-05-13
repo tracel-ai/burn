@@ -1,4 +1,4 @@
-use crate::{Bool, Float, Int, RuntimeType, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::{Bool, Float, Int, PrimitiveVariable, UInt, BF16, F16, F32, F64, I32, I64};
 
 macro_rules! impl_to_float {
     ($to:ident, $from1:ident) => {

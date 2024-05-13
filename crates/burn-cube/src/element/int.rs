@@ -1,16 +1,11 @@
-use crate::{CubeContext, CubeType, ExpandElement, Numeric, RuntimeType};
+use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 use burn_jit::gpu::{Elem, IntKind, Variable};
 use std::rc::Rc;
 
+/// Signed integer. Used as input in int kernels
 pub trait Int:
     Clone
     + Copy
-    + std::cmp::PartialOrd
-    + std::ops::Add<Output = Self>
-    + std::ops::Sub<Output = Self>
-    + std::ops::Mul<Output = Self>
-    + std::ops::Div<Output = Self>
-    + std::ops::AddAssign
     + std::ops::Rem<Output = Self>
     + Numeric
 {
@@ -30,7 +25,7 @@ macro_rules! impl_int {
             type ExpandType = ExpandElement;
         }
 
-        impl RuntimeType for $type {
+        impl PrimitiveVariable for $type {
             type Primitive = i64;
             fn val(&self) -> Self::Primitive {
                 self.val

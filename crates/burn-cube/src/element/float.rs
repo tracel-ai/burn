@@ -1,19 +1,16 @@
-use crate::{CubeContext, CubeType, ExpandElement, Numeric, RuntimeType};
+use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 use burn_jit::gpu::{Elem, FloatKind, Variable};
 use std::rc::Rc;
 
+/// Floating point numbers. Used as input in float kernels
 pub trait Float:
     Clone
     + Copy
-    + std::cmp::PartialOrd
-    + std::ops::Add<Output = Self>
-    + std::ops::Sub<Output = Self>
-    + std::ops::Mul<Output = Self>
-    + std::ops::Div<Output = Self>
-    + std::ops::AddAssign
     + Numeric
 {
+    /// Create a Float from a float literal
     fn from_primitive(val: f64) -> Self;
+    /// Expand version of from_primitive
     fn from_primitive_expand(context: &mut CubeContext, val: f64) -> ExpandElement;
 }
 
@@ -29,11 +26,17 @@ macro_rules! impl_float {
             type ExpandType = ExpandElement;
         }
 
-        impl RuntimeType for $type {
+        impl PrimitiveVariable for $type {
+            /// Note: all float types have f64 primitive on CPU to
+            /// ease casting. On GPU the type will be given by into_elem.
             type Primitive = f64;
+
+            /// Return the value of the float (on CPU)
             fn val(&self) -> Self::Primitive {
                 self.val
             }
+
+            /// Return the element type to use on GPU
             fn into_elem() -> Elem {
                 Elem::Float(FloatKind::$type)
             }

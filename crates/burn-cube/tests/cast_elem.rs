@@ -1,4 +1,4 @@
-use burn_cube::{cube, Bool, CubeContext, Numeric, RuntimeType, UInt, F32, I32};
+use burn_cube::{cube, Bool, CubeContext, Numeric, PrimitiveVariable, UInt, F32, I32};
 use burn_jit::{
     gpu,
     gpu::{Elem, Item, Variable},

@@ -5,8 +5,8 @@ mod conversion;
 mod float;
 mod int;
 mod numeric;
+mod static_type;
 mod primitive;
-mod runtime;
 mod uint;
 
 pub use array::*;
@@ -15,5 +15,5 @@ pub use bool::*;
 pub use float::*;
 pub use int::*;
 pub use numeric::*;
-pub use runtime::*;
+pub use primitive::*;
 pub use uint::*;

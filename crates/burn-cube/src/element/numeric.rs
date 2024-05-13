@@ -1,9 +1,11 @@
-use crate::{CubeContext, ExpandElement, RuntimeType};
+use crate::{CubeContext, ExpandElement, PrimitiveVariable};
 
+/// Type that encompasses both integers and floats
+/// Used in kernels that should work for both.
 pub trait Numeric:
     Clone
     + Copy
-    + RuntimeType
+    + PrimitiveVariable
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
     + std::ops::Sub<Output = Self>
@@ -11,7 +13,13 @@ pub trait Numeric:
     + std::ops::Div<Output = Self>
     + std::cmp::PartialOrd
 {
-    // If we use numeric then constants are necessarily ints
+    /// Create a new constant numeric.
+    ///
+    /// Note: since this must work for both integer and float
+    /// only the less expressive of both can be created (int)
+    /// If a number with decimals is needed, use Float::from_primitive.
     fn new(val: i64) -> Self;
+
+    /// Expand version of new
     fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
 }
