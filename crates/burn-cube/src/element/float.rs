@@ -59,14 +59,17 @@ macro_rules! impl_float {
         impl Numeric for $type {
             // Method new takes an i64, because it is used when treating the float as numeric,
             // which must be an int in the cube kernel because new numerics need to be supported by Int as well
-            fn new(val: i64) -> Self {
+            fn constant(val: i64) -> Self {
                 Self {
                     val: val as f64,
                     vectorization: 1,
                 }
             }
 
-            fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
+            fn constant_expand(
+                context: &mut CubeContext,
+                val: i64,
+            ) -> <Self as CubeType>::ExpandType {
                 <Self as Float>::from_primitive_expand(context, val as f64)
             }
         }

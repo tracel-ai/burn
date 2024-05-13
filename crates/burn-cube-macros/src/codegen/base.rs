@@ -83,6 +83,7 @@ pub(crate) fn codegen_expr(
         syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_index(index, loop_level, variable_analyses),
+        syn::Expr::Paren(paren) => codegen_expr(&paren.expr, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }

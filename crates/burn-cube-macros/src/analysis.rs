@@ -6,6 +6,7 @@ use crate::VariableKey;
 
 #[derive(Debug)]
 /// Information about a single variable's use in Cube code
+/// Information about a single variable's use in Cube code
 /// Useful to figure out when the generated variable will need cloning
 pub(crate) struct VariableAnalysis {
     num_used: usize,
@@ -237,6 +238,7 @@ impl CodeAnalysisBuilder {
                 }
             }
             syn::Expr::Break(_) => {}
+            syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

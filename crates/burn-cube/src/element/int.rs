@@ -49,14 +49,14 @@ macro_rules! impl_int {
         }
 
         impl Numeric for $type {
-            fn new(val: i64) -> Self {
+            fn constant(val: i64) -> Self {
                 Self {
                     val,
                     vectorization: 1,
                 }
             }
 
-            fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
+            fn constant_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
                 <Self as Int>::from_primitive_expand(context, val)
             }
         }

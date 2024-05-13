@@ -12,7 +12,7 @@ enum CubeMode {
     Default,
     /// Panics and prints the generated code, useful when debugging
     /// Use by writing #[cube(panic)]
-    Panic,
+    Debug,
 }
 
 /// Derive macro for the module.
@@ -20,13 +20,14 @@ enum CubeMode {
 pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
     let mode = parse_mode(args);
+
     let func: syn::ItemFn = syn::parse(tokens).unwrap();
     let mut variable_analyses = CodeAnalysis::create(&func);
 
     let code = codegen_cube(&func, &mut variable_analyses);
     match mode {
         CubeMode::Default => code,
-        CubeMode::Panic => panic!("{code}"),
+        CubeMode::Debug => panic!("{code}"),
     }
 }
 
@@ -38,8 +39,8 @@ fn parse_mode(args: Punctuated<Meta, Comma>) -> CubeMode {
             Meta::Path(path) => {
                 if let Some(ident) = path.get_ident().map(|id| id.to_string()) {
                     match ident.as_str() {
-                        "panic" => {
-                            mode = CubeMode::Panic;
+                        "debug" => {
+                            mode = CubeMode::Debug;
                         }
                         _ => panic!("Attribute {ident} is not supported"),
                     }

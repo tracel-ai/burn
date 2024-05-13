@@ -5,7 +5,7 @@ type ElemType = F32;
 
 #[cube]
 pub fn literal<F: Float>(lhs: F) {
-    let _ = lhs + F::new(5);
+    let _ = lhs + F::constant(5);
 }
 
 #[cube]
