@@ -4,7 +4,7 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-use super::{Optimizer, SimpleOptimizer};
+use super::SimpleOptimizer;
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::AutodiffBackend, Tensor};
@@ -83,7 +83,9 @@ impl AdamWConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+        &self,
+    ) -> OptimizerAdaptor<AdamW<B::InnerBackend>, M, B> {
         let optim = AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,

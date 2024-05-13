@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
-    Optimizer, SimpleOptimizer,
+    SimpleOptimizer,
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
@@ -85,7 +85,9 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+        &self,
+    ) -> OptimizerAdaptor<Adam<B::InnerBackend>, M, B> {
         let optim = Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
