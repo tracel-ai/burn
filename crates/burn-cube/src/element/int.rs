@@ -56,7 +56,10 @@ macro_rules! impl_int {
                 }
             }
 
-            fn constant_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
+            fn constant_expand(
+                context: &mut CubeContext,
+                val: i64,
+            ) -> <Self as CubeType>::ExpandType {
                 <Self as Int>::from_primitive_expand(context, val)
             }
         }
