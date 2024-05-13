@@ -66,7 +66,6 @@ impl<T: Numeric> Strategy<T> for SubStrategy {
 
 #[cube]
 fn with_strategy_trait<S: Strategy<T>, T: Numeric>(x: T, y: T) -> T {
-    
     S::operation(x, y)
 }
 
@@ -101,7 +100,6 @@ impl MethodTypedStrategy for AddStrategy {
 
 #[cube]
 fn with_trait_generic_method<S: MethodTypedStrategy, T: Numeric>(x: T, y: T) -> T {
-    
     S::operation::<T>(x, y)
 }
 
