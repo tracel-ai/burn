@@ -18,7 +18,10 @@ pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
     fn into_elem() -> Elem;
 
     /// Expand version of from, of the trait From
-    fn from_expand(context: &mut CubeContext, val: ExpandElement) -> ExpandElement {
+    fn from_expand(
+        context: &mut CubeContext,
+        val: ExpandElement,
+    ) -> <Self as CubeType>::ExpandType {
         let new_var = context.create_local(Item::Scalar(<Self as PrimitiveVariable>::into_elem()));
         assign::expand(context, val, new_var.clone());
         new_var

@@ -1,5 +1,5 @@
 use alloc::rc::Rc;
-use burn_jit::gpu::{Item, Variable};
+use burn_jit::gpu::Variable;
 
 /// Types used in a cube function must implement this trait
 ///
@@ -22,13 +22,6 @@ pub trait CubeType {
 /// It's the expand element that is actually kept in the variable pool
 pub struct ExpandElement {
     pub(crate) inner: Rc<Variable>,
-}
-
-impl ExpandElement {
-    /// Returns the Item of the variable
-    pub fn item(&self) -> Item {
-        self.inner.item()
-    }
 }
 
 impl core::ops::Deref for ExpandElement {

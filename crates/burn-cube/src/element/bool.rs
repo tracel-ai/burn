@@ -23,7 +23,7 @@ impl Bool {
     }
 
     /// Expand version of new
-    pub fn new_expand(_context: &mut CubeContext, val: bool) -> <Bool as CubeType>::ExpandType {
+    pub fn new_expand(_context: &mut CubeContext, val: bool) -> <Self as CubeType>::ExpandType {
         val.into()
     }
 }

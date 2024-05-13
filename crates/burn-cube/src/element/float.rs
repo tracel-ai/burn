@@ -7,7 +7,8 @@ pub trait Float: Numeric {
     /// Create a Float from a float literal
     fn from_primitive(val: f64) -> Self;
     /// Expand version of from_primitive
-    fn from_primitive_expand(context: &mut CubeContext, val: f64) -> ExpandElement;
+    fn from_primitive_expand(context: &mut CubeContext, val: f64)
+        -> <Self as CubeType>::ExpandType;
 }
 
 macro_rules! impl_float {
@@ -45,7 +46,11 @@ macro_rules! impl_float {
                     vectorization: 1,
                 }
             }
-            fn from_primitive_expand(_context: &mut CubeContext, val: f64) -> ExpandElement {
+
+            fn from_primitive_expand(
+                _context: &mut CubeContext,
+                val: f64,
+            ) -> <Self as CubeType>::ExpandType {
                 let new_var = Variable::ConstantScalar(val, Self::into_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
@@ -61,7 +66,7 @@ macro_rules! impl_float {
                 }
             }
 
-            fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement {
+            fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
                 <Self as Float>::from_primitive_expand(context, val as f64)
             }
         }

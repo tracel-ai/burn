@@ -20,7 +20,7 @@ impl UInt {
     }
 
     /// Expand version of new
-    pub fn new_expand(_context: &mut CubeContext, val: i64) -> <UInt as CubeType>::ExpandType {
+    pub fn new_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
         (val as u32).into()
     }
 }

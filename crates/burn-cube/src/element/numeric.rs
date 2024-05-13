@@ -1,4 +1,4 @@
-use crate::{CubeContext, ExpandElement, PrimitiveVariable};
+use crate::{CubeContext, CubeType, PrimitiveVariable};
 
 /// Type that encompasses both integers and floats
 /// Used in kernels that should work for both.
@@ -21,5 +21,5 @@ pub trait Numeric:
     fn new(val: i64) -> Self;
 
     /// Expand version of new
-    fn new_expand(context: &mut CubeContext, val: i64) -> ExpandElement;
+    fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
 }
