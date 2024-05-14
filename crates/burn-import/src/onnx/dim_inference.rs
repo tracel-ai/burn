@@ -269,13 +269,21 @@ fn reduce_mean_update_outputs(node: &mut Node) {
 
 /// Update the output tensor dimension
 fn squeeze_update_output(node: &mut Node) {
-    if let Some(Data::Int64s(axes)) = &node.inputs[1].value {
-        if axes.len() != 1 {
-            panic!("Squeeze: Only one axis should be specified for squeezing.");
+    let axes = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(axes) => Some(axes.clone()),
+                _ => panic!("Squeeze: invalid input types"),
+            },
+            None => None,
         }
     } else {
-        panic!("Squeeze: Axes input must be an integer list.");
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
+
+    if axes.is_none() {
+        panic!("Squeeze must specify an axis");
+    }
 
     let input_dim = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.dim,
