@@ -4318,14 +4318,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "refactor"
-version = "0.15.0"
-dependencies = [
- "burn",
- "serde",
-]
-
-[[package]]
 name = "regex"
 version = "1.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

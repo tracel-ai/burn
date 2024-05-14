@@ -39,6 +39,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
         NodeType::MatMul => matmul_update_outputs(node),
+        NodeType::Max => max_update_outputs(node),
         NodeType::MaxPool1d => same_as_input(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
@@ -429,6 +430,19 @@ fn matmul_update_outputs(node: &mut Node) {
         }
         _ => panic!("Only tensor input is valid"),
     }
+}
+
+fn max_update_outputs(node: &mut Node) {
+    let tensor = match node.inputs[0].clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type,
+        dim: 1,
+        shape: Some(vec![tensor.shape.unwrap().first().unwrap().clone()]),
+    })
 }
 
 /// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.

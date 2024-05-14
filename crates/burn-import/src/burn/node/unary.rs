@@ -32,6 +32,7 @@ pub enum UnaryNodeKind {
     LogSoftmax,
     Neg,
     Not,
+    Max,
     ReduceMax,
     ReduceMean,
     ReduceSum,
@@ -61,6 +62,7 @@ impl UnaryNodeKind {
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
             Self::Not => "not",
+            Self::Max => "max",
             Self::ReduceMax => "reduce_max",
             Self::ReduceMean => "reduce_mean",
             Self::ReduceSum => "reduce_sum",
@@ -184,6 +186,11 @@ impl UnaryNode {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::log_softmax(#input, #dim) };
         Self::new(input, output, UnaryNodeKind::LogSoftmax, Rc::new(function))
+    }
+
+    pub(crate) fn max(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.max() };
+        Self::new(input, output, UnaryNodeKind::Max, Rc::new(function))
     }
 
     pub(crate) fn softmax(input: Type, output: Type, dim: usize) -> Self {
@@ -525,6 +532,24 @@ mod tests {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
 
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_max() {
+        one_node_graph(
+            UnaryNode::max(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.max();
                     tensor2
                 }
             },
