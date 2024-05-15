@@ -9,8 +9,8 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def forward(self, x):
-        return torch.max(x)
+    def forward(self, x, y):
+        return torch.maximum(x, y)
 
 def main():
     # Set seed for reproducibility
@@ -24,13 +24,14 @@ def main():
 
     onnx_name = "max.onnx"
 
-    test_input = torch.randn(4, 4, device=device)
-    torch.onnx.export(model, test_input, onnx_name, verbose=False, opset_version=16)
+    test_input1 = torch.randn(4, 4, device=device)
+    test_input2 = torch.randn(4, 4, device=device)
+    torch.onnx.export(model, (test_input1, test_input2), onnx_name, verbose=False, opset_version=16)
 
     print("Finished exporting model to {}".format(onnx_name))
 
-    print("Test input data: {}".format(test_input))
-    output = model.forward(test_input)
+    print("Test input data: {} {}".format(test_input1, test_input2))
+    output = model.forward(test_input1, test_input2)
     print("Test output data: {}".format(output))
 
 if __name__ == '__main__':

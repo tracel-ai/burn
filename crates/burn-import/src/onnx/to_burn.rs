@@ -415,6 +415,14 @@ impl OnnxGraph {
         BinaryNode::equal(lhs, rhs, output)
     }
 
+    fn max_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        BinaryNode::max_pair(lhs, rhs, output)
+    }
+
     fn erf_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
@@ -597,12 +605,6 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::tanh(input, output)
-    }
-
-    fn max_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
-        UnaryNode::max(input, output)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {

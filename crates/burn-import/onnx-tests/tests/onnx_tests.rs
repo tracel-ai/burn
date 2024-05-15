@@ -453,10 +453,11 @@ mod tests {
         let device = Default::default();
 
         let model: max::Model<Backend> = max::Model::new(&device);
-        let input = Tensor::<Backend, 2>::from_floats([[1.0, 4.0, 9.0, 25.0]], &device);
+        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, 42.0, 9.0, 42.0]], &device);
+        let input2 = Tensor::<Backend, 2>::from_floats([[42.0, 4.0, 42.0, 25.0]], &device);
 
-        let output = model.forward(input);
-        let expected = Data::from([25.0]);
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[42.0, 42.0, 42.0, 42.0]]);
 
         assert_eq!(output.to_data(), expected);
     }
