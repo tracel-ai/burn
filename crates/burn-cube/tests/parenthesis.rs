@@ -1,45 +1,51 @@
-use burn_cube::{cube, CubeContext, Numeric, PrimitiveVariable, F32};
-use burn_jit::{
-    gpu,
-    gpu::{Item, Variable},
-};
-
-type ElemType = F32;
+use burn_cube::{cube, Numeric};
 
 #[cube]
 pub fn parenthesis<T: Numeric>(x: T, y: T, z: T) -> T {
     x * (y + z)
 }
 
-#[test]
-fn cube_parenthesis_priority_test() {
-    let mut context = CubeContext::root();
+mod tests {
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, PrimitiveVariable, F32,
+    };
 
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let y = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let z = context.create_local(Item::Scalar(ElemType::into_elem()));
+    use crate::parenthesis_expand;
 
-    parenthesis_expand::<ElemType>(&mut context, x, y, z);
-    let scope = context.into_scope();
+    type ElemType = F32;
 
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
-}
+    #[test]
+    fn cube_parenthesis_priority_test() {
+        let mut context = CubeContext::root();
 
-fn inline_macro_ref() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(ElemType::into_elem());
-    let x = context.create_local(item);
-    let y = context.create_local(item);
-    let z = context.create_local(item);
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let z = context.create_local(Item::Scalar(ElemType::into_elem()));
 
-    let mut scope = context.into_scope();
-    let x: Variable = x.into();
-    let y: Variable = y.into();
-    let z: Variable = z.into();
-    let tmp = scope.create_local(item);
+        parenthesis_expand::<ElemType>(&mut context, x, y, z);
+        let scope = context.into_scope();
 
-    gpu!(scope, tmp = y + z);
-    gpu!(scope, y = x * tmp);
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+    }
 
-    format!("{:?}", scope.operations)
+    fn inline_macro_ref() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(ElemType::into_elem());
+        let x = context.create_local(item);
+        let y = context.create_local(item);
+        let z = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let y: Variable = y.into();
+        let z: Variable = z.into();
+        let tmp = scope.create_local(item);
+
+        cpa!(scope, tmp = y + z);
+        cpa!(scope, y = x * tmp);
+
+        format!("{:?}", scope.operations)
+    }
 }

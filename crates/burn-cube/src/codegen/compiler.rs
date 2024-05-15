@@ -1,4 +1,3 @@
-use super::dialect;
 use crate::dialect::{ComputeShader, Elem};
 use std::fmt::Display;
 

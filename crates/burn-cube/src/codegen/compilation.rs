@@ -1,7 +1,7 @@
 #[cfg(feature = "fusion")]
 use crate::fusion::JitFusionHandle;
 
-use super::{dialect, Compiler};
+use super::Compiler;
 use crate::{
     codegen::dialect::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,

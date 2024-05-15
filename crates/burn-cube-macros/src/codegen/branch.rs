@@ -62,7 +62,7 @@ pub(crate) fn codegen_cond(
 /// Codegen for break statement
 pub(crate) fn codegen_break() -> TokenStream {
     quote::quote! {
-        break_expand(context);
+        burn_cube::branch::break_expand(context);
     }
 }
 
@@ -85,7 +85,7 @@ pub(crate) fn codegen_if(
 
             quote::quote! {
                 let _cond = #cond;
-                if_else_expand(context, _cond, |context| #then_block, |context| #else_block);
+                burn_cube::branch::if_else_expand(context, _cond, |context| #then_block, |context| #else_block);
             }
         } else {
             todo!("Analysis: Only block else expr is supported")
@@ -93,7 +93,7 @@ pub(crate) fn codegen_if(
     } else {
         quote::quote! {
             let _cond = #cond;
-            if_expand(context, _cond, |context| #then_block);
+            burn_cube::branch::if_expand(context, _cond, |context| #then_block);
         }
     }
 }
@@ -107,7 +107,7 @@ pub(crate) fn codegen_loop(
     let block = codegen_block(&loop_expr.body, loop_level + 1, variable_analyses);
 
     quote::quote! {
-        loop_expand(context, |context| #block);
+        burn_cube::branch::loop_expand(context, |context| #block);
     }
 }
 
@@ -121,6 +121,6 @@ pub(crate) fn codegen_while_loop(
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
 
     quote::quote! {
-        while_loop_expand(context, |context| #cond, |context| #block);
+        burn_cube::branch::while_loop_expand(context, |context| #cond, |context| #block);
     }
 }

@@ -1,4 +1,4 @@
-use burn_cube::{branch::*, cube, Array, CubeContext, Float, PrimitiveVariable, UInt, F32};
+use burn_cube::{branch::range, cube, Array, CubeContext, Float, PrimitiveVariable, UInt, F32};
 
 type ElemType = F32;
 
