@@ -14,7 +14,7 @@ use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::{LearnerCheckpointer, LearnerSummaryConfig};
+use crate::{FileApplicationLoggerInstaller, LearnerCheckpointer, LearnerSummaryConfig, ApplicationLoggerInstaller};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -49,7 +49,7 @@ where
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
-    tracing_logger: Option<Box<dyn logger::TracingSubscriberLogger>>,
+    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
@@ -83,7 +83,7 @@ where
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
-            tracing_logger: Some(Box::new(logger::FileTracingSubscriberLogger::new(
+            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 format!("{}/experiment.log", directory).as_str(),
             ))),
             num_loggers: 0,
@@ -234,7 +234,7 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
-    pub fn with_logger(mut self, logger: Option<Box<dyn logger::TracingSubscriberLogger>>) -> Self {
+    pub fn with_application_logger(mut self, logger: Option<Box<dyn ApplicationLoggerInstaller>>) -> Self {
         self.tracing_logger = logger;
         self
     }
