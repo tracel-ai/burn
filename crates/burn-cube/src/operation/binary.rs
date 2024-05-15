@@ -30,7 +30,7 @@ pub mod add {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val + rhs.val)
+                    <$type>::from_primitive(self.val + rhs.val)
                 }
             }
         };
@@ -72,7 +72,7 @@ pub mod sub {
                 type Output = Self;
 
                 fn sub(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val - rhs.val)
+                    <$type>::from_primitive(self.val - rhs.val)
                 }
             }
         };
@@ -114,7 +114,7 @@ pub mod mul {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val * rhs.val)
+                    <$type>::from_primitive(self.val * rhs.val)
                 }
             }
         };
@@ -156,7 +156,7 @@ pub mod div {
                 type Output = Self;
 
                 fn div(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val / rhs.val)
+                    <$type>::from_primitive(self.val / rhs.val)
                 }
             }
         };
@@ -168,6 +168,7 @@ pub mod div {
     impl_div!(F64, Float);
     impl_div!(I32, Int);
     impl_div!(I64, Int);
+    impl_div!(UInt);
 }
 
 pub mod rem {
@@ -197,7 +198,7 @@ pub mod rem {
                 type Output = Self;
 
                 fn rem(self, rhs: Self) -> Self::Output {
-                    <$type>::new(self.val % rhs.val)
+                    <$type>::from_primitive(self.val % rhs.val)
                 }
             }
         };
@@ -225,7 +226,7 @@ pub mod and {
         type Output = Bool;
 
         fn bitand(self, rhs: Self) -> Self::Output {
-            Bool::new(self.val && rhs.val)
+            Bool::constant(self.val && rhs.val)
         }
     }
 }
@@ -247,7 +248,7 @@ pub mod or {
         type Output = Bool;
 
         fn bitor(self, rhs: Self) -> Self::Output {
-            Bool::new(self.val || rhs.val)
+            Bool::constant(self.val || rhs.val)
         }
     }
 }

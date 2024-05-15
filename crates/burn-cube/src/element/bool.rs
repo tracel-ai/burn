@@ -15,7 +15,7 @@ impl CubeType for Bool {
 
 impl Bool {
     /// Create a Bool from primitive bool
-    pub fn new(val: bool) -> Self {
+    pub fn constant(val: bool) -> Self {
         Self {
             val,
             vectorization: 1,
@@ -23,7 +23,7 @@ impl Bool {
     }
 
     /// Expand version of new
-    pub fn new_expand(_context: &mut CubeContext, val: bool) -> <Self as CubeType>::ExpandType {
+    pub fn constant_expand(_context: &mut CubeContext, val: bool) -> <Self as CubeType>::ExpandType {
         val.into()
     }
 }

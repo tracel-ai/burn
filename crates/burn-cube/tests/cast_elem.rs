@@ -57,13 +57,13 @@ pub fn float_to_int(x: F32) {
 #[cube]
 pub fn float_to_uint(x: F32) {
     let y = x + F32::constant(2);
-    let _ = UInt::from(y) + UInt::new(34);
+    let _ = UInt::from(y) + UInt::constant(34);
 }
 
 #[cube]
 pub fn float_to_bool(x: F32) {
     let y = x + F32::constant(2);
-    let _ = Bool::from(y) | Bool::new(true);
+    let _ = Bool::from(y) | Bool::constant(true);
 }
 
 cast_test!(
@@ -110,13 +110,13 @@ pub fn int_to_int(x: I32) {
 #[cube]
 pub fn int_to_uint(x: I32) {
     let y = x + I32::constant(2);
-    let _ = UInt::from(y) + UInt::new(34);
+    let _ = UInt::from(y) + UInt::constant(34);
 }
 
 #[cube]
 pub fn int_to_bool(x: I32) {
     let y = x + I32::constant(2);
-    let _ = Bool::from(y) | Bool::new(true);
+    let _ = Bool::from(y) | Bool::constant(true);
 }
 
 cast_test!(
@@ -149,27 +149,27 @@ cast_test!(
 // // From uint
 #[cube]
 pub fn uint_to_float(x: UInt) {
-    let y = x + UInt::new(2);
+    let y = x + UInt::constant(2);
     let _ = F32::from(y) + F32::constant(34);
 }
 
 #[cube]
 pub fn uint_to_int(x: UInt) {
-    let y = x + UInt::new(2);
+    let y = x + UInt::constant(2);
     let _ = I32::from(y) + I32::constant(34);
 }
 
 #[cube]
 #[allow(clippy::useless_conversion)]
 pub fn uint_to_uint(x: UInt) {
-    let y = x + UInt::new(2);
-    let _ = UInt::from(y) + UInt::new(34);
+    let y = x + UInt::constant(2);
+    let _ = UInt::from(y) + UInt::constant(34);
 }
 
 #[cube]
 pub fn uint_to_bool(x: UInt) {
-    let y = x + UInt::new(2);
-    let _ = Bool::from(y) | Bool::new(true);
+    let y = x + UInt::constant(2);
+    let _ = Bool::from(y) | Bool::constant(true);
 }
 
 cast_test!(
@@ -202,27 +202,27 @@ cast_test!(
 // From bool
 #[cube]
 pub fn bool_to_float(x: Bool) {
-    let y = x & Bool::new(false);
+    let y = x & Bool::constant(false);
     let _ = F32::from(y) + F32::constant(34);
 }
 
 #[cube]
 pub fn bool_to_int(x: Bool) {
-    let y = x & Bool::new(false);
+    let y = x & Bool::constant(false);
     let _ = I32::from(y) + I32::constant(34);
 }
 
 #[cube]
 pub fn bool_to_uint(x: Bool) {
-    let y = x & Bool::new(false);
-    let _ = UInt::from(y) + UInt::new(34);
+    let y = x & Bool::constant(false);
+    let _ = UInt::from(y) + UInt::constant(34);
 }
 
 #[cube]
 #[allow(clippy::useless_conversion)]
 pub fn bool_to_bool(x: Bool) {
-    let y = x & Bool::new(false);
-    let _ = Bool::from(y) | Bool::new(true);
+    let y = x & Bool::constant(false);
+    let _ = Bool::from(y) | Bool::constant(true);
 }
 
 cast_test!(

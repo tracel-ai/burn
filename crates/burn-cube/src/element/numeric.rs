@@ -1,6 +1,6 @@
 use crate::{CubeContext, CubeType, PrimitiveVariable};
 
-/// Type that encompasses both integers and floats
+/// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
 pub trait Numeric:
     Clone

@@ -8,12 +8,12 @@ pub fn caller_no_arg(x: UInt) {
 
 #[cube]
 pub fn callee_no_arg() -> UInt {
-    UInt::new(8)
+    UInt::constant(8)
 }
 
 #[cube]
 pub fn no_call_no_arg(x: UInt) {
-    let _ = x + UInt::new(8);
+    let _ = x + UInt::constant(8);
 }
 
 #[cube]
@@ -23,12 +23,12 @@ pub fn caller_with_arg(x: UInt) {
 
 #[cube]
 pub fn callee_with_arg(x: UInt) -> UInt {
-    x * UInt::new(8)
+    x * UInt::constant(8)
 }
 
 #[cube]
 pub fn no_call_with_arg(x: UInt) {
-    let _ = x + x * UInt::new(8);
+    let _ = x + x * UInt::constant(8);
 }
 
 #[cube]

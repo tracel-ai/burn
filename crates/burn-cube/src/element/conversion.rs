@@ -96,42 +96,19 @@ impl_to_int!(I64, I32);
 impl_to_int!(I64, UInt);
 impl_to_int_from_bool!(I64, Bool);
 
-macro_rules! impl_to_uint {
-    ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
-                Self::new(value.val() as i64)
-            }
-        }
-    };
-}
-
-macro_rules! impl_to_uint_from_bool {
-    ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
-                Self::new(match value.val() {
-                    true => 1,
-                    false => 0,
-                })
-            }
-        }
-    };
-}
-
-impl_to_uint!(UInt, F16);
-impl_to_uint!(UInt, BF16);
-impl_to_uint!(UInt, F32);
-impl_to_uint!(UInt, F64);
-impl_to_uint!(UInt, I32);
-impl_to_uint!(UInt, I64);
-impl_to_uint_from_bool!(UInt, Bool);
+impl_to_int!(UInt, F16);
+impl_to_int!(UInt, BF16);
+impl_to_int!(UInt, F32);
+impl_to_int!(UInt, F64);
+impl_to_int!(UInt, I32);
+impl_to_int!(UInt, I64);
+impl_to_int_from_bool!(UInt, Bool);
 
 macro_rules! impl_to_bool_from_float {
     ($to:ident, $from1:ident) => {
         impl From<$from1> for $to {
             fn from(value: $from1) -> Self {
-                Self::new(value.val() > 0.)
+                Self::constant(value.val() > 0.)
             }
         }
     };
@@ -141,7 +118,7 @@ macro_rules! impl_to_bool_from_int {
     ($to:ident, $from1:ident) => {
         impl From<$from1> for $to {
             fn from(value: $from1) -> Self {
-                Self::new(value.val() > 0)
+                Self::constant(value.val() > 0)
             }
         }
     };
