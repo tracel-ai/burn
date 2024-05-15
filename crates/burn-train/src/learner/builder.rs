@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
@@ -50,7 +49,7 @@ where
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
-    experiment_logger: Option<Box<dyn logger::TracingSubscriberLogger>>,
+    tracing_logger: Option<Box<dyn logger::TracingSubscriberLogger>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
@@ -84,9 +83,9 @@ where
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
-            experiment_logger: Some(Box::new(
-                logger::FileTracingSubscriberLogger::new(format!("{}/experiment.log", directory).as_str())
-            )),
+            tracing_logger: Some(Box::new(logger::FileTracingSubscriberLogger::new(
+                format!("{}/experiment.log", directory).as_str(),
+            ))),
             num_loggers: 0,
             checkpointer_strategy: Box::new(
                 ComposedCheckpointingStrategy::builder()
@@ -235,8 +234,8 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
-    pub fn with_experiment_logger(mut self, logger: Option<Box<dyn logger::TracingSubscriberLogger>>) -> Self {
-        self.experiment_logger = logger;
+    pub fn with_logger(mut self, logger: Option<Box<dyn logger::TracingSubscriberLogger>>) -> Self {
+        self.tracing_logger = logger;
         self
     }
 
@@ -311,9 +310,9 @@ where
         O::Record: 'static,
         S::Record: 'static,
     {
-        if self.experiment_logger.is_some() {
-            if let Err(e) = self.experiment_logger.as_ref().unwrap().install() {
-                log::error!("Failed to install the experiment logger: {}", e);
+        if self.tracing_logger.is_some() {
+            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
+                log::warn!("Failed to install the experiment logger: {}", e);
             }
         }
         let renderer = self.renderer.unwrap_or_else(|| {
@@ -363,10 +362,5 @@ where
             early_stopping: self.early_stopping,
             summary,
         }
-    }
-
-    fn init_logger(&self) {
-        let file_path = format!("{}/experiment.log", self.directory);
-        install_file_logger(file_path.as_str());
     }
 }

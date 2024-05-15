@@ -8,8 +8,6 @@ mod step;
 mod summary;
 mod train_val;
 
-pub(crate) mod log;
-
 pub use base::*;
 pub use builder::*;
 pub use classification::*;
