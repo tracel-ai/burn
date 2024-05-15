@@ -26,6 +26,7 @@ pub struct AdaGradConfig {
 }
 
 /// AdaGrad optimizer
+#[derive(Clone)]
 pub struct AdaGrad<B: Backend> {
     lr_decay: LrDecay,
     weight_decay: Option<WeightDecay<B>>,
@@ -105,6 +106,7 @@ pub struct LrDecayState<B: Backend, const D: usize> {
     sum: Tensor<B, D>,
 }
 
+#[derive(Clone)]
 struct LrDecay {
     lr_decay: f64,
     epsilon: f32,

@@ -27,6 +27,7 @@ pub struct MomentumState<B: Backend, const D: usize> {
 }
 
 /// Momemtum implementation that transforms gradients.
+#[derive(Clone)]
 pub struct Momentum<B: Backend> {
     momentum: B::FloatElem,
     dampening: f64,

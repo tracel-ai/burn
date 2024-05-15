@@ -30,6 +30,7 @@ pub struct AdamWConfig {
 }
 
 /// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
+#[derive(Clone)]
 pub struct AdamW<B: Backend> {
     momentum: AdaptiveMomentumW,
     weight_decay: f32,
@@ -112,6 +113,7 @@ pub struct AdaptiveMomentumWState<B: Backend, const D: usize> {
     moment_2: Tensor<B, D>,
 }
 
+#[derive(Clone)]
 struct AdaptiveMomentumW {
     beta_1: f32,
     beta_2: f32,

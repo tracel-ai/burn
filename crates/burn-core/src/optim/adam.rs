@@ -31,6 +31,7 @@ pub struct AdamConfig {
 }
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
+#[derive(Clone)]
 pub struct Adam<B: Backend> {
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
@@ -113,6 +114,7 @@ pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     moment_2: Tensor<B, D>,
 }
 
+#[derive(Clone)]
 struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,
