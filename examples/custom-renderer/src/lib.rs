@@ -76,7 +76,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
-        .log_to_file(false);
+        .with_experiment_logger(None);
     // can be used to interrupt training
     let _interrupter = builder.interrupter();
 
