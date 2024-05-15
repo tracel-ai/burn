@@ -1,7 +1,7 @@
 use std::{ops::Deref, rc::Rc};
 
+use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
 use crate::{CubeContext, ExpandElement, UInt};
-use burn_jit::gpu::{self, Branch, Elem, Item, Variable};
 
 pub fn range<S, E>(start: S, end: E, _unroll: bool) -> core::ops::Range<usize>
 where
@@ -47,7 +47,7 @@ pub fn range_expand<F>(
 
         func(&mut child, i.clone());
 
-        context.register(Branch::RangeLoop(gpu::RangeLoop {
+        context.register(Branch::RangeLoop(RangeLoop {
             i: *i,
             start: *start,
             end: *end,
@@ -64,7 +64,7 @@ where
 
     block(&mut child);
 
-    context.register(Branch::If(gpu::If {
+    context.register(Branch::If(If {
         cond: *cond,
         scope: child.into_scope(),
     }));
@@ -85,7 +85,7 @@ pub fn if_else_expand<IF, EL>(
     let mut else_child = context.child();
     else_block(&mut else_child);
 
-    context.register(Branch::IfElse(gpu::IfElse {
+    context.register(Branch::IfElse(IfElse {
         cond: *cond,
         scope_if: then_child.into_scope(),
         scope_else: else_child.into_scope(),
@@ -103,7 +103,7 @@ where
     let mut inside_loop = context.child();
 
     block(&mut inside_loop);
-    context.register(Branch::Loop(gpu::Loop {
+    context.register(Branch::Loop(Loop {
         scope: inside_loop.into_scope(),
     }));
 }
@@ -119,7 +119,7 @@ where
     if_expand(&mut inside_loop, cond, break_expand);
 
     block(&mut inside_loop);
-    context.register(Branch::Loop(gpu::Loop {
+    context.register(Branch::Loop(Loop {
         scope: inside_loop.into_scope(),
     }));
 }

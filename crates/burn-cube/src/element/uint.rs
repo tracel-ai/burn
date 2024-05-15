@@ -1,4 +1,4 @@
-use burn_jit::gpu::Elem;
+use crate::dialect::Elem;
 
 use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 
@@ -32,11 +32,17 @@ impl CubeType for UInt {
 
 impl PrimitiveVariable for UInt {
     type Primitive = i64;
+
     fn val(&self) -> Self::Primitive {
         self.val
     }
+
     fn into_elem() -> Elem {
         Elem::UInt
+    }
+
+    fn to_f64(&self) -> f64 {
+        self.val as f64
     }
 }
 

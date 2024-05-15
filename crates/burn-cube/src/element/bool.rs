@@ -1,4 +1,4 @@
-use burn_jit::gpu::Elem;
+use crate::dialect::Elem;
 
 use crate::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
 
@@ -50,5 +50,12 @@ impl PrimitiveVariable for Bool {
 
     fn into_elem() -> Elem {
         Elem::Bool
+    }
+
+    fn to_f64(&self) -> f64 {
+        match self.val {
+            true => 1.0,
+            false => 0.0,
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use burn_jit::gpu::{Elem, Item, Variable};
+use crate::dialect::{Elem, Item, Variable};
 
 use crate::{assign, CubeContext, CubeType, ExpandElement};
 
@@ -26,6 +26,8 @@ pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
         assign::expand(context, val, new_var.clone());
         new_var
     }
+
+    fn to_f64(&self) -> f64;
 }
 
 macro_rules! impl_into_expand_element {

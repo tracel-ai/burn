@@ -1,19 +1,23 @@
+use crate::dialect;
 use crate::{Array, CubeContext, ExpandElement, UInt};
-use burn_jit::gpu::{self};
 
 pub mod assign {
+    use self::dialect::{Operator, UnaryOperator};
+
     use super::*;
 
     pub fn expand(context: &mut CubeContext, input: ExpandElement, output: ExpandElement) {
         let input = *input;
         let out = *output;
 
-        context.register(gpu::Operator::Assign(gpu::UnaryOperator { input, out }));
+        context.register(Operator::Assign(UnaryOperator { input, out }));
     }
 }
 
 pub mod index_assign {
     use crate::CubeType;
+
+    use self::dialect::{BinaryOperator, Operator};
 
     use super::*;
 
@@ -23,7 +27,7 @@ pub mod index_assign {
         index: ExpandElement,
         value: ExpandElement,
     ) {
-        context.register(gpu::Operator::IndexAssign(gpu::BinaryOperator {
+        context.register(Operator::IndexAssign(BinaryOperator {
             lhs: *index,
             rhs: *value,
             out: *array,
@@ -41,6 +45,8 @@ pub mod index_assign {
 pub mod index {
     use crate::{operation::base::binary_expand, CubeType};
 
+    use self::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -48,7 +54,7 @@ pub mod index {
         array: ExpandElement,
         index: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, array, index, gpu::Operator::Index)
+        binary_expand(context, array, index, Operator::Index)
     }
 
     impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
@@ -64,6 +70,8 @@ pub mod index {
 pub mod add_assign_op {
     use crate::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
+    use self::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -71,7 +79,7 @@ pub mod add_assign_op {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        assign_op_expand(context, lhs, rhs, gpu::Operator::Add)
+        assign_op_expand(context, lhs, rhs, Operator::Add)
     }
 
     macro_rules! impl_add_assign {

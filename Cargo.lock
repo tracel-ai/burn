@@ -526,10 +526,13 @@ dependencies = [
 name = "burn-cube"
 version = "0.15.0"
 dependencies = [
+ "burn-compute",
  "burn-cube-macros",
- "burn-jit",
+ "bytemuck",
  "derive-new",
+ "half",
  "log",
+ "serde",
 ]
 
 [[package]]
@@ -539,7 +542,7 @@ dependencies = [
  "derive-new",
  "proc-macro2",
  "quote",
- "syn 2.0.61",
+ "syn 2.0.63",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
+use crate::dialect::{Elem, FloatKind, Variable};
 use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
-use burn_jit::gpu::{Elem, FloatKind, Variable};
 use std::rc::Rc;
 
 /// Floating point numbers. Used as input in float kernels
@@ -36,6 +36,10 @@ macro_rules! impl_float {
             /// Return the element type to use on GPU
             fn into_elem() -> Elem {
                 Elem::Float(FloatKind::$type)
+            }
+
+            fn to_f64(&self) -> f64 {
+                self.val
             }
         }
 

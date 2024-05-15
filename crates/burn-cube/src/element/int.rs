@@ -1,5 +1,5 @@
+use crate::dialect::{Elem, IntKind, Variable};
 use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
-use burn_jit::gpu::{Elem, IntKind, Variable};
 use std::rc::Rc;
 
 /// Signed integer. Used as input in int kernels
@@ -28,6 +28,10 @@ macro_rules! impl_int {
             }
             fn into_elem() -> Elem {
                 Elem::Int(IntKind::$type)
+            }
+
+            fn to_f64(&self) -> f64 {
+                self.val as f64
             }
         }
 

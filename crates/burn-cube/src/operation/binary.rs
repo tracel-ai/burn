@@ -1,8 +1,9 @@
 use crate::operation::base::binary_expand;
 use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64};
-use burn_jit::gpu::{self};
 
 pub mod add {
+
+    use crate::dialect::Operator;
 
     use super::*;
 
@@ -11,7 +12,7 @@ pub mod add {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Add)
+        binary_expand(context, lhs, rhs, Operator::Add)
     }
 
     macro_rules! impl_add {
@@ -46,6 +47,8 @@ pub mod add {
 }
 
 pub mod sub {
+    use crate::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -53,7 +56,7 @@ pub mod sub {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Sub)
+        binary_expand(context, lhs, rhs, Operator::Sub)
     }
 
     macro_rules! impl_sub {
@@ -88,6 +91,8 @@ pub mod sub {
 }
 
 pub mod mul {
+    use crate::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -95,7 +100,7 @@ pub mod mul {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Mul)
+        binary_expand(context, lhs, rhs, Operator::Mul)
     }
 
     macro_rules! impl_mul {
@@ -130,6 +135,8 @@ pub mod mul {
 }
 
 pub mod div {
+    use crate::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -137,7 +144,7 @@ pub mod div {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Div)
+        binary_expand(context, lhs, rhs, Operator::Div)
     }
 
     macro_rules! impl_div {
@@ -172,6 +179,8 @@ pub mod div {
 }
 
 pub mod rem {
+    use crate::dialect::Operator;
+
     use super::*;
 
     pub fn expand(
@@ -179,7 +188,7 @@ pub mod rem {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Modulo)
+        binary_expand(context, lhs, rhs, Operator::Modulo)
     }
 
     macro_rules! impl_rem {
@@ -210,7 +219,7 @@ pub mod rem {
 }
 
 pub mod and {
-    use crate::Bool;
+    use crate::{dialect::Operator, Bool};
 
     use super::*;
 
@@ -219,7 +228,7 @@ pub mod and {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::And)
+        binary_expand(context, lhs, rhs, Operator::And)
     }
 
     impl core::ops::BitAnd for Bool {
@@ -232,7 +241,7 @@ pub mod and {
 }
 
 pub mod or {
-    use crate::Bool;
+    use crate::{dialect::Operator, Bool};
 
     use super::*;
 
@@ -241,7 +250,7 @@ pub mod or {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, gpu::Operator::Or)
+        binary_expand(context, lhs, rhs, Operator::Or)
     }
 
     impl core::ops::BitOr for Bool {

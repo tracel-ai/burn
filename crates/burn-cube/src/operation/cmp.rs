@@ -1,6 +1,6 @@
+use crate::dialect::Operator;
 use crate::operation::base::cmp_expand;
 use crate::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
-use burn_jit::gpu::{self};
 
 macro_rules! impl_cmp {
     ($type:ty) => {
@@ -39,7 +39,7 @@ pub mod ne {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        cmp_expand(context, lhs, rhs, gpu::Operator::NotEqual)
+        cmp_expand(context, lhs, rhs, Operator::NotEqual)
     }
 }
 
@@ -51,7 +51,7 @@ pub mod gt {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        cmp_expand(context, lhs, rhs, gpu::Operator::Greater)
+        cmp_expand(context, lhs, rhs, Operator::Greater)
     }
 }
 
@@ -63,7 +63,7 @@ pub mod lt {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        cmp_expand(context, lhs, rhs, gpu::Operator::Lower)
+        cmp_expand(context, lhs, rhs, Operator::Lower)
     }
 }
 
@@ -75,6 +75,6 @@ pub mod add_assign {
         lhs: ExpandElement,
         rhs: ExpandElement,
     ) -> ExpandElement {
-        cmp_expand(context, lhs, rhs, gpu::Operator::Add)
+        cmp_expand(context, lhs, rhs, Operator::Add)
     }
 }
