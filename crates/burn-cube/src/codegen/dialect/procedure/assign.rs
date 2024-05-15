@@ -1,4 +1,4 @@
-use crate::codegen::dialect::change::{macros::cube_pasm, Item, Scope, Variable, Vectorization};
+use crate::codegen::dialect::{macros::cpa, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.
@@ -23,7 +23,7 @@ impl ConditionalAssign {
             Item::Scalar(_) => var,
             _ => {
                 let out = scope.create_local(var.item().elem());
-                cube_pasm!(scope, out = var[index]);
+                cpa!(scope, out = var[index]);
                 out
             }
         };
@@ -31,14 +31,14 @@ impl ConditionalAssign {
         let mut assign_index = |index: usize| {
             let cond = index_var(scope, cond, index);
 
-            cube_pasm!(scope, if (cond).then(|scope| {
+            cpa!(scope, if (cond).then(|scope| {
                 let lhs = index_var(scope, lhs, index);
                 let index: Variable = index.into();
-                cube_pasm!(scope, out[index] = lhs);
+                cpa!(scope, out[index] = lhs);
             }).else(|scope| {
                 let rhs = index_var(scope, rhs, index);
                 let index: Variable = index.into();
-                cube_pasm!(scope, out[index] = rhs);
+                cpa!(scope, out[index] = rhs);
             }));
         };
 
@@ -59,10 +59,10 @@ impl ConditionalAssign {
                 assign_index(1);
             }
             Item::Scalar(_) => {
-                cube_pasm!(scope, if (cond).then(|scope| {
-                    cube_pasm!(scope, out = lhs);
+                cpa!(scope, if (cond).then(|scope| {
+                    cpa!(scope, out = lhs);
                 }).else(|scope| {
-                    cube_pasm!(scope, out = rhs);
+                    cpa!(scope, out = rhs);
                 }));
             }
         };

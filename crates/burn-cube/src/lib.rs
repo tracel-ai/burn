@@ -6,7 +6,8 @@ extern crate derive_new;
 // For use with *
 pub mod branch;
 
-mod codegen;
+pub mod codegen;
+
 mod compute;
 mod context;
 mod element;

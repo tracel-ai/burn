@@ -1,5 +1,7 @@
-use crate::codegen::dialect::change::{macros::cube_pasm, Item, Scope, Variable, Vectorization};
-use crate::dialect::change;
+use crate::{
+    codegen::dialect::{macros::cpa, Item, Scope, Variable, Vectorization},
+    dialect::Elem,
+};
 use serde::{Deserialize, Serialize};
 
 /// Perform a check bound on the index (lhs) of value (rhs)
@@ -17,16 +19,16 @@ impl CheckedIndex {
         let lhs = self.lhs;
         let rhs = self.rhs;
         let out = self.out;
-        let array_len = scope.create_local(Item::Scalar(crate::dialect::change::Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(crate::dialect::change::Elem::Bool));
+        let array_len = scope.create_local(Item::Scalar(crate::dialect::Elem::UInt));
+        let inside_bound = scope.create_local(Item::Scalar(crate::dialect::Elem::Bool));
 
-        cube_pasm!(scope, array_len = len(lhs));
-        cube_pasm!(scope, inside_bound = rhs < array_len);
+        cpa!(scope, array_len = len(lhs));
+        cpa!(scope, inside_bound = rhs < array_len);
 
-        cube_pasm!(scope, if(inside_bound).then(|scope| {
-            cube_pasm!(scope, out = unchecked(lhs[rhs]));
+        cpa!(scope, if(inside_bound).then(|scope| {
+            cpa!(scope, out = unchecked(lhs[rhs]));
         }).else(|scope| {
-            cube_pasm!(scope, out = cast(0));
+            cpa!(scope, out = cast(0));
         }));
     }
 
@@ -54,14 +56,14 @@ impl CheckedIndexAssign {
         let lhs = self.lhs;
         let rhs = self.rhs;
         let out = self.out;
-        let array_len = scope.create_local(Item::Scalar(change::Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(change::Elem::Bool));
+        let array_len = scope.create_local(Item::Scalar(Elem::UInt));
+        let inside_bound = scope.create_local(Item::Scalar(Elem::Bool));
 
-        cube_pasm!(scope, array_len = len(out));
-        cube_pasm!(scope, inside_bound = lhs < array_len);
+        cpa!(scope, array_len = len(out));
+        cpa!(scope, inside_bound = lhs < array_len);
 
-        cube_pasm!(scope, if(inside_bound).then(|scope| {
-            cube_pasm!(scope, unchecked(out[lhs]) = rhs);
+        cpa!(scope, if(inside_bound).then(|scope| {
+            cpa!(scope, unchecked(out[lhs]) = rhs);
         }));
     }
 

@@ -1,8 +1,8 @@
 use crate::PrimitiveVariable;
 
 use super::{
-    cube_pasm, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation,
-    Operator, Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
+    cpa, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
+    Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
     WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
@@ -64,7 +64,7 @@ impl Scope {
     pub(crate) fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
         let local = self.create_local(item);
         let zero: Variable = 0u32.into();
-        cube_pasm!(self, local = zero);
+        cpa!(self, local = zero);
         local
     }
 
@@ -76,7 +76,7 @@ impl Scope {
     ) -> Variable {
         let local = self.create_local(item);
         let value = Variable::ConstantScalar(value.to_f64(), item.into().elem());
-        cube_pasm!(self, local = value);
+        cpa!(self, local = value);
         local
     }
 

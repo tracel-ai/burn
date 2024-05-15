@@ -1,9 +1,21 @@
-/// GPU dialect module that contains a representation that can be used to program any GPU.
-///
-/// This dialect should be used to perform most GPU-related optimizations, such as vectorization.
-///
-/// [Compilers](crate::codegen::Compiler) can be used to transform that representation into a lower
-/// level one.
-pub mod change;
+mod branch;
+mod macros;
+mod operation;
+mod procedure;
+mod processing;
+mod scope;
+mod shader;
+mod synchronization;
+mod variable;
+mod vectorization;
 
-pub use change::*;
+pub use branch::*;
+pub use operation::*;
+pub use procedure::*;
+pub use scope::*;
+pub use shader::*;
+pub use synchronization::*;
+pub use variable::*;
+pub use vectorization::*;
+
+pub(crate) use macros::cpa;

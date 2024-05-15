@@ -36,7 +36,7 @@ pub(crate) fn codegen_for_loop(
                 }
 
                 quote::quote! {
-                    range_expand(#args |context, #i| #block);
+                    burn_cube::branch::range_expand(#args |context, #i| #block);
                 }
             } else {
                 todo!("Codegen: Only range is supported")

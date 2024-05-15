@@ -1,5 +1,5 @@
-use super::super::{cube_pasm, Elem, Item, Operator, Scope, Variable};
-use crate::codegen::dialect::change::{BinaryOperator, Vectorization};
+use super::super::{cpa, Elem, Item, Operator, Scope, Variable};
+use crate::codegen::dialect::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Read a global array.
@@ -96,7 +96,7 @@ impl ReadGlobalWithLayout {
             let output = outputs[i];
             let index = indexes[i];
 
-            cube_pasm!(scope, output = tensor[index]);
+            cpa!(scope, output = tensor[index]);
         }
     }
 
@@ -152,36 +152,36 @@ impl IndexOffsetGlobalWithLayout {
         .into();
 
         for index in self.indexes.iter() {
-            cube_pasm!(scope, index = zero);
+            cpa!(scope, index = zero);
         }
 
-        cube_pasm!(
+        cpa!(
             scope,
             range(self.dim_start, self.dim_end).for_each(|i, scope| {
                 let stride_layout = scope.create_local(index_item_ty);
                 let ogwl = scope.create_local(index_item_ty);
 
-                cube_pasm!(scope, stride_layout = stride(layout, i));
-                cube_pasm!(scope, ogwl = offset_ref * vectorization_factor);
-                cube_pasm!(scope, ogwl = ogwl / stride_layout);
+                cpa!(scope, stride_layout = stride(layout, i));
+                cpa!(scope, ogwl = offset_ref * vectorization_factor);
+                cpa!(scope, ogwl = ogwl / stride_layout);
 
                 for (tensor, index) in self.tensors.iter().zip(self.indexes.iter()) {
                     let stride = scope.create_local(index_item_ty);
                     let shape = scope.create_local(index_item_ty);
                     let tmp = scope.create_local(index_item_ty);
 
-                    cube_pasm!(scope, stride = stride(tensor, i));
-                    cube_pasm!(scope, shape = shape(tensor, i));
+                    cpa!(scope, stride = stride(tensor, i));
+                    cpa!(scope, shape = shape(tensor, i));
 
-                    cube_pasm!(scope, tmp = ogwl % shape);
-                    cube_pasm!(scope, tmp = tmp * stride);
-                    cube_pasm!(scope, index = index + tmp);
+                    cpa!(scope, tmp = ogwl % shape);
+                    cpa!(scope, tmp = tmp * stride);
+                    cpa!(scope, index = index + tmp);
                 }
             })
         );
 
         for index in self.indexes {
-            cube_pasm!(scope, index = index / vectorization_factor);
+            cpa!(scope, index = index / vectorization_factor);
         }
     }
 

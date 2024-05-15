@@ -1,5 +1,5 @@
 use super::{Operation, Procedure, Variable};
-use crate::codegen::dialect::change::ReadGlobalWithLayout;
+use crate::codegen::dialect::ReadGlobalWithLayout;
 
 /// Information necessary when compiling a scope.
 pub struct ScopeProcessing {

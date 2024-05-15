@@ -1,4 +1,4 @@
-use crate::codegen::dialect::change::{macros::cube_pasm, Scope, Variable, Vectorization};
+use crate::codegen::dialect::{macros::cpa, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Write to a global array.
@@ -17,7 +17,7 @@ impl WriteGlobal {
         let input = self.input;
         let position = self.position;
 
-        cube_pasm!(scope, output[position] = input);
+        cpa!(scope, output[position] = input);
     }
 
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {

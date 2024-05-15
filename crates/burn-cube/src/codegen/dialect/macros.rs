@@ -1,337 +1,337 @@
 use super::Variable;
 
 #[macro_export(local_inner_macros)]
-/// Cube pseudo assembly.
-macro_rules! cube_pasm {
+/// Cube Pseudo Assembly.
+macro_rules! cpa {
     // out = lhs + rhs
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {
-        cube_pasm!($scope, $out = add($lhs, $rhs))
+        cpa!($scope, $out = add($lhs, $rhs))
     };
     // out += input
     ($scope:expr, $out:ident += $input:ident) => {
-        cube_pasm!($scope, $out = add($out, $input))
+        cpa!($scope, $out = add($out, $input))
     };
     // out = add(lhs, rhs)
     ($scope:expr, $out:ident = add($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Add(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs - rhs
     ($scope:expr, $out:ident = $lhs:ident - $rhs:expr) => {
-        cube_pasm!($scope, $out = sub($lhs, $rhs))
+        cpa!($scope, $out = sub($lhs, $rhs))
     };
     // out = sub(lhs, rhs)
     ($scope:expr, $out:ident = sub($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Sub(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs * rhs
     ($scope:expr, $out:ident = $lhs:ident * $rhs:expr) => {
-        cube_pasm!($scope, $out = mul($lhs, $rhs))
+        cpa!($scope, $out = mul($lhs, $rhs))
     };
     // out *= input
     ($scope:expr, $out:ident *= $input:ident) => {
-        cube_pasm!($scope, $out = mul($out, $input))
+        cpa!($scope, $out = mul($out, $input))
     };
     // out = mul(lhs, rhs)
     ($scope:expr, $out:ident = mul($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Mul(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs / rhs
     ($scope:expr, $out:ident = $lhs:ident / $rhs:expr) => {
-        cube_pasm!($scope, $out = div($lhs, $rhs))
+        cpa!($scope, $out = div($lhs, $rhs))
     };
     // out = div(lhs, rhs)
     ($scope:expr, $out:ident = div($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Div(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs % rhs
     ($scope:expr, $out:ident = $lhs:ident % $rhs:expr) => {
-        cube_pasm!($scope, $out = modulo($lhs, $rhs))
+        cpa!($scope, $out = modulo($lhs, $rhs))
     };
     // out = modulo(lhs, rhs)
     ($scope:expr, $out:ident = modulo($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Modulo(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = powf(lhs, rhs)
     ($scope:expr, $out:ident = powf($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Powf(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs && rhs
     ($scope:expr, $out:ident = $lhs:ident && $rhs:expr) => {
-        cube_pasm!($scope, $out = and($lhs, $rhs))
+        cpa!($scope, $out = and($lhs, $rhs))
     };
     // out = and(lhs, rhs)
     ($scope:expr, $out:ident = and($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::And(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs || rhs
     ($scope:expr, $out:ident = $lhs:ident || $rhs:expr) => {
-        cube_pasm!($scope, $out = or($lhs, $rhs))
+        cpa!($scope, $out = or($lhs, $rhs))
     };
     // out = or(lhs, rhs)
     ($scope:expr, $out:ident = or($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Or(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = !input
     ($scope:expr, $out:ident = !$input:expr) => {
-        cube_pasm!($scope, $out = not($input))
+        cpa!($scope, $out = not($input))
     };
     // out = not(input)
     ($scope:expr, $out:ident = not($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Not(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = lhs & rhs
     ($scope:expr, $out: ident = $lhs:ident & $rhs:ident) => {
-        cube_pasm!($scope, $out = bitwise_and($lhs, $rhs))
+        cpa!($scope, $out = bitwise_and($lhs, $rhs))
     };
     // out = bitwise_and(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_and($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::BitwiseAnd(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs ^ rhs
     ($scope:expr, $out: ident = $lhs:ident ^ $rhs:ident) => {
-        cube_pasm!($scope, $out = bitwise_xor($lhs, $rhs))
+        cpa!($scope, $out = bitwise_xor($lhs, $rhs))
     };
     // out = bitwise_xor(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_xor($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::BitwiseXor(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs << rhs
     ($scope:expr, $out: ident = $lhs:ident << $rhs:ident) => {
-        cube_pasm!($scope, $out = shift_left($lhs, $rhs))
+        cpa!($scope, $out = shift_left($lhs, $rhs))
     };
     // out = shift_left(lhs, rhs)
     ($scope:expr, $out:ident = shift_left($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::ShiftLeft(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs >> rhs
     ($scope:expr, $out: ident = $lhs:ident >> $rhs:ident) => {
-        cube_pasm!($scope, $out = shift_right($lhs, $rhs))
+        cpa!($scope, $out = shift_right($lhs, $rhs))
     };
     // out = shift_right(lhs, rhs)
     ($scope:expr, $out:ident = shift_right($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::ShiftRight(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
-        cube_pasm!($scope, $out = equal($lhs, $rhs))
+        cpa!($scope, $out = equal($lhs, $rhs))
     };
     // out = equal(lhs, rhs)
     ($scope:expr, $out:ident = equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Equal(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs != rhs
     ($scope:expr, $out:ident = $lhs:ident != $rhs:expr) => {
-        cube_pasm!($scope, $out = not_equal($lhs, $rhs))
+        cpa!($scope, $out = not_equal($lhs, $rhs))
     };
     // out = not_equal(lhs, rhs)
     ($scope:expr, $out:ident = not_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::NotEqual(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs > rhs
     ($scope:expr, $out:ident = $lhs:ident > $rhs:expr) => {
-        cube_pasm!($scope, $out = greater($lhs, $rhs))
+        cpa!($scope, $out = greater($lhs, $rhs))
     };
     // out = greater(lhs, rhs)
     ($scope:expr, $out:ident = greater($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Greater(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs >= rhs
     ($scope:expr, $out:ident = $lhs:ident >= $rhs:expr) => {
-        cube_pasm!($scope, $out = greater_equal($lhs, $rhs))
+        cpa!($scope, $out = greater_equal($lhs, $rhs))
     };
     // out = greater_equal(lhs, rhs)
     ($scope:expr, $out:ident = greater_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::GreaterEqual(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs < rhs
     ($scope:expr, $out:ident = $lhs:ident < $rhs:expr) => {
-        cube_pasm!($scope, $out = lower($lhs, $rhs))
+        cpa!($scope, $out = lower($lhs, $rhs))
     };
     // out = lower(lhs, rhs)
     ($scope:expr, $out:ident = lower($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Lower(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs <= rhs
     ($scope:expr, $out:ident = $lhs:ident <= $rhs:expr) => {
-        cube_pasm!($scope, $out = lower_equal($lhs, $rhs))
+        cpa!($scope, $out = lower_equal($lhs, $rhs))
     };
     // out = lower_equal(lhs, rhs)
     ($scope:expr, $out:ident = lower_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::LowerEqual(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = max(lhs, rhs)
     ($scope:expr, $out:ident = max($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Max(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = min(lhs, rhs)
     ($scope:expr, $out:ident = min($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Min(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs[rhs]
     ($scope:expr, $out:ident = $lhs:ident[$rhs:expr]) => {
-        cube_pasm!($scope, $out = index($lhs, $rhs))
+        cpa!($scope, $out = index($lhs, $rhs))
     };
     // out = index(lhs, rhs)
     ($scope:expr, $out:ident = index($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Index(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = unchecked(lhs[rhs])
     ($scope:expr, $out:ident = unchecked($lhs:ident[$rhs:expr])) => {
         $scope.register($crate::codegen::dialect::Operator::UncheckedIndex(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out[lhs] = rhs
     ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::Operator::IndexAssign(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // unchecked(out[lhs]) = rhs
     ($scope:expr, unchecked($out:ident[$lhs:ident]) = $rhs:expr) => {
         $scope.register($crate::codegen::dialect::Operator::UncheckedIndexAssign(
-            cube_pasm!(binary $lhs, $rhs, $out)
+            cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = |input|
     ($scope:expr, $out:ident = |$input:ident|) => {
-        cube_pasm!($scope, $out = abs($input))
+        cpa!($scope, $out = abs($input))
     };
     // out = abs(input)
     ($scope:expr, $out:ident = abs($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Abs(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = exp(input)
     ($scope:expr, $out:ident = exp($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Exp(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = log(input)
     ($scope:expr, $out:ident = log($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Log(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = log1p(input)
     ($scope:expr, $out:ident = log1p($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Log1p(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = cos(input)
     ($scope:expr, $out:ident = cos($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Cos(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = sin(input)
     ($scope:expr, $out:ident = sin($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Sin(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = tanh(input)
     ($scope:expr, $out:ident = tanh($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Tanh(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = sqrt(input)
     ($scope:expr, $out:ident = sqrt($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Sqrt(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = floor(input)
     ($scope:expr, $out:ident = floor($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Floor(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = ceil(input)
     ($scope:expr, $out:ident = ceil($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Ceil(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = erf(input)
     ($scope:expr, $out:ident = erf($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Erf(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
         $scope.register($crate::codegen::dialect::Operator::Assign(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = vec4(a, b, c, d)
     ($scope:expr, $out:ident = vec4($a:ident,$b:ident,$c:ident,$d:ident)) => {
         let i = $scope.zero(Elem::UInt);
-        cube_pasm!($scope, $out[i] = $a);
-        cube_pasm!($scope, i = i + 1u32);
-        cube_pasm!($scope, $out[i] = $b);
-        cube_pasm!($scope, i = i + 1u32);
-        cube_pasm!($scope, $out[i] = $c);
-        cube_pasm!($scope, i = i + 1u32);
-        cube_pasm!($scope, $out[i] = $d);
+        cpa!($scope, $out[i] = $a);
+        cpa!($scope, i = i + 1u32);
+        cpa!($scope, $out[i] = $b);
+        cpa!($scope, i = i + 1u32);
+        cpa!($scope, $out[i] = $c);
+        cpa!($scope, i = i + 1u32);
+        cpa!($scope, $out[i] = $d);
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        cube_pasm!($scope, $out = cast($input))
+        cpa!($scope, $out = cast($input))
     };
     // out = cast(input)
     ($scope:expr, $out:ident = cast($input:expr)) => {
         $scope.register($crate::codegen::dialect::Operator::Assign(
-            cube_pasm!(unary $input, $out)
+            cpa!(unary $input, $out)
         ));
     };
     // out = shape(tensor, dim)
@@ -438,4 +438,4 @@ impl From<usize> for Variable {
     }
 }
 
-pub(crate) use cube_pasm;
+pub(crate) use cpa;
