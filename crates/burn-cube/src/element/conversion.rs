@@ -108,7 +108,7 @@ macro_rules! impl_to_bool_from_float {
     ($to:ident, $from1:ident) => {
         impl From<$from1> for $to {
             fn from(value: $from1) -> Self {
-                Self::constant(value.val() > 0.)
+                Self::from_primitive(value.val() > 0.)
             }
         }
     };
@@ -118,7 +118,7 @@ macro_rules! impl_to_bool_from_int {
     ($to:ident, $from1:ident) => {
         impl From<$from1> for $to {
             fn from(value: $from1) -> Self {
-                Self::constant(value.val() > 0)
+                Self::from_primitive(value.val() > 0)
             }
         }
     };

@@ -8,10 +8,10 @@ type ElemType = F32;
 
 #[cube]
 pub fn if_then_else<F: Float>(lhs: F) {
-    if lhs < F::constant(0) {
-        let _ = lhs + F::constant(4);
+    if lhs < F::lit(0) {
+        let _ = lhs + F::lit(4);
     } else {
-        let _ = lhs - F::constant(5);
+        let _ = lhs - F::lit(5);
     }
 }
 

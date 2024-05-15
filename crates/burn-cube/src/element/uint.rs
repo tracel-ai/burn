@@ -24,18 +24,6 @@ impl UInt {
     ) -> <Self as CubeType>::ExpandType {
         (val as u32).into()
     }
-    // /// Create a UInt. Use with integer literal
-    // pub fn new(val: i64) -> Self {
-    //     Self {
-    //         val,
-    //         vectorization: 1,
-    //     }
-    // }
-
-    // /// Expand version of new
-    // pub fn new_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
-    //     (val as u32).into()
-    // }
 }
 
 impl CubeType for UInt {
@@ -53,14 +41,11 @@ impl PrimitiveVariable for UInt {
 }
 
 impl Numeric for UInt {
-    fn constant(val: i64) -> Self {
-        Self {
-            val,
-            vectorization: 1,
-        }
+    fn lit(val: i64) -> Self {
+        Self::from_primitive(val)
     }
 
-    fn constant_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
+    fn lit_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
         Self::from_primitive_expand(context, val)
     }
 }

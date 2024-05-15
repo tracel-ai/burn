@@ -226,7 +226,7 @@ pub mod and {
         type Output = Bool;
 
         fn bitand(self, rhs: Self) -> Self::Output {
-            Bool::constant(self.val && rhs.val)
+            Bool::lit(self.val && rhs.val)
         }
     }
 }
@@ -248,7 +248,7 @@ pub mod or {
         type Output = Bool;
 
         fn bitor(self, rhs: Self) -> Self::Output {
-            Bool::constant(self.val || rhs.val)
+            Bool::lit(self.val || rhs.val)
         }
     }
 }

@@ -14,17 +14,30 @@ impl CubeType for Bool {
 }
 
 impl Bool {
-    /// Create a Bool from primitive bool
-    pub fn constant(val: bool) -> Self {
+    /// Make a boolean literal
+    pub fn lit(val: bool) -> Self {
         Self {
             val,
             vectorization: 1,
         }
     }
 
-    /// Expand version of new
-    pub fn constant_expand(_context: &mut CubeContext, val: bool) -> <Self as CubeType>::ExpandType {
+    /// Expand version of lit
+    pub fn lit_expand(_context: &mut CubeContext, val: bool) -> <Self as CubeType>::ExpandType {
         val.into()
+    }
+
+    /// Create a Bool from primitive bool
+    pub fn from_primitive(val: bool) -> Self {
+        Self::lit(val)
+    }
+
+    /// Expand version of from_primitive
+    pub fn from_primitive_expand(
+        context: &mut CubeContext,
+        val: bool,
+    ) -> <Self as CubeType>::ExpandType {
+        Self::lit_expand(context, val)
     }
 }
 

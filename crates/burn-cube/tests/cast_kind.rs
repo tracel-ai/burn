@@ -17,9 +17,9 @@ pub fn cast_int_kind<I1: Int, I2: Int + From<I1>>(input: I1) {
 
 #[cube]
 pub fn cast_numeric_to_kind<T: Numeric, I2: Int + From<T>>(input: T) {
-    let x = input + T::constant(5);
+    let x = input + T::lit(5);
     let y = I2::from(x);
-    let _ = y + I2::constant(2);
+    let _ = y + I2::lit(2);
 }
 
 #[test]

@@ -18,8 +18,8 @@ pub trait Numeric:
     /// Note: since this must work for both integer and float
     /// only the less expressive of both can be created (int)
     /// If a number with decimals is needed, use Float::from_primitive.
-    fn constant(val: i64) -> Self;
+    fn lit(val: i64) -> Self;
 
     /// Expand version of new
-    fn constant_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
+    fn lit_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
 }

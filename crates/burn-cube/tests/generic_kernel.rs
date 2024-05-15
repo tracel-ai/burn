@@ -3,7 +3,7 @@ use burn_jit::{gpu, gpu::Item};
 
 #[cube]
 pub fn generic_kernel<T: Numeric>(lhs: T) {
-    let _ = lhs + T::constant(5);
+    let _ = lhs + T::lit(5);
 }
 
 #[test]

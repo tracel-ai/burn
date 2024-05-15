@@ -8,8 +8,8 @@ type ElemType = F32;
 
 #[cube]
 pub fn if_greater<T: Numeric>(lhs: T) {
-    if lhs > T::constant(0) {
-        let _ = lhs + T::constant(4);
+    if lhs > T::lit(0) {
+        let _ = lhs + T::lit(4);
     }
 }
 
