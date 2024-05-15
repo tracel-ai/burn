@@ -30,6 +30,7 @@ impl GradientClippingConfig {
 /// Gradient Clipping provides a way to mitigate exploding gradients
 /// by clipping every component of the gradient by value or by norm during
 /// backpropagation.
+#[derive(Clone)]
 pub enum GradientClipping {
     /// Clip the gradient by value.
     Value(f32),

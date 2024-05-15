@@ -11,6 +11,7 @@ use hashbrown::HashMap;
 
 /// Wrapper struct that adapts any [simple optimizer](SimpleOptimizer) into
 /// an [optimizer](Optimizer).
+#[derive(Clone)]
 pub struct OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
