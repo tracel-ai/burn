@@ -1,23 +1,23 @@
-use burn_cube::{cube, Float, Int, Numeric};
+use burn_cube::{cube, Cast, Float, Int, Numeric};
 
 #[cube]
-pub fn cast_float_kind<F1: Float, F2: Float + From<F1>>(input: F1) {
+pub fn cast_float_kind<F1: Float, F2: Float + Cast<F1>>(input: F1) {
     let x = input + F1::from_primitive(5.9);
-    let y = F2::from(x);
+    let y = F2::cast_from(x);
     let _ = y + F2::from_primitive(2.3);
 }
 
 #[cube]
-pub fn cast_int_kind<I1: Int, I2: Int + From<I1>>(input: I1) {
+pub fn cast_int_kind<I1: Int, I2: Int + Cast<I1>>(input: I1) {
     let x = input + I1::from_primitive(5);
-    let y = I2::from(x);
+    let y = I2::cast_from(x);
     let _ = y + I2::from_primitive(2);
 }
 
 #[cube]
-pub fn cast_numeric_to_kind<T: Numeric, I2: Int + From<T>>(input: T) {
+pub fn cast_numeric_to_kind<T: Numeric, I2: Int + Cast<T>>(input: T) {
     let x = input + T::lit(5);
-    let y = I2::from(x);
+    let y = I2::cast_from(x);
     let _ = y + I2::lit(2);
 }
 

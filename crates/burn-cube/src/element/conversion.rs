@@ -1,11 +1,26 @@
-use crate::{Bool, Float, Int, PrimitiveVariable, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::{
+    assign, dialect::Item, Bool, CubeContext, CubeType, Float, Int, PrimitiveVariable, UInt, BF16,
+    F16, F32, F64, I32, I64,
+};
 
 // Enable elegant casting from any to any primitive variable
 
+pub trait Cast<T: PrimitiveVariable>: PrimitiveVariable {
+    fn cast_from(value: T) -> Self;
+    fn cast_from_expand(
+        context: &mut CubeContext,
+        value: <T as CubeType>::ExpandType,
+    ) -> <Self as CubeType>::ExpandType {
+        let new_var = context.create_local(Item::Scalar(<Self as PrimitiveVariable>::into_elem()));
+        assign::expand(context, value, new_var.clone());
+        new_var
+    }
+}
+
 macro_rules! impl_to_float {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(value.val() as f64)
             }
         }
@@ -14,8 +29,8 @@ macro_rules! impl_to_float {
 
 macro_rules! impl_to_float_from_bool {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(match value.val() {
                     true => 1.,
                     false => 0.,
@@ -25,6 +40,7 @@ macro_rules! impl_to_float_from_bool {
     };
 }
 
+impl_to_float!(F16, F16);
 impl_to_float!(F16, BF16);
 impl_to_float!(F16, F32);
 impl_to_float!(F16, F64);
@@ -34,6 +50,7 @@ impl_to_float!(F16, UInt);
 impl_to_float_from_bool!(F16, Bool);
 
 impl_to_float!(BF16, F16);
+impl_to_float!(BF16, BF16);
 impl_to_float!(BF16, F32);
 impl_to_float!(BF16, F64);
 impl_to_float!(BF16, I32);
@@ -43,6 +60,7 @@ impl_to_float_from_bool!(BF16, Bool);
 
 impl_to_float!(F32, F16);
 impl_to_float!(F32, BF16);
+impl_to_float!(F32, F32);
 impl_to_float!(F32, F64);
 impl_to_float!(F32, I32);
 impl_to_float!(F32, I64);
@@ -52,6 +70,7 @@ impl_to_float_from_bool!(F32, Bool);
 impl_to_float!(F64, F16);
 impl_to_float!(F64, BF16);
 impl_to_float!(F64, F32);
+impl_to_float!(F64, F64);
 impl_to_float!(F64, I32);
 impl_to_float!(F64, I64);
 impl_to_float!(F64, UInt);
@@ -59,8 +78,8 @@ impl_to_float_from_bool!(F64, Bool);
 
 macro_rules! impl_to_int {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(value.val() as i64)
             }
         }
@@ -69,8 +88,8 @@ macro_rules! impl_to_int {
 
 macro_rules! impl_to_int_from_bool {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(match value.val() {
                     true => 1,
                     false => 0,
@@ -106,8 +125,8 @@ impl_to_int_from_bool!(UInt, Bool);
 
 macro_rules! impl_to_bool_from_float {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(value.val() > 0.)
             }
         }
@@ -116,8 +135,8 @@ macro_rules! impl_to_bool_from_float {
 
 macro_rules! impl_to_bool_from_int {
     ($to:ident, $from1:ident) => {
-        impl From<$from1> for $to {
-            fn from(value: $from1) -> Self {
+        impl Cast<$from1> for $to {
+            fn cast_from(value: $from1) -> Self {
                 Self::from_primitive(value.val() > 0)
             }
         }
