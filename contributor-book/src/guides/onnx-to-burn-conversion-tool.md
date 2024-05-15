@@ -63,7 +63,8 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    ```
 
 5. **Implement Missing Operators**: If you encounter an error stating that an operator is
-   unsupported, implement it. The `./out/my-model.graph.txt` should provide relevant information.
+   unsupported, [implement it](#implementing-a-new-operator). The `./out/my-model.graph.txt` should
+   provide relevant information.
 
 6. **Inspect Generated Files**: The `my-model.graph.txt` contains IR details, `my-model.rs` holds
    the Burn model in Rust code, and `my-model.json` includes the model data.
@@ -72,6 +73,42 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    [crates/burn-import/onnx-tests/tests/onnx_tests.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/tests/onnx_tests.rs).
    Further details can be found in the
    [onnx-tests README](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/README.md).
+
+## Implementing a New Operator
+
+To extend the capabilities of the Burn library by supporting new operations imported from ONNX
+graphs, developers must go through a few systematic steps. Here, we detail the process, using the
+implementation of the `Squeeze` operation to illustrate points as needed. All file/directory paths
+are relative to `burn/crates/burn-import/`.
+
+### Step 1: Visibility
+
+To make a new operation accessible to the rest of the Burn project, you need to declare the module
+within the `mod.rs` file located in the `src/burn/node/` directory.
+
+### Step 2: Node Implementation
+
+Begin by creating a new file named `<operation_name>.rs` in the `src/burn/node/` directory. This
+file will define the structure and functionality of your new operations. By convention, the
+necessary information for carrying out an operation is encapsulated within a struct named
+`<operation>Node`. For the `Squeeze` operation, we defined a struct `SqueezeNode` that holds
+necessary information about the input tensor, output tensor, and axes for the operation.
+
+The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
+This trait defines defines how the node generates code during the graph compilation process. The
+implementation must provide methods to define input and output types, to generate the forward pass
+code, and to encapsulate the node into the more general `Node` structure. Specifically:
+
+- `output_types` and `input_types` return the tensor (or not) types for the output and inputs of the
+  node, respectively.
+- `forward` generates the Rust code that performs the operation during the execution phase. The
+  `quote!` macro is used to generate rust code. Ensure that this is syntactically correct using Burn
+  code.
+- `into_node` wraps the specific node in a general `Node` type, facilitating its inclusion in the
+  broader Burn graph structure.
+
+This file is also where you would put `test_codegen_nodes()`, to make sure that the generated code
+works within the Burn library.
 
 ## Testing
 
