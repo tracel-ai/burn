@@ -523,6 +523,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-cube"
+version = "0.15.0"
+dependencies = [
+ "burn-cube-macros",
+ "burn-jit",
+ "derive-new",
+ "log",
+]
+
+[[package]]
+name = "burn-cube-macros"
+version = "0.15.0"
+dependencies = [
+ "derive-new",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.61",
+]
+
+[[package]]
 name = "burn-dataset"
 version = "0.15.0"
 dependencies = [

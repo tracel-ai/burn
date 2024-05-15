@@ -80,7 +80,7 @@ impl Display for Elem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
 pub enum Item {
     Vec4(Elem),

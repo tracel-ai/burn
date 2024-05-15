@@ -1,5 +1,7 @@
 use super::Variable;
 
+#[macro_export(local_inner_macros)]
+/// Macro for generating JIT intermediate representation, in a concise way
 macro_rules! gpu {
     // out = lhs + rhs
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {
@@ -406,9 +408,21 @@ impl From<i32> for Variable {
     }
 }
 
+impl From<i64> for Variable {
+    fn from(value: i64) -> Self {
+        Self::ConstantScalar(value as f64, super::Elem::Int(super::IntKind::I64))
+    }
+}
+
 impl From<f32> for Variable {
     fn from(value: f32) -> Self {
         Self::ConstantScalar(value as f64, super::Elem::Float(super::FloatKind::F32))
+    }
+}
+
+impl From<f64> for Variable {
+    fn from(value: f64) -> Self {
+        Self::ConstantScalar(value, super::Elem::Float(super::FloatKind::F64))
     }
 }
 
