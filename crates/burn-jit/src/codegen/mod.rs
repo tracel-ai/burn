@@ -1,6 +1,7 @@
 mod compilation;
 pub(crate) mod compiler;
-pub(crate) mod dialect;
+/// Contains Intermediate Representation
+pub mod dialect;
 
 mod kernel;
 

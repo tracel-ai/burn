@@ -103,7 +103,7 @@ impl IntoContiguousShader {
             tensors: vec![tensor],
             indexes: vec![offset_input],
             layout: output,
-            index_ref: id,
+            position: id,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }

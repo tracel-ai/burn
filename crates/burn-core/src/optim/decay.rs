@@ -20,6 +20,7 @@ pub struct WeightDecayState<B: Backend, const D: usize> {
 }
 
 /// Weight decay implementation that transforms gradients.
+#[derive(Clone)]
 pub struct WeightDecay<B: Backend> {
     penalty: B::FloatElem,
 }

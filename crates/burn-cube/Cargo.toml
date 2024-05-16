@@ -1,0 +1,27 @@
+[package]
+authors = [
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+    "louisfd <louisfd94@gmail.com",
+]
+categories = ["science"]
+description = "TODO"
+edition.workspace = true
+keywords = []
+license.workspace = true
+name = "burn-cube"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-cube"
+version.workspace = true
+
+[features]
+default = []
+std = []
+
+[dependencies]
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
+    "autotune",
+] }
+burn-cube-macros = { path = "../burn-cube-macros", version = "0.15.0" }
+derive-new = { workspace = true }
+
+log = { workspace = true }
