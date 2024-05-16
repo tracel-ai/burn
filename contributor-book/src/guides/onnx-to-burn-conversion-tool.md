@@ -110,6 +110,116 @@ code, and to encapsulate the node into the more general `Node` structure. Specif
 This file is also where you would put `test_codegen_nodes()`, to make sure that the generated code
 works within the Burn library.
 
+### Step 3: Registering New Operations
+
+**Registering new operations in the ONNX -> Burn Conversion** To integrate new operations from an
+ONNX graph into the Burn framework, each operation must be registered within the ONNX graph
+conversion process. This is done in the `src/onnx/to_burn.rs` file, where the conversion from ONNX
+nodes to Burn nodes is orchestrated.
+
+In the `into_burn` method of the `OnnxGraph` struct, operations are matched with their corresponding
+conversion functions. This method iterates over each node in the ONNX graph and, depending on the
+node type, calls a specific conversion function that translates the ONNX node into a corresponding
+Burn node.
+
+```rust
+impl OnnxGraph {
+    pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
+        let mut graph = BurnGraph::<PS>::default();
+        let mut unsupported_ops = vec![];
+
+        for node in self.nodes {
+            match node.node_type {
+                NodeType::Add => graph.register(Self::add_conversion(node)),
+                // Other operations...
+                NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
+                // Add new operations here
+            }
+        }
+    }
+}
+```
+
+Here, the `NodeType::Squeeze` matches the ONNX node type with the `squeeze_conversion` function that
+you define to handle the specific attributes and settings of a Squeeze operation.
+
+**Define the Conversion Function** Each operation conversion function extracts necessary information
+from the ONNX node and constructs a corresponding Burn node. The structure of these functions
+generally includes:
+
+1. Extracting input and output tensors from the node.
+2. Retrieving and processing operation-specific configurations.
+3. Creating an instance of the appropriate Burn node using this information by calling
+   `<operation>_config`.
+
+### Step Four: Create a Config Function
+
+The `squeeze_conversion` function in blah.rs calls the `squeeze_config` function in blah2.rs in
+order the parse the ONNX node's attributes to extract parameters specific to the Squeeze operation.
+In this case, the axes along which the squeeze operation is performed.
+
+> 📘 Info: Understanding Generic `config` Patterns
+>
+> The `<op>_config` functions follow a similar pattern:
+>
+> 1. Extract tensor or scalar types for inputs and outputs.
+> 2. Validate the input structure and types for each node, ensuring they conform to expected formats
+>    (panicking if not).
+> 3. Parse and convert configurations or parameters specific to each operation.
+> 4. Create and return a node specific to the operation, initialized with extracted values and
+>    configurations.
+>
+> For example, config functions handle specific settings like kernel size for pooling or handling
+> different tensor and scalar types for power operations.
+
+These functions translate the more varied and flexible structure of ONNX nodes into the more
+structured and type-safe environment of Rust and the Burn framework. Spec compliance is dealt with
+here.
+
+### Step Five: Dimension Inference
+
+Create a dimension inference function in... Dimension inference is an important step in the
+conversion process where Burn determines the dimensions of each output tensor based on the
+operation. The `dim_inference` function is responsible for determining the dimensions of the output
+tensors for each node in the graph. It does this by:
+
+1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
+   to apply the correct dimension inference logic depending on the operation.
+2. **Applying Operation Specific Logic**: For each operation, a specific inference function is
+   called that encapsulate the rules for how output dimensions should be derived from the inputs.
+
+For the Squeeze operation, the dimension inference is handled by the `squeeze_update_output`
+function, which is specifically tailored to handle the nuances of the squeeze operation, which is
+currently not that nuanced. The output tensor should be (dimensions of input tensor) - 1.
+
+> 📘 Info: How `squeeze_update_output` Works
+>
+> 1. Validation of axes input: We first check if the second input of the node contains a list of
+>    integers, which represent the axes along which the squeeze operation is applied. The function
+>    also validates that only one axis is specified for squeezing, ensuring that the operation's
+>    requirements within Burn are followed.
+> 2. Extracting input dimensions: The input tensor's dimension is extracted from the first input.
+> 3. Configuring output dimensions: The output tensor's dimensions are then set to be one less than
+>    the input tensor’s dimensions, reflecting the reduction in dimensions caused by the squeeze
+>    operation.
+> 4. The function includes several checks that throw errors (panics) if the inputs do not meet the
+>    expected types or configurations, such as when the axes are not provided as an integer list or
+>    if the input type is not a tensor.
+
+By invoking this function within the `dim_inference` match block, the output dimensions of each node
+are updated before the graph is finalized. This ensures that all subsequent operations within the
+graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
+runtime execution efficiency.
+
+### Step Six: Integrate into the Graph Building Process
+
+When a new node type is introduced, it must be added to the enum and `match_all!` macro.
+
+The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
+variant of the enum corresponds to a specific type of operation, and it encapsulates the
+operation-specific data structures (like `SqueezeNode1`) that was
+[defined in step 2](#step-2-node-implementation).
+
 ## Testing
 
 - Unit tests for the Burn graph to Rust source code conversion are mandatory.
