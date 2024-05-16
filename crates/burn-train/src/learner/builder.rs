@@ -9,7 +9,7 @@ use crate::checkpoint::{
 use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
 use crate::learner::EarlyStoppingStrategy;
-use crate::logger::{self, FileMetricLogger, MetricLogger};
+use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
