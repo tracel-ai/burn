@@ -95,7 +95,6 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .with_application_logger(logger)
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .summary()

@@ -45,7 +45,7 @@ impl ApplicationLoggerInstaller for FileApplicationLoggerInstaller {
                 }
                 true
             }));
-    
+
         if registry().with(layer).try_init().is_err() {
             return Err("Failed to install the file logger.".to_string());
         }

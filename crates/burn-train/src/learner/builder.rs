@@ -14,7 +14,10 @@ use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::{FileApplicationLoggerInstaller, LearnerCheckpointer, LearnerSummaryConfig, ApplicationLoggerInstaller};
+use crate::{
+    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
+    LearnerSummaryConfig,
+};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -234,7 +237,10 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
-    pub fn with_application_logger(mut self, logger: Option<Box<dyn ApplicationLoggerInstaller>>) -> Self {
+    pub fn with_application_logger(
+        mut self,
+        logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    ) -> Self {
         self.tracing_logger = logger;
         self
     }
