@@ -1,7 +1,7 @@
 use crate::{codegen::Compiler, compute::Kernel};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 
-/// Runtime for the [just-in-time backend](crate::JitBackend).
+/// Runtime for the cubeCL.
 pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     /// The compiler used to compile the inner representation into tokens.
     type Compiler: Compiler;

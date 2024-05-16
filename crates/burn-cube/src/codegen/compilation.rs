@@ -315,8 +315,7 @@ pub enum OutputInfo {
     },
     /// Simply register the output, but don't automatically add a write to it.
     ///
-    /// Useful when a [procedure](gpu::Procedure) writes to the output using
-    /// [operations](gpu::Operation).
+    /// Useful when a procedure writes to the output using operations.
     Array { item: Item },
 }
 
