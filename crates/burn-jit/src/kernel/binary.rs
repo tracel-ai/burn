@@ -63,21 +63,21 @@ macro_rules! binary {
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
             let position = $crate::codegen::dialect::gpu::Variable::Id;
 
-            let op = $ops(&mut scope, I::gpu_elem(), position);
+            let op = $ops(&mut scope, I::cube_elem(), position);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let lhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(I::cube_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
             let rhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(I::cube_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(O::cube_elem()),
                 local,
                 position,
             };

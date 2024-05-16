@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
+use burn_cube::cpa;
+
 use crate::{
     codegen::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+    gpu::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
     JitElement, Runtime,
 };
@@ -60,7 +62,7 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let tensor = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
@@ -110,7 +112,7 @@ impl IntoContiguousShader {
         .expand(scope);
 
         let value = scope.create_local(tensor.item());
-        gpu!(scope, value = tensor[offset_input]);
-        gpu!(scope, output[id] = value);
+        cpa!(scope, value = tensor[offset_input]);
+        cpa!(scope, output[id] = value);
     }
 }

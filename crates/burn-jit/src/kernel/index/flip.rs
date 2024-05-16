@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -11,6 +11,7 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
+use burn_cube::cpa;
 use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
 
@@ -42,36 +43,36 @@ impl FlipComputeShader {
         let flip_bool = scope.create_local(Elem::Bool);
 
         for i in 0..self.rank {
-            gpu!(scope, stride = stride(input, i));
-            gpu!(scope, shape = shape(output, i));
-            gpu!(
+            cpa!(scope, stride = stride(input, i));
+            cpa!(scope, shape = shape(output, i));
+            cpa!(
                 scope,
                 flip = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
-            gpu!(scope, flip_bool = flip == 1u32);
+            cpa!(scope, flip_bool = flip == 1u32);
 
-            gpu!(scope, offset_local = id / stride);
-            gpu!(scope, offset_local = offset_local % shape);
+            cpa!(scope, offset_local = id / stride);
+            cpa!(scope, offset_local = offset_local % shape);
 
-            gpu!(scope, if(flip_bool).then(|scope| {
-                gpu!(scope, offset_local = shape - offset_local);
-                gpu!(scope, offset_local = offset_local - 1u32);
+            cpa!(scope, if(flip_bool).then(|scope| {
+                cpa!(scope, offset_local = shape - offset_local);
+                cpa!(scope, offset_local = offset_local - 1u32);
             }));
-            gpu!(scope, offset_local = offset_local * stride);
+            cpa!(scope, offset_local = offset_local * stride);
 
-            gpu!(scope, offset_input += offset_local);
+            cpa!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = input[offset_input]);
-        gpu!(scope, output[id] = result);
+        cpa!(scope, result = input[offset_input]);
+        cpa!(scope, output[id] = result);
     }
 }
 
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);

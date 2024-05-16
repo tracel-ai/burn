@@ -67,17 +67,17 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
+            let op = $ops(&mut scope, E::cube_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
                 local,
                 position: $crate::codegen::dialect::gpu::Variable::Id,
             };
@@ -143,21 +143,21 @@ macro_rules! unary {
         {
 
             let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::gpu_elem(), $crate::codegen::dialect::gpu::Variable::Id);
+            let op = $ops(&mut scope, E::cube_elem(), $crate::codegen::dialect::gpu::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
             let scalars = $crate::codegen::InputInfo::Scalar {
-                elem: E::gpu_elem(),
+                elem: E::cube_elem(),
                 size: $num,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
                 local,
                 position: $crate::codegen::dialect::gpu::Variable::Id,
             };

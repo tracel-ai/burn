@@ -37,7 +37,7 @@ pub trait GpuComputeShaderPhase: Send + Sync + 'static {
     }
 }
 
-pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
+pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(workgroups));

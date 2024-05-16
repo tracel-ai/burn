@@ -33,7 +33,7 @@ pub enum Variable {
 }
 
 impl Variable {
-    pub(crate) fn index(&self) -> Option<u16> {
+    pub fn index(&self) -> Option<u16> {
         match self {
             Variable::GlobalInputArray(idx, _) => Some(*idx),
             Variable::GlobalScalar(idx, _) => Some(*idx),

@@ -1,6 +1,6 @@
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -11,6 +11,7 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
+use burn_cube::cpa;
 use burn_tensor::{ElementConversion, Shape};
 use std::{marker::PhantomData, ops::Range};
 
@@ -42,32 +43,32 @@ impl SliceComputeShader {
         let range_start = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
-            gpu!(scope, stride_input = stride(input, i));
-            gpu!(scope, stride_output = stride(output, i));
-            gpu!(scope, shape_output = shape(output, i));
-            gpu!(
+            cpa!(scope, stride_input = stride(input, i));
+            cpa!(scope, stride_output = stride(output, i));
+            cpa!(scope, shape_output = shape(output, i));
+            cpa!(
                 scope,
                 range_start = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
 
-            gpu!(scope, offset_local = id / stride_output);
-            gpu!(scope, offset_local = offset_local % shape_output);
-            gpu!(scope, offset_local = offset_local + range_start);
-            gpu!(scope, offset_local = offset_local * stride_input);
+            cpa!(scope, offset_local = id / stride_output);
+            cpa!(scope, offset_local = offset_local % shape_output);
+            cpa!(scope, offset_local = offset_local + range_start);
+            cpa!(scope, offset_local = offset_local * stride_input);
 
-            gpu!(scope, offset_input += offset_local);
+            cpa!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = input[offset_input]);
-        gpu!(scope, output[id] = result);
+        cpa!(scope, result = input[offset_input]);
+        cpa!(scope, output[id] = result);
     }
 }
 
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);

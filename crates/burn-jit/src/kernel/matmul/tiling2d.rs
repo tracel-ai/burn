@@ -31,7 +31,7 @@ struct MatmulTiling2dEagerKernel<R: Runtime, E: JitElement> {
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
-        let elem = E::gpu_elem();
+        let elem = E::cube_elem();
         assert!(
             elem == gpu::Elem::Float(gpu::FloatKind::F32)
                 || elem == gpu::Elem::Float(gpu::FloatKind::F64),

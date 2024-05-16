@@ -8,30 +8,42 @@ extern crate alloc;
 
 mod ops;
 
-/// Compute related module.
-pub mod compute;
+// Compute related module.
+pub mod compute {
+    pub use burn_cube::*;
+}
+// pub mod compute;
+
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
 /// Useful in Cube, should be moved over there
-pub mod codegen;
+// pub mod codegen;
+pub mod codegen {
+    pub mod dialect {
+        pub use burn_cube::codegen::dialect as gpu;
+        pub use burn_cube::codegen::dialect::*;
+    }
+    pub use burn_cube::cpa as gpu;
+    pub use burn_cube::*;
+}
+
 pub(crate) mod tune;
 
-mod element;
-pub use codegen::compiler::{Compiler, CompilerRepresentation};
-pub use codegen::dialect::gpu;
+pub mod element;
+pub use burn_cube::codegen::dialect as gpu;
+pub use burn_cube::{Compiler, CompilerRepresentation};
 
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
 mod bridge;
-mod runtime;
 
 pub use backend::*;
 pub use bridge::*;
-pub use runtime::*;
+pub use burn_cube::*;
 
 #[cfg(any(feature = "fusion", test))]
 mod fusion;

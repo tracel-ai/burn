@@ -1,4 +1,11 @@
 use crate::{FloatElement, IntElement, JitBackend, Runtime};
-use burn_tensor::ops::ActivationOps;
+use burn_tensor::{backend::DeviceOps, ops::ActivationOps};
 
-impl<R: Runtime, F: FloatElement, I: IntElement> ActivationOps<Self> for JitBackend<R, F, I> {}
+impl<R, F, I> ActivationOps<Self> for JitBackend<R, F, I>
+where
+    R: Runtime,
+    R::Device: DeviceOps,
+    F: FloatElement,
+    I: IntElement,
+{
+}

@@ -1,5 +1,5 @@
 use crate::{tensor::JitTensor, FloatElement, IntElement, PrecisionBridge, Runtime};
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, DeviceOps};
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -16,6 +16,7 @@ pub struct JitBackend<R: Runtime, F: FloatElement, I: IntElement> {
 impl<R, F, I> Backend for JitBackend<R, F, I>
 where
     R: Runtime,
+    R::Device: DeviceOps,
     F: FloatElement,
     I: IntElement,
 {

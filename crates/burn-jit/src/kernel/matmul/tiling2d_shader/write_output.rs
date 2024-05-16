@@ -1,4 +1,5 @@
-use crate::gpu::{gpu, Elem, Scope, Variable};
+use crate::gpu::{Elem, Scope, Variable};
+use burn_cube::cpa;
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -21,22 +22,22 @@ pub fn write_to_output(
         let within_output = scope.create_local(Elem::Bool);
         let within_output_tmp = scope.create_local(Elem::Bool);
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
-                    gpu!(
+                    cpa!(
                         scope,
                         range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                             .for_each(|res_idx_n, scope| {
-                                gpu!(scope, row_index = row + res_idx_m);
-                                gpu!(scope, col_index = col + res_idx_n);
+                                cpa!(scope, row_index = row + res_idx_m);
+                                cpa!(scope, col_index = col + res_idx_n);
 
-                                gpu!(scope, within_output = row_index < dim_m);
-                                gpu!(scope, within_output_tmp = col_index < dim_n);
-                                gpu!(scope, within_output = within_output && within_output_tmp);
+                                cpa!(scope, within_output = row_index < dim_m);
+                                cpa!(scope, within_output_tmp = col_index < dim_n);
+                                cpa!(scope, within_output = within_output && within_output_tmp);
 
-                                gpu!(scope, if(within_output).then(|scope|{
+                                cpa!(scope, if(within_output).then(|scope|{
                                     write_inner(
                                         scope,
                                         shader,
@@ -53,16 +54,16 @@ pub fn write_to_output(
             )
         );
     } else {
-        gpu!(
+        cpa!(
             scope,
             range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
-                    gpu!(
+                    cpa!(
                         scope,
                         range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                             .for_each(|res_idx_n, scope| {
-                                gpu!(scope, row_index = row + res_idx_m);
-                                gpu!(scope, col_index = col + res_idx_n);
+                                cpa!(scope, row_index = row + res_idx_m);
+                                cpa!(scope, col_index = col + res_idx_n);
 
                                 write_inner(
                                     scope,
@@ -102,18 +103,18 @@ fn write_inner(
     let result = scope.create_local(elem);
     let output_position = scope.create_local(Elem::UInt);
 
-    gpu!(
+    cpa!(
         scope,
         results_position = res_idx_m * shader.config.tile_size_n
     );
-    gpu!(scope, results_position += res_idx_n);
+    cpa!(scope, results_position += res_idx_n);
 
-    gpu!(scope, result = results[results_position]);
+    cpa!(scope, result = results[results_position]);
 
-    gpu!(scope, row_index *= out_stride_row);
-    gpu!(scope, col_index *= out_stride_col);
-    gpu!(scope, output_position = row_index + col_index);
-    gpu!(scope, output_position += offset_output);
+    cpa!(scope, row_index *= out_stride_row);
+    cpa!(scope, col_index *= out_stride_col);
+    cpa!(scope, output_position = row_index + col_index);
+    cpa!(scope, output_position += offset_output);
 
-    gpu!(scope, out[output_position] = result);
+    cpa!(scope, out[output_position] = result);
 }

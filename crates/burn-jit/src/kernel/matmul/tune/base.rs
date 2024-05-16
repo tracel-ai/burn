@@ -2,7 +2,6 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::JitAutotuneKey,
     element::JitElement,
     kernel::{
         matmul::{utils::init_matmul_output, Tiling2dConfig},

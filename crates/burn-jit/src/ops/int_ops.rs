@@ -3,6 +3,7 @@ use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::gpu::Variable;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::{kernel, unary, FloatElement, IntElement, JitBackend, Runtime};
+use burn_tensor::backend::DeviceOps;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
@@ -10,6 +11,7 @@ use std::ops::Range;
 impl<R, F, I> IntTensorOps<Self> for JitBackend<R, F, I>
 where
     R: Runtime,
+    R::Device: DeviceOps,
     F: FloatElement,
     I: IntElement,
 {

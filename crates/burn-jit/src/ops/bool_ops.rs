@@ -1,4 +1,5 @@
 use crate::{kernel, FloatElement, IntElement, JitBackend, Runtime};
+use burn_tensor::backend::DeviceOps;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
@@ -9,6 +10,7 @@ use super::{expand, permute};
 impl<R, F, I> BoolTensorOps<Self> for JitBackend<R, F, I>
 where
     R: Runtime,
+    R::Device: DeviceOps,
     F: FloatElement,
     I: IntElement,
 {

@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
+use crate::codegen::dialect::gpu::{Elem, Scope, Variable};
 use crate::codegen::Execution;
 use crate::gpu::{ComputeShader, IntKind};
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
+use burn_cube::cpa;
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -43,9 +44,9 @@ impl GatherComputeShader {
         let offset = scope.create_local(Elem::UInt);
 
         // The offset of the `dim` dimension is obtained by the indices tensor.
-        gpu!(scope, offset = cast(self.indices));
-        gpu!(scope, stride = stride(tensor, self.dim));
-        gpu!(scope, offset = offset * stride);
+        cpa!(scope, offset = cast(self.indices));
+        cpa!(scope, stride = stride(tensor, self.dim));
+        cpa!(scope, offset = offset * stride);
 
         // We fetch the offset before the `dim` dimension.
         if self.dim > 0 {
@@ -58,7 +59,7 @@ impl GatherComputeShader {
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
-            gpu!(scope, offset += offset_before);
+            cpa!(scope, offset += offset_before);
         }
 
         let offset_after = scope.create_local(Elem::UInt);
@@ -70,16 +71,16 @@ impl GatherComputeShader {
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
-        gpu!(scope, offset += offset_after);
+        cpa!(scope, offset += offset_after);
 
-        gpu!(scope, output = tensor[offset]);
+        cpa!(scope, output = tensor[offset]);
     }
 }
 
 impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
-        let item_tensor = E::gpu_elem().into();
+        let item_tensor = E::cube_elem().into();
         let item_indices: gpu::Item = gpu::Elem::Int(IntKind::I32).into();
 
         let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);

@@ -1,5 +1,3 @@
-use crate::PrimitiveVariable;
-
 use super::{
     cpa, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
     Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
@@ -69,13 +67,13 @@ impl Scope {
     }
 
     /// Create a variable initialized at some value.
-    pub fn create_with_value<E: PrimitiveVariable, I: Into<Item> + Copy>(
-        &mut self,
-        value: E,
-        item: I,
-    ) -> Variable {
+    pub fn create_with_value<E, I>(&mut self, value: E, item: I) -> Variable
+    where
+        E: Into<f64>,
+        I: Into<Item> + Copy,
+    {
         let local = self.create_local(item);
-        let value = Variable::ConstantScalar(value.to_f64(), item.into().elem());
+        let value = Variable::ConstantScalar(value.into(), item.into().elem());
         cpa!(self, local = value);
         local
     }

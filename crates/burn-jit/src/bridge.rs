@@ -2,7 +2,7 @@ use crate::{
     kernel, ops::to_device, tensor::JitTensor, FloatElement, IntElement, JitBackend, Runtime,
 };
 use burn_tensor::{
-    backend::BackendBridge,
+    backend::{BackendBridge, DeviceOps},
     ops::{FloatElem, FloatTensor},
 };
 use core::marker::PhantomData;
@@ -19,6 +19,7 @@ impl<R, FOrigin, IOrigin, FTarget, ITarget> BackendBridge<JitBackend<R, FOrigin,
     for PrecisionBridge<R, FTarget, ITarget>
 where
     R: Runtime,
+    R::Device: DeviceOps,
     FOrigin: FloatElement,
     IOrigin: IntElement,
     FTarget: FloatElement,
