@@ -186,10 +186,16 @@ here.
 
 ### Step Five: Dimension Inference
 
-Create a dimension inference function in `src/onnx/dim_inference.rs`. Dimension inference is an
-important step in the conversion process where Burn determines the dimensions of each output tensor
-based on the operation. The `dim_inference()` function is responsible for determining the dimensions
-of the output tensors for each node in the graph. It does this by:
+If needed, create a dimension inference function, called
+`<operation>_update_output(node: &mut Node)` in `src/onnx/dim_inference.rs`. If dimensions remain
+unchanged, use the `same_as_input()` function, for example
+`NodeType::AveragePool1d => same_as_input(node)`. Match the `NodeType` to the function in the
+`dim_inference()` match block.
+
+Dimension inference is an important step in the conversion process where Burn determines the
+dimensions of each output tensor based on the operation. The `dim_inference()` function is
+responsible for determining the dimensions of the output tensors for each node in the graph. It does
+this by:
 
 1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
    to apply the correct dimension inference logic depending on the operation.
