@@ -8,11 +8,10 @@ extern crate alloc;
 
 mod ops;
 
-// Compute related module.
+/// Compute related module.
 pub mod compute {
     pub use burn_cube::*;
 }
-// pub mod compute;
 
 /// Kernel module
 pub mod kernel;
