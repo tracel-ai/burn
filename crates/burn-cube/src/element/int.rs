@@ -33,6 +33,10 @@ macro_rules! impl_int {
             fn to_f64(&self) -> f64 {
                 self.val as f64
             }
+
+            fn from_f64(val: f64) -> Self {
+                Self::from_primitive(val as i64)
+            }
         }
 
         impl Int for $type {

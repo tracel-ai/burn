@@ -1,24 +1,31 @@
 use burn_cube::{cube, Cast, Float, Int, Numeric};
 
 #[cube]
-pub fn cast_float_kind<F1: Float, F2: Float + Cast<F1>>(input: F1) {
+pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
     let x = input + F1::from_primitive(5.9);
     let y = F2::cast_from(x);
     let _ = y + F2::from_primitive(2.3);
 }
 
 #[cube]
-pub fn cast_int_kind<I1: Int, I2: Int + Cast<I1>>(input: I1) {
+pub fn cast_int_kind<I1: Int, I2: Int>(input: I1) {
     let x = input + I1::from_primitive(5);
     let y = I2::cast_from(x);
     let _ = y + I2::from_primitive(2);
 }
 
 #[cube]
-pub fn cast_numeric_to_kind<T: Numeric, I2: Int + Cast<T>>(input: T) {
+pub fn cast_numeric_to_kind<T: Numeric, I: Int>(input: T) {
     let x = input + T::lit(5);
-    let y = I2::cast_from(x);
-    let _ = y + I2::lit(2);
+    let y = I::cast_from(x);
+    let _ = y + I::lit(2);
+}
+
+#[cube]
+pub fn cast_int_to_numeric<I: Int, T: Numeric>(input: I) {
+    let x = input + I::lit(5);
+    let y = T::cast_from(x);
+    let _ = y + T::lit(2);
 }
 
 mod tests {
@@ -32,7 +39,6 @@ mod tests {
 
         let input = context.create_local(item);
 
-        // F16 not testable with the gpu macro, but should work the same
         cast_float_kind_expand::<F64, F32>(&mut context, input);
         let scope = context.into_scope();
 
@@ -60,6 +66,19 @@ mod tests {
         let input = context.create_local(item);
 
         cast_numeric_to_kind_expand::<I32, I64>(&mut context, input);
+        let scope = context.into_scope();
+
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());
+    }
+
+    #[test]
+    fn cube_cast_kind_numeric_test() {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(I32::into_elem());
+
+        let input = context.create_local(item);
+
+        cast_int_to_numeric_expand::<I32, I64>(&mut context, input);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());

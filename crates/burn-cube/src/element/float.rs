@@ -41,6 +41,10 @@ macro_rules! impl_float {
             fn to_f64(&self) -> f64 {
                 self.val
             }
+
+            fn from_f64(val: f64) -> Self {
+                Self::from_primitive(val)
+            }
         }
 
         impl Float for $type {

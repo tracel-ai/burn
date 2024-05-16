@@ -1,8 +1,8 @@
-use burn_cube::{cube, Bool, Cast, Numeric, PrimitiveVariable, UInt, F32, I32};
+use burn_cube::{cube, Bool, Cast, Numeric, UInt, F32, I32};
 
 // From float
 #[cube]
-#[allow(clippy::useless_conversion)]
+// #[allow(clippy::useless_conversion)]
 pub fn float_to_float(x: F32) {
     let y = x + F32::lit(2);
     let _ = F32::cast_from(y) + F32::lit(34);
@@ -26,7 +26,7 @@ pub fn float_to_bool(x: F32) {
     let _ = Bool::cast_from(y) | Bool::lit(true);
 }
 
-// // From int
+// From int
 #[cube]
 pub fn int_to_float(x: I32) {
     let y = x + I32::lit(2);
@@ -109,7 +109,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext,
+        CubeContext, PrimitiveVariable,
     };
 
     macro_rules! cast_test {

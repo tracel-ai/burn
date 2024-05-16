@@ -58,4 +58,8 @@ impl PrimitiveVariable for Bool {
             false => 0.0,
         }
     }
+
+    fn from_f64(val: f64) -> Self {
+        Self::from_primitive(val > 0.)
+    }
 }
