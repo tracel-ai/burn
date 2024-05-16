@@ -1,5 +1,5 @@
+use crate::dialect::Variable;
 use alloc::rc::Rc;
-use burn_jit::gpu::Variable;
 
 /// Types used in a cube function must implement this trait
 ///

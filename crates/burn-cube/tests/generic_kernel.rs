@@ -1,55 +1,60 @@
-use burn_cube::{cube, CubeContext, Numeric, PrimitiveVariable, F32, I32};
-use burn_jit::{gpu, gpu::Item};
+use burn_cube::{cube, Numeric};
 
 #[cube]
 pub fn generic_kernel<T: Numeric>(lhs: T) {
-    let _ = lhs + T::lit(5);
+    let _ = lhs + T::from_int(5);
 }
 
-#[test]
-fn cube_generic_float_test() {
-    let mut context = CubeContext::root();
+mod tests {
+    use burn_cube::{cpa, dialect::Item, CubeContext, PrimitiveVariable, F32, I32};
 
-    let lhs = context.create_local(Item::Scalar(F32::into_elem()));
+    use super::*;
 
-    generic_kernel_expand::<F32>(&mut context, lhs);
-    let scope = context.into_scope();
+    #[test]
+    fn cube_generic_float_test() {
+        let mut context = CubeContext::root();
 
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_float());
-}
+        let lhs = context.create_local(Item::Scalar(F32::into_elem()));
 
-#[test]
-fn cube_generic_int_test() {
-    let mut context = CubeContext::root();
+        generic_kernel_expand::<F32>(&mut context, lhs);
+        let scope = context.into_scope();
 
-    let lhs = context.create_local(Item::Scalar(I32::into_elem()));
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_float());
+    }
 
-    generic_kernel_expand::<I32>(&mut context, lhs);
-    let scope = context.into_scope();
+    #[test]
+    fn cube_generic_int_test() {
+        let mut context = CubeContext::root();
 
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());
-}
+        let lhs = context.create_local(Item::Scalar(I32::into_elem()));
 
-fn inline_macro_ref_float() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(F32::into_elem());
-    let lhs = context.create_local(item);
+        generic_kernel_expand::<I32>(&mut context, lhs);
+        let scope = context.into_scope();
 
-    let mut scope = context.into_scope();
-    let out = scope.create_local(item);
-    gpu!(scope, out = lhs + 5.0f32);
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());
+    }
 
-    format!("{:?}", scope.operations)
-}
+    fn inline_macro_ref_float() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(F32::into_elem());
+        let lhs = context.create_local(item);
 
-fn inline_macro_ref_int() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(I32::into_elem());
-    let lhs = context.create_local(item);
+        let mut scope = context.into_scope();
+        let out = scope.create_local(item);
+        cpa!(scope, out = lhs + 5.0f32);
 
-    let mut scope = context.into_scope();
-    let out = scope.create_local(item);
-    gpu!(scope, out = lhs + 5);
+        format!("{:?}", scope.operations)
+    }
 
-    format!("{:?}", scope.operations)
+    fn inline_macro_ref_int() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(I32::into_elem());
+        let lhs = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let out = scope.create_local(item);
+        cpa!(scope, out = lhs + 5);
+
+        format!("{:?}", scope.operations)
+    }
 }

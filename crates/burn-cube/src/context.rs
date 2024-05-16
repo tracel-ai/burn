@@ -1,6 +1,6 @@
+use crate::dialect::{Item, Operation, Scope};
 use crate::ExpandElement;
 use alloc::rc::Rc;
-use burn_jit::gpu::{self, Item, Scope};
 use core::cell::RefCell;
 use std::collections::HashMap;
 
@@ -67,7 +67,7 @@ impl CubeContext {
         }
     }
 
-    pub fn register<O: Into<gpu::Operation>>(&mut self, op: O) {
+    pub fn register<O: Into<Operation>>(&mut self, op: O) {
         self.scope.borrow_mut().register(op)
     }
 

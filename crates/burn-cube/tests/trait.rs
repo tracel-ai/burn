@@ -1,10 +1,4 @@
-use burn_cube::{cube, CubeContext, CubeType, Float, Numeric, PrimitiveVariable, F32};
-use burn_jit::{
-    gpu,
-    gpu::{Item, Variable},
-};
-
-type ElemType = F32;
+use burn_cube::{cube, CubeContext, CubeType, Float, Numeric};
 
 /// Traits used in Cube kernels must expose an _expand variant
 /// for all their methods. However, one does not need to provide its
@@ -103,99 +97,113 @@ fn with_trait_generic_method<S: MethodTypedStrategy, T: Numeric>(x: T, y: T) -> 
     S::operation::<T>(x, y)
 }
 
-#[test]
-fn cube_strategy_trait_add_test() {
-    let mut context = CubeContext::root();
+mod tests {
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, PrimitiveVariable, F32,
+    };
 
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+    use crate::{
+        two_strategy_traits_expand, with_strategy_trait_expand, with_trait_generic_method_expand,
+        AddStrategy, SubStrategy,
+    };
 
-    with_strategy_trait_expand::<AddStrategy, ElemType>(&mut context, x, y);
-    let scope = context.into_scope();
+    type ElemType = F32;
+    #[test]
+    fn cube_strategy_trait_add_test() {
+        let mut context = CubeContext::root();
 
-    assert_eq!(
-        format!("{:?}", scope.operations),
-        inline_macro_ref_one(true)
-    );
-}
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
 
-#[test]
-fn cube_strategy_trait_sub_test() {
-    let mut context = CubeContext::root();
+        with_strategy_trait_expand::<AddStrategy, ElemType>(&mut context, x, y);
+        let scope = context.into_scope();
 
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let y = context.create_local(Item::Scalar(ElemType::into_elem()));
-
-    with_strategy_trait_expand::<SubStrategy, ElemType>(&mut context, x, y);
-    let scope = context.into_scope();
-
-    assert_eq!(
-        format!("{:?}", scope.operations),
-        inline_macro_ref_one(false)
-    );
-}
-
-#[test]
-fn cube_two_strategy_traits_test() {
-    let mut context = CubeContext::root();
-
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let y = context.create_local(Item::Scalar(ElemType::into_elem()));
-
-    two_strategy_traits_expand::<SubStrategy, AddStrategy, ElemType>(&mut context, x, y);
-    let scope = context.into_scope();
-
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_two());
-}
-
-#[test]
-fn cube_trait_generic_method_test() {
-    let mut context = CubeContext::root();
-
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-    let y = context.create_local(Item::Scalar(ElemType::into_elem()));
-
-    with_trait_generic_method_expand::<AddStrategy, ElemType>(&mut context, x, y);
-    let scope = context.into_scope();
-
-    assert_eq!(
-        format!("{:?}", scope.operations),
-        inline_macro_ref_one(true)
-    );
-}
-
-fn inline_macro_ref_one(is_add_strategy: bool) -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(ElemType::into_elem());
-    let x = context.create_local(item);
-    let y = context.create_local(item);
-
-    let mut scope = context.into_scope();
-    let x: Variable = x.into();
-    let y: Variable = y.into();
-    let tmp = scope.create_local(item);
-
-    match is_add_strategy {
-        true => gpu!(scope, tmp = x + y),
-        false => gpu!(scope, tmp = x - y),
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_one(true)
+        );
     }
 
-    format!("{:?}", scope.operations)
-}
+    #[test]
+    fn cube_strategy_trait_sub_test() {
+        let mut context = CubeContext::root();
 
-fn inline_macro_ref_two() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(ElemType::into_elem());
-    let x = context.create_local(item);
-    let y = context.create_local(item);
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
 
-    let mut scope = context.into_scope();
-    let x: Variable = x.into();
-    let y: Variable = y.into();
-    let tmp = scope.create_local(item);
+        with_strategy_trait_expand::<SubStrategy, ElemType>(&mut context, x, y);
+        let scope = context.into_scope();
 
-    gpu!(scope, tmp = x - y);
-    gpu!(scope, x = tmp + y);
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_one(false)
+        );
+    }
 
-    format!("{:?}", scope.operations)
+    #[test]
+    fn cube_two_strategy_traits_test() {
+        let mut context = CubeContext::root();
+
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+
+        two_strategy_traits_expand::<SubStrategy, AddStrategy, ElemType>(&mut context, x, y);
+        let scope = context.into_scope();
+
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_two());
+    }
+
+    #[test]
+    fn cube_trait_generic_method_test() {
+        let mut context = CubeContext::root();
+
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+
+        with_trait_generic_method_expand::<AddStrategy, ElemType>(&mut context, x, y);
+        let scope = context.into_scope();
+
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_one(true)
+        );
+    }
+
+    fn inline_macro_ref_one(is_add_strategy: bool) -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(ElemType::into_elem());
+        let x = context.create_local(item);
+        let y = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let y: Variable = y.into();
+        let tmp = scope.create_local(item);
+
+        match is_add_strategy {
+            true => cpa!(scope, tmp = x + y),
+            false => cpa!(scope, tmp = x - y),
+        }
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_two() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(ElemType::into_elem());
+        let x = context.create_local(item);
+        let y = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let y: Variable = y.into();
+        let tmp = scope.create_local(item);
+
+        cpa!(scope, tmp = x - y);
+        cpa!(scope, x = tmp + y);
+
+        format!("{:?}", scope.operations)
+    }
 }

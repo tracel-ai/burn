@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
-use syn::PathArguments;
+use syn::{spanned::Spanned, AngleBracketedGenericArguments, Ident, PathArguments};
 
 use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
 
@@ -38,49 +38,53 @@ pub(crate) fn codegen_closure(
 /// func()
 /// func::<T>()
 /// T::func()
+///
+/// Should map:
+/// [A[::<...>]?::]^* func[::<...>] (args)
+/// to
+/// [A[::<...>]?::]^* func_expand[::<...>] (context, args)
 pub(crate) fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     // We start with parsing the function path
-    let (mut idents, generics) = match call.func.as_ref() {
+    let path: Vec<(&Ident, Option<&AngleBracketedGenericArguments>)> = match call.func.as_ref() {
         syn::Expr::Path(expr_path) => {
-            let mut idents = Vec::new();
-            let mut generics = None;
-            for (index, segment) in expr_path.path.segments.iter().enumerate() {
-                idents.push(&segment.ident);
-
-                if index == expr_path.path.segments.len() - 1 {
-                    if let PathArguments::AngleBracketed(arguments) = &segment.arguments {
-                        generics = Some(arguments)
-                    }
-                }
+            let mut path = Vec::new();
+            for segment in expr_path.path.segments.iter() {
+                let generics = if let PathArguments::AngleBracketed(arguments) = &segment.arguments
+                {
+                    Some(arguments)
+                } else {
+                    None
+                };
+                path.push((&segment.ident, generics));
             }
-            (idents, generics)
+            path
         }
         _ => todo!("Codegen: func call {:?} not supported", call.func),
     };
 
-    // Function name with support for longer path
-    let func_name = idents
-        .pop()
-        .expect("Codegen: Func should have at least one ident");
-
-    let mut previous_tokens = TokenStream::new();
-    for ident in idents.iter() {
-        previous_tokens.extend(quote_spanned! {ident.span() => #ident :: });
+    // Path
+    let mut path_tokens = TokenStream::new();
+    for (i, (ident, generics)) in path.iter().enumerate() {
+        if i == path.len() - 1 {
+            let func_name_expand = syn::Ident::new(
+                format!("{ident}_expand").as_str(),
+                proc_macro2::Span::call_site(),
+            );
+            path_tokens.extend(quote_spanned! {func_name_expand.span() => #func_name_expand });
+            if let Some(generics) = generics {
+                path_tokens.extend(quote_spanned! {generics.span() => #generics });
+            }
+        } else if let Some(generics) = generics {
+            path_tokens.extend(quote_spanned! {ident.span() => #ident });
+            path_tokens.extend(quote_spanned! {generics.span() => #generics :: });
+        } else {
+            path_tokens.extend(quote_spanned! {ident.span() => #ident :: });
+        }
     }
-    let func_name_expand = syn::Ident::new(
-        format!("{func_name}_expand").as_str(),
-        proc_macro2::Span::call_site(),
-    );
-
-    // Generics
-    let generics = match generics {
-        Some(generics) => quote::quote! { #generics },
-        None => quote::quote! {},
-    };
 
     // Arguments
     let mut args = quote::quote! {
@@ -93,6 +97,6 @@ pub(crate) fn codegen_call(
 
     // Codegen
     quote::quote! {
-        #previous_tokens #func_name_expand #generics (#args)
+        #path_tokens (#args)
     }
 }

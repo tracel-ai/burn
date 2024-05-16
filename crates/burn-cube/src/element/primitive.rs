@@ -1,31 +1,21 @@
 use std::rc::Rc;
 
-use burn_jit::gpu::{Elem, Item, Variable};
+use crate::dialect::{Elem, Variable};
 
-use crate::{assign, CubeContext, CubeType, ExpandElement};
+use crate::{CubeType, ExpandElement};
 
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
 pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
-    /// Type of the value kept CPU-side.
-    /// Does not necessarily match the GPU type.
     type Primitive;
-
-    /// Return the value of the float on CPU
-    fn val(&self) -> Self::Primitive;
 
     /// Return the element type to use on GPU
     fn into_elem() -> Elem;
 
-    /// Expand version of from, of the trait From
-    fn from_expand(
-        context: &mut CubeContext,
-        val: ExpandElement,
-    ) -> <Self as CubeType>::ExpandType {
-        let new_var = context.create_local(Item::Scalar(<Self as PrimitiveVariable>::into_elem()));
-        assign::expand(context, val, new_var.clone());
-        new_var
-    }
+    // For easy CPU-side casting
+    fn to_f64(&self) -> f64;
+    fn from_f64(val: f64) -> Self;
+    fn from_i64(val: i64) -> Self;
 }
 
 macro_rules! impl_into_expand_element {

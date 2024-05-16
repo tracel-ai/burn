@@ -1,10 +1,4 @@
-use burn_cube::{branch::*, cube, CubeContext, Int, PrimitiveVariable, I32};
-use burn_jit::{
-    gpu,
-    gpu::{Branch, Elem, Item, Variable},
-};
-
-type ElemType = I32;
+use burn_cube::{cube, Int};
 
 #[cube]
 #[allow(clippy::assign_op_pattern)]
@@ -12,88 +6,99 @@ pub fn reuse<I: Int>(mut x: I) {
     // a += b is more efficient than a = a + b
     // Because the latter does not assume that a is the same in lhs and rhs
     // Normally clippy should detect it
-    while x < I::lit(10) {
-        x = x + I::lit(1);
+    while x < I::from_int(10) {
+        x = x + I::from_int(1);
     }
 }
 
 #[cube]
 pub fn reuse_incr<I: Int>(mut x: I) {
-    while x < I::lit(10) {
-        x += I::lit(1);
+    while x < I::from_int(10) {
+        x += I::from_int(1);
     }
 }
 
-#[test]
-fn cube_reuse_assign_test() {
-    let mut context = CubeContext::root();
+mod tests {
+    use burn_cube::{
+        cpa,
+        dialect::{Branch, Elem, Item, Variable},
+        CubeContext, PrimitiveVariable, I32,
+    };
 
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+    use crate::{reuse_expand, reuse_incr_expand};
 
-    reuse_expand::<ElemType>(&mut context, x);
-    let scope = context.into_scope();
+    type ElemType = I32;
+    #[test]
+    fn cube_reuse_assign_test() {
+        let mut context = CubeContext::root();
 
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_assign());
-}
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
 
-#[test]
-fn cube_reuse_incr_test() {
-    let mut context = CubeContext::root();
+        reuse_expand::<ElemType>(&mut context, x);
+        let scope = context.into_scope();
 
-    let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_assign());
+    }
 
-    reuse_incr_expand::<ElemType>(&mut context, x);
-    let scope = context.into_scope();
+    #[test]
+    fn cube_reuse_incr_test() {
+        let mut context = CubeContext::root();
 
-    assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_incr());
-}
+        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
 
-fn inline_macro_ref_assign() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(ElemType::into_elem());
-    let x = context.create_local(item);
+        reuse_incr_expand::<ElemType>(&mut context, x);
+        let scope = context.into_scope();
 
-    let mut scope = context.into_scope();
-    let cond = scope.create_local(Item::Scalar(Elem::Bool));
-    let x: Variable = x.into();
-    let tmp = scope.create_local(item);
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_incr());
+    }
 
-    gpu!(
-        &mut scope,
-        loop(|scope| {
-            gpu!(scope, cond = x < 10);
-            gpu!(scope, if(cond).then(|scope|{
-                scope.register(Branch::Break);
-            }));
+    fn inline_macro_ref_assign() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(ElemType::into_elem());
+        let x = context.create_local(item);
 
-            gpu!(scope, tmp = x + 1);
-            gpu!(scope, x = tmp);
-        })
-    );
+        let mut scope = context.into_scope();
+        let cond = scope.create_local(Item::Scalar(Elem::Bool));
+        let x: Variable = x.into();
+        let tmp = scope.create_local(item);
 
-    format!("{:?}", scope.operations)
-}
+        cpa!(
+            &mut scope,
+            loop(|scope| {
+                cpa!(scope, cond = x < 10);
+                cpa!(scope, if(cond).then(|scope|{
+                    scope.register(Branch::Break);
+                }));
 
-fn inline_macro_ref_incr() -> String {
-    let mut context = CubeContext::root();
-    let item = Item::Scalar(ElemType::into_elem());
-    let x = context.create_local(item);
+                cpa!(scope, tmp = x + 1);
+                cpa!(scope, x = tmp);
+            })
+        );
 
-    let mut scope = context.into_scope();
-    let cond = scope.create_local(Item::Scalar(Elem::Bool));
-    let x: Variable = x.into();
+        format!("{:?}", scope.operations)
+    }
 
-    gpu!(
-        &mut scope,
-        loop(|scope| {
-            gpu!(scope, cond = x < 10);
-            gpu!(scope, if(cond).then(|scope|{
-                scope.register(Branch::Break);
-            }));
+    fn inline_macro_ref_incr() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::Scalar(ElemType::into_elem());
+        let x = context.create_local(item);
 
-            gpu!(scope, x = x + 1);
-        })
-    );
+        let mut scope = context.into_scope();
+        let cond = scope.create_local(Item::Scalar(Elem::Bool));
+        let x: Variable = x.into();
 
-    format!("{:?}", scope.operations)
+        cpa!(
+            &mut scope,
+            loop(|scope| {
+                cpa!(scope, cond = x < 10);
+                cpa!(scope, if(cond).then(|scope|{
+                    scope.register(Branch::Break);
+                }));
+
+                cpa!(scope, x = x + 1);
+            })
+        );
+
+        format!("{:?}", scope.operations)
+    }
 }

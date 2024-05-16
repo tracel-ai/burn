@@ -1,10 +1,10 @@
 [package]
 authors = [
     "nathanielsimard <nathaniel.simard.42@gmail.com>",
-    "louisfd <louisfd94@gmail.com",
+    "louisfd <louisfd94@gmail.com>",
 ]
 categories = ["science"]
-description = "TODO"
+description = "Cube Compute Language (CubeCL) is a subset of Rust that can be executed on accelerators for compute intensive tasks."
 edition.workspace = true
 keywords = []
 license.workspace = true
@@ -18,9 +18,10 @@ default = []
 std = []
 
 [dependencies]
-burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
-    "autotune",
-] }
+burn-compute = { path = "../burn-compute", version = "0.15.0", default-features = false }
+bytemuck = { workspace = true }
+half = { workspace = true, features=["bytemuck"] }
+serde  = { workspace = true }
 burn-cube-macros = { path = "../burn-cube-macros", version = "0.15.0" }
 derive-new = { workspace = true }
 
