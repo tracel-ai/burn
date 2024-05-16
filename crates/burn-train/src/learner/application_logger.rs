@@ -16,7 +16,7 @@ pub struct FileApplicationLoggerInstaller {
 }
 
 impl FileApplicationLoggerInstaller {
-    /// Create a new file appliaction logger.
+    /// Create a new file application logger.
     pub fn new(path: &str) -> Self {
         Self {
             path: path.to_string(),
