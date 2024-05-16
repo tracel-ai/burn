@@ -742,6 +742,7 @@ version = "0.15.0"
 dependencies = [
  "burn-common",
  "burn-compute",
+ "burn-cube",
  "burn-fusion",
  "burn-jit",
  "burn-tensor",

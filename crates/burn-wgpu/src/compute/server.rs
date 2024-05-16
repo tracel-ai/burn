@@ -5,6 +5,7 @@ use burn_compute::{
     server::{self, ComputeServer},
 };
 use burn_jit::compute::{JitKernel, Kernel, WorkGroup};
+use burn_jit::JitAutotuneKey;
 use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{

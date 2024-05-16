@@ -44,7 +44,9 @@ mod bridge;
 pub use backend::*;
 pub use bridge::*;
 pub use burn_cube::*;
-use tune_key::JitAutotuneKey;
+
+mod tune_key;
+pub use tune_key::JitAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
 mod fusion;
@@ -56,10 +58,11 @@ pub mod template;
 #[cfg(feature = "export_tests")]
 pub mod tests;
 
-mod tune_key;
-
+/// Just-in-Time runtime extending the [cube runtime](Runtime).
 pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
+    /// The device that should also implement [DeviceOps](burn_tensor::backend::DeviceOps).
     type JitDevice: burn_tensor::backend::DeviceOps;
+    /// The cube server with the [JitAutotuneKey].
     type JitServer: burn_compute::server::ComputeServer<
         AutotuneKey = JitAutotuneKey,
         Kernel = burn_cube::Kernel,
