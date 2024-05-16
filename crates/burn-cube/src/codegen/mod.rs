@@ -5,6 +5,6 @@ pub mod dialect;
 
 mod kernel;
 
-pub(crate) use compilation::*;
-pub(crate) use compiler::*;
-pub(crate) use kernel::*;
+pub use compilation::*;
+pub use compiler::*;
+pub use kernel::*;

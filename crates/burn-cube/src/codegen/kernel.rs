@@ -1,6 +1,6 @@
 use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
 use crate::dialect::Elem;
-use crate::pod::Pod;
+use crate::pod::CubeElement;
 use crate::{elemwise_workgroup, GpuComputeShaderPhase, Runtime, WORKGROUP_DEFAULT};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::{Binding, Handle};
@@ -97,7 +97,7 @@ impl<'h, 'a, K, R, E> Execution<'h, K, R, (&'a [E],)>
 where
     K: GpuComputeShaderPhase + 'static,
     R: Runtime,
-    E: Pod,
+    E: CubeElement,
 {
     pub fn with_scalars<'b, E2>(
         self,
@@ -132,8 +132,8 @@ impl<'h, 'a, 'b, K, R, E1, E2> Execution<'h, K, R, (&'a [E1], &'b [E2])>
 where
     K: GpuComputeShaderPhase + 'static,
     R: Runtime,
-    E1: Pod,
-    E2: Pod,
+    E1: CubeElement,
+    E2: CubeElement,
 {
     #[allow(unused, clippy::type_complexity)]
     pub fn with_scalars<'c, E3>(
@@ -172,9 +172,9 @@ impl<'h, 'a, 'b, 'c, K, R, E1, E2, E3> Execution<'h, K, R, (&'a [E1], &'b [E2], 
 where
     K: GpuComputeShaderPhase + 'static,
     R: Runtime,
-    E1: Pod,
-    E2: Pod,
-    E3: Pod,
+    E1: CubeElement,
+    E2: CubeElement,
+    E3: CubeElement,
 {
     /// Execute a dynamic kernel.
     #[allow(unused)]
@@ -205,9 +205,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
 ) where
     K: GpuComputeShaderPhase + 'static,
     R: Runtime,
-    E1: Pod,
-    E2: Pod,
-    E3: Pod,
+    E1: CubeElement,
+    E2: CubeElement,
+    E3: CubeElement,
 {
     let settings = execute_settings(
         inputs, outputs, scalars_1, scalars_2, scalars_3, launch, &client,
@@ -234,7 +234,7 @@ struct ExecuteSettings<R: Runtime> {
     workgroup: WorkGroup,
 }
 
-fn execute_settings<'a, R: Runtime, E1: Pod, E2: Pod, E3: Pod>(
+fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeElement>(
     inputs: &'a [EagerHandle<R>],
     outputs: &'a [EagerHandle<R>],
     scalars_1: Option<&[E1]>,
@@ -316,7 +316,7 @@ fn execute_settings<'a, R: Runtime, E1: Pod, E2: Pod, E3: Pod>(
     }
 }
 
-fn create_scalar_handles<R: Runtime, E1: Pod, E2: Pod, E3: Pod>(
+fn create_scalar_handles<R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeElement>(
     scalars_0: Option<&[E1]>,
     scalars_1: Option<&[E2]>,
     scalars_2: Option<&[E3]>,
@@ -330,9 +330,9 @@ fn create_scalar_handles<R: Runtime, E1: Pod, E2: Pod, E3: Pod>(
         Elem::Bool => panic!("Bool scalars are not supported"),
     };
     let scalar_priorities: [usize; 3] = [
-        element_priority(E1::gpu_elem()),
-        element_priority(E2::gpu_elem()),
-        element_priority(E3::gpu_elem()),
+        element_priority(E1::elem()),
+        element_priority(E2::elem()),
+        element_priority(E3::elem()),
     ];
 
     let mut handles_scalars = Vec::new();

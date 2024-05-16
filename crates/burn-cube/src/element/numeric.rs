@@ -29,5 +29,4 @@ pub trait Numeric:
         let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
         ExpandElement::new(Rc::new(new_var))
     }
-
 }

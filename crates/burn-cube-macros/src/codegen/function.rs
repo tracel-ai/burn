@@ -78,13 +78,11 @@ pub(crate) fn codegen_call(
             if let Some(generics) = generics {
                 path_tokens.extend(quote_spanned! {generics.span() => #generics });
             }
+        } else if let Some(generics) = generics {
+            path_tokens.extend(quote_spanned! {ident.span() => #ident });
+            path_tokens.extend(quote_spanned! {generics.span() => #generics :: });
         } else {
-            if let Some(generics) = generics {
-                path_tokens.extend(quote_spanned! {ident.span() => #ident });
-                path_tokens.extend(quote_spanned! {generics.span() => #generics :: });
-            } else {
-                path_tokens.extend(quote_spanned! {ident.span() => #ident :: });
-            }
+            path_tokens.extend(quote_spanned! {ident.span() => #ident :: });
         }
     }
 

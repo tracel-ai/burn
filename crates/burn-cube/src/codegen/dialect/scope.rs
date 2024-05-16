@@ -61,7 +61,7 @@ impl Scope {
     }
 
     /// Create a variable initialized at zero.
-    pub(crate) fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
+    pub fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
         let local = self.create_local(item);
         let zero: Variable = 0u32.into();
         cpa!(self, local = zero);
@@ -102,7 +102,7 @@ impl Scope {
     /// Reads an input array to a local variable.
     ///
     /// The index refers to the argument position of the array in the compute shader.
-    pub(crate) fn read_array<I: Into<Item>>(
+    pub fn read_array<I: Into<Item>>(
         &mut self,
         index: u16,
         item: I,
@@ -112,7 +112,7 @@ impl Scope {
     }
 
     /// Add the procedure into the scope.
-    pub(crate) fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
+    pub fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
         self.index_offset_with_output_layout_position
             .push(self.operations.len());
         self.operations
@@ -122,7 +122,7 @@ impl Scope {
     /// Reads an input scalar to a local variable.
     ///
     /// The index refers to the scalar position for the same [element](Elem) type.
-    pub(crate) fn read_scalar(&mut self, index: u16, elem: Elem) -> Variable {
+    pub fn read_scalar(&mut self, index: u16, elem: Elem) -> Variable {
         let local = Variable::LocalScalar(self.new_local_scalar_index(), elem, self.depth);
         let scalar = Variable::GlobalScalar(index, elem);
 
@@ -132,7 +132,7 @@ impl Scope {
     }
 
     /// Retrieve the last local variable that was created.
-    pub(crate) fn last_local_index(&self) -> Option<&Variable> {
+    pub fn last_local_index(&self) -> Option<&Variable> {
         self.locals.last()
     }
 
@@ -141,7 +141,7 @@ impl Scope {
     /// Notes:
     ///
     /// Scopes created _during_ compilation (after the tracing is done) should not be vectorized.
-    pub(crate) fn vectorize(&mut self, vectorization: Vectorization) {
+    pub fn vectorize(&mut self, vectorization: Vectorization) {
         self.operations
             .iter_mut()
             .for_each(|op| *op = op.vectorize(vectorization));
@@ -167,7 +167,7 @@ impl Scope {
     /// Notes:
     ///
     /// This should only be used when doing compilation.
-    pub(crate) fn write_global(&mut self, input: Variable, output: Variable, position: Variable) {
+    pub fn write_global(&mut self, input: Variable, output: Variable, position: Variable) {
         // This assumes that all outputs have the same layout
         if self.layout_ref.is_none() {
             self.layout_ref = Some(output);
@@ -180,7 +180,7 @@ impl Scope {
     /// Notes:
     ///
     /// This should only be used when doing compilation.
-    pub(crate) fn write_global_custom(&mut self, output: Variable) {
+    pub fn write_global_custom(&mut self, output: Variable) {
         // This assumes that all outputs have the same layout
         if self.layout_ref.is_none() {
             self.layout_ref = Some(output);

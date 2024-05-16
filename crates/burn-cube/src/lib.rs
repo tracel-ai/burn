@@ -5,7 +5,6 @@ extern crate derive_new;
 
 // For use with *
 pub mod branch;
-
 pub mod codegen;
 
 mod compute;
@@ -20,6 +19,7 @@ pub use compute::*;
 pub use context::*;
 pub use element::*;
 pub use operation::*;
+pub use pod::*;
 pub use runtime::*;
 
 pub use burn_cube_macros::cube;

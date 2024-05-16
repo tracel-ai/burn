@@ -4,22 +4,22 @@ use crate::{
 };
 
 /// The base element trait for the jit backend.
-pub trait Pod: core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod {
-    /// TODO: Remove when all wgsl static kernels are migrated.
+pub trait CubeElement: core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod {
+    /// Returns the name of the type.
     fn type_name() -> &'static str;
     /// Convert a slice of elements to a slice of bytes.
     fn as_bytes(slice: &[Self]) -> &[u8];
     /// Convert a slice of bytes to a slice of elements.
     fn from_bytes(bytes: &[u8]) -> &[Self];
-    /// Element representation for `gpu`.
-    fn gpu_elem() -> Elem;
+    /// Element representation for `cubecl`.
+    fn elem() -> Elem;
     /// Highest possible value
     fn maximum_value() -> Self;
     /// Lowest possible value
     fn minimum_value() -> Self;
 }
 
-impl Pod for u32 {
+impl CubeElement for u32 {
     fn type_name() -> &'static str {
         "u32"
     }
@@ -29,7 +29,7 @@ impl Pod for u32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn gpu_elem() -> Elem {
+    fn elem() -> Elem {
         Elem::UInt
     }
     fn maximum_value() -> Self {
@@ -40,7 +40,7 @@ impl Pod for u32 {
     }
 }
 
-impl Pod for i32 {
+impl CubeElement for i32 {
     fn type_name() -> &'static str {
         "i32"
     }
@@ -50,7 +50,7 @@ impl Pod for i32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn gpu_elem() -> Elem {
+    fn elem() -> Elem {
         Elem::Int(IntKind::I32)
     }
     fn maximum_value() -> Self {
@@ -63,7 +63,7 @@ impl Pod for i32 {
     }
 }
 
-impl Pod for f32 {
+impl CubeElement for f32 {
     fn type_name() -> &'static str {
         "f32"
     }
@@ -73,7 +73,7 @@ impl Pod for f32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn gpu_elem() -> Elem {
+    fn elem() -> Elem {
         Elem::Float(FloatKind::F32)
     }
     fn maximum_value() -> Self {
@@ -84,7 +84,7 @@ impl Pod for f32 {
     }
 }
 
-impl Pod for half::f16 {
+impl CubeElement for half::f16 {
     fn type_name() -> &'static str {
         "f16"
     }
@@ -94,7 +94,7 @@ impl Pod for half::f16 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn gpu_elem() -> Elem {
+    fn elem() -> Elem {
         Elem::Float(FloatKind::F16)
     }
     fn maximum_value() -> Self {
@@ -105,7 +105,7 @@ impl Pod for half::f16 {
     }
 }
 
-impl Pod for half::bf16 {
+impl CubeElement for half::bf16 {
     fn type_name() -> &'static str {
         "bf16"
     }
@@ -115,7 +115,7 @@ impl Pod for half::bf16 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn gpu_elem() -> Elem {
+    fn elem() -> Elem {
         Elem::Float(FloatKind::BF16)
     }
     fn maximum_value() -> Self {
