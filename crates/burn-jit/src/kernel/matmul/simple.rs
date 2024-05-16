@@ -11,7 +11,7 @@ use crate::{
     element::JitElement,
     kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use std::marker::PhantomData;
@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use super::simple_launch_options;
 
 #[derive(new, Debug)]
-struct MatmulEagerKernel<R: Runtime, E: JitElement> {
+struct MatmulEagerKernel<R: JitRuntime, E: JitElement> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
     _runtime: PhantomData<R>,
@@ -153,7 +153,7 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
@@ -216,7 +216,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E
 }
 
 /// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
-pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul_mem_coalescing_default<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -225,7 +225,7 @@ pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul_simple<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,

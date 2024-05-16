@@ -1,8 +1,8 @@
 use crate::{
-    kernel, ops::to_device, tensor::JitTensor, FloatElement, IntElement, JitBackend, Runtime,
+    kernel, ops::to_device, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime,
 };
 use burn_tensor::{
-    backend::{BackendBridge, DeviceOps},
+    backend::BackendBridge,
     ops::{FloatElem, FloatTensor},
 };
 use core::marker::PhantomData;
@@ -18,8 +18,7 @@ pub struct PrecisionBridge<R, F: FloatElement, I: IntElement> {
 impl<R, FOrigin, IOrigin, FTarget, ITarget> BackendBridge<JitBackend<R, FOrigin, IOrigin>>
     for PrecisionBridge<R, FTarget, ITarget>
 where
-    R: Runtime,
-    R::Device: DeviceOps,
+    R: JitRuntime,
     FOrigin: FloatElement,
     IOrigin: IntElement,
     FTarget: FloatElement,

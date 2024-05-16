@@ -10,13 +10,13 @@ use crate::{
     element::JitElement,
     kernel::{self, GpuComputeShaderPhase},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::{cpa, elemwise_workgroup};
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct ScatterEagerKernel<R: Runtime, E: JitElement> {
+struct ScatterEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -130,7 +130,7 @@ impl ScatterComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_value = E::cube_elem().into();
@@ -178,7 +178,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, 
     }
 }
 
-pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     dim: usize,
     tensor: JitTensor<R, E, D>,
     indices: JitTensor<R, I, D>,

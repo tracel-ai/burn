@@ -2,7 +2,7 @@ use crate::{
     codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 use super::GpuComputeShaderPhase;
@@ -201,7 +201,7 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
+pub fn unary<Kernel, KernelInplace, R: JitRuntime, E, const D: usize>(
     tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,

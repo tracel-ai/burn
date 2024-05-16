@@ -3,7 +3,7 @@ use crate::{
     element::JitElement,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 use super::{MaskInplaceEagerKernel, MaskReadOnlyEagerKernel, MaskWhere};
@@ -24,7 +24,7 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
+pub fn mask_where<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: JitTensor<R, E, D>,
@@ -37,7 +37,7 @@ pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_where_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: JitTensor<R, EI, D>,
@@ -67,7 +67,7 @@ fn mask_where_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usiz
     output
 }
 
-fn mask_where_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: JitTensor<R, EI, D>,

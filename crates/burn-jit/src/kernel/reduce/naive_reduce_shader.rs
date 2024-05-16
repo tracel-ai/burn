@@ -1,8 +1,9 @@
+use burn_cube::cpa;
 use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{Elem, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -10,7 +11,7 @@ use crate::{
     gpu::ComputeShader,
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 use super::ReduceDimAlgorithm;
@@ -26,7 +27,7 @@ pub(crate) struct NaiveReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgori
 #[derive(new)]
 pub(crate) struct NaiveReduceDimEagerKernel<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
 > {
@@ -37,13 +38,13 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
-    for NaiveReduceDimEagerKernel<RD, R, EI, EO>
+impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
+    GpuComputeShaderPhase for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item_input = EI::gpu_elem().into();
-        let item_output = EO::gpu_elem().into();
+        let item_input = EI::cube_elem().into();
+        let item_output = EO::cube_elem().into();
 
         let tensor = Variable::GlobalInputArray(0, item_input);
         let output = Variable::GlobalOutputArray(0, item_output);
@@ -92,45 +93,45 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> NaiveReduceDimComputeShader<E, RD
         let stride_input_dim = scope.create_local(Elem::UInt);
         let shape_input_dim = scope.create_local(Elem::UInt);
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let stride_input = scope.create_local(Elem::UInt);
                 let stride_output = scope.create_local(Elem::UInt);
                 let shape_output = scope.create_local(Elem::UInt);
 
-                gpu!(scope, stride_input = stride(tensor, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
+                cpa!(scope, stride_input = stride(tensor, i));
+                cpa!(scope, stride_output = stride(output, i));
+                cpa!(scope, shape_output = shape(output, i));
 
                 let offset_local = scope.create_local(Elem::UInt);
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
+                cpa!(scope, offset_local = id / stride_output);
+                cpa!(scope, offset_local = offset_local % shape_output);
 
                 let is_dim_reduce = scope.create_local(Elem::Bool);
-                gpu!(scope, is_dim_reduce = i == dim);
+                cpa!(scope, is_dim_reduce = i == dim);
 
-                gpu!(scope, if(is_dim_reduce).then(|scope|{
-                    gpu!(scope, shape_input_dim = shape(tensor, i));
-                    gpu!(scope, stride_input_dim = stride_input);
-                    gpu!(scope, offset_input += offset_local);
+                cpa!(scope, if(is_dim_reduce).then(|scope|{
+                    cpa!(scope, shape_input_dim = shape(tensor, i));
+                    cpa!(scope, stride_input_dim = stride_input);
+                    cpa!(scope, offset_input += offset_local);
                 }).else(|scope|{
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                    gpu!(scope, offset_input += offset_local);
+                    cpa!(scope, offset_local = offset_local * stride_input);
+                    cpa!(scope, offset_input += offset_local);
                 }));
             })
         );
 
         let accumulator = RD::initialize_naive(scope, tensor.item(), output.item());
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, shape_input_dim).for_each(|i, scope| {
                 let index = scope.create_local(Elem::UInt);
-                gpu!(scope, index = i * stride_input_dim);
-                gpu!(scope, index += offset_input);
+                cpa!(scope, index = i * stride_input_dim);
+                cpa!(scope, index += offset_input);
                 let value = scope.create_local(tensor.item());
-                gpu!(scope, value = tensor[index]);
+                cpa!(scope, value = tensor[index]);
                 RD::inner_loop_naive(scope, accumulator, value, i);
             })
         );
@@ -142,7 +143,7 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> NaiveReduceDimComputeShader<E, RD
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
     const D: usize,

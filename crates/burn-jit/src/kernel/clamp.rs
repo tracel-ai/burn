@@ -3,10 +3,10 @@ use crate::{
     codegen::dialect::gpu::{ClampOperator, Operator, Scope, Variable},
     element::JitElement,
     tensor::JitTensor,
-    unary, Runtime,
+    unary, JitRuntime,
 };
 
-pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     min_value: E,
     max_value: E,

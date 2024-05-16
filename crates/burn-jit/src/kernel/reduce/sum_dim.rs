@@ -1,7 +1,8 @@
 use crate::{
-    codegen::dialect::gpu::{gpu, Item, Scope, Variable},
+    codegen::dialect::gpu::{Item, Scope, Variable},
     JitElement,
 };
+use burn_cube::cpa;
 
 use super::ReduceDimAlgorithm;
 
@@ -15,7 +16,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
     }
 
     fn inner_loop_naive(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
-        gpu!(scope, accumulator += value);
+        cpa!(scope, accumulator += value);
     }
 
     fn assign_naive(
@@ -25,7 +26,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         _shape_reduce_dim: Variable,
     ) {
         let id = Variable::Id;
-        gpu!(scope, output[id] = accumulator);
+        cpa!(scope, output[id] = accumulator);
     }
 
     fn initialize_shared(
@@ -36,7 +37,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
     ) -> Self::Accumulator {
         let shared_memory = scope.create_shared(input_item, shared_memory_size);
         let neutral_element = scope.zero(shared_memory.item());
-        gpu!(scope, shared_memory[write_position] = neutral_element);
+        cpa!(scope, shared_memory[write_position] = neutral_element);
         shared_memory
     }
 
@@ -48,9 +49,9 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
     ) {
         let current_value = scope.create_local(value.item());
         let computed = scope.create_local(value.item());
-        gpu!(scope, current_value = shared_memory[write_position]);
-        gpu!(scope, computed = current_value + value);
-        gpu!(scope, shared_memory[write_position] = computed);
+        cpa!(scope, current_value = shared_memory[write_position]);
+        cpa!(scope, computed = current_value + value);
+        cpa!(scope, shared_memory[write_position] = computed);
     }
 
     fn read_from_input(
@@ -60,7 +61,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         _i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
+        cpa!(scope, value = input[read_position]);
         value
     }
 
@@ -70,7 +71,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         read_position: Variable,
     ) -> Self::Accumulator {
         let read_value = scope.create_local(shared_memory.item());
-        gpu!(scope, read_value = shared_memory[read_position]);
+        cpa!(scope, read_value = shared_memory[read_position]);
         read_value
     }
 
@@ -82,7 +83,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         _shape_reduce_dim: Variable,
     ) {
         let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
+        cpa!(scope, final_value = shared_memory[0]);
+        cpa!(scope, output[write_position] = final_value);
     }
 }

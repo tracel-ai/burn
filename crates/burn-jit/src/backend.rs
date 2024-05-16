@@ -1,5 +1,8 @@
-use crate::{tensor::JitTensor, FloatElement, IntElement, PrecisionBridge, Runtime};
-use burn_tensor::backend::{Backend, DeviceOps};
+use crate::{
+    tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
+};
+use burn_compute::server::ComputeServer;
+use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -7,7 +10,7 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct JitBackend<R: Runtime, F: FloatElement, I: IntElement> {
+pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement> {
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
@@ -15,8 +18,9 @@ pub struct JitBackend<R: Runtime, F: FloatElement, I: IntElement> {
 
 impl<R, F, I> Backend for JitBackend<R, F, I>
 where
-    R: Runtime,
-    R::Device: DeviceOps,
+    R: JitRuntime,
+    R::Server: ComputeServer<AutotuneKey = JitAutotuneKey>,
+    R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
     I: IntElement,
 {
@@ -50,19 +54,19 @@ where
     }
 }
 
-impl<R: Runtime, F: FloatElement, I: IntElement> core::fmt::Debug for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement> core::fmt::Debug for JitBackend<R, F, I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
     }
 }
 
-impl<R: Runtime, F: FloatElement, I: IntElement> Clone for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for JitBackend<R, F, I> {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: Runtime, F: FloatElement, I: IntElement> Default for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement> Default for JitBackend<R, F, I> {
     fn default() -> Self {
         Self::new()
     }

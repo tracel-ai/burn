@@ -10,13 +10,13 @@ use crate::{
     kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct GatherEagerKernel<R: Runtime, E: JitElement> {
+struct GatherEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -77,7 +77,7 @@ impl GatherComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::cube_elem().into();
@@ -124,7 +124,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
     }
 }
 
-pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     dim: usize,
     tensor: JitTensor<R, E, D>,
     indices: JitTensor<R, I, D>,

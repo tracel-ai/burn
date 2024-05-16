@@ -8,7 +8,7 @@ use crate::{
     gpu::ComputeShader,
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use std::marker::PhantomData;
@@ -21,7 +21,7 @@ pub struct RepeatComputeShader {
 }
 
 #[derive(new)]
-struct RepeatEagerKernel<R: Runtime, E: JitElement> {
+struct RepeatEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     rank: usize,
     _runtime: PhantomData<R>,
@@ -61,7 +61,7 @@ impl RepeatComputeShader {
         cpa!(scope, output[id] = result);
     }
 }
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -105,7 +105,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E
     }
 }
 
-pub(crate) fn repeat<R: Runtime, E: JitElement, const D1: usize>(
+pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
     input: JitTensor<R, E, D1>,
     dim: usize,
     times: usize,

@@ -359,7 +359,7 @@ fn create_scalar_handles<R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeE
     handles_scalars
 }
 
-pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
+pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     let mut num_elems = 1;
     for i in shape.iter() {
         num_elems *= i;

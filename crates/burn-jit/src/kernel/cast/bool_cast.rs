@@ -6,7 +6,7 @@ use crate::{
     gpu::{ComputeShader, Elem, Item, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 use burn_cube::cpa;
 use std::marker::PhantomData;
@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: Runtime, EO: JitElement, const D: usize>(
+pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     tensor: JitTensor<R, u32, D>,
 ) -> JitTensor<R, EO, D> {
     let kernel = BoolCastEagerKernel::<R, EO>::new();
@@ -52,12 +52,12 @@ pub(crate) struct BoolCastShader {
 }
 
 #[derive(new)]
-pub(crate) struct BoolCastEagerKernel<R: Runtime, EO: JitElement> {
+pub(crate) struct BoolCastEagerKernel<R: JitRuntime, EO: JitElement> {
     _runtime: PhantomData<R>,
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: Runtime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKernel<R, EO> {
+impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKernel<R, EO> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item_input = Item::Scalar(Elem::Bool);

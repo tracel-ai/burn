@@ -14,7 +14,7 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
@@ -288,7 +288,7 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -343,7 +343,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKe
     }
 }
 
-pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
+pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,

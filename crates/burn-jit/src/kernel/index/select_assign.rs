@@ -8,7 +8,7 @@ use crate::{
     gpu::ComputeShader,
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::{cpa, elemwise_workgroup};
 use std::marker::PhantomData;
@@ -21,7 +21,7 @@ pub struct SelectAssignComputeShader {
 }
 
 #[derive(new)]
-pub struct SelectAssignEagerKernel<R: Runtime, E: JitElement> {
+pub struct SelectAssignEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -129,7 +129,7 @@ impl SelectAssignComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -177,7 +177,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKerne
     }
 }
 
-pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,

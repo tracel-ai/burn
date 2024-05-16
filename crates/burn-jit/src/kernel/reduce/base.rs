@@ -4,7 +4,7 @@ use crate::{
     codegen::dialect::gpu::{Item, Scope, Variable},
     element::JitElement,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, ProdDim, SumDim};
@@ -79,7 +79,7 @@ pub trait ReduceDimAlgorithm<E: JitElement>: Send + Sync + 'static {
 }
 
 /// Creates an empty output tensor with reduce output shape
-pub fn init_reduce_output<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     input: &JitTensor<R, EI, D>,
     reduce_dim: usize,
 ) -> JitTensor<R, EO, D> {
@@ -121,7 +121,7 @@ impl Default for ReduceStrategy {
 macro_rules! reduce_operation {
     ($name:ident, $ops:ty) => {
         /// Executes the reduce operation with the given strategy.
-        pub fn $name<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
             tensor: JitTensor<R, EI, D>,
             dim: usize,
             strategy: ReduceStrategy,

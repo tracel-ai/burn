@@ -19,11 +19,11 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 #[derive(new)]
-struct Conv2dEagerKernel<R: Runtime, E: JitElement> {
+struct Conv2dEagerKernel<R: JitRuntime, E: JitElement> {
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -235,7 +235,7 @@ impl<E: JitElement> Conv2dComputeShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -290,7 +290,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E
     }
 }
 
-pub(crate) fn conv2d<R: Runtime, E: JitElement>(
+pub(crate) fn conv2d<R: JitRuntime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,

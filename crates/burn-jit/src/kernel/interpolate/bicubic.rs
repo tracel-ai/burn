@@ -9,7 +9,7 @@ use crate::{
     gpu::{ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 #[derive(new)]
@@ -369,7 +369,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -408,7 +408,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for InterpolateBicubicEage
     }
 }
 
-pub(crate) fn interpolate_bicubic_launch<R: Runtime, E: JitElement>(
+pub(crate) fn interpolate_bicubic_launch<R: JitRuntime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {

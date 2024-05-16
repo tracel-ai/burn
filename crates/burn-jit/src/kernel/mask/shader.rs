@@ -5,7 +5,7 @@ use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
@@ -84,7 +84,7 @@ pub(crate) struct MaskShader<EI: JitElement, EM: JitElement, M: MaskStrategy> {
 #[derive(new)]
 pub(crate) struct MaskReadOnlyEagerKernel<
     M: MaskStrategy,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EM: JitElement,
 > {
@@ -95,7 +95,7 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
     fn compile(&self) -> ComputeShader {
@@ -158,7 +158,7 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShad
 #[derive(new)]
 pub(crate) struct MaskInplaceEagerKernel<
     M: MaskStrategy,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EM: JitElement,
 > {
@@ -169,7 +169,7 @@ pub(crate) struct MaskInplaceEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
     fn compile(&self) -> ComputeShader {

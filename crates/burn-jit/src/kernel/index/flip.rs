@@ -9,14 +9,14 @@ use crate::{
     kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct FlipEagerKernel<R: Runtime, E: JitElement> {
+struct FlipEagerKernel<R: JitRuntime, E: JitElement> {
     rank: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -69,7 +69,7 @@ impl FlipComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -111,7 +111,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for FlipEagerKernel<R, E> 
     }
 }
 
-pub(crate) fn flip<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn flip<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     indices: &[usize],
 ) -> JitTensor<R, E, D> {
@@ -123,7 +123,7 @@ pub(crate) fn flip<R: Runtime, E: JitElement, const D: usize>(
     flip_on_output(tensor, output, indices)
 }
 
-pub(crate) fn flip_on_output<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     indices: &[usize],

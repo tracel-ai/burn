@@ -9,7 +9,7 @@ use crate::{
     },
     gpu::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 use super::GpuComputeShaderPhase;
@@ -20,13 +20,13 @@ pub(crate) struct IntoContiguousShader {
 }
 
 #[derive(new)]
-pub(crate) struct IntoContiguousEagerKernel<R: Runtime, E: JitElement> {
+pub(crate) struct IntoContiguousEagerKernel<R: JitRuntime, E: JitElement> {
     _runtime: PhantomData<R>,
     _elem_out: PhantomData<E>,
 }
 
 /// Make a jit tensor contiguous.
-pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
+pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     if tensor.is_contiguous() {
@@ -59,7 +59,7 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
     output
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();

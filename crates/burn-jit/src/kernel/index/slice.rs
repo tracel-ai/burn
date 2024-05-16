@@ -9,14 +9,14 @@ use crate::{
     kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use burn_tensor::{ElementConversion, Shape};
 use std::{marker::PhantomData, ops::Range};
 
 #[derive(new)]
-struct SliceEagerKernel<R: Runtime, E: JitElement> {
+struct SliceEagerKernel<R: JitRuntime, E: JitElement> {
     rank: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -65,7 +65,7 @@ impl SliceComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SliceEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -107,7 +107,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceEagerKernel<R, E>
     }
 }
 
-pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
 ) -> JitTensor<R, E, D1> {
@@ -120,7 +120,7 @@ pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>
     slice_on_output(tensor, output, indices)
 }
 
-pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     output: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],

@@ -9,7 +9,7 @@ use crate::{
     gpu::{ComputeShader, Elem, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 #[derive(new)]
@@ -183,7 +183,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
     for InterpolateNearestBackwardEagerKernel<R, E>
 {
     fn compile(&self) -> ComputeShader {
@@ -224,7 +224,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
     }
 }
 
-pub(crate) fn interpolate_nearest_backward_launch<R: Runtime, E: JitElement>(
+pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
     out_grad: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {

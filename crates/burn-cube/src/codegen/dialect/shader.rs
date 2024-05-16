@@ -48,24 +48,25 @@ impl From<Elem> for Item {
     }
 }
 
-// impl From<DType> for Elem {
-//     fn from(dtype: DType) -> Self {
-//         match dtype {
-//             DType::F64 => Elem::Float(FloatKind::F64),
-//             DType::F32 => Elem::Float(FloatKind::F32),
-//             DType::F16 => Elem::Float(FloatKind::F16),
-//             DType::BF16 => Elem::Float(FloatKind::BF16),
-//             DType::I64 => Elem::Int(IntKind::I64),
-//             DType::I32 => Elem::Int(IntKind::I32),
-//             DType::I16 => panic!("i16 isn't supported yet."),
-//             DType::I8 => panic!("i8 isn't supported yet."),
-//             DType::U64 => Elem::UInt,
-//             DType::U32 => Elem::UInt,
-//             DType::U8 => panic!("u8 isn't supported yet."),
-//             DType::Bool => Elem::Bool,
-//         }
-//     }
-// }
+#[cfg(feature = "tensor")]
+impl From<burn_tensor::DType> for Elem {
+    fn from(dtype: burn_tensor::DType) -> Self {
+        match dtype {
+            burn_tensor::DType::F64 => Elem::Float(FloatKind::F64),
+            burn_tensor::DType::F32 => Elem::Float(FloatKind::F32),
+            burn_tensor::DType::F16 => Elem::Float(FloatKind::F16),
+            burn_tensor::DType::BF16 => Elem::Float(FloatKind::BF16),
+            burn_tensor::DType::I64 => Elem::Int(IntKind::I64),
+            burn_tensor::DType::I32 => Elem::Int(IntKind::I32),
+            burn_tensor::DType::I16 => panic!("i16 isn't supported yet."),
+            burn_tensor::DType::I8 => panic!("i8 isn't supported yet."),
+            burn_tensor::DType::U64 => Elem::UInt,
+            burn_tensor::DType::U32 => Elem::UInt,
+            burn_tensor::DType::U8 => panic!("u8 isn't supported yet."),
+            burn_tensor::DType::Bool => Elem::Bool,
+        }
+    }
+}
 
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

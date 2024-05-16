@@ -9,13 +9,13 @@ use crate::{
     kernel::GpuComputeShaderPhase,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_cube::cpa;
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct SelectEagerKernel<R: Runtime, E: JitElement> {
+struct SelectEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -71,7 +71,7 @@ impl SelectComputeShader {
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
@@ -116,7 +116,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E
     }
 }
 
-pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,

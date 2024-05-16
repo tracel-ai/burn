@@ -1,3 +1,4 @@
+use burn_cube::elemwise_workgroup;
 use burn_tensor::repr::TensorDescription;
 
 use crate::{
@@ -7,23 +8,23 @@ use crate::{
         CompilationInfo, CompilationSettings,
     },
     fusion::{
+        dynamic_settings,
         kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},
         JitFusionHandle,
     },
-    kernel::elemwise_workgroup,
-    Runtime,
+    JitRuntime,
 };
 use std::{marker::PhantomData, sync::Arc};
 
 #[derive(new)]
-pub struct ElementWiseKernelFactory<R: Runtime> {
+pub struct ElementWiseKernelFactory<R: JitRuntime> {
     id: String,
     info: Arc<CompilationInfo>,
     grid: WorkgroupSize,
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
+impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
     fn create(
         &self,
         handles_inputs: &[JitFusionHandle<R>],
@@ -46,7 +47,14 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         let mut settings = CompilationSettings::default();
         let mut factor = 1;
 
-        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs, stateful);
+        settings = dynamic_settings(
+            settings,
+            &self.info,
+            inputs,
+            outputs,
+            handles_inputs,
+            stateful,
+        );
 
         if vectorize_4 {
             settings = settings.vectorize(gpu::Vectorization::Vec4);
@@ -114,7 +122,7 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
     }
 }
 
-fn can_vectorize<R: Runtime>(
+fn can_vectorize<R: JitRuntime>(
     handles_inputs: &[JitFusionHandle<R>],
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],

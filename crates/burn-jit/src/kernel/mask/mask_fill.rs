@@ -3,7 +3,7 @@ use crate::{
     element::JitElement,
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 use super::{MaskFill, MaskInplaceEagerKernel, MaskReadOnlyEagerKernel};
@@ -22,7 +22,7 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
+pub fn mask_fill<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: E,
@@ -34,7 +34,7 @@ pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_fill_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: EI,
@@ -64,7 +64,7 @@ fn mask_fill_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize
     output
 }
 
-fn mask_fill_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: EI,

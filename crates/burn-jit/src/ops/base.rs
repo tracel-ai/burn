@@ -1,9 +1,9 @@
+use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
+use burn_cube::CubeElement;
+use burn_tensor::{Data, Reader, Shape};
 use std::marker::PhantomData;
 
-use crate::{element::JitElement, kernel, tensor::JitTensor, Runtime};
-use burn_tensor::{Data, Reader, Shape};
-
-pub(crate) fn from_data<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
     data: Data<E, D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
@@ -13,7 +13,7 @@ pub(crate) fn from_data<R: Runtime, E: JitElement, const D: usize>(
     JitTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-pub(crate) fn into_data<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> Reader<Data<E, D>> {
     let tensor = kernel::into_contiguous(tensor);
@@ -24,7 +24,7 @@ pub(crate) fn into_data<R: Runtime, E: JitElement, const D: usize>(
         .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
 }
 
-pub(crate) fn bool_into_data<R: Runtime, const D: usize>(
+pub(crate) fn bool_into_data<R: JitRuntime, const D: usize>(
     tensor: JitTensor<R, u32, D>,
 ) -> Reader<Data<bool, D>> {
     let tensor = kernel::into_contiguous(tensor);
@@ -37,7 +37,7 @@ pub(crate) fn bool_into_data<R: Runtime, const D: usize>(
     })
 }
 
-pub(crate) fn to_device<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn to_device<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
@@ -49,7 +49,7 @@ pub(crate) fn to_device<R: Runtime, E: JitElement, const D: usize>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn empty<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
@@ -59,7 +59,7 @@ pub(crate) fn empty<R: Runtime, E: JitElement, const D: usize>(
     JitTensor::new(client, device.clone(), shape, buffer)
 }
 
-pub(crate) fn swap_dims<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn swap_dims<R: JitRuntime, E: JitElement, const D: usize>(
     mut tensor: JitTensor<R, E, D>,
     dim1: usize,
     dim2: usize,
@@ -70,7 +70,7 @@ pub(crate) fn swap_dims<R: Runtime, E: JitElement, const D: usize>(
     tensor
 }
 
-pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn permute<R: JitRuntime, E: JitElement, const D: usize>(
     mut tensor: JitTensor<R, E, D>,
     axes: [usize; D],
 ) -> JitTensor<R, E, D> {
@@ -82,7 +82,7 @@ pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
 
     tensor
 }
-pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
+pub(crate) fn expand<R: JitRuntime, E: JitElement, const D: usize, const D_OUT: usize>(
     tensor: JitTensor<R, E, D>,
     target_shape: Shape<D_OUT>,
 ) -> JitTensor<R, E, D_OUT> {
@@ -132,7 +132,7 @@ pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usi
     }
 }
 
-pub(crate) fn reshape<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+pub(crate) fn reshape<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     shape: Shape<D2>,
 ) -> JitTensor<R, E, D2> {

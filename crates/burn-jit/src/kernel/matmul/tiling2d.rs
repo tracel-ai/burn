@@ -9,7 +9,7 @@ use crate::{
     gpu::ComputeShader,
     kernel::{into_contiguous, GpuComputeShaderPhase},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use std::marker::PhantomData;
 
@@ -21,14 +21,14 @@ use super::{
 };
 
 #[derive(new, Debug)]
-struct MatmulTiling2dEagerKernel<R: Runtime, E: JitElement> {
+struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
     config: Tiling2dConfig,
     bounds_check_required: bool,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = gpu::Scope::root();
         let elem = E::cube_elem();
@@ -88,7 +88,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKer
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -122,7 +122,7 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
 }
 
 /// Matrix multiplication using tiling 2d algorithm with padding needed
-pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
