@@ -89,11 +89,11 @@ within the `mod.rs` file located in the `src/burn/node/` directory.
 
 ### Step 2: Node Implementation
 
-Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory. This file will
-define the structure and functionality of your new operation. By convention, the necessary
-information for carrying out an operation is encapsulated within a struct named `<operation>Node`.
-For the `Squeeze` operation, we defined a struct called `SqueezeNode` that holds necessary
-information about the input tensor, output tensor, and axes for the operation.
+Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory.  
+This file will define the structure and functionality of your new operation. By convention, the
+necessary information for carrying out an operation is encapsulated within a struct named
+`<operation>Node`. For the `Squeeze` operation, we defined a struct called `SqueezeNode` that holds
+necessary information about the input tensor, output tensor, and axes for the operation.
 
 The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
 This trait defines how the node generates code during the graph compilation process. The
@@ -113,8 +113,8 @@ works within the Burn library.
 
 ### Step 3: Registering New Operations
 
-Register the `NodeType::<operation>` and create an `<operation>_conversion(node)` function, both in
-`src/onnx/to_burn.rs`.
+Register the `NodeType::<operation>` and create an `<operation>_conversion(node: Node)` function,
+both in `src/onnx/to_burn.rs`.
 
 **Registering new operations in the ONNX -> Burn Conversion**  
 To integrate new operations from an ONNX graph into the Burn framework, each operation must be
@@ -157,9 +157,9 @@ a corresponding Burn node. The structure of these functions generally includes:
 4. Creating an instance of the appropriate Burn node
    ([defined in step 2](#step-2-node-implementation)) using this information.
 
-### Step Four: Create a Config Function
+### Step 4: Create a Config Function
 
-Create an `<operation>_config()` in `src/onnx/op_configuration.rs`.
+Create an `<operation>_config(curr: &Node)` in `src/onnx/op_configuration.rs`.
 
 The `squeeze_conversion()` function in `src/onnx/to_burn.rs` from the previous step calls the
 `squeeze_config()` function in `src/onnx/op_configuration.rs` in order the parse the ONNX node's
@@ -184,7 +184,7 @@ These functions translate the more varied and flexible structure of ONNX nodes i
 structured and type-safe environment of Rust and the Burn framework. Spec compliance is dealt with
 here.
 
-### Step Five: Dimension Inference
+### Step 5: Dimension Inference
 
 If needed, create a dimension inference function, called
 `<operation>_update_output(node: &mut Node)` in `src/onnx/dim_inference.rs`. If dimensions remain
@@ -225,7 +225,7 @@ node are updated before the graph is finalized. This ensures that all subsequent
 the graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
 runtime execution efficiency.
 
-### Step Six: Integrate into the Graph Building Process
+### Step 6: Integrate into the Graph Building Process
 
 When a new node type is introduced, it must be added to the `Node<PS: PrecisionSettings>` enum and
 `match_all!` macro in `src/burn/node/base.rs`.
@@ -235,7 +235,7 @@ variant of the enum corresponds to a specific type of operation, and it encapsul
 operation-specific data structures (like `SqueezeNode1`) that was
 [defined in step 2](#step-2-node-implementation).
 
-### Step Seven: Add Newly Supported Op!
+### Step 7: Add Newly Supported Op!
 
 As a reward, add an extra check to SUPPORTED-ONNX-OPS.md!
 
