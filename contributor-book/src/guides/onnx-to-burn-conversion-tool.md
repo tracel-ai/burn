@@ -16,6 +16,7 @@ For an introduction to ONNX import in Burn, see
     - [Design Goals](#design-goals)
     - [Design Decisions](#design-decisions)
   - [Adding New Operators](#adding-new-operators)
+    - [Implementing a New Operator](#implementing-a-new-operator)
   - [Testing](#testing)
   - [Resources](#resources)
 
@@ -88,19 +89,19 @@ within the `mod.rs` file located in the `src/burn/node/` directory.
 
 ### Step 2: Node Implementation
 
-Begin by creating a new file named `<operation_name>.rs` in the `src/burn/node/` directory. This
-file will define the structure and functionality of your new operations. By convention, the
-necessary information for carrying out an operation is encapsulated within a struct named
-`<operation>Node`. For the `Squeeze` operation, we defined a struct `SqueezeNode` that holds
-necessary information about the input tensor, output tensor, and axes for the operation.
+Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory. This file will
+define the structure and functionality of your new operation. By convention, the necessary
+information for carrying out an operation is encapsulated within a struct named `<operation>Node`.
+For the `Squeeze` operation, we defined a struct called `SqueezeNode` that holds necessary
+information about the input tensor, output tensor, and axes for the operation.
 
 The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
-This trait defines defines how the node generates code during the graph compilation process. The
+This trait defines how the node generates code during the graph compilation process. The
 implementation must provide methods to define input and output types, to generate the forward pass
 code, and to encapsulate the node into the more general `Node` structure. Specifically:
 
-- `output_types` and `input_types` return the tensor (or not) types for the output and inputs of the
-  node, respectively.
+- `output_types` and `input_types` return the tensor (or element) types for the output and inputs of
+  the node, respectively.
 - `forward` generates the Rust code that performs the operation during the execution phase. The
   `quote!` macro is used to generate rust code. Ensure that this is syntactically correct using Burn
   code.
@@ -112,15 +113,18 @@ works within the Burn library.
 
 ### Step 3: Registering New Operations
 
-**Registering new operations in the ONNX -> Burn Conversion** To integrate new operations from an
-ONNX graph into the Burn framework, each operation must be registered within the ONNX graph
-conversion process. This is done in the `src/onnx/to_burn.rs` file, where the conversion from ONNX
-nodes to Burn nodes is orchestrated.
+Register the `NodeType::<operation>` and create an `<operation>_conversion(node)` function, both in
+`src/onnx/to_burn.rs`.
 
-In the `into_burn` method of the `OnnxGraph` struct, operations are matched with their corresponding
-conversion functions. This method iterates over each node in the ONNX graph and, depending on the
-node type, calls a specific conversion function that translates the ONNX node into a corresponding
-Burn node.
+**Registering new operations in the ONNX -> Burn Conversion**  
+To integrate new operations from an ONNX graph into the Burn framework, each operation must be
+registered within the ONNX graph conversion process. This is done in the `src/onnx/to_burn.rs` file,
+where the conversion from ONNX nodes to Burn nodes is orchestrated.
+
+In the `into_burn()` method of the `OnnxGraph` struct, operations are matched with their
+corresponding conversion functions. This method iterates over each node in the ONNX graph and,
+depending on the node type, calls a specific conversion function that translates the ONNX node into
+a corresponding Burn node.
 
 ```rust
 impl OnnxGraph {
@@ -140,27 +144,31 @@ impl OnnxGraph {
 }
 ```
 
-Here, the `NodeType::Squeeze` matches the ONNX node type with the `squeeze_conversion` function that
-you define to handle the specific attributes and settings of a Squeeze operation.
+Here, the `NodeType::Squeeze` matches the ONNX node type with the `squeeze_conversion()` function
+that you define to handle the specific attributes and settings of a Squeeze operation.
 
-**Define the Conversion Function** Each operation conversion function extracts necessary information
-from the ONNX node and constructs a corresponding Burn node. The structure of these functions
-generally includes:
+**Define the Conversion Function**  
+Each operation conversion function extracts necessary information from the ONNX node and constructs
+a corresponding Burn node. The structure of these functions generally includes:
 
 1. Extracting input and output tensors from the node.
 2. Retrieving and processing operation-specific configurations.
-3. Creating an instance of the appropriate Burn node using this information by calling
-   `<operation>_config`.
+3. Calling `<operation>_config()` to parse ONNX node configurations.
+4. Creating an instance of the appropriate Burn node
+   ([defined in step 2](#step-2-node-implementation)) using this information.
 
 ### Step Four: Create a Config Function
 
-The `squeeze_conversion` function in blah.rs calls the `squeeze_config` function in blah2.rs in
-order the parse the ONNX node's attributes to extract parameters specific to the Squeeze operation.
-In this case, the axes along which the squeeze operation is performed.
+Create an `<operation>_config()` in `src/onnx/op_configuration.rs`.
+
+The `squeeze_conversion()` function in `src/onnx/to_burn.rs` from the previous step calls the
+`squeeze_config()` function in `src/onnx/op_configuration.rs` in order the parse the ONNX node's
+attributes to extract parameters specific to the Squeeze operation. In this case, the axes along
+which the squeeze operation is performed.
 
 > 📘 Info: Understanding Generic `config` Patterns
 >
-> The `<op>_config` functions follow a similar pattern:
+> The `<op>_config()` functions follow a similar pattern:
 >
 > 1. Extract tensor or scalar types for inputs and outputs.
 > 2. Validate the input structure and types for each node, ensuring they conform to expected formats
@@ -178,21 +186,21 @@ here.
 
 ### Step Five: Dimension Inference
 
-Create a dimension inference function in... Dimension inference is an important step in the
-conversion process where Burn determines the dimensions of each output tensor based on the
-operation. The `dim_inference` function is responsible for determining the dimensions of the output
-tensors for each node in the graph. It does this by:
+Create a dimension inference function in `src/onnx/dim_inference.rs`. Dimension inference is an
+important step in the conversion process where Burn determines the dimensions of each output tensor
+based on the operation. The `dim_inference()` function is responsible for determining the dimensions
+of the output tensors for each node in the graph. It does this by:
 
 1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
    to apply the correct dimension inference logic depending on the operation.
 2. **Applying Operation Specific Logic**: For each operation, a specific inference function is
    called that encapsulate the rules for how output dimensions should be derived from the inputs.
 
-For the Squeeze operation, the dimension inference is handled by the `squeeze_update_output`
+For the Squeeze operation, the dimension inference is handled by the `squeeze_update_output()`
 function, which is specifically tailored to handle the nuances of the squeeze operation, which is
 currently not that nuanced. The output tensor should be (dimensions of input tensor) - 1.
 
-> 📘 Info: How `squeeze_update_output` Works
+> 📘 Info: How `squeeze_update_output()` Works
 >
 > 1. Validation of axes input: We first check if the second input of the node contains a list of
 >    integers, which represent the axes along which the squeeze operation is applied. The function
@@ -206,19 +214,24 @@ currently not that nuanced. The output tensor should be (dimensions of input ten
 >    expected types or configurations, such as when the axes are not provided as an integer list or
 >    if the input type is not a tensor.
 
-By invoking this function within the `dim_inference` match block, the output dimensions of each node
-are updated before the graph is finalized. This ensures that all subsequent operations within the
-graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
+By invoking this function within the `dim_inference()` match block, the output dimensions of each
+node are updated before the graph is finalized. This ensures that all subsequent operations within
+the graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
 runtime execution efficiency.
 
 ### Step Six: Integrate into the Graph Building Process
 
-When a new node type is introduced, it must be added to the enum and `match_all!` macro.
+When a new node type is introduced, it must be added to the `Node<PS: PrecisionSettings>` enum and
+`match_all!` macro in `src/burn/node/base.rs`.
 
 The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
 variant of the enum corresponds to a specific type of operation, and it encapsulates the
 operation-specific data structures (like `SqueezeNode1`) that was
 [defined in step 2](#step-2-node-implementation).
+
+### Step Seven: Add Newly Supported Op!
+
+As a reward, add an extra check to SUPPORTED-ONNX-OPS.md!
 
 ## Testing
 
