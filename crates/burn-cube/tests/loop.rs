@@ -2,18 +2,18 @@ use burn_cube::{cube, Int};
 
 #[cube]
 pub fn while_not<I: Int>(lhs: I) {
-    while lhs != I::lit(0) {
-        let _ = lhs % I::lit(1);
+    while lhs != I::from_int(0) {
+        let _ = lhs % I::from_int(1);
     }
 }
 
 #[cube]
 pub fn manual_loop_break<I: Int>(lhs: I) {
     loop {
-        if lhs != I::lit(0) {
+        if lhs != I::from_int(0) {
             break;
         }
-        let _ = lhs % I::lit(1);
+        let _ = lhs % I::from_int(1);
     }
 }
 

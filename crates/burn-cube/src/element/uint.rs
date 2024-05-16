@@ -1,4 +1,6 @@
-use crate::dialect::Elem;
+use std::rc::Rc;
+
+use crate::dialect::{Elem, Variable};
 
 use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 
@@ -10,32 +12,12 @@ pub struct UInt {
     pub vectorization: u8,
 }
 
-impl UInt {
-    pub fn from_primitive(val: i64) -> Self {
-        Self {
-            val,
-            vectorization: 1,
-        }
-    }
-
-    pub fn from_primitive_expand(
-        _context: &mut CubeContext,
-        val: i64,
-    ) -> <Self as CubeType>::ExpandType {
-        (val as u32).into()
-    }
-}
-
 impl CubeType for UInt {
     type ExpandType = ExpandElement;
 }
 
 impl PrimitiveVariable for UInt {
-    type Primitive = i64;
-
-    fn val(&self) -> Self::Primitive {
-        self.val
-    }
+    type Primitive = u32;
 
     fn into_elem() -> Elem {
         Elem::UInt
@@ -46,28 +28,40 @@ impl PrimitiveVariable for UInt {
     }
 
     fn from_f64(val: f64) -> Self {
-        Self::from_primitive(val as i64)
+        Self::new(val as <Self as PrimitiveVariable>::Primitive)
+    }
+
+    fn from_i64(val: i64) -> Self {
+        Self::new(val as <Self as PrimitiveVariable>::Primitive)
     }
 }
 
-impl Numeric for UInt {
-    fn lit(val: i64) -> Self {
-        Self::from_primitive(val)
-    }
+impl Numeric for UInt {}
 
-    fn lit_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
-        Self::from_primitive_expand(context, val)
+impl UInt {
+    pub fn new(val: <Self as PrimitiveVariable>::Primitive) -> Self {
+        Self {
+            val,
+            vectorization: 1,
+        }
+    }
+    pub fn new_expand(
+        _context: &mut CubeContext,
+        val: <Self as PrimitiveVariable>::Primitive,
+    ) -> <Self as CubeType>::ExpandType {
+        let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+        ExpandElement::new(Rc::new(new_var))
     }
 }
 
 impl From<u32> for UInt {
     fn from(value: u32) -> Self {
-        UInt::from_primitive(value as <Self as PrimitiveVariable>::Primitive)
+        UInt::new(value as <Self as PrimitiveVariable>::Primitive)
     }
 }
 
 impl From<usize> for UInt {
     fn from(value: usize) -> Self {
-        UInt::from_primitive(value as <Self as PrimitiveVariable>::Primitive)
+        UInt::new(value as <Self as PrimitiveVariable>::Primitive)
     }
 }

@@ -7,18 +7,15 @@ use crate::{CubeType, ExpandElement};
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
 pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
-    /// Type of the value kept CPU-side.
-    /// Does not necessarily match the GPU type.
     type Primitive;
-
-    /// Return the value of the float on CPU
-    fn val(&self) -> Self::Primitive;
 
     /// Return the element type to use on GPU
     fn into_elem() -> Elem;
 
+    // For easy CPU-side casting
     fn to_f64(&self) -> f64;
     fn from_f64(val: f64) -> Self;
+    fn from_i64(val: i64) -> Self;
 }
 
 macro_rules! impl_into_expand_element {

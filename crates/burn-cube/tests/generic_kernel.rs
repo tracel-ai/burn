@@ -2,7 +2,7 @@ use burn_cube::{cube, Numeric};
 
 #[cube]
 pub fn generic_kernel<T: Numeric>(lhs: T) {
-    let _ = lhs + T::lit(5);
+    let _ = lhs + T::from_int(5);
 }
 
 mod tests {

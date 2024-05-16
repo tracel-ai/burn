@@ -21,7 +21,7 @@ pub mod add {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
-                    <$type as $trait>::from_primitive(self.val + rhs.val)
+                    <$type as $trait>::new(self.val + rhs.val)
                 }
             }
         };
@@ -31,7 +31,7 @@ pub mod add {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
-                    <$type>::from_primitive(self.val + rhs.val)
+                    <$type>::new(self.val + rhs.val)
                 }
             }
         };
@@ -65,7 +65,7 @@ pub mod sub {
                 type Output = Self;
 
                 fn sub(self, rhs: Self) -> Self::Output {
-                    <$type as $trait>::from_primitive(self.val - rhs.val)
+                    <$type as $trait>::new(self.val - rhs.val)
                 }
             }
         };
@@ -75,7 +75,7 @@ pub mod sub {
                 type Output = Self;
 
                 fn sub(self, rhs: Self) -> Self::Output {
-                    <$type>::from_primitive(self.val - rhs.val)
+                    <$type>::new(self.val - rhs.val)
                 }
             }
         };
@@ -109,7 +109,7 @@ pub mod mul {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type as $trait>::from_primitive(self.val * rhs.val)
+                    <$type as $trait>::new(self.val * rhs.val)
                 }
             }
         };
@@ -119,7 +119,7 @@ pub mod mul {
                 type Output = Self;
 
                 fn mul(self, rhs: Self) -> Self::Output {
-                    <$type>::from_primitive(self.val * rhs.val)
+                    <$type>::new(self.val * rhs.val)
                 }
             }
         };
@@ -153,7 +153,7 @@ pub mod div {
                 type Output = Self;
 
                 fn div(self, rhs: Self) -> Self::Output {
-                    <$type as $trait>::from_primitive(self.val / rhs.val)
+                    <$type as $trait>::new(self.val / rhs.val)
                 }
             }
         };
@@ -163,7 +163,7 @@ pub mod div {
                 type Output = Self;
 
                 fn div(self, rhs: Self) -> Self::Output {
-                    <$type>::from_primitive(self.val / rhs.val)
+                    <$type>::new(self.val / rhs.val)
                 }
             }
         };
@@ -197,7 +197,7 @@ pub mod rem {
                 type Output = Self;
 
                 fn rem(self, rhs: Self) -> Self::Output {
-                    <$type as $trait>::from_primitive(self.val % rhs.val)
+                    <$type as $trait>::new(self.val % rhs.val)
                 }
             }
         };
@@ -207,7 +207,7 @@ pub mod rem {
                 type Output = Self;
 
                 fn rem(self, rhs: Self) -> Self::Output {
-                    <$type>::from_primitive(self.val % rhs.val)
+                    <$type>::new(self.val % rhs.val)
                 }
             }
         };
@@ -235,7 +235,7 @@ pub mod and {
         type Output = Bool;
 
         fn bitand(self, rhs: Self) -> Self::Output {
-            Bool::lit(self.val && rhs.val)
+            Bool::new(self.val && rhs.val)
         }
     }
 }
@@ -257,7 +257,7 @@ pub mod or {
         type Output = Bool;
 
         fn bitor(self, rhs: Self) -> Self::Output {
-            Bool::lit(self.val || rhs.val)
+            Bool::new(self.val || rhs.val)
         }
     }
 }

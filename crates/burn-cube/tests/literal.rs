@@ -2,12 +2,12 @@ use burn_cube::{cube, Float};
 
 #[cube]
 pub fn literal<F: Float>(lhs: F) {
-    let _ = lhs + F::lit(5);
+    let _ = lhs + F::from_int(5);
 }
 
 #[cube]
 pub fn literal_float_no_decimals<F: Float>(lhs: F) {
-    let _ = lhs + F::from_primitive(5.);
+    let _ = lhs + F::new(5.);
 }
 
 mod tests {

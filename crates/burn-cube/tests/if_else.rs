@@ -2,10 +2,10 @@ use burn_cube::{cube, Float};
 
 #[cube]
 pub fn if_then_else<F: Float>(lhs: F) {
-    if lhs < F::lit(0) {
-        let _ = lhs + F::lit(4);
+    if lhs < F::from_int(0) {
+        let _ = lhs + F::from_int(4);
     } else {
-        let _ = lhs - F::lit(5);
+        let _ = lhs - F::from_int(5);
     }
 }
 

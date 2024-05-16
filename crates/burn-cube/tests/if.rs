@@ -2,8 +2,8 @@ use burn_cube::{cube, Numeric};
 
 #[cube]
 pub fn if_greater<T: Numeric>(lhs: T) {
-    if lhs > T::lit(0) {
-        let _ = lhs + T::lit(4);
+    if lhs > T::from_int(0) {
+        let _ = lhs + T::from_int(4);
     }
 }
 

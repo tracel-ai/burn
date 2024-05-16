@@ -6,15 +6,15 @@ pub fn reuse<I: Int>(mut x: I) {
     // a += b is more efficient than a = a + b
     // Because the latter does not assume that a is the same in lhs and rhs
     // Normally clippy should detect it
-    while x < I::lit(10) {
-        x = x + I::lit(1);
+    while x < I::from_int(10) {
+        x = x + I::from_int(1);
     }
 }
 
 #[cube]
 pub fn reuse_incr<I: Int>(mut x: I) {
-    while x < I::lit(10) {
-        x += I::lit(1);
+    while x < I::from_int(10) {
+        x += I::from_int(1);
     }
 }
 

@@ -7,12 +7,12 @@ pub fn caller_no_arg(x: UInt) {
 
 #[cube]
 pub fn callee_no_arg() -> UInt {
-    UInt::lit(8)
+    UInt::from_int(8)
 }
 
 #[cube]
 pub fn no_call_no_arg(x: UInt) {
-    let _ = x + UInt::lit(8);
+    let _ = x + UInt::from_int(8);
 }
 
 #[cube]
@@ -22,12 +22,12 @@ pub fn caller_with_arg(x: UInt) {
 
 #[cube]
 pub fn callee_with_arg(x: UInt) -> UInt {
-    x * UInt::lit(8)
+    x * UInt::from_int(8)
 }
 
 #[cube]
 pub fn no_call_with_arg(x: UInt) {
-    let _ = x + x * UInt::lit(8);
+    let _ = x + x * UInt::from_int(8);
 }
 
 #[cube]
@@ -37,12 +37,12 @@ pub fn caller_with_generics<T: Numeric>(x: T) {
 
 #[cube]
 pub fn callee_with_generics<T: Numeric>(x: T) -> T {
-    x * T::lit(8)
+    x * T::from_int(8)
 }
 
 #[cube]
 pub fn no_call_with_generics<T: Numeric>(x: T) {
-    let _ = x + x * T::lit(8);
+    let _ = x + x * T::from_int(8);
 }
 
 mod tests {

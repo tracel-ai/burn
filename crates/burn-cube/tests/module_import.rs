@@ -3,7 +3,7 @@ mod elsewhere {
 
     #[cube]
     pub fn my_func<F: Float>(x: F) -> F {
-        x * F::lit(2)
+        x * F::from_int(2)
     }
 }
 
@@ -19,7 +19,7 @@ mod here {
 
     #[cube]
     pub fn no_call_ref<F: Float>(x: F) {
-        let _ = x + x * F::lit(2);
+        let _ = x + x * F::from_int(2);
     }
 }
 
