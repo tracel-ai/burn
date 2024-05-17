@@ -266,7 +266,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimenension removed.
+    /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
     ///
     /// # Example
     ///

@@ -35,6 +35,7 @@ use crate::{
             max_pool2d::MaxPool2dNode,
             prelu::PReluNode,
             reshape::ReshapeNode,
+            squeeze::SqueezeNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -289,6 +290,7 @@ impl OnnxGraph {
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
+                NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -824,6 +826,14 @@ impl OnnxGraph {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
         UnaryNode::sign(input, output)
+    }
+
+    fn squeeze_conversion(node: Node) -> SqueezeNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let axes = squeeze_config(&node);
+
+        SqueezeNode::new(input, output, axes)
     }
 }
 

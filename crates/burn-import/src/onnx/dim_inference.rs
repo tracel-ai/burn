@@ -64,6 +64,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::PRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
+        NodeType::Squeeze => squeeze_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -264,6 +265,46 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
+}
+
+/// Update the output tensor dimension
+fn squeeze_update_output(node: &mut Node) {
+    let axes = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(axes) => Some(axes.clone()),
+                _ => panic!("Squeeze: invalid input types"),
+            },
+            None => None,
+        }
+    } else {
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+    };
+
+    if axes.is_none() {
+        panic!("Squeeze must specify an axis");
+    } else if axes.as_ref().unwrap().len() > 1 {
+        panic!(
+            "Squeeze must specify only 1 axis, found {:?}",
+            axes.as_ref().unwrap().len()
+        );
+    }
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("Squeeze: invalid input type"),
+    };
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("Squeeze: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: input_dim - 1,
+        shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_elem,
+    });
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input

@@ -180,7 +180,7 @@ represent the corresponding Burn Op.
 | [Split][173]                     |       ❌       |      ❌      |
 | [SplitToSequence][174]           |       ❌       |      ❌      |
 | [Sqrt][175]                      |       ✅       |      ✅      |
-| [Squeeze][176]                   |       ❌       |      ✅      |
+| [Squeeze][176]                   |       ✅       |      ✅      |
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
 | [Sub][179]                       |       ✅       |      ✅      |

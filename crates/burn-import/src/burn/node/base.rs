@@ -5,7 +5,7 @@ use super::{
     dropout::DropoutNode, gather::GatherNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode, reshape::ReshapeNode,
-    unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    squeeze::SqueezeNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -95,6 +95,7 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
     Reshape(ReshapeNode),
+    Squeeze(SqueezeNode),
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
     Where(WhereNode),
@@ -124,6 +125,7 @@ macro_rules! match_all {
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Reshape(node) => $func(node),
+            Node::Squeeze(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
             Node::Where(node) => $func(node),
@@ -163,6 +165,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Reshape(_) => "reshape",
+            Node::Squeeze(_) => "squeeze",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
             Node::Where(_) => "where",

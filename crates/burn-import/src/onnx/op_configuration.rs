@@ -971,3 +971,50 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
 
     perm
 }
+
+pub fn squeeze_config(curr: &Node) -> Vec<i64> {
+    let mut axes = curr
+        .attrs
+        .iter()
+        .filter_map(|(key, value)| {
+            if key == "axes" {
+                Some(value.clone().into_i64s())
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or_else(Vec::new);
+
+    // If axes are not found in attributes, try to extract them from input tensor
+    if axes.is_empty() {
+        assert!(!curr.inputs.is_empty(), "Squeeze: input must be present");
+
+        let input_value = &curr.inputs[1];
+        match &input_value.ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
+                if let Some(Data::Int64s(data)) = &input_value.value {
+                    axes.clone_from(data)
+                } else {
+                    panic!("Squeeze: Tensor data type must be int64");
+                }
+            }
+            _ => panic!("Squeeze: Argument for axes must be a tensor"),
+        }
+    }
+
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Adjust negative axes
+    axes.iter_mut().for_each(|x| {
+        if *x < 0 {
+            *x += tensor.dim as i64;
+        }
+    });
+
+    axes
+}
