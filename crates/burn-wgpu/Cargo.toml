@@ -14,7 +14,7 @@ version.workspace = true
 default = ["fusion", "burn-jit/default"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 autotune = ["burn-jit/autotune"]
-template = ["burn-jit/template"]
+template = ["burn-jit/template", "burn-cube/template"]
 doc = ["burn-jit/doc"]
 std = ["burn-jit/std"]
 

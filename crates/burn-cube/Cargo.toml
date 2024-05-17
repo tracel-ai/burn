@@ -16,6 +16,7 @@ version.workspace = true
 [features]
 default = ["tensor"]
 std = []
+template = []
 tensor = ["burn-tensor"]
 
 [dependencies]
@@ -23,8 +24,8 @@ burn-compute = { path = "../burn-compute", version = "0.15.0", default-features 
 burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false, optional = true }
 
 bytemuck = { workspace = true }
-half = { workspace = true, features=["bytemuck"] }
-serde  = { workspace = true }
+half = { workspace = true, features = ["bytemuck"] }
+serde = { workspace = true }
 burn-cube-macros = { path = "../burn-cube-macros", version = "0.15.0" }
 derive-new = { workspace = true }
 
