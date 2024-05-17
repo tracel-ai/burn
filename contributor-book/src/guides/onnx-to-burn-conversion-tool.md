@@ -85,15 +85,18 @@ are relative to `burn/crates/burn-import/`.
 ### Step 1: Visibility
 
 To make a new operation accessible to the rest of the Burn project, you need to declare the module
-within the `mod.rs` file located in the `src/burn/node/` directory.
+within the
+[`mod.rs` file](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/mod.rs#L24)
+located in the `src/burn/node/` directory.
 
 ### Step 2: Node Implementation
 
 Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory.  
 This file will define the structure and functionality of your new operation. By convention, the
 necessary information for carrying out an operation is encapsulated within a struct named
-`<operation>Node`. For the `Squeeze` operation, we defined a struct called `SqueezeNode` that holds
-necessary information about the input tensor, output tensor, and axes for the operation.
+`<operation>Node`. For the `Squeeze` operation, we defined a
+[struct called `SqueezeNode`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/squeeze.rs#L8)
+that holds necessary information about the input tensor, output tensor, and axes for the operation.
 
 The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
 This trait defines how the node generates code during the graph compilation process. The
@@ -113,7 +116,9 @@ works within the Burn library.
 
 ### Step 3: Registering New Operations
 
-Register the `NodeType::<operation>` and create an `<operation>_conversion(node: Node)` function,
+[Register the `NodeType::<operation>`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/to_burn.rs#L293)
+and
+[create an `<operation>_conversion(node: Node)` function](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/to_burn.rs#L831),
 both in `src/onnx/to_burn.rs`.
 
 **Registering new operations in the ONNX -> Burn Conversion**  
@@ -159,7 +164,8 @@ a corresponding Burn node. The structure of these functions generally includes:
 
 ### Step 4: Create a Config Function
 
-Create an `<operation>_config(curr: &Node)` in `src/onnx/op_configuration.rs`.
+[Create an `<operation>_config(curr: &Node)`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/op_configuration.rs#L975)
+in `src/onnx/op_configuration.rs`.
 
 The `squeeze_conversion()` function in `src/onnx/to_burn.rs` from the previous step calls the
 `squeeze_config()` function in `src/onnx/op_configuration.rs` in order the parse the ONNX node's
@@ -186,16 +192,18 @@ here.
 
 ### Step 5: Dimension Inference
 
-If needed, create a dimension inference function, called
-`<operation>_update_output(node: &mut Node)` in `src/onnx/dim_inference.rs`. If dimensions remain
-unchanged, use the `same_as_input()` function, for example
+If needed,
+[create a dimension inference function](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/dim_inference.rs#L271),
+called `<operation>_update_output(node: &mut Node)` in `src/onnx/dim_inference.rs`. If dimensions
+remain unchanged, use the `same_as_input()` function, for example
 `NodeType::AveragePool1d => same_as_input(node)`. Match the `NodeType` to the function in the
 `dim_inference()` match block.
 
 Dimension inference is an important step in the conversion process where Burn determines the
-dimensions of each output tensor based on the operation. The `dim_inference()` function is
-responsible for determining the dimensions of the output tensors for each node in the graph. It does
-this by:
+dimensions of each output tensor based on the operation.
+[The `dim_inference()`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/dim_inference.rs#L14)
+function is responsible for determining the dimensions of the output tensors for each node in the
+graph. It does this by:
 
 1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
    to apply the correct dimension inference logic depending on the operation.
@@ -227,8 +235,11 @@ runtime execution efficiency.
 
 ### Step 6: Integrate into the Graph Building Process
 
-When a new node type is introduced, it must be added to the `Node<PS: PrecisionSettings>` enum and
-`match_all!` macro in `src/burn/node/base.rs`.
+When a new node type is introduced, it must be added to the
+[`Node<PS: PrecisionSettings>` enum](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/base.rs#L77)
+and
+[`match_all!` macro](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/base.rs#L104)
+in `src/burn/node/base.rs`.
 
 The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
 variant of the enum corresponds to a specific type of operation, and it encapsulates the
