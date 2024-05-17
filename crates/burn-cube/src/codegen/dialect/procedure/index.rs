@@ -19,8 +19,8 @@ impl CheckedIndex {
         let lhs = self.lhs;
         let rhs = self.rhs;
         let out = self.out;
-        let array_len = scope.create_local(Item::Scalar(crate::dialect::Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(crate::dialect::Elem::Bool));
+        let array_len = scope.create_local(Item::scalar(crate::dialect::Elem::UInt));
+        let inside_bound = scope.create_local(Item::scalar(crate::dialect::Elem::Bool));
 
         cpa!(scope, array_len = len(lhs));
         cpa!(scope, inside_bound = rhs < array_len);
@@ -56,8 +56,8 @@ impl CheckedIndexAssign {
         let lhs = self.lhs;
         let rhs = self.rhs;
         let out = self.out;
-        let array_len = scope.create_local(Item::Scalar(Elem::UInt));
-        let inside_bound = scope.create_local(Item::Scalar(Elem::Bool));
+        let array_len = scope.create_local(Item::scalar(Elem::UInt));
+        let inside_bound = scope.create_local(Item::scalar(Elem::Bool));
 
         cpa!(scope, array_len = len(out));
         cpa!(scope, inside_bound = lhs < array_len);

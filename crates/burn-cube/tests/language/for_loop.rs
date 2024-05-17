@@ -25,8 +25,8 @@ mod tests {
         let mut context = CubeContext::root();
         let unroll = true;
 
-        let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let rhs = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let lhs = context.create_local(Item::scalar(ElemType::into_elem()));
+        let rhs = context.create_local(Item::scalar(ElemType::into_elem()));
         let end = 4u32.into();
 
         for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
@@ -40,8 +40,8 @@ mod tests {
         let mut context = CubeContext::root();
         let unroll = false;
 
-        let lhs = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let rhs = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let lhs = context.create_local(Item::scalar(ElemType::into_elem()));
+        let rhs = context.create_local(Item::scalar(ElemType::into_elem()));
         let end = 4u32.into();
 
         for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
@@ -52,7 +52,7 @@ mod tests {
 
     fn inline_macro_ref(unroll: bool) -> String {
         let mut context = CubeContext::root();
-        let item = Item::Scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::into_elem());
 
         let lhs = context.create_local(item);
         let rhs = context.create_local(item);

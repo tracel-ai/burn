@@ -8,7 +8,7 @@ pub trait Cast: PrimitiveVariable {
         context: &mut CubeContext,
         value: <Self as CubeType>::ExpandType,
     ) -> <Self as CubeType>::ExpandType {
-        let new_var = context.create_local(Item::Scalar(<Self as PrimitiveVariable>::into_elem()));
+        let new_var = context.create_local(Item::scalar(<Self as PrimitiveVariable>::into_elem()));
         assign::expand(context, value, new_var.clone());
         new_var
     }

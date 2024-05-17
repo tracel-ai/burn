@@ -47,7 +47,7 @@ impl TraceBuilder {
             false => {
                 // New input
                 let index = self.inputs.len() as u16;
-                let item = Item::Scalar(elem);
+                let item = Item::scalar(elem);
 
                 let local = self.scope.read_array(index, item, position);
                 self.inputs.push((tensor.clone(), local));
@@ -56,7 +56,7 @@ impl TraceBuilder {
             true => match self.output_to_local.get(&tensor.id) {
                 // Is a local variable.
                 Some(local_index) => {
-                    Variable::Local(*local_index, Item::Scalar(elem), self.scope.depth)
+                    Variable::Local(*local_index, Item::scalar(elem), self.scope.depth)
                 }
                 // Isn't an operation output variable, so must be an existing input.
                 None => self
@@ -84,10 +84,10 @@ impl TraceBuilder {
 
         // Output already registered as a local variable.
         if let Some(index) = self.output_to_local.get(&tensor.id) {
-            return Variable::Local(*index, Item::Scalar(elem), self.scope.depth);
+            return Variable::Local(*index, Item::scalar(elem), self.scope.depth);
         }
 
-        let variable = self.scope.create_local(Item::Scalar(elem));
+        let variable = self.scope.create_local(Item::scalar(elem));
         let local_index = variable.index().unwrap();
         self.output_to_local.insert(tensor.id, local_index);
         variable

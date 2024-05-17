@@ -44,7 +44,7 @@ pub enum Elem {
 
 impl From<Elem> for Item {
     fn from(val: Elem) -> Self {
-        Item::Scalar(val)
+        Item::scalar(val)
     }
 }
 
@@ -92,7 +92,7 @@ impl Item {
         self.elem
     }
 
-    pub fn Scalar(elem: Elem) -> Self {
+    pub fn scalar(elem: Elem) -> Self {
         Self {
             elem,
             vectorization: 1.into(),

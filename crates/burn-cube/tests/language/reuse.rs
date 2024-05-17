@@ -32,7 +32,7 @@ mod tests {
     fn cube_reuse_assign_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
 
         reuse_expand::<ElemType>(&mut context, x);
         let scope = context.into_scope();
@@ -44,7 +44,7 @@ mod tests {
     fn cube_reuse_incr_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
 
         reuse_incr_expand::<ElemType>(&mut context, x);
         let scope = context.into_scope();
@@ -54,11 +54,11 @@ mod tests {
 
     fn inline_macro_ref_assign() -> String {
         let mut context = CubeContext::root();
-        let item = Item::Scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::into_elem());
         let x = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let cond = scope.create_local(Item::Scalar(Elem::Bool));
+        let cond = scope.create_local(Item::scalar(Elem::Bool));
         let x: Variable = x.into();
         let tmp = scope.create_local(item);
 
@@ -80,11 +80,11 @@ mod tests {
 
     fn inline_macro_ref_incr() -> String {
         let mut context = CubeContext::root();
-        let item = Item::Scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::into_elem());
         let x = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let cond = scope.create_local(Item::Scalar(Elem::Bool));
+        let cond = scope.create_local(Item::scalar(Elem::Bool));
         let x: Variable = x.into();
 
         cpa!(

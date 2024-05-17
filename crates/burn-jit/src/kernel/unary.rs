@@ -70,11 +70,11 @@ macro_rules! unary {
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::scalar(E::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::scalar(E::cube_elem()),
                 local,
                 position: burn_cube::dialect::Variable::Id,
             };
@@ -146,7 +146,7 @@ macro_rules! unary {
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::scalar(E::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
             let scalars = burn_cube::InputInfo::Scalar {
@@ -154,7 +154,7 @@ macro_rules! unary {
                 size: $num,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::scalar(E::cube_elem()),
                 local,
                 position: burn_cube::dialect::Variable::Id,
             };

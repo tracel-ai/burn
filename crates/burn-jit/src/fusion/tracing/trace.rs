@@ -45,7 +45,7 @@ impl Trace {
             .inputs
             .iter()
             .map(|(_tensor, elem, _)| InputInfo::Array {
-                item: Item::Scalar(*elem),
+                item: Item::scalar(*elem),
                 visibility: Visibility::Read,
             })
             .collect::<Vec<_>>();
@@ -56,7 +56,7 @@ impl Trace {
             .zip(self.locals.iter())
             .map(
                 |((_tensor, elem, index_ref), local)| OutputInfo::ArrayWrite {
-                    item: Item::Scalar(*elem),
+                    item: Item::scalar(*elem),
                     local: *local,
                     position: *index_ref,
                 },

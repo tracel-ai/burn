@@ -33,12 +33,12 @@ mod tests {
     #[test]
     fn cube_call_equivalent_to_no_call_no_arg_test() {
         let mut caller_context = CubeContext::root();
-        let x = caller_context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = caller_context.create_local(Item::scalar(ElemType::into_elem()));
         here::caller_expand::<ElemType>(&mut caller_context, x);
         let caller_scope = caller_context.into_scope();
 
         let mut no_call_context = CubeContext::root();
-        let x = no_call_context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = no_call_context.create_local(Item::scalar(ElemType::into_elem()));
         here::no_call_ref_expand::<ElemType>(&mut no_call_context, x);
         let no_call_scope = no_call_context.into_scope();
 

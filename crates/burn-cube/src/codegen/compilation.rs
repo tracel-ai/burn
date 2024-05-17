@@ -155,7 +155,7 @@ impl InputInfo {
                 item,
                 visibility: _,
             } => *item,
-            InputInfo::Scalar { elem, size: _ } => Item::Scalar(*elem),
+            InputInfo::Scalar { elem, size: _ } => Item::scalar(*elem),
         }
     }
 }
@@ -253,7 +253,7 @@ impl Compilation {
         named.push((
             "info".to_string(),
             Binding {
-                item: Item::Scalar(Elem::UInt),
+                item: Item::scalar(Elem::UInt),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -301,7 +301,7 @@ impl Compilation {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            item: Item::Scalar(elem),
+                            item: Item::scalar(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(size),

@@ -114,8 +114,8 @@ mod tests {
     fn cube_strategy_trait_add_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::scalar(ElemType::into_elem()));
 
         with_strategy_trait_expand::<AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
@@ -130,8 +130,8 @@ mod tests {
     fn cube_strategy_trait_sub_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::scalar(ElemType::into_elem()));
 
         with_strategy_trait_expand::<SubStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
@@ -146,8 +146,8 @@ mod tests {
     fn cube_two_strategy_traits_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::scalar(ElemType::into_elem()));
 
         two_strategy_traits_expand::<SubStrategy, AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
@@ -159,8 +159,8 @@ mod tests {
     fn cube_trait_generic_method_test() {
         let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::Scalar(ElemType::into_elem()));
-        let y = context.create_local(Item::Scalar(ElemType::into_elem()));
+        let x = context.create_local(Item::scalar(ElemType::into_elem()));
+        let y = context.create_local(Item::scalar(ElemType::into_elem()));
 
         with_trait_generic_method_expand::<AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
@@ -173,7 +173,7 @@ mod tests {
 
     fn inline_macro_ref_one(is_add_strategy: bool) -> String {
         let mut context = CubeContext::root();
-        let item = Item::Scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::into_elem());
         let x = context.create_local(item);
         let y = context.create_local(item);
 
@@ -192,7 +192,7 @@ mod tests {
 
     fn inline_macro_ref_two() -> String {
         let mut context = CubeContext::root();
-        let item = Item::Scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::into_elem());
         let x = context.create_local(item);
         let y = context.create_local(item);
 

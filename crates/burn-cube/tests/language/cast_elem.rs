@@ -151,109 +151,109 @@ mod tests {
     cast_test!(
         cube_float_to_float_test,
         float_to_float_expand,
-        Item::Scalar(F32::into_elem())
+        Item::scalar(F32::into_elem())
     );
 
     cast_test!(
         cube_float_to_int_test,
         float_to_int_expand,
-        Item::Scalar(F32::into_elem()),
-        Item::Scalar(I32::into_elem())
+        Item::scalar(F32::into_elem()),
+        Item::scalar(I32::into_elem())
     );
 
     cast_test!(
         cube_float_to_uint_test,
         float_to_uint_expand,
-        Item::Scalar(F32::into_elem()),
-        Item::Scalar(Elem::UInt)
+        Item::scalar(F32::into_elem()),
+        Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_float_to_bool_test,
         float_to_bool_expand,
-        Item::Scalar(F32::into_elem()),
-        Item::Scalar(Elem::Bool)
+        Item::scalar(F32::into_elem()),
+        Item::scalar(Elem::Bool)
     );
 
     cast_test!(
         cube_int_to_float_test,
         int_to_float_expand,
-        Item::Scalar(I32::into_elem()),
-        Item::Scalar(F32::into_elem())
+        Item::scalar(I32::into_elem()),
+        Item::scalar(F32::into_elem())
     );
 
     cast_test!(
         cube_int_to_int_test,
         int_to_int_expand,
-        Item::Scalar(I32::into_elem())
+        Item::scalar(I32::into_elem())
     );
 
     cast_test!(
         cube_int_to_uint_test,
         int_to_uint_expand,
-        Item::Scalar(I32::into_elem()),
-        Item::Scalar(Elem::UInt)
+        Item::scalar(I32::into_elem()),
+        Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_int_to_bool_test,
         int_to_bool_expand,
-        Item::Scalar(I32::into_elem()),
-        Item::Scalar(Elem::Bool)
+        Item::scalar(I32::into_elem()),
+        Item::scalar(Elem::Bool)
     );
 
     cast_test!(
         cube_uint_to_float_test,
         uint_to_float_expand,
-        Item::Scalar(Elem::UInt),
-        Item::Scalar(F32::into_elem())
+        Item::scalar(Elem::UInt),
+        Item::scalar(F32::into_elem())
     );
 
     cast_test!(
         cube_uint_to_int_test,
         uint_to_int_expand,
-        Item::Scalar(Elem::UInt),
-        Item::Scalar(I32::into_elem())
+        Item::scalar(Elem::UInt),
+        Item::scalar(I32::into_elem())
     );
 
     cast_test!(
         cube_uint_to_uint_test,
         uint_to_uint_expand,
-        Item::Scalar(Elem::UInt)
+        Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_uint_to_bool_test,
         uint_to_bool_expand,
-        Item::Scalar(Elem::UInt),
-        Item::Scalar(Elem::Bool)
+        Item::scalar(Elem::UInt),
+        Item::scalar(Elem::Bool)
     );
 
     cast_test!(
         cube_bool_to_float_test,
         bool_to_float_expand,
-        Item::Scalar(Elem::Bool),
-        Item::Scalar(F32::into_elem())
+        Item::scalar(Elem::Bool),
+        Item::scalar(F32::into_elem())
     );
 
     cast_test!(
         cube_bool_to_int_test,
         bool_to_int_expand,
-        Item::Scalar(Elem::Bool),
-        Item::Scalar(I32::into_elem())
+        Item::scalar(Elem::Bool),
+        Item::scalar(I32::into_elem())
     );
 
     cast_test!(
         cube_bool_to_uint_test,
         bool_to_uint_expand,
-        Item::Scalar(Elem::Bool),
-        Item::Scalar(Elem::UInt)
+        Item::scalar(Elem::Bool),
+        Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_bool_to_bool_test,
         bool_to_bool_expand,
-        Item::Scalar(Elem::Bool)
+        Item::scalar(Elem::Bool)
     );
 
     fn inline_macro_ref_cast(from_item: Item, to_item: Item) -> String {
