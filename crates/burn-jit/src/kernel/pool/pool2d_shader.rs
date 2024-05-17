@@ -1,9 +1,11 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+};
 use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     JitElement, JitRuntime,
 };

@@ -1,13 +1,15 @@
 use std::marker::PhantomData;
 
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+};
 
 use crate::{
     codegen::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     tensor::JitTensor,
     JitElement, JitRuntime,
 };

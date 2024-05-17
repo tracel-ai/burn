@@ -1,13 +1,11 @@
-use burn_cube::{cpa, dialect::Variable, EagerHandle, Execution, WorkgroupLaunch};
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Item, Scope, Variable},
+    EagerHandle, Execution, WorkgroupLaunch,
+};
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{
-    element::JitElement,
-    gpu::{Elem, Item, Scope},
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 
 use super::{Pool2dEagerKernel, PoolStrategy};

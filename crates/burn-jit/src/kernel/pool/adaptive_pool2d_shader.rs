@@ -1,12 +1,11 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
+};
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{ComputeShader, Elem, Scope, Variable, Visibility},
-    kernel::GpuComputeShaderPhase,
-    JitElement, JitRuntime,
-};
+use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
 
 pub(crate) struct AdaptivePool2dComputeShader<R: JitRuntime, E: JitElement> {
     input: Variable,

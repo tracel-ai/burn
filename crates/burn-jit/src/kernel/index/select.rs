@@ -1,10 +1,10 @@
 use crate::{
-    element::JitElement, gpu::ComputeShader, kernel::GpuComputeShaderPhase,
-    ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
+    element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
+    tensor::JitTensor, JitRuntime,
 };
 use burn_cube::{
     cpa,
-    dialect::{Elem, IntKind, Item, Scope, Variable, Visibility},
+    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
     OutputInfo, WorkgroupLaunch,
 };

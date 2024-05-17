@@ -55,7 +55,7 @@ macro_rules! binary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<I, O>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::gpu::ComputeShader
+        ) -> burn_cube::dialect::ComputeShader
         where
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
@@ -96,7 +96,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<I, O>(settings)
             }
@@ -110,7 +110,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -129,7 +129,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,

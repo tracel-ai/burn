@@ -12,7 +12,6 @@ mod runtime;
 
 #[cfg(feature = "template")]
 pub use burn_jit::{
-    gpu::WorkgroupSize,
     kernel::{into_contiguous, GpuComputeShaderPhase},
     kernel_wgsl,
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},

@@ -3,12 +3,14 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{ComputeShader, Elem, Item, Scope, Variable, Visibility},
     kernel::GpuComputeShaderPhase,
     tensor::JitTensor,
     JitElement, JitRuntime,
 };
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Item, Scope, Variable, Visibility},
+};
 use std::marker::PhantomData;
 
 /// Cast a bool tensor to the given element type.

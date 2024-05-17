@@ -61,7 +61,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::gpu::ComputeShader
+        ) -> burn_cube::dialect::ComputeShader
         where
             E: $crate::element::JitElement
         {
@@ -95,7 +95,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -107,7 +107,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -137,7 +137,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
             settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::gpu::ComputeShader
+        ) -> burn_cube::dialect::ComputeShader
         where
             E: $crate::element::JitElement
         {
@@ -175,7 +175,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let settings = $crate::codegen::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -187,7 +187,7 @@ macro_rules! unary {
             C: $crate::codegen::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> $crate::gpu::ComputeShader {
+            fn compile(&self) -> burn_cube::dialect::ComputeShader {
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,

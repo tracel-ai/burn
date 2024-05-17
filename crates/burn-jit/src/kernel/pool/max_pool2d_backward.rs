@@ -4,7 +4,6 @@ use crate::{
         OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::ComputeShader,
     kernel::{self, GpuComputeShaderPhase},
     ops::numeric::empty_device,
     tensor::JitTensor,
@@ -12,7 +11,7 @@ use crate::{
 };
 use burn_cube::{
     cpa,
-    dialect::{Elem, IntKind, Item, Scope, Variable, Visibility},
+    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
 };
 use std::marker::PhantomData;
 

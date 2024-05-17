@@ -1,13 +1,12 @@
 use crate::{
     element::JitElement,
-    gpu::ComputeShader,
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
     cpa,
-    dialect::{Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
+    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
     InputInfo, WorkgroupLaunch,
 };

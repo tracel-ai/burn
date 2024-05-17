@@ -1,12 +1,13 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{
+        ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
+    },
+    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
+};
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
-    kernel::GpuComputeShaderPhase,
-    JitElement, JitRuntime,
-};
+use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
     fn mask(

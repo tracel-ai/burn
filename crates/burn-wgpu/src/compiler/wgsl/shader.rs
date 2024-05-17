@@ -1,6 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_cube::CompilerRepresentation;
-use burn_jit::gpu::WorkgroupSize;
+use burn_cube::{dialect::WorkgroupSize, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

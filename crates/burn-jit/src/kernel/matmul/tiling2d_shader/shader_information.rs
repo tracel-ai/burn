@@ -1,5 +1,7 @@
-use crate::gpu::{Elem, Item, Scope, Variable};
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Item, Scope, Variable},
+};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 

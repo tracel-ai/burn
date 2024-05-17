@@ -15,13 +15,9 @@ pub mod tensor;
 
 /// Useful in Cube, should be moved over there
 pub mod codegen {
-    pub mod dialect {
-        // pub use burn_cube::codegen::dialect as gpu;
-    }
     pub use burn_cube::cpa as gpu;
     pub use burn_cube::*;
 }
-pub use burn_cube::codegen::dialect as gpu;
 
 pub(crate) mod tune;
 

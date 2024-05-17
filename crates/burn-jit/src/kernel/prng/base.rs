@@ -1,4 +1,8 @@
-use burn_cube::{cpa, WorkGroup};
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Scope, Variable},
+    WorkGroup,
+};
 use std::marker::PhantomData;
 
 use crate::{
@@ -6,7 +10,6 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    gpu::{ComputeShader, Elem, Scope, Variable},
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitElement, JitRuntime, SEED,

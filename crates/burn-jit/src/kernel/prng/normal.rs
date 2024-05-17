@@ -1,10 +1,12 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Scope, Variable},
+};
 use std::f32::consts::PI;
 
 use burn_tensor::Shape;
 
 use crate::{
-    gpu::{Elem, Scope, Variable},
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::JitTensor,
     JitElement, JitRuntime,

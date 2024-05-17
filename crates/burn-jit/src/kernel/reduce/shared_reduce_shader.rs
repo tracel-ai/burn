@@ -1,12 +1,11 @@
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkGroup, WorkgroupLaunch,
+    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, EagerHandle,
+    Execution, InputInfo, OutputInfo, WorkGroup, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    gpu::ComputeShader,
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
