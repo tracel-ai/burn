@@ -82,10 +82,11 @@ impl core::fmt::Display for CompilationSettings {
 
         match self.vectorization {
             Some(vectorization) => match vectorization {
-                Vectorization::Vec4 => f.write_str("v4"),
-                Vectorization::Vec3 => f.write_str("v3"),
-                Vectorization::Vec2 => f.write_str("v2"),
-                Vectorization::Scalar => f.write_str("v1"),
+                1 => f.write_str("v1"),
+                2 => f.write_str("v2"),
+                3 => f.write_str("v3"),
+                4 => f.write_str("v4"),
+                _ => panic!("Unsupported vectorization scheme {vectorization:?}"),
             }?,
             None => f.write_str("vn")?,
         };

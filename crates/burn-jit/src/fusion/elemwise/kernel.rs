@@ -1,7 +1,6 @@
 use burn_cube::{
-    calculate_num_elems_dyn_rank,
-    dialect::{Vectorization, WorkgroupSize},
-    elemwise_workgroup, CompilationInfo, CompilationSettings,
+    calculate_num_elems_dyn_rank, dialect::WorkgroupSize, elemwise_workgroup, CompilationInfo,
+    CompilationSettings,
 };
 use burn_tensor::repr::TensorDescription;
 
@@ -56,12 +55,10 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         );
 
         if vectorize_4 {
-            settings = settings.vectorize(Vectorization::Vec4);
+            settings = settings.vectorize(4);
             factor = 4;
-        }
-
-        if !vectorize_4 && vectorize_2 {
-            settings = settings.vectorize(Vectorization::Vec2);
+        } else if vectorize_2 {
+            settings = settings.vectorize(2);
             factor = 2;
         }
 
