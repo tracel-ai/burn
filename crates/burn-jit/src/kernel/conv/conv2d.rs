@@ -1,4 +1,9 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
@@ -6,11 +11,6 @@ use burn_tensor::{
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        dialect::gpu::{Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
     gpu::ComputeShader,
     kernel::{into_contiguous, GpuComputeShaderPhase},

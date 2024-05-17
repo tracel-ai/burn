@@ -1,16 +1,13 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        dialect::gpu::{Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    gpu::ComputeShader,
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
+    element::JitElement, gpu::ComputeShader, kernel::GpuComputeShaderPhase, tensor::JitTensor,
     JitRuntime,
 };
 

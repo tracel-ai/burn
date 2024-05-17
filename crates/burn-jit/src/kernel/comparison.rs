@@ -1,10 +1,13 @@
 use crate::{
     binary,
-    codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, Variable},
     element::JitElement,
     kernel::{binary::binary, unary::unary},
     tensor::JitTensor,
-    unary, JitRuntime, Runtime,
+    unary, JitRuntime,
+};
+use burn_cube::{
+    dialect::{BinaryOperator, Elem, Operator, Scope, Variable},
+    Runtime,
 };
 use std::mem;
 

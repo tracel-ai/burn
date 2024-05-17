@@ -60,8 +60,8 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let position = $crate::codegen::dialect::gpu::Variable::Id;
+            let mut scope = burn_cube::dialect::Scope::root();
+            let position = burn_cube::dialect::Variable::Id;
 
             let op = $ops(&mut scope, I::cube_elem(), position);
             scope.register(op);
@@ -69,15 +69,15 @@ macro_rules! binary {
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let lhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::cube_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+                item: burn_cube::dialect::Item::Scalar(I::cube_elem()),
+                visibility: burn_cube::dialect::Visibility::Read,
             };
             let rhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::cube_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+                item: burn_cube::dialect::Item::Scalar(I::cube_elem()),
+                visibility: burn_cube::dialect::Visibility::Read,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(O::cube_elem()),
+                item: burn_cube::dialect::Item::Scalar(O::cube_elem()),
                 local,
                 position,
             };

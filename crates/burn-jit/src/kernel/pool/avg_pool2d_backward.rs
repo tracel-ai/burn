@@ -1,6 +1,5 @@
 use crate::{
     codegen::{
-        dialect::gpu::{Elem, IntKind, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
@@ -11,7 +10,10 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::cpa;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, IntKind, Scope, Variable, Visibility},
+};
 use std::marker::PhantomData;
 
 #[derive(new)]

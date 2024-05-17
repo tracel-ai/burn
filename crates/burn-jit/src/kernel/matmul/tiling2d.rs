@@ -1,12 +1,14 @@
+use burn_cube::{
+    dialect::{
+        BinaryOperator, ComputeShader, Elem, FloatKind, Scope, Variable, Visibility, WorkgroupSize,
+    },
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
 use burn_tensor::{Element, Shape};
 
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
-        InputInfo, OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
-    gpu::ComputeShader,
     kernel::{into_contiguous, GpuComputeShaderPhase},
     tensor::JitTensor,
     JitRuntime,
@@ -30,23 +32,22 @@ struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
 
 impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
-        let mut scope = gpu::Scope::root();
+        let mut scope = Scope::root();
         let elem = E::cube_elem();
         assert!(
-            elem == gpu::Elem::Float(gpu::FloatKind::F32)
-                || elem == gpu::Elem::Float(gpu::FloatKind::F64),
+            elem == Elem::Float(FloatKind::F32) || elem == Elem::Float(FloatKind::F64),
             "Only float elements are supported."
         );
         let item = elem.into();
 
-        let lhs = gpu::Variable::GlobalInputArray(0, item);
-        let rhs = gpu::Variable::GlobalInputArray(1, item);
-        let out = gpu::Variable::GlobalOutputArray(0, item);
+        let lhs = Variable::GlobalInputArray(0, item);
+        let rhs = Variable::GlobalInputArray(1, item);
+        let out = Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(out);
 
         MatmulTiling2dShader {
-            variables: gpu::BinaryOperator { lhs, rhs, out },
+            variables: BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
             bounds_check_required: self.bounds_check_required,
         }
@@ -54,11 +55,11 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEager
 
         let lhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let rhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let out = OutputInfo::Array { item };
 
@@ -68,7 +69,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEager
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
+        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
             self.config.grid_x as u32,
             self.config.grid_y as u32,
             1,

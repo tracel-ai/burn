@@ -27,7 +27,7 @@ impl core::fmt::Debug for WgslCompiler {
     }
 }
 
-impl burn_jit::Compiler for WgslCompiler {
+impl burn_cube::Compiler for WgslCompiler {
     type Representation = ComputeShader;
 
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {

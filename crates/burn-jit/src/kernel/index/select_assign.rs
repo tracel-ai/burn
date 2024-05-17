@@ -1,16 +1,16 @@
 use crate::{
-    codegen::{
-        dialect::gpu::{Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        WorkgroupLaunch,
-    },
     element::JitElement,
     gpu::ComputeShader,
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{cpa, elemwise_workgroup};
+use burn_cube::{
+    cpa,
+    dialect::{Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
+    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
+    InputInfo, WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
 pub struct SelectAssignComputeShader {

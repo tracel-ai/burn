@@ -1,18 +1,15 @@
-use crate::codegen::dialect::gpu::{Elem, Scope, Variable};
 use crate::codegen::Execution;
-use crate::gpu::{ComputeShader, IntKind};
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    kernel::GpuComputeShaderPhase,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    JitRuntime,
+    element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
+    tensor::JitTensor, JitRuntime,
 };
-use burn_cube::cpa;
+use burn_cube::dialect::{
+    ComputeShader, Elem, IndexOffsetGlobalWithLayout, IntKind, Item, Scope, Variable, Visibility,
+};
+use burn_cube::{
+    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo, OutputInfo,
+    WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -51,7 +48,7 @@ impl GatherComputeShader {
         // We fetch the offset before the `dim` dimension.
         if self.dim > 0 {
             let offset_before = scope.create_local(Elem::UInt);
-            scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+            scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
                 tensors: vec![tensor],
                 indexes: vec![offset_before],
                 layout: Variable::Id, // Will be updated.
@@ -63,7 +60,7 @@ impl GatherComputeShader {
         }
 
         let offset_after = scope.create_local(Elem::UInt);
-        scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+        scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
             tensors: vec![tensor],
             indexes: vec![offset_after],
             layout: Variable::Id, // Will be updated.
@@ -79,14 +76,14 @@ impl GatherComputeShader {
 
 impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
-        let mut scope = gpu::Scope::root();
+        let mut scope = Scope::root();
         let item_tensor = E::cube_elem().into();
-        let item_indices: gpu::Item = gpu::Elem::Int(IntKind::I32).into();
+        let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);
+        let tensor = Variable::GlobalInputArray(0, item_tensor);
         let indices = scope.read_array(1, item_indices, Variable::Id);
 
-        let output_array = gpu::Variable::GlobalOutputArray(0, item_tensor);
+        let output_array = Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
 
         GatherComputeShader {
@@ -101,11 +98,11 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R
 
         let tensor = InputInfo::Array {
             item: item_tensor,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let indices = InputInfo::Array {
-            item: gpu::Elem::Int(IntKind::I32).into(),
-            visibility: gpu::Visibility::Read,
+            item: Elem::Int(IntKind::I32).into(),
+            visibility: Visibility::Read,
         };
         let out = OutputInfo::Array { item: item_tensor };
 

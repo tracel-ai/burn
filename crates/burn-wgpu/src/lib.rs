@@ -12,7 +12,6 @@ mod runtime;
 
 #[cfg(feature = "template")]
 pub use burn_jit::{
-    compute::Kernel,
     gpu::WorkgroupSize,
     kernel::{into_contiguous, GpuComputeShaderPhase},
     kernel_wgsl,
@@ -24,7 +23,7 @@ pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_jit::compute::WorkGroup;
+pub use burn_cube::{Kernel, WorkGroup};
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]

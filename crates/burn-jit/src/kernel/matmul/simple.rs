@@ -1,19 +1,18 @@
-use crate::codegen::dialect::gpu::{
-    BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
-};
 use crate::codegen::Execution;
-use crate::gpu::ComputeShader;
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
     kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::cpa;
+use burn_cube::dialect::{
+    BinaryOperator, Branch, ComputeShader, Elem, FloatKind, IndexOffsetGlobalWithLayout, Scope,
+    Variable, Visibility, WorkgroupSize,
+};
+use burn_cube::{
+    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo, OutputInfo,
+    WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
 use super::simple_launch_options;
@@ -160,34 +159,33 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R
             "Only square grid is supported."
         );
 
-        let mut scope = gpu::Scope::root();
+        let mut scope = Scope::root();
         let elem = E::cube_elem();
         assert!(
-            elem == gpu::Elem::Float(gpu::FloatKind::F32)
-                || elem == gpu::Elem::Float(gpu::FloatKind::F64),
+            elem == Elem::Float(FloatKind::F32) || elem == Elem::Float(FloatKind::F64),
             "Only float elements are supported."
         );
         let item = elem.into();
 
-        let lhs = gpu::Variable::GlobalInputArray(0, item);
-        let rhs = gpu::Variable::GlobalInputArray(1, item);
-        let out = gpu::Variable::GlobalOutputArray(0, item);
+        let lhs = Variable::GlobalInputArray(0, item);
+        let rhs = Variable::GlobalInputArray(1, item);
+        let out = Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(out);
 
         MatmulComputeShader {
-            variables: gpu::BinaryOperator { lhs, rhs, out },
+            variables: BinaryOperator { lhs, rhs, out },
             block_size: self.workgroup_size_x,
         }
         .expand(&mut scope);
 
         let lhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let rhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let out = OutputInfo::Array { item };
 
@@ -197,7 +195,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
+        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,

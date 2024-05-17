@@ -1,4 +1,4 @@
-use burn_cube::cpa;
+use burn_cube::{cpa, WorkGroup};
 use std::marker::PhantomData;
 
 use crate::{
@@ -6,7 +6,6 @@ use crate::{
         Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
-    compute::WorkGroup,
     gpu::{ComputeShader, Elem, Scope, Variable},
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,

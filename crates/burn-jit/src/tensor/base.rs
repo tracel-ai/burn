@@ -1,9 +1,9 @@
-use crate::codegen::dialect::gpu::{Elem, Operator, Scope, UnaryOperator};
 use crate::element::JitElement;
-use crate::gpu::Variable;
-use crate::{unary, JitRuntime, Runtime};
+use crate::{unary, JitRuntime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
+use burn_cube::dialect::{Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::Runtime;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 

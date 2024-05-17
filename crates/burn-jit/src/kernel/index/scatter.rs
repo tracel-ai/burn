@@ -1,18 +1,16 @@
-use crate::codegen::dialect::gpu::{Branch, Elem, Scope, Variable};
 use crate::codegen::Execution;
-use crate::gpu::ComputeShader;
-use crate::WORKGROUP_DEFAULT;
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
-        WorkgroupLaunch,
-    },
     element::JitElement,
     kernel::{self, GpuComputeShaderPhase},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{cpa, elemwise_workgroup};
+use burn_cube::dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility};
+use burn_cube::{
+    cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle,
+    WorkgroupLaunch,
+};
+use burn_cube::{InputInfo, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -132,13 +130,13 @@ impl ScatterComputeShader {
 
 impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
-        let mut scope = gpu::Scope::root();
+        let mut scope = Scope::root();
         let item_value = E::cube_elem().into();
-        let item_indices: gpu::Item = gpu::Elem::Int(gpu::IntKind::I32).into();
+        let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let input_output = gpu::Variable::GlobalInputArray(0, item_value);
-        let indices = gpu::Variable::GlobalInputArray(1, Elem::Int(gpu::IntKind::I32).into());
-        let value = gpu::Variable::GlobalInputArray(2, item_value);
+        let input_output = Variable::GlobalInputArray(0, item_value);
+        let indices = Variable::GlobalInputArray(1, Elem::Int(IntKind::I32).into());
+        let value = Variable::GlobalInputArray(2, item_value);
 
         scope.write_global_custom(input_output);
 
@@ -152,15 +150,15 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<
 
         let input_output = InputInfo::Array {
             item: item_value,
-            visibility: gpu::Visibility::ReadWrite,
+            visibility: Visibility::ReadWrite,
         };
         let indices = InputInfo::Array {
             item: item_indices,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let value = InputInfo::Array {
             item: item_value,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
 
         let info = CompilationInfo {

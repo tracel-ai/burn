@@ -1,18 +1,18 @@
-use burn_cube::cpa;
+use burn_cube::{
+    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkGroup, WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        dialect::gpu::{Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    compute::WorkGroup,
     element::JitElement,
     gpu::ComputeShader,
     kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
+};
+use burn_cube::dialect::{
+    Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
 };
 
 use super::ReduceDimAlgorithm;

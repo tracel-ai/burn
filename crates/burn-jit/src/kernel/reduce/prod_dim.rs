@@ -1,8 +1,5 @@
-use crate::{
-    codegen::dialect::gpu::{Item, Scope, Variable},
-    JitElement,
-};
-use burn_cube::cpa;
+use crate::JitElement;
+use burn_cube::{cpa, dialect::{Item, Scope, Variable}};
 
 use super::ReduceDimAlgorithm;
 

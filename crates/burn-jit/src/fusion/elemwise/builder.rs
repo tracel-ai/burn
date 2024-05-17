@@ -1,10 +1,11 @@
 use super::{optimization::ElementWise, CompilationPhase};
+
 use crate::{
-    codegen::dialect::gpu::{
-        BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
-    },
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitRuntime,
+};
+use burn_cube::dialect::{
+    BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{

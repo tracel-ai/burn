@@ -1,10 +1,5 @@
-use crate::{
-    compute::{CompiledKernel, JitKernel, LaunchSettings, WorkGroup},
-    element::JitElement,
-    gpu::WorkgroupSize,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use crate::{element::JitElement, gpu::WorkgroupSize, tensor::JitTensor, JitRuntime};
+use burn_cube::{CompiledKernel, JitKernel, LaunchSettings, WorkGroup};
 
 use super::SourceTemplate;
 

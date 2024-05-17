@@ -1,12 +1,11 @@
 use crate::{
-    codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     gpu::{Elem, Item, Scope},
     ops::numeric::empty_device,
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::cpa;
+use burn_cube::{cpa, dialect::Variable, EagerHandle, Execution, WorkgroupLaunch};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use std::fmt::Debug;
 

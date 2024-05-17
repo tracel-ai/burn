@@ -66,20 +66,20 @@ macro_rules! unary {
             E: $crate::element::JitElement
         {
 
-            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), $crate::codegen::dialect::gpu::Variable::Id);
+            let mut scope = burn_cube::dialect::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                visibility: burn_cube::dialect::Visibility::Read,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
                 local,
-                position: $crate::codegen::dialect::gpu::Variable::Id,
+                position: burn_cube::dialect::Variable::Id,
             };
             let info = $crate::codegen::CompilationInfo {
                 inputs: vec![input],
@@ -142,24 +142,24 @@ macro_rules! unary {
             E: $crate::element::JitElement
         {
 
-            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), $crate::codegen::dialect::gpu::Variable::Id);
+            let mut scope = burn_cube::dialect::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
+                visibility: burn_cube::dialect::Visibility::Read,
             };
             let scalars = $crate::codegen::InputInfo::Scalar {
                 elem: E::cube_elem(),
                 size: $num,
             };
             let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(E::cube_elem()),
+                item: burn_cube::dialect::Item::Scalar(E::cube_elem()),
                 local,
-                position: $crate::codegen::dialect::gpu::Variable::Id,
+                position: burn_cube::dialect::Variable::Id,
             };
             let info = $crate::codegen::CompilationInfo {
                 inputs: vec![input, scalars],

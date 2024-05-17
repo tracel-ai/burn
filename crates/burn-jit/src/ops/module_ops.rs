@@ -1,5 +1,4 @@
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_tensor::backend::DeviceOps;
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
     ModuleOps,

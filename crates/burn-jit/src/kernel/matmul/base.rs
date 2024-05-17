@@ -2,7 +2,8 @@ use std::cmp::{max, min};
 
 use burn_tensor::Shape;
 
-use crate::{compute::WorkGroup, tensor::JitTensor, Compiler, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use burn_cube::{Compiler, WorkGroup};
 
 use super::{
     init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_padded,

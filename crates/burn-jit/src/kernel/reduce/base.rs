@@ -1,11 +1,8 @@
+use burn_cube::dialect::{Item, Scope, Variable};
+
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
-use crate::{
-    codegen::dialect::gpu::{Item, Scope, Variable},
-    element::JitElement,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
 use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, ProdDim, SumDim};
 

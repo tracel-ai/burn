@@ -1,8 +1,7 @@
-use burn_cube::cpa;
+use burn_cube::{cpa, dialect::Variable, EagerHandle, Execution, WorkgroupLaunch};
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
-    codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
     gpu::{Elem, Item, Scope},
     ops::numeric::empty_device,

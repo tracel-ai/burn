@@ -1,12 +1,11 @@
-use burn_cube::elemwise_workgroup;
+use burn_cube::{
+    dialect::{Vectorization, WorkgroupSize},
+    elemwise_workgroup,
+};
 use burn_tensor::repr::TensorDescription;
 
 use crate::{
-    codegen::{
-        calculate_num_elems_dyn_rank,
-        dialect::gpu::{self, WorkgroupSize},
-        CompilationInfo, CompilationSettings,
-    },
+    codegen::{calculate_num_elems_dyn_rank, CompilationInfo, CompilationSettings},
     fusion::{
         dynamic_settings,
         kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},
@@ -57,12 +56,12 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         );
 
         if vectorize_4 {
-            settings = settings.vectorize(gpu::Vectorization::Vec4);
+            settings = settings.vectorize(Vectorization::Vec4);
             factor = 4;
         }
 
         if !vectorize_4 && vectorize_2 {
-            settings = settings.vectorize(gpu::Vectorization::Vec2);
+            settings = settings.vectorize(Vectorization::Vec2);
             factor = 2;
         }
 

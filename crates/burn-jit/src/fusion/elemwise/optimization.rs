@@ -5,13 +5,13 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::WorkgroupSize,
     fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
     tune_key::JitAutotuneKey,
     JitRuntime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
+use burn_cube::dialect::WorkgroupSize;
 use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 

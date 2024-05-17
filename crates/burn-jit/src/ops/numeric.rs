@@ -1,8 +1,8 @@
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope};
-use crate::gpu::{UnaryOperator, Variable};
-use crate::{binary, JitRuntime, Runtime};
+use crate::{binary, JitRuntime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;
+use burn_cube::dialect::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::Runtime;
 use burn_tensor::{ElementConversion, Shape};
 
 pub fn full<R: JitRuntime, E: JitElement, const D: usize>(

@@ -1,4 +1,4 @@
-use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime, Runtime};
+use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
