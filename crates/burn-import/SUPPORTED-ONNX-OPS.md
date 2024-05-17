@@ -109,7 +109,7 @@ represent the corresponding Burn Op.
 | [Mean][101]                      |       ❌       |      ✅      |
 | [MeanVarianceNormalization][102] |       ❌       |      ❌      |
 | [MelWeightMatrix][103]           |       ❌       |      ❌      |
-| [Min][104]                       |       ❌       |      ✅      |
+| [Min][104]                       |       ✅       |      ✅      |
 | [Mish][105]                      |       ❌       |      ❌      |
 | [Mod][106]                       |       ❌       |      ❌      |
 | [Mul][107]                       |       ✅       |      ✅      |

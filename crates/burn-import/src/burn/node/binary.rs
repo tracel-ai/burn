@@ -14,6 +14,7 @@ pub enum BinaryType {
     Equal,
     Powf,
     Powi,
+    Min,
 }
 
 impl BinaryType {
@@ -26,6 +27,7 @@ impl BinaryType {
             BinaryType::Equal => "equal",
             BinaryType::Powi => "powi",
             BinaryType::Powf => "powf",
+            BinaryType::Min => "min_pair",
         }
     }
 }
@@ -172,6 +174,14 @@ impl BinaryNode {
             _ => panic!("pow is supported for tensor only"),
         };
         Self::new(lhs, rhs, output, BinaryType::Powi, Arc::new(function))
+    }
+
+    pub(crate) fn min_pair(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.min_pair(#rhs) },
+            _ => panic!("min_pair is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Min, Arc::new(function))
     }
 }
 
@@ -326,6 +336,11 @@ mod tests {
     #[test]
     fn test_binary_codegen_div_scalars() {
         test_binary_operator_on_scalar_and_scalar!(div, /);
+    }
+
+    #[test]
+    fn test_binary_codegen_min() {
+        test_binary_operator_on_tensors!(min_pair);
     }
 
     #[test]
