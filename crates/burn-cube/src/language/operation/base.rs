@@ -14,6 +14,12 @@ where
     let rhs: Variable = *rhs;
 
     let item = lhs.item();
+
+    assert!(
+        item.vectorization == rhs.item().vectorization,
+        "Tried to perform binary operation on different vectorization schemes."
+    );
+
     let out = context.create_local(item);
     let out_var = *out;
 

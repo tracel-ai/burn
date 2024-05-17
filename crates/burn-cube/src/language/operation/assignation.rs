@@ -26,12 +26,13 @@ pub mod index_assign {
         array: ExpandElement,
         index: ExpandElement,
         value: ExpandElement,
-    ) {
+    ) -> ExpandElement {
         context.register(Operator::IndexAssign(BinaryOperator {
             lhs: *index,
             rhs: *value,
             out: *array,
-        }))
+        }));
+        array
     }
 
     impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {

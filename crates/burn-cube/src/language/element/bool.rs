@@ -1,4 +1,4 @@
-use crate::dialect::Elem;
+use crate::dialect::{Elem, Vectorization};
 
 use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
 
@@ -38,6 +38,10 @@ impl PrimitiveVariable for Bool {
         Elem::Bool
     }
 
+    fn vectorization(&self) -> Vectorization {
+        self.vectorization.into()
+    }
+
     fn to_f64(&self) -> f64 {
         match self.val {
             true => 1.,
@@ -51,5 +55,14 @@ impl PrimitiveVariable for Bool {
 
     fn from_i64(val: i64) -> Self {
         Self::from_f64(val as f64)
+    }
+
+    fn from_i64_vec(vec: &[i64]) -> Self {
+        Self {
+            // We take only one value, because type implements copy and we can't copy an unknown sized vec
+            // For debugging prefer unvectorized types
+            val: *vec.first().expect("Should be at least one value") > 0,
+            vectorization: vec.len() as u8,
+        }
     }
 }

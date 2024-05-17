@@ -11,3 +11,4 @@ mod module_import;
 mod parenthesis;
 mod reuse;
 mod r#trait;
+mod vectorization;

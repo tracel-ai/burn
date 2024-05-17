@@ -23,6 +23,7 @@ pub mod add {
                 type Output = Self;
 
                 fn add(self, rhs: Self) -> Self::Output {
+                    assert!(self.vectorization == rhs.vectorization);
                     <$type as $trait>::new(self.val + rhs.val)
                 }
             }
