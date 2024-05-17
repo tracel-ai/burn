@@ -1,4 +1,4 @@
-use crate::CubeType;
+use crate::language::CubeType;
 
 /// Types that exist within a cube function
 /// but should not be turned into a JIT variable

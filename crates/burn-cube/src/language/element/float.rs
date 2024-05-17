@@ -1,14 +1,14 @@
-use crate::dialect::{Elem, IntKind, Variable};
-use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
+use crate::dialect::{Elem, FloatKind, Variable};
+use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 use std::rc::Rc;
 
-/// Signed integer. Used as input in int kernels
-pub trait Int: Numeric + std::ops::Rem<Output = Self> {
-    fn new(val: i64) -> Self;
-    fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
+/// Floating point numbers. Used as input in float kernels
+pub trait Float: Numeric {
+    fn new(val: f64) -> Self;
+    fn new_expand(context: &mut CubeContext, val: f64) -> <Self as CubeType>::ExpandType;
 }
 
-macro_rules! impl_int {
+macro_rules! impl_float {
     ($type:ident) => {
         #[derive(Clone, Copy)]
         pub struct $type {
@@ -21,34 +21,36 @@ macro_rules! impl_int {
         }
 
         impl PrimitiveVariable for $type {
-            type Primitive = i64;
+            type Primitive = f64;
 
+            /// Return the element type to use on GPU
             fn into_elem() -> Elem {
-                Elem::Int(IntKind::$type)
+                Elem::Float(FloatKind::$type)
             }
 
             fn to_f64(&self) -> f64 {
-                self.val as f64
+                self.val
             }
 
             fn from_f64(val: f64) -> Self {
-                Self::new(val as i64)
+                Self::new(val)
             }
 
             fn from_i64(val: i64) -> Self {
-                Self::new(val)
+                Self::new(val as f64)
             }
         }
 
         impl Numeric for $type {}
 
-        impl Int for $type {
+        impl Float for $type {
             fn new(val: <Self as PrimitiveVariable>::Primitive) -> Self {
                 Self {
                     val,
                     vectorization: 1,
                 }
             }
+
             fn new_expand(
                 _context: &mut CubeContext,
                 val: <Self as PrimitiveVariable>::Primitive,
@@ -60,5 +62,7 @@ macro_rules! impl_int {
     };
 }
 
-impl_int!(I32);
-impl_int!(I64);
+impl_float!(F16);
+impl_float!(BF16);
+impl_float!(F32);
+impl_float!(F64);

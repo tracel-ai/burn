@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use crate::dialect::{Elem, Variable};
-
-use crate::{CubeType, ExpandElement};
+use crate::language::{CubeType, ExpandElement};
 
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool

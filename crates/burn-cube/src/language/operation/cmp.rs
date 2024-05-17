@@ -1,6 +1,6 @@
 use crate::dialect::Operator;
-use crate::operation::base::cmp_expand;
-use crate::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::language::operation::base::cmp_expand;
+use crate::language::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
 
 macro_rules! impl_cmp {
     ($type:ty) => {

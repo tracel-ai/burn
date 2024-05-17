@@ -1,5 +1,5 @@
 use crate::dialect;
-use crate::{Array, CubeContext, ExpandElement, UInt};
+use crate::language::{Array, CubeContext, ExpandElement, UInt};
 
 pub mod assign {
     use self::dialect::{Operator, UnaryOperator};
@@ -15,7 +15,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::CubeType;
+    use crate::language::CubeType;
 
     use self::dialect::{BinaryOperator, Operator};
 
@@ -43,7 +43,7 @@ pub mod index_assign {
 }
 
 pub mod index {
-    use crate::{operation::base::binary_expand, CubeType};
+    use crate::language::{operation::base::binary_expand, CubeType};
 
     use self::dialect::Operator;
 
@@ -68,7 +68,7 @@ pub mod index {
 }
 
 pub mod add_assign_op {
-    use crate::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use self::dialect::Operator;
 

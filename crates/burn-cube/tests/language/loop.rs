@@ -24,7 +24,7 @@ mod tests {
         CubeContext, PrimitiveVariable, I32,
     };
 
-    use crate::{manual_loop_break_expand, while_not_expand};
+    use super::{manual_loop_break_expand, while_not_expand};
 
     type ElemType = I32;
 

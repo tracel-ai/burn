@@ -1,7 +1,7 @@
 use std::{ops::Deref, rc::Rc};
 
 use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
-use crate::{CubeContext, ExpandElement, UInt};
+use crate::language::{CubeContext, ExpandElement, UInt};
 
 pub fn range<S, E>(start: S, end: E, _unroll: bool) -> core::ops::Range<usize>
 where

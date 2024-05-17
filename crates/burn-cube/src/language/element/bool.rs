@@ -1,6 +1,6 @@
 use crate::dialect::Elem;
 
-use crate::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
+use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
 
 #[derive(Clone, Copy)]
 /// Boolean type for kernels

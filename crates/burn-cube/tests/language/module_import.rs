@@ -10,7 +10,7 @@ mod elsewhere {
 mod here {
     use burn_cube::{cube, Float};
 
-    use crate::elsewhere;
+    use super::elsewhere;
 
     #[cube]
     pub fn caller<F: Float>(x: F) {
@@ -26,7 +26,7 @@ mod here {
 mod tests {
     use burn_cube::{dialect::Item, CubeContext, PrimitiveVariable, F32};
 
-    use crate::here;
+    use super::here;
 
     type ElemType = F32;
 

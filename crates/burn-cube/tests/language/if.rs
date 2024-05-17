@@ -14,7 +14,7 @@ mod tests {
         CubeContext, PrimitiveVariable, F32,
     };
 
-    use crate::if_greater_expand;
+    use super::if_greater_expand;
 
     type ElemType = F32;
 

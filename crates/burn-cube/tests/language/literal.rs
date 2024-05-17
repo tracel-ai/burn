@@ -11,7 +11,7 @@ pub fn literal_float_no_decimals<F: Float>(lhs: F) {
 }
 
 mod tests {
-    use crate::{literal_expand, literal_float_no_decimals_expand};
+    use super::{literal_expand, literal_float_no_decimals_expand};
     use burn_cube::{cpa, dialect::Item, CubeContext, PrimitiveVariable, F32};
 
     type ElemType = F32;

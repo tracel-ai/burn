@@ -1,5 +1,7 @@
-use crate::operation::base::binary_expand;
-use crate::{CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64};
+use crate::language::operation::base::binary_expand;
+use crate::language::{
+    CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64,
+};
 
 pub mod add {
 
@@ -219,7 +221,7 @@ pub mod rem {
 }
 
 pub mod and {
-    use crate::{dialect::Operator, Bool};
+    use crate::{dialect::Operator, language::Bool};
 
     use super::*;
 
@@ -241,7 +243,7 @@ pub mod and {
 }
 
 pub mod or {
-    use crate::{dialect::Operator, Bool};
+    use crate::{dialect::Operator, language::Bool};
 
     use super::*;
 

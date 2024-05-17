@@ -25,7 +25,7 @@ mod tests {
         CubeContext, PrimitiveVariable, I32,
     };
 
-    use crate::{reuse_expand, reuse_incr_expand};
+    use super::{reuse_expand, reuse_incr_expand};
 
     type ElemType = I32;
     #[test]

@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use crate::dialect::{Elem, Variable};
-
-use crate::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
+use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 
 #[derive(Clone, Copy)]
 /// An unsigned int.

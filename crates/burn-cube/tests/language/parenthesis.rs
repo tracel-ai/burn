@@ -12,7 +12,7 @@ mod tests {
         CubeContext, PrimitiveVariable, F32,
     };
 
-    use crate::parenthesis_expand;
+    use super::parenthesis_expand;
 
     type ElemType = F32;
 

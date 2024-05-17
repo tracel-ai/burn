@@ -1,4 +1,5 @@
-use crate::{assign, dialect::Item, CubeContext, CubeType, PrimitiveVariable};
+use crate::dialect::Item;
+use crate::language::{assign, CubeContext, CubeType, PrimitiveVariable};
 
 // Enable elegant casting from any to any primitive variable
 

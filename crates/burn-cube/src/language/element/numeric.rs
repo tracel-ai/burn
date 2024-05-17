@@ -1,6 +1,6 @@
+use crate::dialect::Variable;
+use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
 use std::rc::Rc;
-
-use crate::{dialect::Variable, CubeContext, CubeType, ExpandElement, PrimitiveVariable};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.

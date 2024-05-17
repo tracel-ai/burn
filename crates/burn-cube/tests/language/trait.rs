@@ -104,7 +104,7 @@ mod tests {
         CubeContext, PrimitiveVariable, F32,
     };
 
-    use crate::{
+    use super::{
         two_strategy_traits_expand, with_strategy_trait_expand, with_trait_generic_method_expand,
         AddStrategy, SubStrategy,
     };
