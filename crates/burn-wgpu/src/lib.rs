@@ -11,6 +11,8 @@ mod graphics;
 mod runtime;
 
 #[cfg(feature = "template")]
+pub use burn_cube::dialect::WorkgroupSize;
+#[cfg(feature = "template")]
 pub use burn_jit::{
     kernel::{into_contiguous, GpuComputeShaderPhase},
     kernel_wgsl,
