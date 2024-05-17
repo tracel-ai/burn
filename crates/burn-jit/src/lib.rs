@@ -13,12 +13,6 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-/// Useful in Cube, should be moved over there
-pub mod codegen {
-    pub use burn_cube::cpa as gpu;
-    pub use burn_cube::*;
-}
-
 pub(crate) mod tune;
 
 /// Elements for JIT backend

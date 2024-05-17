@@ -1,5 +1,8 @@
 use crate::JitElement;
-use burn_cube::{cpa, dialect::{Item, Scope, Variable}};
+use burn_cube::{
+    cpa,
+    dialect::{Item, Scope, Variable},
+};
 
 use super::ReduceDimAlgorithm;
 

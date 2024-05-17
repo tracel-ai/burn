@@ -3,16 +3,11 @@ use std::marker::PhantomData;
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    tensor::JitTensor,
-    JitElement, JitRuntime,
-};
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
 
 use super::GpuComputeShaderPhase;
 

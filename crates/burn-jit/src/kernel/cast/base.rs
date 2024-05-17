@@ -1,18 +1,12 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    JitElement, JitRuntime,
-};
+use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRuntime};
 
 /// Cast a tensor to the given element type.
 ///

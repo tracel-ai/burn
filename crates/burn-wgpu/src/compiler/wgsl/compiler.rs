@@ -249,7 +249,9 @@ impl WgslCompiler {
             cube::Operation::Procedure(proc) => self.compile_procedure(instructions, proc, scope),
             cube::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             cube::Operation::Branch(val) => self.compile_branch(instructions, val),
-            cube::Operation::Synchronization(val) => self.compile_synchronization(instructions, val),
+            cube::Operation::Synchronization(val) => {
+                self.compile_synchronization(instructions, val)
+            }
         }
     }
 

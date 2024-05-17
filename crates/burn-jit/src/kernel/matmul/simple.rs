@@ -1,17 +1,19 @@
-use crate::codegen::Execution;
 use crate::{
     element::JitElement,
     kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::dialect::{
-    BinaryOperator, Branch, ComputeShader, Elem, FloatKind, IndexOffsetGlobalWithLayout, Scope,
-    Variable, Visibility, WorkgroupSize,
-};
 use burn_cube::{
     cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo, OutputInfo,
     WorkgroupLaunch,
+};
+use burn_cube::{
+    dialect::{
+        BinaryOperator, Branch, ComputeShader, Elem, FloatKind, IndexOffsetGlobalWithLayout, Scope,
+        Variable, Visibility, WorkgroupSize,
+    },
+    Execution,
 };
 use std::marker::PhantomData;
 

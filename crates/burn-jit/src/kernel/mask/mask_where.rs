@@ -1,10 +1,6 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
+
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{MaskInplaceEagerKernel, MaskReadOnlyEagerKernel, MaskWhere};
 

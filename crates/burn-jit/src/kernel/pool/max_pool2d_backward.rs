@@ -1,8 +1,4 @@
 use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
     kernel::{self, GpuComputeShaderPhase},
     ops::numeric::empty_device,
@@ -12,6 +8,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 

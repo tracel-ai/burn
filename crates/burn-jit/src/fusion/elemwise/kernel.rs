@@ -1,11 +1,11 @@
 use burn_cube::{
+    calculate_num_elems_dyn_rank,
     dialect::{Vectorization, WorkgroupSize},
-    elemwise_workgroup,
+    elemwise_workgroup, CompilationInfo, CompilationSettings,
 };
 use burn_tensor::repr::TensorDescription;
 
 use crate::{
-    codegen::{calculate_num_elems_dyn_rank, CompilationInfo, CompilationSettings},
     fusion::{
         dynamic_settings,
         kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},

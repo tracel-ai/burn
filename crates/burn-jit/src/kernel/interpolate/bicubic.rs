@@ -1,18 +1,12 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    JitElement, JitRuntime,
-};
+use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRuntime};
 
 #[derive(new)]
 struct InterpolateBicubicEagerKernel<R, E> {

@@ -12,9 +12,9 @@ mod runtime;
 
 pub use codegen::*;
 pub use compute::*;
+pub use language::*;
 pub use pod::*;
 pub use runtime::*;
-pub use language::*;
 
 pub use burn_cube_macros::cube;
 

@@ -1,14 +1,16 @@
-use crate::codegen::Execution;
 use crate::{
     element::JitElement,
     kernel::{self, GpuComputeShaderPhase},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility};
 use burn_cube::{
     cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle,
     WorkgroupLaunch,
+};
+use burn_cube::{
+    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    Execution,
 };
 use burn_cube::{InputInfo, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;

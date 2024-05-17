@@ -1,10 +1,5 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
 use burn_tensor::Shape;
 
 use super::AdaptivePool2dEagerKernel;

@@ -1,14 +1,11 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    kernel::GpuComputeShaderPhase,
-    JitElement, JitRuntime,
-};
+use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
 
 use super::PoolStrategy;
 

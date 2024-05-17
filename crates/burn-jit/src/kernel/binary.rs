@@ -1,9 +1,5 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    tensor::JitTensor,
-    JitRuntime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
 use burn_tensor::Shape;
 
 /// Creates a binary kernel.
@@ -54,7 +50,7 @@ macro_rules! binary {
 
         #[allow(clippy::redundant_closure_call)]
         fn compile<I, O>(
-            settings: $crate::codegen::CompilationSettings,
+            settings: burn_cube::CompilationSettings,
         ) -> burn_cube::dialect::ComputeShader
         where
             I: $crate::element::JitElement,
@@ -68,36 +64,36 @@ macro_rules! binary {
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
-            let lhs = $crate::codegen::InputInfo::Array {
+            let lhs = burn_cube::InputInfo::Array {
                 item: burn_cube::dialect::Item::Scalar(I::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
-            let rhs = $crate::codegen::InputInfo::Array {
+            let rhs = burn_cube::InputInfo::Array {
                 item: burn_cube::dialect::Item::Scalar(I::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::ArrayWrite {
+            let out = burn_cube::OutputInfo::ArrayWrite {
                 item: burn_cube::dialect::Item::Scalar(O::cube_elem()),
                 local,
                 position,
             };
-            let info = $crate::codegen::CompilationInfo {
+            let info = burn_cube::CompilationInfo {
                 inputs: vec![lhs, rhs],
                 outputs: vec![out],
                 scope,
             };
-            $crate::codegen::Compilation::new(info).compile(settings)
+            burn_cube::Compilation::new(info).compile(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
         impl<C, I, O> $crate::kernel::GpuComputeShaderPhase for Ops<C, I, O>
         where
-            C: $crate::codegen::Compiler,
+            C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
             fn compile(&self) -> burn_cube::dialect::ComputeShader {
-                let settings = $crate::codegen::CompilationSettings::default();
+                let settings = burn_cube::CompilationSettings::default();
                 compile::<I, O>(settings)
             }
         }
@@ -106,16 +102,16 @@ macro_rules! binary {
         impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
             for OpsInplaceLhs<C, I, O>
         where
-            C: $crate::codegen::Compiler,
+            C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
             fn compile(&self) -> burn_cube::dialect::ComputeShader {
-                let mapping = $crate::codegen::InplaceMapping {
+                let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                let settings = $crate::codegen::CompilationSettings::default()
+                let settings = burn_cube::CompilationSettings::default()
                     .inplace(vec![mapping]);
                 compile::<I, O>(settings)
             }
@@ -125,16 +121,16 @@ macro_rules! binary {
         impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
             for OpsInplaceRhs<C, I, O>
         where
-            C: $crate::codegen::Compiler,
+            C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
             fn compile(&self) -> burn_cube::dialect::ComputeShader {
-                let mapping = $crate::codegen::InplaceMapping {
+                let mapping = burn_cube::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
                 };
-                let settings = $crate::codegen::CompilationSettings::default()
+                let settings = burn_cube::CompilationSettings::default()
                     .inplace(vec![mapping]);
                 compile::<I, O>(settings)
             }
