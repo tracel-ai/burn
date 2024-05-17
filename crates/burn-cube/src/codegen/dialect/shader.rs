@@ -1,4 +1,4 @@
-use super::Scope;
+use super::{Scope, Vectorization};
 use crate::WORKGROUP_DEFAULT;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -81,22 +81,28 @@ impl Display for Elem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize, Hash)]
-#[allow(missing_docs)]
-pub enum Item {
-    Vec4(Elem),
-    Vec3(Elem),
-    Vec2(Elem),
-    Scalar(Elem),
+pub struct Item {
+    pub elem: Elem,
+    pub vectorization: Vectorization,
 }
 
 impl Item {
     /// Fetch the elem of the item.
     pub fn elem(&self) -> Elem {
-        match self {
-            Self::Vec4(elem) => *elem,
-            Self::Vec3(elem) => *elem,
-            Self::Vec2(elem) => *elem,
-            Self::Scalar(elem) => *elem,
+        self.elem
+    }
+
+    pub fn Scalar(elem: Elem) -> Self {
+        Self {
+            elem,
+            vectorization: 1.into(),
+        }
+    }
+
+    pub fn vectorized(elem: Elem, vectorization: u8) -> Self {
+        Self {
+            elem,
+            vectorization: vectorization.into(),
         }
     }
 }

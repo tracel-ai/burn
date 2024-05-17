@@ -81,7 +81,7 @@ impl core::fmt::Display for CompilationSettings {
         }
 
         match self.vectorization {
-            Some(vectorization) => match vectorization {
+            Some(vectorization) => match vectorization.into() {
                 1 => f.write_str("v1"),
                 2 => f.write_str("v2"),
                 3 => f.write_str("v3"),
@@ -101,8 +101,8 @@ impl core::fmt::Display for CompilationSettings {
 impl CompilationSettings {
     /// Compile the shader with vectorization enabled.
     #[allow(dead_code)]
-    pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
-        self.vectorization = Some(vectorization);
+    pub fn vectorize<V: Into<Vectorization>>(mut self, vectorization: V) -> Self {
+        self.vectorization = Some(vectorization.into());
         self
     }
 
@@ -441,11 +441,9 @@ impl Compilation {
 }
 
 fn bool_item(ty: Item) -> Item {
-    match ty {
-        Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
-        Item::Vec3(elem) => Item::Vec3(bool_elem(elem)),
-        Item::Vec2(elem) => Item::Vec2(bool_elem(elem)),
-        Item::Scalar(elem) => Item::Scalar(bool_elem(elem)),
+    Item {
+        elem: bool_elem(ty.elem),
+        vectorization: ty.vectorization,
     }
 }
 

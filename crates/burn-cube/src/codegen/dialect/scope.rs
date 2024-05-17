@@ -336,11 +336,9 @@ impl Scope {
         position: Variable,
     ) -> Variable {
         let item_global = match item.elem() {
-            Elem::Bool => match item {
-                Item::Vec4(_) => Item::Vec4(Elem::UInt),
-                Item::Vec3(_) => Item::Vec3(Elem::UInt),
-                Item::Vec2(_) => Item::Vec2(Elem::UInt),
-                Item::Scalar(_) => Item::Scalar(Elem::UInt),
+            Elem::Bool => Item {
+                elem: Elem::UInt,
+                vectorization: item.vectorization,
             },
             _ => item,
         };

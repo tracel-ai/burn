@@ -143,14 +143,8 @@ impl IndexOffsetGlobalWithLayout {
         let index_item_ty = Item::Scalar(Elem::UInt);
         let offset_ref = self.position;
         let zero: Variable = 0u32.into();
-        let vectorization_factor: Variable = match self.tensors[0].item() {
-            Item::Vec4(_) => 4u32,
-            Item::Vec3(_) => 3u32,
-            Item::Vec2(_) => 2u32,
-            Item::Scalar(_) => 1u32,
-        }
-        .into();
-
+        let vectorization_factor: u8 = self.tensors[0].item().vectorization.into();
+        let vectorization_factor: Variable = (vectorization_factor as u32).into();
         for index in self.indexes.iter() {
             cpa!(scope, index = zero);
         }

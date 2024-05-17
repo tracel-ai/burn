@@ -1,4 +1,7 @@
-use crate::codegen::dialect::{macros::cpa, Item, Scope, Variable, Vectorization};
+use crate::{
+    branch::range,
+    codegen::dialect::{macros::cpa, Scope, Variable, Vectorization},
+};
 use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.
@@ -19,14 +22,15 @@ impl ConditionalAssign {
         let rhs = self.rhs;
         let out = self.out;
 
-        let index_var = |scope: &mut Scope, var: Variable, index: usize| match var.item() {
-            Item::Scalar(_) => var,
-            _ => {
-                let out = scope.create_local(var.item().elem());
-                cpa!(scope, out = var[index]);
-                out
-            }
-        };
+        let index_var =
+            |scope: &mut Scope, var: Variable, index: usize| match var.item().vectorization {
+                Vectorization::Scalar => var,
+                Vectorization::Vectorized(_) => {
+                    let out = scope.create_local(var.item().elem());
+                    cpa!(scope, out = var[index]);
+                    out
+                }
+            };
 
         let mut assign_index = |index: usize| {
             let cond = index_var(scope, cond, index);
@@ -42,28 +46,18 @@ impl ConditionalAssign {
             }));
         };
 
-        match out.item() {
-            Item::Vec4(_) => {
-                assign_index(0);
-                assign_index(1);
-                assign_index(2);
-                assign_index(3);
-            }
-            Item::Vec3(_) => {
-                assign_index(0);
-                assign_index(1);
-                assign_index(2);
-            }
-            Item::Vec2(_) => {
-                assign_index(0);
-                assign_index(1);
-            }
-            Item::Scalar(_) => {
+        match out.item().vectorization {
+            Vectorization::Scalar => {
                 cpa!(scope, if (cond).then(|scope| {
                     cpa!(scope, out = lhs);
                 }).else(|scope| {
                     cpa!(scope, out = rhs);
                 }));
+            }
+            Vectorization::Vectorized(v) => {
+                for i in range(0u32, v as u32, true) {
+                    assign_index(i);
+                }
             }
         };
     }

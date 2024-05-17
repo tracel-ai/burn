@@ -40,12 +40,11 @@ where
     let lhs: Variable = *lhs;
     let rhs: Variable = *rhs;
 
-    let out_item = match lhs.item() {
-        Item::Vec4(_) => Item::Vec4(Elem::Bool),
-        Item::Vec3(_) => Item::Vec3(Elem::Bool),
-        Item::Vec2(_) => Item::Vec2(Elem::Bool),
-        Item::Scalar(_) => Item::Scalar(Elem::Bool),
+    let out_item = Item {
+        elem: Elem::Bool,
+        vectorization: lhs.item().vectorization,
     };
+
     let out = context.create_local(out_item);
     let out_var = *out;
 

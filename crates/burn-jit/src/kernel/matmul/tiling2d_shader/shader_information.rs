@@ -125,14 +125,14 @@ pub(crate) fn gather_shader_information(
 
     // Registers used in the compute pass
     let results = scope.create_local_array(elem, results_size);
-    let register_m = scope.create_local(Item::Vec4(elem));
-    let register_n = scope.create_local(Item::Vec4(elem));
+    let register_m = scope.create_local(Item::vectorized(elem, 4));
+    let register_n = scope.create_local(Item::vectorized(elem, 4));
     let shared_lhs = scope.create_shared(
-        Item::Vec4(elem),
+        Item::vectorized(elem, 4),
         shader.config.block_size_m as u32 * shader.config.block_size_k as u32 / 4u32,
     );
     let shared_rhs = scope.create_shared(
-        Item::Vec4(elem),
+        Item::vectorized(elem, 4),
         shader.config.block_size_k as u32 * shader.config.block_size_n as u32 / 4u32,
     );
 

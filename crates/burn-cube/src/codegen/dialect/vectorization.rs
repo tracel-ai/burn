@@ -1,7 +1,33 @@
+use serde::{Deserialize, Serialize};
+
 use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
 /// Define a vectorization scheme.
-pub type Vectorization = u8;
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize, Hash, Default)]
+pub enum Vectorization {
+    #[default]
+    Scalar,
+    Vectorized(u8),
+}
+
+impl Into<u8> for Vectorization {
+    fn into(self) -> u8 {
+        match self {
+            Vectorization::Scalar => 1,
+            Vectorization::Vectorized(v) => v,
+        }
+    }
+}
+
+impl From<u8> for Vectorization {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => panic!("Can't vectorize with 0"),
+            1 => Vectorization::Scalar,
+            _ => Vectorization::Vectorized(value),
+        }
+    }
+}
 
 impl Operation {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
@@ -157,17 +183,15 @@ impl Variable {
 }
 
 impl Item {
-    pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Item {
-        match vectorize {
-            1 => Item::Scalar(self.elem()),
-            2 => Item::Vec2(self.elem()),
-            3 => Item::Vec3(self.elem()),
-            4 => Item::Vec4(self.elem()),
-            _ => panic!("Unsupported vectorization scheme {vectorize:?}"),
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Item {
+        Item {
+            elem: self.elem,
+            vectorization,
         }
     }
 
     pub(crate) fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
+        let vectorize: u8 = vectorize.into();
         size / (vectorize as u32)
     }
 }
