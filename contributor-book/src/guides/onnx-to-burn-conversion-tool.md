@@ -233,6 +233,10 @@ node are updated before the graph is finalized. This ensures that all subsequent
 the graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
 runtime execution efficiency.
 
+If something is amiss (ie weird panics are happening), after doing this step and the dimensions of
+your output tensor differs from the dimensions of your input, see the warning at the end of this
+section.
+
 ### Step 6: Integrate into the Graph Building Process
 
 When a new node type is introduced, it must be added to the
@@ -249,6 +253,12 @@ operation-specific data structures (like `SqueezeNode1`) that was
 ### Step 7: Add Newly Supported Op!
 
 As a reward, add an extra check to SUPPORTED-ONNX-OPS.md!
+
+> 🚧 Warning: Dimension Changes
+>
+> If your operation changes the dimensions of the input tensor, you may need to modify the
+> [`LIFT_CONSTANTS_FOR_NODE_TYPES` enum](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/from_onnx.rs#L20)
+> in `src/onnx/from_onnx.rs` by adding the `NodeType` of your operation to it.
 
 ## Testing
 
