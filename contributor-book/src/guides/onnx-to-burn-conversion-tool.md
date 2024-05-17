@@ -234,8 +234,7 @@ the graph can rely on correct tensor sizes, which is critical for both compiling
 runtime execution efficiency.
 
 If something is amiss (ie weird panics are happening), after doing this step and the dimensions of
-your output tensor differs from the dimensions of your input, see the warning at the end of this
-section.
+your output tensor differs from the dimensions of your input, see the warning at the very end.
 
 ### Step 6: Integrate into the Graph Building Process
 
@@ -252,9 +251,12 @@ operation-specific data structures (like `SqueezeNode1`) that was
 
 ### Step 7: Add Newly Supported Op!
 
-As a reward, add an extra check to SUPPORTED-ONNX-OPS.md!
+As a reward, add an extra check to
+[SUPPORTED-ONNX-OPS.md](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/SUPPORTED-ONNX-OPS.md?plain=1#L1)!
 
-> 🚧 Warning: Dimension Changes
+### Misc:
+
+> 🚧 **Warning**: Dimension Changes
 >
 > If your operation changes the dimensions of the input tensor, you may need to modify the
 > [`LIFT_CONSTANTS_FOR_NODE_TYPES` enum](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/from_onnx.rs#L20)
