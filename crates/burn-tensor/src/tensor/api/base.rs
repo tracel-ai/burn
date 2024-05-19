@@ -300,8 +300,8 @@ where
 
     /// Removes specified dimensions of size 1 from a tensor's shape. This function takes a tensor and
     /// an array of dimensions (`dims`) to be squeezed. If `dims` is provided, only the dimensions
-    /// specified in this array will be removed. Each dimension in `dims` must correspond to a size of 1
-    /// in the tensor; otherwise, the function will panic. If `dims` is empty, all single-dimensional entries
+    /// specified in this array will be removed. Each dimension in `dims` should correspond to a size of 1
+    /// in the tensor; otherwise, the dimension will not be squeezed. If `dims` is empty, all single-dimensional entries
     /// in the tensor will be removed. If entries in `dims` are negative, then dimensions will be counted
     /// from the back.
     ///
@@ -315,7 +315,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
+    /// A new `Tensor<B, D2, K>` instance with the specified dimensions removed.
     ///
     /// # Example
     ///
@@ -329,7 +329,7 @@ where
     ///     let tensor = Tensor::<B, 4>::ones(Shape::new([2, 1, 4, 1]), &device);
     ///
     ///     // Given a 4D tensor with dimensions (2, 1, 4, 1), squeeze the 1 and 3 dimensions
-    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze([1, 3]);
+    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze_dims(&[1, 3]);
     ///
     ///     // Resulting tensor will have dimensions (2, 4)
     ///     println!("{:?}", squeezed_tensor.shape());
@@ -375,6 +375,7 @@ where
         for (index, &dim_size) in current_dims.iter().enumerate() {
             // Exclude the dimension if it's explicitly marked for squeezing and is of size 1
             if dim_indices.contains(&index) && dim_size == 1 {
+                check!(TensorCheck::squeeze::<D2>(index, &current_dims));
                 continue;
             }
             new_dims.push(dim_size);
