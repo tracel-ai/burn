@@ -89,11 +89,6 @@ impl OnnxGraphIO {
             })
             .collect::<Vec<Argument>>();
 
-        let constants = initializers
-            .iter()
-            .map(|x| (x.name.clone(), Argument::from_initializer(x)))
-            .collect::<HashMap<String, Argument>>();
-
         Self {
             inputs,
             outputs,
@@ -179,18 +174,17 @@ impl OnnxGraphIO {
     pub(crate) fn update_tensor_output(&mut self, node: &Node) {
         for node_output in node.outputs.iter() {
             match self.old_io_names.get(&node_output.name) {
-                Some(IOEntry::In(i)) => {
-                    let arg = self.inputs.get_mut(*i).unwrap();
-                    arg.copy_value(node_output);
+                Some(IOEntry::In(_)) => {
+                    panic!("This output is from a graph input");
+                }
+                Some(IOEntry::Node(_)) => {
+                    panic!("This output is from another node");
                 }
                 Some(IOEntry::Out(i)) => {
                     let arg = self.outputs.get_mut(*i).unwrap();
                     arg.copy_value(node_output);
                     //Set the output to passed since it's been altered by a Node
                     arg.passed = true;
-                }
-                Some(IOEntry::Node(_)) => {
-                    panic!("This output is from another node");
                 }
                 None => {
                     log::debug!("inserting with name {:?}", &node_output.name);
