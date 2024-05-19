@@ -81,7 +81,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 3>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.squeeze(1);
+                    let tensor2 = tensor1.squeeze_dims(&[1]);
                     tensor2
                 }
             }
