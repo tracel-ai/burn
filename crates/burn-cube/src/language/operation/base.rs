@@ -45,10 +45,16 @@ where
 {
     let lhs: Variable = *lhs;
     let rhs: Variable = *rhs;
+    let item = lhs.item();
+
+    assert!(
+        item.vectorization == rhs.item().vectorization,
+        "Tried to perform binary operation on different vectorization schemes."
+    );
 
     let out_item = Item {
         elem: Elem::Bool,
-        vectorization: lhs.item().vectorization,
+        vectorization: item.vectorization,
     };
 
     let out = context.create_local(out_item);

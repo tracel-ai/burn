@@ -47,7 +47,7 @@ macro_rules! impl_float {
             fn from_i64_vec(vec: &[i64]) -> Self {
                 Self {
                     // We take only one value, because type implements copy and we can't copy an unknown sized vec
-                    // For debugging prefer unvectorized types
+                    // When using CPU-side values for debugging kernels, prefer using unvectorized types
                     val: *vec.first().expect("Should be at least one value")
                         as <Self as PrimitiveVariable>::Primitive,
                     vectorization: vec.len() as u8,

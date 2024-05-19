@@ -1,34 +1,58 @@
 use burn_cube::{cube, Numeric};
 
 #[cube]
-pub fn vectorization<T: Numeric>(lhs: T) {
+pub fn vectorization_binary<T: Numeric>(lhs: T) {
     let _ = lhs + T::from_vec(&[4, 5]);
+}
+
+#[cube]
+pub fn vectorization_cmp<T: Numeric>(rhs: T) {
+    let _ = T::from_vec(&[4, 5]) > rhs;
 }
 
 mod tests {
 
     use burn_cube::{dialect::Item, CubeContext, PrimitiveVariable, F32};
 
-    use crate::language::vectorization::vectorization_expand;
+    use crate::language::vectorization::{vectorization_binary_expand, vectorization_cmp_expand};
 
     type ElemType = F32;
 
     #[test]
-    fn cube_vectorization_with_same_scheme_does_not_fail() {
+    fn cube_vectorization_binary_op_with_same_scheme_does_not_fail() {
         let mut context = CubeContext::root();
 
         let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 2));
 
-        vectorization_expand::<ElemType>(&mut context, lhs);
+        vectorization_binary_expand::<ElemType>(&mut context, lhs);
     }
 
     #[test]
     #[should_panic]
-    fn cube_vectorization_with_different_scheme_fails() {
+    fn cube_vectorization_binary_op_with_different_scheme_fails() {
         let mut context = CubeContext::root();
 
         let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 4));
 
-        vectorization_expand::<ElemType>(&mut context, lhs);
+        vectorization_binary_expand::<ElemType>(&mut context, lhs);
+    }
+
+    #[test]
+    fn cube_vectorization_cmp_op_with_same_scheme_does_not_fail() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 2));
+
+        vectorization_cmp_expand::<ElemType>(&mut context, lhs);
+    }
+
+    #[test]
+    #[should_panic]
+    fn cube_vectorization_cmp_op_with_different_scheme_fails() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 4));
+
+        vectorization_cmp_expand::<ElemType>(&mut context, lhs);
     }
 }
