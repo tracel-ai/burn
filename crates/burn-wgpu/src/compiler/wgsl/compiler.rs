@@ -89,11 +89,13 @@ impl WgslCompiler {
     }
 
     fn compile_item(item: cube::Item) -> Item {
-        match item {
-            cube::Item::Vec4(elem) => wgsl::Item::Vec4(Self::compile_elem(elem)),
-            cube::Item::Vec3(elem) => wgsl::Item::Vec3(Self::compile_elem(elem)),
-            cube::Item::Vec2(elem) => wgsl::Item::Vec2(Self::compile_elem(elem)),
-            cube::Item::Scalar(elem) => wgsl::Item::Scalar(Self::compile_elem(elem)),
+        let elem = Self::compile_elem(item.elem);
+        match item.vectorization {
+            1 => wgsl::Item::Scalar(elem),
+            2 => wgsl::Item::Vec2(elem),
+            3 => wgsl::Item::Vec3(elem),
+            4 => wgsl::Item::Vec4(elem),
+            _ => panic!("Unsupported vectorizations scheme {:?}", item.vectorization),
         }
     }
 
@@ -101,7 +103,7 @@ impl WgslCompiler {
         match value {
             cube::Elem::Float(f) => match f {
                 cube::FloatKind::F16 => panic!("f16 is not yet supported"),
-                cube::FloatKind::BF16 => panic!("f64 is not a valid WgpuElement"),
+                cube::FloatKind::BF16 => panic!("bf16 is not a valid WgpuElement"),
                 cube::FloatKind::F32 => wgsl::Elem::F32,
                 cube::FloatKind::F64 => panic!("f64 is not a valid WgpuElement"),
             },

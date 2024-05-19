@@ -1,4 +1,4 @@
-use crate::dialect::{BinaryOperator, Elem, Item, Operator, Variable};
+use crate::dialect::{BinaryOperator, Elem, Item, Operator, Variable, Vectorization};
 use crate::language::{CubeContext, ExpandElement};
 
 pub(crate) fn binary_expand<F>(
@@ -14,6 +14,8 @@ where
     let rhs: Variable = *rhs;
 
     let item = lhs.item();
+    check_vectorization(item.vectorization, rhs.item().vectorization);
+
     let out = context.create_local(item);
     let out_var = *out;
 
@@ -39,13 +41,15 @@ where
 {
     let lhs: Variable = *lhs;
     let rhs: Variable = *rhs;
+    let item = lhs.item();
 
-    let out_item = match lhs.item() {
-        Item::Vec4(_) => Item::Vec4(Elem::Bool),
-        Item::Vec3(_) => Item::Vec3(Elem::Bool),
-        Item::Vec2(_) => Item::Vec2(Elem::Bool),
-        Item::Scalar(_) => Item::Scalar(Elem::Bool),
+    check_vectorization(item.vectorization, rhs.item().vectorization);
+
+    let out_item = Item {
+        elem: Elem::Bool,
+        vectorization: item.vectorization,
     };
+
     let out = context.create_local(out_item);
     let out_var = *out;
 
@@ -81,4 +85,14 @@ where
     context.register(op);
 
     lhs
+}
+
+fn check_vectorization(lhs: Vectorization, rhs: Vectorization) {
+    if lhs == 1 || rhs == 1 {
+        return;
+    }
+    assert!(
+        lhs == rhs,
+        "Tried to perform binary operation on different vectorization schemes."
+    );
 }

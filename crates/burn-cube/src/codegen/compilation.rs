@@ -81,12 +81,7 @@ impl core::fmt::Display for CompilationSettings {
         }
 
         match self.vectorization {
-            Some(vectorization) => match vectorization {
-                Vectorization::Vec4 => f.write_str("v4"),
-                Vectorization::Vec3 => f.write_str("v3"),
-                Vectorization::Vec2 => f.write_str("v2"),
-                Vectorization::Scalar => f.write_str("v1"),
-            }?,
+            Some(vectorization) => f.write_fmt(format_args!("v{}", vectorization))?,
             None => f.write_str("vn")?,
         };
 
@@ -154,7 +149,7 @@ impl InputInfo {
                 item,
                 visibility: _,
             } => *item,
-            InputInfo::Scalar { elem, size: _ } => Item::Scalar(*elem),
+            InputInfo::Scalar { elem, size: _ } => Item::new(*elem),
         }
     }
 }
@@ -252,7 +247,7 @@ impl Compilation {
         named.push((
             "info".to_string(),
             Binding {
-                item: Item::Scalar(Elem::UInt),
+                item: Item::new(Elem::UInt),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -300,7 +295,7 @@ impl Compilation {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            item: Item::Scalar(elem),
+                            item: Item::new(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(size),
@@ -440,11 +435,9 @@ impl Compilation {
 }
 
 fn bool_item(ty: Item) -> Item {
-    match ty {
-        Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
-        Item::Vec3(elem) => Item::Vec3(bool_elem(elem)),
-        Item::Vec2(elem) => Item::Vec2(bool_elem(elem)),
-        Item::Scalar(elem) => Item::Scalar(bool_elem(elem)),
+    Item {
+        elem: bool_elem(ty.elem),
+        vectorization: ty.vectorization,
     }
 }
 

@@ -41,7 +41,7 @@ pub fn range_expand<F>(
         }
     } else {
         let mut child = context.child();
-        let index_ty = Item::Scalar(Elem::UInt);
+        let index_ty = Item::new(Elem::UInt);
         let i = child.scope.borrow_mut().create_local_undeclared(index_ty);
         let i = ExpandElement::new(Rc::new(i));
 

@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, FloatKind, Variable};
+use crate::dialect::{Elem, FloatKind, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 use std::rc::Rc;
 
@@ -13,7 +13,7 @@ macro_rules! impl_float {
         #[derive(Clone, Copy)]
         pub struct $type {
             pub val: <Self as PrimitiveVariable>::Primitive,
-            pub vectorization: usize,
+            pub vectorization: u8,
         }
 
         impl CubeType for $type {
@@ -24,8 +24,12 @@ macro_rules! impl_float {
             type Primitive = f64;
 
             /// Return the element type to use on GPU
-            fn into_elem() -> Elem {
+            fn as_elem() -> Elem {
                 Elem::Float(FloatKind::$type)
+            }
+
+            fn vectorization(&self) -> Vectorization {
+                self.vectorization.into()
             }
 
             fn to_f64(&self) -> f64 {
@@ -38,6 +42,16 @@ macro_rules! impl_float {
 
             fn from_i64(val: i64) -> Self {
                 Self::new(val as f64)
+            }
+
+            fn from_i64_vec(vec: &[i64]) -> Self {
+                Self {
+                    // We take only one value, because type implements copy and we can't copy an unknown sized vec
+                    // When using CPU-side values for debugging kernels, prefer using unvectorized types
+                    val: *vec.first().expect("Should be at least one value")
+                        as <Self as PrimitiveVariable>::Primitive,
+                    vectorization: vec.len() as u8,
+                }
             }
         }
 
@@ -55,7 +69,7 @@ macro_rules! impl_float {
                 _context: &mut CubeContext,
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+                let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
         }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::dialect::{Elem, Variable};
+use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 
 #[derive(Clone, Copy)]
@@ -18,8 +18,12 @@ impl CubeType for UInt {
 impl PrimitiveVariable for UInt {
     type Primitive = u32;
 
-    fn into_elem() -> Elem {
+    fn as_elem() -> Elem {
         Elem::UInt
+    }
+
+    fn vectorization(&self) -> Vectorization {
+        self.vectorization
     }
 
     fn to_f64(&self) -> f64 {
@@ -32,6 +36,16 @@ impl PrimitiveVariable for UInt {
 
     fn from_i64(val: i64) -> Self {
         Self::new(val as <Self as PrimitiveVariable>::Primitive)
+    }
+
+    fn from_i64_vec(vec: &[i64]) -> Self {
+        Self {
+            // We take only one value, because type implements copy and we can't copy an unknown sized vec
+            // For debugging prefer unvectorized types
+            val: *vec.first().expect("Should be at least one value")
+                as <Self as PrimitiveVariable>::Primitive,
+            vectorization: vec.len() as u8,
+        }
     }
 }
 
@@ -48,7 +62,7 @@ impl UInt {
         _context: &mut CubeContext,
         val: <Self as PrimitiveVariable>::Primitive,
     ) -> <Self as CubeType>::ExpandType {
-        let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+        let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
         ExpandElement::new(Rc::new(new_var))
     }
 }

@@ -268,7 +268,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let indices = Variable::GlobalInputArray(0, Item::Scalar(Elem::Int(IntKind::I32)));
+        let indices = Variable::GlobalInputArray(0, Item::new(Elem::Int(IntKind::I32)));
         let grad = Variable::GlobalInputArray(1, item);
         let output = Variable::GlobalOutputArray(0, item);
 
@@ -283,7 +283,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
         .expand(&mut scope);
 
         let indices = InputInfo::Array {
-            item: Item::Scalar(Elem::Int(IntKind::I32)),
+            item: Item::new(Elem::Int(IntKind::I32)),
             visibility: Visibility::Read,
         };
 

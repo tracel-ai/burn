@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, IntKind, Variable};
+use crate::dialect::{Elem, IntKind, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 use std::rc::Rc;
 
@@ -13,7 +13,7 @@ macro_rules! impl_int {
         #[derive(Clone, Copy)]
         pub struct $type {
             pub val: <Self as PrimitiveVariable>::Primitive,
-            pub vectorization: usize,
+            pub vectorization: u8,
         }
 
         impl CubeType for $type {
@@ -23,8 +23,12 @@ macro_rules! impl_int {
         impl PrimitiveVariable for $type {
             type Primitive = i64;
 
-            fn into_elem() -> Elem {
+            fn as_elem() -> Elem {
                 Elem::Int(IntKind::$type)
+            }
+
+            fn vectorization(&self) -> Vectorization {
+                self.vectorization.into()
             }
 
             fn to_f64(&self) -> f64 {
@@ -37,6 +41,16 @@ macro_rules! impl_int {
 
             fn from_i64(val: i64) -> Self {
                 Self::new(val)
+            }
+
+            fn from_i64_vec(vec: &[i64]) -> Self {
+                Self {
+                    // We take only one value, because type implements copy and we can't copy an unknown sized vec
+                    // For debugging prefer unvectorized types
+                    val: *vec.first().expect("Should be at least one value")
+                        as <Self as PrimitiveVariable>::Primitive,
+                    vectorization: vec.len() as u8,
+                }
             }
         }
 
@@ -53,7 +67,7 @@ macro_rules! impl_int {
                 _context: &mut CubeContext,
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+                let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
         }
