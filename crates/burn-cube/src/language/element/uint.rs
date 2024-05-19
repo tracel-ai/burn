@@ -78,3 +78,9 @@ impl From<usize> for UInt {
         UInt::new(value as <Self as PrimitiveVariable>::Primitive)
     }
 }
+
+impl From<i32> for UInt {
+    fn from(value: i32) -> Self {
+        UInt::new(value as <Self as PrimitiveVariable>::Primitive)
+    }
+}

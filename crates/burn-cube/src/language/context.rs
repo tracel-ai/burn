@@ -1,4 +1,4 @@
-use crate::dialect::{Item, Operation, Scope};
+use crate::dialect::{Elem, Item, Operation, Scope};
 use crate::language::ExpandElement;
 use alloc::rc::Rc;
 use core::cell::RefCell;
@@ -103,5 +103,21 @@ impl CubeContext {
         self.pool.insert(new.clone());
 
         new
+    }
+
+    pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
+        ExpandElement::new(Rc::new(crate::dialect::Variable::GlobalInputArray(
+            index, item,
+        )))
+    }
+
+    pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
+        let var = crate::dialect::Variable::GlobalOutputArray(index, item);
+        self.scope.borrow_mut().write_global_custom(var);
+        ExpandElement::new(Rc::new(var))
+    }
+
+    pub fn scalar(&self, index: u16, elem: Elem) -> ExpandElement {
+        ExpandElement::new(Rc::new(crate::dialect::Variable::GlobalScalar(index, elem)))
     }
 }
