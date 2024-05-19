@@ -248,6 +248,32 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn squeeze_dims<const D2: usize>(
+        dim_indices: &[usize],
+        current_dims: &[usize],
+        new_dims_len: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+        if dim_indices.len() >= current_dims.len() {
+            check = check.register(
+                "SqueezeDims",
+                TensorError::new("Attempted to squeeze too many dimensions!"),
+            );
+        }
+
+        if new_dims_len != D2 {
+            check = check.register(
+                "SqueezeDims",
+                TensorError::new(format!(
+                    "Resulting dimensions {} do not match the required D2 size {}.",
+                    new_dims_len, D2
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn unsqueeze<const D1: usize, const D2: usize>() -> Self {
         let mut check = Self::Ok;
         if D2 < D1 {
