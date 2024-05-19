@@ -91,13 +91,11 @@ impl WgslCompiler {
     fn compile_item(item: cube::Item) -> Item {
         let elem = Self::compile_elem(item.elem);
         match item.vectorization {
-            cube::Vectorization::Scalar => wgsl::Item::Scalar(elem),
-            cube::Vectorization::Vectorized(v) => match v {
-                2 => wgsl::Item::Vec2(elem),
-                3 => wgsl::Item::Vec3(elem),
-                4 => wgsl::Item::Vec4(elem),
-                _ => panic!("Unsupported vectorizations scheme {v:?}"),
-            },
+            1 => wgsl::Item::Scalar(elem),
+            2 => wgsl::Item::Vec2(elem),
+            3 => wgsl::Item::Vec3(elem),
+            4 => wgsl::Item::Vec4(elem),
+            _ => panic!("Unsupported vectorizations scheme {:?}", item.vectorization),
         }
     }
 

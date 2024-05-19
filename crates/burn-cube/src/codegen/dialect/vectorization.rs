@@ -1,33 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
-/// Define a vectorization scheme.
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize, Hash, Default)]
-pub enum Vectorization {
-    #[default]
-    Scalar,
-    Vectorized(u8),
-}
-
-impl From<Vectorization> for u8 {
-    fn from(val: Vectorization) -> Self {
-        match val {
-            Vectorization::Scalar => 1,
-            Vectorization::Vectorized(v) => v,
-        }
-    }
-}
-
-impl From<u8> for Vectorization {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => panic!("Can't vectorize with 0"),
-            1 => Vectorization::Scalar,
-            _ => Vectorization::Vectorized(value),
-        }
-    }
-}
+pub type Vectorization = u8;
 
 impl Operation {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {

@@ -23,9 +23,9 @@ impl ConditionalAssign {
         let out = self.out;
 
         let index_var =
-            |scope: &mut Scope, var: Variable, index: usize| match var.item().vectorization {
-                Vectorization::Scalar => var,
-                Vectorization::Vectorized(_) => {
+            |scope: &mut Scope, var: Variable, index: usize| match var.item().vectorization == 1 {
+                true => var,
+                false => {
                     let out = scope.create_local(var.item().elem());
                     cpa!(scope, out = var[index]);
                     out
@@ -46,16 +46,17 @@ impl ConditionalAssign {
             }));
         };
 
-        match out.item().vectorization {
-            Vectorization::Scalar => {
+        let vectorization = out.item().vectorization;
+        match vectorization == 1 {
+            true => {
                 cpa!(scope, if (cond).then(|scope| {
                     cpa!(scope, out = lhs);
                 }).else(|scope| {
                     cpa!(scope, out = rhs);
                 }));
             }
-            Vectorization::Vectorized(v) => {
-                for i in range(0u32, v as u32, true) {
+            false => {
+                for i in range(0u32, vectorization as u32, true) {
                     assign_index(i);
                 }
             }

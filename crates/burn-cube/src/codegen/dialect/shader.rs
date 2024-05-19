@@ -95,14 +95,14 @@ impl Item {
     pub fn scalar(elem: Elem) -> Self {
         Self {
             elem,
-            vectorization: 1.into(),
+            vectorization: 1,
         }
     }
 
-    pub fn vectorized(elem: Elem, vectorization: u8) -> Self {
+    pub fn vectorized(elem: Elem, vectorization: Vectorization) -> Self {
         Self {
             elem,
-            vectorization: vectorization.into(),
+            vectorization,
         }
     }
 }
