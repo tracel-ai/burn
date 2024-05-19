@@ -365,9 +365,10 @@ where
         dim_indices.dedup();
 
         // Make sure squeeze_dims doesn't result in a tensor with < 1 dimensions
-        if dim_indices.len() >= current_dims.len() {
-            panic!("Squeeze: Attempted to squeeze too many dimensions!");
-        }
+        check!(TensorCheck::squeeze_dims_input::<D2>(
+            &dim_indices,
+            &current_dims
+        ));
 
         // Calculate new dimensions
         let mut new_dims = Vec::new();
@@ -380,13 +381,9 @@ where
         }
 
         // Check that after squeezing, we still respect the D2 size
-        if new_dims.len() != D2 {
-            panic!("Resulting dimensions do not match the required D2 size.");
-        }
+        check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
 
-        let new_dims_shape: [usize; D2] = new_dims.try_into().expect("Dimension mismatch");
-
-        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims_shape.into()))
+        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
     }
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.

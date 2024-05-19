@@ -248,7 +248,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn squeeze_dims_size<const D2: usize>(
+    pub(crate) fn squeeze_dims_input<const D2: usize>(
         dim_indices: &[usize],
         current_dims: &[usize],
     ) -> Self {
