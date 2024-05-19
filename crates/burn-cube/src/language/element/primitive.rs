@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::dialect::{Elem, Item, Variable, Vectorization};
+use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeType, ExpandElement};
 
 /// Form of CubeType that encapsulates all primitive types:
@@ -11,12 +11,6 @@ pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;
     fn vectorization(&self) -> Vectorization;
-    fn into_item(&self) -> Item {
-        Item {
-            elem: Self::as_elem(),
-            vectorization: self.vectorization(),
-        }
-    }
 
     // For easy CPU-side casting
     fn to_f64(&self) -> f64;
