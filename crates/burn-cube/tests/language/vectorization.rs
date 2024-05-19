@@ -55,4 +55,13 @@ mod tests {
 
         vectorization_cmp_expand::<ElemType>(&mut context, lhs);
     }
+
+    #[test]
+    fn cube_vectorization_can_be_broadcasted() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::vectorized(ElemType::as_elem(), 1));
+
+        vectorization_cmp_expand::<ElemType>(&mut context, lhs);
+    }
 }

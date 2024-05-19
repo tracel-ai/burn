@@ -164,7 +164,6 @@ impl Item {
     }
 
     pub(crate) fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
-        let vectorize: u8 = vectorize.into();
         size / (vectorize as u32)
     }
 }
