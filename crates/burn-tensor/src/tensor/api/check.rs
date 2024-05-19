@@ -256,14 +256,14 @@ impl TensorCheck {
         let mut check = Self::Ok;
         if dim_indices.len() >= current_dims.len() {
             check = check.register(
-                "SqueezeDims",
+                "Squeeze",
                 TensorError::new("Attempted to squeeze too many dimensions!"),
             );
         }
 
         if new_dims_len != D2 {
             check = check.register(
-                "SqueezeDims",
+                "Squeeze",
                 TensorError::new(format!(
                     "Resulting dimensions {} do not match the required D2 size {}.",
                     new_dims_len, D2
@@ -309,7 +309,7 @@ impl TensorCheck {
         //contains is right exclusive, so this is to spec
         if !(-output_rank..output_rank).contains(&dim) {
             check = check.register(
-                "Unsqeeze",
+                "Unsqueeze",
                 TensorError::new(format!(
                     "unsqueeze arg {} is out of range for the output tensor of rank {}",
                     dim, output_rank
