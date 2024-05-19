@@ -12,7 +12,8 @@ use burn_compute::{
     tune::Tuner,
     ComputeRuntime,
 };
-use burn_jit::Runtime;
+use burn_cube::Runtime;
+use burn_jit::JitRuntime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
@@ -23,6 +24,11 @@ use wgpu::{AdapterInfo, DeviceDescriptor};
 #[derive(Debug)]
 pub struct WgpuRuntime<G: GraphicsApi> {
     _g: PhantomData<G>,
+}
+
+impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
+    type JitDevice = WgpuDevice;
+    type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).

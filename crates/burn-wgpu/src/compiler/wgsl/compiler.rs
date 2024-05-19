@@ -1,7 +1,7 @@
 use super::LocalArray;
 use super::{shader::ComputeShader, Item, SharedMemory};
 use crate::compiler::wgsl;
-use burn_jit::gpu;
+use burn_cube::dialect as cube;
 
 /// Wgsl Compiler.
 #[derive(Clone, Default)]
@@ -27,15 +27,15 @@ impl core::fmt::Debug for WgslCompiler {
     }
 }
 
-impl burn_jit::Compiler for WgslCompiler {
+impl burn_cube::Compiler for WgslCompiler {
     type Representation = ComputeShader;
 
-    fn compile(shader: gpu::ComputeShader) -> Self::Representation {
+    fn compile(shader: cube::ComputeShader) -> Self::Representation {
         let mut compiler = Self::default();
         compiler.compile_shader(shader)
     }
 
-    fn elem_size(elem: gpu::Elem) -> usize {
+    fn elem_size(elem: cube::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
 
@@ -45,7 +45,7 @@ impl burn_jit::Compiler for WgslCompiler {
 }
 
 impl WgslCompiler {
-    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::ComputeShader {
+    fn compile_shader(&mut self, mut value: cube::ComputeShader) -> wgsl::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
@@ -88,57 +88,57 @@ impl WgslCompiler {
         }
     }
 
-    fn compile_item(item: gpu::Item) -> Item {
+    fn compile_item(item: cube::Item) -> Item {
         match item {
-            gpu::Item::Vec4(elem) => wgsl::Item::Vec4(Self::compile_elem(elem)),
-            gpu::Item::Vec3(elem) => wgsl::Item::Vec3(Self::compile_elem(elem)),
-            gpu::Item::Vec2(elem) => wgsl::Item::Vec2(Self::compile_elem(elem)),
-            gpu::Item::Scalar(elem) => wgsl::Item::Scalar(Self::compile_elem(elem)),
+            cube::Item::Vec4(elem) => wgsl::Item::Vec4(Self::compile_elem(elem)),
+            cube::Item::Vec3(elem) => wgsl::Item::Vec3(Self::compile_elem(elem)),
+            cube::Item::Vec2(elem) => wgsl::Item::Vec2(Self::compile_elem(elem)),
+            cube::Item::Scalar(elem) => wgsl::Item::Scalar(Self::compile_elem(elem)),
         }
     }
 
-    fn compile_elem(value: gpu::Elem) -> wgsl::Elem {
+    fn compile_elem(value: cube::Elem) -> wgsl::Elem {
         match value {
-            gpu::Elem::Float(f) => match f {
-                gpu::FloatKind::F16 => panic!("f16 is not yet supported"),
-                gpu::FloatKind::BF16 => panic!("f64 is not a valid WgpuElement"),
-                gpu::FloatKind::F32 => wgsl::Elem::F32,
-                gpu::FloatKind::F64 => panic!("f64 is not a valid WgpuElement"),
+            cube::Elem::Float(f) => match f {
+                cube::FloatKind::F16 => panic!("f16 is not yet supported"),
+                cube::FloatKind::BF16 => panic!("f64 is not a valid WgpuElement"),
+                cube::FloatKind::F32 => wgsl::Elem::F32,
+                cube::FloatKind::F64 => panic!("f64 is not a valid WgpuElement"),
             },
-            gpu::Elem::Int(i) => match i {
-                gpu::IntKind::I32 => wgsl::Elem::I32,
-                gpu::IntKind::I64 => panic!("i64 is not a valid WgpuElement"),
+            cube::Elem::Int(i) => match i {
+                cube::IntKind::I32 => wgsl::Elem::I32,
+                cube::IntKind::I64 => panic!("i64 is not a valid WgpuElement"),
             },
-            gpu::Elem::UInt => wgsl::Elem::U32,
-            gpu::Elem::Bool => wgsl::Elem::Bool,
+            cube::Elem::UInt => wgsl::Elem::U32,
+            cube::Elem::Bool => wgsl::Elem::Bool,
         }
     }
 
-    fn compile_variable(&mut self, value: gpu::Variable) -> wgsl::Variable {
+    fn compile_variable(&mut self, value: cube::Variable) -> wgsl::Variable {
         match value {
-            gpu::Variable::GlobalInputArray(index, item) => {
+            cube::Variable::GlobalInputArray(index, item) => {
                 wgsl::Variable::GlobalInputArray(index, Self::compile_item(item))
             }
-            gpu::Variable::GlobalScalar(index, elem) => {
+            cube::Variable::GlobalScalar(index, elem) => {
                 wgsl::Variable::GlobalScalar(index, Self::compile_elem(elem), elem)
             }
-            gpu::Variable::Local(index, item, scope_depth) => wgsl::Variable::Local {
+            cube::Variable::Local(index, item, scope_depth) => wgsl::Variable::Local {
                 index,
                 item: Self::compile_item(item),
                 scope_depth,
             },
-            gpu::Variable::LocalScalar(index, elem, scope_depth) => wgsl::Variable::LocalScalar {
+            cube::Variable::LocalScalar(index, elem, scope_depth) => wgsl::Variable::LocalScalar {
                 index,
                 elem: Self::compile_elem(elem),
                 scope_depth,
             },
-            gpu::Variable::GlobalOutputArray(index, item) => {
+            cube::Variable::GlobalOutputArray(index, item) => {
                 wgsl::Variable::GlobalOutputArray(index, Self::compile_item(item))
             }
-            gpu::Variable::ConstantScalar(index, elem) => {
+            cube::Variable::ConstantScalar(index, elem) => {
                 wgsl::Variable::ConstantScalar(index, Self::compile_elem(elem))
             }
-            gpu::Variable::SharedMemory(index, item, size) => {
+            cube::Variable::SharedMemory(index, item, size) => {
                 let item = Self::compile_item(item);
                 if !self.shared_memories.iter().any(|s| s.index == index) {
                     self.shared_memories
@@ -146,7 +146,7 @@ impl WgslCompiler {
                 }
                 wgsl::Variable::SharedMemory(index, item, size)
             }
-            gpu::Variable::LocalArray(index, item, scope_depth, size) => {
+            cube::Variable::LocalArray(index, item, scope_depth, size) => {
                 let item = Self::compile_item(item);
                 if !self.local_arrays.iter().any(|s| s.index == index) {
                     self.local_arrays
@@ -154,73 +154,73 @@ impl WgslCompiler {
                 }
                 wgsl::Variable::LocalArray(index, item, scope_depth, size)
             }
-            gpu::Variable::Id => {
+            cube::Variable::Id => {
                 self.id = true;
                 wgsl::Variable::Id
             }
-            gpu::Variable::Rank => {
+            cube::Variable::Rank => {
                 self.rank = true;
                 wgsl::Variable::Rank
             }
-            gpu::Variable::LocalInvocationIndex => {
+            cube::Variable::LocalInvocationIndex => {
                 self.local_invocation_index = true;
                 wgsl::Variable::LocalInvocationIndex
             }
-            gpu::Variable::LocalInvocationIdX => {
+            cube::Variable::LocalInvocationIdX => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdX
             }
-            gpu::Variable::LocalInvocationIdY => {
+            cube::Variable::LocalInvocationIdY => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdY
             }
-            gpu::Variable::LocalInvocationIdZ => {
+            cube::Variable::LocalInvocationIdZ => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdZ
             }
-            gpu::Variable::WorkgroupIdX => {
+            cube::Variable::WorkgroupIdX => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdX
             }
-            gpu::Variable::WorkgroupIdY => {
+            cube::Variable::WorkgroupIdY => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdY
             }
-            gpu::Variable::WorkgroupIdZ => {
+            cube::Variable::WorkgroupIdZ => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdZ
             }
-            gpu::Variable::GlobalInvocationIdX => {
+            cube::Variable::GlobalInvocationIdX => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdX
             }
-            gpu::Variable::GlobalInvocationIdY => {
+            cube::Variable::GlobalInvocationIdY => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdY
             }
-            gpu::Variable::GlobalInvocationIdZ => {
+            cube::Variable::GlobalInvocationIdZ => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdZ
             }
-            gpu::Variable::WorkgroupSizeX => wgsl::Variable::WorkgroupSizeX,
-            gpu::Variable::WorkgroupSizeY => wgsl::Variable::WorkgroupSizeY,
-            gpu::Variable::WorkgroupSizeZ => wgsl::Variable::WorkgroupSizeZ,
-            gpu::Variable::NumWorkgroupsX => {
+            cube::Variable::WorkgroupSizeX => wgsl::Variable::WorkgroupSizeX,
+            cube::Variable::WorkgroupSizeY => wgsl::Variable::WorkgroupSizeY,
+            cube::Variable::WorkgroupSizeZ => wgsl::Variable::WorkgroupSizeZ,
+            cube::Variable::NumWorkgroupsX => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsX
             }
-            gpu::Variable::NumWorkgroupsY => {
+            cube::Variable::NumWorkgroupsY => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsY
             }
-            gpu::Variable::NumWorkgroupsZ => {
+            cube::Variable::NumWorkgroupsZ => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsZ
             }
         }
     }
 
-    fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<wgsl::Instruction> {
+    fn compile_scope(&mut self, value: &mut cube::Scope) -> Vec<wgsl::Instruction> {
         let mut instructions = Vec::new();
         let processing = value.process();
 
@@ -241,32 +241,34 @@ impl WgslCompiler {
     fn compile_operation(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
-        operation: gpu::Operation,
-        scope: &mut gpu::Scope,
+        operation: cube::Operation,
+        scope: &mut cube::Scope,
     ) {
         match operation {
-            gpu::Operation::Operator(op) => instructions.push(self.compile_instruction(op)),
-            gpu::Operation::Procedure(proc) => self.compile_procedure(instructions, proc, scope),
-            gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
-            gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
-            gpu::Operation::Synchronization(val) => self.compile_synchronization(instructions, val),
+            cube::Operation::Operator(op) => instructions.push(self.compile_instruction(op)),
+            cube::Operation::Procedure(proc) => self.compile_procedure(instructions, proc, scope),
+            cube::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
+            cube::Operation::Branch(val) => self.compile_branch(instructions, val),
+            cube::Operation::Synchronization(val) => {
+                self.compile_synchronization(instructions, val)
+            }
         }
     }
 
-    fn compile_branch(&mut self, instructions: &mut Vec<wgsl::Instruction>, branch: gpu::Branch) {
+    fn compile_branch(&mut self, instructions: &mut Vec<wgsl::Instruction>, branch: cube::Branch) {
         match branch {
-            gpu::Branch::If(mut op) => instructions.push(wgsl::Instruction::If {
+            cube::Branch::If(mut op) => instructions.push(wgsl::Instruction::If {
                 cond: self.compile_variable(op.cond),
                 instructions: self.compile_scope(&mut op.scope),
             }),
-            gpu::Branch::IfElse(mut op) => instructions.push(wgsl::Instruction::IfElse {
+            cube::Branch::IfElse(mut op) => instructions.push(wgsl::Instruction::IfElse {
                 cond: self.compile_variable(op.cond),
                 instructions_if: self.compile_scope(&mut op.scope_if),
                 instructions_else: self.compile_scope(&mut op.scope_else),
             }),
-            gpu::Branch::Return => instructions.push(wgsl::Instruction::Return),
-            gpu::Branch::Break => instructions.push(wgsl::Instruction::Break),
-            gpu::Branch::RangeLoop(mut range_loop) => {
+            cube::Branch::Return => instructions.push(wgsl::Instruction::Return),
+            cube::Branch::Break => instructions.push(wgsl::Instruction::Break),
+            cube::Branch::RangeLoop(mut range_loop) => {
                 instructions.push(wgsl::Instruction::RangeLoop {
                     i: self.compile_variable(range_loop.i),
                     start: self.compile_variable(range_loop.start),
@@ -274,7 +276,7 @@ impl WgslCompiler {
                     instructions: self.compile_scope(&mut range_loop.scope),
                 })
             }
-            gpu::Branch::Loop(mut op) => instructions.push(wgsl::Instruction::Loop {
+            cube::Branch::Loop(mut op) => instructions.push(wgsl::Instruction::Loop {
                 instructions: self.compile_scope(&mut op.scope),
             }),
         };
@@ -283,10 +285,10 @@ impl WgslCompiler {
     fn compile_synchronization(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
-        synchronization: gpu::Synchronization,
+        synchronization: cube::Synchronization,
     ) {
         match synchronization {
-            gpu::Synchronization::WorkgroupBarrier => {
+            cube::Synchronization::WorkgroupBarrier => {
                 instructions.push(wgsl::Instruction::WorkgroupBarrier)
             }
         };
@@ -295,52 +297,52 @@ impl WgslCompiler {
     fn compile_procedure(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
-        proc: gpu::Procedure,
-        scope: &mut gpu::Scope,
+        proc: cube::Procedure,
+        scope: &mut cube::Scope,
     ) {
-        let mut compile = |scope: &mut gpu::Scope| {
+        let mut compile = |scope: &mut cube::Scope| {
             instructions.extend(self.compile_scope(scope));
         };
 
         match proc {
-            gpu::Procedure::ReadGlobalWithLayout(proc) => {
+            cube::Procedure::ReadGlobalWithLayout(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::ReadGlobal(proc) => {
+            cube::Procedure::ReadGlobal(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::WriteGlobal(proc) => {
+            cube::Procedure::WriteGlobal(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::ConditionalAssign(proc) => {
+            cube::Procedure::ConditionalAssign(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::CheckedIndex(proc) => {
+            cube::Procedure::CheckedIndex(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::CheckedIndexAssign(proc) => {
+            cube::Procedure::CheckedIndexAssign(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
+            cube::Procedure::IndexOffsetGlobalWithLayout(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
         }
     }
 
-    fn compile_metadata(&mut self, metadata: gpu::Metadata) -> wgsl::Instruction {
+    fn compile_metadata(&mut self, metadata: cube::Metadata) -> wgsl::Instruction {
         match metadata {
-            gpu::Metadata::Stride { dim, var, out } => {
+            cube::Metadata::Stride { dim, var, out } => {
                 self.stride = true;
                 let position = match var {
-                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    cube::Variable::GlobalInputArray(idx, _) => idx as usize,
+                    cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 wgsl::Instruction::Stride {
@@ -349,11 +351,11 @@ impl WgslCompiler {
                     out: self.compile_variable(out),
                 }
             }
-            gpu::Metadata::Shape { dim, var, out } => {
+            cube::Metadata::Shape { dim, var, out } => {
                 self.shape = true;
                 let position = match var {
-                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    cube::Variable::GlobalInputArray(idx, _) => idx as usize,
+                    cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
                 wgsl::Instruction::Shape {
@@ -362,198 +364,198 @@ impl WgslCompiler {
                     out: self.compile_variable(out),
                 }
             }
-            gpu::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
+            cube::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
                 out: self.compile_variable(out),
                 var: self.compile_variable(var),
             },
         }
     }
 
-    fn compile_instruction(&mut self, value: gpu::Operator) -> wgsl::Instruction {
+    fn compile_instruction(&mut self, value: cube::Operator) -> wgsl::Instruction {
         match value {
-            gpu::Operator::Max(op) => wgsl::Instruction::Max {
+            cube::Operator::Max(op) => wgsl::Instruction::Max {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Min(op) => wgsl::Instruction::Min {
+            cube::Operator::Min(op) => wgsl::Instruction::Min {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Add(op) => wgsl::Instruction::Add {
+            cube::Operator::Add(op) => wgsl::Instruction::Add {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Index(op) => wgsl::Instruction::Index {
+            cube::Operator::Index(op) => wgsl::Instruction::Index {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::UncheckedIndex(op) => wgsl::Instruction::Index {
+            cube::Operator::UncheckedIndex(op) => wgsl::Instruction::Index {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Modulo(op) => wgsl::Instruction::Modulo {
+            cube::Operator::Modulo(op) => wgsl::Instruction::Modulo {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Sub(op) => wgsl::Instruction::Sub {
+            cube::Operator::Sub(op) => wgsl::Instruction::Sub {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Mul(op) => wgsl::Instruction::Mul {
+            cube::Operator::Mul(op) => wgsl::Instruction::Mul {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Div(op) => wgsl::Instruction::Div {
+            cube::Operator::Div(op) => wgsl::Instruction::Div {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Abs(op) => wgsl::Instruction::Abs {
+            cube::Operator::Abs(op) => wgsl::Instruction::Abs {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Exp(op) => wgsl::Instruction::Exp {
+            cube::Operator::Exp(op) => wgsl::Instruction::Exp {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Log(op) => wgsl::Instruction::Log {
+            cube::Operator::Log(op) => wgsl::Instruction::Log {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Log1p(op) => wgsl::Instruction::Log1p {
+            cube::Operator::Log1p(op) => wgsl::Instruction::Log1p {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Cos(op) => wgsl::Instruction::Cos {
+            cube::Operator::Cos(op) => wgsl::Instruction::Cos {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Sin(op) => wgsl::Instruction::Sin {
+            cube::Operator::Sin(op) => wgsl::Instruction::Sin {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Tanh(op) => wgsl::Instruction::Tanh {
+            cube::Operator::Tanh(op) => wgsl::Instruction::Tanh {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Powf(op) => wgsl::Instruction::Powf {
+            cube::Operator::Powf(op) => wgsl::Instruction::Powf {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Sqrt(op) => wgsl::Instruction::Sqrt {
+            cube::Operator::Sqrt(op) => wgsl::Instruction::Sqrt {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Floor(op) => wgsl::Instruction::Floor {
+            cube::Operator::Floor(op) => wgsl::Instruction::Floor {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Ceil(op) => wgsl::Instruction::Ceil {
+            cube::Operator::Ceil(op) => wgsl::Instruction::Ceil {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Erf(op) => wgsl::Instruction::Erf {
+            cube::Operator::Erf(op) => wgsl::Instruction::Erf {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Recip(op) => wgsl::Instruction::Recip {
+            cube::Operator::Recip(op) => wgsl::Instruction::Recip {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Equal(op) => wgsl::Instruction::Equal {
+            cube::Operator::Equal(op) => wgsl::Instruction::Equal {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Lower(op) => wgsl::Instruction::Lower {
+            cube::Operator::Lower(op) => wgsl::Instruction::Lower {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Clamp(op) => wgsl::Instruction::Clamp {
+            cube::Operator::Clamp(op) => wgsl::Instruction::Clamp {
                 input: self.compile_variable(op.input),
                 min_value: self.compile_variable(op.min_value),
                 max_value: self.compile_variable(op.max_value),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Greater(op) => wgsl::Instruction::Greater {
+            cube::Operator::Greater(op) => wgsl::Instruction::Greater {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::LowerEqual(op) => wgsl::Instruction::LowerEqual {
+            cube::Operator::LowerEqual(op) => wgsl::Instruction::LowerEqual {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::GreaterEqual(op) => wgsl::Instruction::GreaterEqual {
+            cube::Operator::GreaterEqual(op) => wgsl::Instruction::GreaterEqual {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::NotEqual(op) => wgsl::Instruction::NotEqual {
+            cube::Operator::NotEqual(op) => wgsl::Instruction::NotEqual {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Assign(op) => wgsl::Instruction::Assign {
+            cube::Operator::Assign(op) => wgsl::Instruction::Assign {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
+            cube::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::UncheckedIndexAssign(op) => wgsl::Instruction::IndexAssign {
+            cube::Operator::UncheckedIndexAssign(op) => wgsl::Instruction::IndexAssign {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::And(op) => wgsl::Instruction::And {
+            cube::Operator::And(op) => wgsl::Instruction::And {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Or(op) => wgsl::Instruction::Or {
+            cube::Operator::Or(op) => wgsl::Instruction::Or {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Not(op) => wgsl::Instruction::Not {
+            cube::Operator::Not(op) => wgsl::Instruction::Not {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::BitwiseAnd(op) => wgsl::Instruction::BitwiseAnd {
+            cube::Operator::BitwiseAnd(op) => wgsl::Instruction::BitwiseAnd {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::BitwiseXor(op) => wgsl::Instruction::BitwiseXor {
+            cube::Operator::BitwiseXor(op) => wgsl::Instruction::BitwiseXor {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::ShiftLeft(op) => wgsl::Instruction::ShiftLeft {
+            cube::Operator::ShiftLeft(op) => wgsl::Instruction::ShiftLeft {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::ShiftRight(op) => wgsl::Instruction::ShiftRight {
+            cube::Operator::ShiftRight(op) => wgsl::Instruction::ShiftRight {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Remainder(op) => wgsl::Instruction::Remainder {
+            cube::Operator::Remainder(op) => wgsl::Instruction::Remainder {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
@@ -561,21 +563,21 @@ impl WgslCompiler {
         }
     }
 
-    fn compile_location(value: gpu::Location) -> wgsl::Location {
+    fn compile_location(value: cube::Location) -> wgsl::Location {
         match value {
-            gpu::Location::Storage => wgsl::Location::Storage,
-            gpu::Location::Workgroup => wgsl::Location::Workgroup,
+            cube::Location::Storage => wgsl::Location::Storage,
+            cube::Location::Workgroup => wgsl::Location::Workgroup,
         }
     }
 
-    fn compile_visibility(value: gpu::Visibility) -> wgsl::Visibility {
+    fn compile_visibility(value: cube::Visibility) -> wgsl::Visibility {
         match value {
-            gpu::Visibility::Read => wgsl::Visibility::Read,
-            gpu::Visibility::ReadWrite => wgsl::Visibility::ReadWrite,
+            cube::Visibility::Read => wgsl::Visibility::Read,
+            cube::Visibility::ReadWrite => wgsl::Visibility::ReadWrite,
         }
     }
 
-    fn compile_binding(value: gpu::Binding) -> wgsl::Binding {
+    fn compile_binding(value: cube::Binding) -> wgsl::Binding {
         wgsl::Binding {
             visibility: Self::compile_visibility(value.visibility),
             location: Self::compile_location(value.location),

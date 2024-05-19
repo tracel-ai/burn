@@ -1,4 +1,7 @@
-use crate::gpu::{gpu, Elem, Scope, Variable};
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Scope, Variable},
+};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -68,7 +71,7 @@ fn load_shared_memory_with_bound_check(
     // How close is the thread to the end of the matrix.
     // If < 4 then it is an edge case
     let remain = scope.create_local(Elem::UInt);
-    gpu!(scope, remain = dim - pos_in_dim);
+    cpa!(scope, remain = dim - pos_in_dim);
 
     let block_size_k: Variable = shader.config.block_size_k.into();
     let block_size_n: Variable = shader.config.block_size_n.into();
@@ -96,88 +99,88 @@ fn load_shared_memory_with_bound_check(
     let val_3 = scope.create_local(elem);
     let zero: Variable = 0u32.into();
 
-    gpu!(
+    cpa!(
         scope,
         range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
-            gpu!(scope, current = thread_idx_1 + j);
+            cpa!(scope, current = thread_idx_1 + j);
 
-            gpu!(scope, aligned_with_shared_memory = current < block_size_k);
+            cpa!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
-            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+            cpa!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                 // Position in shared memory
                 match input_identifier {
                     InputIdentifier::Lhs => {
-                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
-                        gpu!(scope, sm_position *= block_size_k);
-                        gpu!(scope, sm_position += current);
+                        cpa!(scope, sm_position = thread_idx_2 / 4u32);
+                        cpa!(scope, sm_position *= block_size_k);
+                        cpa!(scope, sm_position += current);
                 },
                     InputIdentifier::Rhs => {
-                        gpu!(scope, sm_position = current * block_size_n);
-                        gpu!(scope, sm_position += thread_idx_2);
-                        gpu!(scope, sm_position = sm_position / 4u32);
+                        cpa!(scope, sm_position = current * block_size_n);
+                        cpa!(scope, sm_position += thread_idx_2);
+                        cpa!(scope, sm_position = sm_position / 4u32);
                     }
                 }
 
                 // To pad with zeros if outside lhs
-                gpu!(scope, current_with_k = current + k);
-                gpu!(scope, within_input = current_with_k < dim_k);
-                gpu!(scope, remain_at_least_1 = remain >= 1u32);
-                gpu!(scope, read_condition = within_input && remain_at_least_1);
+                cpa!(scope, current_with_k = current + k);
+                cpa!(scope, within_input = current_with_k < dim_k);
+                cpa!(scope, remain_at_least_1 = remain >= 1u32);
+                cpa!(scope, read_condition = within_input && remain_at_least_1);
 
-                gpu!(scope, if(read_condition).then(|scope| {
-                    gpu!(scope, position_0 = k + current);
-                    gpu!(scope, position_0 *= stride_1);
-                    gpu!(scope, tmp = thread_idx_2 * stride_2);
-                    gpu!(scope, position_0 += tmp);
-                    gpu!(scope, position_0 += input_offset);
-                    gpu!(scope, position_1 = position_0 + stride_2);
-                    gpu!(scope, position_2 = position_1 + stride_2);
-                    gpu!(scope, position_3 = position_2 + stride_2);
+                cpa!(scope, if(read_condition).then(|scope| {
+                    cpa!(scope, position_0 = k + current);
+                    cpa!(scope, position_0 *= stride_1);
+                    cpa!(scope, tmp = thread_idx_2 * stride_2);
+                    cpa!(scope, position_0 += tmp);
+                    cpa!(scope, position_0 += input_offset);
+                    cpa!(scope, position_1 = position_0 + stride_2);
+                    cpa!(scope, position_2 = position_1 + stride_2);
+                    cpa!(scope, position_3 = position_2 + stride_2);
 
-                    gpu!(scope, remain_n = remain >= 4u32);
-                    gpu!(scope, if(remain_n).then(|scope|{
-                        gpu!(scope, val_0 = input[position_0]);
-                        gpu!(scope, val_1 = input[position_1]);
-                        gpu!(scope, val_2 = input[position_2]);
-                        gpu!(scope, val_3 = input[position_3]);
+                    cpa!(scope, remain_n = remain >= 4u32);
+                    cpa!(scope, if(remain_n).then(|scope|{
+                        cpa!(scope, val_0 = input[position_0]);
+                        cpa!(scope, val_1 = input[position_1]);
+                        cpa!(scope, val_2 = input[position_2]);
+                        cpa!(scope, val_3 = input[position_3]);
 
                     }).else(|scope|{
-                        gpu!(scope, remain_n = remain == 3u32);
-                        gpu!(scope, if(remain_n).then(|scope|{
-                            gpu!(scope, val_0 = input[position_0]);
-                            gpu!(scope, val_1 = input[position_1]);
-                            gpu!(scope, val_2 = input[position_2]);
-                            gpu!(scope, val_3 = zero);
+                        cpa!(scope, remain_n = remain == 3u32);
+                        cpa!(scope, if(remain_n).then(|scope|{
+                            cpa!(scope, val_0 = input[position_0]);
+                            cpa!(scope, val_1 = input[position_1]);
+                            cpa!(scope, val_2 = input[position_2]);
+                            cpa!(scope, val_3 = zero);
 
                         }).else(|scope|{
-                            gpu!(scope, remain_n = remain == 2u32);
-                            gpu!(scope, if(remain_n).then(|scope|{
-                                gpu!(scope, val_0 = input[position_0]);
-                                gpu!(scope, val_1 = input[position_1]);
-                                gpu!(scope, val_2 = zero);
-                                gpu!(scope, val_3 = zero);
+                            cpa!(scope, remain_n = remain == 2u32);
+                            cpa!(scope, if(remain_n).then(|scope|{
+                                cpa!(scope, val_0 = input[position_0]);
+                                cpa!(scope, val_1 = input[position_1]);
+                                cpa!(scope, val_2 = zero);
+                                cpa!(scope, val_3 = zero);
 
                             }).else(|scope|{
-                                gpu!(scope, remain_n = remain == 1u32);
-                                gpu!(scope, if(remain_n).then(|scope|{
-                                    gpu!(scope, val_0 = input[position_0]);
-                                    gpu!(scope, val_1 = zero);
-                                    gpu!(scope, val_2 = zero);
-                                    gpu!(scope, val_3 = zero);
+                                cpa!(scope, remain_n = remain == 1u32);
+                                cpa!(scope, if(remain_n).then(|scope|{
+                                    cpa!(scope, val_0 = input[position_0]);
+                                    cpa!(scope, val_1 = zero);
+                                    cpa!(scope, val_2 = zero);
+                                    cpa!(scope, val_3 = zero);
                                 }));
                             }));
                         }));
                     }));
 
-                    gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
-                    gpu!(scope, shared_memory[sm_position] = val_vec4);
+                    cpa!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                    cpa!(scope, shared_memory[sm_position] = val_vec4);
 
                 }).else(|scope|{
-                    gpu!(scope, val_0 = zero);
-                    gpu!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
-                    gpu!(scope, shared_memory[sm_position] = val_vec4);
+                    cpa!(scope, val_0 = zero);
+                    cpa!(scope, val_vec4 = vec4(val_0, val_0, val_0, val_0));
+                    cpa!(scope, shared_memory[sm_position] = val_vec4);
                 }));
             }));
         })
@@ -233,45 +236,45 @@ fn load_shared_memory_no_bound_check(
     let val_3 = scope.create_local(elem);
     let val_vec4 = scope.create_local(shared_memory.item());
 
-    gpu!(
+    cpa!(
         scope,
         range(0_u32, 4u32, shader.config.unroll).for_each(|j, scope| {
-            gpu!(scope, current = thread_idx_1 + j);
+            cpa!(scope, current = thread_idx_1 + j);
 
-            gpu!(scope, aligned_with_shared_memory = current < block_size_k);
+            cpa!(scope, aligned_with_shared_memory = current < block_size_k);
 
             // To avoid overwriting following row in shared memory
-            gpu!(scope, if(aligned_with_shared_memory).then(|scope|{
+            cpa!(scope, if(aligned_with_shared_memory).then(|scope|{
 
                 match input_identifier {
                     InputIdentifier::Lhs => {
-                        gpu!(scope, sm_position = thread_idx_2 / 4u32);
-                        gpu!(scope, sm_position *= block_size_k);
-                        gpu!(scope, sm_position += current);
+                        cpa!(scope, sm_position = thread_idx_2 / 4u32);
+                        cpa!(scope, sm_position *= block_size_k);
+                        cpa!(scope, sm_position += current);
                 },
                     InputIdentifier::Rhs => {
-                        gpu!(scope, sm_position = current * block_size_n);
-                        gpu!(scope, sm_position += thread_idx_2);
-                        gpu!(scope, sm_position = sm_position / 4u32);
+                        cpa!(scope, sm_position = current * block_size_n);
+                        cpa!(scope, sm_position += thread_idx_2);
+                        cpa!(scope, sm_position = sm_position / 4u32);
                     }
                 }
 
-                gpu!(scope, position_0 = k + current);
-                gpu!(scope, position_0 *= stride_1);
-                gpu!(scope, tmp = thread_idx_2 * stride_2);
-                gpu!(scope, position_0 += tmp);
-                gpu!(scope, position_0 += input_offset);
-                gpu!(scope, position_1 = position_0 + stride_2);
-                gpu!(scope, position_2 = position_1 + stride_2);
-                gpu!(scope, position_3 = position_2 + stride_2);
+                cpa!(scope, position_0 = k + current);
+                cpa!(scope, position_0 *= stride_1);
+                cpa!(scope, tmp = thread_idx_2 * stride_2);
+                cpa!(scope, position_0 += tmp);
+                cpa!(scope, position_0 += input_offset);
+                cpa!(scope, position_1 = position_0 + stride_2);
+                cpa!(scope, position_2 = position_1 + stride_2);
+                cpa!(scope, position_3 = position_2 + stride_2);
 
-                gpu!(scope, val_0 = input[position_0]);
-                gpu!(scope, val_1 = input[position_1]);
-                gpu!(scope, val_2 = input[position_2]);
-                gpu!(scope, val_3 = input[position_3]);
+                cpa!(scope, val_0 = input[position_0]);
+                cpa!(scope, val_1 = input[position_1]);
+                cpa!(scope, val_2 = input[position_2]);
+                cpa!(scope, val_3 = input[position_3]);
 
-                gpu!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
-                gpu!(scope, shared_memory[sm_position] = val_vec4);
+                cpa!(scope, val_vec4 = vec4(val_0, val_1, val_2, val_3));
+                cpa!(scope, shared_memory[sm_position] = val_vec4);
             }));
         })
     );

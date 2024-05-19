@@ -1,10 +1,13 @@
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Scope, Variable},
+};
 use burn_tensor::Shape;
 
 use crate::{
-    gpu::{gpu, Elem, Scope, Variable},
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 use super::{random, Prng};
@@ -31,7 +34,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
         output: Variable,
     ) {
         let prob = args[0];
-        gpu!(
+        cpa!(
             scope,
             range(0u32, n_values_per_thread).for_each(|i, scope| {
                 taus_step_0(scope, state_0);
@@ -40,20 +43,20 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 lcg_step(scope, state_3);
 
                 let int_random = scope.create_local(Elem::UInt);
-                gpu!(scope, int_random = state_0 ^ state_1);
-                gpu!(scope, int_random = int_random ^ state_2);
-                gpu!(scope, int_random = int_random ^ state_3);
+                cpa!(scope, int_random = state_0 ^ state_1);
+                cpa!(scope, int_random = int_random ^ state_2);
+                cpa!(scope, int_random = int_random ^ state_3);
 
-                let float_random = scope.create_local(E::gpu_elem());
+                let float_random = scope.create_local(E::cube_elem());
                 cast_uint_to_float(scope, int_random, float_random);
 
                 let bernoulli = scope.create_local(Elem::Bool);
-                gpu!(scope, bernoulli = float_random < prob);
+                cpa!(scope, bernoulli = float_random < prob);
 
                 let write_index = scope.create_local(Elem::UInt);
-                gpu!(scope, write_index = i * n_invocations);
-                gpu!(scope, write_index += write_index_base);
-                gpu!(scope, output[write_index] = bernoulli);
+                cpa!(scope, write_index = i * n_invocations);
+                cpa!(scope, write_index += write_index_base);
+                cpa!(scope, output[write_index] = bernoulli);
             })
         );
     }
@@ -64,7 +67,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
 }
 
 /// Pseudo-random generator with bernoulli distribution
-pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
+pub fn random_bernoulli<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     probability: E,

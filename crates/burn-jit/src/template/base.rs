@@ -1,10 +1,5 @@
-use crate::{
-    compute::{CompiledKernel, JitKernel, LaunchSettings, WorkGroup},
-    element::JitElement,
-    gpu::WorkgroupSize,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use burn_cube::{dialect::WorkgroupSize, CompiledKernel, JitKernel, LaunchSettings, WorkGroup};
 
 use super::SourceTemplate;
 
@@ -81,7 +76,7 @@ macro_rules! kernel_wgsl {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: Runtime, E: JitElement, const D: usize>(
+pub fn build_info<R: JitRuntime, E: JitElement, const D: usize>(
     tensors: &[&JitTensor<R, E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];

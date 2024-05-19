@@ -1,6 +1,7 @@
-use crate::{
-    codegen::dialect::gpu::{gpu, Elem, Item, Scope, Variable},
-    JitElement,
+use crate::JitElement;
+use burn_cube::{
+    cpa,
+    dialect::{Elem, Item, Scope, Variable},
 };
 
 use super::ReduceDimAlgorithm;
@@ -19,7 +20,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         let max = scope.create_local(input_item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
-        gpu!(scope, max = max_initial);
+        cpa!(scope, max = max_initial);
 
         (max, index)
     }
@@ -31,10 +32,10 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         i: Variable,
     ) {
         let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value > max);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, max = value);
-            gpu!(scope, index = i);
+        cpa!(scope, condition = value > max);
+        cpa!(scope, if(condition).then(|scope| {
+            cpa!(scope, max = value);
+            cpa!(scope, index = i);
         }));
     }
 
@@ -45,7 +46,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         _shape_reduce_dim: Variable,
     ) {
         let id = Variable::Id;
-        gpu!(scope, output[id] = index);
+        cpa!(scope, output[id] = index);
     }
 
     fn initialize_shared(
@@ -58,7 +59,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
 
         let max = Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
-        gpu!(scope, value_shared_memory[write_position] = max);
+        cpa!(scope, value_shared_memory[write_position] = max);
         (value_shared_memory, index_shared_memory)
     }
 
@@ -70,13 +71,13 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) {
         let (value_shared_memory, index_shared_memory) = shared_memory;
         let current_value = scope.create_local(value.item());
-        gpu!(scope, current_value = value_shared_memory[write_position]);
+        cpa!(scope, current_value = value_shared_memory[write_position]);
 
         let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value > current_value);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, value_shared_memory[write_position] = value);
-            gpu!(scope, index_shared_memory[write_position] = index);
+        cpa!(scope, condition = value > current_value);
+        cpa!(scope, if(condition).then(|scope| {
+            cpa!(scope, value_shared_memory[write_position] = value);
+            cpa!(scope, index_shared_memory[write_position] = index);
         }));
     }
 
@@ -87,7 +88,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
+        cpa!(scope, value = input[read_position]);
         (value, i)
     }
 
@@ -98,9 +99,9 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) -> Self::Accumulator {
         let (value_shared_memory, index_shared_memory) = shared_memory;
         let value = scope.create_local(value_shared_memory.item());
-        gpu!(scope, value = value_shared_memory[read_position]);
+        cpa!(scope, value = value_shared_memory[read_position]);
         let index = scope.create_local(index_shared_memory.item());
-        gpu!(scope, index = index_shared_memory[read_position]);
+        cpa!(scope, index = index_shared_memory[read_position]);
         (value, index)
     }
 
@@ -113,7 +114,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
     ) {
         let (_, index_shared_memory) = shared_memory;
         let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = index_shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
+        cpa!(scope, final_value = index_shared_memory[0]);
+        cpa!(scope, output[write_position] = final_value);
     }
 }

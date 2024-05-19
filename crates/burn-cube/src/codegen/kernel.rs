@@ -330,9 +330,9 @@ fn create_scalar_handles<R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeE
         Elem::Bool => panic!("Bool scalars are not supported"),
     };
     let scalar_priorities: [usize; 3] = [
-        element_priority(E1::elem()),
-        element_priority(E2::elem()),
-        element_priority(E3::elem()),
+        element_priority(E1::cube_elem()),
+        element_priority(E2::cube_elem()),
+        element_priority(E3::cube_elem()),
     ];
 
     let mut handles_scalars = Vec::new();
@@ -359,7 +359,7 @@ fn create_scalar_handles<R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeE
     handles_scalars
 }
 
-pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
+pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     let mut num_elems = 1;
     for i in shape.iter() {
         num_elems *= i;

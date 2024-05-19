@@ -12,7 +12,7 @@ pub trait CubeElement: core::fmt::Debug + Send + Sync + 'static + Clone + bytemu
     /// Convert a slice of bytes to a slice of elements.
     fn from_bytes(bytes: &[u8]) -> &[Self];
     /// Element representation for `cubecl`.
-    fn elem() -> Elem;
+    fn cube_elem() -> Elem;
     /// Highest possible value
     fn maximum_value() -> Self;
     /// Lowest possible value
@@ -29,7 +29,7 @@ impl CubeElement for u32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem() -> Elem {
+    fn cube_elem() -> Elem {
         Elem::UInt
     }
     fn maximum_value() -> Self {
@@ -50,7 +50,7 @@ impl CubeElement for i32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem() -> Elem {
+    fn cube_elem() -> Elem {
         Elem::Int(IntKind::I32)
     }
     fn maximum_value() -> Self {
@@ -73,7 +73,7 @@ impl CubeElement for f32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem() -> Elem {
+    fn cube_elem() -> Elem {
         Elem::Float(FloatKind::F32)
     }
     fn maximum_value() -> Self {
@@ -94,7 +94,7 @@ impl CubeElement for half::f16 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem() -> Elem {
+    fn cube_elem() -> Elem {
         Elem::Float(FloatKind::F16)
     }
     fn maximum_value() -> Self {
@@ -115,7 +115,7 @@ impl CubeElement for half::bf16 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem() -> Elem {
+    fn cube_elem() -> Elem {
         Elem::Float(FloatKind::BF16)
     }
     fn maximum_value() -> Self {

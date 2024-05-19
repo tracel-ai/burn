@@ -2,7 +2,8 @@ use std::cmp::{max, min};
 
 use burn_tensor::Shape;
 
-use crate::{compute::WorkGroup, tensor::JitTensor, Compiler, JitElement, Runtime};
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use burn_cube::{Compiler, WorkGroup};
 
 use super::{
     init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_padded,
@@ -31,7 +32,7 @@ pub struct Tiling2dConfig {
 
 impl Tiling2dConfig {
     #[allow(unused, clippy::too_many_arguments)]
-    fn new<R: Runtime>(
+    fn new<R: JitRuntime>(
         grid_x: usize,
         grid_y: usize,
         block_size_m: usize,
@@ -118,7 +119,7 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     strategy: MatmulStrategy,
