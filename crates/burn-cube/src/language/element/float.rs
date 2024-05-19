@@ -24,7 +24,7 @@ macro_rules! impl_float {
             type Primitive = f64;
 
             /// Return the element type to use on GPU
-            fn into_elem() -> Elem {
+            fn as_elem() -> Elem {
                 Elem::Float(FloatKind::$type)
             }
 
@@ -69,7 +69,7 @@ macro_rules! impl_float {
                 _context: &mut CubeContext,
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+                let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
         }

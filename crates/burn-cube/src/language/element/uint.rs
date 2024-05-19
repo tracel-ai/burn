@@ -18,7 +18,7 @@ impl CubeType for UInt {
 impl PrimitiveVariable for UInt {
     type Primitive = u32;
 
-    fn into_elem() -> Elem {
+    fn as_elem() -> Elem {
         Elem::UInt
     }
 
@@ -62,7 +62,7 @@ impl UInt {
         _context: &mut CubeContext,
         val: <Self as PrimitiveVariable>::Primitive,
     ) -> <Self as CubeType>::ExpandType {
-        let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+        let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
         ExpandElement::new(Rc::new(new_var))
     }
 }

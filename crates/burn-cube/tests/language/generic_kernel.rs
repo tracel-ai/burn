@@ -14,7 +14,7 @@ mod tests {
     fn cube_generic_float_test() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::scalar(F32::into_elem()));
+        let lhs = context.create_local(Item::scalar(F32::as_elem()));
 
         generic_kernel_expand::<F32>(&mut context, lhs);
         let scope = context.into_scope();
@@ -26,7 +26,7 @@ mod tests {
     fn cube_generic_int_test() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::scalar(I32::into_elem()));
+        let lhs = context.create_local(Item::scalar(I32::as_elem()));
 
         generic_kernel_expand::<I32>(&mut context, lhs);
         let scope = context.into_scope();
@@ -36,7 +36,7 @@ mod tests {
 
     fn inline_macro_ref_float() -> String {
         let mut context = CubeContext::root();
-        let item = Item::scalar(F32::into_elem());
+        let item = Item::scalar(F32::as_elem());
         let lhs = context.create_local(item);
 
         let mut scope = context.into_scope();
@@ -48,7 +48,7 @@ mod tests {
 
     fn inline_macro_ref_int() -> String {
         let mut context = CubeContext::root();
-        let item = Item::scalar(I32::into_elem());
+        let item = Item::scalar(I32::as_elem());
         let lhs = context.create_local(item);
 
         let mut scope = context.into_scope();

@@ -9,11 +9,11 @@ pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
     type Primitive;
 
     /// Return the element type to use on GPU
-    fn into_elem() -> Elem;
+    fn as_elem() -> Elem;
     fn vectorization(&self) -> Vectorization;
     fn into_item(&self) -> Item {
         Item {
-            elem: Self::into_elem(),
+            elem: Self::as_elem(),
             vectorization: self.vectorization(),
         }
     }

@@ -23,7 +23,7 @@ macro_rules! impl_int {
         impl PrimitiveVariable for $type {
             type Primitive = i64;
 
-            fn into_elem() -> Elem {
+            fn as_elem() -> Elem {
                 Elem::Int(IntKind::$type)
             }
 
@@ -67,7 +67,7 @@ macro_rules! impl_int {
                 _context: &mut CubeContext,
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+                let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
                 ExpandElement::new(Rc::new(new_var))
             }
         }

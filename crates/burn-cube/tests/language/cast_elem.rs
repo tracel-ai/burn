@@ -151,54 +151,54 @@ mod tests {
     cast_test!(
         cube_float_to_float_test,
         float_to_float_expand,
-        Item::scalar(F32::into_elem())
+        Item::scalar(F32::as_elem())
     );
 
     cast_test!(
         cube_float_to_int_test,
         float_to_int_expand,
-        Item::scalar(F32::into_elem()),
-        Item::scalar(I32::into_elem())
+        Item::scalar(F32::as_elem()),
+        Item::scalar(I32::as_elem())
     );
 
     cast_test!(
         cube_float_to_uint_test,
         float_to_uint_expand,
-        Item::scalar(F32::into_elem()),
+        Item::scalar(F32::as_elem()),
         Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_float_to_bool_test,
         float_to_bool_expand,
-        Item::scalar(F32::into_elem()),
+        Item::scalar(F32::as_elem()),
         Item::scalar(Elem::Bool)
     );
 
     cast_test!(
         cube_int_to_float_test,
         int_to_float_expand,
-        Item::scalar(I32::into_elem()),
-        Item::scalar(F32::into_elem())
+        Item::scalar(I32::as_elem()),
+        Item::scalar(F32::as_elem())
     );
 
     cast_test!(
         cube_int_to_int_test,
         int_to_int_expand,
-        Item::scalar(I32::into_elem())
+        Item::scalar(I32::as_elem())
     );
 
     cast_test!(
         cube_int_to_uint_test,
         int_to_uint_expand,
-        Item::scalar(I32::into_elem()),
+        Item::scalar(I32::as_elem()),
         Item::scalar(Elem::UInt)
     );
 
     cast_test!(
         cube_int_to_bool_test,
         int_to_bool_expand,
-        Item::scalar(I32::into_elem()),
+        Item::scalar(I32::as_elem()),
         Item::scalar(Elem::Bool)
     );
 
@@ -206,14 +206,14 @@ mod tests {
         cube_uint_to_float_test,
         uint_to_float_expand,
         Item::scalar(Elem::UInt),
-        Item::scalar(F32::into_elem())
+        Item::scalar(F32::as_elem())
     );
 
     cast_test!(
         cube_uint_to_int_test,
         uint_to_int_expand,
         Item::scalar(Elem::UInt),
-        Item::scalar(I32::into_elem())
+        Item::scalar(I32::as_elem())
     );
 
     cast_test!(
@@ -233,14 +233,14 @@ mod tests {
         cube_bool_to_float_test,
         bool_to_float_expand,
         Item::scalar(Elem::Bool),
-        Item::scalar(F32::into_elem())
+        Item::scalar(F32::as_elem())
     );
 
     cast_test!(
         cube_bool_to_int_test,
         bool_to_int_expand,
         Item::scalar(Elem::Bool),
-        Item::scalar(I32::into_elem())
+        Item::scalar(I32::as_elem())
     );
 
     cast_test!(

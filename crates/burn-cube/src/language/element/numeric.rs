@@ -27,17 +27,17 @@ pub trait Numeric:
 
     /// Expand version of from_int
     fn from_int_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
-        let new_var = Variable::ConstantScalar(val as f64, Self::into_elem());
+        let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
         ExpandElement::new(Rc::new(new_var))
     }
 
     fn from_vec(vec: &[i64]) -> Self {
-        <Self as PrimitiveVariable>::from_i64_vec(&vec)
+        <Self as PrimitiveVariable>::from_i64_vec(vec)
     }
 
     fn from_vec_expand(context: &mut CubeContext, vec: &[i64]) -> <Self as CubeType>::ExpandType {
         let mut new_var = context.create_local(Item {
-            elem: Self::into_elem(),
+            elem: Self::as_elem(),
             vectorization: (vec.len() as u8).into(),
         });
         for (i, element) in vec.iter().enumerate() {

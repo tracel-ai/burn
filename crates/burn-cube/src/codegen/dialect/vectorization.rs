@@ -10,9 +10,9 @@ pub enum Vectorization {
     Vectorized(u8),
 }
 
-impl Into<u8> for Vectorization {
-    fn into(self) -> u8 {
-        match self {
+impl From<Vectorization> for u8 {
+    fn from(val: Vectorization) -> Self {
+        match val {
             Vectorization::Scalar => 1,
             Vectorization::Vectorized(v) => v,
         }

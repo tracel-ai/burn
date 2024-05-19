@@ -24,7 +24,7 @@ mod tests {
     fn cube_if_else_test() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::scalar(ElemType::into_elem()));
+        let lhs = context.create_local(Item::scalar(ElemType::as_elem()));
 
         if_then_else_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
@@ -34,7 +34,7 @@ mod tests {
 
     fn inline_macro_ref() -> String {
         let mut context = CubeContext::root();
-        let item = Item::scalar(ElemType::into_elem());
+        let item = Item::scalar(ElemType::as_elem());
         let lhs = context.create_local(item);
 
         let mut scope = context.into_scope();

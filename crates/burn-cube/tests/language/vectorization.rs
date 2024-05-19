@@ -22,7 +22,7 @@ mod tests {
     fn cube_vectorization_binary_op_with_same_scheme_does_not_fail() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 2));
+        let lhs = context.create_local(Item::vectorized(ElemType::as_elem(), 2));
 
         vectorization_binary_expand::<ElemType>(&mut context, lhs);
     }
@@ -32,7 +32,7 @@ mod tests {
     fn cube_vectorization_binary_op_with_different_scheme_fails() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 4));
+        let lhs = context.create_local(Item::vectorized(ElemType::as_elem(), 4));
 
         vectorization_binary_expand::<ElemType>(&mut context, lhs);
     }
@@ -41,7 +41,7 @@ mod tests {
     fn cube_vectorization_cmp_op_with_same_scheme_does_not_fail() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 2));
+        let lhs = context.create_local(Item::vectorized(ElemType::as_elem(), 2));
 
         vectorization_cmp_expand::<ElemType>(&mut context, lhs);
     }
@@ -51,7 +51,7 @@ mod tests {
     fn cube_vectorization_cmp_op_with_different_scheme_fails() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::vectorized(ElemType::into_elem(), 4));
+        let lhs = context.create_local(Item::vectorized(ElemType::as_elem(), 4));
 
         vectorization_cmp_expand::<ElemType>(&mut context, lhs);
     }

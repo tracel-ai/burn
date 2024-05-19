@@ -34,7 +34,7 @@ impl Bool {
 impl PrimitiveVariable for Bool {
     type Primitive = bool;
 
-    fn into_elem() -> Elem {
+    fn as_elem() -> Elem {
         Elem::Bool
     }
 
