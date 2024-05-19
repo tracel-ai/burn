@@ -39,7 +39,7 @@ impl PrimitiveVariable for Bool {
     }
 
     fn vectorization(&self) -> Vectorization {
-        self.vectorization.into()
+        self.vectorization
     }
 
     fn to_f64(&self) -> f64 {

@@ -23,7 +23,7 @@ impl PrimitiveVariable for UInt {
     }
 
     fn vectorization(&self) -> Vectorization {
-        self.vectorization.into()
+        self.vectorization
     }
 
     fn to_f64(&self) -> f64 {

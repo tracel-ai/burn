@@ -38,7 +38,7 @@ pub trait Numeric:
     fn from_vec_expand(context: &mut CubeContext, vec: &[i64]) -> <Self as CubeType>::ExpandType {
         let mut new_var = context.create_local(Item {
             elem: Self::as_elem(),
-            vectorization: (vec.len() as u8).into(),
+            vectorization: (vec.len() as u8),
         });
         for (i, element) in vec.iter().enumerate() {
             new_var = index_assign::expand(context, new_var, i.into(), (*element).into());
