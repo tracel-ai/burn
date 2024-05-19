@@ -248,10 +248,9 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn squeeze_dims<const D2: usize>(
+    pub(crate) fn squeeze_dims_size<const D2: usize>(
         dim_indices: &[usize],
         current_dims: &[usize],
-        new_dims_len: usize,
     ) -> Self {
         let mut check = Self::Ok;
         if dim_indices.len() >= current_dims.len() {
@@ -261,6 +260,11 @@ impl TensorCheck {
             );
         }
 
+        check
+    }
+
+    pub(crate) fn squeeze_dims_len<const D2: usize>(new_dims_len: usize) -> Self {
+        let mut check = Self::Ok;
         if new_dims_len != D2 {
             check = check.register(
                 "Squeeze",
