@@ -18,6 +18,7 @@ pub(crate) mod tune;
 /// Elements for JIT backend
 pub mod element;
 
+use burn_cube::{Kernel, Runtime};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
@@ -40,14 +41,12 @@ pub mod template;
 pub mod tests;
 
 /// Just-in-Time runtime extending the [cube runtime](Runtime).
-pub trait JitRuntime:
-    burn_cube::Runtime<Device = Self::JitDevice, Server = Self::JitServer>
-{
+pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
     /// The device that should also implement [DeviceOps](burn_tensor::backend::DeviceOps).
     type JitDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [JitAutotuneKey].
     type JitServer: burn_compute::server::ComputeServer<
         AutotuneKey = JitAutotuneKey,
-        Kernel = burn_cube::Kernel,
+        Kernel = Kernel,
     >;
 }
