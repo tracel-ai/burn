@@ -5,10 +5,6 @@ use crate::language::CubeType;
 /// For instance: a bool that determines at compile time
 /// if we should unroll a for loop or not
 
-impl CubeType for bool {
-    type ExpandType = bool;
-}
-
 impl CubeType for u32 {
     type ExpandType = u32;
 }

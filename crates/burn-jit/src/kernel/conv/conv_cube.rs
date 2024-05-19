@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 
 use burn_cube::{
-    cube,
-    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Array, Cast, Compilation, CompilationInfo, CompilationSettings, CubeContext, EagerHandle,
-    Execution, ExpandElement, Float, GpuComputeShaderPhase, InputInfo, OutputInfo, UInt,
-    WorkgroupLaunch, F32, I32,
+    branch::range,
+    dialect::{ComputeShader, Elem, Visibility},
+    *,
 };
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
@@ -13,6 +11,7 @@ use burn_tensor::{
 };
 
 use crate::{
+    fusion::kernel,
     kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
@@ -36,10 +35,87 @@ fn convolution<F: Float>(
     padding_1: UInt,
     groups: UInt,
 ) {
-    let x = input[UInt::new(0u32)];
-    let w = weight[UInt::new(0u32)];
-    let b = bias[UInt::new(0u32)];
-    output[UInt::new(0u32)] = F::cast_from(padding_0);
+    let output_stride_0 = stride::<F>(output, 0u32);
+    let output_stride_1 = stride::<F>(output, 1u32);
+    let output_stride_2 = stride::<F>(output, 2u32);
+    let output_stride_3 = stride::<F>(output, 3u32);
+    let output_shape_0 = shape::<F>(output, 0u32);
+    let output_shape_1 = shape::<F>(output, 1u32);
+    let output_shape_2 = shape::<F>(output, 2u32);
+    let output_shape_3 = shape::<F>(output, 3u32);
+
+    let weight_shape_0 = shape::<F>(weight, 0u32);
+    let in_channels = shape::<F>(weight, 1u32);
+    let kernel_size_0 = shape::<F>(weight, 2u32);
+    let kernel_size_1 = shape::<F>(weight, 3u32);
+
+    let b = AbsoluteIndex::get() / output_stride_0 % output_shape_0;
+    let oc = AbsoluteIndex::get() / output_stride_1 % output_shape_1;
+    let oh = AbsoluteIndex::get() / output_stride_2 % output_shape_2;
+    let ow = AbsoluteIndex::get() / output_stride_3 % output_shape_3;
+    let g = (weight_shape_0 + oc) % groups;
+    let ic_start = in_channels * g;
+    let ic_end = ic_start + in_channels;
+    let mut sum = bias[oc];
+
+    let ih_base = oh * conv_stride_0;
+    let iw_base = ow * conv_stride_1;
+
+    let input_stride_0 = stride::<F>(input, 0u32);
+    let input_stride_1 = stride::<F>(input, 1u32);
+    let input_stride_2 = stride::<F>(input, 2u32);
+    let input_stride_3 = stride::<F>(input, 3u32);
+    let input_shape_2 = shape::<F>(input, 2u32);
+    let input_shape_3 = shape::<F>(input, 3u32);
+
+    let border_top = padding_0;
+    let border_left = padding_1;
+    let border_bottom = input_shape_2 + padding_0;
+    let border_right = input_shape_3 + padding_1;
+
+    let weight_stride_0 = stride::<F>(weight, 0u32);
+    let weight_stride_1 = stride::<F>(weight, 1u32);
+    let weight_stride_2 = stride::<F>(weight, 2u32);
+    let weight_stride_3 = stride::<F>(weight, 3u32);
+
+    let index_input_0 = b * input_stride_0;
+    let index_weight_0 = oc * weight_stride_0;
+
+    for ic in range(ic_start, ic_end, false) {
+        let index_input_1 = ic * input_stride_1;
+        let index_weight_1 = (ic - ic_start) * weight_stride_1;
+
+        for kh in range(0u32, kernel_size_0, false) {
+            for kw in range(0u32, kernel_size_1, false) {
+                let ih = kh * dilation_0 + ih_base;
+                let iw = kw * dilation_1 + iw_base;
+
+                let within_padding = ih >= border_top
+                    && ih < border_bottom
+                    && iw >= border_left
+                    && iw < border_right;
+
+                if within_padding {
+                    let ih_pad = ih - padding_0;
+                    let iw_pad = iw - padding_1;
+
+                    let index_input = index_input_0
+                        + index_input_1
+                        + ih_pad * input_stride_2
+                        + iw_pad * input_stride_3;
+
+                    let index_weight = index_weight_0
+                        + index_weight_1
+                        + kh * weight_stride_2
+                        + kw * weight_stride_3;
+
+                    sum += input[index_input] * weight[index_weight];
+                }
+            }
+        }
+    }
+
+    output[AbsoluteIndex::get()] = sum;
 }
 
 #[derive(new)]

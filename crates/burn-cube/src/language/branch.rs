@@ -3,7 +3,7 @@ use std::{ops::Deref, rc::Rc};
 use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
 use crate::language::{CubeContext, ExpandElement, UInt};
 
-pub fn range<S, E>(start: S, end: E, _unroll: bool) -> core::ops::Range<usize>
+pub fn range<S, E>(start: S, end: E, _unroll: bool) -> impl Iterator<Item = UInt>
 where
     S: Into<UInt>,
     E: Into<UInt>,
@@ -11,10 +11,7 @@ where
     let start: UInt = start.into();
     let end: UInt = end.into();
 
-    core::ops::Range {
-        start: start.val as usize,
-        end: end.val as usize,
-    }
+    (start.val..end.val).into_iter().map(UInt::new)
 }
 
 pub fn range_expand<F>(

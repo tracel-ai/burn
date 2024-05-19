@@ -150,6 +150,8 @@ impl CodeAnalysisBuilder {
     fn find_occurrences_in_expr(&mut self, expr: &syn::Expr, depth: usize) {
         match expr {
             syn::Expr::ForLoop(expr) => {
+                self.find_occurrences_in_expr(&expr.expr, depth);
+
                 let depth = depth + 1;
 
                 // Declaration of iterator

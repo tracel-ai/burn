@@ -37,8 +37,7 @@ pub mod index_assign {
 
     impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
         fn index_mut(&mut self, index: I) -> &mut Self::Output {
-            let index = index.into().val;
-            &mut self.vals[index as usize]
+            panic!()
         }
     }
 }
@@ -62,8 +61,7 @@ pub mod index {
         type Output = E;
 
         fn index(&self, index: I) -> &Self::Output {
-            let index = index.into().val;
-            &self.vals[index as usize]
+            panic!()
         }
     }
 }

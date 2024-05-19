@@ -67,6 +67,18 @@ pub mod lt {
     }
 }
 
+pub mod ge {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, Operator::GreaterEqual)
+    }
+}
+
 pub mod add_assign {
     use super::*;
 

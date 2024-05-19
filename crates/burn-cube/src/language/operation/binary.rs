@@ -221,7 +221,7 @@ pub mod rem {
 }
 
 pub mod and {
-    use crate::{dialect::Operator, language::Bool};
+    use crate::dialect::Operator;
 
     use super::*;
 
@@ -232,18 +232,10 @@ pub mod and {
     ) -> ExpandElement {
         binary_expand(context, lhs, rhs, Operator::And)
     }
-
-    impl core::ops::BitAnd for Bool {
-        type Output = Bool;
-
-        fn bitand(self, rhs: Self) -> Self::Output {
-            Bool::new(self.val && rhs.val)
-        }
-    }
 }
 
 pub mod or {
-    use crate::{dialect::Operator, language::Bool};
+    use crate::dialect::Operator;
 
     use super::*;
 
@@ -253,13 +245,5 @@ pub mod or {
         rhs: ExpandElement,
     ) -> ExpandElement {
         binary_expand(context, lhs, rhs, Operator::Or)
-    }
-
-    impl core::ops::BitOr for Bool {
-        type Output = Bool;
-
-        fn bitor(self, rhs: Self) -> Self::Output {
-            Bool::new(self.val || rhs.val)
-        }
     }
 }

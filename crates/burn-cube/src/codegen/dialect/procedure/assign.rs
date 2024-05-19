@@ -56,8 +56,8 @@ impl ConditionalAssign {
                 }));
             }
             false => {
-                for i in range(0u32, vectorization as u32, true) {
-                    assign_index(i);
+                for i in 0..vectorization {
+                    assign_index(i as usize);
                 }
             }
         };

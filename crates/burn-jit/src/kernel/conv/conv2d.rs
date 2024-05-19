@@ -206,13 +206,15 @@ impl<E: JitElement> Conv2dComputeShader<E> {
 
                                     cpa!(scope, index_input_2 = ih_pad * input_stride_2);
                                     cpa!(scope, index_input_3 = iw_pad * input_stride_3);
-                                    cpa!(scope, index_weight_2 = kh * weight_stride_2);
-                                    cpa!(scope, index_weight_3 = kw * weight_stride_3);
 
                                     cpa!(scope, index_input = index_input_0);
                                     cpa!(scope, index_input += index_input_1);
                                     cpa!(scope, index_input += index_input_2);
                                     cpa!(scope, index_input += index_input_3);
+
+                                    cpa!(scope, index_weight_2 = kh * weight_stride_2);
+                                    cpa!(scope, index_weight_3 = kw * weight_stride_3);
+
                                     cpa!(scope, index_weight = index_weight_0);
                                     cpa!(scope, index_weight += index_weight_1);
                                     cpa!(scope, index_weight += index_weight_2);

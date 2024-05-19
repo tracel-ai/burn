@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 
 use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
 
-use super::{base::codegen_block, operation::codegen_binary, variable::codegen_lit};
+use super::{base::codegen_block, operation::codegen_binary, variable::{codegen_lit, codegen_path_rhs}};
 
 /// Codegen of for loops
 /// Supports range:
@@ -13,7 +13,6 @@ pub(crate) fn codegen_for_loop(
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let i = &for_loop.pat;
-    let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
 
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
@@ -35,6 +34,8 @@ pub(crate) fn codegen_for_loop(
                     args.extend(quote::quote! { #arg, });
                 }
 
+                let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
+
                 quote::quote! {
                     burn_cube::branch::range_expand(#args |context, #i| #block);
                 }
@@ -55,6 +56,7 @@ pub(crate) fn codegen_cond(
     match cond {
         syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_analyses),
         syn::Expr::Lit(expr) => codegen_lit(expr),
+        syn::Expr::Path(expr) => codegen_path_rhs(expr, loop_level, variable_analyses),
         _ => todo!("{cond:?} cond not supported"),
     }
 }
