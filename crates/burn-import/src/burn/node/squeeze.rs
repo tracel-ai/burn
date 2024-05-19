@@ -24,10 +24,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
-        let axis = &self.axes.first().unwrap().to_tokens();
+        let axes_arg = &self.axes.to_tokens();
 
         quote! {
-            let #output = #input.squeeze_dims(#axis);
+            let #output = #input.squeeze_dims(&#axes_arg);
         }
     }
 
