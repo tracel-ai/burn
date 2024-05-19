@@ -56,7 +56,7 @@ pub(crate) struct BoolCastEagerKernel<R: JitRuntime, EO: JitElement> {
 impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKernel<R, EO> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item_input = Item::scalar(Elem::Bool);
+        let item_input = Item::new(Elem::Bool);
         let item_output = EO::cube_elem().into();
 
         let tensor = Variable::GlobalInputArray(0, item_input);

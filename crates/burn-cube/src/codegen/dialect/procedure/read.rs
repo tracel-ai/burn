@@ -140,7 +140,7 @@ impl IndexOffsetGlobalWithLayout {
     #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         let layout = self.layout;
-        let index_item_ty = Item::scalar(Elem::UInt);
+        let index_item_ty = Item::new(Elem::UInt);
         let offset_ref = self.position;
         let zero: Variable = 0u32.into();
         let vectorization_factor: u8 = self.tensors[0].item().vectorization.into();

@@ -81,13 +81,7 @@ impl core::fmt::Display for CompilationSettings {
         }
 
         match self.vectorization {
-            Some(vectorization) => match vectorization.into() {
-                1 => f.write_str("v1"),
-                2 => f.write_str("v2"),
-                3 => f.write_str("v3"),
-                4 => f.write_str("v4"),
-                _ => panic!("Unsupported vectorization scheme {vectorization:?}"),
-            }?,
+            Some(vectorization) => f.write_fmt(format_args!("v{}", vectorization))?,
             None => f.write_str("vn")?,
         };
 
@@ -101,8 +95,8 @@ impl core::fmt::Display for CompilationSettings {
 impl CompilationSettings {
     /// Compile the shader with vectorization enabled.
     #[allow(dead_code)]
-    pub fn vectorize<V: Into<Vectorization>>(mut self, vectorization: V) -> Self {
-        self.vectorization = Some(vectorization.into());
+    pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
+        self.vectorization = Some(vectorization);
         self
     }
 
@@ -155,7 +149,7 @@ impl InputInfo {
                 item,
                 visibility: _,
             } => *item,
-            InputInfo::Scalar { elem, size: _ } => Item::scalar(*elem),
+            InputInfo::Scalar { elem, size: _ } => Item::new(*elem),
         }
     }
 }
@@ -253,7 +247,7 @@ impl Compilation {
         named.push((
             "info".to_string(),
             Binding {
-                item: Item::scalar(Elem::UInt),
+                item: Item::new(Elem::UInt),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -301,7 +295,7 @@ impl Compilation {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            item: Item::scalar(elem),
+                            item: Item::new(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(size),

@@ -32,7 +32,7 @@ mod tests {
     fn cube_while_test() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::scalar(ElemType::as_elem()));
+        let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
         while_not_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
@@ -44,7 +44,7 @@ mod tests {
     fn cube_loop_break_test() {
         let mut context = CubeContext::root();
 
-        let lhs = context.create_local(Item::scalar(ElemType::as_elem()));
+        let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
         manual_loop_break_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
@@ -54,11 +54,11 @@ mod tests {
 
     fn inline_macro_ref() -> String {
         let mut context = CubeContext::root();
-        let item = Item::scalar(ElemType::as_elem());
+        let item = Item::new(ElemType::as_elem());
         let lhs = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let cond = scope.create_local(Item::scalar(Elem::Bool));
+        let cond = scope.create_local(Item::new(Elem::Bool));
         let lhs: Variable = lhs.into();
         let rhs = scope.create_local(item);
 

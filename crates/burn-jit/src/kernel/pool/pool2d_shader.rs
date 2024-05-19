@@ -184,7 +184,7 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> GpuComputeShaderPhase
         let indices = if P::with_indices() {
             Some(Variable::GlobalOutputArray(
                 1,
-                Item::scalar(Elem::Int(IntKind::I32)),
+                Item::new(Elem::Int(IntKind::I32)),
             ))
         } else {
             None
@@ -216,7 +216,7 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> GpuComputeShaderPhase
             vec![
                 output,
                 OutputInfo::Array {
-                    item: Item::scalar(Elem::Int(IntKind::I32)),
+                    item: Item::new(Elem::Int(IntKind::I32)),
                 },
             ]
         } else {

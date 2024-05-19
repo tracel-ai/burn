@@ -65,15 +65,15 @@ macro_rules! binary {
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let lhs = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::scalar(I::cube_elem()),
+                item: burn_cube::dialect::Item::new(I::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
             let rhs = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::scalar(I::cube_elem()),
+                item: burn_cube::dialect::Item::new(I::cube_elem()),
                 visibility: burn_cube::dialect::Visibility::Read,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::scalar(O::cube_elem()),
+                item: burn_cube::dialect::Item::new(O::cube_elem()),
                 local,
                 position,
             };

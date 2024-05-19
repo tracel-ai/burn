@@ -295,7 +295,7 @@ where
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, Item::scalar(elem), position),
+                input: scope.read_array(0, Item::new(elem), position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
