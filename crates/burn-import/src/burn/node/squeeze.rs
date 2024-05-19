@@ -27,7 +27,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
         let axis = &self.axes.first().unwrap().to_tokens();
 
         quote! {
-            let #output = #input.squeeze(#axis);
+            let #output = #input.squeeze_dims(#axis);
         }
     }
 
