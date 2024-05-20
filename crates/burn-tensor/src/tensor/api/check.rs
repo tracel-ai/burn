@@ -803,6 +803,22 @@ impl TensorCheck {
         check
     }
 
+    /// Checks running dimension such as cumulative sum
+    pub(crate) fn running_dim<const D: usize>(ops: &str, dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Can't perform a running calculation on a tensor with ({D}) dimensions on axis ({dim})"
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn sort_dim<const D: usize>(ops: &str, dim: usize) -> Self {
         let mut check = Self::Ok;
 

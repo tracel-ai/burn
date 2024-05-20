@@ -331,6 +331,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::sum_dim(tensor, dim)
     }
 
+    fn float_cumsum<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchOps::cumsum(tensor, dim)
+    }
+
     fn float_mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::mean_dim(tensor, dim)
     }
