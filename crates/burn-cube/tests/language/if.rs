@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::{branch::Comptime, cube, Numeric};
 
 #[cube]
 pub fn if_greater<T: Numeric>(lhs: T) {
@@ -14,6 +14,25 @@ pub fn if_greater_var<T: Numeric>(lhs: T) {
         let _ = lhs + T::from_int(4);
     }
 }
+
+
+// #[cube]
+// pub fn comptime_if<T: Numeric>(lhs: T, comptime: Comptime<bool>) {
+//     if Comptime::get(comptime) {
+//         let _ = lhs + T::from_int(4);
+//     } else {
+//         let _ = lhs + T::from_int(5);
+//     }
+// }
+
+// #[cube]
+// pub fn comptime_if<T: Numeric>(lhs: T, comptime: Comptime<Option<(usize, usize)>>) {
+//     let (k0, k1, unroll) = if let Some((k0, k1)) = Comptime::get(comptime) {
+//         (UInt::new(k0), UInt::new(k1), true)
+//     } else {
+//         (stride::<T>(input, 0), stride::<T>(input, 1), false)
+//     };
+// }
 
 mod tests {
     use burn_cube::{

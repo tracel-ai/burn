@@ -25,7 +25,7 @@ use crate::language::{CubeType, ExpandElement, PrimitiveVariable};
 //     /// Expand version of lit
 //     pub fn new_expand(
 //         _context: &mut CubeContext,
-//         val: <Self as PrimitiveVariable>::Primitive,
+//         val: <Self a PrimitiveVariable>::Primitive,
 //     ) -> <Self as CubeType>::ExpandType {
 //         val.into()
 //     }

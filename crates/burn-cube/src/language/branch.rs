@@ -2,8 +2,9 @@ use std::{ops::Deref, rc::Rc};
 
 use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
 use crate::language::{CubeContext, ExpandElement, UInt};
+use crate::CubeType;
 
-pub fn range<S, E>(start: S, end: E, _unroll: bool) -> impl Iterator<Item = UInt>
+pub fn range<S, E>(start: S, end: E, _unroll: Comptime<bool>) -> impl Iterator<Item = UInt>
 where
     S: Into<UInt>,
     E: Into<UInt>,
@@ -119,4 +120,52 @@ where
     context.register(Branch::Loop(Loop {
         scope: inside_loop.into_scope(),
     }));
+}
+
+#[derive(Clone, Copy)]
+pub struct Comptime<T> {
+    t: T,
+}
+
+impl<T> Comptime<T> {
+    pub fn new(t: T) -> Self {
+        Self { t }
+    }
+
+    pub fn get(comptime: Self) -> T {
+        comptime.t
+    }
+}
+
+impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
+    pub fn is_some(comptime: Self) -> Comptime<bool> {
+        Comptime::new(comptime.t.is_some())
+    }
+    pub fn value_or<F>(comptime: Self, mut alt: F) -> T
+    where
+        F: FnMut() -> T,
+    {
+        match comptime.t {
+            Some(t) => t,
+            None => alt(),
+        }
+    }
+
+    pub fn value_or_expand<F>(
+        context: &mut CubeContext,
+        t: Option<T>,
+        mut alt: F,
+    ) -> <T as CubeType>::ExpandType
+    where
+        F: FnMut(&mut CubeContext) -> T::ExpandType,
+    {
+        match t {
+            Some(t) => t.into(),
+            None => alt(context),
+        }
+    }
+}
+
+impl<T: Clone> CubeType for Comptime<T> {
+    type ExpandType = T;
 }

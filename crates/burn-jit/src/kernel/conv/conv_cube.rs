@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_cube::{
-    branch::range,
+    branch::*,
     dialect::{ComputeShader, Elem, Visibility},
     *,
 };
@@ -11,7 +11,6 @@ use burn_tensor::{
 };
 
 use crate::{
-    fusion::kernel,
     kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
@@ -22,7 +21,7 @@ use crate::{
 };
 
 #[cube]
-fn convolution<F: Float>(
+fn kernel<F: Float>(
     input: Array<F>,
     weight: Array<F>,
     bias: Array<F>,
@@ -34,26 +33,22 @@ fn convolution<F: Float>(
     padding_0: UInt,
     padding_1: UInt,
     groups: UInt,
+    kernel_size_0_unroll: Comptime<Option<UInt>>,
+    kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
-    let output_stride_0 = stride::<F>(output, 0u32);
-    let output_stride_1 = stride::<F>(output, 1u32);
-    let output_stride_2 = stride::<F>(output, 2u32);
-    let output_stride_3 = stride::<F>(output, 3u32);
-    let output_shape_0 = shape::<F>(output, 0u32);
-    let output_shape_1 = shape::<F>(output, 1u32);
-    let output_shape_2 = shape::<F>(output, 2u32);
-    let output_shape_3 = shape::<F>(output, 3u32);
-
-    let weight_shape_0 = shape::<F>(weight, 0u32);
     let in_channels = shape::<F>(weight, 1u32);
-    let kernel_size_0 = shape::<F>(weight, 2u32);
-    let kernel_size_1 = shape::<F>(weight, 3u32);
 
-    let b = AbsoluteIndex::get() / output_stride_0 % output_shape_0;
-    let oc = AbsoluteIndex::get() / output_stride_1 % output_shape_1;
-    let oh = AbsoluteIndex::get() / output_stride_2 % output_shape_2;
-    let ow = AbsoluteIndex::get() / output_stride_3 % output_shape_3;
-    let g = (weight_shape_0 + oc) % groups;
+    let kernel_size_0 = Comptime::value_or(kernel_size_0_unroll, || shape::<F>(weight, 2u32));
+    let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
+    let kernel_size_1 = Comptime::value_or(kernel_size_1_unroll, || shape::<F>(weight, 3u32));
+    let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
+
+    let b = AbsoluteIndex::get() / stride::<F>(output, 0u32) % shape::<F>(output, 0u32);
+    let oc = AbsoluteIndex::get() / stride::<F>(output, 1u32) % shape::<F>(output, 1u32);
+    let oh = AbsoluteIndex::get() / stride::<F>(output, 2u32) % shape::<F>(output, 2u32);
+    let ow = AbsoluteIndex::get() / stride::<F>(output, 3u32) % shape::<F>(output, 3u32);
+
+    let g = (shape::<F>(weight, 0u32) + oc) % groups;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
@@ -61,7 +56,10 @@ fn convolution<F: Float>(
     let ih_base = oh * conv_stride_0;
     let iw_base = ow * conv_stride_1;
 
-    let input_stride_0 = stride::<F>(input, 0u32);
+    let weight_stride_1 = stride::<F>(weight, 1u32);
+    let weight_stride_2 = stride::<F>(weight, 2u32);
+    let weight_stride_3 = stride::<F>(weight, 3u32);
+
     let input_stride_1 = stride::<F>(input, 1u32);
     let input_stride_2 = stride::<F>(input, 2u32);
     let input_stride_3 = stride::<F>(input, 3u32);
@@ -73,20 +71,15 @@ fn convolution<F: Float>(
     let border_bottom = input_shape_2 + padding_0;
     let border_right = input_shape_3 + padding_1;
 
-    let weight_stride_0 = stride::<F>(weight, 0u32);
-    let weight_stride_1 = stride::<F>(weight, 1u32);
-    let weight_stride_2 = stride::<F>(weight, 2u32);
-    let weight_stride_3 = stride::<F>(weight, 3u32);
+    let index_input_0 = b * stride::<F>(input, 0u32);
+    let index_weight_0 = oc * stride::<F>(weight, 0u32);
 
-    let index_input_0 = b * input_stride_0;
-    let index_weight_0 = oc * weight_stride_0;
-
-    for ic in range(ic_start, ic_end, false) {
+    for ic in range(ic_start, ic_end, Comptime::new(false)) {
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0u32, kernel_size_0, false) {
-            for kw in range(0u32, kernel_size_1, false) {
+        for kh in range(0u32, kernel_size_0, unroll_0) {
+            for kw in range(0u32, kernel_size_1, unroll_1) {
                 let ih = kh * dilation_0 + ih_base;
                 let iw = kw * dilation_1 + iw_base;
 
@@ -120,6 +113,8 @@ fn convolution<F: Float>(
 
 #[derive(new)]
 struct Conv2dEagerKernel<R: JitRuntime, E: FloatElement> {
+    kernel_size_0: Option<u32>,
+    kernel_size_1: Option<u32>,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -136,6 +131,8 @@ struct Conv2dComputeShader<E: FloatElement> {
     padding_0: ExpandElement,
     padding_1: ExpandElement,
     groups: ExpandElement,
+    kernel_size_0: Option<u32>,
+    kernel_size_1: Option<u32>,
     _elem: PhantomData<E>,
 }
 
@@ -168,6 +165,8 @@ impl<R: JitRuntime, E: FloatElement> GpuComputeShaderPhase for Conv2dEagerKernel
             padding_0,
             padding_1,
             groups,
+            kernel_size_0: self.kernel_size_0,
+            kernel_size_1: self.kernel_size_1,
             _elem: PhantomData::<E>,
         }
         .expand(&mut context);
@@ -203,13 +202,18 @@ impl<R: JitRuntime, E: FloatElement> GpuComputeShaderPhase for Conv2dEagerKernel
     }
 
     fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
+        format!(
+            "{:?}-{:?}-{:?}",
+            core::any::TypeId::of::<Self>(),
+            self.kernel_size_0,
+            self.kernel_size_1
+        )
     }
 }
 
 impl<E: FloatElement> Conv2dComputeShader<E> {
     fn expand(self, context: &mut CubeContext) {
-        convolution_expand::<E::CubeElement>(
+        kernel_expand::<E::CubeElement>(
             context,
             self.input,
             self.weight,
@@ -222,6 +226,8 @@ impl<E: FloatElement> Conv2dComputeShader<E> {
             self.padding_0,
             self.padding_1,
             self.groups,
+            self.kernel_size_0.map(UInt::new),
+            self.kernel_size_1.map(UInt::new),
         )
     }
 }
@@ -271,7 +277,8 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         }
     };
 
-    let kernel = Conv2dEagerKernel::<R, E>::new();
+    let kernel = Conv2dEagerKernel::<R, E>::new(Some(kernel_0 as u32), Some(kernel_1 as u32));
+    // let kernel = Conv2dEagerKernel::<R, E>::new(None, None);
 
     Execution::start(kernel, input.client)
         .inputs(&[

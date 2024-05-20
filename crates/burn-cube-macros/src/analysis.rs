@@ -250,6 +250,14 @@ impl CodeAnalysisBuilder {
                 }
             }
             syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
+            syn::Expr::Closure(expr) => {
+                assert!(
+                    expr.inputs.is_empty(),
+                    "Analysis: closure with args not supported"
+                );
+
+                self.find_occurrences_in_expr(&expr.body, depth + 1)
+            }
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

@@ -1,4 +1,7 @@
-use crate::dialect::Variable;
+use crate::{
+    dialect::{Item, Variable},
+    PrimitiveVariable, UInt,
+};
 use alloc::rc::Rc;
 
 /// Types used in a cube function must implement this trait
@@ -35,5 +38,14 @@ impl core::ops::Deref for ExpandElement {
 impl From<ExpandElement> for Variable {
     fn from(value: ExpandElement) -> Self {
         *value.inner
+    }
+}
+
+impl From<UInt> for ExpandElement {
+    fn from(value: UInt) -> Self {
+        ExpandElement::new(Rc::new(crate::dialect::Variable::ConstantScalar(
+            value.to_f64(),
+            UInt::as_elem(),
+        )))
     }
 }

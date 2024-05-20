@@ -63,8 +63,19 @@ pub(crate) fn codegen_call(
 
     // Path
     let mut path_tokens = TokenStream::new();
+    let mut is_comptime = false;
+    let mut comptime_func: Option<String> = None;
+
     for (i, (ident, generics)) in path.iter().enumerate() {
+        if ident.to_string() == "Comptime" {
+            is_comptime = true;
+            continue;
+        }
         if i == path.len() - 1 {
+            if is_comptime {
+                comptime_func = Some(ident.to_string());
+                break;
+            }
             let func_name_expand = syn::Ident::new(
                 format!("{ident}_expand").as_str(),
                 proc_macro2::Span::call_site(),
@@ -82,16 +93,42 @@ pub(crate) fn codegen_call(
     }
 
     // Arguments
-    let mut args = quote::quote! {
-        context,
-    };
-    for argument in call.args.iter() {
-        let arg = codegen_expr(argument, loop_level, variable_analyses);
-        args.extend(quote::quote! { #arg, });
-    }
+    if let Some(func_name) = comptime_func {
+        match func_name.as_str() {
+            "get" | "new" => {
+                let code = call.args.first().unwrap();
+                quote::quote! {#code}
+            }
+            "value_or" => {
+                let mut args = quote::quote! {};
+                args.extend(quote::quote! { context, });
+                for argument in call.args.iter() {
+                    let arg = codegen_expr(argument, loop_level, variable_analyses);
+                    args.extend(quote::quote! { #arg, });
+                }
+        
+                // Codegen
+                quote::quote! {
+                    Comptime::value_or_expand(#args)
+                } 
+            }
+            "is_some" => {
+                let code = call.args.first().unwrap();
+                quote::quote! { #code.is_some() }
+            }
+            _ => panic!(),
+        }
+    } else {
+        let mut args = quote::quote! {};
+        args.extend(quote::quote! { context, });
+        for argument in call.args.iter() {
+            let arg = codegen_expr(argument, loop_level, variable_analyses);
+            args.extend(quote::quote! { #arg, });
+        }
 
-    // Codegen
-    quote::quote! {
-        #path_tokens (#args)
+        // Codegen
+        quote::quote! {
+            #path_tokens (#args)
+        }
     }
 }

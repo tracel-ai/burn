@@ -1,9 +1,12 @@
-use burn_cube::{branch::range, cube, Array, CubeContext, Float, PrimitiveVariable, UInt, F32};
+use burn_cube::{
+    branch::{range, Comptime},
+    cube, Array, CubeContext, Float, PrimitiveVariable, UInt, F32,
+};
 
 type ElemType = F32;
 
 #[cube]
-pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: bool) {
+pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: Comptime<bool>) {
     let tmp1 = rhs * rhs;
     let tmp2 = tmp1 + rhs;
 
