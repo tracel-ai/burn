@@ -2,7 +2,11 @@ use proc_macro2::TokenStream;
 
 use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
 
-use super::{base::codegen_block, operation::codegen_binary, variable::{codegen_lit, codegen_path_rhs}};
+use super::{
+    base::codegen_block,
+    operation::codegen_binary,
+    variable::{codegen_lit, codegen_path_rhs},
+};
 
 /// Codegen of for loops
 /// Supports range:

@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
 
@@ -63,7 +61,7 @@ impl UInt {
         val: <Self as PrimitiveVariable>::Primitive,
     ) -> <Self as CubeType>::ExpandType {
         let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
-        ExpandElement::new(Rc::new(new_var))
+        ExpandElement::Plain(new_var)
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::dialect::{Elem, IntKind, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
-use std::rc::Rc;
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -68,7 +67,7 @@ macro_rules! impl_int {
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
                 let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
-                ExpandElement::new(Rc::new(new_var))
+                ExpandElement::Plain(new_var)
             }
         }
     };

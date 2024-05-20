@@ -106,11 +106,11 @@ pub(crate) fn codegen_call(
                     let arg = codegen_expr(argument, loop_level, variable_analyses);
                     args.extend(quote::quote! { #arg, });
                 }
-        
+
                 // Codegen
                 quote::quote! {
                     Comptime::value_or_expand(#args)
-                } 
+                }
             }
             "is_some" => {
                 let code = call.args.first().unwrap();

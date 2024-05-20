@@ -15,7 +15,6 @@ pub fn if_greater_var<T: Numeric>(lhs: T) {
     }
 }
 
-
 // #[cube]
 // pub fn comptime_if<T: Numeric>(lhs: T, comptime: Comptime<bool>) {
 //     if Comptime::get(comptime) {

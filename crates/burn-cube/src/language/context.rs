@@ -23,9 +23,14 @@ impl VariablePool {
         // Among the candidates, take a variable if it's only referenced by the map
         // Arbitrarily takes the first it finds
         for variable in variables.iter() {
-            if Rc::strong_count(&variable.inner) == 1 {
-                // println!("Reuse var {:?}", variable.inner);
-                return Some(variable.clone());
+            match variable {
+                ExpandElement::Managed(var) => {
+                    if Rc::strong_count(var) == 1 {
+                        // println!("Reuse var {:?}", variable.inner);
+                        return Some(variable.clone());
+                    }
+                }
+                ExpandElement::Plain(_) => (),
             }
         }
 
@@ -99,25 +104,23 @@ impl CubeContext {
 
         // Create a new variable at the root scope
         // Insert it in the variable pool for potential reuse
-        let new = ExpandElement::new(Rc::new(self.root.borrow_mut().create_local(item)));
+        let new = ExpandElement::Managed(Rc::new(self.root.borrow_mut().create_local(item)));
         self.pool.insert(new.clone());
 
         new
     }
 
     pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
-        ExpandElement::new(Rc::new(crate::dialect::Variable::GlobalInputArray(
-            index, item,
-        )))
+        ExpandElement::Plain(crate::dialect::Variable::GlobalInputArray(index, item))
     }
 
     pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
         let var = crate::dialect::Variable::GlobalOutputArray(index, item);
         self.scope.borrow_mut().write_global_custom(var);
-        ExpandElement::new(Rc::new(var))
+        ExpandElement::Plain(var)
     }
 
     pub fn scalar(&self, index: u16, elem: Elem) -> ExpandElement {
-        ExpandElement::new(Rc::new(crate::dialect::Variable::GlobalScalar(index, elem)))
+        ExpandElement::Plain(crate::dialect::Variable::GlobalScalar(index, elem))
     }
 }

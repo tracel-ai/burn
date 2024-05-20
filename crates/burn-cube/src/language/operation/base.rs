@@ -10,18 +10,28 @@ pub(crate) fn binary_expand<F>(
 where
     F: Fn(BinaryOperator) -> Operator,
 {
-    let lhs: Variable = *lhs;
-    let rhs: Variable = *rhs;
+    let lhs_var: Variable = *lhs;
+    let rhs_var: Variable = *rhs;
 
-    let item = lhs.item();
-    check_vectorization(item.vectorization, rhs.item().vectorization);
+    let item_lhs = lhs.item();
+    let item_rhs = rhs.item();
 
-    let out = context.create_local(item);
+    check_vectorization(item_lhs.vectorization, item_rhs.vectorization);
+
+    // We can only reuse rhs.
+    let out = if lhs.can_mut() {
+        lhs
+    } else if item_rhs == item_lhs && rhs.can_mut() {
+        rhs
+    } else {
+        context.create_local(item_lhs)
+    };
+
     let out_var = *out;
 
     let op = func(BinaryOperator {
-        lhs,
-        rhs,
+        lhs: lhs_var,
+        rhs: rhs_var,
         out: out_var,
     });
 

@@ -11,7 +11,6 @@ mod uint;
 
 pub use array::*;
 pub use base::*;
-pub use bool::*;
 pub use conversion::*;
 pub use float::*;
 pub use int::*;

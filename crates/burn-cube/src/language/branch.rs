@@ -1,4 +1,4 @@
-use std::{ops::Deref, rc::Rc};
+use std::ops::Deref;
 
 use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
 use crate::language::{CubeContext, ExpandElement, UInt};
@@ -41,7 +41,7 @@ pub fn range_expand<F>(
         let mut child = context.child();
         let index_ty = Item::new(Elem::UInt);
         let i = child.scope.borrow_mut().create_local_undeclared(index_ty);
-        let i = ExpandElement::new(Rc::new(i));
+        let i = ExpandElement::Plain(i);
 
         func(&mut child, i.clone());
 

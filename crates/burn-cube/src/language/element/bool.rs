@@ -1,35 +1,5 @@
 use crate::dialect::{Elem, Vectorization};
-
 use crate::language::{CubeType, ExpandElement, PrimitiveVariable};
-
-// #[derive(Clone, Copy)]
-// /// Boolean type for kernels
-// pub struct Bool {
-//     pub val: <Self as PrimitiveVariable>::Primitive,
-//     pub vectorization: u8,
-// }
-
-// impl CubeType for Bool {
-//     type ExpandType = ExpandElement;
-// }
-
-// impl Bool {
-//     /// Make a boolean literal
-//     pub fn new(val: <Self as PrimitiveVariable>::Primitive) -> Self {
-//         Self {
-//             val,
-//             vectorization: 1,
-//         }
-//     }
-
-//     /// Expand version of lit
-//     pub fn new_expand(
-//         _context: &mut CubeContext,
-//         val: <Self a PrimitiveVariable>::Primitive,
-//     ) -> <Self as CubeType>::ExpandType {
-//         val.into()
-//     }
-// }
 
 impl CubeType for bool {
     type ExpandType = ExpandElement;

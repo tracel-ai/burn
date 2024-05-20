@@ -1,6 +1,5 @@
 use crate::dialect::{Elem, FloatKind, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
-use std::rc::Rc;
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float: Numeric {
@@ -70,7 +69,7 @@ macro_rules! impl_float {
                 val: <Self as PrimitiveVariable>::Primitive,
             ) -> <Self as CubeType>::ExpandType {
                 let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
-                ExpandElement::new(Rc::new(new_var))
+                ExpandElement::Plain(new_var)
             }
         }
     };

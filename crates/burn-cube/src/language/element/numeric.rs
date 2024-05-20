@@ -1,7 +1,6 @@
 use crate::dialect::{Item, Variable};
 use crate::index_assign;
 use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
-use std::rc::Rc;
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
@@ -28,7 +27,7 @@ pub trait Numeric:
     /// Expand version of from_int
     fn from_int_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
         let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
-        ExpandElement::new(Rc::new(new_var))
+        ExpandElement::Plain(new_var)
     }
 
     fn from_vec(vec: &[i64]) -> Self {

@@ -1,9 +1,6 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{
-    backend::Backend,
-    module::conv2d,
-    ops::{ConvOptions, ConvTransposeOptions},
-    Distribution, Shape, Tensor,
+    backend::Backend, module::conv2d, ops::ConvOptions, Distribution, Shape, Tensor,
 };
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
@@ -66,8 +63,8 @@ fn bench<B: Backend>(
     let batch_size = 16;
     let channels_in = 16;
     let channels_out = 16;
-    let height_in = 64;
-    let width_in = 64;
+    let height_in = 512;
+    let width_in = 512;
     let kernel_size_0 = 3;
     let kernel_size_1 = 3;
 

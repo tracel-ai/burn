@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeType, ExpandElement};
 
@@ -24,7 +22,7 @@ macro_rules! impl_into_expand_element {
     ($type:ty) => {
         impl From<$type> for ExpandElement {
             fn from(value: $type) -> Self {
-                ExpandElement::new(Rc::new(Variable::from(value)))
+                ExpandElement::Plain(Variable::from(value))
             }
         }
     };
