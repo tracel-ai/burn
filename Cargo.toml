@@ -68,7 +68,7 @@ serde-wasm-bindgen = "0.6.5"
 spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
 strum = "0.26.2"
 strum_macros = "0.26.2"
-syn = { version = "2.0.63", features = ["full", "extra-traits"] }
+syn = { version = "2.0.65", features = ["full", "extra-traits"] }
 tempfile = "3.10.1"
 thiserror = "1.0.60"
 tokio = { version = "1.37.0", features = ["rt", "macros"] }
