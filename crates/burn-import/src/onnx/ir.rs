@@ -3,7 +3,7 @@ use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
-use super::protos::TensorProto;
+use super::{from_onnx::OnnxGraphIO, protos::TensorProto};
 
 pub type Dim = usize;
 pub type Shape = Vec<Dim>;
@@ -177,11 +177,7 @@ pub struct OnnxGraph {
     /// The nodes of the graph.
     pub nodes: Vec<Node>,
 
-    /// The inputs of the graph.
-    pub inputs: Vec<Argument>,
-
-    /// The outputs of the graph.
-    pub outputs: Vec<Argument>,
+    pub graph_io: OnnxGraphIO,
 }
 
 /// Nodes produced by the ONNX parser
@@ -195,10 +191,10 @@ pub struct Node {
     pub name: String,
 
     /// The inputs of the node.
-    pub inputs: Vec<Argument>,
+    pub inputs: Vec<String>,
 
     /// The outputs of the node.
-    pub outputs: Vec<Argument>,
+    pub outputs: Vec<String>,
 
     /// The attributes of the node.
     pub attrs: Attributes,

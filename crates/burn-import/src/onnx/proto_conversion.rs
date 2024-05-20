@@ -180,19 +180,14 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_io: &OnnxGraphIO) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_io: &mut OnnxGraphIO) -> Node {
     let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
-    let inputs = node
-        .input
-        .clone()
-        .into_iter()
-        .map(|x| graph_io.init_in(x))
-        .collect();
+    node.input.iter().for_each(|x| graph_io.init_in(&x));
 
-    let outputs = node.output.clone().into_iter().map(Argument::new).collect();
+    node.output.iter().for_each(|x| graph_io.init_out(&x));
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
@@ -201,8 +196,8 @@ pub fn convert_node_proto(node: &NodeProto, graph_io: &OnnxGraphIO) -> Node {
     Node {
         node_type,
         name,
-        inputs,
-        outputs,
+        inputs: node.input.clone(),
+        outputs: node.output.clone(),
         attrs,
     }
 }
