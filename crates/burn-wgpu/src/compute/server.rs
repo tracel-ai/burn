@@ -18,7 +18,7 @@ use wgpu::{
 pub struct WgpuServer<MM: MemoryManagement<WgpuStorage>> {
     memory_management: MM,
     device: Arc<wgpu::Device>,
-    queue: wgpu::Queue,
+    queue: Arc<wgpu::Queue>,
     encoder: CommandEncoder,
     pipelines: HashMap<String, Arc<ComputePipeline>>,
     tasks_max: usize,
@@ -33,7 +33,7 @@ where
     pub fn new(
         memory_management: MM,
         device: Arc<wgpu::Device>,
-        queue: wgpu::Queue,
+        queue: Arc<wgpu::Queue>,
         tasks_max: usize,
     ) -> Self {
         let encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
