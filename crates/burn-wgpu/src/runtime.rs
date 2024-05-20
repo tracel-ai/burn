@@ -233,7 +233,9 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                 WgpuDevice::VirtualGpu(_) => device_type == DeviceType::VirtualGpu,
                 WgpuDevice::Cpu => device_type == DeviceType::Cpu,
                 WgpuDevice::BestAvailable => true,
-                WgpuDevice::Existing(_) => unreachable!("Cannot select an adapter for an existing device.")
+                WgpuDevice::Existing(_) => {
+                    unreachable!("Cannot select an adapter for an existing device.")
+                }
             };
 
             if is_same_type {
@@ -319,8 +321,8 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                 panic!("No adapter found for graphics API {:?}", G::default());
             }
         }
-        WgpuDevice::Existing(_) => unreachable!("Cannot select an adapter for an existing device.")
-    };  
+        WgpuDevice::Existing(_) => unreachable!("Cannot select an adapter for an existing device."),
+    };
 
     log::info!("Using adapter {:?}", adapter.get_info());
 
