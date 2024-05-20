@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Scope, Variable},
+    dialect::{Elem, FloatKind, Scope, Variable},
 };
 use burn_tensor::Shape;
 
@@ -34,7 +34,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
         state_3: Variable,
         output: Variable,
     ) {
-        let elem = E::cube_elem();
+        let float_elem = Elem::Float(FloatKind::F32);
         let item = output.item();
         let lower_bound = args[0];
         let upper_bound = args[1];
@@ -54,12 +54,12 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
 
-                let float_random = scope.create_local(elem);
-                let float_scale = scope.create_local(elem);
+                let float_random = scope.create_local(float_elem);
+                let float_scale = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, float_random);
                 cpa!(scope, float_scale = cast(scale));
 
-                let uniform_float = scope.create_local(elem);
+                let uniform_float = scope.create_local(float_elem);
                 let uniform = scope.create_local(item);
                 cpa!(scope, uniform_float = float_random * float_scale);
                 cpa!(scope, uniform = cast(uniform_float));

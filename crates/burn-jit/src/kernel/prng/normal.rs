@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Scope, Variable},
+    dialect::{Elem, FloatKind, Scope, Variable},
 };
 use std::f32::consts::PI;
 
@@ -36,11 +36,11 @@ impl<E: JitElement> Prng<E> for Normal<E> {
         state_3: Variable,
         output: Variable,
     ) {
-        let elem = E::cube_elem();
+        let float_elem = Elem::Float(FloatKind::F32);
         let item = output.item();
         let mean = args[0];
         let std = args[1];
-        let two_pi = scope.create_with_value(2. * PI, elem);
+        let two_pi = scope.create_with_value(2. * PI, float_elem);
         let t_neg = scope.create_with_value(-2.0, item);
         let two: Variable = 2u32.into();
 
@@ -59,7 +59,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
 
-                let unit_0 = scope.create_local(elem);
+                let unit_0 = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, unit_0);
 
                 // Second random uniform integer
@@ -72,7 +72,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
 
-                let unit_1 = scope.create_local(elem);
+                let unit_1 = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, unit_1);
 
                 // Box-Muller transform
