@@ -561,7 +561,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             self.graph_output_types.push(
                 outputs
                     .get(output)
-                    .unwrap_or_else(|| panic!("Output type is not found for {output}"))
+                    .unwrap_or_else(|| panic!("Output type is not found for {}", output))
                     .clone(),
             );
         });

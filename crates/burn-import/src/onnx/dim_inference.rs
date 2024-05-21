@@ -3,7 +3,6 @@ use core::panic;
 
 use protobuf::Enum;
 
-use crate::burn::graph;
 
 use super::{
     from_onnx::OnnxGraphIO,
@@ -144,13 +143,12 @@ fn linear_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         if let Some(mut shape) = tensor.shape.clone() {
             if let ArgType::Tensor(weight_tensor) = graph_io.get_type(weight_key) {
                 let last = shape.last_mut().unwrap();
-                *last = weight_tensor
+                *last = *weight_tensor
                     .shape
                     .as_ref()
                     .unwrap()
                     .first()
-                    .unwrap()
-                    .clone();
+                    .unwrap();
             } else {
                 panic!("Weight must be a tensor");
             }
@@ -268,7 +266,7 @@ fn reduce_mean_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     }
 
     let node_input = &mut node.inputs[0];
-    let tensor = match graph_io.get_type(&node_input) {
+    let tensor = match graph_io.get_type(node_input) {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -457,6 +455,7 @@ fn flatten_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 
     let input_dim = tensor.dim;
 
+    //? is there a way to separate out flatten_config from dim_inference?
     let (start_dim, end_dim) = flatten_config(node, graph_io);
 
     let collapsed_dims = end_dim - start_dim;

@@ -185,9 +185,9 @@ pub fn convert_node_proto(node: &NodeProto, graph_io: &mut OnnxGraphIO) -> Node 
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
-    node.input.iter().for_each(|x| graph_io.init_in(&x));
+    node.input.iter().for_each(|x| graph_io.init_in(x));
 
-    node.output.iter().for_each(|x| graph_io.init_out(&x));
+    node.output.iter().for_each(|x| graph_io.init_out(x));
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 

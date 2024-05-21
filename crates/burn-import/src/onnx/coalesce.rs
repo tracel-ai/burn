@@ -8,7 +8,6 @@ use super::{
     protos::NodeProto,
 };
 use crate::{
-    burn::graph,
     onnx::ir::{ArgType, Data, TensorType},
 };
 
