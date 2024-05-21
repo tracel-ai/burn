@@ -66,16 +66,15 @@ mod tests {
 
         // Kernel
         let tmp1 = scope.create_local(item);
-        let tmp2 = scope.create_local(item);
         cpa!(scope, tmp1 = rhs * rhs);
-        cpa!(scope, tmp2 = tmp1 + rhs);
+        cpa!(scope, tmp1 = tmp1 + rhs);
 
         cpa!(
             &mut scope,
             range(0u32, end, unroll).for_each(|i, scope| {
                 cpa!(scope, rhs = lhs[i]);
-                cpa!(scope, tmp1 = tmp2 + rhs);
-                cpa!(scope, lhs[i] = tmp1);
+                cpa!(scope, rhs = tmp1 + rhs);
+                cpa!(scope, lhs[i] = rhs);
             })
         );
 
