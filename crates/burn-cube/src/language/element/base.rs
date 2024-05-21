@@ -18,10 +18,11 @@ pub trait CubeType {
 }
 
 /// Reference to a JIT variable
-/// It's the expand element that is actually kept in the variable pool
 #[derive(Clone, Debug)]
 pub enum ExpandElement {
+    /// Variable kept in the variable pool.
     Managed(Rc<Variable>),
+    /// Variable not kept in the variable pool.
     Plain(Variable),
 }
 

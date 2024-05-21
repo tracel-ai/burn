@@ -21,12 +21,11 @@ impl VariablePool {
         };
 
         // Among the candidates, take a variable if it's only referenced by the map
-        // Arbitrarily takes the first it finds
-        for variable in variables.iter() {
+        // Arbitrarily takes the first it finds in reverse order.
+        for variable in variables.iter().rev() {
             match variable {
                 ExpandElement::Managed(var) => {
                     if Rc::strong_count(var) == 1 {
-                        // println!("Reuse var {:?}", variable.inner);
                         return Some(variable.clone());
                     }
                 }
