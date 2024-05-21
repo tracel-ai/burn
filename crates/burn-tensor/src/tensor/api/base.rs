@@ -373,8 +373,8 @@ where
         // Calculate new dimensions
         let mut new_dims = Vec::new();
         for (index, &dim_size) in current_dims.iter().enumerate() {
-            // Exclude the dimension if it's explicitly marked for squeezing and is of size 1
-            if dim_indices.contains(&index) && dim_size == 1 {
+            // Exclude the dimension if it's explicitly marked for squeezing
+            if dim_indices.contains(&index) {
                 check!(TensorCheck::squeeze::<D2>(index, &current_dims));
                 continue;
             }

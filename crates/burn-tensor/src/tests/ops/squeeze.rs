@@ -62,8 +62,9 @@ mod tests {
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }
 
-    /// Test to make sure the function doesn't do anything if a non-singleton dimension is squeezed
+    /// Test to make sure the function panics if a non-singleton dimension is squeezed
     #[test]
+    #[should_panic]
     fn should_squeeze_dims_work_if_non_singleton() {
         let tensor = Tensor::<TestBackend, 3>::ones(Shape::new([2, 3, 4]), &Default::default());
         let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze_dims(&[1]);
