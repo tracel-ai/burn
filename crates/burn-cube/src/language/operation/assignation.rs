@@ -1,5 +1,5 @@
-use crate::dialect;
 use crate::language::{Array, CubeContext, ExpandElement, UInt};
+use crate::{dialect, unexpanded};
 
 pub mod assign {
     use self::dialect::{Operator, UnaryOperator};
@@ -87,8 +87,8 @@ pub mod add_assign_op {
     macro_rules! impl_add_assign {
         ($type:ty) => {
             impl core::ops::AddAssign for $type {
-                fn add_assign(&mut self, rhs: Self) {
-                    self.val += rhs.val
+                fn add_assign(&mut self, _rhs: Self) {
+                    unexpanded!()
                 }
             }
         };

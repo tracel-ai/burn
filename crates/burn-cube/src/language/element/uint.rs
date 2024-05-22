@@ -1,5 +1,6 @@
 use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
+use crate::unexpanded;
 
 #[derive(Clone, Copy)]
 /// An unsigned int.
@@ -50,12 +51,10 @@ impl PrimitiveVariable for UInt {
 impl Numeric for UInt {}
 
 impl UInt {
-    pub fn new(val: <Self as PrimitiveVariable>::Primitive) -> Self {
-        Self {
-            val,
-            vectorization: 1,
-        }
+    pub fn new(_val: <Self as PrimitiveVariable>::Primitive) -> Self {
+        unexpanded!()
     }
+
     pub fn new_expand(
         _context: &mut CubeContext,
         val: <Self as PrimitiveVariable>::Primitive,

@@ -1,9 +1,11 @@
 use crate::dialect::Item;
 use crate::language::{assign, CubeContext, CubeType, PrimitiveVariable};
+use crate::unexpanded;
 
 // Enable elegant casting from any to any primitive variable
 
 pub trait Cast: PrimitiveVariable {
+    fn cast_from<From: PrimitiveVariable>(value: From) -> Self;
     fn cast_from_expand(
         context: &mut CubeContext,
         value: <Self as CubeType>::ExpandType,
@@ -12,11 +14,10 @@ pub trait Cast: PrimitiveVariable {
         assign::expand(context, value, new_var.clone());
         new_var
     }
-    fn cast_from<From: PrimitiveVariable>(value: From) -> Self;
 }
 
 impl<P: PrimitiveVariable> Cast for P {
-    fn cast_from<From: PrimitiveVariable>(value: From) -> Self {
-        P::from_f64(value.to_f64())
+    fn cast_from<From: PrimitiveVariable>(_value: From) -> Self {
+        unexpanded!()
     }
 }

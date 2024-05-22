@@ -1,6 +1,6 @@
 use crate::dialect::{Item, Variable};
-use crate::index_assign;
 use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
+use crate::{index_assign, unexpanded};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
@@ -19,9 +19,9 @@ pub trait Numeric:
     ///
     /// Note: since this must work for both integer and float
     /// only the less expressive of both can be created (int)
-    /// If a number with decimals is needed, use Float::from_primitive.
-    fn from_int(val: i64) -> Self {
-        <Self as PrimitiveVariable>::from_i64(val)
+    /// If a number with decimals is needed, use Float::new.
+    fn from_int(_val: i64) -> Self {
+        unexpanded!()
     }
 
     /// Expand version of from_int
@@ -30,8 +30,8 @@ pub trait Numeric:
         ExpandElement::Plain(new_var)
     }
 
-    fn from_vec(vec: &[i64]) -> Self {
-        <Self as PrimitiveVariable>::from_i64_vec(vec)
+    fn from_vec(_vec: &[i64]) -> Self {
+        unexpanded!()
     }
 
     fn from_vec_expand(context: &mut CubeContext, vec: &[i64]) -> <Self as CubeType>::ExpandType {

@@ -9,7 +9,9 @@ macro_rules! impl_cmp {
                 self.val == other.val && self.vectorization == other.vectorization
             }
         }
+
         impl core::cmp::Eq for $type {}
+
         impl core::cmp::PartialOrd for $type {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 match self.val.partial_cmp(&other.val) {

@@ -1,5 +1,6 @@
 use crate::dialect::{Elem, FloatKind, Variable, Vectorization};
 use crate::language::{CubeContext, CubeType, ExpandElement, Numeric, PrimitiveVariable};
+use crate::unexpanded;
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float: Numeric {
@@ -57,11 +58,8 @@ macro_rules! impl_float {
         impl Numeric for $type {}
 
         impl Float for $type {
-            fn new(val: <Self as PrimitiveVariable>::Primitive) -> Self {
-                Self {
-                    val,
-                    vectorization: 1,
-                }
+            fn new(_val: <Self as PrimitiveVariable>::Primitive) -> Self {
+                unexpanded!()
             }
 
             fn new_expand(

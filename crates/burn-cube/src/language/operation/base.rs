@@ -86,6 +86,8 @@ where
     let lhs_var: Variable = *lhs;
     let rhs: Variable = *rhs;
 
+    check_vectorization(lhs_var.item().vectorization, rhs.item().vectorization);
+
     let op = func(BinaryOperator {
         lhs: lhs_var,
         rhs,
