@@ -99,7 +99,7 @@ pub(crate) fn codegen_call(
                 let code = call.args.first().unwrap();
                 quote::quote! {#code}
             }
-            "value_or" => {
+            "unwrap_or_else" => {
                 let mut args = quote::quote! {};
                 args.extend(quote::quote! { context, });
                 for argument in call.args.iter() {
@@ -109,14 +109,14 @@ pub(crate) fn codegen_call(
 
                 // Codegen
                 quote::quote! {
-                    Comptime::value_or_expand(#args)
+                    Comptime::unwrap_or_else_expand(#args)
                 }
             }
             "is_some" => {
                 let code = call.args.first().unwrap();
                 quote::quote! { #code.is_some() }
             }
-            _ => panic!(),
+            _ => panic!("Codegen: Comptime function {:?} does not exist", func_name),
         }
     } else {
         let mut args = quote::quote! {};

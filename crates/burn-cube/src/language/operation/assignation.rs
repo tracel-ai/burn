@@ -15,7 +15,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::language::CubeType;
+    use crate::{language::CubeType, unexpanded};
 
     use self::dialect::{BinaryOperator, Operator};
 
@@ -37,13 +37,16 @@ pub mod index_assign {
 
     impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
         fn index_mut(&mut self, _index: I) -> &mut Self::Output {
-            panic!()
+            unexpanded!()
         }
     }
 }
 
 pub mod index {
-    use crate::language::{operation::base::binary_expand, CubeType};
+    use crate::{
+        language::{operation::base::binary_expand, CubeType},
+        unexpanded,
+    };
 
     use self::dialect::Operator;
 
@@ -61,7 +64,7 @@ pub mod index {
         type Output = E;
 
         fn index(&self, _index: I) -> &Self::Output {
-            panic!()
+            unexpanded!()
         }
     }
 }

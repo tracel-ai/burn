@@ -1,5 +1,6 @@
 use crate::dialect::{Elem, Vectorization};
 use crate::language::{CubeType, ExpandElement, PrimitiveVariable};
+use crate::unexpanded;
 
 impl CubeType for bool {
     type ExpandType = ExpandElement;
@@ -32,6 +33,6 @@ impl PrimitiveVariable for bool {
     }
 
     fn from_i64_vec(_vec: &[i64]) -> Self {
-        panic!()
+        unexpanded!()
     }
 }

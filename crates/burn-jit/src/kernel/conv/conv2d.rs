@@ -38,9 +38,9 @@ fn kernel<F: Float>(
 ) {
     let in_channels = shape::<F>(weight, 1u32);
 
-    let kernel_size_0 = Comptime::value_or(kernel_size_0_unroll, || shape::<F>(weight, 2u32));
+    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || shape::<F>(weight, 2u32));
     let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
-    let kernel_size_1 = Comptime::value_or(kernel_size_1_unroll, || shape::<F>(weight, 3u32));
+    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || shape::<F>(weight, 3u32));
     let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
 
     let b = AbsoluteIndex::get() / stride::<F>(output, 0u32) % shape::<F>(output, 0u32);
