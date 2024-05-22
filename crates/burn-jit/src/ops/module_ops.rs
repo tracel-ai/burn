@@ -1,4 +1,4 @@
-use crate::{kernel, FloatElement, IntElement, JitBackend, Runtime};
+use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
     ModuleOps,
@@ -7,7 +7,7 @@ use burn_tensor::ops::{FloatTensor, IntTensor};
 
 impl<R, F, I> ModuleOps<Self> for JitBackend<R, F, I>
 where
-    R: Runtime,
+    R: JitRuntime,
     F: FloatElement,
     I: IntElement,
 {

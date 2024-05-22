@@ -1,5 +1,3 @@
-use crate::PrimitiveVariable;
-
 use super::{
     cpa, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
     Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
@@ -69,13 +67,13 @@ impl Scope {
     }
 
     /// Create a variable initialized at some value.
-    pub fn create_with_value<E: PrimitiveVariable, I: Into<Item> + Copy>(
-        &mut self,
-        value: E,
-        item: I,
-    ) -> Variable {
+    pub fn create_with_value<E, I>(&mut self, value: E, item: I) -> Variable
+    where
+        E: Into<f64>,
+        I: Into<Item> + Copy,
+    {
         let local = self.create_local(item);
-        let value = Variable::ConstantScalar(value.to_f64(), item.into().elem());
+        let value = Variable::ConstantScalar(value.into(), item.into().elem());
         cpa!(self, local = value);
         local
     }
@@ -203,7 +201,7 @@ impl Scope {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
+    pub fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
         self.reads_global
             .iter()
             .map(|(var, strategy, _, _)| match var {
@@ -338,11 +336,9 @@ impl Scope {
         position: Variable,
     ) -> Variable {
         let item_global = match item.elem() {
-            Elem::Bool => match item {
-                Item::Vec4(_) => Item::Vec4(Elem::UInt),
-                Item::Vec3(_) => Item::Vec3(Elem::UInt),
-                Item::Vec2(_) => Item::Vec2(Elem::UInt),
-                Item::Scalar(_) => Item::Scalar(Elem::UInt),
+            Elem::Bool => Item {
+                elem: Elem::UInt,
+                vectorization: item.vectorization,
             },
             _ => item,
         };

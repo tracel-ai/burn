@@ -1,10 +1,10 @@
-use crate::{element::JitElement, tensor::JitTensor, Runtime};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 
 use super::{prod_dim, ReduceStrategy};
 
 /// Multiply all elements in the input buffer.
-pub fn prod<R: Runtime, E: JitElement, const D: usize>(
+pub fn prod<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     strategy: ReduceStrategy,
 ) -> JitTensor<R, E, 1> {

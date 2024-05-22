@@ -1,15 +1,10 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
 use burn_tensor::Shape;
 
 use super::AdaptivePool2dEagerKernel;
 
-pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     output_size: [usize; 2],
 ) -> JitTensor<R, E, 4> {

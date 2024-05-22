@@ -1,12 +1,9 @@
-use super::unary;
-use crate::{
-    codegen::dialect::gpu::{ClampOperator, Operator, Scope, Variable},
-    element::JitElement,
-    tensor::JitTensor,
-    unary, Runtime,
-};
+use burn_cube::dialect::{ClampOperator, Operator, Scope, Variable};
 
-pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
+use super::unary;
+use crate::{element::JitElement, tensor::JitTensor, unary, JitRuntime};
+
+pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     min_value: E,
     max_value: E,

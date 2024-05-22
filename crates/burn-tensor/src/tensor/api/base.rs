@@ -298,6 +298,95 @@ where
         Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
     }
 
+    /// Removes specified dimensions of size 1 from a tensor's shape. This function takes a tensor and
+    /// an array of dimensions (`dims`) to be squeezed. If `dims` is provided, only the dimensions
+    /// specified in this array will be removed. Each dimension in `dims` should correspond to a size of 1
+    /// in the tensor; otherwise, the dimension will not be squeezed. If `dims` is empty, all single-dimensional entries
+    /// in the tensor will be removed. If entries in `dims` are negative, then dimensions will be counted
+    /// from the back.
+    ///
+    /// # Arguments
+    ///
+    /// - `dims`: The dimension(s) to be squeezed.
+    ///
+    /// # Type Parameters
+    ///
+    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified dimensions removed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 4>::ones(Shape::new([2, 1, 4, 1]), &device);
+    ///
+    ///     // Given a 4D tensor with dimensions (2, 1, 4, 1), squeeze the 1 and 3 dimensions
+    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze_dims(&[1, 3]);
+    ///
+    ///     // Resulting tensor will have dimensions (2, 4)
+    ///     println!("{:?}", squeezed_tensor.shape());
+    /// }
+    /// ```
+    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
+        let current_dims = self.shape().dims;
+        let mut dim_indices: Vec<usize>;
+
+        // Check if dims is empty, if yes then assign dim_indices all single-dimensional entries
+        if dims.is_empty() {
+            dim_indices = current_dims
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &dim)| if dim == 1 { Some(index) } else { None })
+                .collect();
+        } else {
+            // If negative dims, count from the back
+            dim_indices = dims
+                .iter()
+                .map(|&d| {
+                    if d < 0 {
+                        (current_dims.len() as isize + d) as usize
+                    } else {
+                        d as usize
+                    }
+                })
+                .collect();
+        }
+
+        // Sort indices and remove duplicates
+        dim_indices.sort_unstable();
+        dim_indices.dedup();
+
+        // Make sure squeeze_dims doesn't result in a tensor with < 1 dimensions
+        check!(TensorCheck::squeeze_dims_input::<D2>(
+            &dim_indices,
+            &current_dims
+        ));
+
+        // Calculate new dimensions
+        let mut new_dims = Vec::new();
+        for (index, &dim_size) in current_dims.iter().enumerate() {
+            // Exclude the dimension if it's explicitly marked for squeezing
+            if dim_indices.contains(&index) {
+                check!(TensorCheck::squeeze::<D2>(index, &current_dims));
+                continue;
+            }
+            new_dims.push(dim_size);
+        }
+
+        // Check that after squeezing, we still respect the D2 size
+        check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
+
+        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+    }
+
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
     ///
     /// If the output size is higher than the current tensor.

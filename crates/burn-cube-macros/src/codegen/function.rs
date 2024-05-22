@@ -34,12 +34,7 @@ pub(crate) fn codegen_closure(
 }
 
 /// Codegen for a function call
-/// Supports:
-/// func()
-/// func::<T>()
-/// T::func()
-///
-/// Should map:
+/// Maps
 /// [A[::<...>]?::]^* func[::<...>] (args)
 /// to
 /// [A[::<...>]?::]^* func_expand[::<...>] (context, args)

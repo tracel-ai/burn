@@ -1,3 +1,9 @@
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
@@ -5,24 +11,18 @@ use burn_tensor::{
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
-    gpu::ComputeShader,
     kernel::{into_contiguous, GpuComputeShaderPhase},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 
 #[derive(new)]
-struct Conv2dEagerKernel<R: Runtime, E: JitElement> {
+struct Conv2dEagerKernel<R: JitRuntime, E: JitElement> {
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -51,14 +51,14 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let input_shape_1 = scope.create_local(Elem::UInt);
         let input_shape_2 = scope.create_local(Elem::UInt);
         let input_shape_3 = scope.create_local(Elem::UInt);
-        gpu!(scope, input_stride_0 = stride(input, 0u32));
-        gpu!(scope, input_stride_1 = stride(input, 1u32));
-        gpu!(scope, input_stride_2 = stride(input, 2u32));
-        gpu!(scope, input_stride_3 = stride(input, 3u32));
-        gpu!(scope, input_shape_0 = shape(input, 0u32));
-        gpu!(scope, input_shape_1 = shape(input, 1u32));
-        gpu!(scope, input_shape_2 = shape(input, 2u32));
-        gpu!(scope, input_shape_3 = shape(input, 3u32));
+        cpa!(scope, input_stride_0 = stride(input, 0u32));
+        cpa!(scope, input_stride_1 = stride(input, 1u32));
+        cpa!(scope, input_stride_2 = stride(input, 2u32));
+        cpa!(scope, input_stride_3 = stride(input, 3u32));
+        cpa!(scope, input_shape_0 = shape(input, 0u32));
+        cpa!(scope, input_shape_1 = shape(input, 1u32));
+        cpa!(scope, input_shape_2 = shape(input, 2u32));
+        cpa!(scope, input_shape_3 = shape(input, 3u32));
 
         let output_stride_0 = scope.create_local(Elem::UInt);
         let output_stride_1 = scope.create_local(Elem::UInt);
@@ -68,14 +68,14 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let output_shape_1 = scope.create_local(Elem::UInt);
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cpa!(scope, output_stride_0 = stride(output, 0u32));
+        cpa!(scope, output_stride_1 = stride(output, 1u32));
+        cpa!(scope, output_stride_2 = stride(output, 2u32));
+        cpa!(scope, output_stride_3 = stride(output, 3u32));
+        cpa!(scope, output_shape_0 = shape(output, 0u32));
+        cpa!(scope, output_shape_1 = shape(output, 1u32));
+        cpa!(scope, output_shape_2 = shape(output, 2u32));
+        cpa!(scope, output_shape_3 = shape(output, 3u32));
 
         let weight_stride_0 = scope.create_local(Elem::UInt);
         let weight_stride_1 = scope.create_local(Elem::UInt);
@@ -85,14 +85,14 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let in_channels = scope.create_local(Elem::UInt);
         let kernel_size_0 = scope.create_local(Elem::UInt);
         let kernel_size_1 = scope.create_local(Elem::UInt);
-        gpu!(scope, weight_stride_0 = stride(weight, 0u32));
-        gpu!(scope, weight_stride_1 = stride(weight, 1u32));
-        gpu!(scope, weight_stride_2 = stride(weight, 2u32));
-        gpu!(scope, weight_stride_3 = stride(weight, 3u32));
-        gpu!(scope, weight_shape_0 = shape(weight, 0u32));
-        gpu!(scope, in_channels = shape(weight, 1u32));
-        gpu!(scope, kernel_size_0 = shape(weight, 2u32));
-        gpu!(scope, kernel_size_1 = shape(weight, 3u32));
+        cpa!(scope, weight_stride_0 = stride(weight, 0u32));
+        cpa!(scope, weight_stride_1 = stride(weight, 1u32));
+        cpa!(scope, weight_stride_2 = stride(weight, 2u32));
+        cpa!(scope, weight_stride_3 = stride(weight, 3u32));
+        cpa!(scope, weight_shape_0 = shape(weight, 0u32));
+        cpa!(scope, in_channels = shape(weight, 1u32));
+        cpa!(scope, kernel_size_0 = shape(weight, 2u32));
+        cpa!(scope, kernel_size_1 = shape(weight, 3u32));
 
         let conv_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
         let conv_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
@@ -111,26 +111,26 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let ic_start = scope.create_local(Elem::UInt);
         let ic_end = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cpa!(scope, b = id / output_stride_0);
+        cpa!(scope, b = b % output_shape_0);
 
-        gpu!(scope, oc = id / output_stride_1);
-        gpu!(scope, oc = oc % output_shape_1);
+        cpa!(scope, oc = id / output_stride_1);
+        cpa!(scope, oc = oc % output_shape_1);
 
-        gpu!(scope, oh = id / output_stride_2);
-        gpu!(scope, oh = oh % output_shape_2);
+        cpa!(scope, oh = id / output_stride_2);
+        cpa!(scope, oh = oh % output_shape_2);
 
-        gpu!(scope, ow = id / output_stride_3);
-        gpu!(scope, ow = ow % output_shape_3);
+        cpa!(scope, ow = id / output_stride_3);
+        cpa!(scope, ow = ow % output_shape_3);
 
-        gpu!(scope, g = weight_shape_0 + oc);
-        gpu!(scope, g = g % groups);
+        cpa!(scope, g = weight_shape_0 + oc);
+        cpa!(scope, g = g % groups);
 
-        gpu!(scope, ic_start = in_channels * g);
-        gpu!(scope, ic_end = ic_start + in_channels);
+        cpa!(scope, ic_start = in_channels * g);
+        cpa!(scope, ic_end = ic_start + in_channels);
 
         let sum = scope.create_local(output.item());
-        gpu!(scope, sum = bias[oc]);
+        cpa!(scope, sum = bias[oc]);
 
         let ih_base = scope.create_local(Elem::UInt);
         let iw_base = scope.create_local(Elem::UInt);
@@ -163,65 +163,65 @@ impl<E: JitElement> Conv2dComputeShader<E> {
         let weight_value = scope.create_local(weight.item());
         let value_product = scope.create_local(input.item());
 
-        gpu!(scope, ih_base = oh * conv_stride_0);
-        gpu!(scope, iw_base = ow * conv_stride_1);
+        cpa!(scope, ih_base = oh * conv_stride_0);
+        cpa!(scope, iw_base = ow * conv_stride_1);
 
-        gpu!(scope, border_top = padding_0);
-        gpu!(scope, border_left = padding_1);
-        gpu!(scope, border_bottom = input_shape_2 + padding_0);
-        gpu!(scope, border_right = input_shape_3 + padding_1);
+        cpa!(scope, border_top = padding_0);
+        cpa!(scope, border_left = padding_1);
+        cpa!(scope, border_bottom = input_shape_2 + padding_0);
+        cpa!(scope, border_right = input_shape_3 + padding_1);
 
-        gpu!(scope, index_input_0 = b * input_stride_0);
-        gpu!(scope, index_weight_0 = oc * weight_stride_0);
+        cpa!(scope, index_input_0 = b * input_stride_0);
+        cpa!(scope, index_weight_0 = oc * weight_stride_0);
 
-        gpu!(
+        cpa!(
             scope,
             range(ic_start, ic_end).for_each(|ic, scope| {
-                gpu!(scope, index_input_1 = ic * input_stride_1);
-                gpu!(scope, index_weight_1 = ic - ic_start);
-                gpu!(scope, index_weight_1 *= weight_stride_1);
+                cpa!(scope, index_input_1 = ic * input_stride_1);
+                cpa!(scope, index_weight_1 = ic - ic_start);
+                cpa!(scope, index_weight_1 *= weight_stride_1);
 
-                gpu!(
+                cpa!(
                     scope,
                     range(0u32, kernel_size_0).for_each(|kh, scope| {
-                        gpu!(
+                        cpa!(
                             scope,
                             range(0u32, kernel_size_1).for_each(|kw, scope| {
-                                gpu!(scope, ih = kh * dilation_0);
-                                gpu!(scope, ih += ih_base);
-                                gpu!(scope, iw = kw * dilation_1);
-                                gpu!(scope, iw += iw_base);
+                                cpa!(scope, ih = kh * dilation_0);
+                                cpa!(scope, ih += ih_base);
+                                cpa!(scope, iw = kw * dilation_1);
+                                cpa!(scope, iw += iw_base);
 
-                                gpu!(scope, padding_accumulator = ih >= border_top);
-                                gpu!(scope, padding = ih < border_bottom);
-                                gpu!(scope, padding_accumulator = padding_accumulator && padding);
-                                gpu!(scope, padding = iw >= border_left);
-                                gpu!(scope, padding_accumulator = padding_accumulator && padding);
-                                gpu!(scope, padding = iw < border_right);
-                                gpu!(scope, padding_accumulator = padding_accumulator && padding);
+                                cpa!(scope, padding_accumulator = ih >= border_top);
+                                cpa!(scope, padding = ih < border_bottom);
+                                cpa!(scope, padding_accumulator = padding_accumulator && padding);
+                                cpa!(scope, padding = iw >= border_left);
+                                cpa!(scope, padding_accumulator = padding_accumulator && padding);
+                                cpa!(scope, padding = iw < border_right);
+                                cpa!(scope, padding_accumulator = padding_accumulator && padding);
 
-                                gpu!(scope, if(padding_accumulator).then(|scope|{
-                                    gpu!(scope, ih_pad = ih - padding_0);
-                                    gpu!(scope, iw_pad = iw - padding_1);
+                                cpa!(scope, if(padding_accumulator).then(|scope|{
+                                    cpa!(scope, ih_pad = ih - padding_0);
+                                    cpa!(scope, iw_pad = iw - padding_1);
 
-                                    gpu!(scope, index_input_2 = ih_pad * input_stride_2);
-                                    gpu!(scope, index_input_3 = iw_pad * input_stride_3);
-                                    gpu!(scope, index_weight_2 = kh * weight_stride_2);
-                                    gpu!(scope, index_weight_3 = kw * weight_stride_3);
+                                    cpa!(scope, index_input_2 = ih_pad * input_stride_2);
+                                    cpa!(scope, index_input_3 = iw_pad * input_stride_3);
+                                    cpa!(scope, index_weight_2 = kh * weight_stride_2);
+                                    cpa!(scope, index_weight_3 = kw * weight_stride_3);
 
-                                    gpu!(scope, index_input = index_input_0);
-                                    gpu!(scope, index_input += index_input_1);
-                                    gpu!(scope, index_input += index_input_2);
-                                    gpu!(scope, index_input += index_input_3);
-                                    gpu!(scope, index_weight = index_weight_0);
-                                    gpu!(scope, index_weight += index_weight_1);
-                                    gpu!(scope, index_weight += index_weight_2);
-                                    gpu!(scope, index_weight += index_weight_3);
+                                    cpa!(scope, index_input = index_input_0);
+                                    cpa!(scope, index_input += index_input_1);
+                                    cpa!(scope, index_input += index_input_2);
+                                    cpa!(scope, index_input += index_input_3);
+                                    cpa!(scope, index_weight = index_weight_0);
+                                    cpa!(scope, index_weight += index_weight_1);
+                                    cpa!(scope, index_weight += index_weight_2);
+                                    cpa!(scope, index_weight += index_weight_3);
 
-                                    gpu!(scope, input_value = input[index_input]);
-                                    gpu!(scope, weight_value = weight[index_weight]);
-                                    gpu!(scope, value_product = input_value * weight_value);
-                                    gpu!(scope, sum += value_product);
+                                    cpa!(scope, input_value = input[index_input]);
+                                    cpa!(scope, weight_value = weight[index_weight]);
+                                    cpa!(scope, value_product = input_value * weight_value);
+                                    cpa!(scope, sum += value_product);
                                 }));
                             })
                         );
@@ -230,14 +230,14 @@ impl<E: JitElement> Conv2dComputeShader<E> {
             })
         );
 
-        gpu!(scope, output[id] = sum);
+        cpa!(scope, output[id] = sum);
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let weight = Variable::GlobalInputArray(1, item);
@@ -289,7 +289,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E
     }
 }
 
-pub(crate) fn conv2d<R: Runtime, E: JitElement>(
+pub(crate) fn conv2d<R: JitRuntime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,

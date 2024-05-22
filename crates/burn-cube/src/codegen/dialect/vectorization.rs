@@ -1,19 +1,6 @@
 use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
-/// Define a vectorization scheme.
-#[allow(dead_code)]
-#[derive(Copy, Clone, Debug, Default, Hash)]
-pub enum Vectorization {
-    /// Use vec4 for vectorization.
-    Vec4,
-    /// Use vec3 for vectorization.
-    Vec3,
-    /// Use vec2 for vectorization.
-    Vec2,
-    /// Don't vectorize.
-    #[default]
-    Scalar,
-}
+pub type Vectorization = u8;
 
 impl Operation {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
@@ -169,21 +156,14 @@ impl Variable {
 }
 
 impl Item {
-    pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Item {
-        match vectorize {
-            Vectorization::Vec4 => Item::Vec4(self.elem()),
-            Vectorization::Vec3 => Item::Vec3(self.elem()),
-            Vectorization::Vec2 => Item::Vec2(self.elem()),
-            Vectorization::Scalar => Item::Scalar(self.elem()),
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Item {
+        Item {
+            elem: self.elem,
+            vectorization,
         }
     }
 
     pub(crate) fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
-        match vectorize {
-            Vectorization::Vec4 => size / 4,
-            Vectorization::Vec3 => size / 3,
-            Vectorization::Vec2 => size / 2,
-            Vectorization::Scalar => size,
-        }
+        size / (vectorize as u32)
     }
 }

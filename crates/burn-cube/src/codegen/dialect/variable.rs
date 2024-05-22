@@ -33,7 +33,7 @@ pub enum Variable {
 }
 
 impl Variable {
-    pub(crate) fn index(&self) -> Option<u16> {
+    pub fn index(&self) -> Option<u16> {
         match self {
             Variable::GlobalInputArray(idx, _) => Some(*idx),
             Variable::GlobalScalar(idx, _) => Some(*idx),
@@ -69,30 +69,30 @@ impl Variable {
         match self {
             Variable::GlobalInputArray(_, item) => *item,
             Variable::GlobalOutputArray(_, item) => *item,
-            Variable::GlobalScalar(_, elem) => Item::Scalar(*elem),
+            Variable::GlobalScalar(_, elem) => Item::new(*elem),
             Variable::Local(_, item, _) => *item,
-            Variable::LocalScalar(_, elem, _) => Item::Scalar(*elem),
-            Variable::ConstantScalar(_, elem) => Item::Scalar(*elem),
+            Variable::LocalScalar(_, elem, _) => Item::new(*elem),
+            Variable::ConstantScalar(_, elem) => Item::new(*elem),
             Variable::SharedMemory(_, item, _) => *item,
             Variable::LocalArray(_, item, _, _) => *item,
-            Variable::Id => Item::Scalar(Elem::UInt),
-            Variable::Rank => Item::Scalar(Elem::UInt),
-            Variable::LocalInvocationIndex => Item::Scalar(Elem::UInt),
-            Variable::LocalInvocationIdX => Item::Scalar(Elem::UInt),
-            Variable::LocalInvocationIdY => Item::Scalar(Elem::UInt),
-            Variable::LocalInvocationIdZ => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupIdX => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupIdY => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupIdZ => Item::Scalar(Elem::UInt),
-            Variable::GlobalInvocationIdX => Item::Scalar(Elem::UInt),
-            Variable::GlobalInvocationIdY => Item::Scalar(Elem::UInt),
-            Variable::GlobalInvocationIdZ => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupSizeX => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupSizeY => Item::Scalar(Elem::UInt),
-            Variable::WorkgroupSizeZ => Item::Scalar(Elem::UInt),
-            Variable::NumWorkgroupsX => Item::Scalar(Elem::UInt),
-            Variable::NumWorkgroupsY => Item::Scalar(Elem::UInt),
-            Variable::NumWorkgroupsZ => Item::Scalar(Elem::UInt),
+            Variable::Id => Item::new(Elem::UInt),
+            Variable::Rank => Item::new(Elem::UInt),
+            Variable::LocalInvocationIndex => Item::new(Elem::UInt),
+            Variable::LocalInvocationIdX => Item::new(Elem::UInt),
+            Variable::LocalInvocationIdY => Item::new(Elem::UInt),
+            Variable::LocalInvocationIdZ => Item::new(Elem::UInt),
+            Variable::WorkgroupIdX => Item::new(Elem::UInt),
+            Variable::WorkgroupIdY => Item::new(Elem::UInt),
+            Variable::WorkgroupIdZ => Item::new(Elem::UInt),
+            Variable::GlobalInvocationIdX => Item::new(Elem::UInt),
+            Variable::GlobalInvocationIdY => Item::new(Elem::UInt),
+            Variable::GlobalInvocationIdZ => Item::new(Elem::UInt),
+            Variable::WorkgroupSizeX => Item::new(Elem::UInt),
+            Variable::WorkgroupSizeY => Item::new(Elem::UInt),
+            Variable::WorkgroupSizeZ => Item::new(Elem::UInt),
+            Variable::NumWorkgroupsX => Item::new(Elem::UInt),
+            Variable::NumWorkgroupsY => Item::new(Elem::UInt),
+            Variable::NumWorkgroupsZ => Item::new(Elem::UInt),
         }
     }
 }

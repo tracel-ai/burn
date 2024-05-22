@@ -1,14 +1,14 @@
 use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Branch, Elem, IntKind, Item, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        WorkgroupLaunch,
-    },
     element::JitElement,
-    gpu::ComputeShader,
-    kernel::{elemwise_workgroup, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
+};
+use burn_cube::{
+    cpa,
+    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
+    InputInfo, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -20,7 +20,7 @@ pub struct SelectAssignComputeShader {
 }
 
 #[derive(new)]
-pub struct SelectAssignEagerKernel<R: Runtime, E: JitElement> {
+pub struct SelectAssignEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -41,65 +41,65 @@ impl SelectAssignComputeShader {
         let shape_value_dim = scope.create_local(Elem::UInt);
 
         let num_elems = scope.create_local(Elem::UInt);
-        gpu!(scope, num_elems = cast(1u32));
+        cpa!(scope, num_elems = cast(1u32));
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let shape_value = scope.create_local(Elem::UInt);
                 let stride_tensor = scope.create_local(Elem::UInt);
                 let stride_value = scope.create_local(Elem::UInt);
 
-                gpu!(scope, stride_tensor = stride(tensor, i));
-                gpu!(scope, stride_value = stride(value, i));
-                gpu!(scope, shape_value = shape(value, i));
+                cpa!(scope, stride_tensor = stride(tensor, i));
+                cpa!(scope, stride_value = stride(value, i));
+                cpa!(scope, shape_value = shape(value, i));
 
                 let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
+                cpa!(scope, dim_index = i == self.dim);
 
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, shape_value_dim = shape_value);
-                    gpu!(scope, stride_tensor_dim = stride_tensor);
-                    gpu!(scope, stride_value_dim = stride_value);
+                cpa!(scope, if(dim_index).then(|scope| {
+                    cpa!(scope, shape_value_dim = shape_value);
+                    cpa!(scope, stride_tensor_dim = stride_tensor);
+                    cpa!(scope, stride_value_dim = stride_value);
                 }).else(|scope| {
                     let stride_tmp = scope.create_local(Elem::UInt);
                     let shape_tensor = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, stride_tmp = stride(indices, i));
-                    gpu!(scope, shape_tensor = shape(tensor, i));
+                    cpa!(scope, stride_tmp = stride(indices, i));
+                    cpa!(scope, shape_tensor = shape(tensor, i));
 
-                    gpu!(scope, num_elems = num_elems * shape_tensor);
+                    cpa!(scope, num_elems = num_elems * shape_tensor);
 
                     let offset_local = scope.create_local(Elem::UInt);
                     let offset_local_tensor = scope.create_local(Elem::UInt);
                     let offset_local_value = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, offset_local = id / stride_tmp);
+                    cpa!(scope, offset_local = id / stride_tmp);
 
-                    gpu!(scope, offset_local_tensor = offset_local % shape_tensor);
-                    gpu!(
+                    cpa!(scope, offset_local_tensor = offset_local % shape_tensor);
+                    cpa!(
                         scope,
                         offset_local_tensor = offset_local_tensor * stride_tensor
                     );
-                    gpu!(scope, offset_tensor += offset_local_tensor);
+                    cpa!(scope, offset_tensor += offset_local_tensor);
 
-                    gpu!(scope, offset_local_value = offset_local % shape_value);
-                    gpu!(
+                    cpa!(scope, offset_local_value = offset_local % shape_value);
+                    cpa!(
                         scope,
                         offset_local_value = offset_local_value * stride_value
                     );
-                    gpu!(scope, offset_value += offset_local_value);
+                    cpa!(scope, offset_value += offset_local_value);
                 }));
             })
         );
 
         let should_stop = scope.create_local(Elem::Bool);
-        gpu!(scope, should_stop = id >= num_elems);
-        gpu!(scope, if(should_stop).then(|scope| {
+        cpa!(scope, should_stop = id >= num_elems);
+        cpa!(scope, if(should_stop).then(|scope| {
             scope.register(Branch::Return);
         }));
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, shape_value_dim).for_each(|i, scope| {
                 let index = scope.create_local(Elem::UInt);
@@ -110,28 +110,28 @@ impl SelectAssignComputeShader {
                 let result_value = scope.create_local(value.item());
                 let result = scope.create_local(tensor.item());
 
-                gpu!(scope, index = indices[i]);
+                cpa!(scope, index = indices[i]);
 
-                gpu!(scope, index_tensor = index * stride_tensor_dim);
-                gpu!(scope, index_tensor += offset_tensor);
+                cpa!(scope, index_tensor = index * stride_tensor_dim);
+                cpa!(scope, index_tensor += offset_tensor);
 
-                gpu!(scope, index_value = i * stride_value_dim);
-                gpu!(scope, index_value += offset_value);
+                cpa!(scope, index_value = i * stride_value_dim);
+                cpa!(scope, index_value += offset_value);
 
-                gpu!(scope, result_tensor = tensor[index_tensor]);
-                gpu!(scope, result_value = value[index_value]);
-                gpu!(scope, result = result_value + result_tensor);
+                cpa!(scope, result_tensor = tensor[index_tensor]);
+                cpa!(scope, result_value = value[index_value]);
+                cpa!(scope, result = result_value + result_tensor);
 
-                gpu!(scope, tensor[index_tensor] = result);
+                cpa!(scope, tensor[index_tensor] = result);
             })
         );
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
         let tensor = Variable::GlobalInputArray(0, item);
@@ -176,7 +176,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKerne
     }
 }
 
-pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,

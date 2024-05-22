@@ -15,6 +15,7 @@ pub enum BinaryType {
     Powf,
     Powi,
     Min,
+    Max,
 }
 
 impl BinaryType {
@@ -28,6 +29,7 @@ impl BinaryType {
             BinaryType::Powi => "powi",
             BinaryType::Powf => "powf",
             BinaryType::Min => "min_pair",
+            BinaryType::Max => "max_pair",
         }
     }
 }
@@ -182,6 +184,14 @@ impl BinaryNode {
             _ => panic!("min_pair is supported for tensor only"),
         };
         Self::new(lhs, rhs, output, BinaryType::Min, Arc::new(function))
+    }
+
+    pub(crate) fn max_pair(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.max_pair(#rhs) },
+            _ => panic!("max is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Max, Arc::new(function))
     }
 }
 
@@ -341,6 +351,11 @@ mod tests {
     #[test]
     fn test_binary_codegen_min() {
         test_binary_operator_on_tensors!(min_pair);
+    }
+
+    #[test]
+    fn test_binary_codegen_max() {
+        test_binary_operator_on_tensors!(max_pair);
     }
 
     #[test]
