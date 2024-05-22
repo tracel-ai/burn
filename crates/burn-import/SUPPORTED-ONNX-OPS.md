@@ -101,7 +101,7 @@ represent the corresponding Burn Op.
 | [LSTM][93]                       |       ❌       |      ✅      |
 | [MatMul][94]                     |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
-| [Max][96]                        |       ❌       |      ✅      |
+| [Max][96]                        |       ✅       |      ✅      |
 | [MaxPool1d][97]                  |       ✅       |      ✅      |
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |

@@ -44,6 +44,7 @@ include_models!(
     log,
     mask_where,
     matmul,
+    max,
     maxpool1d,
     maxpool2d,
     mul,
@@ -448,6 +449,21 @@ mod tests {
         assert_eq!(output1.to_data(), expected1);
         assert_eq!(output2, expected2);
     }
+
+    #[test]
+    fn max() {
+        let device = Default::default();
+
+        let model: max::Model<Backend> = max::Model::new(&device);
+        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, 42.0, 9.0, 42.0]], &device);
+        let input2 = Tensor::<Backend, 2>::from_floats([[42.0, 4.0, 42.0, 25.0]], &device);
+
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[42.0, 42.0, 42.0, 42.0]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
     #[test]
     fn maxpool1d() {
         let device = Default::default();

@@ -242,6 +242,7 @@ impl OnnxGraph {
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
+                NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
@@ -414,6 +415,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::equal(lhs, rhs, output)
+    }
+
+    fn max_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        BinaryNode::max_pair(lhs, rhs, output)
     }
 
     fn erf_conversion(node: Node) -> UnaryNode {
@@ -709,6 +718,7 @@ impl OnnxGraph {
         let name = &node.name;
         Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
+
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
