@@ -17,23 +17,46 @@ pub trait CubeType {
     type ExpandType: Clone;
 }
 
-#[derive(new, Clone, Debug)]
 /// Reference to a JIT variable
-/// It's the expand element that is actually kept in the variable pool
-pub struct ExpandElement {
-    pub(crate) inner: Rc<Variable>,
+#[derive(Clone, Debug)]
+pub enum ExpandElement {
+    /// Variable kept in the variable pool.
+    Managed(Rc<Variable>),
+    /// Variable not kept in the variable pool.
+    Plain(Variable),
+}
+
+impl ExpandElement {
+    pub fn can_mut(&self) -> bool {
+        match self {
+            ExpandElement::Managed(var) => {
+                if let Variable::Local(_, _, _) = var.as_ref() {
+                    Rc::strong_count(var) <= 2
+                } else {
+                    false
+                }
+            }
+            ExpandElement::Plain(_) => false,
+        }
+    }
 }
 
 impl core::ops::Deref for ExpandElement {
     type Target = Variable;
 
     fn deref(&self) -> &Self::Target {
-        self.inner.as_ref()
+        match self {
+            ExpandElement::Managed(var) => var.as_ref(),
+            ExpandElement::Plain(var) => var,
+        }
     }
 }
 
 impl From<ExpandElement> for Variable {
     fn from(value: ExpandElement) -> Self {
-        *value.inner
+        match value {
+            ExpandElement::Managed(var) => *var,
+            ExpandElement::Plain(var) => var,
+        }
     }
 }

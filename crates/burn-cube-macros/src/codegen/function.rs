@@ -34,15 +34,25 @@ pub(crate) fn codegen_closure(
 }
 
 /// Codegen for a function call
-/// Maps
-/// [A[::<...>]?::]^* func[::<...>] (args)
-/// to
-/// [A[::<...>]?::]^* func_expand[::<...>] (context, args)
 pub(crate) fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
+    parse_function_call(call, loop_level, variable_analyses).0
+}
+
+/// Maps
+/// [A[::<...>]?::]^* func[::<...>] (args)
+/// to
+/// [A[::<...>]?::]^* func_expand[::<...>] (context, args)
+///
+/// Also returns a bool that is true if it's comptime
+pub(crate) fn parse_function_call(
+    call: &syn::ExprCall,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> (TokenStream, bool) {
     // We start with parsing the function path
     let path: Vec<(&Ident, Option<&AngleBracketedGenericArguments>)> = match call.func.as_ref() {
         syn::Expr::Path(expr_path) => {
@@ -63,8 +73,19 @@ pub(crate) fn codegen_call(
 
     // Path
     let mut path_tokens = TokenStream::new();
+    let mut is_comptime = false;
+    let mut comptime_func: Option<String> = None;
+
     for (i, (ident, generics)) in path.iter().enumerate() {
+        if *ident == "Comptime" {
+            is_comptime = true;
+            continue;
+        }
         if i == path.len() - 1 {
+            if is_comptime {
+                comptime_func = Some(ident.to_string());
+                break;
+            }
             let func_name_expand = syn::Ident::new(
                 format!("{ident}_expand").as_str(),
                 proc_macro2::Span::call_site(),
@@ -82,16 +103,46 @@ pub(crate) fn codegen_call(
     }
 
     // Arguments
-    let mut args = quote::quote! {
-        context,
-    };
-    for argument in call.args.iter() {
-        let arg = codegen_expr(argument, loop_level, variable_analyses);
-        args.extend(quote::quote! { #arg, });
-    }
+    if let Some(func_name) = comptime_func {
+        let tokens = match func_name.as_str() {
+            "get" | "new" => {
+                let code = call.args.first().unwrap();
+                quote::quote! {#code}
+            }
+            "unwrap_or_else" => {
+                let mut args = quote::quote! {};
+                args.extend(quote::quote! { context, });
+                for argument in call.args.iter() {
+                    let arg = codegen_expr(argument, loop_level, variable_analyses);
+                    args.extend(quote::quote! { #arg, });
+                }
 
-    // Codegen
-    quote::quote! {
-        #path_tokens (#args)
+                // Codegen
+                quote::quote! {
+                    Comptime::unwrap_or_else_expand(#args)
+                }
+            }
+            "is_some" => {
+                let code = call.args.first().unwrap();
+                quote::quote! { #code.is_some() }
+            }
+            _ => panic!("Codegen: Comptime function {:?} does not exist", func_name),
+        };
+
+        (tokens, true)
+    } else {
+        let mut args = quote::quote! {};
+        args.extend(quote::quote! { context, });
+        for argument in call.args.iter() {
+            let arg = codegen_expr(argument, loop_level, variable_analyses);
+            args.extend(quote::quote! { #arg, });
+        }
+
+        // Codegen
+        let tokens = quote::quote! {
+            #path_tokens (#args)
+        };
+
+        (tokens, false)
     }
 }

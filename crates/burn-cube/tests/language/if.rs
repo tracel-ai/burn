@@ -7,11 +7,19 @@ pub fn if_greater<T: Numeric>(lhs: T) {
     }
 }
 
+#[cube]
+pub fn if_greater_var<T: Numeric>(lhs: T) {
+    let x = lhs > T::from_int(0);
+    if x {
+        let _ = lhs + T::from_int(4);
+    }
+}
+
 mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::if_greater_expand;

@@ -1,9 +1,11 @@
-use std::{ops::Deref, rc::Rc};
+use std::ops::Deref;
 
 use crate::dialect::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
 use crate::language::{CubeContext, ExpandElement, UInt};
 
-pub fn range<S, E>(start: S, end: E, _unroll: bool) -> core::ops::Range<usize>
+use super::comptime::Comptime;
+
+pub fn range<S, E>(start: S, end: E, _unroll: Comptime<bool>) -> impl Iterator<Item = UInt>
 where
     S: Into<UInt>,
     E: Into<UInt>,
@@ -11,10 +13,7 @@ where
     let start: UInt = start.into();
     let end: UInt = end.into();
 
-    core::ops::Range {
-        start: start.val as usize,
-        end: end.val as usize,
-    }
+    (start.val..end.val).map(UInt::new)
 }
 
 pub fn range_expand<F>(
@@ -43,7 +42,7 @@ pub fn range_expand<F>(
         let mut child = context.child();
         let index_ty = Item::new(Elem::UInt);
         let i = child.scope.borrow_mut().create_local_undeclared(index_ty);
-        let i = ExpandElement::new(Rc::new(i));
+        let i = ExpandElement::Plain(i);
 
         func(&mut child, i.clone());
 
@@ -56,40 +55,65 @@ pub fn range_expand<F>(
     }
 }
 
-pub fn if_expand<IF>(context: &mut CubeContext, cond: ExpandElement, mut block: IF)
-where
+pub fn if_expand<IF>(
+    context: &mut CubeContext,
+    comptime_cond: Option<bool>,
+    runtime_cond: ExpandElement,
+    mut block: IF,
+) where
     IF: FnMut(&mut CubeContext),
 {
-    let mut child = context.child();
+    match comptime_cond {
+        Some(cond) => {
+            if cond {
+                block(context);
+            }
+        }
+        None => {
+            let mut child = context.child();
 
-    block(&mut child);
+            block(&mut child);
 
-    context.register(Branch::If(If {
-        cond: *cond,
-        scope: child.into_scope(),
-    }));
+            context.register(Branch::If(If {
+                cond: *runtime_cond,
+                scope: child.into_scope(),
+            }));
+        }
+    }
 }
 
 pub fn if_else_expand<IF, EL>(
     context: &mut CubeContext,
-    cond: ExpandElement,
+    comptime_cond: Option<bool>,
+    runtime_cond: ExpandElement,
     mut then_block: IF,
     mut else_block: EL,
 ) where
     IF: FnMut(&mut CubeContext),
     EL: FnMut(&mut CubeContext),
 {
-    let mut then_child = context.child();
-    then_block(&mut then_child);
+    match comptime_cond {
+        Some(cond) => {
+            if cond {
+                then_block(context);
+            } else {
+                else_block(context);
+            }
+        }
+        None => {
+            let mut then_child = context.child();
+            then_block(&mut then_child);
 
-    let mut else_child = context.child();
-    else_block(&mut else_child);
+            let mut else_child = context.child();
+            else_block(&mut else_child);
 
-    context.register(Branch::IfElse(IfElse {
-        cond: *cond,
-        scope_if: then_child.into_scope(),
-        scope_else: else_child.into_scope(),
-    }));
+            context.register(Branch::IfElse(IfElse {
+                cond: *runtime_cond,
+                scope_if: then_child.into_scope(),
+                scope_else: else_child.into_scope(),
+            }));
+        }
+    }
 }
 
 pub fn break_expand(context: &mut CubeContext) {
@@ -116,7 +140,7 @@ where
     let mut inside_loop = context.child();
 
     let cond: ExpandElement = cond_fn(&mut inside_loop);
-    if_expand(&mut inside_loop, cond, break_expand);
+    if_expand(&mut inside_loop, None, cond, break_expand);
 
     block(&mut inside_loop);
     context.register(Branch::Loop(Loop {

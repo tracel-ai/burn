@@ -1,20 +1,20 @@
 mod array;
 mod base;
 mod bool;
-mod conversion;
+mod cast;
+mod cube_elem;
 mod float;
 mod int;
 mod numeric;
-mod primitive;
-mod static_type;
+mod tensor;
 mod uint;
 
 pub use array::*;
 pub use base::*;
-pub use bool::*;
-pub use conversion::*;
+pub use cast::*;
+pub use cube_elem::*;
 pub use float::*;
 pub use int::*;
 pub use numeric::*;
-pub use primitive::*;
+pub use tensor::*;
 pub use uint::*;

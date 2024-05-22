@@ -100,6 +100,10 @@ enum BenchmarkValues {
     LoadRecord,
     #[strum(to_string = "autodiff")]
     Autodiff,
+    #[strum(to_string = "conv-transpose2d")]
+    ConvTranspose2d,
+    #[strum(to_string = "conv2d")]
+    Conv2d,
 }
 
 pub fn execute() {

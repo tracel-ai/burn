@@ -1,7 +1,4 @@
-use crate::{
-    branch::range,
-    codegen::dialect::{macros::cpa, Scope, Variable, Vectorization},
-};
+use crate::codegen::dialect::{macros::cpa, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.
@@ -56,8 +53,8 @@ impl ConditionalAssign {
                 }));
             }
             false => {
-                for i in range(0u32, vectorization as u32, true) {
-                    assign_index(i);
+                for i in 0..vectorization {
+                    assign_index(i as usize);
                 }
             }
         };

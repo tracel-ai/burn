@@ -1,4 +1,4 @@
-use crate::dialect::{Item, Operation, Scope};
+use crate::dialect::{Elem, Item, Operation, Scope};
 use crate::language::ExpandElement;
 use alloc::rc::Rc;
 use core::cell::RefCell;
@@ -21,11 +21,15 @@ impl VariablePool {
         };
 
         // Among the candidates, take a variable if it's only referenced by the map
-        // Arbitrarily takes the first it finds
-        for variable in variables.iter() {
-            if Rc::strong_count(&variable.inner) == 1 {
-                // println!("Reuse var {:?}", variable.inner);
-                return Some(variable.clone());
+        // Arbitrarily takes the first it finds in reverse order.
+        for variable in variables.iter().rev() {
+            match variable {
+                ExpandElement::Managed(var) => {
+                    if Rc::strong_count(var) == 1 {
+                        return Some(variable.clone());
+                    }
+                }
+                ExpandElement::Plain(_) => (),
             }
         }
 
@@ -99,9 +103,26 @@ impl CubeContext {
 
         // Create a new variable at the root scope
         // Insert it in the variable pool for potential reuse
-        let new = ExpandElement::new(Rc::new(self.root.borrow_mut().create_local(item)));
+        let new = ExpandElement::Managed(Rc::new(self.root.borrow_mut().create_local(item)));
         self.pool.insert(new.clone());
 
         new
+    }
+
+    /// Obtain the index-th input
+    pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
+        ExpandElement::Plain(crate::dialect::Variable::GlobalInputArray(index, item))
+    }
+
+    /// Obtain the index-th output
+    pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
+        let var = crate::dialect::Variable::GlobalOutputArray(index, item);
+        self.scope.borrow_mut().write_global_custom(var);
+        ExpandElement::Plain(var)
+    }
+
+    /// Obtain the index-th scalar
+    pub fn scalar(&self, index: u16, elem: Elem) -> ExpandElement {
+        ExpandElement::Plain(crate::dialect::Variable::GlobalScalar(index, elem))
     }
 }

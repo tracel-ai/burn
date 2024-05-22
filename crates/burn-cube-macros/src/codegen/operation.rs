@@ -63,6 +63,13 @@ pub(crate) fn codegen_binary(
                 burn_cube::gt::expand(context, _lhs, _rhs)
             }
         },
+        syn::BinOp::Ge(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::ge::expand(context, _lhs, _rhs)
+            }
+        },
         syn::BinOp::Lt(_) => quote::quote! {
             {
                 let _lhs = #lhs;
@@ -77,22 +84,21 @@ pub(crate) fn codegen_binary(
                 burn_cube::add_assign_op::expand(context, _lhs, _rhs)
             }
         },
-        syn::BinOp::BitAnd(_) => quote::quote! {
+        syn::BinOp::And(_) => quote::quote! {
             {
+
                 let _lhs = #lhs;
                 let _rhs = #rhs;
                 burn_cube::and::expand(context, _lhs, _rhs)
             }
         },
-        syn::BinOp::And(_) => unimplemented!("Logical and (&&) not overridable in Rust due to its short circuiting nature. Use bitwise instead (&). "),
-        syn::BinOp::BitOr(_) => quote::quote! {
+        syn::BinOp::Or(_) => quote::quote! {
             {
                 let _lhs = #lhs;
                 let _rhs = #rhs;
                 burn_cube::or::expand(context, _lhs, _rhs)
             }
         },
-        syn::BinOp::Or(_) => unimplemented!("Logical or (||) not overridable in Rust due to its short circuiting nature. Use bitwise instead (|). "),
         _ => todo!("Codegen: unsupported op {:?}", binary.op),
     }
 }

@@ -1,5 +1,5 @@
-use crate::dialect;
-use crate::language::{Array, CubeContext, ExpandElement, UInt};
+use crate::language::{Array, CubeContext, ExpandElement, Tensor, UInt};
+use crate::{dialect, unexpanded};
 
 pub mod assign {
     use self::dialect::{Operator, UnaryOperator};
@@ -15,7 +15,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::language::CubeType;
+    use crate::{language::CubeType, unexpanded};
 
     use self::dialect::{BinaryOperator, Operator};
 
@@ -35,16 +35,25 @@ pub mod index_assign {
         array
     }
 
-    impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
-        fn index_mut(&mut self, index: I) -> &mut Self::Output {
-            let index = index.into().val;
-            &mut self.vals[index as usize]
-        }
+    macro_rules! impl_index {
+        ($type:ident) => {
+            impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for $type<E> {
+                fn index_mut(&mut self, _index: I) -> &mut Self::Output {
+                    unexpanded!()
+                }
+            }
+        };
     }
+
+    impl_index!(Array);
+    impl_index!(Tensor);
 }
 
 pub mod index {
-    use crate::language::{operation::base::binary_expand, CubeType};
+    use crate::{
+        language::{operation::base::binary_expand, CubeType},
+        unexpanded,
+    };
 
     use self::dialect::Operator;
 
@@ -58,14 +67,20 @@ pub mod index {
         binary_expand(context, array, index, Operator::Index)
     }
 
-    impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
-        type Output = E;
+    macro_rules! impl_index {
+        ($type:ident) => {
+            impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for $type<E> {
+                type Output = E;
 
-        fn index(&self, index: I) -> &Self::Output {
-            let index = index.into().val;
-            &self.vals[index as usize]
-        }
+                fn index(&self, _index: I) -> &Self::Output {
+                    unexpanded!()
+                }
+            }
+        };
     }
+
+    impl_index!(Array);
+    impl_index!(Tensor);
 }
 
 pub mod add_assign_op {
@@ -86,8 +101,8 @@ pub mod add_assign_op {
     macro_rules! impl_add_assign {
         ($type:ty) => {
             impl core::ops::AddAssign for $type {
-                fn add_assign(&mut self, rhs: Self) {
-                    self.val += rhs.val
+                fn add_assign(&mut self, _rhs: Self) {
+                    unexpanded!()
                 }
             }
         };

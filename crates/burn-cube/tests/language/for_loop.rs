@@ -1,9 +1,9 @@
-use burn_cube::{branch::range, cube, Array, CubeContext, Float, PrimitiveVariable, UInt, F32};
+use burn_cube::{branch::range, cube, Array, Comptime, CubeContext, CubeElem, Float, UInt, F32};
 
 type ElemType = F32;
 
 #[cube]
-pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: bool) {
+pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: Comptime<bool>) {
     let tmp1 = rhs * rhs;
     let tmp2 = tmp1 + rhs;
 
@@ -63,16 +63,15 @@ mod tests {
 
         // Kernel
         let tmp1 = scope.create_local(item);
-        let tmp2 = scope.create_local(item);
         cpa!(scope, tmp1 = rhs * rhs);
-        cpa!(scope, tmp2 = tmp1 + rhs);
+        cpa!(scope, tmp1 = tmp1 + rhs);
 
         cpa!(
             &mut scope,
             range(0u32, end, unroll).for_each(|i, scope| {
                 cpa!(scope, rhs = lhs[i]);
-                cpa!(scope, tmp1 = tmp2 + rhs);
-                cpa!(scope, lhs[i] = tmp1);
+                cpa!(scope, rhs = tmp1 + rhs);
+                cpa!(scope, lhs[i] = rhs);
             })
         );
 

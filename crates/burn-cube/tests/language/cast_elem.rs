@@ -1,4 +1,4 @@
-use burn_cube::{cube, Bool, Cast, Numeric, UInt, F32, I32};
+use burn_cube::{cube, Cast, Numeric, UInt, F32, I32};
 
 // From float
 #[cube]
@@ -21,9 +21,10 @@ pub fn float_to_uint(x: F32) {
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn float_to_bool(x: F32) {
     let y = x + F32::from_int(2);
-    let _ = Bool::cast_from(y) | Bool::new(true);
+    let _ = bool::cast_from(y) || true;
 }
 
 // From int
@@ -47,9 +48,10 @@ pub fn int_to_uint(x: I32) {
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn int_to_bool(x: I32) {
     let y = x + I32::from_int(2);
-    let _ = Bool::cast_from(y) | Bool::new(true);
+    let _ = bool::cast_from(y) || true;
 }
 
 // // From uint
@@ -73,35 +75,40 @@ pub fn uint_to_uint(x: UInt) {
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn uint_to_bool(x: UInt) {
     let y = x + UInt::from_int(2);
-    let _ = Bool::cast_from(y) | Bool::new(true);
+    let _ = bool::cast_from(y) || true;
 }
 
 // From bool
 #[cube]
-pub fn bool_to_float(x: Bool) {
-    let y = x & Bool::new(false);
+#[allow(clippy::overly_complex_bool_expr)]
+pub fn bool_to_float(x: bool) {
+    let y = x && false;
     let _ = F32::cast_from(y) + F32::from_int(34);
 }
 
 #[cube]
-pub fn bool_to_int(x: Bool) {
-    let y = x & Bool::new(false);
+#[allow(clippy::overly_complex_bool_expr)]
+pub fn bool_to_int(x: bool) {
+    let y = x && false;
     let _ = I32::cast_from(y) + I32::from_int(34);
 }
 
 #[cube]
-pub fn bool_to_uint(x: Bool) {
-    let y = x & Bool::new(false);
+#[allow(clippy::overly_complex_bool_expr)]
+pub fn bool_to_uint(x: bool) {
+    let y = x && false;
     let _ = UInt::cast_from(y) + UInt::from_int(34);
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 #[allow(clippy::useless_conversion)]
-pub fn bool_to_bool(x: Bool) {
-    let y = x & Bool::new(false);
-    let _ = Bool::cast_from(y) | Bool::new(true);
+pub fn bool_to_bool(x: bool) {
+    let y = x && false;
+    let _ = bool::cast_from(y) || true;
 }
 
 mod tests {
@@ -109,7 +116,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext, PrimitiveVariable,
+        CubeContext, CubeElem,
     };
 
     macro_rules! cast_test {
@@ -129,28 +136,12 @@ mod tests {
                 );
             }
         };
-
-        ($name:ident, $module:ident, $ty:expr) => {
-            #[test]
-            fn $name() {
-                let mut context = CubeContext::root();
-
-                let x = context.create_local($ty);
-
-                $module(&mut context, x);
-                let scope = context.into_scope();
-
-                assert_eq!(
-                    format!("{:?}", scope.operations),
-                    inline_macro_ref_identity($ty)
-                );
-            }
-        };
     }
 
     cast_test!(
         cube_float_to_float_test,
         float_to_float_expand,
+        Item::new(F32::as_elem()),
         Item::new(F32::as_elem())
     );
 
@@ -185,6 +176,7 @@ mod tests {
     cast_test!(
         cube_int_to_int_test,
         int_to_int_expand,
+        Item::new(I32::as_elem()),
         Item::new(I32::as_elem())
     );
 
@@ -219,6 +211,7 @@ mod tests {
     cast_test!(
         cube_uint_to_uint_test,
         uint_to_uint_expand,
+        Item::new(Elem::UInt),
         Item::new(Elem::UInt)
     );
 
@@ -253,6 +246,7 @@ mod tests {
     cast_test!(
         cube_bool_to_bool_test,
         bool_to_bool_expand,
+        Item::new(Elem::Bool),
         Item::new(Elem::Bool)
     );
 
@@ -262,52 +256,22 @@ mod tests {
 
         let mut scope = context.into_scope();
         let x: Variable = x.into();
-        let y = scope.create_local(from_item);
-        let y_casted = scope.create_local(to_item);
-        let z = scope.create_local(to_item);
+        let y = scope.create_local(to_item);
 
         match from_item.elem() {
-            Elem::Float(_) => cpa!(scope, y = x + 2f32),
-            Elem::Int(_) => cpa!(scope, y = x + 2i32),
-            Elem::UInt => cpa!(scope, y = x + 2u32),
-            Elem::Bool => cpa!(scope, y = x && false),
+            Elem::Float(_) => cpa!(scope, x = x + 2f32),
+            Elem::Int(_) => cpa!(scope, x = x + 2i32),
+            Elem::UInt => cpa!(scope, x = x + 2u32),
+            Elem::Bool => cpa!(scope, x = x && false),
         }
 
-        cpa!(scope, y_casted = cast(y));
+        cpa!(scope, y = cast(x));
 
         match to_item.elem() {
-            Elem::Float(_) => cpa!(scope, z = y_casted + 34f32),
-            Elem::Int(_) => cpa!(scope, z = y_casted + 34i32),
-            Elem::UInt => cpa!(scope, z = y_casted + 34u32),
-            Elem::Bool => cpa!(scope, z = y_casted || true),
-        }
-
-        format!("{:?}", scope.operations)
-    }
-
-    fn inline_macro_ref_identity(item: Item) -> String {
-        // When staying with the same type variables are automatically reused in cube
-        let mut context = CubeContext::root();
-        let x = context.create_local(item);
-
-        let mut scope = context.into_scope();
-        let x: Variable = x.into();
-        let y = scope.create_local(item);
-
-        match item.elem() {
-            Elem::Float(_) => cpa!(scope, y = x + 2f32),
-            Elem::Int(_) => cpa!(scope, y = x + 2i32),
-            Elem::UInt => cpa!(scope, y = x + 2u32),
-            Elem::Bool => cpa!(scope, y = x && false),
-        }
-
-        cpa!(scope, x = cast(y));
-
-        match item.elem() {
-            Elem::Float(_) => cpa!(scope, y = x + 34f32),
-            Elem::Int(_) => cpa!(scope, y = x + 34i32),
-            Elem::UInt => cpa!(scope, y = x + 34u32),
-            Elem::Bool => cpa!(scope, y = x || true),
+            Elem::Float(_) => cpa!(scope, y = y + 34f32),
+            Elem::Int(_) => cpa!(scope, y = y + 34i32),
+            Elem::UInt => cpa!(scope, y = y + 34u32),
+            Elem::Bool => cpa!(scope, y = y || true),
         }
 
         format!("{:?}", scope.operations)

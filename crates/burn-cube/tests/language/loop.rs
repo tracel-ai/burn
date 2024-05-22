@@ -21,7 +21,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Branch, Elem, Item, Variable},
-        CubeContext, PrimitiveVariable, I32,
+        CubeContext, CubeElem, I32,
     };
 
     use super::{manual_loop_break_expand, while_not_expand};

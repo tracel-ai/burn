@@ -30,7 +30,11 @@ pub fn cast_int_to_numeric<I: Int, T: Numeric>(input: I) {
 
 mod tests {
     use super::*;
-    use burn_cube::{cpa, dialect::Item, CubeContext, PrimitiveVariable, F32, F64, I32, I64};
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, CubeElem, F32, F64, I32, I64,
+    };
 
     #[test]
     fn cube_cast_float_kind_test() {
@@ -91,13 +95,12 @@ mod tests {
         let input = context.create_local(float_64);
 
         let mut scope = context.into_scope();
-        let x = scope.create_local(float_64);
+        let input: Variable = input.into();
         let y = scope.create_local(float_32);
-        let z = scope.create_local(float_32);
 
-        cpa!(scope, x = input + 5.9f32 as f64);
-        cpa!(scope, y = cast(x));
-        cpa!(scope, z = y + 2.3f32);
+        cpa!(scope, input = input + 5.9f32 as f64);
+        cpa!(scope, y = cast(input));
+        cpa!(scope, y = y + 2.3f32);
 
         format!("{:?}", scope.operations)
     }
@@ -109,13 +112,12 @@ mod tests {
         let input = context.create_local(int_32);
 
         let mut scope = context.into_scope();
-        let x = scope.create_local(int_32);
+        let input: Variable = input.into();
         let y = scope.create_local(int_64);
-        let z = scope.create_local(int_64);
 
-        cpa!(scope, x = input + 5i32);
-        cpa!(scope, y = cast(x));
-        cpa!(scope, z = y + 2i64);
+        cpa!(scope, input = input + 5i32);
+        cpa!(scope, y = cast(input));
+        cpa!(scope, y = y + 2i64);
 
         format!("{:?}", scope.operations)
     }

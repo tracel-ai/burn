@@ -101,7 +101,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::{
@@ -180,11 +180,10 @@ mod tests {
         let mut scope = context.into_scope();
         let x: Variable = x.into();
         let y: Variable = y.into();
-        let tmp = scope.create_local(item);
 
         match is_add_strategy {
-            true => cpa!(scope, tmp = x + y),
-            false => cpa!(scope, tmp = x - y),
+            true => cpa!(scope, x = x + y),
+            false => cpa!(scope, x = x - y),
         }
 
         format!("{:?}", scope.operations)
@@ -199,10 +198,9 @@ mod tests {
         let mut scope = context.into_scope();
         let x: Variable = x.into();
         let y: Variable = y.into();
-        let tmp = scope.create_local(item);
 
-        cpa!(scope, tmp = x - y);
-        cpa!(scope, x = tmp + y);
+        cpa!(scope, x = x - y);
+        cpa!(scope, x = x + y);
 
         format!("{:?}", scope.operations)
     }

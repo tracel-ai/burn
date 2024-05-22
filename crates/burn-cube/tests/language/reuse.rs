@@ -22,7 +22,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Branch, Elem, Item, Variable},
-        CubeContext, PrimitiveVariable, I32,
+        CubeContext, CubeElem, I32,
     };
 
     use super::{reuse_expand, reuse_incr_expand};
