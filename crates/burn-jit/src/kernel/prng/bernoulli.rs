@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Scope, Variable},
+    dialect::{Elem, FloatKind, Scope, Variable},
 };
 use burn_tensor::Shape;
 
@@ -33,6 +33,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
         state_3: Variable,
         output: Variable,
     ) {
+        let float_elem = Elem::Float(FloatKind::F32);
         let prob = args[0];
         cpa!(
             scope,
@@ -47,7 +48,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
 
-                let float_random = scope.create_local(E::cube_elem());
+                let float_random = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, float_random);
 
                 let bernoulli = scope.create_local(Elem::Bool);
