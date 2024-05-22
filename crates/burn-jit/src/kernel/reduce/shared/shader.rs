@@ -14,9 +14,9 @@ use burn_cube::dialect::{
     Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
 };
 
-use super::ReduceDimAlgorithm;
+use super::base::ReduceDimShared;
 
-pub(crate) struct SharedReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgorithm<E>> {
+pub(crate) struct SharedReduceDimComputeShader<E: JitElement, RD: ReduceDimShared<E>> {
     tensor: Variable,
     dim: usize,
     shared_memory_size: usize,
@@ -29,7 +29,7 @@ pub(crate) struct SharedReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgor
 
 #[derive(new)]
 pub(crate) struct SharedReduceDimEagerKernel<
-    RD: ReduceDimAlgorithm<EI>,
+    RD: ReduceDimShared<EI>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
@@ -45,8 +45,8 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
-    GpuComputeShaderPhase for SharedReduceDimEagerKernel<RD, R, EI, EO>
+impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+    for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
@@ -105,7 +105,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
     }
 }
 
-impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, RD> {
+impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let output = self.output;
@@ -233,7 +233,7 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, R
 
 /// Executes the shared memory kernel for reduce dim
 pub fn reduce_dim_shared<
-    RD: ReduceDimAlgorithm<EI>,
+    RD: ReduceDimShared<EI>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,

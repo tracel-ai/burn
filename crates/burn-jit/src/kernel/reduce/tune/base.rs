@@ -7,7 +7,10 @@ use crate::{
     element::JitElement,
     kernel::{
         prng::random_like_uniform,
-        reduce::{init_reduce_output, reduce_dim_naive, reduce_dim_shared, ReduceDimAlgorithm},
+        reduce::{
+            init_reduce_output, naive::shader::reduce_dim_naive, shared::shader::reduce_dim_shared,
+            ReduceDimAlgorithm,
+        },
     },
     ops::numeric::empty_device,
     tensor::JitTensor,
