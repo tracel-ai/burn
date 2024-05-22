@@ -19,7 +19,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::if_greater_expand;

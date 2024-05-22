@@ -33,7 +33,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Item, Variable},
-        CubeContext, PrimitiveVariable, F32, F64, I32, I64,
+        CubeContext, CubeElem, F32, F64, I32, I64,
     };
 
     #[test]

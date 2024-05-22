@@ -1,21 +1,12 @@
-use crate::dialect::{Elem, Variable, Vectorization};
+use crate::dialect::{Elem, Variable};
 use crate::language::{CubeType, ExpandElement};
+use crate::UInt;
 
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
-pub trait PrimitiveVariable: CubeType<ExpandType = ExpandElement> {
-    type Primitive;
-
+pub trait CubeElem: CubeType<ExpandType = ExpandElement> {
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;
-    fn vectorization(&self) -> Vectorization;
-
-    // For easy CPU-side casting
-    fn to_f64(&self) -> f64;
-    fn from_f64(val: f64) -> Self;
-    fn from_i64(val: i64) -> Self;
-
-    fn from_i64_vec(vec: &[i64]) -> Self;
 }
 
 macro_rules! impl_into_expand_element {
@@ -34,3 +25,13 @@ impl_into_expand_element!(bool);
 impl_into_expand_element!(f32);
 impl_into_expand_element!(i32);
 impl_into_expand_element!(i64);
+
+/// Useful for Comptime
+impl From<UInt> for ExpandElement {
+    fn from(value: UInt) -> Self {
+        ExpandElement::Plain(crate::dialect::Variable::ConstantScalar(
+            value.val as f64,
+            UInt::as_elem(),
+        ))
+    }
+}

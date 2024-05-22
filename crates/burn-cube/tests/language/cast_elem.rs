@@ -109,7 +109,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext, PrimitiveVariable,
+        CubeContext, CubeElem,
     };
 
     macro_rules! cast_test {

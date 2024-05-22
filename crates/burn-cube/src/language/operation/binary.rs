@@ -1,7 +1,5 @@
 use crate::language::operation::base::binary_expand;
-use crate::language::{
-    CubeContext, ExpandElement, Float, Int, UInt, BF16, F16, F32, F64, I32, I64,
-};
+use crate::language::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
 use crate::unexpanded;
 
 pub mod add {

@@ -49,7 +49,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         dialect::{Elem, Item},
-        CubeContext, PrimitiveVariable, I64,
+        CubeContext, CubeElem, I64,
     };
 
     #[test]

@@ -22,7 +22,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Elem, Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::if_then_else_expand;
@@ -91,21 +91,21 @@ mod tests {
         format!("{:?}", scope.operations)
     }
 
-    fn inline_macro_ref_comptime(cond: bool) -> String {
-        let mut context = CubeContext::root();
-        let item = Item::new(ElemType::as_elem());
-        let lhs = context.create_local(item);
+    // fn inline_macro_ref_comptime(cond: bool) -> String {
+    //     let mut context = CubeContext::root();
+    //     let item = Item::new(ElemType::as_elem());
+    //     let lhs = context.create_local(item);
 
-        let mut scope = context.into_scope();
-        let lhs: Variable = lhs.into();
-        let y = scope.create_local(item);
+    //     let mut scope = context.into_scope();
+    //     let lhs: Variable = lhs.into();
+    //     let y = scope.create_local(item);
 
-        if cond {
-            cpa!(scope, y = lhs + 4.0f32);
-        } else {
-            cpa!(scope, y = lhs - 5.0f32);
-        };
+    //     if cond {
+    //         cpa!(scope, y = lhs + 4.0f32);
+    //     } else {
+    //         cpa!(scope, y = lhs - 5.0f32);
+    //     };
 
-        format!("{:?}", scope.operations)
-    }
+    //     format!("{:?}", scope.operations)
+    // }
 }

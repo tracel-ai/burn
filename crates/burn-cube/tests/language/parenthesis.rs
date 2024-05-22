@@ -9,7 +9,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::parenthesis_expand;

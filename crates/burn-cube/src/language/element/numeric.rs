@@ -1,5 +1,5 @@
 use crate::dialect::{Item, Variable};
-use crate::language::{CubeContext, CubeType, ExpandElement, PrimitiveVariable};
+use crate::language::{CubeContext, CubeType, ExpandElement, CubeElem};
 use crate::{index_assign, unexpanded};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
@@ -7,7 +7,7 @@ use crate::{index_assign, unexpanded};
 pub trait Numeric:
     Clone
     + Copy
-    + PrimitiveVariable
+    + CubeElem
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
     + std::ops::Sub<Output = Self>

@@ -1,5 +1,5 @@
 use burn_cube::{
-    branch::range, cube, Array, Comptime, CubeContext, Float, PrimitiveVariable, UInt, F32,
+    branch::range, cube, Array, Comptime, CubeContext, Float, CubeElem, UInt, F32,
 };
 
 type ElemType = F32;

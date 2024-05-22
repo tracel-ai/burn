@@ -24,7 +24,7 @@ mod here {
 }
 
 mod tests {
-    use burn_cube::{dialect::Item, CubeContext, PrimitiveVariable, F32};
+    use burn_cube::{dialect::Item, CubeContext, CubeElem, F32};
 
     use super::here;
 
