@@ -83,18 +83,21 @@ pub fn uint_to_bool(x: UInt) {
 
 // From bool
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn bool_to_float(x: bool) {
     let y = x && false;
     let _ = F32::cast_from(y) + F32::from_int(34);
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn bool_to_int(x: bool) {
     let y = x && false;
     let _ = I32::cast_from(y) + I32::from_int(34);
 }
 
 #[cube]
+#[allow(clippy::overly_complex_bool_expr)]
 pub fn bool_to_uint(x: bool) {
     let y = x && false;
     let _ = UInt::cast_from(y) + UInt::from_int(34);
