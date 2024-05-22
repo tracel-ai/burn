@@ -3,7 +3,7 @@ use crate::{unexpanded, CubeContext, CubeType};
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
 ///
-/// Use Comptime<Option<T>> to have an alternate runtime behaviour if the compilation time value is not present
+/// Use `Comptime<Option<T>>` to have an alternate runtime behaviour if the compilation time value is not present
 pub struct Comptime<T> {
     inner: T,
 }
