@@ -269,6 +269,7 @@ impl OnnxGraph {
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
+                NodeType::Min => graph.register(Self::min_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
@@ -499,6 +500,14 @@ impl OnnxGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+
+    fn min_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        BinaryNode::min_pair(lhs, rhs, output)
     }
 
     fn reduce_max_conversion(node: Node) -> UnaryNode {
