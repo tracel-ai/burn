@@ -55,40 +55,65 @@ pub fn range_expand<F>(
     }
 }
 
-pub fn if_expand<IF>(context: &mut CubeContext, cond: ExpandElement, mut block: IF)
-where
+pub fn if_expand<IF>(
+    context: &mut CubeContext,
+    comptime_cond: Option<bool>,
+    runtime_cond: ExpandElement,
+    mut block: IF,
+) where
     IF: FnMut(&mut CubeContext),
 {
-    let mut child = context.child();
+    match comptime_cond {
+        Some(cond) => {
+            if cond {
+                block(context);
+            }
+        }
+        None => {
+            let mut child = context.child();
 
-    block(&mut child);
+            block(&mut child);
 
-    context.register(Branch::If(If {
-        cond: *cond,
-        scope: child.into_scope(),
-    }));
+            context.register(Branch::If(If {
+                cond: *runtime_cond,
+                scope: child.into_scope(),
+            }));
+        }
+    }
 }
 
 pub fn if_else_expand<IF, EL>(
     context: &mut CubeContext,
-    cond: ExpandElement,
+    comptime_cond: Option<bool>,
+    runtime_cond: ExpandElement,
     mut then_block: IF,
     mut else_block: EL,
 ) where
     IF: FnMut(&mut CubeContext),
     EL: FnMut(&mut CubeContext),
 {
-    let mut then_child = context.child();
-    then_block(&mut then_child);
+    match comptime_cond {
+        Some(cond) => {
+            if cond {
+                then_block(context);
+            } else {
+                else_block(context);
+            }
+        }
+        None => {
+            let mut then_child = context.child();
+            then_block(&mut then_child);
 
-    let mut else_child = context.child();
-    else_block(&mut else_child);
+            let mut else_child = context.child();
+            else_block(&mut else_child);
 
-    context.register(Branch::IfElse(IfElse {
-        cond: *cond,
-        scope_if: then_child.into_scope(),
-        scope_else: else_child.into_scope(),
-    }));
+            context.register(Branch::IfElse(IfElse {
+                cond: *runtime_cond,
+                scope_if: then_child.into_scope(),
+                scope_else: else_child.into_scope(),
+            }));
+        }
+    }
 }
 
 pub fn break_expand(context: &mut CubeContext) {
@@ -115,7 +140,7 @@ where
     let mut inside_loop = context.child();
 
     let cond: ExpandElement = cond_fn(&mut inside_loop);
-    if_expand(&mut inside_loop, cond, break_expand);
+    if_expand(&mut inside_loop, None, cond, break_expand);
 
     block(&mut inside_loop);
     context.register(Branch::Loop(Loop {
