@@ -56,7 +56,7 @@ impl Runtime for CudaRuntime {
             let memory_management = SimpleMemoryManagement::new(
                 storage,
                 DeallocStrategy::new_period_tick(1),
-                SliceStrategy::Never,
+                SliceStrategy::Ratio(0.8),
             );
             CudaContext::new(memory_management, stream, ctx)
         }

@@ -76,44 +76,7 @@ impl CudaCompiler {
 
     fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<Instruction> {
         let mut instructions = Vec::new();
-        let mut processing = value.process();
-
-        for operation in &mut processing.operations {
-            if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
-                // Replace all Index operators for global arrays with CheckedIndexAssign procedures
-                match operands.lhs {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
-                            gpu::CheckedIndex {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
-                // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
-                match operands.out {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
-                            gpu::CheckedIndexAssign {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-        }
+        let processing = value.process();
 
         for var in processing.variables {
             instructions.push(Instruction::DeclareVariable {
