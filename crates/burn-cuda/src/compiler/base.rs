@@ -1,5 +1,6 @@
+use burn_cube::{dialect as gpu, Compiler};
+
 use super::Instruction;
-use burn_jit::gpu::{self};
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
@@ -16,15 +17,15 @@ pub struct CudaCompiler {
     global_invocation_id: (bool, bool, bool),
 }
 
-impl burn_jit::Compiler for CudaCompiler {
+impl Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
 
-    fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
+    fn compile(shader: burn_cube::dialect::ComputeShader) -> Self::Representation {
         let compiler = Self::default();
         compiler.compile_shader(shader)
     }
 
-    fn elem_size(elem: burn_jit::gpu::Elem) -> usize {
+    fn elem_size(elem: gpu::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
 
@@ -415,11 +416,12 @@ impl CudaCompiler {
     }
 
     fn compile_item(item: gpu::Item) -> super::Item {
-        match item {
-            gpu::Item::Vec4(elem) => super::Item::Vec4(Self::compile_elem(elem)),
-            gpu::Item::Vec3(elem) => super::Item::Vec3(Self::compile_elem(elem)),
-            gpu::Item::Vec2(elem) => super::Item::Vec2(Self::compile_elem(elem)),
-            gpu::Item::Scalar(elem) => super::Item::Scalar(Self::compile_elem(elem)),
+        match item.vectorization {
+            4 => super::Item::Vec4(Self::compile_elem(item.elem)),
+            3 => super::Item::Vec3(Self::compile_elem(item.elem)),
+            2 => super::Item::Vec2(Self::compile_elem(item.elem)),
+            1 => super::Item::Scalar(Self::compile_elem(item.elem)),
+            _ => panic!("Vectorization factor unsupported {:?}", item.vectorization),
         }
     }
 

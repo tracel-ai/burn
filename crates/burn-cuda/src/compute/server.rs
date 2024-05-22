@@ -4,8 +4,11 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
-use burn_jit::gpu::WorkgroupSize;
+use burn_cube::dialect::WorkgroupSize;
+use burn_cube::JitKernel;
+use burn_cube::Kernel;
+use burn_cube::WorkGroup;
+use burn_jit::JitAutotuneKey;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
 use std::collections::HashMap;
