@@ -71,8 +71,8 @@ represent the corresponding Burn Op.
 | [GlobalAveragePool][63]          |       ✅       |      ✅      |
 | [GlobalLpPool][64]               |       ❌       |      ❌      |
 | [GlobalMaxPool][65]              |       ❌       |      ❌      |
-| [Greater][66]                    |       ❌       |      ✅      |
-| [GreaterOrEqual][67]             |       ❌       |      ✅      |
+| [Greater][66]                    |       ✅       |      ✅      |
+| [GreaterOrEqual][67]             |       ✅       |      ✅      |
 | [GridSample][68]                 |       ❌       |      ❌      |
 | [GroupNormalization][69]         |       ❌       |      ✅      |
 | [GRU][70]                        |       ❌       |      ✅      |
