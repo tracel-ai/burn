@@ -97,6 +97,7 @@ necessary information for carrying out an operation is encapsulated within a str
 `<operation>Node`. For the `Squeeze` operation, we defined a
 [struct called `SqueezeNode`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/squeeze.rs#L8)
 that holds necessary information about the input tensor, output tensor, and axes for the operation.
+**If implementing a unary or binary operation, please see note below.**
 
 The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
 This trait defines how the node generates code during the graph compilation process. The
@@ -113,6 +114,13 @@ code, and to encapsulate the node into the more general `Node` structure. Specif
 
 This file is also where you would put `test_codegen_nodes()`, to make sure that the generated code
 works within the Burn library.
+
+**For unary and binary operations:** The implementation of `NodeCodegen` is mostly implemented in
+[`binary.rs`](https://github.com/tracel-ai/burn/blob/76fe0ed881b3965782f78896433f8bb5e2f13a1b/crates/burn-import/src/burn/node/binary.rs#L9)
+and
+[`unary.rs`](https://github.com/tracel-ai/burn/blob/76fe0ed881b3965782f78896433f8bb5e2f13a1b/crates/burn-import/src/burn/node/unary.rs#L13),
+so each new operation only has to define a method to execute the function on the input(s) token
+stream.
 
 ### Step 3: Registering New Operations
 
