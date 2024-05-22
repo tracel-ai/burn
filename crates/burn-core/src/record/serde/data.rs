@@ -54,6 +54,12 @@ pub enum NestedValue {
 
     /// A vector of nested values (typically used for vector of structs or numbers)
     Vec(Vec<NestedValue>),
+
+    /// A vector of 16-bit unsigned integer values.
+    U16s(Vec<u16>),
+
+    /// A vector of 32-bit floating point values.
+    F32s(Vec<f32>),
 }
 impl NestedValue {
     /// Get the nested value as a map.
@@ -313,19 +319,27 @@ fn cleanup_empty_maps(current: &mut NestedValue) {
     }
 }
 
+fn write_vec_truncated<T: core::fmt::Debug>(
+    vec: &[T],
+    f: &mut core::fmt::Formatter,
+) -> fmt::Result {
+    write!(f, "Vec([")?;
+    for (i, v) in vec.iter().take(3).enumerate() {
+        if i > 0 {
+            write!(f, ", ")?;
+        }
+        write!(f, "{:?}", v)?;
+    }
+    write!(f, ", ...] len={})", vec.len())
+}
+
 impl fmt::Debug for NestedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NestedValue::Vec(vec) if vec.len() > 3 => {
-                write!(f, "Vec([")?;
-                for (i, v) in vec.iter().take(3).enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{:?}", v)?;
-                }
-                write!(f, ", ...] len={})", vec.len())
-            }
+            // Truncate values for vector
+            NestedValue::Vec(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
+            NestedValue::U16s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
+            NestedValue::F32s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             // Handle other variants as usual
             NestedValue::Default(origin) => f.debug_tuple("Default").field(origin).finish(),
             NestedValue::Bool(b) => f.debug_tuple("Bool").field(b).finish(),
@@ -339,6 +353,8 @@ impl fmt::Debug for NestedValue {
             NestedValue::U64(val) => f.debug_tuple("U64").field(val).finish(),
             NestedValue::Map(map) => f.debug_map().entries(map.iter()).finish(),
             NestedValue::Vec(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::U16s(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::F32s(vec) => f.debug_list().entries(vec.iter()).finish(),
         }
     }
 }
