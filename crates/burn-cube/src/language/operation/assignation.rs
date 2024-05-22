@@ -1,4 +1,4 @@
-use crate::language::{Array, CubeContext, ExpandElement, UInt};
+use crate::language::{Array, CubeContext, ExpandElement, Tensor, UInt};
 use crate::{dialect, unexpanded};
 
 pub mod assign {
@@ -35,11 +35,18 @@ pub mod index_assign {
         array
     }
 
-    impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for Array<E> {
-        fn index_mut(&mut self, _index: I) -> &mut Self::Output {
-            unexpanded!()
-        }
+    macro_rules! impl_index {
+        ($type:ident) => {
+            impl<E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for $type<E> {
+                fn index_mut(&mut self, _index: I) -> &mut Self::Output {
+                    unexpanded!()
+                }
+            }
+        };
     }
+
+    impl_index!(Array);
+    impl_index!(Tensor);
 }
 
 pub mod index {
@@ -60,13 +67,20 @@ pub mod index {
         binary_expand(context, array, index, Operator::Index)
     }
 
-    impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for Array<E> {
-        type Output = E;
+    macro_rules! impl_index {
+        ($type:ident) => {
+            impl<E: CubeType, I: Into<UInt>> core::ops::Index<I> for $type<E> {
+                type Output = E;
 
-        fn index(&self, _index: I) -> &Self::Output {
-            unexpanded!()
-        }
+                fn index(&self, _index: I) -> &Self::Output {
+                    unexpanded!()
+                }
+            }
+        };
     }
+
+    impl_index!(Array);
+    impl_index!(Tensor);
 }
 
 pub mod add_assign_op {

@@ -22,10 +22,10 @@ use crate::{
 
 #[cube]
 fn kernel<F: Float>(
-    input: Array<F>,
-    weight: Array<F>,
-    bias: Array<F>,
-    mut output: Array<F>,
+    input: Tensor<F>,
+    weight: Tensor<F>,
+    bias: Tensor<F>,
+    mut output: Tensor<F>,
     conv_stride_0: UInt,
     conv_stride_1: UInt,
     dilation_0: UInt,
