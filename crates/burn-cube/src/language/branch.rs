@@ -13,7 +13,7 @@ where
     let start: UInt = start.into();
     let end: UInt = end.into();
 
-    (start.val..end.val).into_iter().map(UInt::new)
+    (start.val..end.val).map(UInt::new)
 }
 
 pub fn range_expand<F>(

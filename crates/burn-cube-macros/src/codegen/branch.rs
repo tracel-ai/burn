@@ -59,13 +59,13 @@ pub(crate) fn codegen_cond(
     variable_analyses: &mut CodeAnalysis,
 ) -> (TokenStream, bool) {
     match cond {
-        syn::Expr::Binary(expr) => (codegen_binary(&expr, loop_level, variable_analyses), false),
-        syn::Expr::Lit(expr) => (codegen_lit(&expr), false),
+        syn::Expr::Binary(expr) => (codegen_binary(expr, loop_level, variable_analyses), false),
+        syn::Expr::Lit(expr) => (codegen_lit(expr), false),
         syn::Expr::Path(expr) => (
-            codegen_path_rhs(&expr, loop_level, variable_analyses),
+            codegen_path_rhs(expr, loop_level, variable_analyses),
             false,
         ),
-        syn::Expr::Call(expr) => parse_function_call(&expr, loop_level, variable_analyses),
+        syn::Expr::Call(expr) => parse_function_call(expr, loop_level, variable_analyses),
         _ => todo!("{cond:?} cond not supported"),
     }
 }

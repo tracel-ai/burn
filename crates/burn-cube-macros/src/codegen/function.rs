@@ -77,7 +77,7 @@ pub(crate) fn parse_function_call(
     let mut comptime_func: Option<String> = None;
 
     for (i, (ident, generics)) in path.iter().enumerate() {
-        if ident.to_string() == "Comptime" {
+        if *ident == "Comptime" {
             is_comptime = true;
             continue;
         }
