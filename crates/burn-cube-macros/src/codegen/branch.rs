@@ -4,6 +4,7 @@ use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
 
 use super::{
     base::codegen_block,
+    function::codegen_call,
     operation::codegen_binary,
     variable::{codegen_lit, codegen_path_rhs},
 };
@@ -61,6 +62,7 @@ pub(crate) fn codegen_cond(
         syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_analyses),
         syn::Expr::Lit(expr) => codegen_lit(expr),
         syn::Expr::Path(expr) => codegen_path_rhs(expr, loop_level, variable_analyses),
+        syn::Expr::Call(expr) => codegen_call(expr, loop_level, variable_analyses),
         _ => todo!("{cond:?} cond not supported"),
     }
 }
@@ -76,6 +78,7 @@ pub(crate) fn codegen_break() -> TokenStream {
 /// Supports:
 /// if cond {...}
 /// if cond {...} else {...}
+/// if Comptime::get(...) {...} [else {...}]
 pub(crate) fn codegen_if(
     expr_if: &syn::ExprIf,
     loop_level: usize,
@@ -94,7 +97,7 @@ pub(crate) fn codegen_if(
                 burn_cube::branch::if_else_expand(context, _cond, |context| #then_block, |context| #else_block);
             }
         } else {
-            todo!("Analysis: Only block else expr is supported")
+            todo!("Codegen: Only block else expr is supported")
         }
     } else {
         quote::quote! {

@@ -1,12 +1,14 @@
 use crate::{
     dialect::{Elem, Item, Metadata},
-    Array, CubeContext, CubeType, ExpandElement, PrimitiveVariable, UInt,
+    unexpanded, Array, CubeContext, CubeType, ExpandElement, PrimitiveVariable, UInt,
 };
 
+/// Obtain the stride of input at dimension dim
 pub fn stride<T: PrimitiveVariable>(_input: Array<T>, _dim: u32) -> UInt {
-    UInt::new(0u32)
+    unexpanded!()
 }
 
+/// Obtain the stride of input at dimension dim
 pub fn stride_expand<T: PrimitiveVariable>(
     context: &mut CubeContext,
     input: <Array<T> as CubeType>::ExpandType,
@@ -21,10 +23,12 @@ pub fn stride_expand<T: PrimitiveVariable>(
     out
 }
 
+/// Obtain the shape of input at dimension dim
 pub fn shape<T: PrimitiveVariable>(_input: Array<T>, _dim: u32) -> UInt {
-    UInt::new(0u32)
+    unexpanded!()
 }
 
+/// Obtain the shape of input at dimension dim
 pub fn shape_expand<T: PrimitiveVariable>(
     context: &mut CubeContext,
     input: <Array<T> as CubeType>::ExpandType,

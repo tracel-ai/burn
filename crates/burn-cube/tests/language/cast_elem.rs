@@ -1,315 +1,272 @@
-// use burn_cube::{cube, Bool, Cast, Numeric, UInt, F32, I32};
+use burn_cube::{cube, Cast, Numeric, UInt, F32, I32};
 
-// // From float
-// #[cube]
-// // #[allow(clippy::useless_conversion)]
-// pub fn float_to_float(x: F32) {
-//     let y = x + F32::from_int(2);
-//     let _ = F32::cast_from(y) + F32::from_int(34);
-// }
-
-// #[cube]
-// pub fn float_to_int(x: F32) {
-//     let y = x + F32::from_int(2);
-//     let _ = I32::cast_from(y) + I32::from_int(34);
-// }
-
-// #[cube]
-// pub fn float_to_uint(x: F32) {
-//     let y = x + F32::from_int(2);
-//     let _ = UInt::cast_from(y) + UInt::from_int(34);
-// }
-
-// #[cube]
-// pub fn float_to_bool(x: F32) {
-//     let y = x + F32::from_int(2);
-//     let _ = Bool::cast_from(y) || Bool::new(true);
-// }
-
-// // From int
-// #[cube]
-// pub fn int_to_float(x: I32) {
-//     let y = x + I32::from_int(2);
-//     let _ = F32::cast_from(y) + F32::from_int(34);
-// }
-
-// #[cube]
+// From float
+#[cube]
 // #[allow(clippy::useless_conversion)]
-// pub fn int_to_int(x: I32) {
-//     let y = x + I32::from_int(2);
-//     let _ = I32::cast_from(y) + I32::from_int(34);
-// }
+pub fn float_to_float(x: F32) {
+    let y = x + F32::from_int(2);
+    let _ = F32::cast_from(y) + F32::from_int(34);
+}
 
-// #[cube]
-// pub fn int_to_uint(x: I32) {
-//     let y = x + I32::from_int(2);
-//     let _ = UInt::cast_from(y) + UInt::from_int(34);
-// }
+#[cube]
+pub fn float_to_int(x: F32) {
+    let y = x + F32::from_int(2);
+    let _ = I32::cast_from(y) + I32::from_int(34);
+}
 
-// #[cube]
-// pub fn int_to_bool(x: I32) {
-//     let y = x + I32::from_int(2);
-//     let _ = Bool::cast_from(y) | Bool::new(true);
-// }
+#[cube]
+pub fn float_to_uint(x: F32) {
+    let y = x + F32::from_int(2);
+    let _ = UInt::cast_from(y) + UInt::from_int(34);
+}
 
-// // // From uint
-// #[cube]
-// pub fn uint_to_float(x: UInt) {
-//     let y = x + UInt::from_int(2);
-//     let _ = F32::cast_from(y) + F32::from_int(34);
-// }
+#[cube]
+pub fn float_to_bool(x: F32) {
+    let y = x + F32::from_int(2);
+    let _ = bool::cast_from(y) || true;
+}
 
-// #[cube]
-// pub fn uint_to_int(x: UInt) {
-//     let y = x + UInt::from_int(2);
-//     let _ = I32::cast_from(y) + I32::from_int(34);
-// }
+// From int
+#[cube]
+pub fn int_to_float(x: I32) {
+    let y = x + I32::from_int(2);
+    let _ = F32::cast_from(y) + F32::from_int(34);
+}
 
-// #[cube]
-// #[allow(clippy::useless_conversion)]
-// pub fn uint_to_uint(x: UInt) {
-//     let y = x + UInt::from_int(2);
-//     let _ = UInt::cast_from(y) + UInt::from_int(34);
-// }
+#[cube]
+#[allow(clippy::useless_conversion)]
+pub fn int_to_int(x: I32) {
+    let y = x + I32::from_int(2);
+    let _ = I32::cast_from(y) + I32::from_int(34);
+}
 
-// #[cube]
-// pub fn uint_to_bool(x: UInt) {
-//     let y = x + UInt::from_int(2);
-//     let _ = Bool::cast_from(y) || true;
-// }
+#[cube]
+pub fn int_to_uint(x: I32) {
+    let y = x + I32::from_int(2);
+    let _ = UInt::cast_from(y) + UInt::from_int(34);
+}
 
-// // From bool
-// #[cube]
-// pub fn bool_to_float(x: bool) {
-//     let y = x && false;
-//     let _ = F32::cast_from(y) + F32::from_int(34);
-// }
+#[cube]
+pub fn int_to_bool(x: I32) {
+    let y = x + I32::from_int(2);
+    let _ = bool::cast_from(y) || true;
+}
 
-// #[cube]
-// pub fn bool_to_int(x: bool) {
-//     let y = x && false;
-//     let _ = I32::cast_from(y) + I32::from_int(34);
-// }
+// // From uint
+#[cube]
+pub fn uint_to_float(x: UInt) {
+    let y = x + UInt::from_int(2);
+    let _ = F32::cast_from(y) + F32::from_int(34);
+}
 
-// #[cube]
-// pub fn bool_to_uint(x: Bool) {
-//     let y = x && false;
-//     let _ = UInt::cast_from(y) + UInt::from_int(34);
-// }
+#[cube]
+pub fn uint_to_int(x: UInt) {
+    let y = x + UInt::from_int(2);
+    let _ = I32::cast_from(y) + I32::from_int(34);
+}
 
-// #[cube]
-// #[allow(clippy::useless_conversion)]
-// pub fn bool_to_bool(x: Bool) {
-//     let y = x && false;
-//     let _ = Bool::cast_from(y) || Bool::new(true);
-// }
+#[cube]
+#[allow(clippy::useless_conversion)]
+pub fn uint_to_uint(x: UInt) {
+    let y = x + UInt::from_int(2);
+    let _ = UInt::cast_from(y) + UInt::from_int(34);
+}
 
-// mod tests {
-//     use super::*;
-//     use burn_cube::{
-//         cpa,
-//         dialect::{Elem, Item, Variable},
-//         CubeContext, PrimitiveVariable,
-//     };
+#[cube]
+pub fn uint_to_bool(x: UInt) {
+    let y = x + UInt::from_int(2);
+    let _ = bool::cast_from(y) || true;
+}
 
-//     macro_rules! cast_test {
-//         ($name:ident, $module:ident, $from:expr, $to:expr) => {
-//             #[test]
-//             fn $name() {
-//                 let mut context = CubeContext::root();
+// From bool
+#[cube]
+pub fn bool_to_float(x: bool) {
+    let y = x && false;
+    let _ = F32::cast_from(y) + F32::from_int(34);
+}
 
-//                 let x = context.create_local($from);
+#[cube]
+pub fn bool_to_int(x: bool) {
+    let y = x && false;
+    let _ = I32::cast_from(y) + I32::from_int(34);
+}
 
-//                 $module(&mut context, x);
-//                 let scope = context.into_scope();
+#[cube]
+pub fn bool_to_uint(x: bool) {
+    let y = x && false;
+    let _ = UInt::cast_from(y) + UInt::from_int(34);
+}
 
-//                 assert_eq!(
-//                     format!("{:?}", scope.operations),
-//                     inline_macro_ref_cast($from, $to)
-//                 );
-//             }
-//         };
+#[cube]
+#[allow(clippy::useless_conversion)]
+pub fn bool_to_bool(x: bool) {
+    let y = x && false;
+    let _ = bool::cast_from(y) || true;
+}
 
-//         ($name:ident, $module:ident, $ty:expr) => {
-//             #[test]
-//             fn $name() {
-//                 let mut context = CubeContext::root();
+mod tests {
+    use super::*;
+    use burn_cube::{
+        cpa,
+        dialect::{Elem, Item, Variable},
+        CubeContext, PrimitiveVariable,
+    };
 
-//                 let x = context.create_local($ty);
+    macro_rules! cast_test {
+        ($name:ident, $module:ident, $from:expr, $to:expr) => {
+            #[test]
+            fn $name() {
+                let mut context = CubeContext::root();
 
-//                 $module(&mut context, x);
-//                 let scope = context.into_scope();
+                let x = context.create_local($from);
 
-//                 assert_eq!(
-//                     format!("{:?}", scope.operations),
-//                     inline_macro_ref_identity($ty)
-//                 );
-//             }
-//         };
-//     }
+                $module(&mut context, x);
+                let scope = context.into_scope();
 
-//     cast_test!(
-//         cube_float_to_float_test,
-//         float_to_float_expand,
-//         Item::new(F32::as_elem())
-//     );
+                assert_eq!(
+                    format!("{:?}", scope.operations),
+                    inline_macro_ref_cast($from, $to)
+                );
+            }
+        };
+    }
 
-//     cast_test!(
-//         cube_float_to_int_test,
-//         float_to_int_expand,
-//         Item::new(F32::as_elem()),
-//         Item::new(I32::as_elem())
-//     );
+    cast_test!(
+        cube_float_to_float_test,
+        float_to_float_expand,
+        Item::new(F32::as_elem()),
+        Item::new(F32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_float_to_uint_test,
-//         float_to_uint_expand,
-//         Item::new(F32::as_elem()),
-//         Item::new(Elem::UInt)
-//     );
+    cast_test!(
+        cube_float_to_int_test,
+        float_to_int_expand,
+        Item::new(F32::as_elem()),
+        Item::new(I32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_float_to_bool_test,
-//         float_to_bool_expand,
-//         Item::new(F32::as_elem()),
-//         Item::new(Elem::Bool)
-//     );
+    cast_test!(
+        cube_float_to_uint_test,
+        float_to_uint_expand,
+        Item::new(F32::as_elem()),
+        Item::new(Elem::UInt)
+    );
 
-//     cast_test!(
-//         cube_int_to_float_test,
-//         int_to_float_expand,
-//         Item::new(I32::as_elem()),
-//         Item::new(F32::as_elem())
-//     );
+    cast_test!(
+        cube_float_to_bool_test,
+        float_to_bool_expand,
+        Item::new(F32::as_elem()),
+        Item::new(Elem::Bool)
+    );
 
-//     cast_test!(
-//         cube_int_to_int_test,
-//         int_to_int_expand,
-//         Item::new(I32::as_elem())
-//     );
+    cast_test!(
+        cube_int_to_float_test,
+        int_to_float_expand,
+        Item::new(I32::as_elem()),
+        Item::new(F32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_int_to_uint_test,
-//         int_to_uint_expand,
-//         Item::new(I32::as_elem()),
-//         Item::new(Elem::UInt)
-//     );
+    cast_test!(
+        cube_int_to_int_test,
+        int_to_int_expand,
+        Item::new(I32::as_elem()),
+        Item::new(I32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_int_to_bool_test,
-//         int_to_bool_expand,
-//         Item::new(I32::as_elem()),
-//         Item::new(Elem::Bool)
-//     );
+    cast_test!(
+        cube_int_to_uint_test,
+        int_to_uint_expand,
+        Item::new(I32::as_elem()),
+        Item::new(Elem::UInt)
+    );
 
-//     cast_test!(
-//         cube_uint_to_float_test,
-//         uint_to_float_expand,
-//         Item::new(Elem::UInt),
-//         Item::new(F32::as_elem())
-//     );
+    cast_test!(
+        cube_int_to_bool_test,
+        int_to_bool_expand,
+        Item::new(I32::as_elem()),
+        Item::new(Elem::Bool)
+    );
 
-//     cast_test!(
-//         cube_uint_to_int_test,
-//         uint_to_int_expand,
-//         Item::new(Elem::UInt),
-//         Item::new(I32::as_elem())
-//     );
+    cast_test!(
+        cube_uint_to_float_test,
+        uint_to_float_expand,
+        Item::new(Elem::UInt),
+        Item::new(F32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_uint_to_uint_test,
-//         uint_to_uint_expand,
-//         Item::new(Elem::UInt)
-//     );
+    cast_test!(
+        cube_uint_to_int_test,
+        uint_to_int_expand,
+        Item::new(Elem::UInt),
+        Item::new(I32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_uint_to_bool_test,
-//         uint_to_bool_expand,
-//         Item::new(Elem::UInt),
-//         Item::new(Elem::Bool)
-//     );
+    cast_test!(
+        cube_uint_to_uint_test,
+        uint_to_uint_expand,
+        Item::new(Elem::UInt),
+        Item::new(Elem::UInt)
+    );
 
-//     cast_test!(
-//         cube_bool_to_float_test,
-//         bool_to_float_expand,
-//         Item::new(Elem::Bool),
-//         Item::new(F32::as_elem())
-//     );
+    cast_test!(
+        cube_uint_to_bool_test,
+        uint_to_bool_expand,
+        Item::new(Elem::UInt),
+        Item::new(Elem::Bool)
+    );
 
-//     cast_test!(
-//         cube_bool_to_int_test,
-//         bool_to_int_expand,
-//         Item::new(Elem::Bool),
-//         Item::new(I32::as_elem())
-//     );
+    cast_test!(
+        cube_bool_to_float_test,
+        bool_to_float_expand,
+        Item::new(Elem::Bool),
+        Item::new(F32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_bool_to_uint_test,
-//         bool_to_uint_expand,
-//         Item::new(Elem::Bool),
-//         Item::new(Elem::UInt)
-//     );
+    cast_test!(
+        cube_bool_to_int_test,
+        bool_to_int_expand,
+        Item::new(Elem::Bool),
+        Item::new(I32::as_elem())
+    );
 
-//     cast_test!(
-//         cube_bool_to_bool_test,
-//         bool_to_bool_expand,
-//         Item::new(Elem::Bool)
-//     );
+    cast_test!(
+        cube_bool_to_uint_test,
+        bool_to_uint_expand,
+        Item::new(Elem::Bool),
+        Item::new(Elem::UInt)
+    );
 
-//     fn inline_macro_ref_cast(from_item: Item, to_item: Item) -> String {
-//         let mut context = CubeContext::root();
-//         let x = context.create_local(from_item);
+    cast_test!(
+        cube_bool_to_bool_test,
+        bool_to_bool_expand,
+        Item::new(Elem::Bool),
+        Item::new(Elem::Bool)
+    );
 
-//         let mut scope = context.into_scope();
-//         let x: Variable = x.into();
-//         let y = scope.create_local(from_item);
-//         let y_casted = scope.create_local(to_item);
-//         let z = scope.create_local(to_item);
+    fn inline_macro_ref_cast(from_item: Item, to_item: Item) -> String {
+        let mut context = CubeContext::root();
+        let x = context.create_local(from_item);
 
-//         match from_item.elem() {
-//             Elem::Float(_) => cpa!(scope, y = x + 2f32),
-//             Elem::Int(_) => cpa!(scope, y = x + 2i32),
-//             Elem::UInt => cpa!(scope, y = x + 2u32),
-//             Elem::Bool => cpa!(scope, y = x && false),
-//         }
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let y = scope.create_local(to_item);
 
-//         cpa!(scope, y_casted = cast(y));
+        match from_item.elem() {
+            Elem::Float(_) => cpa!(scope, x = x + 2f32),
+            Elem::Int(_) => cpa!(scope, x = x + 2i32),
+            Elem::UInt => cpa!(scope, x = x + 2u32),
+            Elem::Bool => cpa!(scope, x = x && false),
+        }
 
-//         match to_item.elem() {
-//             Elem::Float(_) => cpa!(scope, z = y_casted + 34f32),
-//             Elem::Int(_) => cpa!(scope, z = y_casted + 34i32),
-//             Elem::UInt => cpa!(scope, z = y_casted + 34u32),
-//             Elem::Bool => cpa!(scope, z = y_casted || true),
-//         }
+        cpa!(scope, y = cast(x));
 
-//         format!("{:?}", scope.operations)
-//     }
+        match to_item.elem() {
+            Elem::Float(_) => cpa!(scope, y = y + 34f32),
+            Elem::Int(_) => cpa!(scope, y = y + 34i32),
+            Elem::UInt => cpa!(scope, y = y + 34u32),
+            Elem::Bool => cpa!(scope, y = y || true),
+        }
 
-//     fn inline_macro_ref_identity(item: Item) -> String {
-//         // When staying with the same type variables are automatically reused in cube
-//         let mut context = CubeContext::root();
-//         let x = context.create_local(item);
-
-//         let mut scope = context.into_scope();
-//         let x: Variable = x.into();
-//         let y = scope.create_local(item);
-
-//         match item.elem() {
-//             Elem::Float(_) => cpa!(scope, y = x + 2f32),
-//             Elem::Int(_) => cpa!(scope, y = x + 2i32),
-//             Elem::UInt => cpa!(scope, y = x + 2u32),
-//             Elem::Bool => cpa!(scope, y = x && false),
-//         }
-
-//         cpa!(scope, x = cast(y));
-
-//         match item.elem() {
-//             Elem::Float(_) => cpa!(scope, y = x + 34f32),
-//             Elem::Int(_) => cpa!(scope, y = x + 34i32),
-//             Elem::UInt => cpa!(scope, y = x + 34u32),
-//             Elem::Bool => cpa!(scope, y = x || true),
-//         }
-
-//         format!("{:?}", scope.operations)
-//     }
-// }
+        format!("{:?}", scope.operations)
+    }
+}

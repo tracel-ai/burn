@@ -5,6 +5,7 @@ pub trait JitElement: burn_tensor::Element + CubeElement {}
 
 /// The float element type for the jit backend.
 pub trait FloatElement: JitElement {
+    /// The associated Cube element for Cube kernels
     type CubeElement: Float;
 }
 
