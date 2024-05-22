@@ -1,33 +1,13 @@
-use crate::JitElement;
+use crate::{kernel::reduce::ProdDim, JitElement};
 use burn_cube::{
     cpa,
     dialect::{Item, Scope, Variable},
 };
 
-use super::ReduceDimAlgorithm;
+use super::base::ReduceDimShared;
 
-pub(crate) struct SumDim;
-
-impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
+impl<E: JitElement> ReduceDimShared<E> for ProdDim {
     type Accumulator = Variable;
-
-    fn initialize_naive(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
-        scope.zero(output_item)
-    }
-
-    fn inner_loop_naive(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
-        cpa!(scope, accumulator += value);
-    }
-
-    fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        accumulator: Variable,
-        _shape_reduce_dim: Variable,
-    ) {
-        let id = Variable::Id;
-        cpa!(scope, output[id] = accumulator);
-    }
 
     fn initialize_shared(
         scope: &mut Scope,
@@ -36,7 +16,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         input_item: Item,
     ) -> Self::Accumulator {
         let shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let neutral_element = scope.zero(shared_memory.item());
+        let neutral_element = scope.create_with_value(1, shared_memory.item());
         cpa!(scope, shared_memory[write_position] = neutral_element);
         shared_memory
     }
@@ -50,7 +30,7 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
         let current_value = scope.create_local(value.item());
         let computed = scope.create_local(value.item());
         cpa!(scope, current_value = shared_memory[write_position]);
-        cpa!(scope, computed = current_value + value);
+        cpa!(scope, computed = current_value * value);
         cpa!(scope, shared_memory[write_position] = computed);
     }
 
