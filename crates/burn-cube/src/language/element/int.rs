@@ -1,6 +1,5 @@
 use crate::dialect::{Elem, IntKind, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::unexpanded;
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -29,8 +28,11 @@ macro_rules! impl_int {
         impl Numeric for $type {}
 
         impl Int for $type {
-            fn new(_val: i64) -> Self {
-                unexpanded!()
+            fn new(val: i64) -> Self {
+                Self {
+                    val,
+                    vectorization: 1,
+                }
             }
 
             fn new_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {

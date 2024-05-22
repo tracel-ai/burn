@@ -1,9 +1,8 @@
 use crate::dialect::Item;
-use crate::language::{assign, CubeContext, CubeType, CubeElem};
+use crate::language::{assign, CubeContext, CubeElem, CubeType};
 use crate::unexpanded;
 
-// Enable elegant casting from any to any primitive variable
-
+/// Enable elegant casting from any to any CubeElem
 pub trait Cast: CubeElem {
     fn cast_from<From: CubeElem>(value: From) -> Self;
     fn cast_from_expand(

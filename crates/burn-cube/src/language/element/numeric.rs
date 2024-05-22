@@ -1,5 +1,5 @@
 use crate::dialect::{Item, Variable};
-use crate::language::{CubeContext, CubeType, ExpandElement, CubeElem};
+use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement};
 use crate::{index_assign, unexpanded};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
@@ -20,6 +20,9 @@ pub trait Numeric:
     /// Note: since this must work for both integer and float
     /// only the less expressive of both can be created (int)
     /// If a number with decimals is needed, use Float::new.
+    ///
+    /// This method panics when unexpanded. For creating an element
+    /// with a val, use the new method of the sub type.
     fn from_int(_val: i64) -> Self {
         unexpanded!()
     }

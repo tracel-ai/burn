@@ -23,7 +23,6 @@ impl Numeric for UInt {}
 
 impl UInt {
     pub fn new(val: u32) -> Self {
-        // TODO: should panic with unexpanded, but still needed for Comptime
         Self {
             val,
             vectorization: 1,
