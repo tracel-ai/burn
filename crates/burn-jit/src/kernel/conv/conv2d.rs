@@ -21,7 +21,6 @@ use crate::{
 };
 
 #[cube]
-#[allow(clippy::too_many_arguments)] // TODO support structs in Cube
 fn kernel<F: Float>(
     input: Tensor<F>,
     weight: Tensor<F>,
