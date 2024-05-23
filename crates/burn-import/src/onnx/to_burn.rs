@@ -9,6 +9,7 @@ use burn::{
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
+use log::warn;
 
 use crate::{
     burn::{
@@ -382,7 +383,7 @@ impl OnnxGraph {
         let output_type = if let Type::Tensor(t) = output.to_type() {
             t
         } else {
-            panic!("RandomUniform output type is no Tensor...?");
+            panic!("RandomUniform output type is no Tensor.");
         };
 
         let high = node
@@ -396,7 +397,11 @@ impl OnnxGraph {
             .map(|val| val.clone().into_f32() as f64)
             .unwrap_or(0.0f64);
 
-        RandomUniformNode::new(node.name, output_type, high, low)
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomUniformNode::new(output_type, high, low)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
