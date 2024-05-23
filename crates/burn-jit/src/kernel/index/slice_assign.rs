@@ -2,7 +2,7 @@ use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTenso
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, TensorHandle,
     WorkgroupLaunch,
 };
 use burn_tensor::ElementConversion;
@@ -135,8 +135,8 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const 
 
     Execution::start(kernel, value.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .with_scalars(&scalars)
         .execute(WorkgroupLaunch::Input { pos: 0 });

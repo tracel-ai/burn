@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use burn_compute::client::ComputeClient;
 use burn_cube::{
     branch::*,
     dialect::{ComputeShader, Elem, Visibility},
@@ -112,7 +113,7 @@ fn kernel<F: Float>(
 }
 
 #[derive(new)]
-struct Conv2dEagerKernel<R: JitRuntime, E: FloatElement> {
+struct Conv2dEagerKernel<R: Runtime, E: FloatElement> {
     kernel_size_0: Option<u32>,
     kernel_size_1: Option<u32>,
     _runtime: PhantomData<R>,
@@ -136,7 +137,7 @@ struct Conv2dComputeShader<E: FloatElement> {
     _elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: FloatElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
+impl<R: Runtime, E: FloatElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut context = CubeContext::root();
         let item = E::cube_elem().into();
@@ -277,30 +278,59 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         }
     };
 
-    let kernel = Conv2dEagerKernel::<R, E>::new(Some(kernel_0 as u32), Some(kernel_1 as u32));
-    // let kernel = Conv2dEagerKernel::<R, E>::new(None, None);
-
-    Execution::start(kernel, input.client)
-        .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        ])
-        .outputs(&[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
-        .with_scalars(&[
-            options.stride[0] as u32,
-            options.stride[1] as u32,
-            options.dilation[0] as u32,
-            options.dilation[1] as u32,
-            options.padding[0] as u32,
-            options.padding[1] as u32,
-            options.groups as u32,
-        ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+    conv2d_launch::<R, E>(
+        input.client,
+        WorkgroupLaunch::Input { pos: 3 },
+        TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+        TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
+        TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
+        TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+        options.stride[0],
+        options.stride[1],
+        options.dilation[0],
+        options.dilation[1],
+        options.padding[0],
+        options.padding[1],
+        options.groups,
+        Some(kernel_0),
+        Some(kernel_1),
+    );
 
     output
+}
+
+fn conv2d_launch<'a, R: Runtime, F: FloatElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    launch: WorkgroupLaunch,
+    input: TensorHandle<'a, R>,
+    weight: TensorHandle<'a, R>,
+    bias: TensorHandle<'a, R>,
+    output: TensorHandle<'a, R>,
+    conv_stride_0: usize,
+    conv_stride_1: usize,
+    dilation_0: usize,
+    dilation_1: usize,
+    padding_0: usize,
+    padding_1: usize,
+    groups: usize,
+    kernel_size_0_unroll: Option<usize>,
+    kernel_size_1_unroll: Option<usize>,
+) {
+    let kernel = Conv2dEagerKernel::<R, F>::new(
+        kernel_size_0_unroll.map(|k| k as u32),
+        kernel_size_1_unroll.map(|k| k as u32),
+    );
+
+    Execution::start(kernel, client)
+        .inputs(&[input, weight, bias, output])
+        .with_scalars(&[
+            conv_stride_0 as u32,
+            conv_stride_1 as u32,
+            dilation_0 as u32,
+            dilation_1 as u32,
+            padding_0 as u32,
+            padding_1 as u32,
+            groups as u32,
+        ])
+        .execute(launch);
 }
