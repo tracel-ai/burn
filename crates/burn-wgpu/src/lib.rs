@@ -37,6 +37,11 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
+/// # Generics
+/// - G: GraphicsApi
+/// - F: FloatElement
+/// - I: IntElement
+///
 /// # Notes
 ///
 /// This version of the [wgpu] backend uses [burn_fusion] to compile and optimize streams of tensor
