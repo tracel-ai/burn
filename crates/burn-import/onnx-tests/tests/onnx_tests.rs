@@ -80,7 +80,8 @@ include_models!(
     unsqueeze_opset16,
     unsqueeze_opset11,
     squeeze_opset16,
-    squeeze_opset13
+    squeeze_opset13,
+    random_uniform
 );
 
 #[cfg(test)]
@@ -1408,6 +1409,15 @@ mod tests {
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_uniform() {
+        let device = Default::default();
+        let model = random_uniform::Model::<Backend>::new(&device);
+        let expected_shape = Shape::from([2, 3]);
+        let output = model.forward();
         assert_eq!(expected_shape, output.shape());
     }
 }

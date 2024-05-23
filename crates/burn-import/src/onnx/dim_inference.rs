@@ -71,6 +71,8 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::PRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
         NodeType::Squeeze => squeeze_update_output(node),
+        NodeType::RandomUniform => explicit_shape_update_output(node),
+        NodeType::RandomNormal => explicit_shape_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -118,6 +120,47 @@ fn constant_update_outputs(node: &mut Node) {
         },
         None => panic!("Constant node must have a value attribute"),
     };
+}
+
+/// Infer the shape of the output of a node with an explicit shape attribute
+///
+/// This includes the `RandomUniform`, `RandomNormal` operators
+///
+/// Also reads & interprets an optional `dtype` attribute
+fn explicit_shape_update_output(node: &mut Node) {
+    let dtype = node
+        .attrs
+        .get("dtype")
+        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+        .unwrap_or(DataType::FLOAT);
+
+    let mut shape = node
+        .attrs
+        .get("shape")
+        .expect("required shape attribute missing")
+        .clone()
+        .into_i64s();
+
+    let elem_type = match dtype {
+        DataType::FLOAT => ElementType::Float32,
+        DataType::INT32 => ElementType::Int32,
+        DataType::INT64 => ElementType::Int64,
+        DataType::DOUBLE => ElementType::Float64,
+        DataType::BOOL => ElementType::Bool,
+        _ => panic!("tensor with type {dtype:?} not supported"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type,
+        dim: shape.len(),
+        shape: Some(
+            shape
+                .drain(..)
+                .map(usize::try_from)
+                .collect::<Result<Vec<usize>, _>>()
+                .unwrap(),
+        ),
+    })
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
