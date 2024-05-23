@@ -46,6 +46,8 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::Greater => greater_update_outputs(node),
+        NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
         NodeType::Less => less_update_outputs(node),
         NodeType::LessOrEqual => less_or_equal_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
@@ -239,7 +241,31 @@ fn reshape_update_outputs(node: &mut Node) {
     }
 }
 
+fn greater_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
 fn less_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn greater_or_equal_update_outputs(node: &mut Node) {
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
             node.outputs[0].ty = ArgType::Tensor(TensorType {
