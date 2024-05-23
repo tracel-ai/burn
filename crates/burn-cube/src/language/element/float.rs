@@ -1,9 +1,11 @@
 use crate::dialect::{Elem, FloatKind, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{Cos, Exp, Log, Log1p, Powf, Sin, Tanh};
+use crate::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh};
 
 /// Floating point numbers. Used as input in float kernels
-pub trait Float: Numeric + Exp + Log + Log1p + Cos + Sin + Tanh + Powf {
+pub trait Float:
+    Numeric + Exp + Log + Log1p + Cos + Sin + Tanh + Powf + Sqrt + Floor + Ceil + Erf + Recip
+{
     fn new(val: f64) -> Self;
     fn new_expand(context: &mut CubeContext, val: f64) -> <Self as CubeType>::ExpandType;
 }

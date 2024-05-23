@@ -49,3 +49,26 @@ impl_unary_func!(
 impl_unary_func!(Cos, cos, cos_expand, Operator::Cos, F16, BF16, F32, F64);
 impl_unary_func!(Sin, sin, sin_expand, Operator::Sin, F16, BF16, F32, F64);
 impl_unary_func!(Tanh, tanh, tanh_expand, Operator::Tanh, F16, BF16, F32, F64);
+impl_unary_func!(Sqrt, sqrt, sqrt_expand, Operator::Sqrt, F16, BF16, F32, F64);
+impl_unary_func!(
+    Floor,
+    floor,
+    floor_expand,
+    Operator::Floor,
+    F16,
+    BF16,
+    F32,
+    F64
+);
+impl_unary_func!(Ceil, ceil, ceil_expand, Operator::Ceil, F16, BF16, F32, F64);
+impl_unary_func!(Erf, erf, erf_expand, Operator::Erf, F16, BF16, F32, F64);
+impl_unary_func!(
+    Recip,
+    recip,
+    recip_expand,
+    Operator::Recip,
+    F16,
+    BF16,
+    F32,
+    F64
+);

@@ -77,6 +77,20 @@ pub(crate) fn codegen_binary(
                 burn_cube::lt::expand(context, _lhs, _rhs)
             }
         },
+        syn::BinOp::Le(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::le::expand(context, _lhs, _rhs)
+            }
+        },
+        syn::BinOp::Eq(_) => quote::quote! {
+            {
+                let _lhs = #lhs;
+                let _rhs = #rhs;
+                burn_cube::eq::expand(context, _lhs, _rhs)
+            }
+        },
         syn::BinOp::AddAssign(_) => quote::quote! {
             {
                 let _lhs = #lhs;
