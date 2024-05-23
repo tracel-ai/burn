@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::{cube, Float, Numeric};
 
 #[cube]
 fn add_op<T: Numeric>(a: T, b: T) -> T {
@@ -25,64 +25,64 @@ fn abs_op<T: Numeric>(a: T) -> T {
     T::abs(a)
 }
 
-// #[cube]
-// fn exp_op<F: Float>(a: F) -> F {
-//     exp(a)
-// }
+#[cube]
+fn exp_op<F: Float>(a: F) -> F {
+    F::exp(a)
+}
 
-// #[cube]
-// fn log_op<F: Float>(a: F) -> F {
-//     log(a)
-// }
+#[cube]
+fn log_op<F: Float>(a: F) -> F {
+    F::log(a)
+}
 
-// #[cube]
-// fn log1p_op<F: Float>(a: F) -> F {
-//     log1p(a)
-// }
+#[cube]
+fn log1p_op<F: Float>(a: F) -> F {
+    F::log1p(a)
+}
 
-// #[cube]
-// fn cos_op<F: Float>(a: F) -> F {
-//     cos(a)
-// }
+#[cube]
+fn cos_op<F: Float>(a: F) -> F {
+    F::cos(a)
+}
 
-// #[cube]
-// fn sin_op<F: Float>(a: F) -> F {
-//     sin(a)
-// }
+#[cube]
+fn sin_op<F: Float>(a: F) -> F {
+    F::sin(a)
+}
 
-// #[cube]
-// fn tanh_op<F: Float>(a: F) -> F {
-//     tanh(a)
-// }
+#[cube]
+fn tanh_op<F: Float>(a: F) -> F {
+    F::tanh(a)
+}
 
-// #[cube]
-// fn powf_op<F: Float>(a: F, b: F) -> F {
-//     powf(a, b)
-// }
+#[cube]
+fn powf_op<F: Float>(a: F, b: F) -> F {
+    F::powf(a, b)
+}
 
 // #[cube]
 // fn sqrt_op<F: Float>(a: F) -> F {
-//     sqrt(a)
+//     F::sqrt(a)
 // }
 
 // #[cube]
 // fn floor_op<F: Float>(a: F) -> F {
-//     floor(a)
+//     F::floor(a)
 // }
 
 // #[cube]
 // fn ceil_op<F: Float>(a: F) -> F {
-//     ceil(a)
+//     F::ceil(a)
 // }
 
 // #[cube]
 // fn erf_op<F: Float>(a: F) -> F {
-//     erf(a)
+//     F::erf(a)
 // }
 
 // #[cube]
 // fn recip_op<F: Float>(a: F) -> F {
-//     recip(a)
+//     F::recip(a)
 // }
 
 // #[cube]
@@ -184,74 +184,53 @@ mod tests {
 
     type ElemType = F32;
 
-    #[test]
-    fn cube_can_add() {
-        let mut context = CubeContext::root();
-        let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-        let y = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
+    macro_rules! define_binary_test {
+        ($test_name:ident, $op_expand:ident, $op_name:expr) => {
+            #[test]
+            fn $test_name() {
+                let mut context = CubeContext::root();
+                let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
+                let y = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
 
-        add_op_expand::<ElemType>(&mut context, x, y);
+                $op_expand::<ElemType>(&mut context, x, y);
 
-        assert_eq!(
-            format!("{:?}", context.into_scope().operations),
-            ref_ops_binary("Add")
-        );
+                assert_eq!(
+                    format!("{:?}", context.into_scope().operations),
+                    ref_ops_binary($op_name)
+                );
+            }
+        };
     }
 
-    #[test]
-    fn cube_can_sub() {
-        let mut context = CubeContext::root();
-        let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-        let y = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
+    macro_rules! define_unary_test {
+        ($test_name:ident, $op_expand:ident, $op_name:expr) => {
+            #[test]
+            fn $test_name() {
+                let mut context = CubeContext::root();
+                let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
 
-        sub_op_expand::<ElemType>(&mut context, x, y);
+                $op_expand::<ElemType>(&mut context, x);
 
-        assert_eq!(
-            format!("{:?}", context.into_scope().operations),
-            ref_ops_binary("Sub")
-        );
+                assert_eq!(
+                    format!("{:?}", context.into_scope().operations),
+                    ref_ops_unary($op_name)
+                );
+            }
+        };
     }
 
-    #[test]
-    fn cube_can_mul() {
-        let mut context = CubeContext::root();
-        let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-        let y = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-
-        mul_op_expand::<ElemType>(&mut context, x, y);
-
-        assert_eq!(
-            format!("{:?}", context.into_scope().operations),
-            ref_ops_binary("Mul")
-        );
-    }
-
-    #[test]
-    fn cube_can_div() {
-        let mut context = CubeContext::root();
-        let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-        let y = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-
-        div_op_expand::<ElemType>(&mut context, x, y);
-
-        assert_eq!(
-            format!("{:?}", context.into_scope().operations),
-            ref_ops_binary("Div")
-        );
-    }
-
-    #[test]
-    fn cube_can_abs() {
-        let mut context = CubeContext::root();
-        let x = context.create_local(Item::new(Elem::Float(FloatKind::F32)));
-
-        abs_op_expand::<ElemType>(&mut context, x);
-
-        assert_eq!(
-            format!("{:?}", context.into_scope().operations),
-            ref_ops_unary("Abs")
-        );
-    }
+    define_binary_test!(cube_can_add, add_op_expand, "Add");
+    define_binary_test!(cube_can_sub, sub_op_expand, "Sub");
+    define_binary_test!(cube_can_mul, mul_op_expand, "Mul");
+    define_binary_test!(cube_can_div, div_op_expand, "Div");
+    define_unary_test!(cube_can_abs, abs_op_expand, "Abs");
+    define_unary_test!(cube_can_exp, exp_op_expand, "Exp");
+    define_unary_test!(cube_can_log, log_op_expand, "Log");
+    define_unary_test!(cube_can_log1p, log1p_op_expand, "Log1p");
+    define_unary_test!(cube_can_cos, cos_op_expand, "Cos");
+    define_unary_test!(cube_can_sin, sin_op_expand, "Sin");
+    define_unary_test!(cube_can_tanh, tanh_op_expand, "Tanh");
+    define_binary_test!(cube_can_powf, powf_op_expand, "Powf");
 
     fn ref_ops_binary(ops_name: &str) -> String {
         format!(

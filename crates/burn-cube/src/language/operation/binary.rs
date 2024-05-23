@@ -1,11 +1,9 @@
+use crate::dialect::Operator;
 use crate::language::operation::base::binary_expand;
 use crate::language::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
-use crate::unexpanded;
+use crate::{unexpanded, CubeType};
 
 pub mod add {
-
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -38,8 +36,6 @@ pub mod add {
 }
 
 pub mod sub {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -72,8 +68,6 @@ pub mod sub {
 }
 
 pub mod mul {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -106,8 +100,6 @@ pub mod mul {
 }
 
 pub mod div {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -140,8 +132,6 @@ pub mod div {
 }
 
 pub mod rem {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -184,8 +174,6 @@ pub mod and {
 }
 
 pub mod or {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -196,3 +184,21 @@ pub mod or {
         binary_expand(context, lhs, rhs, Operator::Or)
     }
 }
+
+macro_rules! impl_binary_func {
+    ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
+        pub trait $trait_name: CubeType + Sized {
+            fn $method_name(self, _rhs: Self) -> Self {
+                unexpanded!()
+            }
+
+            fn $method_name_expand(context: &mut CubeContext, lhs: ExpandElement, rhs: ExpandElement) -> ExpandElement {
+                binary_expand(context, lhs, rhs, $operator)
+            }
+        }
+
+        $(impl $trait_name for $type {})*
+    }
+}
+
+impl_binary_func!(Powf, powf, powf_expand, Operator::Powf, F16, BF16, F32, F64);
