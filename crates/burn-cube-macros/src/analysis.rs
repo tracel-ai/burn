@@ -258,6 +258,7 @@ impl CodeAnalysisBuilder {
 
                 self.find_occurrences_in_expr(&expr.body, depth + 1)
             }
+            syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

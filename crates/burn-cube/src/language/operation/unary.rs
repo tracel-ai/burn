@@ -5,6 +5,14 @@ use crate::{
 
 use super::base::unary_expand;
 
+pub mod not {
+    use super::*;
+
+    pub fn expand(context: &mut CubeContext, x: ExpandElement) -> ExpandElement {
+        unary_expand(context, x, Operator::Not)
+    }
+}
+
 macro_rules! impl_unary_func {
     ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
         pub trait $trait_name: CubeType + Sized {
