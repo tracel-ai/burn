@@ -1,4 +1,4 @@
-use crate::dialect::Variable;
+use crate::{dialect::Variable, Runtime};
 use alloc::rc::Rc;
 
 /// Types used in a cube function must implement this trait
@@ -15,6 +15,10 @@ use alloc::rc::Rc;
 /// the generated code.
 pub trait CubeType {
     type ExpandType: Clone;
+}
+
+pub trait CubeArg {
+    type ArgType<'a, R: Runtime>: Send + Sync;
 }
 
 /// Reference to a JIT variable

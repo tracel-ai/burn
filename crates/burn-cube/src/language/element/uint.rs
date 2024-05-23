@@ -1,7 +1,8 @@
 use crate::dialect::{Elem, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::{CubeArg, Runtime};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 /// An unsigned int.
 /// Preferred for indexing operations
 pub struct UInt {
@@ -17,6 +18,10 @@ impl CubeElem for UInt {
     fn as_elem() -> Elem {
         Elem::UInt
     }
+}
+
+impl CubeArg for UInt {
+    type ArgType<'a, R: Runtime> = u32;
 }
 
 impl Numeric for UInt {}
