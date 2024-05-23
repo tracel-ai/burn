@@ -11,5 +11,6 @@ mod module_import;
 mod ops;
 mod parenthesis;
 mod reuse;
+mod tensor;
 mod r#trait;
 mod vectorization;
