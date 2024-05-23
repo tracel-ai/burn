@@ -251,6 +251,8 @@ impl OnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::Less => graph.register(Self::less_conversion(node)),
+                NodeType::LessOrEqual => graph.register(Self::less_or_equal_conversion(node)),
                 NodeType::LayerNormalization => {
                     graph.register(Self::layer_norm_conversion::<PS>(node))
                 }
@@ -820,6 +822,22 @@ impl OnnxGraph {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
         UnaryNode::not(input, output)
+    }
+
+    fn less_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        BinaryNode::lower(lhs, rhs, output)
+    }
+
+    fn less_or_equal_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+
+        BinaryNode::lower_equal(lhs, rhs, output)
     }
 
     fn pow_conversion(node: Node) -> BinaryNode {
