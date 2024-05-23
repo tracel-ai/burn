@@ -53,6 +53,8 @@ include_models!(
     not,
     greater,
     greater_or_equal,
+    less,
+    less_or_equal,
     prelu,
     recip,
     reduce_max,
@@ -1183,6 +1185,21 @@ mod tests {
 
         let output = model.forward(input1, input2);
         let expected = Data::from([[false, false, true, true]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn less() {
+        let device = Default::default();
+        let model: less::Model<Backend> = less::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, 4.0, 9.0, 25.0]], &device);
+        let input2 = Tensor::<Backend, 2>::from_floats([[1.0, 5.0, 8.0, -25.0]], &device);
+
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[false, true, false, false]]);
+
         assert_eq!(output.to_data(), expected);
     }
 
@@ -1196,6 +1213,21 @@ mod tests {
 
         let output = model.forward(input1, input2);
         let expected = Data::from([[true, false, true, true]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn less_or_equal() {
+        let device = Default::default();
+        let model: less_or_equal::Model<Backend> = less_or_equal::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, 4.0, 9.0, 25.0]], &device);
+        let input2 = Tensor::<Backend, 2>::from_floats([[1.0, 5.0, 8.0, -25.0]], &device);
+
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[true, true, false, false]]);
+
         assert_eq!(output.to_data(), expected);
     }
 

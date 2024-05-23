@@ -89,8 +89,8 @@ represent the corresponding Burn Op.
 | [IsNaN][81]                      |       ❌       |      ❌      |
 | [LayerNormalization][82]         |       ✅       |      ✅      |
 | [LeakyRelu][83]                  |       ✅       |      ✅      |
-| [Less][84]                       |       ❌       |      ✅      |
-| [LessOrEqual][85]                |       ❌       |      ✅      |
+| [Less][84]                       |       ✅       |      ✅      |
+| [LessOrEqual][85]                |       ✅       |      ✅      |
 | Linear                           |       ✅       |      ✅      |
 | [Log][87]                        |       ✅       |      ✅      |
 | [LogSoftmax][88]                 |       ✅       |      ✅      |

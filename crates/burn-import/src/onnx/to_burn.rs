@@ -253,6 +253,8 @@ impl OnnxGraph {
                 NodeType::Not => graph.register(Self::not_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
+                NodeType::Less => graph.register(Self::less_conversion(node)),
+                NodeType::LessOrEqual => graph.register(Self::less_or_equal_conversion(node)),
                 NodeType::LayerNormalization => {
                     graph.register(Self::layer_norm_conversion::<PS>(node))
                 }
@@ -828,16 +830,28 @@ impl OnnxGraph {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
-
         BinaryNode::greater(lhs, rhs, output)
+    }
+
+    fn less_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        BinaryNode::lower(lhs, rhs, output)
     }
 
     fn greater_or_equal_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
-
         BinaryNode::greater_equal(lhs, rhs, output)
+    }
+
+    fn less_or_equal_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        BinaryNode::lower_equal(lhs, rhs, output)
     }
 
     fn pow_conversion(node: Node) -> BinaryNode {

@@ -18,6 +18,8 @@ pub enum BinaryType {
     Max,
     Greater,
     GreaterOrEqual,
+    Less,
+    LessOrEqual,
 }
 
 impl BinaryType {
@@ -34,6 +36,8 @@ impl BinaryType {
             BinaryType::Max => "max_pair",
             BinaryType::Greater => "greater",
             BinaryType::GreaterOrEqual => "greater_equal",
+            BinaryType::Less => "lower",
+            BinaryType::LessOrEqual => "lower_equal",
         }
     }
 }
@@ -221,6 +225,28 @@ impl BinaryNode {
             Arc::new(function),
         )
     }
+
+    pub(crate) fn lower(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower(#rhs) },
+            _ => panic!("lower is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Less, Arc::new(function))
+    }
+
+    pub(crate) fn lower_equal(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower_equal(#rhs) },
+            _ => panic!("lower_equal is supported for tensor only"),
+        };
+        Self::new(
+            lhs,
+            rhs,
+            output,
+            BinaryType::LessOrEqual,
+            Arc::new(function),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -394,6 +420,16 @@ mod tests {
     #[test]
     fn test_binary_codegen_greater_or_equal() {
         test_binary_operator_on_tensors!(greater_equal);
+    }
+
+    #[test]
+    fn test_binary_codegen_less() {
+        test_binary_operator_on_tensors!(lower);
+    }
+
+    #[test]
+    fn test_binary_codegen_less_or_equal() {
+        test_binary_operator_on_tensors!(lower_equal);
     }
 
     #[test]
