@@ -145,7 +145,7 @@ fn random_update_output(node: &mut Node) {
     let elem_type = match dtype {
         DataType::FLOAT => ElementType::Float32,
         DataType::DOUBLE => ElementType::Float64,
-        _ => panic!("tensor with type {dtype:?} not supported for RandomU"),
+        _ => panic!("tensor with type {dtype:?} not supported for random output"),
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
