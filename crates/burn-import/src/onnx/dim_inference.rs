@@ -29,6 +29,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Equal => equal_update_outputs(node),
         NodeType::Erf => same_as_input(node),
         NodeType::Exp => same_as_input(node),
+        NodeType::Expand => expand_update_outputs(node),
         NodeType::Flatten => flatten_update_outputs(node),
         NodeType::Gelu => same_as_input(node),
         NodeType::GatherElements => same_as_input(node),
@@ -426,6 +427,33 @@ fn equal_update_outputs(node: &mut Node) {
             node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
         }
         _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn expand_update_outputs(node: &mut Node) {
+    let shape = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(shape) => Some(shape.clone()),
+                _ => panic!("Expand: invalid input types"),
+            },
+            None => None,
+        }
+    } else {
+        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
+    };
+
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Expand: invalid output types"),
+    };
+
+    if let Some(shape) = shape {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: shape.len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
     }
 }
 

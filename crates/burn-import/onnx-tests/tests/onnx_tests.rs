@@ -33,6 +33,7 @@ include_models!(
     equal,
     erf,
     exp,
+    expand,
     flatten,
     gather,
     gelu,
@@ -1114,6 +1115,20 @@ mod tests {
         let expected = Data::from([[[[1., 2.]]]]);
 
         output.to_data().assert_approx_eq(&expected, 2);
+    }
+
+    #[test]
+    fn expand() {
+        let device = Default::default();
+        let model: expand::Model<Backend> = expand::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_ints([[-1], [1], [42]], &device);
+        let input_shape = Shape::from([3, 2]);
+
+        let output = model.forward(input1, input_shape);
+        let expected = Data::from([[-1, -1], [1, 1], [42, 42]]);
+
+        assert_eq!(output.to_data(), expected);
     }
 
     #[test]

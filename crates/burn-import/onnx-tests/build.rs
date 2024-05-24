@@ -40,6 +40,7 @@ fn main() {
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
         .input("tests/not/not.onnx")
+        .input("tests/expand/expand.onnx")
         .input("tests/greater/greater.onnx")
         .input("tests/greater_or_equal/greater_or_equal.onnx")
         .input("tests/less/less.onnx")
