@@ -99,7 +99,12 @@ impl OnnxGraphIO {
         }
     }
 
-    pub fn update_name(&mut self, old_arg_name: &str, new_name: &str) {
+    pub fn update_output_name(&mut self, old_arg_name: &str, new_name: &str) {
+        log::debug!(
+            "old output name: {}\nnew output name: {}",
+            &old_arg_name,
+            &new_name
+        );
         match self.old_io_names.get(old_arg_name) {
             Some(IOEntry::In(_)) => {
                 panic!("input names are set from the beginning");
@@ -476,22 +481,7 @@ impl OnnxGraphBuilder {
             //map the output name to check for pass through values
             self.identity_idx.insert(node.outputs[0].clone(), i);
             self.nodes_to_remove.insert(i);
-            //TODO: verify that this code is now redundant
-            //seems to be for each input, if it's name corresponds to an identity node
-            //update the input name to the identity node's input name
-            // since the node args are now just keys, where the key is equal to the original name
-            // this is no longer necessary
-        } //else {
-          //     //NOTE: it might be possible to rework the API to handle all "per input" operations
-          //     //in a new function that operates on each input.
-          //     node.inputs.iter().for_each(|x| {
-          //         if let Some(identity_idx) = self.identity_idx.get(x) {
-          //             let input_name = &self.nodes[*identity_idx].inputs[0].name;
-
-        //             x.name.clone_from(input_name);
-        //         }
-        //     });
-        // }
+        }
     }
 }
 
@@ -603,27 +593,12 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         graph_io.mark_input_passed(node_input);
     }
     let mut out_count = 1;
-    if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
+    for output in node.outputs.iter_mut() {
+        //setting output to passed here since it originally happened at the end of dim inference
+        graph_io.set_passed(output);
         let new_name = format!("{}_out{}", node.name, out_count);
-        graph_io.update_name(&node.outputs[0], &new_name);
-        log::debug!("Found {} constant", new_name);
-    } else {
-        for output in node.outputs.iter_mut() {
-            //setting output to passed here since it originally happened at the end of dim inference
-            graph_io.set_passed(output);
-            let new_name = format!("{}_out{}", node.name, out_count);
-            //leaving here instead of moving to graph_io so I can distinguish between
-            //inputs and outputs
-            log::debug!(
-                "old output name: {}\nnew output name: {}",
-                &output,
-                &new_name
-            );
-            graph_io.update_name(output, &new_name);
-
-            //output.name.clone_from(&new_name);
-            out_count += 1;
-        }
+        graph_io.update_output_name(output, &new_name);
+        out_count += 1;
     }
 }
 
