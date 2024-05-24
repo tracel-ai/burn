@@ -34,7 +34,7 @@ mod tests {
         CubeContext, CubeElem, I32,
     };
 
-    use super::{manual_loop_break_expand, while_not_expand};
+    use super::{loop_with_return_expand, manual_loop_break_expand, while_not_expand};
 
     type ElemType = I32;
 
@@ -47,7 +47,7 @@ mod tests {
         while_not_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
-        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(false));
     }
 
     #[test]
@@ -59,7 +59,7 @@ mod tests {
         manual_loop_break_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
-        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(false));
     }
 
     #[test]
@@ -71,10 +71,10 @@ mod tests {
         loop_with_return_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
-        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(true));
     }
 
-    fn inline_macro_ref() -> String {
+    fn inline_macro_ref(is_return: bool) -> String {
         let mut context = CubeContext::root();
         let item = Item::new(ElemType::as_elem());
         let lhs = context.create_local(item);
@@ -89,7 +89,10 @@ mod tests {
             loop(|scope| {
                 cpa!(scope, cond = lhs != 0);
                 cpa!(scope, if(cond).then(|scope|{
-                    scope.register(Branch::Break);
+                    match is_return {
+                        true => scope.register(Branch::Return),
+                        false => scope.register(Branch::Break)
+                    }
                 }));
 
                 cpa!(scope, rhs = lhs % 1i32);

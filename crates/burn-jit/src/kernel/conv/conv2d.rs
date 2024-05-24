@@ -36,7 +36,7 @@ fn kernel<F: Float>(
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
-    if AbsoluteIndex::get() > Tensor::<F>::len(output) {
+    if AbsoluteIndex::get() >= Tensor::<F>::len(output) {
         return;
     }
 
