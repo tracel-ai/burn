@@ -19,16 +19,16 @@ memory_id_type!(SliceId, SliceHandle, SliceBinding);
 
 /// A tensor memory handle, referring to either a chunk or a slice.
 #[derive(Debug, Clone)]
-pub enum SimpleHandle {
+pub enum DynamicHandle {
     /// A whole chunk of memory.
     Chunk(ChunkHandle),
     /// A slice of a chunk of memory.
     Slice(SliceHandle),
 }
 
-/// Binding of the [simple handle](SimpleHandle).
+/// Binding of the [dynamic handle](DynamicHandle).
 #[derive(Debug, Clone)]
-pub enum SimpleBinding {
+pub enum DynamicBinding {
     /// Binding of the [chunk handle](ChunkHandle).
     Chunk(ChunkBinding),
     /// Binding of the [slice handle](SliceHandle)
@@ -112,14 +112,14 @@ impl DeallocStrategy {
     }
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 struct Chunk {
     storage: StorageHandle,
     handle: ChunkHandle,
     slices: Vec<SliceId>,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 struct Slice {
     storage: StorageHandle,
     handle: SliceHandle,
@@ -128,10 +128,17 @@ struct Slice {
     //
     // TL;DR we can't only store the chunk id.
     chunk: ChunkHandle,
+    padding: usize,
+}
+
+impl Slice {
+    pub fn effective_size(&self) -> usize {
+        self.storage.size() + self.padding
+    }
 }
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
-pub struct SimpleMemoryManagement<Storage> {
+pub struct DynamicMemoryManagement<Storage> {
     chunks: HashMap<ChunkId, Chunk>,
     slices: HashMap<SliceId, Slice>,
     dealloc_strategy: DeallocStrategy,
@@ -139,11 +146,11 @@ pub struct SimpleMemoryManagement<Storage> {
     storage: Storage,
 }
 
-impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
+impl<Storage> core::fmt::Debug for DynamicMemoryManagement<Storage> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             alloc::format!(
-                "SimpleMemoryManagement {:?} - {:?}",
+                "DynamicMemoryManagement {:?} - {:?}",
                 self.dealloc_strategy,
                 core::any::type_name::<Storage>(),
             )
@@ -152,39 +159,39 @@ impl<Storage> core::fmt::Debug for SimpleMemoryManagement<Storage> {
     }
 }
 
-impl MemoryBinding for SimpleBinding {}
+impl MemoryBinding for DynamicBinding {}
 
-impl MemoryHandle<SimpleBinding> for SimpleHandle {
+impl MemoryHandle<DynamicBinding> for DynamicHandle {
     fn can_mut(&self) -> bool {
         match &self {
-            SimpleHandle::Chunk(id) => id.can_mut(),
-            SimpleHandle::Slice(id) => id.can_mut(),
+            DynamicHandle::Chunk(id) => id.can_mut(),
+            DynamicHandle::Slice(id) => id.can_mut(),
         }
     }
 
-    fn binding(self) -> SimpleBinding {
+    fn binding(self) -> DynamicBinding {
         match self {
-            Self::Chunk(handle) => SimpleBinding::Chunk(handle.binding()),
-            Self::Slice(handle) => SimpleBinding::Slice(handle.binding()),
+            Self::Chunk(handle) => DynamicBinding::Chunk(handle.binding()),
+            Self::Slice(handle) => DynamicBinding::Slice(handle.binding()),
         }
     }
 }
 
-impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManagement<Storage> {
-    type Handle = SimpleHandle;
-    type Binding = SimpleBinding;
+impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagement<Storage> {
+    type Handle = DynamicHandle;
+    type Binding = DynamicBinding;
 
     /// Returns the resource from the storage, for the specified handle.
     fn get(&mut self, binding: Self::Binding) -> Storage::Resource {
         let storage = match binding {
-            SimpleBinding::Chunk(chunk) => {
+            DynamicBinding::Chunk(chunk) => {
                 &self
                     .chunks
                     .get(chunk.id())
                     .expect("Storage found for the given execution buffer handle")
                     .storage
             }
-            SimpleBinding::Slice(slice) => {
+            DynamicBinding::Slice(slice) => {
                 &self
                     .slices
                     .get(slice.id())
@@ -201,8 +208,6 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     ///
     /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
     fn reserve(&mut self, size: usize) -> Self::Handle {
-        self.cleanup_slices();
-
         let handle = self.reserve_algorithm(size);
 
         if self.dealloc_strategy.should_dealloc() {
@@ -213,17 +218,28 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     }
 
     fn alloc(&mut self, size: usize) -> Self::Handle {
-        self.create_chunk(size)
+        let handle_chunk = self.create_chunk(size);
+        let chunk_id = *handle_chunk.id();
+
+        let slice = self.create_slice(0, size, handle_chunk);
+        let handle_slice = slice.handle.clone();
+
+        let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+        chunk.slices.push(*handle_slice.id());
+
+        self.slices.insert(*handle_slice.id(), slice);
+
+        DynamicHandle::Slice(handle_slice)
     }
 
     fn dealloc(&mut self, binding: Self::Binding) {
         match binding {
-            SimpleBinding::Chunk(chunk) => {
+            DynamicBinding::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
                     self.storage.dealloc(chunk.storage.id);
                 }
             }
-            SimpleBinding::Slice(_) => panic!("Can't dealloc slice manually"),
+            DynamicBinding::Slice(_) => panic!("Can't dealloc slice manually"),
         }
     }
 
@@ -232,7 +248,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     }
 }
 
-impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
+impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, deallocation strategy and slice strategy.
     pub fn new(
         storage: Storage,
@@ -248,89 +264,146 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
         }
     }
 
-    fn reserve_algorithm(&mut self, size: usize) -> SimpleHandle {
+    fn reserve_algorithm(&mut self, size: usize) -> DynamicHandle {
         // Looks for a large enough, existing but unused chunk of memory.
-        let chunk = self.find_free_chunk(size);
+        let slice = self.find_free_slice(size);
 
-        match chunk {
-            Some(chunk) => {
-                if size == chunk.storage.size() {
-                    // If there is one of exactly the same size, it reuses it.
-                    SimpleHandle::Chunk(chunk.handle.clone())
-                } else {
-                    // Otherwise creates a slice of the right size upon it, always starting at zero.
-                    self.create_slice(size, chunk.handle.clone())
-                }
-            }
-            // If no chunk available, creates one of exactly the right size.
-            None => self.create_chunk(size),
+        match slice {
+            Some(slice) => DynamicHandle::Slice(slice.clone()),
+            None => self.alloc(size),
         }
     }
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
-    fn find_free_chunk(&self, size: usize) -> Option<&Chunk> {
-        let mut size_diff_current = usize::MAX;
-        let mut current = None;
+    fn find_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
+        if size < 16 {
+            return None;
+        }
 
-        for chunk in self.chunks.values() {
-            // If chunk is already used, we do not choose it
-            if !chunk.handle.is_free() {
+        let padding = calculate_padding(size);
+        let effective_size = size + padding;
+
+        let mut size_diff_current = usize::MAX;
+
+        let mut found = None;
+
+        for (chunk_id, chunk) in self.chunks.iter() {
+            if !self
+                .slice_strategy
+                .can_use_chunk(chunk.storage.size(), effective_size)
+            {
                 continue;
             }
 
-            let storage_size = chunk.storage.size();
+            for (position, slice_id) in chunk.slices.iter().enumerate() {
+                if let Some(slice) = self.slices.get(slice_id) {
+                    if slice.handle.is_free() {
+                        let storage_size = slice.effective_size();
+                        let is_big_enough = storage_size >= effective_size;
 
-            // If we find a chunk of exactly the right size, we stop searching altogether
-            if size == storage_size {
-                current = Some(chunk);
-                break;
-            }
+                        if is_big_enough {
+                            let size_diff = storage_size - effective_size;
 
-            // Finds the smallest of the large enough chunks that can accept a slice
-            // of the given size
-            if self.slice_strategy.can_use_chunk(storage_size, size) {
-                let size_diff = storage_size - size;
-
-                if size_diff < size_diff_current {
-                    current = Some(chunk);
-                    size_diff_current = size_diff;
+                            if size_diff < size_diff_current {
+                                found = Some((position, *chunk_id, *slice_id));
+                                size_diff_current = storage_size - effective_size;
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        current
+        let (position, chunk_id, slice_id) = match found {
+            Some(val) => val,
+            None => return None,
+        };
+
+        if size_diff_current == 0 {
+            let slice = self.slices.get_mut(&slice_id).unwrap();
+            let offset = match slice.storage.utilization {
+                StorageUtilization::Full(_) => 0,
+                StorageUtilization::Slice { offset, size: _ } => offset,
+            };
+            slice.storage.utilization = StorageUtilization::Slice { offset, size };
+            slice.padding = padding;
+
+            return Some(self.slices.get(&slice_id).unwrap().handle.clone());
+        }
+
+        assert!(size_diff_current % 32 == 0);
+
+        let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+        let handle_chunk = chunk.handle.clone();
+
+        let mut slices = Vec::with_capacity(chunk.slices.len() + 1);
+        let mut offset = 0;
+
+        let mut slices_old = Vec::new();
+        core::mem::swap(&mut slices_old, &mut chunk.slices);
+
+        let mut handle = None;
+        for (pos, slice_id) in slices_old.into_iter().enumerate() {
+            // Assumes that all slices are contiguous in a chunk.
+            let slice = self.slices.get(&slice_id).unwrap();
+
+            if pos != position {
+                slices.push(slice_id);
+                offset += slice.effective_size();
+                continue;
+            }
+
+            let slice_start = self.create_slice(offset, size, handle_chunk.clone());
+            let slice_start_id = *slice_start.handle.id();
+            offset += slice_start.effective_size();
+
+            let slice_end = self.create_slice(offset, size_diff_current, handle_chunk.clone());
+            let slice_end_id = *slice_end.handle.id();
+            offset += slice_end.effective_size();
+
+            let created_offset = slice_start.effective_size() + slice_end.effective_size();
+            assert_eq!(created_offset, slice.effective_size());
+
+            handle = Some(slice_start.handle.clone());
+            self.slices.insert(slice_start_id, slice_start);
+            self.slices.insert(slice_end_id, slice_end);
+
+            slices.push(slice_start_id);
+            slices.push(slice_end_id);
+        }
+
+        let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+        self.slices.remove(&slice_id);
+        chunk.slices = slices;
+
+        handle
     }
 
     /// Creates a slice of size `size` upon the given chunk.
     ///
     /// For now slices must start at zero, therefore there can be only one per chunk
-    fn create_slice(&mut self, size: usize, handle_chunk: ChunkHandle) -> SimpleHandle {
-        let chunk = self.chunks.get_mut(handle_chunk.id()).unwrap();
-        let handle_slice = SliceHandle::new();
+    fn create_slice(&self, offset: usize, size: usize, handle_chunk: ChunkHandle) -> Slice {
+        let handle_id = *handle_chunk.value.id();
+        let chunk = self.chunks.get(handle_chunk.id()).unwrap();
+        let handle = SliceHandle::new();
 
         let storage = StorageHandle {
             id: chunk.storage.id.clone(),
-            utilization: StorageUtilization::Slice { offset: 0, size },
+            utilization: StorageUtilization::Slice { offset, size },
         };
 
-        if chunk.slices.is_empty() {
-            self.slices.insert(
-                *handle_slice.id(),
-                Slice::new(storage, handle_slice.clone(), handle_chunk.clone()),
-            );
-        } else {
-            panic!("Can't have more than 1 slice yet.");
-        }
+        let padding = calculate_padding(size);
 
-        chunk.slices.push(*handle_slice.id());
-
-        SimpleHandle::Slice(handle_slice)
+        Slice::new(storage, handle, chunk.handle.clone(), padding)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
-    fn create_chunk(&mut self, size: usize) -> SimpleHandle {
-        let storage = self.storage.alloc(size);
+    fn create_chunk(&mut self, size: usize) -> ChunkHandle {
+        let padding = calculate_padding(size);
+        let effective_size = size + padding;
+
+        let storage = self.storage.alloc(effective_size);
         let handle = ChunkHandle::new();
 
         self.chunks.insert(
@@ -338,7 +411,7 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
             Chunk::new(storage, handle.clone(), Vec::new()),
         );
 
-        SimpleHandle::Chunk(handle)
+        handle
     }
 
     /// Deallocates free chunks and remove them from chunks map.
@@ -358,25 +431,6 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
                 self.storage.dealloc(chunk.storage.id);
             });
     }
-
-    /// Removes free slices from slice map and corresponding chunks.
-    fn cleanup_slices(&mut self) {
-        let mut ids_to_remove = Vec::new();
-
-        self.slices.iter().for_each(|(slice_id, slice)| {
-            if slice.handle.is_free() {
-                ids_to_remove.push(*slice_id);
-            }
-        });
-
-        ids_to_remove
-            .iter()
-            .map(|slice_id| self.slices.remove(slice_id).unwrap())
-            .for_each(|slice| {
-                let chunk = self.chunks.get_mut(slice.chunk.id()).unwrap();
-                chunk.slices.retain(|id| id != slice.handle.id());
-            });
-    }
 }
 
 #[cfg(test)]
@@ -389,7 +443,7 @@ mod tests {
 
     #[test]
     fn can_mut_with_single_tensor_reference() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Never,
@@ -406,7 +460,7 @@ mod tests {
 
     #[test]
     fn two_tensor_references_remove_mutability() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Never,
@@ -423,7 +477,7 @@ mod tests {
 
     #[test]
     fn when_non_empty_chunk_exists_and_other_one_created_there_should_be_two() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Never,
@@ -437,7 +491,7 @@ mod tests {
 
     #[test]
     fn when_empty_chunk_is_cleaned_upexists_it_disappears() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Never,
@@ -497,7 +551,7 @@ mod tests {
 
     #[test]
     fn test_handle_mutability() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Ratio(0.5),
@@ -512,15 +566,33 @@ mod tests {
     }
 
     #[test]
+    fn support_multiple_slices_for_a_chunk() {
+        let mut memory_management = DynamicMemoryManagement::new(
+            BytesStorage::default(),
+            DeallocStrategy::Never,
+            SliceStrategy::Ratio(0.2),
+        );
+        let handle = memory_management.reserve(100);
+        core::mem::drop(handle);
+
+        let _slice_1 = memory_management.reserve(30);
+        let _slice_2 = memory_management.reserve(30);
+        let _slice_3 = memory_management.reserve(30);
+
+        assert_eq!(memory_management.chunks.len(), 1);
+        assert_eq!(memory_management.slices.len(), 4);
+    }
+
+    #[test]
     fn test_slice_mutability() {
-        let mut memory_management = SimpleMemoryManagement::new(
+        let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             DeallocStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
         let chunk = memory_management.reserve(10);
 
-        if let super::SimpleHandle::Slice(_) = chunk {
+        if let super::DynamicHandle::Slice(_) = chunk {
             panic!("Should be a chunk.")
         }
 
@@ -528,11 +600,11 @@ mod tests {
 
         let slice = memory_management.reserve(8);
 
-        if let super::SimpleHandle::Chunk(_) = &slice {
+        if let super::DynamicHandle::Chunk(_) = &slice {
             panic!("Should be a slice.")
         }
 
-        if let super::SimpleHandle::Slice(slice) = slice {
+        if let super::DynamicHandle::Slice(slice) = slice {
             let other_ref = slice.clone();
 
             assert!(
@@ -549,5 +621,14 @@ mod tests {
                 "Slice can't be reallocated when one ref still exist."
             );
         }
+    }
+}
+
+fn calculate_padding(size: usize) -> usize {
+    let rem = size % 32;
+    if rem != 0 {
+        32 - rem
+    } else {
+        0
     }
 }

@@ -29,11 +29,14 @@ impl WgpuResource {
     pub fn as_binding(&self) -> wgpu::BindingResource {
         let binding = match &self.kind {
             WgpuResourceKind::Full => self.buffer.as_entire_buffer_binding(),
-            WgpuResourceKind::Slice(offs, size) => wgpu::BufferBinding {
-                buffer: &self.buffer,
-                offset: *offs,
-                size: Some(*size),
-            },
+            WgpuResourceKind::Slice(offs, size) => {
+                println!("Create binding {offs} {size}");
+                wgpu::BufferBinding {
+                    buffer: &self.buffer,
+                    offset: *offs,
+                    size: Some(*size),
+                }
+            }
         };
         wgpu::BindingResource::Buffer(binding)
     }

@@ -4,7 +4,7 @@ use crate::storage_id_type;
 storage_id_type!(StorageId);
 
 /// Defines if data uses a full memory chunk or a slice of it.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StorageUtilization {
     /// Full memory chunk of specified size
     Full(usize),
@@ -18,7 +18,7 @@ pub enum StorageUtilization {
 }
 
 /// Contains the [storage id](StorageId) of a resource and the way it is used.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct StorageHandle {
     /// Storage id.
     pub id: StorageId,
