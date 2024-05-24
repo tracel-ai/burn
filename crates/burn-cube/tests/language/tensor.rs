@@ -10,7 +10,11 @@ fn kernel<T: Numeric>(input: Tensor<T>) {
 
 mod tests {
     use super::*;
-    use burn_cube::{dialect::Item, CubeContext, CubeElem, F32};
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, CubeElem, UInt, F32,
+    };
 
     type ElemType = F32;
 
@@ -22,38 +26,25 @@ mod tests {
         kernel_expand::<ElemType>(&mut context, input);
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
-            "[Metadata(Shape { \
-                dim: ConstantScalar(1.0, UInt), \
-                var: GlobalInputArray(0, Item { \
-                    elem: Float(F32), \
-                    vectorization: 1 \
-                }), \
-                out: Local(0, Item { \
-                    elem: UInt, \
-                    vectorization: 1 \
-                }, 0) \
-            }), \
-            Metadata(Stride { \
-                dim: ConstantScalar(1.0, UInt), \
-                var: GlobalInputArray(0, Item { \
-                    elem: Float(F32), \
-                    vectorization: 1 \
-                }), \
-                out: Local(1, Item { \
-                    elem: UInt, \
-                    vectorization: 1 \
-                }, 0) \
-            }), \
-            Metadata(ArrayLength { \
-                var: GlobalInputArray(0, Item { \
-                    elem: Float(F32), \
-                    vectorization: 1 \
-                }), \
-                out: Local(2, Item { \
-                    elem: UInt, \
-                    vectorization: 1 \
-                }, 0) \
-            })]"
+            inline_macro_ref()
         );
+    }
+
+    fn inline_macro_ref() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+        let input = context.input(0, item);
+
+        let mut scope = context.into_scope();
+        let input: Variable = input.into();
+        let x = scope.create_local(Item::new(UInt::as_elem()));
+        let y = scope.create_local(Item::new(UInt::as_elem()));
+        let z = scope.create_local(Item::new(UInt::as_elem()));
+
+        cpa!(&mut scope, x = shape(input, 1u32));
+        cpa!(&mut scope, y = stride(input, 1u32));
+        cpa!(&mut scope, z = len(input));
+
+        format!("{:?}", scope.operations)
     }
 }
