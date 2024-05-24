@@ -17,6 +17,16 @@ pub fn manual_loop_break<I: Int>(lhs: I) {
     }
 }
 
+#[cube]
+pub fn loop_with_return<I: Int>(lhs: I) {
+    loop {
+        if lhs != I::from_int(0) {
+            return;
+        }
+        let _ = lhs % I::from_int(1);
+    }
+}
+
 mod tests {
     use burn_cube::{
         cpa,
@@ -47,6 +57,18 @@ mod tests {
         let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
         manual_loop_break_expand::<ElemType>(&mut context, lhs);
+        let scope = context.into_scope();
+
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
+    }
+
+    #[test]
+    fn cube_loop_with_return_test() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::new(ElemType::as_elem()));
+
+        loop_with_return_expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref());
