@@ -419,7 +419,16 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         let mut ids_to_remove = Vec::new();
 
         self.chunks.iter().for_each(|(chunk_id, chunk)| {
-            if chunk.handle.is_free() {
+            let mut can_dealloc = true;
+            for slice in chunk.slices.iter() {
+                let slice = self.slices.get(slice).unwrap();
+
+                if !slice.handle.is_free() {
+                    can_dealloc = false;
+                }
+            }
+
+            if can_dealloc {
                 ids_to_remove.push(*chunk_id);
             }
         });
