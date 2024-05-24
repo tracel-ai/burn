@@ -7,9 +7,7 @@ use super::{
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
-use crate::{
-    onnx::ir::{ArgType, Data, TensorType},
-};
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
@@ -160,6 +158,7 @@ pub(crate) fn convert_matmul_to_linear(
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_io).clone();
+        println!("peek_node: {:?}", peek_node);
         if is_add_node_with_bias(&peek_node, node, graph_io) {
             convert_and_remove_add_node(&peek_node, node, graph_io);
 
@@ -197,5 +196,6 @@ fn convert_and_remove_add_node(
 
     // Push the bias input and update the output name
     current_node.inputs.push(bias_input);
-    graph_io.update_name(&current_node.outputs[0], &bias_node.outputs[0]);
+    current_node.outputs[0].clone_from(&bias_node.outputs[0]);
+    //graph_io.update_name(&current_node.outputs[0], &bias_node.outputs[0]);
 }

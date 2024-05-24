@@ -362,13 +362,25 @@ impl OnnxGraph {
             .graph_io
             .inputs
             .iter()
-            .map(|input| input.name.clone())
+            .filter_map(|input| {
+                if input.passed {
+                    Some(input.name.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
         let output_names = self
             .graph_io
             .outputs
             .iter()
-            .map(|output| output.name.clone())
+            .filter_map(|output| {
+                if output.passed {
+                    Some(output.name.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
 
         // Register inputs and outputs with the graph

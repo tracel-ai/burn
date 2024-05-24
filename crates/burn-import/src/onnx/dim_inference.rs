@@ -3,7 +3,6 @@ use core::panic;
 
 use protobuf::Enum;
 
-
 use super::{
     from_onnx::OnnxGraphIO,
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
@@ -143,12 +142,7 @@ fn linear_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         if let Some(mut shape) = tensor.shape.clone() {
             if let ArgType::Tensor(weight_tensor) = graph_io.get_type(weight_key) {
                 let last = shape.last_mut().unwrap();
-                *last = *weight_tensor
-                    .shape
-                    .as_ref()
-                    .unwrap()
-                    .first()
-                    .unwrap();
+                *last = *weight_tensor.shape.as_ref().unwrap().first().unwrap();
             } else {
                 panic!("Weight must be a tensor");
             }

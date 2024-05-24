@@ -5,7 +5,6 @@ use burn::nn::{
     PaddingConfig2d,
 };
 
-
 use super::{
     from_onnx::OnnxGraphIO,
     ir::{ArgType, AttributeValue, Data, Node},
