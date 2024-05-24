@@ -355,114 +355,61 @@ mod tests {
     }
 
     fn ref_ops_binary(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(BinaryOperator {{ \
-            lhs: Local(0, Item {{ \
-                elem: Float(F32), \
-                vectorization: 1 \
-            }}, 0), \
-            rhs: Local(1, Item {{ \
-                elem: Float(F32), \
-                vectorization: 1 \
-            }}, 0), \
-            out: Local(0, Item {{ \
-                elem: Float(F32), \
-                vectorization: 1 \
-            }}, 0) \
-        }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "Float(F32)", "Float(F32)", true)
     }
 
     fn ref_ops_unary(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(UnaryOperator {{ \
-        input: Local(0, Item {{ \
-            elem: Float(F32), \
-            vectorization: 1 \
-        }}, 0), \
-        out: Local(0, Item {{ \
-            elem: Float(F32), \
-            vectorization: 1 \
-        }}, 0) \
-    }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "Float(F32)", "Float(F32)", false)
     }
 
     fn ref_ops_cmp(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(BinaryOperator {{ \
-            lhs: Local(0, Item {{ \
-                elem: Float(F32), \
-                vectorization: 1 \
-            }}, 0), \
-            rhs: Local(1, Item {{ \
-                elem: Float(F32), \
-                vectorization: 1 \
-            }}, 0), \
-            out: Local(2, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0) \
-        }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "Float(F32)", "Bool", true)
     }
 
     fn ref_ops_unary_boolean(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(UnaryOperator {{ \
-            input: Local(0, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0), \
-            out: Local(0, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0) \
-        }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "Bool", "Bool", false)
     }
 
     fn ref_ops_binary_boolean(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(BinaryOperator {{ \
-            lhs: Local(0, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0), \
-            rhs: Local(1, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0), \
-            out: Local(0, Item {{ \
-                elem: Bool, \
-                vectorization: 1 \
-            }}, 0) \
-        }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "Bool", "Bool", true)
     }
 
     fn ref_ops_binary_uint(ops_name: &str) -> String {
-        format!(
-            "[Operator({}(BinaryOperator {{ \
-            lhs: Local(0, Item {{ \
-                elem: UInt, \
-                vectorization: 1 \
-            }}, 0), \
-            rhs: Local(1, Item {{ \
-                elem: UInt, \
-                vectorization: 1 \
-            }}, 0), \
-            out: Local(0, Item {{ \
-                elem: UInt, \
-                vectorization: 1 \
-            }}, 0) \
-        }}))]",
-            ops_name
-        )
+        ref_ops_template(ops_name, "UInt", "UInt", true)
+    }
+
+    fn ref_ops_template(ops_name: &str, in_type: &str, out_type: &str, binary: bool) -> String {
+        if binary {
+            let out_number = if in_type == out_type { 0 } else { 2 };
+            format!(
+                "[Operator({ops_name}(BinaryOperator {{ \
+                lhs: Local(0, Item {{ \
+                    elem: {in_type}, \
+                    vectorization: 1 \
+                }}, 0), \
+                rhs: Local(1, Item {{ \
+                    elem: {in_type}, \
+                    vectorization: 1 \
+                }}, 0), \
+                out: Local({out_number}, Item {{ \
+                    elem: {out_type}, \
+                    vectorization: 1 \
+                }}, 0) \
+            }}))]"
+            )
+        } else {
+            format!(
+                "[Operator({ops_name}(UnaryOperator {{ \
+                input: Local(0, Item {{ \
+                    elem: {in_type}, \
+                    vectorization: 1 \
+                }}, 0), \
+                out: Local(0, Item {{ \
+                    elem: {out_type}, \
+                    vectorization: 1 \
+                }}, 0) \
+            }}))]"
+            )
+        }
     }
 }
