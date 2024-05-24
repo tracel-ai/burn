@@ -130,7 +130,7 @@ represent the corresponding Burn Op.
 | [QLinearConv][123]               |       ❌       |      ❌      |
 | [QLinearMatMul][124]             |       ❌       |      ❌      |
 | [QuantizeLinear][125]            |       ❌       |      ❌      |
-| [RandomNormal][126]              |       ❌       |      ✅      |
+| [RandomNormal][126]              |       ✅       |      ✅      |
 | [RandomNormalLike][127]          |       ❌       |      ✅      |
 | [RandomUniform][128]             |       ✅       |      ✅      |
 | [RandomUniformLike][129]         |       ❌       |      ✅      |

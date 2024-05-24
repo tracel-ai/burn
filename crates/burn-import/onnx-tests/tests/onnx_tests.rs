@@ -81,7 +81,8 @@ include_models!(
     unsqueeze_opset11,
     squeeze_opset16,
     squeeze_opset13,
-    random_uniform
+    random_uniform,
+    random_normal
 );
 
 #[cfg(test)]
@@ -1416,6 +1417,15 @@ mod tests {
     fn random_uniform() {
         let device = Default::default();
         let model = random_uniform::Model::<Backend>::new(&device);
+        let expected_shape = Shape::from([2, 3]);
+        let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_normal() {
+        let device = Default::default();
+        let model = random_normal::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
         assert_eq!(expected_shape, output.shape());

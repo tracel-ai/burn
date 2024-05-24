@@ -73,6 +73,7 @@ fn main() {
         .input("tests/squeeze/squeeze_opset16.onnx")
         .input("tests/squeeze/squeeze_opset13.onnx")
         .input("tests/random_uniform/random_uniform.onnx")
+        .input("tests/random_normal/random_normal.onnx")
         .out_dir("model/")
         .run_from_script();
 

@@ -5,17 +5,17 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone)]
-pub struct RandomUniformNode {
-    pub low: f64,
-    pub high: f64,
+pub struct RandomNormalNode {
+    pub mean: f64,
+    pub scale: f64,
     pub output_ty: TensorType,
 }
 
-impl RandomUniformNode {
-    pub fn new(output_ty: TensorType, low: f64, high: f64) -> Self {
+impl RandomNormalNode {
+    pub fn new(output_ty: TensorType, mean: f64, scale: f64) -> Self {
         Self {
-            low,
-            high,
+            mean,
+            scale,
             output_ty,
         }
     }
@@ -25,19 +25,19 @@ impl RandomUniformNode {
             .output_ty
             .shape
             .as_ref()
-            .expect("RandomUniform output has no shape!")
+            .expect("RandomNormal output has no shape!")
             .iter();
         quote! { Shape::new([#(#shape_it),*]) }
     }
 
     fn get_distribution(&self) -> TokenStream {
-        let low = self.low;
-        let high = self.high;
-        quote! { Distribution::Uniform(#low, #high) }
+        let std_deviation = self.scale; // ONNX spec defines `scale` == `standard deviation`
+        let mean = self.mean;
+        quote! { Distribution::Normal(#mean, #std_deviation) }
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalNode {
     fn input_types(&self) -> Vec<Type> {
         Vec::with_capacity(0)
     }
@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::RandomUniform(self)
+        Node::RandomNormal(self)
     }
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
@@ -72,7 +72,7 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{random_uniform::RandomUniformNode, test::assert_tokens},
+        node::{random_normal::RandomNormalNode, test::assert_tokens},
         TensorKind, TensorType,
     };
 
@@ -80,7 +80,7 @@ mod tests {
     fn test_codegen_nodes() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(RandomUniformNode::new(
+        graph.register(RandomNormalNode::new(
             TensorType::new("tensor1", 2, TensorKind::Float, Some(vec![2, 3])),
             0.0f64,
             1.0f64,
@@ -114,7 +114,7 @@ mod tests {
                 pub fn forward(&self) -> Tensor<B, 2> {
                     let tensor1 = Tensor::random(
                         Shape::new([2usize, 3usize]),
-                        Distribution::Uniform(0f64, 1f64),
+                        Distribution::Normal(0f64, 1f64),
                         &*self.device,
                     );
 
