@@ -277,10 +277,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
     fn find_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
-        if size < 16 {
-            return None;
-        }
-
+        let requires_full_chunk = size < 16;
         let padding = calculate_padding(size);
         let effective_size = size + padding;
 
@@ -288,12 +285,17 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
         let mut found = None;
 
+        log::info!("Num chunks {}", self.chunks.len());
         for (chunk_id, chunk) in self.chunks.iter() {
-            if !self
+            if requires_full_chunk {
+                if self.slices.len() > 1 {
+                    continue;
+                }
+            } else if !self
                 .slice_strategy
                 .can_use_chunk(chunk.storage.size(), effective_size)
             {
-                continue;
+                // continue;
             }
 
             for (position, slice_id) in chunk.slices.iter().enumerate() {
