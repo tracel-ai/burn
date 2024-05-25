@@ -1,14 +1,9 @@
-use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    gpu::ComputeShader,
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    Runtime,
+use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -20,7 +15,7 @@ pub struct RepeatComputeShader {
 }
 
 #[derive(new)]
-struct RepeatEagerKernel<R: Runtime, E: JitElement> {
+struct RepeatEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     rank: usize,
     _runtime: PhantomData<R>,
@@ -41,29 +36,29 @@ impl RepeatComputeShader {
         let shape = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
-            gpu!(scope, stride_input = stride(input, i));
-            gpu!(scope, stride_output = stride(output, i));
+            cpa!(scope, stride_input = stride(input, i));
+            cpa!(scope, stride_output = stride(output, i));
             if i != self.dim {
-                gpu!(scope, shape = shape(output, i));
+                cpa!(scope, shape = shape(output, i));
             } else {
-                gpu!(scope, shape = shape(input, i));
+                cpa!(scope, shape = shape(input, i));
             }
 
-            gpu!(scope, offset_local = id / stride_output);
-            gpu!(scope, offset_local = offset_local % shape);
-            gpu!(scope, offset_local = offset_local * stride_input);
-            gpu!(scope, offset_input += offset_local);
+            cpa!(scope, offset_local = id / stride_output);
+            cpa!(scope, offset_local = offset_local % shape);
+            cpa!(scope, offset_local = offset_local * stride_input);
+            cpa!(scope, offset_input += offset_local);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = input[offset_input]);
-        gpu!(scope, output[id] = result);
+        cpa!(scope, result = input[offset_input]);
+        cpa!(scope, output[id] = result);
     }
 }
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
@@ -104,7 +99,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E
     }
 }
 
-pub(crate) fn repeat<R: Runtime, E: JitElement, const D1: usize>(
+pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
     input: JitTensor<R, E, D1>,
     dim: usize,
     times: usize,

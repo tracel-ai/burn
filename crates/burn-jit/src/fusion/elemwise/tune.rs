@@ -1,11 +1,13 @@
 use std::fmt::Display;
 
-use crate::{compute::JitAutotuneKey, fusion::kernel::AutotunableKernel, tune::anchor, Runtime};
+use crate::{
+    fusion::kernel::AutotunableKernel, tune::anchor, tune_key::JitAutotuneKey, JitRuntime,
+};
 use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWiseAutotuneOperationSet<R: Runtime> {
+pub struct ElementWiseAutotuneOperationSet<R: JitRuntime> {
     key: JitAutotuneKey,
     kernel_1: AutotunableKernel<R>,
     kernel_2: AutotunableKernel<R>,
@@ -31,7 +33,7 @@ impl Display for FusionElemWiseAutotuneKey {
     }
 }
 
-impl<R: Runtime> AutotuneOperationSet<JitAutotuneKey> for ElementWiseAutotuneOperationSet<R> {
+impl<R: JitRuntime> AutotuneOperationSet<JitAutotuneKey> for ElementWiseAutotuneOperationSet<R> {
     fn key(&self) -> JitAutotuneKey {
         self.key.clone()
     }

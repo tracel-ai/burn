@@ -4,15 +4,18 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::JitAutotuneKey,
     element::JitElement,
     kernel::{
         prng::random_like_uniform,
-        reduce::{init_reduce_output, reduce_dim_naive, reduce_dim_shared, ReduceDimAlgorithm},
+        reduce::{
+            init_reduce_output, naive::shader::reduce_dim_naive, shared::shader::reduce_dim_shared,
+            ReduceDimAlgorithm,
+        },
     },
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    tune_key::JitAutotuneKey,
+    JitRuntime,
 };
 
 use super::ReduceAutotuneKey;
@@ -22,7 +25,7 @@ use super::ReduceAutotuneKey;
 /// dim to reduce, and product of others
 pub(crate) struct ReduceDimAutotuneOperationSet<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
     const D: usize,
@@ -33,7 +36,7 @@ pub(crate) struct ReduceDimAutotuneOperationSet<
     reduce_dim: usize,
     _algorithm: PhantomData<RD>,
 }
-impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement, const D: usize>
+impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>
     ReduceDimAutotuneOperationSet<RD, R, EI, EO, D>
 {
     fn new(input: JitTensor<R, EI, D>, output: JitTensor<R, EO, D>, reduce_dim: usize) -> Self {
@@ -54,7 +57,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement, con
 impl<RD: ReduceDimAlgorithm<EI>, R, EI, EO, const D: usize> AutotuneOperationSet<JitAutotuneKey>
     for ReduceDimAutotuneOperationSet<RD, R, EI, EO, D>
 where
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement + Element,
     EO: JitElement + Element,
 {
@@ -106,7 +109,7 @@ where
 /// Executes autotune on reduce_dim operation
 pub(crate) fn reduce_dim_autotune<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement + Element,
     EO: JitElement + Element,
     const D: usize,
@@ -133,7 +136,7 @@ pub(crate) fn reduce_dim_autotune<
 // Probably better on balanced tensor shapes
 pub(crate) struct ReduceDimNaiveAutotune<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
     const D: usize,
@@ -147,7 +150,7 @@ pub(crate) struct ReduceDimNaiveAutotune<
 impl<RD, R, EI, EO, const D: usize> AutotuneOperation for ReduceDimNaiveAutotune<RD, R, EI, EO, D>
 where
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
 {
@@ -170,7 +173,7 @@ where
 // Probably better on tensors large along reduce dim
 pub(crate) struct ReduceDimSharedAutotune<
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
     const D: usize,
@@ -184,7 +187,7 @@ pub(crate) struct ReduceDimSharedAutotune<
 impl<RD, R, EI, EO, const D: usize> AutotuneOperation for ReduceDimSharedAutotune<RD, R, EI, EO, D>
 where
     RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
 {

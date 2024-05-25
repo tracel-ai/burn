@@ -1,10 +1,11 @@
 use super::{optimization::ElementWise, CompilationPhase};
+
 use crate::{
-    codegen::dialect::gpu::{
-        BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
-    },
     fusion::{tracing::TraceBuilder, JitOptimization},
-    Runtime,
+    JitRuntime,
+};
+use burn_cube::dialect::{
+    BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
@@ -17,7 +18,7 @@ use burn_tensor::{
 };
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: Runtime> {
+pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
     builder: TraceBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
@@ -25,7 +26,7 @@ pub(crate) struct ElementWiseBuilder<R: Runtime> {
     device: R::Device,
 }
 
-impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
+impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -108,7 +109,7 @@ impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<
     }
 }
 
-impl<R: Runtime> ElementWiseBuilder<R> {
+impl<R: JitRuntime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device) -> Self {
         Self {
             builder: TraceBuilder::new(),
@@ -247,10 +248,10 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask);
-                let lhs = self.builder.input(&desc.value);
-                let rhs = self.builder.input(&desc.tensor);
-                let out = self.builder.output(&desc.out);
+                let cond = self.builder.input(&desc.mask, Variable::Id);
+                let lhs = self.builder.input(&desc.value, Variable::Id);
+                let rhs = self.builder.input(&desc.tensor, Variable::Id);
+                let out = self.builder.output(&desc.out, Variable::Id);
 
                 self.builder
                     .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
@@ -267,10 +268,10 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask);
+                let cond = self.builder.input(&desc.mask, Variable::Id);
                 let lhs = self.builder.scalar(&desc.value, desc.out.dtype.into());
-                let rhs = self.builder.input(&desc.tensor);
-                let out = self.builder.output(&desc.out);
+                let rhs = self.builder.input(&desc.tensor, Variable::Id);
+                let out = self.builder.output(&desc.out, Variable::Id);
 
                 self.builder
                     .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
@@ -288,7 +289,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(1.0, desc.dtype.into());
-                let out = self.builder.output(desc);
+                let out = self.builder.output(desc, Variable::Id);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -301,7 +302,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(0.0, desc.dtype.into());
-                let out = self.builder.output(desc);
+                let out = self.builder.output(desc, Variable::Id);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -314,7 +315,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 }
 
                 let input = self.builder.scalar(elem, desc.dtype.into());
-                let out = self.builder.output(desc);
+                let out = self.builder.output(desc, Variable::Id);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -333,9 +334,9 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.builder.input(&desc.lhs);
-        let rhs = self.builder.input(&desc.rhs);
-        let out = self.builder.output(&desc.out);
+        let lhs = self.builder.input(&desc.lhs, Variable::Id);
+        let rhs = self.builder.input(&desc.rhs, Variable::Id);
+        let out = self.builder.output(&desc.out, Variable::Id);
 
         self.builder.register_operation(func(lhs, rhs, out));
 
@@ -350,8 +351,8 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let input = self.builder.input(&desc.input);
-        let out = self.builder.output(&desc.out);
+        let input = self.builder.input(&desc.input, Variable::Id);
+        let out = self.builder.output(&desc.out, Variable::Id);
 
         self.builder.register_operation(func(input, out));
 
@@ -370,9 +371,9 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.builder.input(&desc.lhs);
+        let lhs = self.builder.input(&desc.lhs, Variable::Id);
         let rhs = self.builder.scalar(&desc.rhs, desc.lhs.dtype.into());
-        let out = self.builder.output(&desc.out);
+        let out = self.builder.output(&desc.out, Variable::Id);
 
         self.builder.register_operation(func(lhs, rhs, out));
 

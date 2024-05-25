@@ -4,7 +4,8 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
+use burn_cube::{JitKernel, Kernel, WorkGroup};
+use burn_jit::JitAutotuneKey;
 use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
@@ -109,6 +110,7 @@ where
                     layout: None,
                     module: &module,
                     entry_point: "main",
+                    compilation_options: Default::default(),
                 }),
         )
     }

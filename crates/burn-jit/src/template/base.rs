@@ -1,10 +1,5 @@
-use crate::{
-    compute::{CompiledKernel, LaunchSettings, WorkGroup},
-    element::JitElement,
-    gpu::WorkgroupSize,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use burn_cube::{dialect::WorkgroupSize, CompiledKernel, JitKernel, LaunchSettings, WorkGroup};
 
 use super::SourceTemplate;
 
@@ -14,21 +9,8 @@ pub trait KernelSource: Send + 'static + Sync {
     fn source(&self) -> SourceTemplate;
 }
 
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
-/// provided id.
-///
-/// The kernel will be launched with the given [launch settings](LaunchSettings)
-pub trait TemplateKernel: 'static + Send + Sync {
-    /// Convert to source
-    fn compile(&self) -> CompiledKernel;
-    /// Identifier for the kernel, used for caching kernel compilation.
-    fn id(&self) -> String;
-    /// Launch information.
-    fn launch_settings(&self) -> LaunchSettings;
-}
-
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [template kernel](TemplateKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [JIT kernel](JitKernel) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
@@ -36,7 +18,7 @@ pub struct SourceKernel<K> {
     workgroup_size: WorkgroupSize,
 }
 
-impl<K> TemplateKernel for SourceKernel<K>
+impl<K> JitKernel for SourceKernel<K>
 where
     K: KernelSource + 'static,
 {
@@ -94,7 +76,7 @@ macro_rules! kernel_wgsl {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: Runtime, E: JitElement, const D: usize>(
+pub fn build_info<R: JitRuntime, E: JitElement, const D: usize>(
     tensors: &[&JitTensor<R, E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];

@@ -1,5 +1,6 @@
 mod base;
 
+pub(crate) mod avg_pool1d;
 pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;
 pub(crate) mod binary;
@@ -20,6 +21,7 @@ pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod prelu;
 pub(crate) mod reshape;
+pub(crate) mod squeeze;
 pub(crate) mod unary;
 pub(crate) mod unsqueeze;
 pub(crate) use base::*;

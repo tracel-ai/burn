@@ -1,5 +1,6 @@
-use crate::gpu::{Item, Scope, Variable};
 use std::fmt::Debug;
+
+use burn_cube::dialect::{Item, Scope, Variable};
 
 pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
     type Accumulator: Copy;

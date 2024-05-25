@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
-    Optimizer, SimpleOptimizer,
+    SimpleOptimizer,
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
@@ -31,6 +31,7 @@ pub struct AdamConfig {
 }
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
+#[derive(Clone)]
 pub struct Adam<B: Backend> {
     momentum: AdaptiveMomentum,
     weight_decay: Option<WeightDecay<B>>,
@@ -85,7 +86,9 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+        &self,
+    ) -> OptimizerAdaptor<Adam<B::InnerBackend>, M, B> {
         let optim = Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
@@ -111,6 +114,7 @@ pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     moment_2: Tensor<B, D>,
 }
 
+#[derive(Clone)]
 struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,

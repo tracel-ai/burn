@@ -1,14 +1,13 @@
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    gpu::{gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
-    tensor::JitTensor,
-    JitElement, Runtime,
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
 };
+
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
 
 use super::GpuComputeShaderPhase;
 
@@ -18,13 +17,13 @@ pub(crate) struct IntoContiguousShader {
 }
 
 #[derive(new)]
-pub(crate) struct IntoContiguousEagerKernel<R: Runtime, E: JitElement> {
+pub(crate) struct IntoContiguousEagerKernel<R: JitRuntime, E: JitElement> {
     _runtime: PhantomData<R>,
     _elem_out: PhantomData<E>,
 }
 
 /// Make a jit tensor contiguous.
-pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
+pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     if tensor.is_contiguous() {
@@ -57,10 +56,10 @@ pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
     output
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let tensor = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
@@ -103,14 +102,14 @@ impl IntoContiguousShader {
             tensors: vec![tensor],
             indexes: vec![offset_input],
             layout: output,
-            index_ref: id,
+            position: id,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }
         .expand(scope);
 
         let value = scope.create_local(tensor.item());
-        gpu!(scope, value = tensor[offset_input]);
-        gpu!(scope, output[id] = value);
+        cpa!(scope, value = tensor[offset_input]);
+        cpa!(scope, output[id] = value);
     }
 }

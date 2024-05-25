@@ -1,10 +1,11 @@
 use super::{expand, numeric, permute};
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
 use crate::{unary, JitBackend};
-use crate::{FloatElement, IntElement, Runtime};
+use crate::{FloatElement, IntElement, JitRuntime};
+use burn_cube::dialect::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
@@ -12,7 +13,7 @@ use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
 where
-    R: Runtime,
+    R: JitRuntime,
     F: FloatElement,
     I: IntElement,
 {
@@ -332,8 +333,8 @@ where
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Exp(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Exp(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -344,8 +345,8 @@ where
 
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Log(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Log(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -356,8 +357,8 @@ where
 
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Log1p(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Log1p(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -371,8 +372,8 @@ where
         rhs: f32,
     ) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Powf(BinaryOperator {
-                lhs: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Powf(BinaryOperator {
+                lhs: scope.read_array(0, elem, position),
                 rhs: scope.read_scalar(0, elem),
                 out: scope.create_local(elem),
             }),
@@ -384,8 +385,8 @@ where
 
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Sqrt(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Sqrt(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -396,8 +397,8 @@ where
 
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Abs(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -408,8 +409,8 @@ where
 
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Cos(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Cos(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -420,8 +421,8 @@ where
 
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Sin(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Sin(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -432,8 +433,8 @@ where
 
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Tanh(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Tanh(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -444,8 +445,8 @@ where
 
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Erf(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Erf(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -482,8 +483,8 @@ where
 
     fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Recip(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Recip(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,

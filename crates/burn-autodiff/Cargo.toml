@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-autodiff"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-autodiff"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-autodiff"
 version.workspace = true
 
 [features]
@@ -17,15 +17,15 @@ std = []
 async = [] # Require std
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.14.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.14.0", optional = true }
+burn-common = { path = "../burn-common", version = "0.15.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.15.0", optional = true }
 
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }

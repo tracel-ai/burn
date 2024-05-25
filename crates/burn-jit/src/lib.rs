@@ -8,29 +8,27 @@ extern crate alloc;
 
 mod ops;
 
-/// Compute related module.
-pub mod compute;
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod codegen;
 pub(crate) mod tune;
 
-mod element;
-pub use codegen::compiler::{Compiler, CompilerRepresentation};
-pub use codegen::dialect::gpu;
+/// Elements for JIT backend
+pub mod element;
 
+use burn_cube::{Kernel, Runtime};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
 mod bridge;
-mod runtime;
 
 pub use backend::*;
 pub use bridge::*;
-pub use runtime::*;
+
+mod tune_key;
+pub use tune_key::JitAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
 mod fusion;
@@ -41,3 +39,14 @@ pub mod template;
 
 #[cfg(feature = "export_tests")]
 pub mod tests;
+
+/// Just-in-Time runtime extending the [cube runtime](Runtime).
+pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
+    /// The device that should also implement [DeviceOps](burn_tensor::backend::DeviceOps).
+    type JitDevice: burn_tensor::backend::DeviceOps;
+    /// The cube server with the [JitAutotuneKey].
+    type JitServer: burn_compute::server::ComputeServer<
+        AutotuneKey = JitAutotuneKey,
+        Kernel = Kernel,
+    >;
+}

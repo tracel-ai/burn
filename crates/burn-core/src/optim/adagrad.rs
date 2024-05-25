@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     decay::{WeightDecay, WeightDecayConfig},
-    Optimizer, SimpleOptimizer,
+    SimpleOptimizer,
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
@@ -26,6 +26,7 @@ pub struct AdaGradConfig {
 }
 
 /// AdaGrad optimizer
+#[derive(Clone)]
 pub struct AdaGrad<B: Backend> {
     lr_decay: LrDecay,
     weight_decay: Option<WeightDecay<B>>,
@@ -79,7 +80,9 @@ impl AdaGradConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+        &self,
+    ) -> OptimizerAdaptor<AdaGrad<B::InnerBackend>, M, B> {
         let optim = AdaGrad {
             lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
@@ -103,6 +106,7 @@ pub struct LrDecayState<B: Backend, const D: usize> {
     sum: Tensor<B, D>,
 }
 
+#[derive(Clone)]
 struct LrDecay {
     lr_decay: f64,
     epsilon: f32,

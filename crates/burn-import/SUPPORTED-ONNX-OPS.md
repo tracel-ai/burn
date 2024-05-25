@@ -17,7 +17,7 @@ represent the corresponding Burn Op.
 | [Asinh][9]                       |       ❌       |      ❌      |
 | [Atan][10]                       |       ❌       |      ❌      |
 | [Atanh][11]                      |       ❌       |      ❌      |
-| [AveragePool1d][12]              |       ❌       |      ✅      |
+| [AveragePool1d][12]              |       ✅       |      ✅      |
 | [AveragePool2d][12]              |       ✅       |      ✅      |
 | [BatchNormalization][14]         |       ✅       |      ✅      |
 | [Bernoulli][15]                  |       ❌       |      ❌      |
@@ -71,8 +71,8 @@ represent the corresponding Burn Op.
 | [GlobalAveragePool][63]          |       ✅       |      ✅      |
 | [GlobalLpPool][64]               |       ❌       |      ❌      |
 | [GlobalMaxPool][65]              |       ❌       |      ❌      |
-| [Greater][66]                    |       ❌       |      ✅      |
-| [GreaterOrEqual][67]             |       ❌       |      ✅      |
+| [Greater][66]                    |       ✅       |      ✅      |
+| [GreaterOrEqual][67]             |       ✅       |      ✅      |
 | [GridSample][68]                 |       ❌       |      ❌      |
 | [GroupNormalization][69]         |       ❌       |      ✅      |
 | [GRU][70]                        |       ❌       |      ✅      |
@@ -89,8 +89,8 @@ represent the corresponding Burn Op.
 | [IsNaN][81]                      |       ❌       |      ❌      |
 | [LayerNormalization][82]         |       ✅       |      ✅      |
 | [LeakyRelu][83]                  |       ✅       |      ✅      |
-| [Less][84]                       |       ❌       |      ✅      |
-| [LessOrEqual][85]                |       ❌       |      ✅      |
+| [Less][84]                       |       ✅       |      ✅      |
+| [LessOrEqual][85]                |       ✅       |      ✅      |
 | Linear                           |       ✅       |      ✅      |
 | [Log][87]                        |       ✅       |      ✅      |
 | [LogSoftmax][88]                 |       ✅       |      ✅      |
@@ -101,7 +101,7 @@ represent the corresponding Burn Op.
 | [LSTM][93]                       |       ❌       |      ✅      |
 | [MatMul][94]                     |       ✅       |      ✅      |
 | [MatMulInteger][95]              |       ❌       |      ✅      |
-| [Max][96]                        |       ❌       |      ✅      |
+| [Max][96]                        |       ✅       |      ✅      |
 | [MaxPool1d][97]                  |       ✅       |      ✅      |
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |
@@ -109,7 +109,7 @@ represent the corresponding Burn Op.
 | [Mean][101]                      |       ❌       |      ✅      |
 | [MeanVarianceNormalization][102] |       ❌       |      ❌      |
 | [MelWeightMatrix][103]           |       ❌       |      ❌      |
-| [Min][104]                       |       ❌       |      ✅      |
+| [Min][104]                       |       ✅       |      ✅      |
 | [Mish][105]                      |       ❌       |      ❌      |
 | [Mod][106]                       |       ❌       |      ❌      |
 | [Mul][107]                       |       ✅       |      ✅      |
@@ -180,7 +180,7 @@ represent the corresponding Burn Op.
 | [Split][173]                     |       ❌       |      ❌      |
 | [SplitToSequence][174]           |       ❌       |      ❌      |
 | [Sqrt][175]                      |       ✅       |      ✅      |
-| [Squeeze][176]                   |       ❌       |      ✅      |
+| [Squeeze][176]                   |       ✅       |      ✅      |
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
 | [Sub][179]                       |       ✅       |      ✅      |

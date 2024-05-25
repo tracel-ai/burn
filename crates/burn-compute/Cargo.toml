@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-compute"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-compute"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-compute"
 version.workspace = true
 
 [features]
@@ -34,7 +34,7 @@ autotune-persistent-cache = [
 ] # Assume std
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.14.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }

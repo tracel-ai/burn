@@ -64,6 +64,7 @@ impl RmsPropConfig {
 
 /// Optimizer that implements stochastic gradient descent with momentum.
 /// The optimizer can be configured with [RmsPropConfig](RmsPropConfig).
+#[derive(Clone)]
 pub struct RmsProp<B: Backend> {
     alpha: f32,
     // epsilon: f32,
@@ -251,6 +252,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
 
 /// [RmsPropMomentum](RmsPropMomentum) is to store config status for optimizer.
 /// (, which is stored in [optimizer](RmsProp) itself and not passed in during `step()` calculation)
+#[derive(Clone)]
 pub struct RmsPropMomentum {
     momentum: f32,
     epsilon: f32,

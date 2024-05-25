@@ -1,5 +1,6 @@
+use burn_cube::{dialect as gpu, Compiler};
+
 use super::Instruction;
-use burn_jit::gpu::{self};
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
@@ -16,15 +17,15 @@ pub struct CudaCompiler {
     global_invocation_id: (bool, bool, bool),
 }
 
-impl burn_jit::Compiler for CudaCompiler {
+impl Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
 
-    fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
+    fn compile(shader: burn_cube::dialect::ComputeShader) -> Self::Representation {
         let compiler = Self::default();
         compiler.compile_shader(shader)
     }
 
-    fn elem_size(elem: burn_jit::gpu::Elem) -> usize {
+    fn elem_size(elem: gpu::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
 
@@ -75,44 +76,7 @@ impl CudaCompiler {
 
     fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<Instruction> {
         let mut instructions = Vec::new();
-        let mut processing = value.process();
-
-        for operation in &mut processing.operations {
-            if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
-                // Replace all Index operators for global arrays with CheckedIndexAssign procedures
-                match operands.lhs {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
-                            gpu::CheckedIndex {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
-                // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
-                match operands.out {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
-                            gpu::CheckedIndexAssign {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-        }
+        let processing = value.process();
 
         for var in processing.variables {
             instructions.push(Instruction::DeclareVariable {
@@ -415,11 +379,12 @@ impl CudaCompiler {
     }
 
     fn compile_item(item: gpu::Item) -> super::Item {
-        match item {
-            gpu::Item::Vec4(elem) => super::Item::Vec4(Self::compile_elem(elem)),
-            gpu::Item::Vec3(elem) => super::Item::Vec3(Self::compile_elem(elem)),
-            gpu::Item::Vec2(elem) => super::Item::Vec2(Self::compile_elem(elem)),
-            gpu::Item::Scalar(elem) => super::Item::Scalar(Self::compile_elem(elem)),
+        match item.vectorization {
+            4 => super::Item::Vec4(Self::compile_elem(item.elem)),
+            3 => super::Item::Vec3(Self::compile_elem(item.elem)),
+            2 => super::Item::Vec2(Self::compile_elem(item.elem)),
+            1 => super::Item::Scalar(Self::compile_elem(item.elem)),
+            _ => panic!("Vectorization factor unsupported {:?}", item.vectorization),
         }
     }
 

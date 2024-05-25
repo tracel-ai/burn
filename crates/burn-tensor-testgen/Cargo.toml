@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 name = "burn-tensor-testgen"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-tensor-testgen"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-testgen"
 version.workspace = true
 
 [lib]

@@ -1058,7 +1058,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for IndexSelectDimAssign<D> {
-            type State = (usize, IntTensor<B, 1>, Shape<D>, Shape<D>, B::Device);
+            type State = (usize, IntTensor<B, 1>);
 
             fn backward(
                 self,
@@ -1066,21 +1066,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (dim, indices, shape_lhs, shape_rhs, device) = ops.state;
-                let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+                let (dim, indices) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| {
-                        let zeros = B::float_zeros(shape_lhs, &device);
-                        B::float_select_assign(grad, dim, indices_4lhs.unwrap(), zeros)
-                    },
-                    |grad| {
-                        let zeros = B::float_zeros(shape_rhs, &device);
-                        B::float_select_assign(zeros, dim, indices_4rhs.unwrap(), grad)
-                    },
+                    |grad| grad,
+                    |grad| B::float_select(grad, dim, indices),
                 );
             }
         }
@@ -1098,13 +1091,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (
-                    dim,
-                    indices.clone(),
-                    B::float_shape(&tensor.primitive),
-                    B::float_shape(&value.primitive),
-                    B::float_device(&value.primitive),
-                ),
+                (dim, indices.clone()),
                 B::float_select_assign(tensor.primitive, dim, indices, value.primitive),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_select_assign(

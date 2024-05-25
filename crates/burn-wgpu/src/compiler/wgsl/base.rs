@@ -1,11 +1,11 @@
-use burn_jit::gpu;
+use burn_cube::dialect as cube;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub enum Variable {
     GlobalInputArray(u16, Item),
     GlobalOutputArray(u16, Item),
-    GlobalScalar(u16, Elem, gpu::Elem),
+    GlobalScalar(u16, Elem, cube::Elem),
     ConstantScalar(f64, Elem),
     Local {
         index: u16,

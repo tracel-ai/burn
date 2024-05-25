@@ -219,12 +219,7 @@ impl<'a> NumericMetricView<'a> {
                     )
                     .split(size);
 
-                let titles = titles
-                    .iter()
-                    .map(|i| Line::from(vec![i.clone().yellow()]))
-                    .collect();
-
-                let tabs = Tabs::new(titles)
+                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.clone().yellow()])))
                     .select(selected)
                     .style(Style::default())
                     .highlight_style(

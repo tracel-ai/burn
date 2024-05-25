@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
@@ -15,7 +14,10 @@ use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::{LearnerCheckpointer, LearnerSummaryConfig};
+use crate::{
+    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
+    LearnerSummaryConfig,
+};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -50,7 +52,7 @@ where
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
-    log_to_file: bool,
+    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
@@ -84,7 +86,9 @@ where
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
-            log_to_file: true,
+            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
+                format!("{}/experiment.log", directory).as_str(),
+            ))),
             num_loggers: 0,
             checkpointer_strategy: Box::new(
                 ComposedCheckpointingStrategy::builder()
@@ -233,8 +237,11 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
-    pub fn log_to_file(mut self, enabled: bool) -> Self {
-        self.log_to_file = enabled;
+    pub fn with_application_logger(
+        mut self,
+        logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    ) -> Self {
+        self.tracing_logger = logger;
         self
     }
 
@@ -258,7 +265,7 @@ where
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
         );
-        let checkpointer_scheduler = FileCheckpointer::new(
+        let checkpointer_scheduler: FileCheckpointer<FR> = FileCheckpointer::new(
             recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
@@ -309,8 +316,10 @@ where
         O::Record: 'static,
         S::Record: 'static,
     {
-        if self.log_to_file {
-            self.init_logger();
+        if self.tracing_logger.is_some() {
+            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
+                log::warn!("Failed to install the experiment logger: {}", e);
+            }
         }
         let renderer = self.renderer.unwrap_or_else(|| {
             Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
@@ -359,10 +368,5 @@ where
             early_stopping: self.early_stopping,
             summary,
         }
-    }
-
-    fn init_logger(&self) {
-        let file_path = format!("{}/experiment.log", self.directory);
-        install_file_logger(file_path.as_str());
     }
 }

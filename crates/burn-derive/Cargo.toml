@@ -7,7 +7,7 @@ keywords = []
 license.workspace = true
 name = "burn-derive"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-derive"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-derive"
 version.workspace = true
 
 [lib]
