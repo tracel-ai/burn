@@ -1,7 +1,8 @@
 use crate::{
     calculate_num_elems_dyn_rank,
+    dialect::Item,
     language::{CubeType, ExpandElement},
-    CubeArg, Runtime, RuntimeArg,
+    CubeArg, CubeElem, Runtime, RuntimeArg,
 };
 use std::marker::PhantomData;
 
@@ -14,8 +15,16 @@ impl<C: CubeType> CubeType for Tensor<C> {
     type ExpandType = ExpandElement;
 }
 
-impl<C: CubeType> CubeArg for Tensor<C> {
+impl<C: CubeElem> CubeArg for Tensor<C> {
     type ArgType<'a, R: Runtime> = TensorHandle<'a, R>;
+
+    fn compile_input(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+        builder.input_array(Item::new(C::as_elem()))
+    }
+
+    fn compile_output(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+        builder.output_array(Item::new(C::as_elem()))
+    }
 }
 
 #[derive(new)]

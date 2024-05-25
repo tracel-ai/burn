@@ -22,6 +22,14 @@ impl CubeElem for UInt {
 
 impl CubeArg for UInt {
     type ArgType<'a, R: Runtime> = u32;
+
+    fn compile_input(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+        builder.scalar(Self::as_elem())
+    }
+
+    fn compile_output(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+        builder.scalar(Self::as_elem())
+    }
 }
 
 impl<R: Runtime> RuntimeArg<R> for u32 {

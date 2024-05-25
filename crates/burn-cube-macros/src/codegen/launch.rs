@@ -1,5 +1,4 @@
 use proc_macro2::{Span, TokenStream};
-use std::collections::HashMap;
 use syn::{parse_quote, Generics, Ident};
 
 #[derive(Default)]
@@ -8,7 +7,6 @@ struct KernelStructCodegen {
     generics: Generics,
     inputs: Vec<(Ident, syn::Type)>,
     outputs: Vec<(Ident, syn::Type)>,
-    scalars: HashMap<String, Vec<(Ident, syn::Type)>>,
     comptimes: Vec<(syn::Type, Ident)>,
     args: Vec<TokenStream>,
 }
@@ -40,31 +38,19 @@ impl KernelStructCodegen {
 
         let mut variables = quote::quote! {};
 
-        for (pos, (ident, ty)) in self.inputs.iter().enumerate() {
-            let pos = pos as u16;
-
+        for (ident, ty) in self.inputs.iter() {
             variables.extend(quote::quote! {
-                let #ident = context.input(#pos, Item::new(#ty::as_elem()));
+                let #ident = <#ty as CubeArg>::compile_input(&mut builder);
             });
         }
-        for (pos, (ident, ty)) in self.outputs.iter().enumerate() {
-            let pos = pos as u16;
 
+        for (ident, ty) in self.outputs.iter() {
             variables.extend(quote::quote! {
-                let #ident = context.output(#pos, Item::new(#ty::as_elem()));
+                let #ident = <#ty as CubeArg>::compile_output(&mut builder);
             });
         }
-        let mut pos = 0u16;
-        for scalars in self.scalars.values() {
-            for (ident, ty) in scalars.iter() {
-                variables.extend(quote::quote! {
-                    let #ident = context.scalar(#pos, #ty::as_elem());
-                });
-                pos += 1;
-            }
-        }
 
-        let mut expand_args = quote::quote! { &mut context, };
+        let mut expand_args = quote::quote! { &mut builder.context, };
 
         for arg in self.args.iter() {
             expand_args.extend(quote::quote! {
@@ -73,44 +59,6 @@ impl KernelStructCodegen {
         }
 
         let generics = self.generics.split_for_impl().1;
-
-        let mut io_info = quote::quote! {};
-        let mut inputs = quote::quote! {};
-        let mut outputs = quote::quote! {};
-
-        for (ident, ty) in self.inputs.iter() {
-            io_info.extend(quote::quote! {
-                let #ident = InputInfo::Array {
-                    item: Item::new(#ty::as_elem()),
-                    visibility: Visibility::Read,
-                };
-            });
-            inputs.extend(quote::quote! { #ident, });
-        }
-        for (ident, ty) in self.outputs.iter() {
-            io_info.extend(quote::quote! {
-                let #ident = OutputInfo::Array {
-                    item: Item::new(#ty::as_elem()),
-                };
-            });
-            outputs.extend(quote::quote! { #ident, });
-        }
-
-        let mut scalar_pos = 0;
-        for scalar in self.scalars.values() {
-            let (_, ty) = scalar.first().unwrap();
-            let size = scalar.len();
-            let ident = Ident::new(format!("scalars_{scalar_pos}").as_str(), Span::call_site());
-
-            scalar_pos += 1;
-            io_info.extend(quote::quote! {
-                let #ident = InputInfo::Scalar {
-                    elem: #ty::as_elem(),
-                    size: #size,
-                };
-            });
-            inputs.extend(quote::quote! { #ident, });
-        }
 
         let mut format_str = "{:?}".to_string();
         for _ in 0..self.comptimes.len() {
@@ -126,23 +74,13 @@ impl KernelStructCodegen {
         quote::quote! {
             impl #impl_gen GpuComputeShaderPhase for #ident #ty_gen #where_gen {
                 fn compile(&self) -> ComputeShader {
-                    let mut context = CubeContext::root();
+                    let mut builder = ComputeShaderBuilder::default();
 
                     #variables
 
                     #expand::#generics(#expand_args);
 
-                    #io_info
-
-                    let scope = context.into_scope();
-                    let info = CompilationInfo {
-                        inputs: vec![#inputs],
-                        outputs: vec![#outputs],
-                        scope,
-                    };
-
-                    let settings = CompilationSettings::default();
-                    Compilation::new(info).compile(settings)
+                    builder.compile()
                 }
 
                 fn id(&self) -> String {
@@ -194,14 +132,6 @@ impl KernelStructCodegen {
             });
         }
 
-        for scalars in self.scalars.values() {
-            for (ident, _ty) in scalars.iter() {
-                body.extend(quote::quote! {
-                    #ident.register(&mut settings);
-                });
-            }
-        }
-
         for (input, _) in self.outputs.iter() {
             body.extend(quote::quote! {
                 #input.register(&mut settings);
@@ -244,7 +174,6 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
 
     for input in &sig.inputs {
         let mut is_output = false;
-        let mut scalar_ty = None;
         let mut comptime = false;
 
         match input {
@@ -260,9 +189,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
                                 if let Some(name) = pat.path.segments.first() {
                                     let name = name.ident.to_string();
 
-                                    if name == "UInt" {
-                                        scalar_ty = Some(name);
-                                    } else if name == "Comptime" {
+                                    if name == "Comptime" {
                                         comptime = true;
                                     }
                                 }
@@ -291,27 +218,17 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
                     });
                 } else {
                     inputs.extend(quote::quote! {
-                        #ident: <#ty as burn_cube::CubeArg>::ArgType<'a, R>,
+                        #ident: ArgType<'a, #ty, R>,
                     });
                 }
 
                 if is_output {
-                    let ty = first_generic_ty(&ty);
-                    struct_codegen.outputs.push((ident.clone(), ty));
-                } else if let Some(scalar) = scalar_ty {
-                    if let Some(values) = struct_codegen.scalars.get_mut(&scalar) {
-                        values.push((ident.clone(), ty.as_ref().clone()));
-                    } else {
-                        struct_codegen
-                            .scalars
-                            .insert(scalar, vec![(ident.clone(), ty.as_ref().clone())]);
-                    }
+                    struct_codegen.outputs.push((ident.clone(), *ty));
                 } else if comptime {
                     let ty = first_generic_ty(&ty);
                     struct_codegen.comptimes.push((ty.clone(), ident.clone()));
                 } else {
-                    let ty = first_generic_ty(&ty);
-                    struct_codegen.inputs.push((ident.clone(), ty));
+                    struct_codegen.inputs.push((ident.clone(), *ty));
                 }
             }
             _ => todo!("Only Typed inputs are supported"),
