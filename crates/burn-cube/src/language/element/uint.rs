@@ -1,6 +1,6 @@
 use crate::dialect::{Elem, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{CubeArg, Runtime};
+use crate::{CubeArg, Runtime, RuntimeArg};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -22,6 +22,12 @@ impl CubeElem for UInt {
 
 impl CubeArg for UInt {
     type ArgType<'a, R: Runtime> = u32;
+}
+
+impl<R: Runtime> RuntimeArg<R> for u32 {
+    fn register(&self, settings: &mut crate::BindingSettings<R>) {
+        settings.scalar_u32.push(*self);
+    }
 }
 
 impl Numeric for UInt {}

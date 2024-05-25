@@ -1,4 +1,4 @@
-use crate::{dialect::Variable, Runtime};
+use crate::{dialect::Variable, BindingSettings, Runtime};
 use alloc::rc::Rc;
 
 /// Types used in a cube function must implement this trait
@@ -17,8 +17,12 @@ pub trait CubeType {
     type ExpandType: Clone;
 }
 
+pub trait RuntimeArg<R: Runtime>: Send + Sync {
+    fn register(&self, settings: &mut BindingSettings<R>);
+}
+
 pub trait CubeArg {
-    type ArgType<'a, R: Runtime>: Send + Sync;
+    type ArgType<'a, R: Runtime>: RuntimeArg<R>;
 }
 
 /// Reference to a JIT variable

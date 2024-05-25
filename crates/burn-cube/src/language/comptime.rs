@@ -1,4 +1,4 @@
-use crate::{unexpanded, CubeArg, CubeContext, CubeType};
+use crate::{unexpanded, CubeArg, CubeContext, CubeType, Runtime, RuntimeArg};
 
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
@@ -61,9 +61,21 @@ impl<T: Clone> CubeType for Comptime<T> {
 }
 
 impl<T: CubeArg> CubeArg for Comptime<T> {
-    type ArgType<'a, R: crate::Runtime> = T::ArgType<'a, R>;
+    type ArgType<'a, R: Runtime> = T::ArgType<'a, R>;
 }
 
 impl<T: CubeArg> CubeArg for Option<T> {
-    type ArgType<'a, R: crate::Runtime> = Option<T::ArgType<'a, R>>;
+    type ArgType<'a, R: Runtime> = Option<T::ArgType<'a, R>>;
+}
+
+impl<T, R> RuntimeArg<R> for Option<T>
+where
+    T: RuntimeArg<R>,
+    R: Runtime,
+{
+    fn register(&self, settings: &mut crate::BindingSettings<R>) {
+        if let Some(arg) = self {
+            arg.register(settings)
+        }
+    }
 }

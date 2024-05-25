@@ -182,7 +182,31 @@ impl KernelStructCodegen {
         let ident = Ident::new(&self.name, Span::call_site());
         let generics = add_runtime(self.generics.clone());
         let phantoms = self.phantoms(&generics, false);
+
         let mut comptimes = quote::quote! {};
+        let mut body = quote::quote! {
+            let mut settings = BindingSettings::<R>::new();
+        };
+
+        for (input, _) in self.inputs.iter() {
+            body.extend(quote::quote! {
+                #input.register(&mut settings);
+            });
+        }
+
+        for scalars in self.scalars.values() {
+            for (ident, _ty) in scalars.iter() {
+                body.extend(quote::quote! {
+                    #ident.register(&mut settings);
+                });
+            }
+        }
+
+        for (input, _) in self.outputs.iter() {
+            body.extend(quote::quote! {
+                #input.register(&mut settings);
+            });
+        }
 
         for (_ty, ident) in self.comptimes.iter() {
             comptimes.extend(quote::quote! {
@@ -196,45 +220,15 @@ impl KernelStructCodegen {
                 #phantoms
             }
         };
-        let mut body = quote::quote! {
+
+        quote::quote! {
             let kernel = #kernel;
 
-            Execution::start(kernel, client)
-        };
+            #body
 
-        let mut inputs = quote::quote! {};
-        for (i, _) in self.inputs.iter() {
-            inputs.extend(quote::quote! { #i, });
+            execute_neo(settings, workgroup, kernel, client);
         }
-
-        body.extend(quote::quote! {
-            .inputs(&[#inputs])
-        });
-
-        let mut outputs = quote::quote! {};
-        for (i, _) in self.outputs.iter() {
-            outputs.extend(quote::quote! { #i, });
-        }
-
-        body.extend(quote::quote! {
-            .outputs(&[#outputs])
-        });
-
-        for (_key, values) in self.scalars.iter() {
-            let mut scalars = quote::quote! {};
-            for (i, _) in values.iter() {
-                scalars.extend(quote::quote! { #i, });
-            }
-
-            body.extend(quote::quote! {
-                .with_scalars(&[#scalars])
-            });
-        }
-
-        body.extend(quote::quote! {
-            .execute(launch)
-        });
-        body.into()
+        .into()
     }
 }
 
@@ -350,7 +344,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
 
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
-            launch: WorkgroupLaunch,
+            workgroup: WorkGroup,
             #inputs
         ) -> #output {
             #body;
