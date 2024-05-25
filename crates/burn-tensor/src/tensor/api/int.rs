@@ -71,8 +71,8 @@ where
         Tensor::new(B::int_into_float(self.primitive))
     }
 
-    /// Produces an indices tensor for the given shape and device.
-    /// The resulting tensor contains coordinates corresponding to each element in the shape at dimension D.
+    /// Generates a cartesian grid for the given tensor shape on the specified device.
+    /// The generated tensor is of dimension `D2 = D + 1`, where each element at dimension D contains the cartesian grid coordinates for that element.
     ///
     /// # Arguments
     ///
@@ -90,36 +90,15 @@ where
     ///    use burn_tensor::{backend::Backend, Shape, Tensor};
     ///    fn example<B: Backend>() {
     ///        let device = Default::default();
-    ///        let result = Tensor::<B, 2, Int>::indices::<3>(Shape { dims: [2, 3] }, &device);
+    ///        let result: Tensor<B, 3, _> = Tensor::<B, 2, Int>::cartesian_grid([2, 3], &device);
     ///        println!("{}", result);
     ///    }
     /// ```
-    pub fn indices<const D2: usize>(shape: Shape<D>, device: &B::Device) -> Tensor<B, D2, Int> {
-        if D2 != D + 1 {
-            panic!("D2 must equal D + 1 for Tensor::indices")
-        }
-
-        let Shape { dims } = shape;
-        let mut indices: Vec<Tensor<B, D, Int>> = Vec::new();
-
-        for dim in 0..D {
-            let dim_range: Tensor<B, 1, Int> = Tensor::arange(0..dims[dim] as i64, device);
-
-            let mut shape = [1; D];
-            shape[dim] = dims[dim];
-            let mut dim_range = dim_range.reshape(shape);
-
-            for (i, &item) in dims.iter().enumerate() {
-                if i == dim {
-                    continue;
-                }
-                dim_range = dim_range.repeat(i, item);
-            }
-
-            indices.push(dim_range);
-        }
-
-        Tensor::stack::<D2>(indices, D)
+    pub fn cartesian_grid<S: Into<Shape<D>>, const D2: usize>(
+        shape: S,
+        device: &B::Device,
+    ) -> Tensor<B, D2, Int> {
+        Tensor::new(B::int_cartesian_grid::<S, D, D2>(shape, device))
     }
 
     /// Sort the elements by value in ascending order along a given dimension.

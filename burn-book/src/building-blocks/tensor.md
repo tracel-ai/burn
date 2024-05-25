@@ -285,7 +285,6 @@ Those operations are only available for `Int` tensors.
 | ------------------------------------------------ | ------------------------------------------------------- |
 | `tensor.arange(5..10, device)       `            | `tensor.arange(start=5, end=10, device=device)`         |
 | `tensor.arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
-| `tensor.indices(shape, device)`                  | `torch.meshgrid(tensors)`                               |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
