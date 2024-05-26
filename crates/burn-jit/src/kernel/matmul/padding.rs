@@ -3,18 +3,18 @@ use crate::{
     kernel::{slice_assign, slice_on_output},
     ops::numeric::zeros_device,
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_tensor::{Element, Shape};
 use std::ops::Range;
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
-pub enum PaddingOutput<R: Runtime, E: JitElement, const D: usize> {
+pub enum PaddingOutput<R: JitRuntime, E: JitElement, const D: usize> {
     Padded(JitTensor<R, E, D>),
     Unchanged(JitTensor<R, E, D>),
 }
 
-impl<R: Runtime, E: JitElement, const D: usize> PaddingOutput<R, E, D> {
+impl<R: JitRuntime, E: JitElement, const D: usize> PaddingOutput<R, E, D> {
     pub fn into_tensor(self) -> JitTensor<R, E, D> {
         match self {
             PaddingOutput::Padded(tensor) => tensor,
@@ -27,7 +27,7 @@ impl<R: Runtime, E: JitElement, const D: usize> PaddingOutput<R, E, D> {
 /// divisible by some quantity.
 /// For instance tensor of shape [1000, 1000] with divisors 64 and 64
 /// will be padded to [1024, 1024] with the last 24 elements being zeros
-pub fn pad_round<R: Runtime, E: JitElement, const D: usize>(
+pub fn pad_round<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     row_divisor: usize,
     col_divisor: usize,
@@ -60,7 +60,7 @@ pub fn pad_round<R: Runtime, E: JitElement, const D: usize>(
 }
 
 /// Pads tensor by adding zeros when padded dim is larger than tensor dim
-pub fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn padding<R: JitRuntime, E: JitElement + Element, const D: usize>(
     tensor: JitTensor<R, E, D>,
     padded_shape: Shape<D>,
 ) -> JitTensor<R, E, D> {
@@ -80,7 +80,7 @@ pub fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
 }
 
 /// Crops tensor by deleting values when cropped dim is smaller than tensor dim
-pub fn crop<R: Runtime, E: JitElement, const D: usize>(
+pub fn crop<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {

@@ -1009,3 +1009,25 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
 
     perm
 }
+
+pub fn squeeze_config(curr: &Node) -> Vec<i64> {
+    let axes = curr
+        .attrs
+        .iter()
+        .filter_map(|(key, value)| {
+            if key == "axes" {
+                Some(value.clone().into_i64s())
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or_else(Vec::new);
+
+    match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    axes
+}

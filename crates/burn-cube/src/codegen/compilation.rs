@@ -1,6 +1,3 @@
-#[cfg(feature = "fusion")]
-use crate::fusion::JitFusionHandle;
-
 use super::Compiler;
 use crate::{
     codegen::dialect::{
@@ -43,7 +40,7 @@ pub struct CompilationSettings {
     pub mappings: Vec<InplaceMapping>,
     vectorization: Option<Vectorization>,
     workgroup_size: WorkgroupSize,
-    reading_strategy: Vec<(u16, ReadingStrategy)>,
+    pub reading_strategy: Vec<(u16, ReadingStrategy)>,
 }
 
 impl core::fmt::Display for CompilationSettings {
@@ -84,12 +81,7 @@ impl core::fmt::Display for CompilationSettings {
         }
 
         match self.vectorization {
-            Some(vectorization) => match vectorization {
-                Vectorization::Vec4 => f.write_str("v4"),
-                Vectorization::Vec3 => f.write_str("v3"),
-                Vectorization::Vec2 => f.write_str("v2"),
-                Vectorization::Scalar => f.write_str("v1"),
-            }?,
+            Some(vectorization) => f.write_fmt(format_args!("v{}", vectorization))?,
             None => f.write_str("vn")?,
         };
 
@@ -116,118 +108,6 @@ impl CompilationSettings {
     /// be created from the runtime information.
     pub fn inplace(mut self, mappings: Vec<InplaceMapping>) -> Self {
         self.mappings = mappings;
-        self
-    }
-
-    #[cfg(feature = "fusion")]
-    /// Apply dynamic settings based on the runtime information captured by the `burn-fusion`
-    /// project.
-    ///
-    /// Two optimizations are done here:
-    ///
-    /// 1. Find and remove unnecessary broadcasting procedures based on runtime tensor layouts.
-    ///
-    /// 2. (Optional) Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
-    ///    descriptions. This is enabled only when stateful is set to true.
-    pub fn dynamic_settings<R: Runtime>(
-        self,
-        info: &CompilationInfo,
-        inputs: &[&burn_tensor::repr::TensorDescription],
-        outputs: &[&burn_tensor::repr::TensorDescription],
-        handles_inputs: &[JitFusionHandle<R>],
-        stateful: bool,
-    ) -> Self {
-        let mut settings = self;
-
-        if stateful {
-            settings = settings.dynamic_inplace(info, inputs, outputs, handles_inputs);
-        }
-
-        settings.dynamic_reading_strategy(info, inputs, outputs, handles_inputs)
-    }
-
-    #[cfg(feature = "fusion")]
-    fn dynamic_inplace<R: Runtime>(
-        self,
-        info: &CompilationInfo,
-        inputs: &[&burn_tensor::repr::TensorDescription],
-        outputs: &[&burn_tensor::repr::TensorDescription],
-        handles_inputs: &[JitFusionHandle<R>],
-    ) -> Self {
-        let mut potential_inplace = inputs
-            .iter()
-            .zip(info.inputs.iter())
-            .enumerate()
-            .filter_map(|(pos, (desc, input))| {
-                match desc.status {
-                    burn_tensor::repr::TensorStatus::ReadOnly => return None,
-                    burn_tensor::repr::TensorStatus::NotInit => return None,
-                    burn_tensor::repr::TensorStatus::ReadWrite => (),
-                };
-
-                let handle = &handles_inputs[pos];
-
-                if handle.handle.can_mut() && is_contiguous(&handle.strides) {
-                    Some((pos, desc, input))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let mappings = outputs
-            .iter()
-            .zip(info.outputs.iter())
-            .enumerate()
-            .filter_map(|(pos, (desc, output))| {
-                if potential_inplace.is_empty() {
-                    return None;
-                }
-
-                for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                    if desc.shape == desc_input.shape && input.item() == output.item() {
-                        let (pos_input, _desc, _info) = potential_inplace.remove(index);
-                        return Some(InplaceMapping::new(pos_input, pos));
-                    }
-                }
-
-                None
-            })
-            .collect();
-
-        self.inplace(mappings)
-    }
-
-    #[cfg(feature = "fusion")]
-    fn dynamic_reading_strategy<R: Runtime>(
-        mut self,
-        info: &CompilationInfo,
-        inputs: &[&burn_tensor::repr::TensorDescription],
-        outputs: &[&burn_tensor::repr::TensorDescription],
-        handles_inputs: &[JitFusionHandle<R>],
-    ) -> Self {
-        // First output is chosen for the layout reference.
-        // but all outputs should have the same shape anyways.
-        let layout_shape = &outputs[0].shape;
-
-        for (input_id, strategy) in info.scope.read_globals() {
-            if let ReadingStrategy::Plain = strategy {
-                continue;
-            };
-
-            let index = input_id as usize;
-            let handle = &handles_inputs[index];
-            let description_input = &inputs[index];
-
-            if &description_input.shape != layout_shape {
-                continue;
-            }
-
-            if is_contiguous(&handle.strides) {
-                self.reading_strategy
-                    .push((input_id, ReadingStrategy::Plain));
-            }
-        }
         self
     }
 
@@ -269,7 +149,7 @@ impl InputInfo {
                 item,
                 visibility: _,
             } => *item,
-            InputInfo::Scalar { elem, size: _ } => Item::Scalar(*elem),
+            InputInfo::Scalar { elem, size: _ } => Item::new(*elem),
         }
     }
 }
@@ -367,7 +247,7 @@ impl Compilation {
         named.push((
             "info".to_string(),
             Binding {
-                item: Item::Scalar(Elem::UInt),
+                item: Item::new(Elem::UInt),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -415,7 +295,7 @@ impl Compilation {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            item: Item::Scalar(elem),
+                            item: Item::new(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(size),
@@ -555,11 +435,9 @@ impl Compilation {
 }
 
 fn bool_item(ty: Item) -> Item {
-    match ty {
-        Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
-        Item::Vec3(elem) => Item::Vec3(bool_elem(elem)),
-        Item::Vec2(elem) => Item::Vec2(bool_elem(elem)),
-        Item::Scalar(elem) => Item::Scalar(bool_elem(elem)),
+    Item {
+        elem: bool_elem(ty.elem),
+        vectorization: ty.vectorization,
     }
 }
 

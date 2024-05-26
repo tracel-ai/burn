@@ -19,6 +19,19 @@ pub(crate) fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
     }
 }
 
+/// Codegen for arrays of literals
+pub(crate) fn codegen_array_lit(array: &syn::ExprArray) -> TokenStream {
+    let mut tokens = quote::quote! {};
+    for element in array.elems.iter() {
+        let token = match element {
+            syn::Expr::Lit(lit) => codegen_lit(lit),
+            _ => todo!("Codegen: Only arrays of literals are supported"),
+        };
+        tokens.extend(quote::quote! { #token, });
+    }
+    quote::quote! { [ #tokens ] }
+}
+
 /// Codegen for a local declaration (let ...)
 /// Supports:
 /// let x = ...

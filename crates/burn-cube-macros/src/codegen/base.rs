@@ -5,8 +5,11 @@ use crate::analysis::CodeAnalysis;
 use super::{
     branch::{codegen_break, codegen_for_loop, codegen_if, codegen_loop, codegen_while_loop},
     function::{codegen_call, codegen_closure, codegen_expr_method_call},
-    operation::codegen_binary,
-    variable::{codegen_assign, codegen_index, codegen_lit, codegen_local, codegen_path_rhs},
+    operation::{codegen_binary, codegen_unary},
+    variable::{
+        codegen_array_lit, codegen_assign, codegen_index, codegen_lit, codegen_local,
+        codegen_path_rhs,
+    },
 };
 
 /// Codegen for a statement (generally one line)
@@ -59,6 +62,15 @@ pub(crate) fn codegen_expr_block(
     codegen_block(&block.block, loop_level, variable_analyses)
 }
 
+pub(crate) fn codegen_ref(
+    reference: &syn::ExprReference,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let inner = codegen_expr(&reference.expr, loop_level, variable_analyses);
+    quote::quote! { & #inner }
+}
+
 /// Codegen for expressions
 /// There are many variants of expression, treated differently
 pub(crate) fn codegen_expr(
@@ -84,6 +96,9 @@ pub(crate) fn codegen_expr(
         syn::Expr::MethodCall(call) => codegen_expr_method_call(call),
         syn::Expr::Index(index) => codegen_index(index, loop_level, variable_analyses),
         syn::Expr::Paren(paren) => codegen_expr(&paren.expr, loop_level, variable_analyses),
+        syn::Expr::Array(array) => codegen_array_lit(array),
+        syn::Expr::Reference(reference) => codegen_ref(reference, loop_level, variable_analyses),
+        syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }

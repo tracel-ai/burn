@@ -1,10 +1,10 @@
-use crate::{element::JitElement, tensor::JitTensor, Runtime};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 
 use super::{sum_dim, ReduceStrategy};
 
 /// Sum all elements in the input buffer.
-pub fn sum<R: Runtime, E: JitElement, const D: usize>(
+pub fn sum<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     strategy: ReduceStrategy,
 ) -> JitTensor<R, E, 1> {

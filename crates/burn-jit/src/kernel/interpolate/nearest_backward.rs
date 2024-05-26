@@ -1,15 +1,12 @@
+use burn_cube::{
+    cpa,
+    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+    OutputInfo, WorkgroupLaunch,
+};
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    JitElement, Runtime,
-};
+use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRuntime};
 
 #[derive(new)]
 struct InterpolateNearestBackwardEagerKernel<R, E> {
@@ -49,42 +46,42 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
-        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
-        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
-        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
+        cpa!(scope, grad_stride_0 = stride(grad, 0u32));
+        cpa!(scope, grad_stride_1 = stride(grad, 1u32));
+        cpa!(scope, grad_stride_2 = stride(grad, 2u32));
+        cpa!(scope, grad_stride_3 = stride(grad, 3u32));
 
-        gpu!(scope, grad_shape_0 = shape(grad, 0u32));
-        gpu!(scope, grad_shape_1 = shape(grad, 1u32));
-        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
-        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
+        cpa!(scope, grad_shape_0 = shape(grad, 0u32));
+        cpa!(scope, grad_shape_1 = shape(grad, 1u32));
+        cpa!(scope, grad_shape_2 = shape(grad, 2u32));
+        cpa!(scope, grad_shape_3 = shape(grad, 3u32));
 
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
+        cpa!(scope, output_stride_0 = stride(output, 0u32));
+        cpa!(scope, output_stride_1 = stride(output, 1u32));
+        cpa!(scope, output_stride_2 = stride(output, 2u32));
+        cpa!(scope, output_stride_3 = stride(output, 3u32));
 
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cpa!(scope, output_shape_0 = shape(output, 0u32));
+        cpa!(scope, output_shape_1 = shape(output, 1u32));
+        cpa!(scope, output_shape_2 = shape(output, 2u32));
+        cpa!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let oh = scope.create_local(Elem::UInt);
         let ow = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cpa!(scope, b = id / output_stride_0);
+        cpa!(scope, b = b % output_shape_0);
 
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
+        cpa!(scope, c = id / output_stride_1);
+        cpa!(scope, c = c % output_shape_1);
 
-        gpu!(scope, oh = id / output_stride_2);
-        gpu!(scope, oh = oh % output_shape_2);
+        cpa!(scope, oh = id / output_stride_2);
+        cpa!(scope, oh = oh % output_shape_2);
 
-        gpu!(scope, ow = id / output_stride_3);
-        gpu!(scope, ow = ow % output_shape_3);
+        cpa!(scope, ow = id / output_stride_3);
+        cpa!(scope, ow = ow % output_shape_3);
 
         let gh_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
         let gh_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
@@ -99,34 +96,34 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let index_grad_2 = scope.create_local(Elem::UInt);
         let index_grad_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index_grad_0 = b * grad_stride_0);
-        gpu!(scope, index_grad_1 = c * grad_stride_1);
+        cpa!(scope, index_grad_0 = b * grad_stride_0);
+        cpa!(scope, index_grad_1 = c * grad_stride_1);
 
         let sum = scope.zero(output.item());
 
-        gpu!(
+        cpa!(
             scope,
             range(gh_start, gh_end).for_each(|gh, scope| {
-                gpu!(
+                cpa!(
                     scope,
                     range(gw_start, gw_end).for_each(|gw, scope| {
-                        gpu!(scope, index_grad_2 = gh * grad_stride_2);
-                        gpu!(scope, index_grad_3 = gw * grad_stride_3);
+                        cpa!(scope, index_grad_2 = gh * grad_stride_2);
+                        cpa!(scope, index_grad_3 = gw * grad_stride_3);
 
-                        gpu!(scope, index_grad = index_grad_0);
-                        gpu!(scope, index_grad += index_grad_1);
-                        gpu!(scope, index_grad += index_grad_2);
-                        gpu!(scope, index_grad += index_grad_3);
+                        cpa!(scope, index_grad = index_grad_0);
+                        cpa!(scope, index_grad += index_grad_1);
+                        cpa!(scope, index_grad += index_grad_2);
+                        cpa!(scope, index_grad += index_grad_3);
 
-                        gpu!(scope, result = grad[index_grad]);
+                        cpa!(scope, result = grad[index_grad]);
 
-                        gpu!(scope, sum += result);
+                        cpa!(scope, sum += result);
                     })
                 );
             })
         );
 
-        gpu!(scope, output[id] = sum);
+        cpa!(scope, output[id] = sum);
     }
 
     fn start_index(
@@ -135,17 +132,17 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let elem = E::gpu_elem();
+        let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = input_index * output_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(input_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = ceil(div));
-        gpu!(scope, index = cast(div));
+        cpa!(scope, index = input_index * output_size);
+        cpa!(scope, numerator_float = cast(index));
+        cpa!(scope, div = cast(input_size));
+        cpa!(scope, div = numerator_float / div);
+        cpa!(scope, div = ceil(div));
+        cpa!(scope, index = cast(div));
 
         index
     }
@@ -156,38 +153,38 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let elem = E::gpu_elem();
+        let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = input_index + 1u32);
-        gpu!(scope, index *= output_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(input_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = ceil(div));
-        gpu!(scope, index = cast(div));
+        cpa!(scope, index = input_index + 1u32);
+        cpa!(scope, index *= output_size);
+        cpa!(scope, numerator_float = cast(index));
+        cpa!(scope, div = cast(input_size));
+        cpa!(scope, div = numerator_float / div);
+        cpa!(scope, div = ceil(div));
+        cpa!(scope, index = cast(div));
 
-        gpu!(scope, min = output_size < index);
-        gpu!(scope, if(min).then(|scope|{
-            gpu!(scope, end_index = output_size);
+        cpa!(scope, min = output_size < index);
+        cpa!(scope, if(min).then(|scope|{
+            cpa!(scope, end_index = output_size);
         }).else(|scope|{
-            gpu!(scope, end_index = index);
+            cpa!(scope, end_index = index);
         }));
 
         end_index
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
+impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
     for InterpolateNearestBackwardEagerKernel<R, E>
 {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let out_grad = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
@@ -223,7 +220,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
     }
 }
 
-pub(crate) fn interpolate_nearest_backward_launch<R: Runtime, E: JitElement>(
+pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
     out_grad: JitTensor<R, E, 4>,
     output: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {

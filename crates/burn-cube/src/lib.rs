@@ -3,22 +3,16 @@ extern crate alloc;
 #[macro_use]
 extern crate derive_new;
 
-// For use with *
-pub mod branch;
 pub mod codegen;
 
 mod compute;
-mod context;
-mod element;
-mod operation;
+mod language;
 mod pod;
 mod runtime;
 
 pub use codegen::*;
 pub use compute::*;
-pub use context::*;
-pub use element::*;
-pub use operation::*;
+pub use language::*;
 pub use pod::*;
 pub use runtime::*;
 
@@ -37,7 +31,7 @@ pub trait GpuComputeShaderPhase: Send + Sync + 'static {
     }
 }
 
-pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
+pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(workgroups));

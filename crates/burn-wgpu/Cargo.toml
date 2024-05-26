@@ -14,7 +14,7 @@ version.workspace = true
 default = ["fusion", "burn-jit/default"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 autotune = ["burn-jit/autotune"]
-template = ["burn-jit/template"]
+template = ["burn-jit/template", "burn-cube/template"]
 doc = ["burn-jit/doc"]
 std = ["burn-jit/std"]
 
@@ -24,6 +24,7 @@ burn-compute = { path = "../burn-compute", version = "0.15.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.15.0" }
 burn-common = { path = "../burn-common", version = "0.15.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
+burn-cube = { path = "../burn-cube", version = "0.15.0" }
 
 bytemuck = { workspace = true }
 wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }

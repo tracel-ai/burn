@@ -1,5 +1,8 @@
 use super::Scalars;
-use crate::codegen::{dialect::gpu, CompilationInfo, InputInfo, OutputInfo};
+use burn_cube::{
+    dialect::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
+    CompilationInfo, InputInfo, OutputInfo,
+};
 use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
 
@@ -9,11 +12,11 @@ use serde::{Deserialize, Serialize};
 /// A trace should be built using a [builder](super::TraceBuilder).
 #[derive(new, Clone, Serialize, Deserialize)]
 pub struct Trace {
-    inputs: Vec<(TensorDescription, gpu::Elem, gpu::Variable)>,
-    output_writes: Vec<(TensorDescription, gpu::Elem, gpu::Variable)>,
+    inputs: Vec<(TensorDescription, Elem, Variable)>,
+    output_writes: Vec<(TensorDescription, Elem, Variable)>,
     locals: Vec<u16>,
     scalars: Scalars,
-    scope: gpu::Scope,
+    scope: Scope,
 }
 
 /// Information necessary to execute a kernel.
@@ -42,8 +45,8 @@ impl Trace {
             .inputs
             .iter()
             .map(|(_tensor, elem, _)| InputInfo::Array {
-                item: gpu::Item::Scalar(*elem),
-                visibility: gpu::Visibility::Read,
+                item: Item::new(*elem),
+                visibility: Visibility::Read,
             })
             .collect::<Vec<_>>();
 
@@ -53,7 +56,7 @@ impl Trace {
             .zip(self.locals.iter())
             .map(
                 |((_tensor, elem, index_ref), local)| OutputInfo::ArrayWrite {
-                    item: gpu::Item::Scalar(*elem),
+                    item: Item::new(*elem),
                     local: *local,
                     position: *index_ref,
                 },
@@ -63,21 +66,21 @@ impl Trace {
         // NOTE: we might want to pass a struct including all inputs/outputs metadata instead of 3 arrays
         if self.scalars.num_float > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Float(gpu::FloatKind::F32),
+                elem: Elem::Float(FloatKind::F32),
                 size: self.scalars.num_float,
             })
         }
 
         if self.scalars.num_uint > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::UInt,
+                elem: Elem::UInt,
                 size: self.scalars.num_uint,
             })
         }
 
         if self.scalars.num_int > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Int(gpu::IntKind::I32),
+                elem: Elem::Int(IntKind::I32),
                 size: self.scalars.num_int,
             })
         }

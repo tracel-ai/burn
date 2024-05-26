@@ -150,6 +150,8 @@ impl CodeAnalysisBuilder {
     fn find_occurrences_in_expr(&mut self, expr: &syn::Expr, depth: usize) {
         match expr {
             syn::Expr::ForLoop(expr) => {
+                self.find_occurrences_in_expr(&expr.expr, depth);
+
                 let depth = depth + 1;
 
                 // Declaration of iterator
@@ -239,6 +241,24 @@ impl CodeAnalysisBuilder {
             }
             syn::Expr::Break(_) => {}
             syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
+            syn::Expr::Array(expr) => {
+                for element in expr.elems.iter() {
+                    match element {
+                        syn::Expr::Lit(_) => {}
+                        _ => todo!("Analysis: only array of literals is supported"),
+                    }
+                }
+            }
+            syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
+            syn::Expr::Closure(expr) => {
+                assert!(
+                    expr.inputs.is_empty(),
+                    "Analysis: closure with args not supported"
+                );
+
+                self.find_occurrences_in_expr(&expr.body, depth + 1)
+            }
+            syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

@@ -1,10 +1,11 @@
 use super::{optimization::ElementWise, CompilationPhase};
+
 use crate::{
-    codegen::dialect::gpu::{
-        BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
-    },
     fusion::{tracing::TraceBuilder, JitOptimization},
-    Runtime,
+    JitRuntime,
+};
+use burn_cube::dialect::{
+    BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
@@ -17,7 +18,7 @@ use burn_tensor::{
 };
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: Runtime> {
+pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
     builder: TraceBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
@@ -25,7 +26,7 @@ pub(crate) struct ElementWiseBuilder<R: Runtime> {
     device: R::Device,
 }
 
-impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
+impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -108,7 +109,7 @@ impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<
     }
 }
 
-impl<R: Runtime> ElementWiseBuilder<R> {
+impl<R: JitRuntime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device) -> Self {
         Self {
             builder: TraceBuilder::new(),

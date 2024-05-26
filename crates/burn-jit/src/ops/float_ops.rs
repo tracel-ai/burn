@@ -1,11 +1,11 @@
 use super::{expand, numeric, permute};
-use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
-use crate::gpu::Variable;
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
 use crate::{unary, JitBackend};
-use crate::{FloatElement, IntElement, Runtime};
+use crate::{FloatElement, IntElement, JitRuntime};
+use burn_cube::dialect::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
@@ -13,7 +13,7 @@ use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
 where
-    R: Runtime,
+    R: JitRuntime,
     F: FloatElement,
     I: IntElement,
 {

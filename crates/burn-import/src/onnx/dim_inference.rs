@@ -41,11 +41,17 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
         NodeType::MatMul => matmul_update_outputs(node),
+        NodeType::Min => same_as_input(node),
+        NodeType::Max => same_as_input(node),
         NodeType::MaxPool1d => same_as_input(node),
         NodeType::MaxPool2d => same_as_input(node),
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::Greater => greater_update_outputs(node),
+        NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
+        NodeType::Less => less_update_outputs(node),
+        NodeType::LessOrEqual => less_or_equal_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
@@ -66,6 +72,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::PRelu => same_as_input(node),
         NodeType::Where => where_update_outputs(node),
+        NodeType::Squeeze => squeeze_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -236,6 +243,54 @@ fn reshape_update_outputs(node: &mut Node) {
     }
 }
 
+fn greater_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn greater_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
 fn reduce_mean_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Mean: multiple inputs are not supported");
@@ -338,6 +393,46 @@ fn argmax_update_outputs(node: &mut Node) {
     //         elem_type: ElementType::Int64,
     //     });
     // }
+}
+
+/// Update the output tensor dimension
+fn squeeze_update_output(node: &mut Node) {
+    let axes = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(axes) => Some(axes.clone()),
+                _ => panic!("Squeeze: invalid input types"),
+            },
+            None => None,
+        }
+    } else {
+        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+    };
+
+    if axes.is_none() {
+        panic!("Squeeze must specify an axis");
+    } else if axes.as_ref().unwrap().len() > 1 {
+        panic!(
+            "Squeeze must specify only 1 axis, found {:?}",
+            axes.as_ref().unwrap().len()
+        );
+    }
+
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("Squeeze: invalid input type"),
+    };
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("Squeeze: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: input_dim - 1,
+        shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_elem,
+    });
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input
