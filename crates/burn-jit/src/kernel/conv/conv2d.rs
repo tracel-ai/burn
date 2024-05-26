@@ -1,5 +1,5 @@
 use burn_compute::client::ComputeClient;
-use burn_cube::{branch::*, dialect::ComputeShader, CubeArg, *};
+use burn_cube::{branch::*, dialect::ComputeShader, LaunchArg, *};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,

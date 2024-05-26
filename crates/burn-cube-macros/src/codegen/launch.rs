@@ -40,13 +40,13 @@ impl KernelStructCodegen {
 
         for (ident, ty) in self.inputs.iter() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as CubeArg>::compile_input(&mut builder);
+                let #ident = <#ty as LaunchArg>::compile_input(&mut builder);
             });
         }
 
         for (ident, ty) in self.outputs.iter() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as CubeArg>::compile_output(&mut builder);
+                let #ident = <#ty as LaunchArg>::compile_output(&mut builder);
             });
         }
 
@@ -74,7 +74,7 @@ impl KernelStructCodegen {
         quote::quote! {
             impl #impl_gen GpuComputeShaderPhase for #ident #ty_gen #where_gen {
                 fn compile(&self) -> ComputeShader {
-                    let mut builder = ComputeShaderBuilder::default();
+                    let mut builder = KernelBuilder::default();
 
                     #variables
 
@@ -123,18 +123,18 @@ impl KernelStructCodegen {
 
         let mut comptimes = quote::quote! {};
         let mut body = quote::quote! {
-            let mut settings = BindingSettings::<R>::new();
+            let mut launcher = KernelLauncher::<R>::new();
         };
 
         for (input, _) in self.inputs.iter() {
             body.extend(quote::quote! {
-                #input.register(&mut settings);
+                #input.register(&mut launcher);
             });
         }
 
         for (input, _) in self.outputs.iter() {
             body.extend(quote::quote! {
-                #input.register(&mut settings);
+                #input.register(&mut launcher);
             });
         }
 
@@ -156,7 +156,7 @@ impl KernelStructCodegen {
 
             #body
 
-            execute_neo(settings, workgroup, kernel, client);
+            launcher.launch(workgroup, kernel, client);
         }
         .into()
     }
@@ -218,7 +218,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
                     });
                 } else {
                     inputs.extend(quote::quote! {
-                        #ident: ArgType<'a, #ty, R>,
+                        #ident: RuntimeArg<'a, #ty, R>,
                     });
                 }
 

@@ -2,7 +2,7 @@ use crate::{
     calculate_num_elems_dyn_rank,
     dialect::Item,
     language::{CubeType, ExpandElement},
-    CubeArg, CubeElem, Runtime, RuntimeArg,
+    ArgSettings, CubeElem, KernelLauncher, LaunchArg, Runtime,
 };
 use std::marker::PhantomData;
 
@@ -15,14 +15,14 @@ impl<C: CubeType> CubeType for Tensor<C> {
     type ExpandType = ExpandElement;
 }
 
-impl<C: CubeElem> CubeArg for Tensor<C> {
-    type ArgType<'a, R: Runtime> = TensorHandle<'a, R>;
+impl<C: CubeElem> LaunchArg for Tensor<C> {
+    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
 
-    fn compile_input(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+    fn compile_input(builder: &mut crate::KernelBuilder) -> ExpandElement {
         builder.input_array(Item::new(C::as_elem()))
     }
 
-    fn compile_output(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+    fn compile_output(builder: &mut crate::KernelBuilder) -> ExpandElement {
         builder.output_array(Item::new(C::as_elem()))
     }
 }
@@ -34,25 +34,25 @@ pub struct TensorHandle<'a, R: Runtime> {
     pub shape: &'a [usize],
 }
 
-impl<'a, R: Runtime> RuntimeArg<R> for TensorHandle<'a, R> {
-    fn register(&self, settings: &mut crate::BindingSettings<R>) {
-        settings.arrays.push(self.handle.clone().binding());
+impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
+    fn register(&self, launcher: &mut KernelLauncher<R>) {
+        launcher.arrays.push(self.handle.clone().binding());
 
-        if settings.info.is_empty() {
-            settings.info.push(self.strides.len() as u32);
+        if launcher.info.is_empty() {
+            launcher.info.push(self.strides.len() as u32);
         }
 
         for s in self.strides.iter() {
-            settings.info.push(*s as u32);
+            launcher.info.push(*s as u32);
         }
 
         for s in self.shape.iter() {
-            settings.info.push(*s as u32);
+            launcher.info.push(*s as u32);
         }
 
         if R::require_array_lengths() {
             let len = calculate_num_elems_dyn_rank(self.shape);
-            settings.array_lengths.push(len as u32);
+            launcher.array_lengths.push(len as u32);
         }
     }
 }

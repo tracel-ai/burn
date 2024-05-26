@@ -1,6 +1,6 @@
 use crate::dialect::{Elem, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{CubeArg, Runtime, RuntimeArg};
+use crate::{ArgSettings, KernelLauncher, LaunchArg, Runtime};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -20,20 +20,20 @@ impl CubeElem for UInt {
     }
 }
 
-impl CubeArg for UInt {
-    type ArgType<'a, R: Runtime> = u32;
+impl LaunchArg for UInt {
+    type RuntimeArg<'a, R: Runtime> = u32;
 
-    fn compile_input(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+    fn compile_input(builder: &mut crate::KernelBuilder) -> ExpandElement {
         builder.scalar(Self::as_elem())
     }
 
-    fn compile_output(builder: &mut crate::ComputeShaderBuilder) -> ExpandElement {
+    fn compile_output(builder: &mut crate::KernelBuilder) -> ExpandElement {
         builder.scalar(Self::as_elem())
     }
 }
 
-impl<R: Runtime> RuntimeArg<R> for u32 {
-    fn register(&self, settings: &mut crate::BindingSettings<R>) {
+impl<R: Runtime> ArgSettings<R> for u32 {
+    fn register(&self, settings: &mut KernelLauncher<R>) {
         settings.scalar_u32.push(*self);
     }
 }

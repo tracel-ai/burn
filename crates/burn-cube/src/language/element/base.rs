@@ -1,6 +1,6 @@
 use crate::{
     dialect::{ComputeShader, Elem, Item, Variable},
-    BindingSettings, Compilation, CompilationInfo, CompilationSettings, CubeContext, InputInfo,
+    Compilation, CompilationInfo, CompilationSettings, CubeContext, InputInfo, KernelLauncher,
     OutputInfo, Runtime,
 };
 use alloc::rc::Rc;
@@ -22,7 +22,7 @@ pub trait CubeType {
     type ExpandType: Clone;
 }
 
-pub struct ComputeShaderBuilder {
+pub struct KernelBuilder {
     pub context: CubeContext,
     inputs: Vec<InputInfo>,
     outputs: Vec<OutputInfo>,
@@ -32,7 +32,7 @@ pub struct ComputeShaderBuilder {
     num_output: u16,
 }
 
-impl Default for ComputeShaderBuilder {
+impl Default for KernelBuilder {
     fn default() -> Self {
         Self {
             context: CubeContext::root(),
@@ -46,7 +46,7 @@ impl Default for ComputeShaderBuilder {
     }
 }
 
-impl ComputeShaderBuilder {
+impl KernelBuilder {
     pub fn scalar(&mut self, elem: Elem) -> ExpandElement {
         let index = match self.indices.get_mut(&elem) {
             Some(index) => match self.inputs.get_mut(*index).unwrap() {
@@ -95,15 +95,15 @@ impl ComputeShaderBuilder {
     }
 }
 
-pub trait RuntimeArg<R: Runtime>: Send + Sync {
-    fn register(&self, settings: &mut BindingSettings<R>);
+pub trait ArgSettings<R: Runtime>: Send + Sync {
+    fn register(&self, launcher: &mut KernelLauncher<R>);
 }
 
-pub trait CubeArg {
-    type ArgType<'a, R: Runtime>: RuntimeArg<R>;
+pub trait LaunchArg {
+    type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
 
-    fn compile_input(builder: &mut ComputeShaderBuilder) -> ExpandElement;
-    fn compile_output(builder: &mut ComputeShaderBuilder) -> ExpandElement;
+    fn compile_input(builder: &mut KernelBuilder) -> ExpandElement;
+    fn compile_output(builder: &mut KernelBuilder) -> ExpandElement;
 }
 
 /// Reference to a JIT variable
