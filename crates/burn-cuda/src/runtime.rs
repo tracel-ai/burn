@@ -6,7 +6,7 @@ use burn_compute::{
     tune::Tuner,
     ComputeRuntime,
 };
-use burn_jit::Runtime;
+use burn_cube::Runtime;
 use std::sync::Arc;
 
 use crate::{
@@ -17,6 +17,11 @@ use crate::{
 
 #[derive(Debug)]
 pub struct CudaRuntime;
+
+impl burn_jit::JitRuntime for CudaRuntime {
+    type JitDevice = CudaDevice;
+    type JitServer = CudaServer<SimpleMemoryManagement<CudaStorage>>;
+}
 
 // static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
@@ -51,7 +56,7 @@ impl Runtime for CudaRuntime {
             let memory_management = SimpleMemoryManagement::new(
                 storage,
                 DeallocStrategy::new_period_tick(1),
-                SliceStrategy::Never,
+                SliceStrategy::Ratio(0.8),
             );
             CudaContext::new(memory_management, stream, ctx)
         }

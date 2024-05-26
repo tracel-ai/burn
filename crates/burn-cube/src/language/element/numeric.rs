@@ -1,6 +1,6 @@
 use crate::dialect::{Item, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement};
-use crate::{index_assign, unexpanded};
+use crate::{index_assign, unexpanded, Abs, Max, Min, Remainder};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
@@ -10,10 +10,17 @@ pub trait Numeric:
     + CubeElem
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
+    + std::ops::SubAssign
+    + std::ops::MulAssign
+    + std::ops::DivAssign
     + std::ops::Sub<Output = Self>
     + std::ops::Mul<Output = Self>
     + std::ops::Div<Output = Self>
     + std::cmp::PartialOrd
+    + Abs
+    + Max
+    + Min
+    + Remainder
 {
     /// Create a new constant numeric.
     ///

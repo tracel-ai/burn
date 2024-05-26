@@ -99,20 +99,98 @@ pub mod add_assign_op {
     }
 
     macro_rules! impl_add_assign {
-        ($type:ty) => {
-            impl core::ops::AddAssign for $type {
+        ($($type:ty),*) => {
+            $(impl core::ops::AddAssign for $type {
                 fn add_assign(&mut self, _rhs: Self) {
                     unexpanded!()
                 }
-            }
+            })*
         };
     }
 
-    impl_add_assign!(F16);
-    impl_add_assign!(BF16);
-    impl_add_assign!(F32);
-    impl_add_assign!(F64);
-    impl_add_assign!(I32);
-    impl_add_assign!(I64);
-    impl_add_assign!(UInt);
+    impl_add_assign!(F16, BF16, F32, F64, I32, I64, UInt);
+}
+
+pub mod sub_assign_op {
+    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+
+    use self::dialect::Operator;
+
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        assign_op_expand(context, lhs, rhs, Operator::Sub)
+    }
+
+    macro_rules! impl_add_assign {
+        ($($type:ty),*) => {
+            $(impl core::ops::SubAssign for $type {
+                fn sub_assign(&mut self, _rhs: Self) {
+                    unexpanded!()
+                }
+            })*
+        };
+    }
+
+    impl_add_assign!(F16, BF16, F32, F64, I32, I64, UInt);
+}
+
+pub mod mul_assign_op {
+    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+
+    use self::dialect::Operator;
+
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        assign_op_expand(context, lhs, rhs, Operator::Mul)
+    }
+
+    macro_rules! impl_add_assign {
+        ($($type:ty),*) => {
+            $(impl core::ops::MulAssign for $type {
+                fn mul_assign(&mut self, _rhs: Self) {
+                    unexpanded!()
+                }
+            })*
+        };
+    }
+
+    impl_add_assign!(F16, BF16, F32, F64, I32, I64, UInt);
+}
+
+pub mod div_assign_op {
+    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+
+    use self::dialect::Operator;
+
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        assign_op_expand(context, lhs, rhs, Operator::Div)
+    }
+
+    macro_rules! impl_add_assign {
+        ($($type:ty),*) => {
+            $(impl core::ops::DivAssign for $type {
+                fn div_assign(&mut self, _rhs: Self) {
+                    unexpanded!()
+                }
+            })*
+        };
+    }
+
+    impl_add_assign!(F16, BF16, F32, F64, I32, I64, UInt);
 }

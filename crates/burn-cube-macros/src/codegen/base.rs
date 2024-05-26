@@ -5,7 +5,7 @@ use crate::analysis::CodeAnalysis;
 use super::{
     branch::{codegen_break, codegen_for_loop, codegen_if, codegen_loop, codegen_while_loop},
     function::{codegen_call, codegen_closure, codegen_expr_method_call},
-    operation::codegen_binary,
+    operation::{codegen_binary, codegen_unary},
     variable::{
         codegen_array_lit, codegen_assign, codegen_index, codegen_lit, codegen_local,
         codegen_path_rhs,
@@ -98,6 +98,7 @@ pub(crate) fn codegen_expr(
         syn::Expr::Paren(paren) => codegen_expr(&paren.expr, loop_level, variable_analyses),
         syn::Expr::Array(array) => codegen_array_lit(array),
         syn::Expr::Reference(reference) => codegen_ref(reference, loop_level, variable_analyses),
+        syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }

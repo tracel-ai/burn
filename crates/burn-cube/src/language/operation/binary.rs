@@ -1,11 +1,9 @@
+use crate::dialect::Operator;
 use crate::language::operation::base::binary_expand;
 use crate::language::{CubeContext, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64};
-use crate::unexpanded;
+use crate::{unexpanded, CubeType};
 
 pub mod add {
-
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -38,8 +36,6 @@ pub mod add {
 }
 
 pub mod sub {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -72,8 +68,6 @@ pub mod sub {
 }
 
 pub mod mul {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -106,8 +100,6 @@ pub mod mul {
 }
 
 pub mod div {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -140,8 +132,6 @@ pub mod div {
 }
 
 pub mod rem {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -170,8 +160,6 @@ pub mod rem {
 }
 
 pub mod and {
-    use crate::dialect::Operator;
-
     use super::*;
 
     pub fn expand(
@@ -183,9 +171,27 @@ pub mod and {
     }
 }
 
-pub mod or {
-    use crate::dialect::Operator;
+pub mod bitand {
+    use super::*;
 
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, Operator::BitwiseAnd)
+    }
+
+    impl core::ops::BitAnd for UInt {
+        type Output = UInt;
+
+        fn bitand(self, _rhs: Self) -> Self::Output {
+            unexpanded!()
+        }
+    }
+}
+
+pub mod or {
     use super::*;
 
     pub fn expand(
@@ -196,3 +202,121 @@ pub mod or {
         binary_expand(context, lhs, rhs, Operator::Or)
     }
 }
+
+pub mod bitxor {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, Operator::BitwiseXor)
+    }
+
+    impl core::ops::BitXor for UInt {
+        type Output = UInt;
+
+        fn bitxor(self, _rhs: Self) -> Self::Output {
+            unexpanded!()
+        }
+    }
+}
+
+pub mod shl {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, Operator::ShiftLeft)
+    }
+
+    impl core::ops::Shl for UInt {
+        type Output = UInt;
+
+        fn shl(self, _rhs: Self) -> Self::Output {
+            unexpanded!()
+        }
+    }
+}
+
+pub mod shr {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        binary_expand(context, lhs, rhs, Operator::ShiftRight)
+    }
+
+    impl core::ops::Shr for UInt {
+        type Output = UInt;
+
+        fn shr(self, _rhs: Self) -> Self::Output {
+            unexpanded!()
+        }
+    }
+}
+
+/// For binary functions without special syntax
+macro_rules! impl_binary_func {
+    ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
+        pub trait $trait_name: CubeType + Sized {
+            fn $method_name(self, _rhs: Self) -> Self {
+                unexpanded!()
+            }
+
+            fn $method_name_expand(context: &mut CubeContext, lhs: ExpandElement, rhs: ExpandElement) -> ExpandElement {
+                binary_expand(context, lhs, rhs, $operator)
+            }
+        }
+
+        $(impl $trait_name for $type {})*
+    }
+}
+
+impl_binary_func!(Powf, powf, powf_expand, Operator::Powf, F16, BF16, F32, F64);
+impl_binary_func!(
+    Max,
+    max,
+    max_expand,
+    Operator::Max,
+    F16,
+    BF16,
+    F32,
+    F64,
+    I32,
+    I64,
+    UInt
+);
+impl_binary_func!(
+    Min,
+    min,
+    min_expand,
+    Operator::Min,
+    F16,
+    BF16,
+    F32,
+    F64,
+    I32,
+    I64,
+    UInt
+);
+impl_binary_func!(
+    Remainder,
+    rem,
+    rem_expand,
+    Operator::Remainder,
+    F16,
+    BF16,
+    F32,
+    F64,
+    I32,
+    I64,
+    UInt
+);
