@@ -123,7 +123,7 @@ impl KernelStructCodegen {
 
         let mut comptimes = quote::quote! {};
         let mut body = quote::quote! {
-            let mut launcher = KernelLauncher::<R>::new();
+            let mut launcher = KernelLauncher::<R>::default();
         };
 
         for (input, _) in self.inputs.iter() {

@@ -1,5 +1,4 @@
 use crate::{
-    calculate_num_elems_dyn_rank,
     dialect::Item,
     language::{CubeType, ExpandElement},
     ArgSettings, CubeElem, KernelLauncher, LaunchArg, Runtime,
@@ -36,23 +35,6 @@ pub struct TensorHandle<'a, R: Runtime> {
 
 impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.arrays.push(self.handle.clone().binding());
-
-        if launcher.info.is_empty() {
-            launcher.info.push(self.strides.len() as u32);
-        }
-
-        for s in self.strides.iter() {
-            launcher.info.push(*s as u32);
-        }
-
-        for s in self.shape.iter() {
-            launcher.info.push(*s as u32);
-        }
-
-        if R::require_array_lengths() {
-            let len = calculate_num_elems_dyn_rank(self.shape);
-            launcher.array_lengths.push(len as u32);
-        }
+        launcher.add_tensor(self)
     }
 }
