@@ -35,6 +35,6 @@ pub struct TensorHandle<'a, R: Runtime> {
 
 impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.add_tensor(self)
+        launcher.register_tensor(self)
     }
 }

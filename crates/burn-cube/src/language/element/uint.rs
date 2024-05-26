@@ -34,7 +34,7 @@ impl LaunchArg for UInt {
 
 impl<R: Runtime> ArgSettings<R> for u32 {
     fn register(&self, settings: &mut KernelLauncher<R>) {
-        settings.add_scalar_u32(*self);
+        settings.register_u32(*self);
     }
 }
 

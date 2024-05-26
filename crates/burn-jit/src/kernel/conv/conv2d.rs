@@ -153,10 +153,12 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
 
     let num_elems_output = output.shape.num_elements();
     let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
+    let settings = CompilationSettings::default();
 
     kernel_launch::<E::CubeElement, R>(
         input.client,
         workgroup,
+        settings,
         TensorHandle::new(&input.handle, &input.strides, &input.shape.dims),
         TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
         TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),

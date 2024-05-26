@@ -26,6 +26,7 @@ impl KernelStructCodegen {
 
         quote::quote! {
             pub struct #ident #generics {
+                settings: CompilationSettings,
                 #comptimes
                 #phantoms
             }
@@ -60,12 +61,12 @@ impl KernelStructCodegen {
 
         let generics = self.generics.split_for_impl().1;
 
-        let mut format_str = "{:?}".to_string();
+        let mut format_str = "{:?}-{}".to_string();
         for _ in 0..self.comptimes.len() {
             format_str.push_str("-{:?}");
         }
 
-        let mut format_args = quote::quote! { core::any::TypeId::of::<Self>(), };
+        let mut format_args = quote::quote! { core::any::TypeId::of::<Self>(), self.settings, };
 
         for (_, ident) in self.comptimes.iter() {
             format_args.extend(quote::quote! { self.#ident, });
@@ -80,7 +81,8 @@ impl KernelStructCodegen {
 
                     #expand::#generics(#expand_args);
 
-                    builder.compile()
+                    let compilation = builder.build();
+                    compilation.compile(self.settings.clone())
                 }
 
                 fn id(&self) -> String {
@@ -146,6 +148,7 @@ impl KernelStructCodegen {
 
         let kernel = quote::quote! {
             #ident {
+                settings,
                 #comptimes
                 #phantoms
             }
@@ -262,6 +265,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
             workgroup: WorkGroup,
+            settings: CompilationSettings,
             #inputs
         ) -> #output {
             #body;

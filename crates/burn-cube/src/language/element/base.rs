@@ -1,10 +1,5 @@
-use crate::{
-    dialect::{ComputeShader, Elem, Item, Variable},
-    Compilation, CompilationInfo, CompilationSettings, CubeContext, InputInfo, KernelLauncher,
-    OutputInfo, Runtime,
-};
+use crate::{dialect::Variable, KernelBuilder, KernelLauncher, Runtime};
 use alloc::rc::Rc;
-use std::collections::HashMap;
 
 /// Types used in a cube function must implement this trait
 ///
@@ -20,79 +15,6 @@ use std::collections::HashMap;
 /// the generated code.
 pub trait CubeType {
     type ExpandType: Clone;
-}
-
-pub struct KernelBuilder {
-    pub context: CubeContext,
-    inputs: Vec<InputInfo>,
-    outputs: Vec<OutputInfo>,
-    settings: CompilationSettings,
-    indices: HashMap<Elem, usize>,
-    num_input: u16,
-    num_output: u16,
-}
-
-impl Default for KernelBuilder {
-    fn default() -> Self {
-        Self {
-            context: CubeContext::root(),
-            inputs: Vec::new(),
-            outputs: Vec::new(),
-            settings: CompilationSettings::default(),
-            indices: HashMap::new(),
-            num_input: 0,
-            num_output: 0,
-        }
-    }
-}
-
-impl KernelBuilder {
-    pub fn scalar(&mut self, elem: Elem) -> ExpandElement {
-        let index = match self.indices.get_mut(&elem) {
-            Some(index) => match self.inputs.get_mut(*index).unwrap() {
-                InputInfo::Scalar { elem: _, size } => {
-                    *size = *size + 1;
-                    *size as u16 - 1
-                }
-                _ => panic!("Should be a scalar."),
-            },
-            None => {
-                self.indices.insert(elem, self.inputs.len());
-                self.inputs.push(InputInfo::Scalar { size: 1, elem });
-                0
-            }
-        };
-
-        self.context.scalar(index, elem)
-    }
-
-    pub fn output_array(&mut self, item: Item) -> ExpandElement {
-        self.outputs.push(OutputInfo::Array { item });
-        let variable = self.context.output(self.num_output, item);
-        self.num_output += 1;
-
-        variable
-    }
-
-    pub fn input_array(&mut self, item: Item) -> ExpandElement {
-        self.inputs.push(InputInfo::Array {
-            item,
-            visibility: crate::dialect::Visibility::Read,
-        });
-        let variable = self.context.input(self.num_input, item);
-        self.num_input += 1;
-        variable
-    }
-
-    pub fn compile(self) -> ComputeShader {
-        let info = CompilationInfo {
-            scope: self.context.into_scope(),
-            inputs: self.inputs,
-            outputs: self.outputs,
-        };
-
-        Compilation::new(info).compile(self.settings)
-    }
 }
 
 pub trait ArgSettings<R: Runtime>: Send + Sync {
