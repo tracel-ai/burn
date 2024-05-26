@@ -294,7 +294,7 @@ impl OnnxGraphIO {
             Some(IOEntry::In(i)) => self.inputs[*i].value.as_ref(),
             Some(IOEntry::Out(i)) => self.outputs[*i].value.as_ref(),
             Some(IOEntry::Node(i)) => self.node_out[*i].value.as_ref(),
-            None => panic!("No entry for {}", name),
+            None => None,
         }
     }
 
@@ -373,8 +373,6 @@ pub(crate) struct OnnxGraphBuilder {
     /// Map from constant node output names to indices of constant nodes
     constants_map: HashMap<String, usize>,
     constants_types: HashSet<NodeType>,
-    /// Map from identity node output names to indices of identity nodes
-    identity_idx: HashMap<String, usize>,
 }
 
 impl OnnxGraphBuilder {
@@ -398,7 +396,6 @@ impl OnnxGraphBuilder {
 
             coalesce(&mut node, &mut node_iter, &mut graph_io);
             self.handle_node_renaming(&mut node);
-            self.handle_identity(&mut node, and_idx, &mut graph_io);
             self.check_constants(&mut node, and_idx, &mut graph_io);
             self.handle_unsqueeze(&mut node, &mut graph_io);
 
@@ -436,10 +433,7 @@ impl OnnxGraphBuilder {
     }
 
     fn check_constants(&mut self, node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
-        if node.node_type == NodeType::Constant
-            || (node.node_type == NodeType::Identity
-                && graph_io.get_value(&node.inputs[0]).is_some())
-        {
+        if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
             self.constants_map.insert(node.outputs[0].clone(), i);
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
@@ -448,9 +442,7 @@ impl OnnxGraphBuilder {
                 if let Some(const_idx) = self.constants_map.get(input) {
                     let constant = &self.nodes[*const_idx];
                     log::debug!("input {} matched constant node {}", &input, &constant.name);
-                    if !constant.inputs.is_empty()
-                        && graph_io.get_value(&constant.inputs[0]).is_some()
-                    {
+                    if !constant.inputs.is_empty() {
                         // The value comes from Identity inputs
                         graph_io.copy_value_type(&constant.inputs[0], input)
                     } else {
@@ -472,15 +464,6 @@ impl OnnxGraphBuilder {
             && graph_io.get_value(&node.inputs[1]).is_none()
         {
             remap_unsqueeze_to_reshape(node, graph_io);
-        }
-    }
-
-    fn handle_identity(&mut self, node: &mut Node, i: usize, graph_io: &OnnxGraphIO) {
-        if node.node_type == NodeType::Identity && graph_io.get_value(&node.inputs[0]).is_none() {
-            log::debug!("\nfound identity node:\n{:?}\n", &node);
-            //map the output name to check for pass through values
-            self.identity_idx.insert(node.outputs[0].clone(), i);
-            self.nodes_to_remove.insert(i);
         }
     }
 }
