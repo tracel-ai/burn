@@ -288,11 +288,11 @@ fn argmax_update_outputs(node: &mut Node) {
     // };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: tensor.dim.clone(),
+        dim: tensor.dim,
         shape: tensor.shape.clone(),
         elem_type: ElementType::Int64,
     });
-    
+
     // // burn will always assume we keep dims
     // let mut keepdims = match node.attrs.get("keepdims") {
     //     Some(value) => match value {
@@ -313,13 +313,13 @@ fn argmax_update_outputs(node: &mut Node) {
     //     if axis < 0 {
     //         axis = tensor.dim as i64 + axis;
     //     }
-    
+
     //     if (axis < 0) | (axis >= tensor.dim as i64) {
     //         panic!("axis {:?} is outside of legal range [0,{:?}]", axis, tensor.dim);
     //     }
-    
+
     //     // Note -> seems like keepdim is always on??
-    
+
     //     let output_shape: Option<Vec<usize>>;
     //     match tensor.shape {
     //         Some(shape) => {
@@ -331,14 +331,13 @@ fn argmax_update_outputs(node: &mut Node) {
     //             output_shape = None;
     //         }
     //     }
-    
+
     //     node.outputs[0].ty = ArgType::Tensor(TensorType {
     //         dim: tensor.dim.clone() - 1,
     //         shape: output_shape.clone(),
     //         elem_type: ElementType::Int64,
     //     });
     // }
-
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input

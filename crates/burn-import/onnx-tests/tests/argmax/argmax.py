@@ -13,7 +13,7 @@ class Model(nn.Module):
     def forward(self, x):
         # Concatenate along the channel dimension
         y = torch.argmax(input=x, dim=self._argmax_dim)
-        return y.to(float)
+        return y
 
 def main():
 

@@ -368,11 +368,10 @@ mod tests {
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
         let output = model.forward(input);
-        let expected = Data::from([[2.], [2.]]);
+        let expected = Data::from([[2], [2]]);
 
         assert_eq!(output.to_data(), expected);
     }
-
 
     #[test]
     fn globalavrpool_1d_2d() {

@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{TensorType, ToTokens, Type};
+use crate::burn::{TensorKind, TensorType, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use quote::quote;
@@ -11,20 +11,17 @@ pub struct ArgMaxNode {
     pub axis: usize,
     pub select_last_index: usize,
     pub keepdims: usize,
-
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![
-            Type::Tensor(self.output.clone()),
-        ]
+        let mut output = self.output.clone();
+        output.kind = TensorKind::Int;
+        vec![Type::Tensor(output)]
     }
 
     fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![
-            Type::Tensor(self.input.clone()),
-        ]
+        vec![Type::Tensor(self.input.clone())]
     }
 
     fn forward(
@@ -33,7 +30,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
         node_position: usize,
     ) -> proc_macro2::TokenStream {
         let axis = self.axis.to_tokens();
-        
+
         //NOTE: are select_last_index and keep_dims supported?
         let _select_last_index = self.select_last_index.to_tokens();
         let _keepdims = self.keepdims.to_tokens();
@@ -56,27 +53,21 @@ mod tests {
     use burn::record::FullPrecisionSettings;
 
     use super::*;
-    use crate::burn::{
-        graph::BurnGraph,
-        node::{gather::GatherNode, test::assert_tokens},
-        TensorType,
-    };
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
 
     #[test]
     fn test_codegen_gather() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(GatherNode::new(
+        graph.register(ArgMaxNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 2),
-            TensorType::new_float("tensor3", 2),
+            TensorType::new_float("tensor2", 2),
             1,
+            0,
+            0,
         ));
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor3".to_string()],
-        );
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
             use burn::tensor::Int;
@@ -103,12 +94,11 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    tensor1: Tensor<B, 2>,
-                    tensor2: Tensor<B, 2, Int>
-                ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.gather(1, tensor2);
+                    tensor1: Tensor<B, 2>
+                ) -> Tensor<B, 2, Int> {
+                    let tensor2 = tensor1.argmax(1);
 
-                    tensor3
+                    tensor2
                 }
             }
         };
