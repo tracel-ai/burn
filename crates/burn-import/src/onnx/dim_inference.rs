@@ -14,6 +14,8 @@ use super::{
 pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
+        // NodeType::ArgMax => same_as_input(node),
+        NodeType::ArgMax => argmax_update_outputs(node),
         NodeType::AveragePool1d => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
         NodeType::BatchNormalization => same_as_input(node),
@@ -264,6 +266,79 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
+}
+
+fn argmax_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Mean: multiple inputs are not supported");
+    }
+
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // let mut axis = match node.attrs.get("axes") {
+    //     Some(value) => match &value {
+    //         AttributeValue::Int64(v) => *v,
+    //         _ => 0,
+    //     },
+    //     None => 0,
+    // };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: tensor.dim.clone(),
+        shape: tensor.shape.clone(),
+        elem_type: ElementType::Int64,
+    });
+    
+    // // burn will always assume we keep dims
+    // let mut keepdims = match node.attrs.get("keepdims") {
+    //     Some(value) => match value {
+    //         AttributeValue::Int64(v) => *v == 1,
+    //         _ => panic!("Only int64 keepdims is valid"),
+    //     },
+    //     None => false,
+    // };
+
+    // if keepdims {
+    //     node.outputs[0].ty = ArgType::Tensor(TensorType {
+    //         dim: tensor.dim.clone(),
+    //         shape: tensor.shape.clone(),
+    //         elem_type: ElementType::Int64,
+    //     });
+    // }else {
+
+    //     if axis < 0 {
+    //         axis = tensor.dim as i64 + axis;
+    //     }
+    
+    //     if (axis < 0) | (axis >= tensor.dim as i64) {
+    //         panic!("axis {:?} is outside of legal range [0,{:?}]", axis, tensor.dim);
+    //     }
+    
+    //     // Note -> seems like keepdim is always on??
+    
+    //     let output_shape: Option<Vec<usize>>;
+    //     match tensor.shape {
+    //         Some(shape) => {
+    //             let mut s = shape.clone();
+    //             s.remove(axis as usize);
+    //             output_shape = Some(s);
+    //         }
+    //         None => {
+    //             output_shape = None;
+    //         }
+    //     }
+    
+    //     node.outputs[0].ty = ArgType::Tensor(TensorType {
+    //         dim: tensor.dim.clone() - 1,
+    //         shape: output_shape.clone(),
+    //         elem_type: ElementType::Int64,
+    //     });
+    // }
+
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input

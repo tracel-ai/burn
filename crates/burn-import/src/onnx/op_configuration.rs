@@ -468,6 +468,44 @@ pub fn softmax_config(node: &Node) -> usize {
     axis as usize
 }
 
+/// Create argmax config from the attributes of the node
+pub fn argmax_config(node: &Node) -> (usize, usize, usize) {
+    let mut axis: i64 = 0;
+    let mut select_last_index: i64 = 0;
+    let mut keepdims: i64 = 0;
+
+    // check if the node has only one input
+    if node.inputs.len() != 1 {
+        panic!(
+            "Argmax: multiple inputs are not supported (got {:?})",
+            node.inputs.len()
+        );
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "select_last_index" => select_last_index = value.clone().into_i64(),
+            "keepdims" => keepdims = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    (axis as usize, select_last_index as usize, keepdims as usize)
+}
+
 /// Create concat config from the attributes of the node
 pub fn concat_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)

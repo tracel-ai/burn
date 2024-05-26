@@ -14,6 +14,7 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            argmax::ArgMaxNode,
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
@@ -231,6 +232,7 @@ impl OnnxGraph {
         for node in self.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
+                NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -596,6 +598,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::tanh(input, output)
+    }
+
+    fn argmax_conversion(node: Node) -> ArgMaxNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let (axis, select_last_index, keepdims) = argmax_config(&node);
+
+        ArgMaxNode::new(input, output, axis, select_last_index, keepdims)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
