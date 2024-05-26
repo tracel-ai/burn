@@ -6,6 +6,7 @@ use protobuf::Enum;
 use super::{
     from_onnx::OnnxGraphIO,
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
+    node_remap::remap_unsqueeze_to_reshape,
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
@@ -350,7 +351,10 @@ fn unsqueeze_update_output(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     };
 
     if axes.is_none() {
-        return;
+        // Remap unsqueeze to reshape if axes doesn't have a value
+        // since we don't support runtime shapes
+        remap_unsqueeze_to_reshape(node, graph_io);
+        reshape_update_outputs(node, graph_io);
     }
 
     let input_dim = match graph_io.get_type(&node.inputs[0]) {

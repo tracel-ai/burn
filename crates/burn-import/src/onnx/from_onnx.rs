@@ -397,7 +397,6 @@ impl OnnxGraphBuilder {
             coalesce(&mut node, &mut node_iter, &mut graph_io);
             self.handle_node_renaming(&mut node);
             self.check_constants(&mut node, and_idx, &mut graph_io);
-            self.handle_unsqueeze(&mut node, &mut graph_io);
 
             dim_inference(&mut node, &mut graph_io);
 
@@ -454,18 +453,6 @@ impl OnnxGraphBuilder {
             }
         }
     }
-
-    /// Check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
-    /// Needs to be called after node renaming to ensure that the rhs name is correct
-    /// Needs to be called after constant lifting to ensure that the rhs value exists
-    fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &mut OnnxGraphIO) {
-        if node.node_type == NodeType::Unsqueeze
-            && node.inputs.len() > 1
-            && graph_io.get_value(&node.inputs[1]).is_none()
-        {
-            remap_unsqueeze_to_reshape(node, graph_io);
-        }
-    }
 }
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
@@ -518,48 +505,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     OnnxGraph { nodes, graph_io }
-}
-
-/// Remap the unsqueeze node to a reshape node, Should only be called after
-/// node renaming has been done. avoids marking rhs as passed so that it can be
-/// properly deleted if nothing else uses it
-fn remap_unsqueeze_to_reshape(node: &mut Node, graph_io: &mut OnnxGraphIO) {
-    //let out_arg = graph_io.get_node_output(&node.outputs[0]).unwrap();
-    match graph_io.get_type(&node.outputs[0]) {
-        //TODO: verify deletions. Was taking two references to the same value (output)
-        //and then overwriting the second one with the first. Unnecessary work at best
-        // and misleading at worst
-        ArgType::Tensor(output_tensor) => {
-            let inner = output_tensor
-                .shape
-                .clone()
-                .unwrap()
-                .into_iter()
-                .map(|x| x as i64)
-                .collect::<Vec<i64>>();
-            let shape_len = inner.len();
-            let new_rhs_value = Some(Data::Int64s(inner));
-            //moving the remap to here
-            let rhs_arg = Argument {
-                name: format!("{}_generated_const", node.name),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: super::ir::ElementType::Int64,
-                    dim: 1,
-                    shape: Some(vec![shape_len]),
-                }),
-                value: new_rhs_value,
-                passed: false,
-            };
-            // ? should this replace the old input (reuse the old key) or should it be a new key
-            // going with new key for now
-            let rhs_name = rhs_arg.name.clone();
-            graph_io.add_generated_const(&rhs_name, rhs_arg);
-            node.inputs[1] = rhs_name;
-            //node.outputs[0] = out_arg.clone();
-            node.node_type = NodeType::Reshape;
-        }
-        _ => {}
-    }
 }
 
 /// Rename the inputs and output in the graph and return a map of
