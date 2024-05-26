@@ -17,15 +17,21 @@ pub trait CubeType {
     type ExpandType: Clone;
 }
 
-pub trait ArgSettings<R: Runtime>: Send + Sync {
-    fn register(&self, launcher: &mut KernelLauncher<R>);
-}
-
+/// Defines a type that can be used as argument to a kernel.
 pub trait LaunchArg {
+    /// The runtime argument for the kernel.
     type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
 
+    /// Register an input variable during compilation that fill the [KernelBuilder].
     fn compile_input(builder: &mut KernelBuilder) -> ExpandElement;
+    /// Register an output variable during compilation that fill the [KernelBuilder].
     fn compile_output(builder: &mut KernelBuilder) -> ExpandElement;
+}
+
+/// Defines the argument settings used to launch a kernel.
+pub trait ArgSettings<R: Runtime>: Send + Sync {
+    /// Register the information to the [KernelLauncher].
+    fn register(&self, launcher: &mut KernelLauncher<R>);
 }
 
 /// Reference to a JIT variable

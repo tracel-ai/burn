@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 /// Prepare a kernel for [compilation](crate::Compilation).
 pub struct KernelBuilder {
+    /// Compilation [context](CubeContext).
     pub context: CubeContext,
     inputs: Vec<InputInfo>,
     outputs: Vec<OutputInfo>,
@@ -13,6 +14,7 @@ pub struct KernelBuilder {
 }
 
 impl KernelBuilder {
+    /// Register a scalar and return the [element](ExpandElement) to be used for kernel expansion.
     pub fn scalar(&mut self, elem: Elem) -> ExpandElement {
         let index = match self.indices.get_mut(&elem) {
             Some(index) => match self.inputs.get_mut(*index).unwrap() {
@@ -32,6 +34,7 @@ impl KernelBuilder {
         self.context.scalar(index, elem)
     }
 
+    /// Register an output array and return the [element](ExpandElement) to be used for kernel expansion.
     pub fn output_array(&mut self, item: Item) -> ExpandElement {
         self.outputs.push(OutputInfo::Array { item });
         let variable = self.context.output(self.num_output, item);
@@ -40,6 +43,7 @@ impl KernelBuilder {
         variable
     }
 
+    /// Register an input array and return the [element](ExpandElement) to be used for kernel expansion.
     pub fn input_array(&mut self, item: Item) -> ExpandElement {
         self.inputs.push(InputInfo::Array {
             item,
@@ -50,14 +54,13 @@ impl KernelBuilder {
         variable
     }
 
+    /// Build the [compilation item](Compilation).
     pub fn build(self) -> Compilation {
-        let info = CompilationInfo {
+        Compilation::new(CompilationInfo {
             scope: self.context.into_scope(),
             inputs: self.inputs,
             outputs: self.outputs,
-        };
-
-        Compilation::new(info)
+        })
     }
 }
 
