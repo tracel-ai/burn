@@ -686,9 +686,9 @@ impl OnnxGraph {
     fn argmax_conversion(node: Node) -> ArgMaxNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
-        let (axis, select_last_index, keepdims) = argmax_config(&node);
+        let axis = argmax_config(&node);
 
-        ArgMaxNode::new(input, output, axis, select_last_index, keepdims)
+        ArgMaxNode::new(input, output, axis)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {

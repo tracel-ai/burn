@@ -153,7 +153,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
-            Node::ArgMax(_) => "argmax1",
+            Node::ArgMax(_) => "argmax",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",

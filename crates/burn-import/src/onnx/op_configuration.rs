@@ -469,10 +469,9 @@ pub fn softmax_config(node: &Node) -> usize {
 }
 
 /// Create argmax config from the attributes of the node
-pub fn argmax_config(node: &Node) -> (usize, usize, usize) {
+pub fn argmax_config(node: &Node) -> usize {
     let mut axis: i64 = 0;
-    let mut select_last_index: i64 = 0;
-    let mut keepdims: i64 = 0;
+    let mut keepdims: i64 = 1;
 
     // check if the node has only one input
     if node.inputs.len() != 1 {
@@ -492,10 +491,21 @@ pub fn argmax_config(node: &Node) -> (usize, usize, usize) {
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
-            "select_last_index" => select_last_index = value.clone().into_i64(),
+            "select_last_index" => log::warn!(
+                "select_last_index param for argmax is ignored in burn (got {:?})",
+                value
+            ),
             "keepdims" => keepdims = value.clone().into_i64(),
             _ => {}
         }
+    }
+
+    // Not all params for argmax are supported in burn.
+    if keepdims != 1 {
+        panic!(
+            "Only keepdims=1 is supported for argmax in burn (got {:?})",
+            keepdims
+        );
     }
 
     // if axis is negative, it is counted from the end
@@ -503,7 +513,7 @@ pub fn argmax_config(node: &Node) -> (usize, usize, usize) {
         axis += tensor.dim as i64;
     }
 
-    (axis as usize, select_last_index as usize, keepdims as usize)
+    axis as usize
 }
 
 /// Create concat config from the attributes of the node

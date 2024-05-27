@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model: onnx-tests/tests/concat/concat.onnx
+# used to generate model: onnx-tests/tests/argmax/argmax.onnx
 
 import torch
 import torch.nn as nn
@@ -11,8 +11,8 @@ class Model(nn.Module):
         self._argmax_dim = argmax_dim
 
     def forward(self, x):
-        # Concatenate along the channel dimension
-        y = torch.argmax(input=x, dim=self._argmax_dim)
+        # Note: only keepdim=True is supported in burn
+        y = torch.argmax(input=x, dim=self._argmax_dim, keepdim=True)
         return y
 
 def main():

@@ -9,8 +9,6 @@ pub struct ArgMaxNode {
     pub input: TensorType,
     pub output: TensorType,
     pub axis: usize,
-    pub select_last_index: usize,
-    pub keepdims: usize,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
@@ -29,11 +27,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
         scope: &mut crate::burn::Scope,
         node_position: usize,
     ) -> proc_macro2::TokenStream {
+        //NOTE: select_last_index and keep_dims are not supported
         let axis = self.axis.to_tokens();
 
-        //NOTE: are select_last_index and keep_dims supported?
-        let _select_last_index = self.select_last_index.to_tokens();
-        let _keepdims = self.keepdims.to_tokens();
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
@@ -56,15 +52,13 @@ mod tests {
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
 
     #[test]
-    fn test_codegen_gather() {
+    fn test_codegen_argmax() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ArgMaxNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_float("tensor2", 2),
+            TensorType::new_int("tensor2", 2),
             1,
-            0,
-            0,
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
