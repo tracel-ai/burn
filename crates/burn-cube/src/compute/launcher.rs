@@ -5,7 +5,7 @@ use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;
 
-/// Prepare a kernel for [lauch](KernelLauncher::launch).
+/// Prepare a kernel for [launch](KernelLauncher::launch).
 pub struct KernelLauncher<R: Runtime> {
     tensors: TensorState<R>,
     scalar_bf16: ScalarState<half::bf16>,
@@ -125,7 +125,7 @@ impl<R: Runtime> KernelLauncher<R> {
 
 /// Handles the tensor state.
 pub enum TensorState<R: Runtime> {
-    /// No tensor of is registered yet.
+    /// No tensor is registered yet.
     Empty,
     /// The registered tensors.
     Some {
