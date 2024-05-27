@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{Elem, Item, Metadata},
+    dialect::{Elem, Item, Metadata, Vectorization},
     language::{CubeType, ExpandElement},
     unexpanded, ArgSettings, CubeContext, CubeElem, KernelLauncher, LaunchArg, Runtime, UInt,
 };
@@ -17,12 +17,18 @@ impl<T: CubeType> CubeType for Tensor<T> {
 impl<C: CubeElem> LaunchArg for Tensor<C> {
     type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
 
-    fn compile_input(builder: &mut crate::KernelBuilder) -> ExpandElement {
-        builder.input_array(Item::new(C::as_elem()))
+    fn compile_input(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
 
-    fn compile_output(builder: &mut crate::KernelBuilder) -> ExpandElement {
-        builder.output_array(Item::new(C::as_elem()))
+    fn compile_output(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }
 
