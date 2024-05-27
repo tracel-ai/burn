@@ -1,12 +1,27 @@
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
-use syn::{spanned::Spanned, AngleBracketedGenericArguments, Ident, PathArguments};
+use syn::{
+    punctuated::Punctuated, spanned::Spanned, AngleBracketedGenericArguments, Expr, Ident,
+    PathArguments, Token,
+};
 
 use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
 
 /// Codegen for method call
-pub(crate) fn codegen_expr_method_call(call: &syn::ExprMethodCall) -> TokenStream {
-    quote::quote!( #call )
+/// Supports [expr].method(args)
+pub(crate) fn codegen_expr_method_call(
+    call: &syn::ExprMethodCall,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let receiver = codegen_expr(&call.receiver, loop_level, variable_analyses);
+    let method_expand = syn::Ident::new(
+        format!("{}_expand", call.method).as_str(),
+        proc_macro2::Span::call_site(),
+    );
+    let args = codegen_args(&call.args, loop_level, variable_analyses);
+
+    quote::quote!( #receiver . #method_expand ( #args ))
 }
 
 /// Codegen for a closure
@@ -110,12 +125,7 @@ pub(crate) fn parse_function_call(
                 quote::quote! {#code}
             }
             "unwrap_or_else" => {
-                let mut args = quote::quote! {};
-                args.extend(quote::quote! { context, });
-                for argument in call.args.iter() {
-                    let arg = codegen_expr(argument, loop_level, variable_analyses);
-                    args.extend(quote::quote! { #arg, });
-                }
+                let args = codegen_args(&call.args, loop_level, variable_analyses);
 
                 // Codegen
                 quote::quote! {
@@ -131,12 +141,7 @@ pub(crate) fn parse_function_call(
 
         (tokens, true)
     } else {
-        let mut args = quote::quote! {};
-        args.extend(quote::quote! { context, });
-        for argument in call.args.iter() {
-            let arg = codegen_expr(argument, loop_level, variable_analyses);
-            args.extend(quote::quote! { #arg, });
-        }
+        let args = codegen_args(&call.args, loop_level, variable_analyses);
 
         // Codegen
         let tokens = quote::quote! {
@@ -145,4 +150,18 @@ pub(crate) fn parse_function_call(
 
         (tokens, false)
     }
+}
+
+fn codegen_args(
+    args: &Punctuated<Expr, Token![,]>,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let mut arg_tokens = quote::quote! {};
+    arg_tokens.extend(quote::quote! { context, });
+    for argument in args.iter() {
+        let arg_token = codegen_expr(argument, loop_level, variable_analyses);
+        arg_tokens.extend(quote::quote! { #arg_token, });
+    }
+    arg_tokens
 }
