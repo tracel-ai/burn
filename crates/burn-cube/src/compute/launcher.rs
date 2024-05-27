@@ -99,16 +99,16 @@ impl<R: Runtime> KernelLauncher<R> {
         for elem in self.scalar_order.drain(..) {
             match elem {
                 Elem::Float(kind) => match kind {
-                    FloatKind::F16 => self.scalar_f16.register::<R>(&client, &mut bindings),
-                    FloatKind::BF16 => self.scalar_bf16.register::<R>(&client, &mut bindings),
-                    FloatKind::F32 => self.scalar_f32.register::<R>(&client, &mut bindings),
-                    FloatKind::F64 => self.scalar_f64.register::<R>(&client, &mut bindings),
+                    FloatKind::F16 => self.scalar_f16.register::<R>(client, &mut bindings),
+                    FloatKind::BF16 => self.scalar_bf16.register::<R>(client, &mut bindings),
+                    FloatKind::F32 => self.scalar_f32.register::<R>(client, &mut bindings),
+                    FloatKind::F64 => self.scalar_f64.register::<R>(client, &mut bindings),
                 },
                 Elem::Int(kind) => match kind {
-                    IntKind::I32 => self.scalar_i32.register::<R>(&client, &mut bindings),
-                    IntKind::I64 => self.scalar_i64.register::<R>(&client, &mut bindings),
+                    IntKind::I32 => self.scalar_i32.register::<R>(client, &mut bindings),
+                    IntKind::I64 => self.scalar_i64.register::<R>(client, &mut bindings),
                 },
-                Elem::UInt => self.scalar_u32.register::<R>(&client, &mut bindings),
+                Elem::UInt => self.scalar_u32.register::<R>(client, &mut bindings),
                 Elem::Bool => panic!("Bool can't be passed as bindings."),
             }
         }
@@ -224,7 +224,7 @@ impl<T: NoUninit> ScalarState<T> {
         match self {
             ScalarState::Empty => (),
             ScalarState::Some(values) => {
-                let handle = client.create(bytemuck::cast_slice(&values));
+                let handle = client.create(bytemuck::cast_slice(values));
                 bindings.push(handle.binding());
             }
         }

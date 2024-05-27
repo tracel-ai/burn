@@ -19,7 +19,7 @@ impl KernelBuilder {
         let index = match self.indices.get_mut(&elem) {
             Some(index) => match self.inputs.get_mut(*index).unwrap() {
                 InputInfo::Scalar { elem: _, size } => {
-                    *size = *size + 1;
+                    *size += 1;
                     *size as u16 - 1
                 }
                 _ => panic!("Should be a scalar."),

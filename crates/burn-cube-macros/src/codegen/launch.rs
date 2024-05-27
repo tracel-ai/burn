@@ -161,7 +161,6 @@ impl KernelStructCodegen {
 
             launcher.launch(workgroup, kernel, client);
         }
-        .into()
     }
 }
 

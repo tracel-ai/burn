@@ -106,7 +106,6 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_ma
             #body
         }
     }
-    .into()
 }
 
 fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
