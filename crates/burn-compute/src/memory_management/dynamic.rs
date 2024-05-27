@@ -37,7 +37,7 @@ pub enum DynamicBinding {
 
 /// The strategy defines the frequency at which deallocation of unused memory chunks should occur.
 #[derive(Debug)]
-pub enum DeallocStrategy {
+pub enum MergingStrategy {
     /// Once every n calls to reserve.
     PeriodTick {
         /// Number of calls to be executed before triggering the deallocation.
@@ -86,20 +86,20 @@ impl SliceStrategy {
     }
 }
 
-impl DeallocStrategy {
+impl MergingStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
-        DeallocStrategy::PeriodTick { period, state: 0 }
+        MergingStrategy::PeriodTick { period, state: 0 }
     }
 
-    fn should_dealloc(&mut self) -> bool {
+    fn should_merge(&mut self) -> bool {
         match self {
-            DeallocStrategy::PeriodTick { period, state } => {
+            MergingStrategy::PeriodTick { period, state } => {
                 *state = (*state + 1) % *period;
                 *state == 0
             }
             #[cfg(feature = "std")]
-            DeallocStrategy::PeriodTime { period, state } => {
+            MergingStrategy::PeriodTime { period, state } => {
                 if &state.elapsed() > period {
                     *state = time::Instant::now();
                     true
@@ -107,7 +107,7 @@ impl DeallocStrategy {
                     false
                 }
             }
-            DeallocStrategy::Never => false,
+            MergingStrategy::Never => false,
         }
     }
 }
@@ -141,7 +141,7 @@ impl Slice {
 pub struct DynamicMemoryManagement<Storage> {
     chunks: HashMap<ChunkId, Chunk>,
     slices: HashMap<SliceId, Slice>,
-    dealloc_strategy: DeallocStrategy,
+    dealloc_strategy: MergingStrategy,
     slice_strategy: SliceStrategy,
     storage: Storage,
 }
@@ -210,8 +210,8 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     fn reserve(&mut self, size: usize) -> Self::Handle {
         let handle = self.reserve_algorithm(size);
 
-        if self.dealloc_strategy.should_dealloc() {
-            self.cleanup_chunks();
+        if self.dealloc_strategy.should_merge() {
+            self.defragmentation();
         }
 
         handle
@@ -252,7 +252,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, deallocation strategy and slice strategy.
     pub fn new(
         storage: Storage,
-        dealloc_strategy: DeallocStrategy,
+        dealloc_strategy: MergingStrategy,
         slice_strategy: SliceStrategy,
     ) -> Self {
         Self {
@@ -385,6 +385,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a slice of size `size` upon the given chunk.
     ///
     /// For now slices must start at zero, therefore there can be only one per chunk
+    /// TODO : only use chunk_id and not chunkHandle
     fn create_slice(&self, offset: usize, size: usize, handle_chunk: ChunkHandle) -> Slice {
         let handle_id = *handle_chunk.value.id();
         let chunk = self.chunks.get(handle_chunk.id()).unwrap();
@@ -416,31 +417,89 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         handle
     }
 
-    /// Deallocates free chunks and remove them from chunks map.
-    fn cleanup_chunks(&mut self) {
-        let mut ids_to_remove = Vec::new();
+    // Merge all contiguous free_slices together, assumes that slices are in sorted order.
+    fn defragmentation(&mut self) {
+        // associate a chunk to a vector of ranges
+        // a range is a starting to slice to an ending slice which will be merged
+        #[derive(Debug)]
+        struct Merging {
+            start: usize,
+            end: usize,
+            offset: usize,
+            size: usize,
+            slice_ids: Vec<SliceId>,
+        }
+        let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
+        for (chunk_id, chunk) in self.chunks.iter() {
+            let mut to_merge: Vec<Merging> = Vec::new();
 
-        self.chunks.iter().for_each(|(chunk_id, chunk)| {
-            let mut can_dealloc = true;
-            for slice in chunk.slices.iter() {
-                let slice = self.slices.get(slice).unwrap();
+            let mut start_index: usize = 0;
+            let mut num_merge = 0;
+            let mut offset_current = 0;
+            let mut offset = 0;
+            let mut slices_ids = Vec::new();
 
-                if !slice.handle.is_free() {
-                    can_dealloc = false;
+            for (i, slice_id) in chunk.slices.iter().enumerate() {
+                let slice = self.slices.get(slice_id).unwrap();
+                offset += slice.effective_size();
+
+                if slice.handle.is_free() {
+                    slices_ids.push(*slice_id);
+                    num_merge += 1;
+                    continue;
+                } else if num_merge > 1 {
+                    let mut empty = Vec::new();
+                    core::mem::swap(&mut slices_ids, &mut empty);
+                    println!("offset : {offset} offset_current {offset_current}");
+                    let merging = Merging {
+                        start: start_index,
+                        end: start_index + num_merge,
+                        offset: offset_current,
+                        size: offset - offset_current,
+                        slice_ids: empty,
+                    };
+                    to_merge.push(merging);
+                }
+                start_index = i + 1;
+                num_merge = 0;
+                offset_current = offset;
+                slices_ids.clear();
+            }
+            if !to_merge.is_empty() {
+                chunk_to_merged_slice.insert(*chunk_id, to_merge);
+            }
+        }
+
+        println!("{:?}", chunk_to_merged_slice);
+        for (chunk_id, mergings) in chunk_to_merged_slice.into_iter() {
+            let chunk = self.chunks.get(&chunk_id).unwrap();
+            let chunk_handle = chunk.handle.clone();
+            let slices = chunk.slices.clone();
+            let mut slices_updated = Vec::new();
+
+            let mut index = 0;
+
+            for merging in mergings {
+                let slice = self.create_slice(merging.offset, merging.size, chunk_handle.clone());
+                let slice_id = slice.handle.id().clone();
+                self.slices.insert(slice_id, slice);
+                for i in index..merging.start {
+                    slices_updated.push(slices.get(i).unwrap().clone());
+                }
+                index = merging.end;
+                slices_updated.push(slice_id);
+
+                for slice_id in merging.slice_ids {
+                    self.slices.remove(&slice_id);
                 }
             }
 
-            if can_dealloc {
-                ids_to_remove.push(*chunk_id);
+            for i in index..slices.len() {
+                slices_updated.push(slices.get(i).unwrap().clone());
             }
-        });
-
-        ids_to_remove
-            .iter()
-            .map(|chunk_id| self.chunks.remove(chunk_id).unwrap())
-            .for_each(|chunk| {
-                self.storage.dealloc(chunk.storage.id);
-            });
+            let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+            core::mem::swap(&mut chunk.slices, &mut slices_updated);
+        }
     }
 }
 
@@ -456,7 +515,7 @@ mod tests {
     fn can_mut_with_single_tensor_reference() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Never,
         );
 
@@ -473,7 +532,7 @@ mod tests {
     fn two_tensor_references_remove_mutability() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Never,
         );
 
@@ -490,7 +549,7 @@ mod tests {
     fn when_non_empty_chunk_exists_and_other_one_created_there_should_be_two() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Never,
         );
         let chunk_size = 4;
@@ -504,35 +563,35 @@ mod tests {
     fn when_empty_chunk_is_cleaned_upexists_it_disappears() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Never,
         );
         let chunk_size = 4;
         let chunk_handle = memory_management.reserve(chunk_size);
         drop(chunk_handle);
-        memory_management.cleanup_chunks();
+        memory_management.merge_chunks();
 
         assert_eq!(memory_management.chunks.len(), 0);
     }
 
     #[test]
     fn never_dealloc_strategy_never_deallocs() {
-        let mut never_dealloc = DeallocStrategy::Never;
+        let mut never_dealloc = MergingStrategy::Never;
         for _ in 0..20 {
-            assert!(!never_dealloc.should_dealloc())
+            assert!(!never_dealloc.should_merge())
         }
     }
 
     #[test]
     fn period_tick_dealloc_strategy_should_dealloc_after_period() {
         let period = 3;
-        let mut period_tick_dealloc = DeallocStrategy::new_period_tick(period);
+        let mut period_tick_dealloc = MergingStrategy::new_period_tick(period);
 
         for _ in 0..3 {
             for _ in 0..period - 1 {
-                assert!(!period_tick_dealloc.should_dealloc());
+                assert!(!period_tick_dealloc.should_merge());
             }
-            assert!(period_tick_dealloc.should_dealloc());
+            assert!(period_tick_dealloc.should_merge());
         }
     }
 
@@ -564,7 +623,7 @@ mod tests {
     fn test_handle_mutability() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
         let handle = memory_management.reserve(10);
@@ -580,7 +639,7 @@ mod tests {
     fn support_multiple_slices_for_a_chunk() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Ratio(0.2),
         );
         let handle = memory_management.reserve(100);
@@ -598,7 +657,7 @@ mod tests {
     fn test_slice_mutability() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
-            DeallocStrategy::Never,
+            MergingStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
         let chunk = memory_management.reserve(10);
