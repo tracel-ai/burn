@@ -1,4 +1,4 @@
-use crate::language::{Array, CubeContext, ExpandElement, Tensor, UInt};
+use crate::language::{Array, CubeContext, ExpandElement, SharedMemory, Tensor, UInt};
 use crate::{dialect, unexpanded};
 
 pub mod assign {
@@ -47,6 +47,7 @@ pub mod index_assign {
 
     impl_index!(Array);
     impl_index!(Tensor);
+    impl_index!(SharedMemory);
 }
 
 pub mod index {
@@ -81,6 +82,7 @@ pub mod index {
 
     impl_index!(Array);
     impl_index!(Tensor);
+    impl_index!(SharedMemory);
 }
 
 pub mod add_assign_op {

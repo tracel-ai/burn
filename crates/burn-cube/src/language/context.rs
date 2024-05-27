@@ -109,6 +109,10 @@ impl CubeContext {
         new
     }
 
+    pub fn create_shared(&mut self, item: Item, size: u32) -> ExpandElement {
+        ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size))
+    }
+
     /// Obtain the index-th input
     pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
         ExpandElement::Plain(crate::dialect::Variable::GlobalInputArray(index, item))
