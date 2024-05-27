@@ -3,7 +3,10 @@ use proc_macro2::TokenStream;
 use crate::analysis::CodeAnalysis;
 
 use super::{
-    branch::{codegen_break, codegen_for_loop, codegen_if, codegen_loop, codegen_while_loop},
+    branch::{
+        codegen_break, codegen_for_loop, codegen_if, codegen_loop, codegen_return,
+        codegen_while_loop,
+    },
     function::{codegen_call, codegen_closure, codegen_expr_method_call},
     operation::{codegen_binary, codegen_unary},
     variable::{
@@ -92,6 +95,7 @@ pub(crate) fn codegen_expr(
         }
         syn::Expr::Loop(loop_expr) => codegen_loop(loop_expr, loop_level, variable_analyses),
         syn::Expr::Break(_) => codegen_break(),
+        syn::Expr::Return(return_expr) => codegen_return(return_expr),
         syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
         syn::Expr::MethodCall(call) => {
             codegen_expr_method_call(call, loop_level, variable_analyses)

@@ -31,6 +31,10 @@ fn kernel<F: Float>(
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
+    if AbsoluteIndex::get() >= output.len() {
+        return;
+    }
+
     let in_channels = weight.shape(1);
 
     let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || weight.shape(2));
