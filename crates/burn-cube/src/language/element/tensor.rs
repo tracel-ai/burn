@@ -1,10 +1,9 @@
-use std::marker::PhantomData;
-
 use crate::{
     dialect::{Elem, Item, Metadata},
     language::{CubeType, ExpandElement},
-    unexpanded, CubeContext, UInt,
+    unexpanded, ArgSettings, CubeContext, CubeElem, KernelLauncher, LaunchArg, Runtime, UInt,
 };
+use std::marker::PhantomData;
 
 #[derive(new, Clone, Copy)]
 pub struct Tensor<T: CubeType> {
@@ -13,6 +12,31 @@ pub struct Tensor<T: CubeType> {
 
 impl<T: CubeType> CubeType for Tensor<T> {
     type ExpandType = ExpandElement;
+}
+
+impl<C: CubeElem> LaunchArg for Tensor<C> {
+    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
+
+    fn compile_input(builder: &mut crate::KernelBuilder) -> ExpandElement {
+        builder.input_array(Item::new(C::as_elem()))
+    }
+
+    fn compile_output(builder: &mut crate::KernelBuilder) -> ExpandElement {
+        builder.output_array(Item::new(C::as_elem()))
+    }
+}
+
+#[derive(new)]
+pub struct TensorHandle<'a, R: Runtime> {
+    pub handle: &'a burn_compute::server::Handle<R::Server>,
+    pub strides: &'a [usize],
+    pub shape: &'a [usize],
+}
+
+impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
+    fn register(&self, launcher: &mut KernelLauncher<R>) {
+        launcher.register_tensor(self)
+    }
 }
 
 impl<T: CubeType> Tensor<T> {

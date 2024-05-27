@@ -2,8 +2,8 @@ use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTenso
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -122,12 +122,12 @@ pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
     let kernel = RepeatEagerKernel::<R, E>::new(dim, D1);
 
     Execution::start(kernel, input.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

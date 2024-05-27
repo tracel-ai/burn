@@ -1,8 +1,8 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkGroup, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkGroup, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -31,7 +31,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     let seeds = get_seeds();
 
     Execution::start(kernel, client)
-        .outputs(&[EagerHandle::<R>::new(
+        .outputs(&[TensorHandle::<R>::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

@@ -5,8 +5,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -125,14 +125,14 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
+            TensorHandle::new(&indices.handle, &[1; D], &[1; D]),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
