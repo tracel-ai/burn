@@ -74,7 +74,7 @@ pub(crate) fn codegen_break() -> TokenStream {
     }
 }
 
-/// Codegen for break statement
+/// Codegen for return statement
 pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
     if let Some(_) = expr_return.expr {
         panic!("Codegen: Only void return is supported.")

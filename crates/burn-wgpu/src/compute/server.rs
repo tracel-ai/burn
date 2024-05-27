@@ -91,7 +91,6 @@ where
         }
 
         let source = kernel.compile().source;
-        println!("{source}");
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
@@ -99,25 +98,21 @@ where
     }
 
     fn compile_source(&self, source: &str) -> Arc<ComputePipeline> {
-        unsafe {
-            let module = self
-                .device
-                .create_shader_module_unchecked(ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source)),
-                });
+        let module = self.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source)),
+        });
 
-            Arc::new(
-                self.device
-                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                        label: None,
-                        layout: None,
-                        module: &module,
-                        entry_point: "main",
-                        compilation_options: Default::default(),
-                    }),
-            )
-        }
+        Arc::new(
+            self.device
+                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: None,
+                    layout: None,
+                    module: &module,
+                    entry_point: "main",
+                    compilation_options: Default::default(),
+                }),
+        )
     }
 
     fn buffer_reader(&mut self, handle: server::Binding<Self>) -> BufferReader {

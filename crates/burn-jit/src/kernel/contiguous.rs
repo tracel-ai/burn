@@ -2,9 +2,7 @@ use std::marker::PhantomData;
 
 use burn_cube::{
     cpa,
-    dialect::{
-        Branch, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility,
-    },
+    dialect::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
     OutputInfo, WorkgroupLaunch,
 };
@@ -96,14 +94,6 @@ impl IntoContiguousShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let id = Variable::Id;
-
-        let len_tensor = scope.create_local(Elem::UInt);
-        let cond = scope.create_local(Elem::Bool);
-        cpa!(scope, len_tensor = len(tensor));
-        cpa!(scope, cond = id > len_tensor);
-        cpa!(scope, if(cond).then(|scope|{
-            scope.register(Branch::Return);
-        }));
         let output = self.output;
 
         let offset_input = scope.zero(Elem::UInt);
