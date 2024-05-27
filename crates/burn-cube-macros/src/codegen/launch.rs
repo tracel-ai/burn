@@ -39,17 +39,14 @@ impl Codegen {
                                 is_output = true;
                             }
 
-                            match pat.ty.as_ref() {
-                                syn::Type::Path(pat) => {
-                                    if let Some(name) = pat.path.segments.first() {
-                                        let name = name.ident.to_string();
+                            if let syn::Type::Path(pat) = pat.ty.as_ref() {
+                                if let Some(name) = pat.path.segments.first() {
+                                    let name = name.ident.to_string();
 
-                                        if name == "Comptime" {
-                                            comptime = true;
-                                        }
+                                    if name == "Comptime" {
+                                        comptime = true;
                                     }
                                 }
-                                _ => (),
                             };
 
                             (pat.ty.clone(), ident.ident.clone())
@@ -277,6 +274,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         #kernel
         #compile
 
+        #[allow(clippy::too_many_arguments)]
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
             workgroup: WorkGroup,
