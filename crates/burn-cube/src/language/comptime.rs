@@ -5,35 +5,7 @@ use crate::{unexpanded, CubeContext, CubeType};
 ///
 /// Use `Comptime<Option<T>>` to have an alternate runtime behaviour if the compilation time value is not present
 pub struct Comptime<T> {
-    inner: T,
-}
-
-pub trait ComptimeIndex {
-    fn value(self) -> u32;
-}
-
-impl ComptimeIndex for Comptime<u32> {
-    fn value(self) -> u32 {
-        self.inner
-    }
-}
-
-impl ComptimeIndex for Comptime<i32> {
-    fn value(self) -> u32 {
-        self.inner as u32
-    }
-}
-
-impl ComptimeIndex for i32 {
-    fn value(self) -> u32 {
-        self as u32
-    }
-}
-
-impl ComptimeIndex for u32 {
-    fn value(self) -> u32 {
-        self
-    }
+    pub(crate) inner: T,
 }
 
 impl<T> Comptime<T> {

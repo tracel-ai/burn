@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::{
     dialect::Item,
-    language::{CubeType, ExpandElement},
-    ComptimeIndex, CubeContext, CubeElem,
+    language::{indexation::Index, CubeType, ExpandElement},
+    CubeContext, CubeElem,
 };
 
 #[derive(Clone, Copy)]
@@ -16,14 +16,19 @@ impl<T: CubeType> CubeType for SharedMemory<T> {
 }
 
 impl<T: CubeElem> SharedMemory<T> {
-    pub fn new<S: ComptimeIndex>(_size: S) -> Self {
+    pub fn new<S: Index>(_size: S) -> Self {
         SharedMemory { _val: PhantomData }
     }
 
-    pub fn new_expand<S: ComptimeIndex>(
+    pub fn new_expand<S: Index>(
         context: &mut CubeContext,
         size: S,
     ) -> <Self as CubeType>::ExpandType {
-        context.create_shared(Item::new(T::as_elem()), size.value())
+        let size = size.value();
+        let size = match size {
+            crate::dialect::Variable::ConstantScalar(val, _) => val as u32,
+            _ => panic!("Shared memory need constant initialization value"),
+        };
+        context.create_shared(Item::new(T::as_elem()), size)
     }
 }
