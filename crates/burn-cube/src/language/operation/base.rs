@@ -1,4 +1,6 @@
-use crate::dialect::{BinaryOperator, Elem, Item, Operator, Variable, Vectorization};
+use crate::dialect::{
+    BinaryOperator, Elem, Item, Operator, UnaryOperator, Variable, Vectorization,
+};
 use crate::language::{CubeContext, ExpandElement};
 
 pub(crate) fn binary_expand<F>(
@@ -97,6 +99,36 @@ where
     context.register(op);
 
     lhs
+}
+
+pub(crate) fn unary_expand<F>(
+    context: &mut CubeContext,
+    input: ExpandElement,
+    func: F,
+) -> ExpandElement
+where
+    F: Fn(UnaryOperator) -> Operator,
+{
+    let input_var: Variable = *input;
+
+    let item = input.item();
+
+    let out = if input.can_mut() {
+        input
+    } else {
+        context.create_local(item)
+    };
+
+    let out_var = *out;
+
+    let op = func(UnaryOperator {
+        input: input_var,
+        out: out_var,
+    });
+
+    context.register(op);
+
+    out
 }
 
 fn check_vectorization(lhs: Vectorization, rhs: Vectorization) {

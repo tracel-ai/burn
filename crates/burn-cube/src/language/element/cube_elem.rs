@@ -4,7 +4,9 @@ use crate::UInt;
 
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
-pub trait CubeElem: CubeType<ExpandType = ExpandElement> + Send + Sync + 'static {
+pub trait CubeElem:
+    CubeType<ExpandType = ExpandElement> + core::cmp::Eq + core::cmp::PartialEq + Send + Sync + 'static
+{
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;
 }

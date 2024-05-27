@@ -35,13 +35,22 @@ pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement, const D
 
 #[derive(Copy, Clone, Debug)]
 #[allow(missing_docs)]
-#[derive(Default)]
 pub enum ReduceStrategy {
     Naive,
     SharedMemory,
     #[cfg(feature = "autotune")]
-    #[default]
     Autotune,
+}
+
+impl Default for ReduceStrategy {
+    fn default() -> Self {
+        // if autotune is enabled, default to autotune
+        #[cfg(feature = "autotune")]
+        return ReduceStrategy::Autotune;
+
+        #[cfg(not(feature = "autotune"))]
+        ReduceStrategy::Naive
+    }
 }
 
 #[cfg(feature = "autotune")]

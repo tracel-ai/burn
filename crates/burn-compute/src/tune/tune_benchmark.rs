@@ -15,6 +15,12 @@ pub struct TuneBenchmark<S: ComputeServer, C> {
     client: ComputeClient<S, C>,
 }
 
+impl Clone for Box<dyn AutotuneOperation> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone()
+    }
+}
+
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
     type Args = Box<dyn AutotuneOperation>;
 
