@@ -241,7 +241,7 @@ impl CodeAnalysisBuilder {
             }
             syn::Expr::Break(_) => {}
             syn::Expr::Return(expr) => {
-                if let Some(_) = &expr.expr {
+                if &expr.expr.is_some() {
                     todo!("Analysis: only void return supported")
                 }
             }
