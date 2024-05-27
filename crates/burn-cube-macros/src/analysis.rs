@@ -241,7 +241,7 @@ impl CodeAnalysisBuilder {
             }
             syn::Expr::Break(_) => {}
             syn::Expr::Return(expr) => {
-                if &expr.expr.is_some() {
+                if expr.expr.is_some() {
                     todo!("Analysis: only void return supported")
                 }
             }
