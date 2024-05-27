@@ -240,6 +240,11 @@ impl CodeAnalysisBuilder {
                 }
             }
             syn::Expr::Break(_) => {}
+            syn::Expr::Return(expr) => {
+                if expr.expr.is_some() {
+                    todo!("Analysis: only void return supported")
+                }
+            }
             syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Array(expr) => {
                 for element in expr.elems.iter() {
