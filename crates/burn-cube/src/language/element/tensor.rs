@@ -17,56 +17,49 @@ impl<T: CubeType> CubeType for Tensor<T> {
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
-    pub fn stride(_input: Tensor<T>, _dim: u32) -> UInt {
+    pub fn stride(self, _dim: u32) -> UInt {
         unexpanded!()
     }
 
-    /// Obtain the stride of input at dimension dim
-    pub fn stride_expand(
-        context: &mut CubeContext,
-        input: <Tensor<T> as CubeType>::ExpandType,
-        dim: u32,
-    ) -> ExpandElement {
+    /// Obtain the shape of input at dimension dim
+    pub fn shape(self, _dim: u32) -> UInt {
+        unexpanded!()
+    }
+
+    /// Obtain the array length of input
+    pub fn len(self) -> UInt {
+        unexpanded!()
+    }
+}
+
+impl ExpandElement {
+    // Expanded version of Tensor::stride
+    pub fn stride_expand(self, context: &mut CubeContext, dim: u32) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
             dim: dim.into(),
-            var: input.into(),
+            var: self.into(),
             out: out.clone().into(),
         });
         out
     }
 
-    /// Obtain the shape of input at dimension dim
-    pub fn shape(_input: Tensor<T>, _dim: u32) -> UInt {
-        unexpanded!()
-    }
-
-    /// Obtain the shape of input at dimension dim
-    pub fn shape_expand(
-        context: &mut CubeContext,
-        input: <Tensor<T> as CubeType>::ExpandType,
-        dim: u32,
-    ) -> ExpandElement {
+    // Expanded version of Tensor::shape
+    pub fn shape_expand(self, context: &mut CubeContext, dim: u32) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
             dim: dim.into(),
-            var: input.into(),
+            var: self.into(),
             out: out.clone().into(),
         });
         out
     }
 
-    pub fn len(_input: Self) -> UInt {
-        unexpanded!()
-    }
-
-    pub fn len_expand(
-        context: &mut CubeContext,
-        input: <Tensor<T> as CubeType>::ExpandType,
-    ) -> ExpandElement {
+    // Expanded version of Tensor::len
+    pub fn len_expand(self, context: &mut CubeContext) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::ArrayLength {
-            var: input.into(),
+            var: self.into(),
             out: out.clone().into(),
         });
         out
