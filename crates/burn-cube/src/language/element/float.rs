@@ -6,15 +6,15 @@ use crate::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh
 pub trait Float:
     Numeric + Exp + Log + Log1p + Cos + Sin + Tanh + Powf + Sqrt + Floor + Ceil + Erf + Recip
 {
-    fn new(val: f64) -> Self;
-    fn new_expand(context: &mut CubeContext, val: f64) -> <Self as CubeType>::ExpandType;
+    fn new(val: f32) -> Self;
+    fn new_expand(context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType;
 }
 
 macro_rules! impl_float {
     ($type:ident) => {
         #[derive(Clone, Copy)]
         pub struct $type {
-            pub val: f64,
+            pub val: f32,
             pub vectorization: u8,
         }
 
@@ -32,15 +32,15 @@ macro_rules! impl_float {
         impl Numeric for $type {}
 
         impl Float for $type {
-            fn new(val: f64) -> Self {
+            fn new(val: f32) -> Self {
                 Self {
                     val,
                     vectorization: 1,
                 }
             }
 
-            fn new_expand(_context: &mut CubeContext, val: f64) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar(val, Self::as_elem());
+            fn new_expand(_context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType {
+                let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
                 ExpandElement::Plain(new_var)
             }
         }

@@ -8,6 +8,34 @@ pub struct Comptime<T> {
     inner: T,
 }
 
+pub trait ComptimeIndex {
+    fn value(self) -> u32;
+}
+
+impl ComptimeIndex for Comptime<u32> {
+    fn value(self) -> u32 {
+        self.inner
+    }
+}
+
+impl ComptimeIndex for Comptime<i32> {
+    fn value(self) -> u32 {
+        self.inner as u32
+    }
+}
+
+impl ComptimeIndex for i32 {
+    fn value(self) -> u32 {
+        self as u32
+    }
+}
+
+impl ComptimeIndex for u32 {
+    fn value(self) -> u32 {
+        self
+    }
+}
+
 impl<T> Comptime<T> {
     /// Create a new Comptime. Useful when hardcoding values in
     /// Cube kernels. For instance:

@@ -1,11 +1,10 @@
-use burn_cube::{cube, Comptime, Numeric, SharedMemory, UInt};
+use burn_cube::{cube, Comptime, Numeric, SharedMemory};
 
 #[cube]
 fn shared_memory_read_write<T: Numeric>(sm_size: Comptime<u32>) {
-    let pos = UInt::new(0u32);
     let mut shared = SharedMemory::<T>::new(sm_size);
-    shared[pos] = T::from_int(3);
-    let _ = shared[pos];
+    shared[0] = T::from_int(3);
+    let _ = shared[0];
 }
 
 mod tests {
@@ -22,7 +21,7 @@ mod tests {
     fn cube_support_shared_memory() {
         let mut context = CubeContext::root();
 
-        shared_memory_read_write_expand::<ElemType>(&mut context, 1u32);
+        shared_memory_read_write_expand::<ElemType>(&mut context, 512);
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref()
@@ -38,7 +37,7 @@ mod tests {
         let pos: Variable = 0u32.into();
 
         // Create
-        let shared = scope.create_shared(item, 1);
+        let shared = scope.create_shared(item, 512);
 
         // Write
         cpa!(scope, shared[pos] = 3.0_f32);

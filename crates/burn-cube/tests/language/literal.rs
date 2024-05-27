@@ -5,9 +5,27 @@ pub fn literal<F: Float>(lhs: F) {
     let _ = lhs + F::from_int(5);
 }
 
-#[cube]
+// #[cube(debug)]
+// pub fn literal_float_no_decimals<F: Float>(lhs: F) {
+//     let _ = lhs + F::new(5.);
+// }
+
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn literal_float_no_decimals<F: Float>(lhs: F) {
     let _ = lhs + F::new(5.);
+}
+#[allow(unused_mut)]
+#[allow(clippy::too_many_arguments)]
+pub fn literal_float_no_decimals_expand<F: Float>(
+    context: &mut burn_cube::CubeContext,
+    lhs: <F as burn_cube::CubeType>::ExpandType,
+) -> () {
+    let _ = {
+        let _lhs = lhs;
+        let _rhs = F::new_expand(context, 5f32);
+        burn_cube::add::expand(context, _lhs, _rhs)
+    };
 }
 
 mod tests {
