@@ -1,8 +1,8 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::{any::TypeId, marker::PhantomData};
 
@@ -29,12 +29,12 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     );
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

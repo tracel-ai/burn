@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 
 use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
@@ -262,12 +262,12 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let kernel = AdaptiveAvgPool2dBackwardEagerKernel::<R, E>::new();
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

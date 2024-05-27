@@ -5,8 +5,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use burn_tensor::{ElementConversion, Shape};
 use std::{marker::PhantomData, ops::Range};
@@ -131,12 +131,12 @@ pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, con
     let kernel = SliceEagerKernel::<R, E>::new(D1);
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

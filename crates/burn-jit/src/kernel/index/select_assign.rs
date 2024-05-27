@@ -7,8 +7,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
-    InputInfo, WorkgroupLaunch,
+    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -209,11 +209,11 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
-            EagerHandle::new(&indices.handle, &strides, &strides),
+            TensorHandle::new(&indices.handle, &strides, &strides),
         ])
         .execute(WorkgroupLaunch::Custom(workgroup));
 

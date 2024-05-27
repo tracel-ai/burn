@@ -1,7 +1,7 @@
 use burn_cube::{
     cpa,
     dialect::{Elem, Item, Scope, Variable},
-    EagerHandle, Execution, WorkgroupLaunch,
+    Execution, TensorHandle, WorkgroupLaunch,
 };
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -138,8 +138,8 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
-        .outputs(&[EagerHandle::new(
+        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -191,10 +191,10 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
         .outputs(&[
-            EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
         .with_scalars(&[
             stride[0] as i32,

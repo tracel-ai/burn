@@ -2,8 +2,8 @@ use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRun
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -27,12 +27,12 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     );
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
