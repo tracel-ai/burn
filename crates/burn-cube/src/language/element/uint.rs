@@ -1,7 +1,8 @@
-use crate::dialect::{Elem, Variable};
+use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::{ArgSettings, KernelLauncher, LaunchArg, Runtime};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 /// An unsigned int.
 /// Preferred for indexing operations
 pub struct UInt {
@@ -16,6 +17,32 @@ impl CubeType for UInt {
 impl CubeElem for UInt {
     fn as_elem() -> Elem {
         Elem::UInt
+    }
+}
+
+impl LaunchArg for UInt {
+    type RuntimeArg<'a, R: Runtime> = u32;
+
+    fn compile_input(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+        builder.scalar(Self::as_elem())
+    }
+
+    fn compile_output(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+        builder.scalar(Self::as_elem())
+    }
+}
+
+impl<R: Runtime> ArgSettings<R> for u32 {
+    fn register(&self, settings: &mut KernelLauncher<R>) {
+        settings.register_u32(*self);
     }
 }
 

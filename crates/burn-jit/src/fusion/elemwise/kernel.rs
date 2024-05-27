@@ -55,10 +55,10 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         );
 
         if vectorize_4 {
-            settings = settings.vectorize(4);
+            settings = settings.vectorize_global(4);
             factor = 4;
         } else if vectorize_2 {
-            settings = settings.vectorize(2);
+            settings = settings.vectorize_global(2);
             factor = 2;
         }
 

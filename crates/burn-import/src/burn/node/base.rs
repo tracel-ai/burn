@@ -5,7 +5,8 @@ use super::{
     conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
     global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
     mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
-    max_pool2d::MaxPool2dNode, prelu::PReluNode, reshape::ReshapeNode, squeeze::SqueezeNode,
+    max_pool2d::MaxPool2dNode, prelu::PReluNode, random_normal::RandomNormalNode,
+    random_uniform::RandomUniformNode, reshape::ReshapeNode, squeeze::SqueezeNode,
     unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
@@ -101,6 +102,8 @@ pub enum Node<PS: PrecisionSettings> {
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
     Where(WhereNode),
+    RandomUniform(RandomUniformNode),
+    RandomNormal(RandomNormalNode),
 }
 
 macro_rules! match_all {
@@ -132,6 +135,8 @@ macro_rules! match_all {
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
             Node::Where(node) => $func(node),
+            Node::RandomNormal(node) => $func(node),
+            Node::RandomUniform(node) => $func(node),
         }
     }};
 }
@@ -173,6 +178,8 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
             Node::Where(_) => "where",
+            Node::RandomNormal(_) => "random_normal",
+            Node::RandomUniform(_) => "random_uniform",
         }
     }
 }

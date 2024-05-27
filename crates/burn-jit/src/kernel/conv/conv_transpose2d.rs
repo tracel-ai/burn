@@ -1,8 +1,8 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IntKind, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -388,11 +388,11 @@ pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
 
     Execution::start(kernel, input.client.clone())
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
+            TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

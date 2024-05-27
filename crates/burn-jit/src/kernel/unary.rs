@@ -1,4 +1,4 @@
-use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
+use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
@@ -211,7 +211,7 @@ where
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        let input_handles = &[EagerHandle::<R>::new(
+        let input_handles = &[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
@@ -244,13 +244,13 @@ where
             buffer,
         );
 
-        let input_handles = &[EagerHandle::<R>::new(
+        let input_handles = &[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )];
 
-        let output_handles = &[EagerHandle::<R>::new(
+        let output_handles = &[TensorHandle::<R>::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
