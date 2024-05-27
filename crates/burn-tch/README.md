@@ -251,7 +251,7 @@ export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ## Example Usage
 
 For a simple example, check out any of the test programs in [`src/bin/`](./src/bin/). Each program
-sets the device to use and and performs a simple element-wise addition.
+sets the device to use and performs a simple element-wise addition.
 
 For a more complete example using the `tch` backend, take a loot at the
 [Burn mnist example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
