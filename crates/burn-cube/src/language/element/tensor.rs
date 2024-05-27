@@ -67,7 +67,7 @@ impl ExpandElement {
     pub fn stride_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
-            dim: dim.value().into(),
+            dim: dim.value(),
             var: self.into(),
             out: out.clone().into(),
         });
@@ -78,7 +78,7 @@ impl ExpandElement {
     pub fn shape_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
-            dim: dim.value().into(),
+            dim: dim.value(),
             var: self.into(),
             out: out.clone().into(),
         });
