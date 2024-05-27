@@ -91,6 +91,7 @@ where
         }
 
         let source = kernel.compile().source;
+        println!("Source {source}");
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
