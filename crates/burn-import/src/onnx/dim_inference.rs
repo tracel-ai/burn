@@ -73,6 +73,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Squeeze => squeeze_update_output(node),
         NodeType::RandomUniform => random_update_output(node),
         NodeType::RandomNormal => random_update_output(node),
+        NodeType::ConstantOfShape => constant_of_shape_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -120,6 +121,24 @@ fn constant_update_outputs(node: &mut Node) {
         },
         None => panic!("Constant node must have a value attribute"),
     };
+}
+
+fn constant_of_shape_update_output(node: &mut Node) {
+    let value_type = node
+        .attrs
+        .get("value")
+        .map(|v| v.clone().into_tensor().elem_type)
+        .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+
+    if let ArgType::Tensor(input_type) = &node.inputs[0].ty {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: value_type,
+            dim: input_type.dim,
+            shape: None,
+        });
+    } else {
+        panic!("ConstantOfShape node must have a Tensor type input");
+    }
 }
 
 /// Infer the shape of a node's output with an explicit shape attribute
