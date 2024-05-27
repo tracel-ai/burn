@@ -31,29 +31,23 @@ fn kernel<F: Float>(
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
-    if AbsoluteIndex::get() >= Tensor::<F>::len(output) {
+    if AbsoluteIndex::get() >= output.len() {
         return;
     }
 
-    let in_channels = Tensor::<F>::shape(weight, 1u32);
+    let in_channels = weight.shape(1);
 
-    let kernel_size_0 =
-        Comptime::unwrap_or_else(kernel_size_0_unroll, || Tensor::<F>::shape(weight, 2u32));
+    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || weight.shape(2));
     let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
-    let kernel_size_1 =
-        Comptime::unwrap_or_else(kernel_size_1_unroll, || Tensor::<F>::shape(weight, 3u32));
+    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
     let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
 
-    let b =
-        AbsoluteIndex::get() / Tensor::<F>::stride(output, 0u32) % Tensor::<F>::shape(output, 0u32);
-    let oc =
-        AbsoluteIndex::get() / Tensor::<F>::stride(output, 1u32) % Tensor::<F>::shape(output, 1u32);
-    let oh =
-        AbsoluteIndex::get() / Tensor::<F>::stride(output, 2u32) % Tensor::<F>::shape(output, 2u32);
-    let ow =
-        AbsoluteIndex::get() / Tensor::<F>::stride(output, 3u32) % Tensor::<F>::shape(output, 3u32);
+    let b = AbsoluteIndex::get() / output.stride(0) % output.shape(0);
+    let oc = AbsoluteIndex::get() / output.stride(1) % output.shape(1);
+    let oh = AbsoluteIndex::get() / output.stride(2) % output.shape(2);
+    let ow = AbsoluteIndex::get() / output.stride(3) % output.shape(3);
 
-    let g = (Tensor::<F>::shape(weight, 0u32) + oc) % groups;
+    let g = (weight.shape(0) + oc) % groups;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
@@ -61,23 +55,23 @@ fn kernel<F: Float>(
     let ih_base = oh * conv_stride_0;
     let iw_base = ow * conv_stride_1;
 
-    let weight_stride_1 = Tensor::<F>::stride(weight, 1u32);
-    let weight_stride_2 = Tensor::<F>::stride(weight, 2u32);
-    let weight_stride_3 = Tensor::<F>::stride(weight, 3u32);
+    let weight_stride_1 = weight.stride(1);
+    let weight_stride_2 = weight.stride(2);
+    let weight_stride_3 = weight.stride(3);
 
-    let input_stride_1 = Tensor::<F>::stride(input, 1u32);
-    let input_stride_2 = Tensor::<F>::stride(input, 2u32);
-    let input_stride_3 = Tensor::<F>::stride(input, 3u32);
-    let input_shape_2 = Tensor::<F>::shape(input, 2u32);
-    let input_shape_3 = Tensor::<F>::shape(input, 3u32);
+    let input_stride_1 = input.stride(1);
+    let input_stride_2 = input.stride(2);
+    let input_stride_3 = input.stride(3);
+    let input_shape_2 = input.shape(2);
+    let input_shape_3 = input.shape(3);
 
     let border_top = padding_0;
     let border_left = padding_1;
     let border_bottom = input_shape_2 + padding_0;
     let border_right = input_shape_3 + padding_1;
 
-    let index_input_0 = b * Tensor::<F>::stride(input, 0u32);
-    let index_weight_0 = oc * Tensor::<F>::stride(weight, 0u32);
+    let index_input_0 = b * input.stride(0);
+    let index_weight_0 = oc * weight.stride(0);
 
     for ic in range(ic_start, ic_end, Comptime::new(false)) {
         let index_input_1 = ic * input_stride_1;
