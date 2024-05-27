@@ -2,8 +2,8 @@ use burn_cube::{cube, Numeric, Tensor};
 
 #[cube]
 fn kernel<T: Numeric>(input: Tensor<T>) {
-    let _shape = input.shape(1u32);
-    let _stride = input.stride(1u32);
+    let _shape = input.shape(1);
+    let _stride = input.stride(1);
     let _length = input.len();
 }
 

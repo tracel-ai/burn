@@ -41,12 +41,12 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
-    pub fn stride(self, _dim: u32) -> UInt {
+    pub fn stride(self, _dim: i32) -> UInt {
         unexpanded!()
     }
 
     /// Obtain the shape of input at dimension dim
-    pub fn shape(self, _dim: u32) -> UInt {
+    pub fn shape(self, _dim: i32) -> UInt {
         unexpanded!()
     }
 
@@ -58,10 +58,10 @@ impl<T: CubeType> Tensor<T> {
 
 impl ExpandElement {
     // Expanded version of Tensor::stride
-    pub fn stride_expand(self, context: &mut CubeContext, dim: u32) -> ExpandElement {
+    pub fn stride_expand(self, context: &mut CubeContext, dim: i32) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
-            dim: dim.into(),
+            dim: (dim as u32).into(),
             var: self.into(),
             out: out.clone().into(),
         });
@@ -69,10 +69,10 @@ impl ExpandElement {
     }
 
     // Expanded version of Tensor::shape
-    pub fn shape_expand(self, context: &mut CubeContext, dim: u32) -> ExpandElement {
+    pub fn shape_expand(self, context: &mut CubeContext, dim: i32) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
-            dim: dim.into(),
+            dim: (dim as u32).into(),
             var: self.into(),
             out: out.clone().into(),
         });
