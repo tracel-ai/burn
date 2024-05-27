@@ -74,6 +74,16 @@ pub(crate) fn codegen_break() -> TokenStream {
     }
 }
 
+/// Codegen for return statement
+pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
+    if expr_return.expr.is_some() {
+        panic!("Codegen: Only void return is supported.")
+    }
+    quote::quote! {
+        burn_cube::branch::return_expand(context);
+    }
+}
+
 /// Codegen for if and if/else statements
 /// Supports:
 /// if cond {...}

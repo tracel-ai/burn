@@ -9,6 +9,7 @@ use burn::{
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
+use log::warn;
 
 use crate::{
     burn::{
@@ -34,6 +35,8 @@ use crate::{
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
             prelu::PReluNode,
+            random_normal::RandomNormalNode,
+            random_uniform::RandomUniformNode,
             reshape::ReshapeNode,
             squeeze::SqueezeNode,
             unary::UnaryNode,
@@ -297,6 +300,8 @@ impl OnnxGraph {
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
+                NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -372,6 +377,60 @@ impl OnnxGraph {
         };
 
         ConstantNode::new(node.name.clone(), const_value, output.to_type())
+    }
+
+    fn random_uniform_conversion(node: Node) -> RandomUniformNode {
+        let output = node.outputs.first().unwrap();
+        // cannot use output.to_tensor_type() here, since it drops the shape info...
+        let output_type = if let Type::Tensor(t) = output.to_type() {
+            t
+        } else {
+            panic!("RandomUniform output type is no Tensor.");
+        };
+
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomUniformNode::new(output_type, low, high)
+    }
+
+    fn random_normal_conversion(node: Node) -> RandomNormalNode {
+        let output = node.outputs.first().unwrap();
+        // cannot use output.to_tensor_type() here, since it drops the shape info...
+        let output_type = if let Type::Tensor(t) = output.to_type() {
+            t
+        } else {
+            panic!("RandomNormal output type is no Tensor.");
+        };
+
+        let mean = node
+            .attrs
+            .get("mean")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let scale = node
+            .attrs
+            .get("scale")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomNormalNode::new(output_type, mean, scale)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {

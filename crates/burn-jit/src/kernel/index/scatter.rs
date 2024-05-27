@@ -5,7 +5,7 @@ use crate::{
     JitRuntime,
 };
 use burn_cube::{
-    cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, EagerHandle,
+    cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, TensorHandle,
     WorkgroupLaunch,
 };
 use burn_cube::{
@@ -218,9 +218,9 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .execute(WorkgroupLaunch::Custom(workgroup));
 

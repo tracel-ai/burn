@@ -120,6 +120,10 @@ pub fn break_expand(context: &mut CubeContext) {
     context.register(Branch::Break);
 }
 
+pub fn return_expand(context: &mut CubeContext) {
+    context.register(Branch::Return);
+}
+
 pub fn loop_expand<FB>(context: &mut CubeContext, mut block: FB)
 where
     FB: FnMut(&mut CubeContext),
