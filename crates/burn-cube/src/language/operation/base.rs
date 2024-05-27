@@ -24,7 +24,7 @@ where
     // We can only reuse rhs.
     let out = if lhs.can_mut() && item_lhs == item {
         lhs
-    } else if item_rhs == item && rhs.can_mut() {
+    } else if rhs.can_mut() && item_rhs == item {
         rhs
     } else {
         context.create_local(item)

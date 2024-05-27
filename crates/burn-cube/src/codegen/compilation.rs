@@ -165,7 +165,7 @@ impl CompilationSettings {
         1
     }
 
-    /// Fetch the vectorization for the provided input position.
+    /// Fetch the vectorization for the provided output position.
     pub fn vectorization_output(&self, position: usize) -> Vectorization {
         if let Some(vec) = self.vectorization_global {
             return vec;
