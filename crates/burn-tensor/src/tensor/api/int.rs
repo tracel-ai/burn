@@ -1,5 +1,5 @@
 use crate::{backend::Backend, Data, Float, Int, Shape, Tensor};
-use alloc::vec::Vec;
+
 use core::ops::Range;
 
 #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
