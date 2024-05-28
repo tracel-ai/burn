@@ -8,8 +8,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, IntKind, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -378,12 +378,12 @@ pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let kernel = AvgPool2dBackwardEagerKernel::<R, E>::new(kernel_size, count_include_pad);
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &grad.handle,
             &grad.strides,
             &grad.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

@@ -1,4 +1,7 @@
-use crate::dialect::Variable;
+use crate::{
+    dialect::{Variable, Vectorization},
+    KernelBuilder, KernelLauncher, Runtime,
+};
 use alloc::rc::Rc;
 
 /// Types used in a cube function must implement this trait
@@ -15,6 +18,23 @@ use alloc::rc::Rc;
 /// the generated code.
 pub trait CubeType {
     type ExpandType: Clone;
+}
+
+/// Defines a type that can be used as argument to a kernel.
+pub trait LaunchArg {
+    /// The runtime argument for the kernel.
+    type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
+
+    /// Register an input variable during compilation that fill the [KernelBuilder].
+    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
+    /// Register an output variable during compilation that fill the [KernelBuilder].
+    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
+}
+
+/// Defines the argument settings used to launch a kernel.
+pub trait ArgSettings<R: Runtime>: Send + Sync {
+    /// Register the information to the [KernelLauncher].
+    fn register(&self, launcher: &mut KernelLauncher<R>);
 }
 
 /// Reference to a JIT variable
