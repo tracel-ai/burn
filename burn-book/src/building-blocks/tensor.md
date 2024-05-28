@@ -288,6 +288,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
+| `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
 
 # Bool Operations
 
