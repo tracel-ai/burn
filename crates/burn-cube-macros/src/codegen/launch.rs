@@ -132,15 +132,15 @@ impl Codegen {
 
         let mut variables = quote::quote! {};
 
-        for (ident, ty) in self.state_inputs.iter() {
+        for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_input(&mut builder);
+                let #ident = <#ty as LaunchArg>::compile_input(&mut builder, self.settings.vectorization_input(#pos));
             });
         }
 
-        for (ident, ty) in self.state_outputs.iter() {
+        for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_output(&mut builder);
+                let #ident = <#ty as LaunchArg>::compile_output(&mut builder, self.settings.vectorization_output(#pos));
             });
         }
 

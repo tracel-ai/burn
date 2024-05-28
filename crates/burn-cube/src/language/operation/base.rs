@@ -18,15 +18,16 @@ where
     let item_lhs = lhs.item();
     let item_rhs = rhs.item();
 
-    check_vectorization(item_lhs.vectorization, item_rhs.vectorization);
+    let vectorization = check_vectorization(item_lhs.vectorization, item_rhs.vectorization);
+    let item = Item::vectorized(item_lhs.elem, vectorization);
 
     // We can only reuse rhs.
-    let out = if lhs.can_mut() {
+    let out = if lhs.can_mut() && item_lhs == item {
         lhs
-    } else if item_rhs == item_lhs && rhs.can_mut() {
+    } else if rhs.can_mut() && item_rhs == item {
         rhs
     } else {
-        context.create_local(item_lhs)
+        context.create_local(item)
     };
 
     let out_var = *out;
@@ -131,12 +132,17 @@ where
     out
 }
 
-fn check_vectorization(lhs: Vectorization, rhs: Vectorization) {
+fn check_vectorization(lhs: Vectorization, rhs: Vectorization) -> Vectorization {
+    let output = u8::max(lhs, rhs);
+
     if lhs == 1 || rhs == 1 {
-        return;
+        return output;
     }
+
     assert!(
         lhs == rhs,
         "Tried to perform binary operation on different vectorization schemes."
     );
+
+    output
 }

@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, Variable};
+use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::{ArgSettings, KernelLauncher, LaunchArg, Runtime};
 
@@ -23,11 +23,19 @@ impl CubeElem for UInt {
 impl LaunchArg for UInt {
     type RuntimeArg<'a, R: Runtime> = u32;
 
-    fn compile_input(builder: &mut crate::KernelBuilder) -> ExpandElement {
+    fn compile_input(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(Self::as_elem())
     }
 
-    fn compile_output(builder: &mut crate::KernelBuilder) -> ExpandElement {
+    fn compile_output(
+        builder: &mut crate::KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElement {
+        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(Self::as_elem())
     }
 }

@@ -1,4 +1,7 @@
-use crate::{dialect::Variable, KernelBuilder, KernelLauncher, Runtime};
+use crate::{
+    dialect::{Variable, Vectorization},
+    KernelBuilder, KernelLauncher, Runtime,
+};
 use alloc::rc::Rc;
 
 /// Types used in a cube function must implement this trait
@@ -23,9 +26,9 @@ pub trait LaunchArg {
     type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
 
     /// Register an input variable during compilation that fill the [KernelBuilder].
-    fn compile_input(builder: &mut KernelBuilder) -> ExpandElement;
+    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
     /// Register an output variable during compilation that fill the [KernelBuilder].
-    fn compile_output(builder: &mut KernelBuilder) -> ExpandElement;
+    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
 }
 
 /// Defines the argument settings used to launch a kernel.

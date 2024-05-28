@@ -35,10 +35,23 @@ pub struct InplaceMapping {
     pub pos_output: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum VectorizationPartial {
+    Input {
+        pos: usize,
+        vectorization: Vectorization,
+    },
+    Output {
+        pos: usize,
+        vectorization: Vectorization,
+    },
+}
+
 #[derive(Default, Clone)]
 pub struct CompilationSettings {
     pub mappings: Vec<InplaceMapping>,
-    vectorization: Option<Vectorization>,
+    vectorization_global: Option<Vectorization>,
+    vectorization_partial: Vec<VectorizationPartial>,
     workgroup_size: WorkgroupSize,
     pub reading_strategy: Vec<(u16, ReadingStrategy)>,
 }
@@ -59,7 +72,9 @@ impl core::fmt::Display for CompilationSettings {
         //   * Output layout: o
         //   * Plain:         p
         //
-        // * Vectorization:    v
+        // * Vectorization Global:    vg{factor}
+        // * Vectorization Partial Input:    v{factor}i{pos}
+        // * Vectorization Partial Output:    vo
         // * Workgroup Size X: x
         // * Workgroup Size Y: y
         // * Workgroup Size Z: z
@@ -80,10 +95,21 @@ impl core::fmt::Display for CompilationSettings {
             }?;
         }
 
-        match self.vectorization {
-            Some(vectorization) => f.write_fmt(format_args!("v{}", vectorization))?,
+        match self.vectorization_global {
+            Some(vectorization) => f.write_fmt(format_args!("vg{}", vectorization))?,
             None => f.write_str("vn")?,
         };
+
+        for vectorization in self.vectorization_partial.iter() {
+            match vectorization {
+                VectorizationPartial::Input { pos, vectorization } => {
+                    f.write_fmt(format_args!("v{vectorization}i{pos}"))?
+                }
+                VectorizationPartial::Output { pos, vectorization } => {
+                    f.write_fmt(format_args!("v{vectorization}o{pos}"))?
+                }
+            };
+        }
 
         f.write_fmt(format_args!(
             "x{}y{}z{}",
@@ -93,11 +119,67 @@ impl core::fmt::Display for CompilationSettings {
 }
 
 impl CompilationSettings {
-    /// Compile the shader with vectorization enabled.
+    /// Compile the shader with vectorization enabled for all inputs and outputs.
     #[allow(dead_code)]
-    pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
-        self.vectorization = Some(vectorization);
+    pub fn vectorize_global(mut self, vectorization: Vectorization) -> Self {
+        self.vectorization_global = Some(vectorization);
         self
+    }
+
+    /// Compile the shader with vectorization enabled for an input.
+    #[allow(dead_code)]
+    pub fn vectorize_input(mut self, position: usize, vectorization: Vectorization) -> Self {
+        self.vectorization_partial
+            .push(VectorizationPartial::Input {
+                pos: position,
+                vectorization,
+            });
+        self
+    }
+
+    /// Compile the shader with vectorization enabled for an output.
+    #[allow(dead_code)]
+    pub fn vectorize_output(mut self, position: usize, vectorization: Vectorization) -> Self {
+        self.vectorization_partial
+            .push(VectorizationPartial::Output {
+                pos: position,
+                vectorization,
+            });
+        self
+    }
+
+    /// Fetch the vectorization for the provided input position.
+    pub fn vectorization_input(&self, position: usize) -> Vectorization {
+        if let Some(vec) = self.vectorization_global {
+            return vec;
+        }
+
+        for partial in self.vectorization_partial.iter() {
+            if let VectorizationPartial::Input { pos, vectorization } = partial {
+                if *pos == position {
+                    return *vectorization;
+                }
+            }
+        }
+
+        1
+    }
+
+    /// Fetch the vectorization for the provided output position.
+    pub fn vectorization_output(&self, position: usize) -> Vectorization {
+        if let Some(vec) = self.vectorization_global {
+            return vec;
+        }
+
+        for partial in self.vectorization_partial.iter() {
+            if let VectorizationPartial::Output { pos, vectorization } = partial {
+                if *pos == position {
+                    return *vectorization;
+                }
+            }
+        }
+
+        1
     }
 
     /// Compile the shader with inplace enabled by the given [mapping](InplaceMapping).
@@ -233,7 +315,7 @@ impl Compilation {
 
     /// Performs the compilation with the provided [settings](CompilationSettings).
     pub fn compile(mut self, mut settings: CompilationSettings) -> ComputeShader {
-        if let Some(vectorization) = settings.vectorization {
+        if let Some(vectorization) = settings.vectorization_global {
             self.info.scope.vectorize(vectorization);
         }
 
@@ -276,7 +358,7 @@ impl Compilation {
         for input in self.info.inputs.drain(..) {
             match input {
                 InputInfo::Array { item, visibility } => {
-                    let item = if let Some(vectorization) = settings.vectorization {
+                    let item = if let Some(vectorization) = settings.vectorization_global {
                         item.vectorize(vectorization)
                     } else {
                         item
@@ -325,7 +407,7 @@ impl Compilation {
                     local,
                     position,
                 } => {
-                    let item = if let Some(vectorization) = settings.vectorization {
+                    let item = if let Some(vectorization) = settings.vectorization_global {
                         item.vectorize(vectorization)
                     } else {
                         item
@@ -351,7 +433,7 @@ impl Compilation {
                     local,
                     position,
                 } => {
-                    let item = if let Some(vectorization) = settings.vectorization {
+                    let item = if let Some(vectorization) = settings.vectorization_global {
                         item.vectorize(vectorization)
                     } else {
                         item
@@ -364,7 +446,7 @@ impl Compilation {
                     );
                 }
                 OutputInfo::Array { item } => {
-                    let item = if let Some(vectorization) = settings.vectorization {
+                    let item = if let Some(vectorization) = settings.vectorization_global {
                         item.vectorize(vectorization)
                     } else {
                         item
