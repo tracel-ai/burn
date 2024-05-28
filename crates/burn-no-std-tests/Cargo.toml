@@ -14,7 +14,7 @@ version.workspace = true
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "0.15.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", default-features = false }
+burn = { path = "../burn", version = "0.14.0", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.14.0", default-features = false }
 
 serde = { workspace = true }
