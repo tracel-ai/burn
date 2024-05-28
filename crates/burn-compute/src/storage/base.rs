@@ -34,6 +34,14 @@ impl StorageHandle {
             StorageUtilization::Slice { offset: _, size } => size,
         }
     }
+
+    /// Returns the size the handle is pointing to in memory.
+    pub fn offset(&self) -> usize {
+        match self.utilization {
+            StorageUtilization::Full(..) => panic!("full size slice not supported anymore"),
+            StorageUtilization::Slice { offset, .. } => offset,
+        }
+    }
 }
 
 /// Storage types are responsible for allocating and deallocating memory.

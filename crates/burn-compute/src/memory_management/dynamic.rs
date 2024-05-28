@@ -401,6 +401,13 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         Slice::new(storage, handle, chunk.handle.clone(), padding)
     }
 
+    fn insert_slice(&mut self, slice: Slice, chunk_id: ChunkId) {
+        let slice_id = slice.handle.id().clone();
+        self.slices.insert(*slice.handle.id(), slice);
+        let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+        chunk.slices.push(slice_id);
+    }
+
     /// Creates a chunk of given size by allocating on the storage.
     fn create_chunk(&mut self, size: usize) -> ChunkHandle {
         let padding = calculate_padding(size);
@@ -441,25 +448,25 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
             for (i, slice_id) in chunk.slices.iter().enumerate() {
                 let slice = self.slices.get(slice_id).unwrap();
-                offset += slice.effective_size();
 
                 if slice.handle.is_free() {
                     slices_ids.push(*slice_id);
                     num_merge += 1;
+                    offset += slice.effective_size();
                     continue;
                 } else if num_merge > 1 {
                     let mut empty = Vec::new();
                     core::mem::swap(&mut slices_ids, &mut empty);
-                    println!("offset : {offset} offset_current {offset_current}");
                     let merging = Merging {
                         start: start_index,
-                        end: start_index + num_merge,
+                        end: start_index + num_merge - 1,
                         offset: offset_current,
                         size: offset - offset_current,
                         slice_ids: empty,
                     };
                     to_merge.push(merging);
                 }
+                offset += slice.effective_size();
                 start_index = i + 1;
                 num_merge = 0;
                 offset_current = offset;
@@ -470,7 +477,6 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             }
         }
 
-        println!("{:?}", chunk_to_merged_slice);
         for (chunk_id, mergings) in chunk_to_merged_slice.into_iter() {
             let chunk = self.chunks.get(&chunk_id).unwrap();
             let chunk_handle = chunk.handle.clone();
@@ -486,11 +492,11 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
                 for i in index..merging.start {
                     slices_updated.push(slices.get(i).unwrap().clone());
                 }
-                index = merging.end;
+                index = merging.end + 1;
                 slices_updated.push(slice_id);
 
-                for slice_id in merging.slice_ids {
-                    self.slices.remove(&slice_id);
+                for slice_id_to_remove in merging.slice_ids {
+                    self.slices.remove(&slice_id_to_remove);
                 }
             }
 
@@ -560,18 +566,120 @@ mod tests {
     }
 
     #[test]
-    fn when_empty_chunk_is_cleaned_upexists_it_disappears() {
+    fn when_big_chunk_is_freed_should_be_filled_with_smaller_slices() {
         let mut memory_management = DynamicMemoryManagement::new(
             BytesStorage::default(),
             MergingStrategy::Never,
-            SliceStrategy::Never,
+            SliceStrategy::Ratio(0.2),
         );
-        let chunk_size = 4;
-        let chunk_handle = memory_management.reserve(chunk_size);
-        drop(chunk_handle);
-        memory_management.merge_chunks();
+        let big_slice_size = 32 * 3;
+        let small_slice_size = 32;
 
-        assert_eq!(memory_management.chunks.len(), 0);
+        let big_slice = memory_management.reserve(big_slice_size);
+        drop(big_slice);
+        let _small_slice_1 = memory_management.reserve(small_slice_size);
+        let _small_slice_2 = memory_management.reserve(small_slice_size);
+        let _small_slice_3 = memory_management.reserve(small_slice_size);
+
+        assert_eq!(memory_management.chunks.len(), 1);
+        assert_eq!(memory_management.slices.len(), 3);
+        for (.., slice) in memory_management.slices.iter() {
+            assert_eq!(slice.storage.size(), 32);
+        }
+    }
+
+    #[test]
+    fn when_defragmentation_called_if_two_slices_free_should_merge_into_bigger_slice() {
+        let mut memory_management = DynamicMemoryManagement::new(
+            BytesStorage::default(),
+            MergingStrategy::Never,
+            SliceStrategy::Ratio(0.2),
+        );
+
+        let chunk_handle = memory_management.create_chunk(32 + 32);
+        let slice = memory_management.create_slice(0, 32 + 32, chunk_handle.clone());
+        memory_management.insert_slice(slice, *chunk_handle.id());
+
+        let _slice_1 = memory_management.reserve(32);
+        let _slice_2 = memory_management.reserve(32);
+
+        assert_eq!(memory_management.chunks.len(), 1);
+        assert_eq!(memory_management.slices.len(), 2);
+        for (.., slice) in memory_management.slices.iter() {
+            assert_eq!(slice.storage.size(), 32);
+        }
+    }
+
+    #[test]
+    fn when_defragmentation_called_should_merge_contiguous_free_slice_together() {
+        let mut memory_management = DynamicMemoryManagement::new(
+            BytesStorage::default(),
+            MergingStrategy::Never,
+            SliceStrategy::Ratio(0.2),
+        );
+
+        //The chunk will be seperated in 7 slices. 1 free, 23 not free, 456 free and 7 not free
+        let slice_size = 32;
+        let num_of_slice = 7;
+
+        let chunk_handle = memory_management.create_chunk(slice_size * num_of_slice);
+        let chunk_id = chunk_handle.id().clone();
+        let slice = memory_management.create_slice(0, slice_size * num_of_slice, chunk_handle);
+        memory_management.insert_slice(slice, chunk_id);
+
+        let _slice_1 = memory_management.reserve(slice_size);
+        let _slice_2 = memory_management.reserve(slice_size);
+        let _slice_3 = memory_management.reserve(slice_size);
+        let _slice_4 = memory_management.reserve(slice_size);
+        let _slice_5 = memory_management.reserve(slice_size);
+        let _slice_6 = memory_management.reserve(slice_size);
+        let _slice_7 = memory_management.reserve(slice_size);
+        drop(_slice_1);
+        drop(_slice_4);
+        drop(_slice_5);
+        drop(_slice_6);
+        memory_management.defragmentation();
+
+        assert_eq!(memory_management.chunks.len(), 1);
+        assert_eq!(memory_management.slices.len(), 5);
+
+        let chunk = memory_management.chunks.get(&chunk_id).unwrap();
+        let slices = &chunk.slices;
+
+        // first slice test
+        let first_slice_id = slices.get(0).unwrap();
+        let first_slice = memory_management.slices.get(first_slice_id).unwrap();
+        assert!(first_slice.handle.is_free());
+        assert_eq!(first_slice.storage.size(), slice_size);
+        assert_eq!(first_slice.storage.offset(), 0);
+
+        // second slice test
+        let first_slice_id = slices.get(1).unwrap();
+        let first_slice = memory_management.slices.get(first_slice_id).unwrap();
+        assert!(!first_slice.handle.is_free());
+        assert_eq!(first_slice.storage.size(), slice_size);
+        assert_eq!(first_slice.storage.offset(), slice_size * 1);
+
+        // third slice test
+        let first_slice_id = slices.get(2).unwrap();
+        let first_slice = memory_management.slices.get(first_slice_id).unwrap();
+        assert!(!first_slice.handle.is_free());
+        assert_eq!(first_slice.storage.size(), slice_size);
+        assert_eq!(first_slice.storage.offset(), slice_size * 2);
+
+        // fourth slice test (456 merged)
+        let first_slice_id = slices.get(3).unwrap();
+        let first_slice = memory_management.slices.get(first_slice_id).unwrap();
+        assert!(first_slice.handle.is_free());
+        assert_eq!(first_slice.storage.size(), slice_size * 3);
+        assert_eq!(first_slice.storage.offset(), slice_size * 3);
+
+        // fifth slice test
+        let first_slice_id = slices.get(4).unwrap();
+        let first_slice = memory_management.slices.get(first_slice_id).unwrap();
+        assert!(!first_slice.handle.is_free());
+        assert_eq!(first_slice.storage.size(), slice_size * 1);
+        assert_eq!(first_slice.storage.offset(), slice_size * 6);
     }
 
     #[test]
@@ -660,19 +768,11 @@ mod tests {
             MergingStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
-        let chunk = memory_management.reserve(10);
+        let first_slice = memory_management.reserve(10);
 
-        if let super::DynamicHandle::Slice(_) = chunk {
-            panic!("Should be a chunk.")
-        }
-
-        drop(chunk);
+        drop(first_slice);
 
         let slice = memory_management.reserve(8);
-
-        if let super::DynamicHandle::Chunk(_) = &slice {
-            panic!("Should be a slice.")
-        }
 
         if let super::DynamicHandle::Slice(slice) = slice {
             let other_ref = slice.clone();
