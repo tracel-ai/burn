@@ -1,6 +1,6 @@
 use burn_cube::{
-    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, EagerHandle,
-    Execution, InputInfo, OutputInfo, WorkGroup, WorkgroupLaunch,
+    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, Execution,
+    InputInfo, OutputInfo, TensorHandle, WorkGroup, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -265,12 +265,12 @@ pub fn reduce_dim_shared<
     );
 
     Execution::start(kernel, input.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

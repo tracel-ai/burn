@@ -39,3 +39,5 @@ pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup 
 
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
+
+pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;

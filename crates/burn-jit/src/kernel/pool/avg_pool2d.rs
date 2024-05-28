@@ -2,7 +2,7 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 use burn_cube::{
     cpa,
     dialect::{Elem, Item, Scope, Variable},
-    EagerHandle, Execution, WorkgroupLaunch,
+    Execution, TensorHandle, WorkgroupLaunch,
 };
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use std::fmt::Debug;
@@ -100,8 +100,8 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
-        .outputs(&[EagerHandle::new(
+        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

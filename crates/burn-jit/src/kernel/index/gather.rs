@@ -6,8 +6,8 @@ use burn_cube::dialect::{
     ComputeShader, Elem, IndexOffsetGlobalWithLayout, IntKind, Item, Scope, Variable, Visibility,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    cpa, Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -131,10 +131,10 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

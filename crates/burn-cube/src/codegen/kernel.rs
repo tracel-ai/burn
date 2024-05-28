@@ -1,16 +1,10 @@
 use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
 use crate::dialect::Elem;
 use crate::pod::CubeElement;
+use crate::TensorHandle;
 use crate::{elemwise_workgroup, GpuComputeShaderPhase, Runtime, WORKGROUP_DEFAULT};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::{Binding, Handle};
-
-#[derive(new)]
-pub struct EagerHandle<'a, R: Runtime> {
-    handle: &'a burn_compute::server::Handle<R::Server>,
-    strides: &'a [usize],
-    shape: &'a [usize],
-}
 
 /// The position of the input or output to calculate the number of workgroups to launch.
 pub enum WorkgroupLaunch {
@@ -23,8 +17,8 @@ pub struct Execution<'h, K, R: Runtime, Scalars> {
     scalars: Scalars,
     client: ComputeClient<R::Server, R::Channel>,
     kernel: K,
-    inputs: &'h [EagerHandle<'h, R>],
-    outputs: &'h [EagerHandle<'h, R>],
+    inputs: &'h [TensorHandle<'h, R>],
+    outputs: &'h [TensorHandle<'h, R>],
 }
 
 impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
@@ -42,7 +36,7 @@ impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
     }
 
     #[allow(unused)]
-    pub fn inputs(self, inputs: &'h [EagerHandle<'h, R>]) -> Execution<'h, K, R, ()> {
+    pub fn inputs(self, inputs: &'h [TensorHandle<'h, R>]) -> Execution<'h, K, R, ()> {
         Execution {
             scalars: self.scalars,
             client: self.client,
@@ -52,7 +46,7 @@ impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
         }
     }
 
-    pub fn outputs(self, outputs: &'h [EagerHandle<'h, R>]) -> Execution<'h, K, R, ()> {
+    pub fn outputs(self, outputs: &'h [TensorHandle<'h, R>]) -> Execution<'h, K, R, ()> {
         Execution {
             scalars: self.scalars,
             client: self.client,
@@ -194,8 +188,8 @@ where
 
 #[allow(clippy::too_many_arguments)]
 fn execute_dynamic<R, K, E1, E2, E3>(
-    inputs: &[EagerHandle<R>],
-    outputs: &[EagerHandle<R>],
+    inputs: &[TensorHandle<R>],
+    outputs: &[TensorHandle<R>],
     scalars_1: Option<&[E1]>,
     scalars_2: Option<&[E2]>,
     scalars_3: Option<&[E3]>,
@@ -235,8 +229,8 @@ struct ExecuteSettings<R: Runtime> {
 }
 
 fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeElement>(
-    inputs: &'a [EagerHandle<R>],
-    outputs: &'a [EagerHandle<R>],
+    inputs: &'a [TensorHandle<R>],
+    outputs: &'a [TensorHandle<R>],
     scalars_1: Option<&[E1]>,
     scalars_2: Option<&[E2]>,
     scalars_3: Option<&[E3]>,

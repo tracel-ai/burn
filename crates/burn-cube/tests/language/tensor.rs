@@ -2,10 +2,9 @@ use burn_cube::{cube, Numeric, Tensor};
 
 #[cube]
 fn kernel<T: Numeric>(input: Tensor<T>) {
-    // TODO: not the prettiest to be forced to put T even if useless
-    let _shape = Tensor::<T>::shape(input, 1u32);
-    let _stride = Tensor::<T>::stride(input, 1u32);
-    let _length = Tensor::<T>::len(input);
+    let _shape = input.shape(1);
+    let _stride = input.stride(1);
+    let _length = input.len();
 }
 
 mod tests {
