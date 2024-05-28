@@ -1,3 +1,4 @@
+use super::expand::ExpandNode;
 use super::{
     avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode,
     binary::BinaryNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,

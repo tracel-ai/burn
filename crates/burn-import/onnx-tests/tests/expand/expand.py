@@ -6,31 +6,6 @@ import onnx
 from onnx import helper, TensorProto
 
 def main() -> None:
-    # Create a constant node for the input tensor
-    input_node: onnx.NodeProto = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['input_tensor'],
-        value=helper.make_tensor(
-            name='const_input',
-            data_type=TensorProto.FLOAT,
-            dims=[2, 1],
-            vals=[1.0, 2.0]
-        )
-    )
-
-    # Create a constant node for the shape tensor which specifies the expansion
-    shape_node: onnx.NodeProto = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['shape_tensor'],
-        value=helper.make_tensor(
-            name='const_shape',
-            data_type=TensorProto.INT64,
-            dims=[2],
-            vals=[2, 2]  # Expanding each dimension to have 2 elements
-        )
-    )
 
     # Define the Expand node that uses the outputs from the constant nodes
     expand_node: onnx.NodeProto = helper.make_node(
@@ -41,12 +16,15 @@ def main() -> None:
 
     # Create the graph
     graph_def: onnx.GraphProto = helper.make_graph(
-        nodes=[input_node, shape_node, expand_node],
+        nodes=[expand_node],
         name='ExpandGraph',
-        inputs=[],  # No inputs since all are provided by constants within the graph
+        inputs=[
+            helper.make_tensor_value_info('input_tensor', TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info('shape_tensor', TensorProto.INT64, [1]),
+            ],  # No inputs since all are provided by constants within the graph
         outputs=[
             helper.make_tensor_value_info('output', TensorProto.FLOAT, [2, 2])
-        ]
+        ],
     )
 
     # Create the model
