@@ -1,3 +1,6 @@
+use core::any::{Any, TypeId};
+
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -174,6 +177,12 @@ impl<const D: usize, E: Element> Data<E, D> {
 impl<E: Element> DataSerialize<E> {
     /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
+        if TypeId::of::<E>() == TypeId::of::<EOther>() {
+            let cast: Box<dyn Any> = Box::new(self);
+            let cast: Box<DataSerialize<EOther>> = cast.downcast().unwrap();
+            return *cast;
+        }
+
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
         DataSerialize {

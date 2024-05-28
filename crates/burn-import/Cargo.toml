@@ -19,7 +19,7 @@ onnx = []
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.15.0", features = ["ndarray"] }
+burn = { path = "../burn", version = "0.14.0", features = ["ndarray"] }
 
 bytemuck = { workspace = true }
 candle-core = { workspace = true }
