@@ -134,7 +134,7 @@ represent the corresponding Burn Op.
 | [RandomNormalLike][127]          |       ❌       |      ✅      |
 | [RandomUniform][128]             |       ✅       |      ✅      |
 | [RandomUniformLike][129]         |       ❌       |      ✅      |
-| [Range][130]                     |       ❌       |      ✅      |
+| [Range][130]                     |       ✅       |      ✅      |
 | [Reciprocal][131]                |       ✅       |      ✅      |
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |

@@ -37,6 +37,7 @@ use crate::{
             prelu::PReluNode,
             random_normal::RandomNormalNode,
             random_uniform::RandomUniformNode,
+            range::RangeNode,
             reshape::ReshapeNode,
             squeeze::SqueezeNode,
             unary::UnaryNode,
@@ -277,6 +278,7 @@ impl OnnxGraph {
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
+                NodeType::Range => graph.register(Self::range_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
@@ -571,6 +573,15 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::min_pair(lhs, rhs, output)
+    }
+
+    fn range_conversion(node: Node) -> RangeNode {
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let start = node.inputs.get(0).unwrap().to_type();
+        let end = node.inputs.get(1).unwrap().to_type();
+        let step = node.inputs.get(2).unwrap().to_type();
+
+        RangeNode::new(start, end, step, output)
     }
 
     fn reduce_max_conversion(node: Node) -> UnaryNode {
