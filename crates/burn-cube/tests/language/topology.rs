@@ -1,8 +1,8 @@
-use burn_cube::{cube, Numeric, Tensor, UInt, ABSOLUTE_INDEX};
+use burn_cube::{cube, Numeric, Tensor, UInt, ABSOLUTE_POS};
 
 #[cube]
 fn topology_kernel<T: Numeric>(input: Tensor<T>) {
-    let x = ABSOLUTE_INDEX + UInt::new(4);
+    let x = ABSOLUTE_POS + UInt::new(4);
     let _ = input[x];
 }
 
