@@ -12,5 +12,6 @@ mod ops;
 mod parenthesis;
 mod reuse;
 mod tensor;
+mod topology;
 mod r#trait;
 mod vectorization;

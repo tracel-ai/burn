@@ -49,7 +49,7 @@ impl<R: Runtime> ArgSettings<R> for u32 {
 impl Numeric for UInt {}
 
 impl UInt {
-    pub fn new(val: u32) -> Self {
+    pub const fn new(val: u32) -> Self {
         Self {
             val,
             vectorization: 1,

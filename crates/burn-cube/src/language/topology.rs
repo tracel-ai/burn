@@ -1,20 +1,12 @@
-use crate::{unexpanded, CubeContext, CubeType, ExpandElement, UInt};
+use crate::UInt;
 
 /// The index of the working unit in the whole cube kernel, without regards to blocks.
-pub struct AbsoluteIndex {}
+pub const ABSOLUTE_INDEX: UInt = UInt::new(0u32);
 
-impl AbsoluteIndex {
-    /// Obtain the absolute index
-    pub fn get() -> UInt {
-        unexpanded!();
-    }
-
-    /// Obtain the absolute index
-    pub fn get_expand(_context: &mut CubeContext) -> ExpandElement {
+#[allow(non_snake_case)]
+pub mod ABSOLUTE_INDEX {
+    use crate::{CubeContext, ExpandElement};
+    pub fn expand(_context: &mut CubeContext) -> ExpandElement {
         ExpandElement::Plain(crate::dialect::Variable::Id)
     }
-}
-
-impl CubeType for AbsoluteIndex {
-    type ExpandType = ExpandElement;
 }
