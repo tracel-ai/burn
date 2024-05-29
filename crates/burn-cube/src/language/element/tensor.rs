@@ -1,6 +1,6 @@
 use crate::{
     dialect::{Elem, Item, Metadata, Vectorization},
-    language::{CubeType, ExpandElement},
+    language::{indexation::Index, CubeType, ExpandElement},
     unexpanded, ArgSettings, CubeContext, CubeElem, KernelLauncher, LaunchArg, Runtime, UInt,
 };
 use std::marker::PhantomData;
@@ -47,12 +47,12 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
-    pub fn stride(self, _dim: i32) -> UInt {
+    pub fn stride<C: Index>(self, _dim: C) -> UInt {
         unexpanded!()
     }
 
     /// Obtain the shape of input at dimension dim
-    pub fn shape(self, _dim: i32) -> UInt {
+    pub fn shape<C: Index>(self, _dim: C) -> UInt {
         unexpanded!()
     }
 
@@ -64,10 +64,10 @@ impl<T: CubeType> Tensor<T> {
 
 impl ExpandElement {
     // Expanded version of Tensor::stride
-    pub fn stride_expand(self, context: &mut CubeContext, dim: i32) -> ExpandElement {
+    pub fn stride_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
-            dim: (dim as u32).into(),
+            dim: dim.value(),
             var: self.into(),
             out: out.clone().into(),
         });
@@ -75,10 +75,10 @@ impl ExpandElement {
     }
 
     // Expanded version of Tensor::shape
-    pub fn shape_expand(self, context: &mut CubeContext, dim: i32) -> ExpandElement {
+    pub fn shape_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
-            dim: (dim as u32).into(),
+            dim: dim.value(),
             var: self.into(),
             out: out.clone().into(),
         });

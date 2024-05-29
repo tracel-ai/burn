@@ -162,24 +162,24 @@ pub mod rem {
 pub mod and {
     use super::*;
 
-    pub fn expand(
+    pub fn expand<L: Into<ExpandElement>, R: Into<ExpandElement>>(
         context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
+        lhs: L,
+        rhs: R,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::And)
+        binary_expand(context, lhs.into(), rhs.into(), Operator::And)
     }
 }
 
 pub mod bitand {
     use super::*;
 
-    pub fn expand(
+    pub fn expand<L: Into<ExpandElement>, R: Into<ExpandElement>>(
         context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
+        lhs: L,
+        rhs: R,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::BitwiseAnd)
+        binary_expand(context, lhs.into(), rhs.into(), Operator::BitwiseAnd)
     }
 
     impl core::ops::BitAnd for UInt {
@@ -194,24 +194,24 @@ pub mod bitand {
 pub mod or {
     use super::*;
 
-    pub fn expand(
-        context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
-    ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::Or)
+    pub fn expand<L, R>(context: &mut CubeContext, lhs: L, rhs: R) -> ExpandElement
+    where
+        L: Into<ExpandElement>,
+        R: Into<ExpandElement>,
+    {
+        binary_expand(context, lhs.into(), rhs.into(), Operator::Or)
     }
 }
 
 pub mod bitxor {
     use super::*;
 
-    pub fn expand(
+    pub fn expand<L: Into<ExpandElement>, R: Into<ExpandElement>>(
         context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
+        lhs: L,
+        rhs: R,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::BitwiseXor)
+        binary_expand(context, lhs.into(), rhs.into(), Operator::BitwiseXor)
     }
 
     impl core::ops::BitXor for UInt {
@@ -226,12 +226,12 @@ pub mod bitxor {
 pub mod shl {
     use super::*;
 
-    pub fn expand(
+    pub fn expand<L: Into<ExpandElement>, R: Into<ExpandElement>>(
         context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
+        lhs: L,
+        rhs: R,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::ShiftLeft)
+        binary_expand(context, lhs.into(), rhs.into(), Operator::ShiftLeft)
     }
 
     impl core::ops::Shl for UInt {
@@ -246,12 +246,12 @@ pub mod shl {
 pub mod shr {
     use super::*;
 
-    pub fn expand(
+    pub fn expand<L: Into<ExpandElement>, R: Into<ExpandElement>>(
         context: &mut CubeContext,
-        lhs: ExpandElement,
-        rhs: ExpandElement,
+        lhs: L,
+        rhs: R,
     ) -> ExpandElement {
-        binary_expand(context, lhs, rhs, Operator::ShiftRight)
+        binary_expand(context, lhs.into(), rhs.into(), Operator::ShiftRight)
     }
 
     impl core::ops::Shr for UInt {

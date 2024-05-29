@@ -84,6 +84,7 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -104,7 +105,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, start: i64, end: i64, step: i64) -> Tensor<B, 1> {
+                pub fn forward(&self, start: i64, end: i64, step: i64) -> Tensor<B, 1, Int> {
                     let output = Tensor::arange_step(start..end, step as usize, &*self.device);
 
                     output

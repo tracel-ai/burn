@@ -31,7 +31,7 @@ fn kernel<F: Float>(
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
-    if AbsoluteIndex::get() >= output.len() {
+    if ABSOLUTE_INDEX >= output.len() {
         return;
     }
 
@@ -42,10 +42,10 @@ fn kernel<F: Float>(
     let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
     let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
 
-    let b = AbsoluteIndex::get() / output.stride(0) % output.shape(0);
-    let oc = AbsoluteIndex::get() / output.stride(1) % output.shape(1);
-    let oh = AbsoluteIndex::get() / output.stride(2) % output.shape(2);
-    let ow = AbsoluteIndex::get() / output.stride(3) % output.shape(3);
+    let b = ABSOLUTE_INDEX / output.stride(0) % output.shape(0);
+    let oc = ABSOLUTE_INDEX / output.stride(1) % output.shape(1);
+    let oh = ABSOLUTE_INDEX / output.stride(2) % output.shape(2);
+    let ow = ABSOLUTE_INDEX / output.stride(3) % output.shape(3);
 
     let g = (weight.shape(0) + oc) % groups;
     let ic_start = in_channels * g;
@@ -77,8 +77,8 @@ fn kernel<F: Float>(
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0u32, kernel_size_0, unroll_0) {
-            for kw in range(0u32, kernel_size_1, unroll_1) {
+        for kh in range(0, kernel_size_0, unroll_0) {
+            for kw in range(0, kernel_size_1, unroll_1) {
                 let ih = kh * dilation_0 + ih_base;
                 let iw = kw * dilation_1 + iw_base;
 
@@ -107,7 +107,7 @@ fn kernel<F: Float>(
         }
     }
 
-    output[AbsoluteIndex::get()] = sum;
+    output[ABSOLUTE_INDEX] = sum;
 }
 
 pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(

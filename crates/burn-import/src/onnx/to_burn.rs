@@ -577,7 +577,7 @@ impl OnnxGraph {
 
     fn range_conversion(node: Node) -> RangeNode {
         let output = node.outputs.first().unwrap().to_tensor_type();
-        let start = node.inputs.get(0).unwrap().to_type();
+        let start = node.inputs.first().unwrap().to_type();
         let end = node.inputs.get(1).unwrap().to_type();
         let step = node.inputs.get(2).unwrap().to_type();
 

@@ -5,7 +5,7 @@ use crate::{unexpanded, CubeContext, CubeType};
 ///
 /// Use `Comptime<Option<T>>` to have an alternate runtime behaviour if the compilation time value is not present
 pub struct Comptime<T> {
-    inner: T,
+    pub(crate) inner: T,
 }
 
 impl<T> Comptime<T> {

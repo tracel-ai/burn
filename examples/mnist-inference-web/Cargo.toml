@@ -1,7 +1,7 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
 edition.workspace = true
-license.workspace = true
+license = "MIT OR Apache-2.0"
 name = "mnist-inference-web"
 publish = false
 version.workspace = true
@@ -18,10 +18,12 @@ wgpu = ["burn/wgpu"]
 [dependencies]
 burn = { path = "../../crates/burn", default-features = false }
 serde = { workspace = true }
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
+
+# Wasm dependencies
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 
 [dev-dependencies]
 pollster = { workspace = true }

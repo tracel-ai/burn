@@ -50,7 +50,7 @@ pub trait Numeric:
             vectorization: (vec.len() as u8),
         });
         for (i, element) in vec.iter().enumerate() {
-            new_var = index_assign::expand(context, new_var, i.into(), (*element).into());
+            new_var = index_assign::expand(context, new_var, i, *element);
         }
 
         new_var

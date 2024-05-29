@@ -4,6 +4,8 @@ use syn::{PathArguments, Stmt};
 
 use crate::VariableKey;
 
+pub const KEYWORDS: [&str; 1] = ["ABSOLUTE_INDEX"];
+
 #[derive(Debug)]
 /// Information about a single variable's use in Cube code
 /// Information about a single variable's use in Cube code
@@ -200,8 +202,10 @@ impl CodeAnalysisBuilder {
                     .get_ident()
                     .expect("Analysis: only ident path are supported.");
 
-                // Use
-                self.var_uses.push(ident.into());
+                if !KEYWORDS.contains(&ident.to_string().as_str()) {
+                    // Use
+                    self.var_uses.push(ident.into());
+                }
             }
             syn::Expr::Binary(expr) => {
                 self.find_occurrences_in_expr(&expr.left, depth);
