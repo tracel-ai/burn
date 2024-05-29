@@ -17,6 +17,9 @@ pub struct WgslCompiler {
     stride: bool,
     shape: bool,
     num_workgroups: bool,
+    workgroup_id_no_axis: bool,
+    workgroup_size_no_axis: bool,
+    num_workgroup_no_axis: bool,
     shared_memories: Vec<SharedMemory>,
     local_arrays: Vec<LocalArray>,
 }
@@ -81,10 +84,16 @@ impl WgslCompiler {
             global_invocation_id: self.global_invocation_id || self.id,
             local_invocation_index: self.local_invocation_index,
             local_invocation_id: self.local_invocation_id,
-            num_workgroups: self.id || self.num_workgroups,
-            workgroup_id: self.workgroup_id,
+            num_workgroups: self.id
+                || self.num_workgroups
+                || self.num_workgroup_no_axis
+                || self.workgroup_id_no_axis,
+            workgroup_id: self.workgroup_id || self.workgroup_id_no_axis,
             body,
             extensions,
+            num_workgroups_no_axis: self.num_workgroup_no_axis,
+            workgroup_id_no_axis: self.workgroup_id_no_axis,
+            workgroup_size_no_axis: self.workgroup_size_no_axis,
         }
     }
 
@@ -218,6 +227,18 @@ impl WgslCompiler {
             cube::Variable::NumWorkgroupsZ => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsZ
+            }
+            cube::Variable::WorkgroupId => {
+                self.workgroup_id_no_axis = true;
+                wgsl::Variable::WorkgroupId
+            }
+            cube::Variable::WorkgroupSize => {
+                self.workgroup_size_no_axis = true;
+                wgsl::Variable::WorkgroupSize
+            }
+            cube::Variable::NumWorkgroups => {
+                self.num_workgroup_no_axis = true;
+                wgsl::Variable::NumWorkgroups
             }
         }
     }
