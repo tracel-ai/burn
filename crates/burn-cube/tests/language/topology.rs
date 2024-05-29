@@ -2,16 +2,16 @@ use burn_cube::{cube, Numeric, Tensor, UInt, ABSOLUTE_INDEX};
 
 #[cube]
 fn topology_kernel<T: Numeric>(input: Tensor<T>) {
-    let id = ABSOLUTE_INDEX + UInt::new(4u32);
-    let _ = input[id];
+    let x = ABSOLUTE_INDEX + UInt::new(4);
+    let _ = input[x];
 }
 
 mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, UInt, F32,
+        dialect::{Elem, Item, Variable},
+        CubeContext, CubeElem, F32,
     };
 
     type ElemType = F32;
@@ -35,13 +35,12 @@ mod tests {
 
         let mut scope = context.into_scope();
         let input: Variable = input.into();
-        let x = scope.create_local(Item::new(UInt::as_elem()));
-        let y = scope.create_local(Item::new(UInt::as_elem()));
-        let z = scope.create_local(Item::new(UInt::as_elem()));
+        let x = scope.create_local(Item::new(Elem::UInt));
+        let y = scope.create_local(item);
 
-        cpa!(&mut scope, x = shape(input, 1u32));
-        cpa!(&mut scope, y = stride(input, 1u32));
-        cpa!(&mut scope, z = len(input));
+        let id = Variable::Id;
+        cpa!(&mut scope, x = id + 4u32);
+        cpa!(&mut scope, y = input[x]);
 
         format!("{:?}", scope.operations)
     }
