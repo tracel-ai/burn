@@ -4,6 +4,7 @@ pub mod branch;
 mod comptime;
 mod context;
 mod element;
+mod indexation;
 mod operation;
 mod topology;
 

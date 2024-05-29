@@ -77,8 +77,8 @@ fn kernel<F: Float>(
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0u32, kernel_size_0, unroll_0) {
-            for kw in range(0u32, kernel_size_1, unroll_1) {
+        for kh in range(0, kernel_size_0, unroll_0) {
+            for kw in range(0, kernel_size_1, unroll_1) {
                 let ih = kh * dilation_0 + ih_base;
                 let iw = kw * dilation_1 + iw_base;
 

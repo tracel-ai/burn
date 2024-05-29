@@ -16,15 +16,15 @@ where
     (start.val..end.val).map(UInt::new)
 }
 
-pub fn range_expand<F>(
-    context: &mut CubeContext,
-    start: ExpandElement,
-    end: ExpandElement,
-    unroll: bool,
-    mut func: F,
-) where
+pub fn range_expand<F, S, E>(context: &mut CubeContext, start: S, end: E, unroll: bool, mut func: F)
+where
     F: FnMut(&mut CubeContext, ExpandElement),
+    S: Into<ExpandElement>,
+    E: Into<ExpandElement>,
 {
+    let start: ExpandElement = start.into();
+    let end: ExpandElement = end.into();
+
     if unroll {
         let start = match start.deref() {
             Variable::ConstantScalar(val, _) => *val as usize,
