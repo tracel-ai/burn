@@ -1,6 +1,6 @@
 use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{ArgSettings, KernelLauncher, LaunchArg, Runtime};
+use crate::{ArgSettings, Comptime, KernelLauncher, LaunchArg, Runtime};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -65,6 +65,12 @@ impl UInt {
 impl From<u32> for UInt {
     fn from(value: u32) -> Self {
         UInt::new(value)
+    }
+}
+
+impl From<Comptime<u32>> for UInt {
+    fn from(value: Comptime<u32>) -> Self {
+        UInt::new(value.inner)
     }
 }
 
