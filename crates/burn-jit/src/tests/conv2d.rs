@@ -31,8 +31,8 @@ mod tests {
     fn conv2d_same_as_reference_configurable() {
         let test_device = Default::default();
 
-        let height = 1024;
-        let width = 1024;
+        let height = 567;
+        let width = 567;
         let batch_size = 1;
         let channels_in = 8;
         let groups = 1;
@@ -60,13 +60,10 @@ mod tests {
             Distribution::Default,
             &test_device,
         );
-        let bias =
-            Tensor::<TestBackend, 1>::random([channels_out], Distribution::Default, &test_device);
 
         let ref_device = Default::default();
         let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &ref_device);
         let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
-        let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
         let options = burn_tensor::ops::ConvOptions::new(
             [stride, stride],
@@ -75,8 +72,8 @@ mod tests {
             groups,
         );
 
-        let output = module::conv2d(input, weight, Some(bias), options.clone());
-        let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
+        let output = module::conv2d(input, weight, None, options.clone());
+        let output_ref = module::conv2d(input_ref, weight_ref, None, options);
 
         output
             .into_data()

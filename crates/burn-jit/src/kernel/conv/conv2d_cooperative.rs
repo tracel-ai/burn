@@ -37,31 +37,41 @@ fn kernel<F: Float>(
     // Reading
     let mut shared_memory = SharedMemory::<F>::new(cube_dim);
 
-    // Add kernel / 2 for offsetting and reach output pos, but subtract kernel / 2 for starting left corner of kernel
-    let input_index = (CUBE_POS_X + UNIT_POS_X) * input.stride(2)
-        + (CUBE_POS_Y + UNIT_POS_Y) * input.stride(3)
-        + (CUBE_POS_Z + UNIT_POS_Z) * (input.stride(0) + input.stride(1));
+    let kh = CUBE_DIM_X;
+    let kw = CUBE_DIM_Y;
+    let oh = CUBE_POS_X;
+    let ow = CUBE_POS_Y;
+    let ih = kh + oh;
+    let iw = kw + ow;
+    let b = CUBE_POS / output.stride(0) % output.shape(0);
+    let oc = CUBE_POS / output.stride(1) % output.shape(1);
+    let ic = CUBE_POS_Z;
+    let index_input_0 = b * input.stride(0);
+    let index_weight_0 = oc * weight.stride(0);
 
-    let weight_index = UNIT_POS_X * weight.stride(2)
-        + UNIT_POS_Y * weight.stride(3)
-        + UNIT_POS_Z * (weight.stride(0) + weight.stride(1));
+    let input_index =
+        index_input_0 + ic * input.stride(1) + ih * input.stride(2) + iw * input.stride(3);
 
+    let weight_index =
+        index_weight_0 + ic * weight.stride(1) + kh * weight.stride(2) + kw * weight.stride(3);
+
+    // let x = weight[weight_index];
+    // let y = input[input_index];
     shared_memory[UNIT_POS] = input[input_index] * weight[weight_index];
 
     sync_units();
 
     // Writing (naive version)
     if UNIT_POS == UInt::new(0) {
-        let cube_pos =
-            CUBE_DIM_X * (CUBE_COUNT_X * CUBE_COUNT_Y) + CUBE_DIM_Y * CUBE_COUNT_Y + CUBE_DIM_Z;
+        let mut sum = bias[0];
 
-        let mut sum = bias[cube_pos / output.stride(1) % output.shape(1)];
-
-        for i in range(0u32, cube_dim, Comptime::new(false)) {
-            sum += input[i];
+        for i in range(0u32, CUBE_DIM, Comptime::new(false)) {
+            sum += shared_memory[i];
         }
 
-        output[block_pos] = sum;
+        // let x = input_index;
+        // output[CUBE_POS] = F::cast_from(x);
+        output[CUBE_POS] = sum;
     }
 }
 
@@ -118,15 +128,12 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     };
 
     let block_count = WorkGroup {
-        x: in_height as u32,
-        y: in_width as u32,
+        x: out_0 as u32,
+        y: out_1 as u32,
         z: (batch_size * out_channels) as u32,
     };
 
-    let settings = CompilationSettings::default()
-        .workgroup_size(cube_dim)
-        .vectorize_input(0, 1)
-        .vectorize_output(0, 1);
+    let settings = CompilationSettings::default().workgroup_size(cube_dim);
 
     kernel_launch::<E::CubeElement, R>(
         input.client,

@@ -30,19 +30,33 @@ pub(crate) fn codegen_for_loop(
             };
 
             if &func_name.to_string() == "range" {
-                let mut args = quote::quote! {
-                    context,
-                };
+                let mut args = call.args.clone();
 
-                for argument in call.args.iter() {
-                    let arg = codegen_expr(argument, loop_level, variable_analyses);
-                    args.extend(quote::quote! { #arg, });
-                }
+                let unroll = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
+                let end = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
+                let start = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
 
                 let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
 
                 quote::quote! {
-                    burn_cube::branch::range_expand(#args |context, #i| #block);
+                    {
+                        let _start = #start;
+                        let _end = #end;
+                        let _unroll = #unroll;
+                        burn_cube::branch::range_expand(context, _start, _end, _unroll, |context, #i| #block);
+                    }
                 }
             } else {
                 todo!("Codegen: Only range is supported")
