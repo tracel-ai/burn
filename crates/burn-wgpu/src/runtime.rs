@@ -15,7 +15,10 @@ use burn_compute::{
 use burn_cube::Runtime;
 use burn_jit::JitRuntime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
@@ -37,6 +40,8 @@ static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> 
 
 type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
+static SUBGROUP: AtomicBool = AtomicBool::new(false);
+
 impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
     type Compiler = wgsl::WgslCompiler;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
@@ -52,6 +57,12 @@ impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
 
     fn name() -> &'static str {
         "wgpu"
+    }
+
+    fn subgroup() -> bool {
+        // TODO: assumes that all version of wgpu on the device will have the same features
+        // enabled.
+        SUBGROUP.load(Ordering::Relaxed)
     }
 }
 
@@ -149,12 +160,18 @@ pub async fn select_device<G: GraphicsApi>(
     let adapter = select_adapter::<G>(device);
 
     let limits = adapter.limits();
+    let features = adapter.features();
+
+    SUBGROUP.store(
+        features.contains(wgpu::Features::SUBGROUP),
+        Ordering::Relaxed,
+    );
 
     let (device, queue) = adapter
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
+                required_features: features,
                 required_limits: limits,
             },
             None,

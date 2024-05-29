@@ -1,4 +1,7 @@
-use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
+use super::{
+    BinaryOperator, ClampOperator, Item, Operation, Operator, Subgroup, SubgroupNoInput,
+    UnaryOperator, Variable,
+};
 
 pub type Vectorization = u8;
 
@@ -16,6 +19,7 @@ impl Operation {
             Operation::Synchronization(_) => panic!(
                 "Synchronization instructions can't be vectorized, they should only be generated after vectorization."
             ),
+            Operation::Subgroup(op) => Operation::Subgroup(op.vectorize(vectorization)),
         }
     }
 }
@@ -93,6 +97,34 @@ impl UnaryOperator {
         let out = self.out.vectorize(vectorization);
 
         Self { input, out }
+    }
+}
+
+impl SubgroupNoInput {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        let out = self.out.vectorize(vectorization);
+
+        Self { out }
+    }
+}
+
+impl Subgroup {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            Subgroup::SubgroupElect(op) => Subgroup::SubgroupElect(op.vectorize(vectorization)),
+            Subgroup::SubgroupAll(op) => Subgroup::SubgroupAll(op.vectorize(vectorization)),
+            Subgroup::SubgroupAny(op) => Subgroup::SubgroupAny(op.vectorize(vectorization)),
+            Subgroup::SubgroupBroadcast(op) => {
+                Subgroup::SubgroupBroadcast(op.vectorize(vectorization))
+            }
+            Subgroup::SubgroupSum(op) => Subgroup::SubgroupSum(op.vectorize(vectorization)),
+            Subgroup::SubgroupProduct(op) => Subgroup::SubgroupProduct(op.vectorize(vectorization)),
+            Subgroup::SubgroupAnd(op) => Subgroup::SubgroupAnd(op.vectorize(vectorization)),
+            Subgroup::SubgroupOr(op) => Subgroup::SubgroupOr(op.vectorize(vectorization)),
+            Subgroup::SubgroupXor(op) => Subgroup::SubgroupXor(op.vectorize(vectorization)),
+            Subgroup::SubgroupMin(op) => Subgroup::SubgroupMin(op.vectorize(vectorization)),
+            Subgroup::SubgroupMax(op) => Subgroup::SubgroupMax(op.vectorize(vectorization)),
+        }
     }
 }
 

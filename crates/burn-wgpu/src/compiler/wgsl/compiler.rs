@@ -1,5 +1,5 @@
-use super::LocalArray;
 use super::{shader::ComputeShader, Item, SharedMemory};
+use super::{LocalArray, Subgroup};
 use crate::compiler::wgsl;
 use burn_cube::dialect as cube;
 
@@ -254,7 +254,63 @@ impl WgslCompiler {
             cube::Operation::Synchronization(val) => {
                 self.compile_synchronization(instructions, val)
             }
+            cube::Operation::Subgroup(op) => self.compile_subgroup(instructions, op),
         }
+    }
+
+    fn compile_subgroup(
+        &mut self,
+        instructions: &mut Vec<wgsl::Instruction>,
+        subgroup: cube::Subgroup,
+    ) {
+        let op = match subgroup {
+            cube::Subgroup::SubgroupElect(op) => Subgroup::SubgroupElect {
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupAll(op) => Subgroup::SubgroupAll {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupAny(op) => Subgroup::SubgroupAny {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupBroadcast(op) => Subgroup::SubgroupBroadcast {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupSum(op) => Subgroup::SubgroupSum {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupProduct(op) => Subgroup::SubgroupProduct {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupAnd(op) => Subgroup::SubgroupAnd {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupOr(op) => Subgroup::SubgroupOr {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupXor(op) => Subgroup::SubgroupXor {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupMin(op) => Subgroup::SubgroupMin {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            cube::Subgroup::SubgroupMax(op) => Subgroup::SubgroupMax {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+        };
+
+        instructions.push(wgsl::Instruction::Subgroup(op));
     }
 
     fn compile_branch(&mut self, instructions: &mut Vec<wgsl::Instruction>, branch: cube::Branch) {

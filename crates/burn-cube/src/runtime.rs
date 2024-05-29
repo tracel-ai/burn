@@ -22,4 +22,9 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     fn require_array_lengths() -> bool {
         false
     }
+
+    /// Runtime flag indicating if the runtime supports subgroup operations.
+    fn subgroup() -> bool {
+        false
+    }
 }

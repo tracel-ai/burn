@@ -1,6 +1,7 @@
 use super::{trace::Trace, Scalars};
 use burn_cube::dialect::{
-    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, UnaryOperator, Variable,
+    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, Subgroup, UnaryOperator,
+    Variable,
 };
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -422,6 +423,61 @@ impl TraceBuilder {
                 Operation::Synchronization(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
+                Operation::Subgroup(op) => match op {
+                    Subgroup::SubgroupElect(op) => {
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    Subgroup::SubgroupAll(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupAny(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupBroadcast(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupSum(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupProduct(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupAnd(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupOr(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupXor(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupMin(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subgroup::SubgroupMax(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                },
             }
         }
 
