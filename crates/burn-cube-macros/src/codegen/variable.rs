@@ -14,10 +14,10 @@ pub(crate) fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
         Lit::Float(_) => {
             let lit_str = lit.lit.to_token_stream().to_string();
             let float_lit = lit_str.parse::<f32>().unwrap();
-            quote::quote! { #float_lit.into() }
+            quote::quote! { #float_lit }
         }
         _ => {
-            quote::quote! { #lit.into() }
+            quote::quote! { #lit }
         }
     }
 }

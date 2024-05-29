@@ -11,6 +11,7 @@ mod module_import;
 mod ops;
 mod parenthesis;
 mod reuse;
+mod shared_memory;
 mod tensor;
 mod topology;
 mod r#trait;
