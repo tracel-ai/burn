@@ -6,6 +6,7 @@ mod cube_elem;
 mod float;
 mod int;
 mod numeric;
+mod shared_memory;
 mod tensor;
 mod uint;
 
@@ -16,5 +17,6 @@ pub use cube_elem::*;
 pub use float::*;
 pub use int::*;
 pub use numeric::*;
+pub use shared_memory::*;
 pub use tensor::*;
 pub use uint::*;

@@ -677,31 +677,6 @@ pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
     }
 }
 
-pub fn expand_config(node: &Node) -> Vec<i64> {
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "shape" => return value.clone().into_i64s(),
-            _ => {}
-        }
-    }
-    assert!(
-        !node.inputs.is_empty(),
-        "Expand: shape tensor must be present"
-    );
-    let input_value = &node.inputs[1];
-    match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
-                shape.clone()
-            } else {
-                panic!("Tensor data type must be int64, got {:?}", input_value)
-            }
-        }
-        _ => panic!("Arg for expand must be tensor or scalar"),
-    }
-}
-
 pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;

@@ -8,6 +8,7 @@ mod arange_step;
 mod arg;
 mod argwhere_nonzero;
 mod bool;
+mod cartesian_grid;
 mod cast;
 mod cat;
 mod chunk;

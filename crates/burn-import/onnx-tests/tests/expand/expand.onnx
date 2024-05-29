@@ -1,17 +1,17 @@
 
-expand:ç
-,
+expand:í
+5
 input_tensor
-shape_tensoroutput"ExpandExpandGraphZ
+shape_tensoroutput/Expand"ExpandExpandGraphZ
 input_tensor
 
 
-Z
+Z
 shape_tensor
 
 
-b
-output
-
-
+b
+output
+
+
 B
