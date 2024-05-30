@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, Item};
+use crate::ir::{Elem, Item, Visibility};
 use crate::{Compilation, CompilationInfo, CubeContext, ExpandElement, InputInfo, OutputInfo};
 use std::collections::HashMap;
 
@@ -47,7 +47,7 @@ impl KernelBuilder {
     pub fn input_array(&mut self, item: Item) -> ExpandElement {
         self.inputs.push(InputInfo::Array {
             item,
-            visibility: crate::dialect::Visibility::Read,
+            visibility: Visibility::Read,
         });
         let variable = self.context.input(self.num_input, item);
         self.num_input += 1;

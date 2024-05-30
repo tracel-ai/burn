@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, Variable, Vectorization};
+use crate::ir::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::prelude::{KernelBuilder, KernelLauncher};
 use crate::{ArgSettings, Comptime, LaunchArg, Runtime};

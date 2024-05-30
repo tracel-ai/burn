@@ -1,8 +1,8 @@
 use crate::language::{Array, CubeContext, ExpandElement, SharedMemory, Tensor, UInt};
-use crate::{dialect, unexpanded};
+use crate::{ir, unexpanded};
 
 pub mod assign {
-    use self::dialect::{Operator, UnaryOperator};
+    use self::ir::{Operator, UnaryOperator};
 
     use super::*;
 
@@ -21,7 +21,7 @@ pub mod assign {
 pub mod index_assign {
     use crate::{language::CubeType, unexpanded};
 
-    use self::dialect::{BinaryOperator, Operator, Variable};
+    use self::ir::{BinaryOperator, Operator, Variable};
 
     use super::*;
 
@@ -34,7 +34,7 @@ pub mod index_assign {
         let array = array.into();
         let index: Variable = *index.into();
         let index = match index {
-            Variable::ConstantScalar(val, _) => Variable::ConstantScalar(val, dialect::Elem::UInt),
+            Variable::ConstantScalar(val, _) => Variable::ConstantScalar(val, ir::Elem::UInt),
             _ => index,
         };
         context.register(Operator::IndexAssign(BinaryOperator {
@@ -66,7 +66,7 @@ pub mod index {
         unexpanded,
     };
 
-    use self::dialect::{Operator, Variable};
+    use self::ir::{Operator, Variable};
 
     use super::*;
 
@@ -79,7 +79,7 @@ pub mod index {
         let index_var: Variable = *index;
         let index = match index_var {
             Variable::ConstantScalar(val, _) => {
-                ExpandElement::Plain(Variable::ConstantScalar(val, dialect::Elem::UInt))
+                ExpandElement::Plain(Variable::ConstantScalar(val, ir::Elem::UInt))
             }
             _ => index,
         };
@@ -106,7 +106,7 @@ pub mod index {
 pub mod add_assign_op {
     use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
-    use self::dialect::Operator;
+    use self::ir::Operator;
 
     use super::*;
 
@@ -134,7 +134,7 @@ pub mod add_assign_op {
 pub mod sub_assign_op {
     use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
-    use self::dialect::Operator;
+    use self::ir::Operator;
 
     use super::*;
 
@@ -162,7 +162,7 @@ pub mod sub_assign_op {
 pub mod mul_assign_op {
     use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
-    use self::dialect::Operator;
+    use self::ir::Operator;
 
     use super::*;
 
@@ -190,7 +190,7 @@ pub mod mul_assign_op {
 pub mod div_assign_op {
     use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
-    use self::dialect::Operator;
+    use self::ir::Operator;
 
     use super::*;
 

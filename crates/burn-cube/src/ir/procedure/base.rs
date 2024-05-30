@@ -2,7 +2,7 @@ use super::{
     CheckedIndex, CheckedIndexAssign, ConditionalAssign, IndexOffsetGlobalWithLayout, ReadGlobal,
     ReadGlobalWithLayout, WriteGlobal,
 };
-use crate::codegen::dialect::Vectorization;
+use crate::ir::Vectorization;
 use serde::{Deserialize, Serialize};
 
 /// Tensor operations that can't be executed with a simple [operator](super::super::Operator) should use a

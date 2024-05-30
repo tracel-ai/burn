@@ -1,5 +1,5 @@
 use super::super::{cpa, Elem, Item, Operator, Scope, Variable};
-use crate::codegen::dialect::{BinaryOperator, Vectorization};
+use crate::ir::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Read a global array.

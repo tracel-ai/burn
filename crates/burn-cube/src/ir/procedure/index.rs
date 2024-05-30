@@ -1,7 +1,4 @@
-use crate::{
-    codegen::dialect::{macros::cpa, Item, Scope, Variable, Vectorization},
-    dialect::Elem,
-};
+use crate::ir::{macros::cpa, Elem, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Perform a check bound on the index (lhs) of value (rhs)
@@ -19,8 +16,8 @@ impl CheckedIndex {
         let lhs = self.lhs;
         let rhs = self.rhs;
         let out = self.out;
-        let array_len = scope.create_local(Item::new(crate::dialect::Elem::UInt));
-        let inside_bound = scope.create_local(Item::new(crate::dialect::Elem::Bool));
+        let array_len = scope.create_local(Item::new(Elem::UInt));
+        let inside_bound = scope.create_local(Item::new(Elem::Bool));
 
         cpa!(scope, array_len = len(lhs));
         cpa!(scope, inside_bound = rhs < array_len);

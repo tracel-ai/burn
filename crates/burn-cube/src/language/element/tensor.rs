@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{Elem, Item, Metadata, Vectorization},
+    ir::{Elem, Item, Metadata, Vectorization},
     language::{indexation::Index, CubeType, ExpandElement},
     prelude::{KernelBuilder, KernelLauncher},
     unexpanded, ArgSettings, CubeContext, CubeElem, LaunchArg, Runtime, UInt,

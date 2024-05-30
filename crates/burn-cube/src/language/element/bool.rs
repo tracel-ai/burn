@@ -1,4 +1,4 @@
-use crate::dialect::Elem;
+use crate::ir::Elem;
 use crate::language::{CubeElem, CubeType, ExpandElement};
 
 impl CubeType for bool {

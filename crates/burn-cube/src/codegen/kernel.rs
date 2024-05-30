@@ -1,5 +1,5 @@
 use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
-use crate::dialect::Elem;
+use crate::ir::Elem;
 use crate::pod::CubeElement;
 use crate::TensorHandle;
 use crate::{calculate_cube_count_elemwise, GpuComputeShaderPhase, Runtime, SUBCUBE_DIM_APPROX};

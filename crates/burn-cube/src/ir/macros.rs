@@ -13,7 +13,7 @@ macro_rules! cpa {
     };
     // out = add(lhs, rhs)
     ($scope:expr, $out:ident = add($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Add(
+        $scope.register($crate::ir::Operator::Add(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -23,7 +23,7 @@ macro_rules! cpa {
     };
     // out = sub(lhs, rhs)
     ($scope:expr, $out:ident = sub($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Sub(
+        $scope.register($crate::ir::Operator::Sub(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -37,7 +37,7 @@ macro_rules! cpa {
     };
     // out = mul(lhs, rhs)
     ($scope:expr, $out:ident = mul($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Mul(
+        $scope.register($crate::ir::Operator::Mul(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -47,7 +47,7 @@ macro_rules! cpa {
     };
     // out = div(lhs, rhs)
     ($scope:expr, $out:ident = div($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Div(
+        $scope.register($crate::ir::Operator::Div(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -57,13 +57,13 @@ macro_rules! cpa {
     };
     // out = modulo(lhs, rhs)
     ($scope:expr, $out:ident = modulo($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Modulo(
+        $scope.register($crate::ir::Operator::Modulo(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = powf(lhs, rhs)
     ($scope:expr, $out:ident = powf($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Powf(
+        $scope.register($crate::ir::Operator::Powf(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -73,7 +73,7 @@ macro_rules! cpa {
     };
     // out = and(lhs, rhs)
     ($scope:expr, $out:ident = and($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::And(
+        $scope.register($crate::ir::Operator::And(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -83,7 +83,7 @@ macro_rules! cpa {
     };
     // out = or(lhs, rhs)
     ($scope:expr, $out:ident = or($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Or(
+        $scope.register($crate::ir::Operator::Or(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -93,7 +93,7 @@ macro_rules! cpa {
     };
     // out = not(input)
     ($scope:expr, $out:ident = not($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Not(
+        $scope.register($crate::ir::Operator::Not(
             cpa!(unary $input, $out)
         ));
     };
@@ -103,7 +103,7 @@ macro_rules! cpa {
     };
     // out = bitwise_and(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_and($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::BitwiseAnd(
+        $scope.register($crate::ir::Operator::BitwiseAnd(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -113,7 +113,7 @@ macro_rules! cpa {
     };
     // out = bitwise_xor(lhs, rhs)
     ($scope:expr, $out:ident = bitwise_xor($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::BitwiseXor(
+        $scope.register($crate::ir::Operator::BitwiseXor(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -123,7 +123,7 @@ macro_rules! cpa {
     };
     // out = shift_left(lhs, rhs)
     ($scope:expr, $out:ident = shift_left($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::ShiftLeft(
+        $scope.register($crate::ir::Operator::ShiftLeft(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -133,7 +133,7 @@ macro_rules! cpa {
     };
     // out = shift_right(lhs, rhs)
     ($scope:expr, $out:ident = shift_right($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::ShiftRight(
+        $scope.register($crate::ir::Operator::ShiftRight(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -143,7 +143,7 @@ macro_rules! cpa {
     };
     // out = equal(lhs, rhs)
     ($scope:expr, $out:ident = equal($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Equal(
+        $scope.register($crate::ir::Operator::Equal(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -153,7 +153,7 @@ macro_rules! cpa {
     };
     // out = not_equal(lhs, rhs)
     ($scope:expr, $out:ident = not_equal($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::NotEqual(
+        $scope.register($crate::ir::Operator::NotEqual(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -163,7 +163,7 @@ macro_rules! cpa {
     };
     // out = greater(lhs, rhs)
     ($scope:expr, $out:ident = greater($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Greater(
+        $scope.register($crate::ir::Operator::Greater(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -173,7 +173,7 @@ macro_rules! cpa {
     };
     // out = greater_equal(lhs, rhs)
     ($scope:expr, $out:ident = greater_equal($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::GreaterEqual(
+        $scope.register($crate::ir::Operator::GreaterEqual(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -183,7 +183,7 @@ macro_rules! cpa {
     };
     // out = lower(lhs, rhs)
     ($scope:expr, $out:ident = lower($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Lower(
+        $scope.register($crate::ir::Operator::Lower(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -193,19 +193,19 @@ macro_rules! cpa {
     };
     // out = lower_equal(lhs, rhs)
     ($scope:expr, $out:ident = lower_equal($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::LowerEqual(
+        $scope.register($crate::ir::Operator::LowerEqual(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = max(lhs, rhs)
     ($scope:expr, $out:ident = max($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Max(
+        $scope.register($crate::ir::Operator::Max(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = min(lhs, rhs)
     ($scope:expr, $out:ident = min($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Min(
+        $scope.register($crate::ir::Operator::Min(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -215,25 +215,25 @@ macro_rules! cpa {
     };
     // out = index(lhs, rhs)
     ($scope:expr, $out:ident = index($lhs:expr, $rhs:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Index(
+        $scope.register($crate::ir::Operator::Index(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out = unchecked(lhs[rhs])
     ($scope:expr, $out:ident = unchecked($lhs:ident[$rhs:expr])) => {
-        $scope.register($crate::codegen::dialect::Operator::UncheckedIndex(
+        $scope.register($crate::ir::Operator::UncheckedIndex(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // out[lhs] = rhs
     ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
-        $scope.register($crate::codegen::dialect::Operator::IndexAssign(
+        $scope.register($crate::ir::Operator::IndexAssign(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
     // unchecked(out[lhs]) = rhs
     ($scope:expr, unchecked($out:ident[$lhs:ident]) = $rhs:expr) => {
-        $scope.register($crate::codegen::dialect::Operator::UncheckedIndexAssign(
+        $scope.register($crate::ir::Operator::UncheckedIndexAssign(
             cpa!(binary $lhs, $rhs, $out)
         ));
     };
@@ -243,73 +243,73 @@ macro_rules! cpa {
     };
     // out = abs(input)
     ($scope:expr, $out:ident = abs($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Abs(
+        $scope.register($crate::ir::Operator::Abs(
             cpa!(unary $input, $out)
         ));
     };
     // out = exp(input)
     ($scope:expr, $out:ident = exp($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Exp(
+        $scope.register($crate::ir::Operator::Exp(
             cpa!(unary $input, $out)
         ));
     };
     // out = log(input)
     ($scope:expr, $out:ident = log($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Log(
+        $scope.register($crate::ir::Operator::Log(
             cpa!(unary $input, $out)
         ));
     };
     // out = log1p(input)
     ($scope:expr, $out:ident = log1p($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Log1p(
+        $scope.register($crate::ir::Operator::Log1p(
             cpa!(unary $input, $out)
         ));
     };
     // out = cos(input)
     ($scope:expr, $out:ident = cos($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Cos(
+        $scope.register($crate::ir::Operator::Cos(
             cpa!(unary $input, $out)
         ));
     };
     // out = sin(input)
     ($scope:expr, $out:ident = sin($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Sin(
+        $scope.register($crate::ir::Operator::Sin(
             cpa!(unary $input, $out)
         ));
     };
     // out = tanh(input)
     ($scope:expr, $out:ident = tanh($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Tanh(
+        $scope.register($crate::ir::Operator::Tanh(
             cpa!(unary $input, $out)
         ));
     };
     // out = sqrt(input)
     ($scope:expr, $out:ident = sqrt($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Sqrt(
+        $scope.register($crate::ir::Operator::Sqrt(
             cpa!(unary $input, $out)
         ));
     };
     // out = floor(input)
     ($scope:expr, $out:ident = floor($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Floor(
+        $scope.register($crate::ir::Operator::Floor(
             cpa!(unary $input, $out)
         ));
     };
     // out = ceil(input)
     ($scope:expr, $out:ident = ceil($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Ceil(
+        $scope.register($crate::ir::Operator::Ceil(
             cpa!(unary $input, $out)
         ));
     };
     // out = erf(input)
     ($scope:expr, $out:ident = erf($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Erf(
+        $scope.register($crate::ir::Operator::Erf(
             cpa!(unary $input, $out)
         ));
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        $scope.register($crate::codegen::dialect::Operator::Assign(
+        $scope.register($crate::ir::Operator::Assign(
             cpa!(unary $input, $out)
         ));
     };
@@ -330,13 +330,13 @@ macro_rules! cpa {
     };
     // out = cast(input)
     ($scope:expr, $out:ident = cast($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Operator::Assign(
+        $scope.register($crate::ir::Operator::Assign(
             cpa!(unary $input, $out)
         ));
     };
     // out = shape(tensor, dim)
     ($scope:expr, $out:ident = shape($input:expr, $dim:expr)) => {
-        $scope.register($crate::codegen::dialect::Metadata::Shape {
+        $scope.register($crate::ir::Metadata::Shape {
             dim: $dim.into(),
             var: $input.into(),
             out: $out.into(),
@@ -344,7 +344,7 @@ macro_rules! cpa {
     };
     // out = stride(tensor, dim)
     ($scope:expr, $out:ident = stride($input:expr, $dim:expr)) => {
-        $scope.register($crate::codegen::dialect::Metadata::Stride {
+        $scope.register($crate::ir::Metadata::Stride {
             dim: $dim.into(),
             var: $input.into(),
             out: $out.into(),
@@ -352,44 +352,44 @@ macro_rules! cpa {
     };
     // out = len(array)
     ($scope:expr, $out:ident = len($input:expr)) => {
-        $scope.register($crate::codegen::dialect::Metadata::ArrayLength {
+        $scope.register($crate::ir::Metadata::ArrayLength {
             var: $input.into(),
             out: $out.into(),
         });
     };
     // range(start, end).for_each(|i, scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
-        $crate::codegen::dialect::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+        $crate::ir::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
     };
     // range(start, end, unroll).for_each(|i, scope| { ... })
     ($scope:expr, range($start:expr, $end:expr, $unroll:expr).for_each($arg:expr)) => {
         if $unroll {
-            $crate::codegen::dialect::UnrolledRangeLoop::register($scope, $start.into(), $end.into(), $arg);
+            $crate::ir::UnrolledRangeLoop::register($scope, $start.into(), $end.into(), $arg);
         } else {
-            $crate::codegen::dialect::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+            $crate::ir::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
         }
     };
     // loop(|scope| { ... })
     ($scope:expr, loop($arg:expr)) => {
-        $crate::codegen::dialect::Loop::register($scope, $arg);
+        $crate::ir::Loop::register($scope, $arg);
     };
     // if (cond).then(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg:expr)) => {
-        $crate::codegen::dialect::If::register($scope, $cond.into(), $arg);
+        $crate::ir::If::register($scope, $cond.into(), $arg);
     };
     // if (cond).then(|scope| { ... }).else(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg_if:expr).else($arg_else:expr)) => {
-        $crate::codegen::dialect::IfElse::register($scope, $cond.into(), $arg_if, $arg_else);
+        $crate::ir::IfElse::register($scope, $cond.into(), $arg_if, $arg_else);
     };
     (binary $lhs:expr, $rhs:expr, $out:expr) => {
-        $crate::codegen::dialect::BinaryOperator {
+        $crate::ir::BinaryOperator {
             lhs: $lhs.into(),
             rhs: $rhs.into(),
             out: $out.into(),
         }
     };
     (unary $input:expr, $out:expr) => {
-        $crate::codegen::dialect::UnaryOperator {
+        $crate::ir::UnaryOperator {
             input: $input.into(),
             out: $out.into(),
         }

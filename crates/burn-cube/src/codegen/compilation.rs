@@ -1,10 +1,9 @@
 use super::Compiler;
 use crate::{
-    codegen::dialect::{
-        Binding, ComputeShader, CubeDim, Elem, Item, Location, ReadingStrategy, Variable,
+    ir::{
+        Binding, ComputeShader, CubeDim, Elem, Item, Location, ReadingStrategy, Scope, Variable,
         Vectorization, Visibility,
     },
-    dialect::Scope,
     Runtime,
 };
 

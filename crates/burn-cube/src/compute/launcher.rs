@@ -1,5 +1,5 @@
 use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
-use crate::dialect::{Elem, FloatKind, IntKind};
+use crate::ir::{Elem, FloatKind, IntKind};
 use crate::{calculate_num_elems_dyn_rank, GpuComputeShaderPhase, Runtime, TensorHandle};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;

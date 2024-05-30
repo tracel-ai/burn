@@ -1,4 +1,4 @@
-use crate::{codegen::CompilerRepresentation, dialect::CubeDim, Compiler, GpuComputeShaderPhase};
+use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, GpuComputeShaderPhase};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 

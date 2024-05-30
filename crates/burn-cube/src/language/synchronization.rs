@@ -1,4 +1,4 @@
-use crate::{dialect::Synchronization, CubeContext};
+use crate::{ir::Synchronization, CubeContext};
 
 pub fn sync_units() {}
 

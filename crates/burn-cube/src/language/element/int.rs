@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, IntKind, Variable};
+use crate::ir::{Elem, IntKind, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 
 /// Signed integer. Used as input in int kernels

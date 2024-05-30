@@ -1,4 +1,4 @@
-use crate::codegen::dialect::{macros::cpa, Scope, Variable, Vectorization};
+use crate::ir::{macros::cpa, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.

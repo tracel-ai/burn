@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dialect::Item,
+    ir::Item,
     language::{indexation::Index, CubeType, ExpandElement},
     CubeContext, CubeElem,
 };
@@ -26,7 +26,7 @@ impl<T: CubeElem> SharedMemory<T> {
     ) -> <Self as CubeType>::ExpandType {
         let size = size.value();
         let size = match size {
-            crate::dialect::Variable::ConstantScalar(val, _) => val as u32,
+            crate::ir::Variable::ConstantScalar(val, _) => val as u32,
             _ => panic!("Shared memory need constant initialization value"),
         };
         context.create_shared(Item::new(T::as_elem()), size)

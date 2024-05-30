@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{Variable, Vectorization},
+    ir::{Variable, Vectorization},
     prelude::{KernelBuilder, KernelLauncher},
     Runtime,
 };

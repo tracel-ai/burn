@@ -3,6 +3,9 @@ extern crate alloc;
 #[macro_use]
 extern crate derive_new;
 
+/// Cube Language Internal Representation.
+pub mod ir;
+
 pub mod codegen;
 pub mod compute;
 pub mod prelude;
@@ -22,7 +25,7 @@ pub use burn_cube_macros::cube;
 /// An approximation of the subcube dimension.
 pub const SUBCUBE_DIM_APPROX: usize = 16;
 
-use codegen::dialect::ComputeShader;
+use crate::ir::ComputeShader;
 use prelude::CubeCount;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).

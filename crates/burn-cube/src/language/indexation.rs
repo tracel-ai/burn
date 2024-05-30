@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{Elem, Variable},
+    ir::{Elem, Variable},
     Comptime, ExpandElement, UInt,
 };
 

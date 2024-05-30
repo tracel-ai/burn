@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{InitOperator, Operation, Subcube, UnaryOperator},
+    ir::{Elem, InitOperator, Item, Operation, Subcube, UnaryOperator},
     unexpanded, CubeContext, CubeElem, ExpandElement,
 };
 
@@ -9,7 +9,7 @@ pub fn subcube_elect() -> bool {
 }
 
 pub fn subcube_elect_expand<E: CubeElem>(context: &mut CubeContext) -> ExpandElement {
-    let output = context.create_local(crate::dialect::Item::new(crate::dialect::Elem::Bool));
+    let output = context.create_local(Item::new(Elem::Bool));
 
     let out = *output;
 

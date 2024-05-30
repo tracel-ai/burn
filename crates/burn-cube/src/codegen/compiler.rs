@@ -1,4 +1,4 @@
-use crate::dialect::{ComputeShader, Elem};
+use crate::ir::{ComputeShader, Elem};
 use std::fmt::Display;
 
 /// Trait for compiled code representation

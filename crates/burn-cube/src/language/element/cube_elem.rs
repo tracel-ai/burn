@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, Variable};
+use crate::ir::{Elem, Variable};
 use crate::language::{CubeType, ExpandElement};
 use crate::UInt;
 
@@ -31,7 +31,7 @@ impl_into_expand_element!(i64);
 /// Useful for Comptime
 impl From<UInt> for ExpandElement {
     fn from(value: UInt) -> Self {
-        ExpandElement::Plain(crate::dialect::Variable::ConstantScalar(
+        ExpandElement::Plain(crate::ir::Variable::ConstantScalar(
             value.val as f64,
             UInt::as_elem(),
         ))

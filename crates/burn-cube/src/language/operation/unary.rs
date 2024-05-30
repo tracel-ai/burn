@@ -1,6 +1,6 @@
 use crate::{
-    dialect::Operator, unexpanded, CubeContext, CubeType, ExpandElement, UInt, BF16, F16, F32, F64,
-    I32, I64,
+    ir::Operator, unexpanded, CubeContext, CubeType, ExpandElement, UInt, BF16, F16, F32, F64, I32,
+    I64,
 };
 
 use super::base::unary_expand;

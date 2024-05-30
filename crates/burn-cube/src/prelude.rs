@@ -5,7 +5,7 @@ pub use crate::compute::{
     CompiledKernel, CubeCount, FullCompilationPhase, JitKernel, Kernel, KernelBuilder,
     KernelLauncher,
 };
-pub use crate::dialect::{ComputeShader, CubeDim};
+pub use crate::ir::{ComputeShader, CubeDim};
 pub use crate::language::{branch::*, ArgSettings, Comptime};
 pub use crate::runtime::Runtime;
 

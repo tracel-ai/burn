@@ -1,4 +1,4 @@
-use crate::dialect::Item;
+use crate::ir::Item;
 use crate::language::{assign, CubeContext, CubeElem, CubeType};
 use crate::{unexpanded, ExpandElement};
 

@@ -1,4 +1,4 @@
-use crate::codegen::dialect::{macros::cpa, Scope, Variable, Vectorization};
+use crate::ir::{macros::cpa, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Write to a global array.

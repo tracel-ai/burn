@@ -1,4 +1,4 @@
-use crate::dialect::{Elem, FloatKind, Variable};
+use crate::ir::{Elem, FloatKind, Variable};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh};
 
