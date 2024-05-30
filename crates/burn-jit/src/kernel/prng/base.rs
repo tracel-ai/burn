@@ -1,13 +1,13 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Scope, Variable},
-    Compilation, CompilationInfo, CompilationSettings, CubeCount, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    dialect::{Elem, Scope, Variable},
+    prelude::*,
+    CubeCountSettings, Execution, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;
 
 use crate::{
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitElement, JitRuntime, SEED,
 };
@@ -38,16 +38,16 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
         )])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
-        .execute(WorkgroupLaunch::Custom(prng_workgroup(
+        .execute(CubeCountSettings::Custom(prng_cube_count(
             num_elems,
-            WORKGROUP_DEFAULT,
+            SUBCUBE_DIM_APPROX,
             N_VALUES_PER_THREAD,
         )));
 
     output
 }
 
-fn prng_workgroup(
+fn prng_cube_count(
     num_elems: usize,
     workgroup_size: usize,
     n_values_per_thread: usize,

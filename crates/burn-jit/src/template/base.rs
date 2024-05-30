@@ -1,5 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{dialect::CubeDim, CompiledKernel, CubeCount, JitKernel, LaunchSettings};
+use burn_cube::compute::LaunchSettings;
+use burn_cube::prelude::*;
 
 use super::SourceTemplate;
 

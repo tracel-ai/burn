@@ -1,12 +1,12 @@
 use burn_cube::{
-    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, CubeCount,
-    Execution, InputInfo, OutputInfo, TensorHandle, WorkgroupLaunch,
+    cpa, dialect::ComputeShader, prelude::CubeCount, Compilation, CompilationInfo,
+    CompilationSettings, CubeCountSettings, Execution, InputInfo, OutputInfo, TensorHandle,
 };
 use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -247,7 +247,7 @@ pub fn reduce_dim_shared<
     let grid = CubeCount::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     let reduce_group_size = input.shape.dims[dim];
-    let n_invocation_per_workgroup = WORKGROUP_DEFAULT * WORKGROUP_DEFAULT;
+    let n_invocation_per_workgroup = SUBCUBE_DIM_APPROX * SUBCUBE_DIM_APPROX;
     let n_input_values_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_workgroup as f32) as u32;
 
@@ -256,8 +256,8 @@ pub fn reduce_dim_shared<
 
     let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
-        WORKGROUP_DEFAULT,
-        WORKGROUP_DEFAULT,
+        SUBCUBE_DIM_APPROX,
+        SUBCUBE_DIM_APPROX,
         n_input_values_per_thread,
         divisible_shape,
     );
@@ -273,7 +273,7 @@ pub fn reduce_dim_shared<
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(grid));
+        .execute(CubeCountSettings::Custom(grid));
 
     output
 }

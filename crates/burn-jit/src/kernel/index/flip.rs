@@ -5,8 +5,8 @@ use crate::{
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    OutputInfo, TensorHandle,
 };
 use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
@@ -144,7 +144,7 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, const D: usize>(
             &output.shape.dims,
         )])
         .with_scalars(&scalars)
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

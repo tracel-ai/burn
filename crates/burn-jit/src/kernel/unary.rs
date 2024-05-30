@@ -1,4 +1,4 @@
-use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
+use burn_cube::{CubeCountSettings, Execution, TensorHandle};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
@@ -217,7 +217,7 @@ where
             &tensor.shape.dims,
         )];
 
-        let launch = WorkgroupLaunch::Input { pos: 0 };
+        let launch = CubeCountSettings::Input { pos: 0 };
 
         match scalars {
             Some(scalars) => {
@@ -256,7 +256,7 @@ where
             &output.shape.dims,
         )];
 
-        let launch = WorkgroupLaunch::Output { pos: 0 };
+        let launch = CubeCountSettings::Output { pos: 0 };
 
         match scalars {
             Some(scalars) => {

@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
+use burn_cube::{CubeCountSettings, Execution, TensorHandle};
 use burn_tensor::Shape;
 
 /// Creates a binary kernel.
@@ -159,7 +159,7 @@ where
                 TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
-            .execute(WorkgroupLaunch::Input { pos: 0 });
+            .execute(CubeCountSettings::Input { pos: 0 });
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
@@ -168,7 +168,7 @@ where
                 TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
-            .execute(WorkgroupLaunch::Input { pos: 1 });
+            .execute(CubeCountSettings::Input { pos: 1 });
 
         rhs
     } else {
@@ -197,7 +197,7 @@ where
                 &out.strides,
                 &out.shape.dims,
             )])
-            .execute(WorkgroupLaunch::Output { pos: 0 });
+            .execute(CubeCountSettings::Output { pos: 0 });
 
         out
     }

@@ -1,14 +1,14 @@
 use crate::{
     element::JitElement,
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa,
+    calculate_cube_count_elemwise, cpa,
     dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo,
-    TensorHandle, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    TensorHandle,
 };
 use std::marker::PhantomData;
 
@@ -205,7 +205,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
         });
 
     let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
+    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -215,7 +215,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
             // kernel, but we need to put the right number of dimensions (rank).
             TensorHandle::new(&indices.handle, &strides, &strides),
         ])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     tensor
 }

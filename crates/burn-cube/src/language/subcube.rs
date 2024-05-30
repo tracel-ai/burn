@@ -1,5 +1,5 @@
 use crate::{
-    dialect::{Operation, Subcube, SubgroupNoInput, UnaryOperator},
+    dialect::{InitOperator, Operation, Subcube, UnaryOperator},
     unexpanded, CubeContext, CubeElem, ExpandElement,
 };
 
@@ -13,7 +13,7 @@ pub fn subcube_elect_expand<E: CubeElem>(context: &mut CubeContext) -> ExpandEle
 
     let out = *output;
 
-    context.register(Operation::Subcube(Subcube::Elect(SubgroupNoInput { out })));
+    context.register(Operation::Subcube(Subcube::Elect(InitOperator { out })));
 
     output
 }

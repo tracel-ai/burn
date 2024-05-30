@@ -1,5 +1,5 @@
-use burn_compute::client::ComputeClient;
-use burn_cube::{branch::*, dialect::ComputeShader, LaunchArg, *};
+use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
+
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
@@ -156,7 +156,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     };
 
     let num_elems_output = output.shape.num_elements();
-    let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
+    let workgroup = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
     let settings = CompilationSettings::default()
         .vectorize_input(0, 1)
         .vectorize_output(0, 1);

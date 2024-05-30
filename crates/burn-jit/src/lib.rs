@@ -18,7 +18,7 @@ pub(crate) mod tune;
 /// Elements for JIT backend
 pub mod element;
 
-use burn_cube::{Kernel, Runtime};
+use burn_cube::{prelude::Kernel, Runtime};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;

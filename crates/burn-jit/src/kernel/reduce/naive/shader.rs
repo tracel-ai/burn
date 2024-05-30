@@ -1,8 +1,8 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    OutputInfo, TensorHandle,
 };
 use std::marker::PhantomData;
 
@@ -159,7 +159,7 @@ pub fn reduce_dim_naive<
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

@@ -2,12 +2,12 @@ use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
 use crate::dialect::Elem;
 use crate::pod::CubeElement;
 use crate::TensorHandle;
-use crate::{elemwise_workgroup, GpuComputeShaderPhase, Runtime, WORKGROUP_DEFAULT};
+use crate::{calculate_cube_count_elemwise, GpuComputeShaderPhase, Runtime, SUBCUBE_DIM_APPROX};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::{Binding, Handle};
 
 /// The position of the input or output to calculate the number of workgroups to launch.
-pub enum WorkgroupLaunch {
+pub enum CubeCountSettings {
     Input { pos: usize },
     Output { pos: usize },
     Custom(CubeCount),
@@ -73,7 +73,7 @@ where
     }
     /// Execute a dynamic kernel.
     #[allow(unused)]
-    pub fn execute(self, launch: WorkgroupLaunch) {
+    pub fn execute(self, launch: CubeCountSettings) {
         execute_dynamic::<R, K, f32, f32, f32>(
             self.inputs,
             self.outputs,
@@ -108,7 +108,7 @@ where
 
     /// Execute a dynamic kernel.
     #[allow(unused)]
-    pub fn execute(self, launch: WorkgroupLaunch) {
+    pub fn execute(self, launch: CubeCountSettings) {
         execute_dynamic::<R, K, E, f32, f32>(
             self.inputs,
             self.outputs,
@@ -144,7 +144,7 @@ where
     }
     /// Execute a dynamic kernel.
     #[allow(clippy::too_many_arguments)]
-    pub fn execute(self, launch: WorkgroupLaunch)
+    pub fn execute(self, launch: CubeCountSettings)
     where
         K: GpuComputeShaderPhase + 'static,
         R: Runtime,
@@ -172,7 +172,7 @@ where
 {
     /// Execute a dynamic kernel.
     #[allow(unused)]
-    pub fn execute(self, launch: WorkgroupLaunch) {
+    pub fn execute(self, launch: CubeCountSettings) {
         execute_dynamic::<R, K, E1, E2, E3>(
             self.inputs,
             self.outputs,
@@ -194,7 +194,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     scalars_2: Option<&[E2]>,
     scalars_3: Option<&[E3]>,
     kernel: K,
-    launch: WorkgroupLaunch,
+    launch: CubeCountSettings,
     client: ComputeClient<R::Server, R::Channel>,
 ) where
     K: GpuComputeShaderPhase + 'static,
@@ -234,7 +234,7 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
     scalars_1: Option<&[E1]>,
     scalars_2: Option<&[E2]>,
     scalars_3: Option<&[E3]>,
-    launch: WorkgroupLaunch,
+    launch: CubeCountSettings,
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> ExecuteSettings<R> {
     let mut info = Vec::new();
@@ -258,7 +258,7 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
 
     // We start by registering the inputs.
     for (i, input) in inputs.iter().enumerate() {
-        if let WorkgroupLaunch::Input { pos } = &launch {
+        if let CubeCountSettings::Input { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(input.shape);
             }
@@ -269,7 +269,7 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
 
     // Then we follow with the outputs.
     for (i, output) in outputs.iter().enumerate() {
-        if let WorkgroupLaunch::Output { pos } = &launch {
+        if let CubeCountSettings::Output { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(output.shape);
             }
@@ -298,8 +298,8 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
         create_scalar_handles::<R, E1, E2, E3>(scalars_1, scalars_2, scalars_3, client);
 
     let workgroup = match launch {
-        WorkgroupLaunch::Custom(workgroup) => workgroup,
-        _ => elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT),
+        CubeCountSettings::Custom(workgroup) => workgroup,
+        _ => calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX),
     };
 
     ExecuteSettings {

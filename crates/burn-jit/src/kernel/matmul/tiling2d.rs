@@ -2,8 +2,8 @@ use burn_cube::{
     dialect::{
         BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility,
     },
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    OutputInfo, TensorHandle,
 };
 use burn_tensor::{Element, Shape};
 
@@ -119,7 +119,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &out.shape, config,
         )));
 
@@ -176,7 +176,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &rounded_output.shape,
             config,
         )));

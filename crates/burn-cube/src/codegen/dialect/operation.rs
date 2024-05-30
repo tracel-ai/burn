@@ -105,6 +105,12 @@ pub struct UnaryOperator {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+pub struct InitOperator {
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct ClampOperator {
     pub input: Variable,
     pub min_value: Variable,

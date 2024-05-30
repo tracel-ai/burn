@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, Item, Operation, Operator, Subcube, SubgroupNoInput,
-    UnaryOperator, Variable,
+    BinaryOperator, ClampOperator, InitOperator, Item, Operation, Operator, Subcube, UnaryOperator,
+    Variable,
 };
 
 pub type Vectorization = u8;
@@ -100,7 +100,7 @@ impl UnaryOperator {
     }
 }
 
-impl SubgroupNoInput {
+impl InitOperator {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         let out = self.out.vectorize(vectorization);
 

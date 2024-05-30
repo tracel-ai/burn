@@ -1,4 +1,4 @@
-use super::{BinaryOperator, UnaryOperator, Variable};
+use super::{BinaryOperator, InitOperator, UnaryOperator};
 use serde::{Deserialize, Serialize};
 
 /// All subcube operations.
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Subcube {
-    Elect(SubgroupNoInput),
+    Elect(InitOperator),
     All(UnaryOperator),
     Any(UnaryOperator),
     Broadcast(BinaryOperator),
@@ -18,10 +18,4 @@ pub enum Subcube {
     Xor(UnaryOperator),
     Min(UnaryOperator),
     Max(UnaryOperator),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[allow(missing_docs)]
-pub struct SubgroupNoInput {
-    pub out: Variable,
 }

@@ -1,5 +1,5 @@
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
-use burn_cube::{Compiler, CubeCount};
+use burn_cube::{prelude::*, Compiler};
 use burn_tensor::Shape;
 use std::cmp::{max, min};
 

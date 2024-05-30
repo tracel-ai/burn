@@ -1,6 +1,7 @@
 use crate::dialect::{Elem, Variable, Vectorization};
 use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{ArgSettings, Comptime, KernelLauncher, LaunchArg, Runtime};
+use crate::prelude::{KernelBuilder, KernelLauncher};
+use crate::{ArgSettings, Comptime, LaunchArg, Runtime};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -23,18 +24,12 @@ impl CubeElem for UInt {
 impl LaunchArg for UInt {
     type RuntimeArg<'a, R: Runtime> = u32;
 
-    fn compile_input(
-        builder: &mut crate::KernelBuilder,
-        vectorization: Vectorization,
-    ) -> ExpandElement {
+    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(Self::as_elem())
     }
 
-    fn compile_output(
-        builder: &mut crate::KernelBuilder,
-        vectorization: Vectorization,
-    ) -> ExpandElement {
+    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(Self::as_elem())
     }

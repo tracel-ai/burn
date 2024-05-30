@@ -1,6 +1,7 @@
 use crate::{
     dialect::{Variable, Vectorization},
-    KernelBuilder, KernelLauncher, Runtime,
+    prelude::{KernelBuilder, KernelLauncher},
+    Runtime,
 };
 use alloc::rc::Rc;
 

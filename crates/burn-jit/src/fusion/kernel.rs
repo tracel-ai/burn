@@ -1,3 +1,6 @@
+use burn_cube::calculate_num_elems_dyn_rank;
+use burn_cube::prelude::*;
+
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::kernel::GpuComputeShaderPhase;
@@ -5,12 +8,6 @@ use crate::JitRuntime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use burn_compute::tune::AutotuneOperation;
-use burn_cube::calculate_num_elems_dyn_rank;
-use burn_cube::dialect::ComputeShader;
-use burn_cube::Compilation;
-use burn_cube::CompilationInfo;
-use burn_cube::CompilationSettings;
-use burn_cube::{CubeCount, FullCompilationPhase, JitKernel, Kernel};
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;

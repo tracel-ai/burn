@@ -5,14 +5,14 @@ use crate::{
     JitRuntime,
 };
 use burn_cube::{
-    cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, TensorHandle,
-    WorkgroupLaunch,
+    calculate_cube_count_elemwise, cpa, Compilation, CompilationInfo, CompilationSettings,
+    CubeCountSettings, TensorHandle,
 };
 use burn_cube::{
     dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, WORKGROUP_DEFAULT};
+use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -214,7 +214,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
+    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -222,7 +222,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
             TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
             TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     tensor
 }

@@ -1,5 +1,5 @@
 use burn_cube::{
-    calculate_num_elems_dyn_rank, dialect::CubeDim, elemwise_workgroup, CompilationInfo,
+    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, dialect::CubeDim, CompilationInfo,
     CompilationSettings,
 };
 use burn_tensor::repr::TensorDescription;
@@ -72,7 +72,7 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
 
                 let reference_tensor = inputs[settings.mappings[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
+                let workgroup = calculate_cube_count_elemwise(num_elems / factor, workgroup_size);
                 let output_infos =
                     inplace_output2input
                         .iter()
@@ -99,7 +99,7 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
+                let workgroup = calculate_cube_count_elemwise(num_elems / factor, workgroup_size);
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let size = calculate_num_elems_dyn_rank(&tensor.shape)
                         * self.info.outputs[pos].elem_size::<R>();

@@ -1,12 +1,18 @@
-pub use crate::{
-    cube,
-    dialect::{ComputeShader, CubeDim},
-    ArgSettings, CompilationSettings, CubeCount, GpuComputeShaderPhase, KernelBuilder,
-    KernelLauncher, LaunchArg, Runtime, RuntimeArg,
+pub use crate::{cube, GpuComputeShaderPhase, RuntimeArg};
+
+pub use crate::codegen::{Compilation, CompilationInfo, CompilationSettings};
+pub use crate::compute::{
+    CompiledKernel, CubeCount, FullCompilationPhase, JitKernel, Kernel, KernelBuilder,
+    KernelLauncher,
 };
+pub use crate::dialect::{ComputeShader, CubeDim};
+pub use crate::language::{branch::*, ArgSettings, Comptime};
+pub use crate::runtime::Runtime;
 
 /// Elements
-pub use crate::{CubeElement, Float, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64};
+pub use crate::language::{Float, LaunchArg, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64};
+pub use crate::pod::CubeElement;
+
 /// Topology
 pub use crate::{
     ABSOLUTE_POS, ABSOLUTE_POS_X, ABSOLUTE_POS_Y, ABSOLUTE_POS_Z, CUBE_COUNT, CUBE_COUNT_X,

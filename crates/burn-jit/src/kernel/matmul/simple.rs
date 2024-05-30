@@ -1,12 +1,12 @@
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{into_contiguous, GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo, TensorHandle,
-    WorkgroupLaunch,
+    cpa, Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, InputInfo,
+    OutputInfo, TensorHandle,
 };
 use burn_cube::{
     dialect::{
@@ -221,7 +221,7 @@ pub fn matmul_mem_coalescing_default<R: JitRuntime, E: JitElement, const D: usiz
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    matmul_simple::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_simple::<R, E, D>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
@@ -256,7 +256,7 @@ pub fn matmul_simple<R: JitRuntime, E: JitElement, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     out
 }

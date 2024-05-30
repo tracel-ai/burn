@@ -2,8 +2,8 @@ use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTenso
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, TensorHandle,
-    WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    TensorHandle,
 };
 use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
@@ -139,7 +139,7 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const 
             TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .with_scalars(&scalars)
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     tensor
 }

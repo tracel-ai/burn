@@ -4,23 +4,26 @@ extern crate alloc;
 extern crate derive_new;
 
 pub mod codegen;
+pub mod compute;
 pub mod prelude;
 
-mod compute;
 mod language;
 mod pod;
 mod runtime;
 
 pub use codegen::*;
-pub use compute::*;
+// pub use compute::*;
 pub use language::*;
 pub use pod::*;
 pub use runtime::*;
 
 pub use burn_cube_macros::cube;
 
-pub const WORKGROUP_DEFAULT: usize = 16;
+/// An approximation of the subcube dimension.
+pub const SUBCUBE_DIM_APPROX: usize = 16;
+
 use codegen::dialect::ComputeShader;
+use prelude::CubeCount;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).
 pub trait GpuComputeShaderPhase: Send + Sync + 'static {
@@ -32,7 +35,7 @@ pub trait GpuComputeShaderPhase: Send + Sync + 'static {
     }
 }
 
-pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> CubeCount {
+pub fn calculate_cube_count_elemwise(num_elems: usize, workgroup_size: usize) -> CubeCount {
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(workgroups));

@@ -1,5 +1,5 @@
 use super::{Scope, Vectorization};
-use crate::WORKGROUP_DEFAULT;
+use crate::SUBCUBE_DIM_APPROX;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -129,8 +129,8 @@ pub struct CubeDim {
 impl Default for CubeDim {
     fn default() -> Self {
         Self {
-            x: WORKGROUP_DEFAULT as u32,
-            y: WORKGROUP_DEFAULT as u32,
+            x: SUBCUBE_DIM_APPROX as u32,
+            y: SUBCUBE_DIM_APPROX as u32,
             z: 1,
         }
     }
