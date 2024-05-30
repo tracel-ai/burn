@@ -6,6 +6,7 @@ mod context;
 mod element;
 mod indexation;
 mod operation;
+pub mod synchronization;
 mod topology;
 
 pub use comptime::*;

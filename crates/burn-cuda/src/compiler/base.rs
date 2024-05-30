@@ -368,6 +368,9 @@ impl CudaCompiler {
                 }
                 super::Variable::LocalArray(id, item, depth, size)
             }
+            gpu::Variable::WorkgroupId => todo!(),
+            gpu::Variable::WorkgroupSize => todo!(),
+            gpu::Variable::NumWorkgroups => todo!(),
         }
     }
 
