@@ -50,8 +50,8 @@ impl GatherComputeShader {
             scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
                 tensors: vec![tensor],
                 indexes: vec![offset_before],
-                layout: Variable::Id, // Will be updated.
-                position: Variable::Id,
+                layout: Variable::AbsolutePos, // Will be updated.
+                position: Variable::AbsolutePos,
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
@@ -62,8 +62,8 @@ impl GatherComputeShader {
         scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
             tensors: vec![tensor],
             indexes: vec![offset_after],
-            layout: Variable::Id, // Will be updated.
-            position: Variable::Id,
+            layout: Variable::AbsolutePos, // Will be updated.
+            position: Variable::AbsolutePos,
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
@@ -80,7 +80,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
         let tensor = Variable::GlobalInputArray(0, item_tensor);
-        let indices = scope.read_array(1, item_indices, Variable::Id);
+        let indices = scope.read_array(1, item_indices, Variable::AbsolutePos);
 
         let output_array = Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
@@ -93,7 +93,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R
         }
         .expand(&mut scope);
 
-        scope.write_global(output_local, output_array, Variable::Id);
+        scope.write_global(output_local, output_array, Variable::AbsolutePos);
 
         let tensor = InputInfo::Array {
             item: item_tensor,

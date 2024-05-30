@@ -1,6 +1,6 @@
 use burn_cube::{
     dialect::{
-        BinaryOperator, ComputeShader, Elem, FloatKind, Scope, Variable, Visibility, WorkgroupSize,
+        BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility,
     },
     Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
     TensorHandle, WorkgroupLaunch,
@@ -69,7 +69,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEager
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
             self.config.grid_x as u32,
             self.config.grid_y as u32,
             1,

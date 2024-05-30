@@ -3,9 +3,9 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_wgsl, FloatElement, GraphicsApi, IntElement,
-        JitBackend, JitTensor, Kernel, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
-        WorkGroup, WorkgroupSize,
+        build_info, into_contiguous, kernel_wgsl, CubeCount, CubeDim, FloatElement, GraphicsApi,
+        IntElement, JitBackend, JitTensor, Kernel, KernelSource, SourceKernel, SourceTemplate,
+        WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -18,7 +18,7 @@ kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
 // Define our kernel type with workgroup information.
 #[derive(new, Debug)]
 struct FusedMatmulAddRelu<E: FloatElement> {
-    workgroup_size: WorkgroupSize,
+    workgroup_size: CubeDim,
     _elem: PhantomData<E>,
 }
 
@@ -44,7 +44,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         bias: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         // Define workgroup size, hardcoded for simplicity.
-        let workgroup_size = WorkgroupSize { x: 16, y: 16, z: 1 };
+        let workgroup_size = CubeDim { x: 16, y: 16, z: 1 };
 
         // Specify the size of a workgroup for this kernel
         lhs.assert_is_on_same_device(&rhs);
@@ -88,7 +88,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
         // Declare the wgsl workgroup with the number of blocks in x, y and z.
         let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size.x as f32) as u32;
         let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size.y as f32) as u32;
-        let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
+        let workgroup = CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(

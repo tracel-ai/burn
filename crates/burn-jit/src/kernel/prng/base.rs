@@ -1,8 +1,8 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkGroup, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, CubeCount, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -51,14 +51,14 @@ fn prng_workgroup(
     num_elems: usize,
     workgroup_size: usize,
     n_values_per_thread: usize,
-) -> WorkGroup {
+) -> CubeCount {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
     let num_elem_per_invocation = workgroup_size * workgroup_size;
     let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
     let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
-    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
 impl<P: Prng<E>, R: JitRuntime, E: JitElement> GpuComputeShaderPhase for PrngEagerKernel<P, R, E> {
@@ -167,12 +167,12 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let n_values_per_thread: Variable = self.n_values_per_thread.into();
         let args = self.args;
 
-        let workgroup_size_x = Variable::WorkgroupSizeX;
-        let workgroup_size_y = Variable::WorkgroupSizeY;
-        let workgroup_id_x = Variable::WorkgroupIdX;
-        let workgroup_id_y = Variable::WorkgroupIdY;
-        let num_workgroups_y = Variable::NumWorkgroupsY;
-        let local_index = Variable::LocalInvocationIndex;
+        let workgroup_size_x = Variable::CubeDimX;
+        let workgroup_size_y = Variable::CubeDimY;
+        let workgroup_id_x = Variable::CubePosX;
+        let workgroup_id_y = Variable::CubePosY;
+        let num_workgroups_y = Variable::CubeCountY;
+        let local_index = Variable::UnitPos;
 
         let n_invocations = scope.create_local(Elem::UInt);
         cpa!(scope, n_invocations = workgroup_size_x);

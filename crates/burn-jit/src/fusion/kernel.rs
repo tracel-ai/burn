@@ -10,7 +10,7 @@ use burn_cube::dialect::ComputeShader;
 use burn_cube::Compilation;
 use burn_cube::CompilationInfo;
 use burn_cube::CompilationSettings;
-use burn_cube::{FullCompilationPhase, JitKernel, Kernel, WorkGroup};
+use burn_cube::{CubeCount, FullCompilationPhase, JitKernel, Kernel};
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
@@ -25,7 +25,7 @@ pub struct FusionKernel<R: JitRuntime> {
     info: Arc<CompilationInfo>,
     settings: CompilationSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    workgroup: WorkGroup,
+    workgroup: CubeCount,
     _runtime: PhantomData<R>,
 }
 

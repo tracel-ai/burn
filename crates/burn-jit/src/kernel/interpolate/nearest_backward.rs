@@ -24,7 +24,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.out_grad;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);

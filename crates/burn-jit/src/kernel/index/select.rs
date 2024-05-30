@@ -29,7 +29,7 @@ impl SelectComputeShader {
         let input = self.input;
         let indices = self.indices;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let offset_input = scope.zero(Elem::UInt);
 
         cpa!(

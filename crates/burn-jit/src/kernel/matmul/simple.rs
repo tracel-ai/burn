@@ -10,8 +10,8 @@ use burn_cube::{
 };
 use burn_cube::{
     dialect::{
-        BinaryOperator, Branch, ComputeShader, Elem, FloatKind, IndexOffsetGlobalWithLayout, Scope,
-        Variable, Visibility, WorkgroupSize,
+        BinaryOperator, Branch, ComputeShader, CubeDim, Elem, FloatKind,
+        IndexOffsetGlobalWithLayout, Scope, Variable, Visibility,
     },
     Execution,
 };
@@ -35,8 +35,8 @@ struct MatmulComputeShader {
 impl MatmulComputeShader {
     fn expand(self, scope: &mut Scope) {
         // Define out global variables.
-        let local_idx = Variable::LocalInvocationIndex;
-        let batch = Variable::GlobalInvocationIdZ;
+        let local_idx = Variable::UnitPos;
+        let batch = Variable::AbsolutePosZ;
         let rank = Variable::Rank;
         let block_size: Variable = self.block_size.into();
 
@@ -53,12 +53,12 @@ impl MatmulComputeShader {
 
         // Row position.
         cpa!(scope, tmp_index = local_idx / block_size);
-        cpa!(scope, row = block_size * Variable::WorkgroupIdX);
+        cpa!(scope, row = block_size * Variable::CubePosX);
         cpa!(scope, row = row + tmp_index);
 
         // Col position.
         cpa!(scope, tmp_index = local_idx % block_size);
-        cpa!(scope, col = block_size * Variable::WorkgroupIdY);
+        cpa!(scope, col = block_size * Variable::CubePosY);
         cpa!(scope, col = col + tmp_index);
 
         // Batch position.
@@ -197,7 +197,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,

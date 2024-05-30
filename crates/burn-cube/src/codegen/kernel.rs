@@ -1,4 +1,4 @@
-use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
+use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
 use crate::dialect::Elem;
 use crate::pod::CubeElement;
 use crate::TensorHandle;
@@ -10,7 +10,7 @@ use burn_compute::server::{Binding, Handle};
 pub enum WorkgroupLaunch {
     Input { pos: usize },
     Output { pos: usize },
-    Custom(WorkGroup),
+    Custom(CubeCount),
 }
 
 pub struct Execution<'h, K, R: Runtime, Scalars> {
@@ -225,7 +225,7 @@ struct ExecuteSettings<R: Runtime> {
     handles_tensors: Vec<Binding<R::Server>>,
     handle_info: Handle<R::Server>,
     handles_scalars: Vec<Handle<R::Server>>,
-    workgroup: WorkGroup,
+    workgroup: CubeCount,
 }
 
 fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeElement>(

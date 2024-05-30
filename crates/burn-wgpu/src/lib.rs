@@ -11,7 +11,7 @@ mod graphics;
 mod runtime;
 
 #[cfg(feature = "template")]
-pub use burn_cube::dialect::WorkgroupSize;
+pub use burn_cube::dialect::CubeDim;
 #[cfg(feature = "template")]
 pub use burn_jit::{
     kernel::{into_contiguous, GpuComputeShaderPhase},
@@ -24,7 +24,7 @@ pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_cube::{Kernel, WorkGroup};
+pub use burn_cube::{CubeCount, Kernel};
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]

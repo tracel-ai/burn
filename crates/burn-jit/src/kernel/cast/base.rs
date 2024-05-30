@@ -96,7 +96,7 @@ impl<R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
 impl CastShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let value = scope.create_local(output.item());

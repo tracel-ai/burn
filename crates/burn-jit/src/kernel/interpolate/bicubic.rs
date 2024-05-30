@@ -24,7 +24,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let elem = E::cube_elem();
 
         let input_stride_0 = scope.create_local(Elem::UInt);

@@ -64,7 +64,7 @@ macro_rules! unary {
         {
 
             let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -76,7 +76,7 @@ macro_rules! unary {
             let out = burn_cube::OutputInfo::ArrayWrite {
                 item: burn_cube::dialect::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::Id,
+                position: burn_cube::dialect::Variable::AbsolutePos,
             };
             let info = burn_cube::CompilationInfo {
                 inputs: vec![input],
@@ -140,7 +140,7 @@ macro_rules! unary {
         {
 
             let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
@@ -156,7 +156,7 @@ macro_rules! unary {
             let out = burn_cube::OutputInfo::ArrayWrite {
                 item: burn_cube::dialect::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::Id,
+                position: burn_cube::dialect::Variable::AbsolutePos,
             };
             let info = burn_cube::CompilationInfo {
                 inputs: vec![input, scalars],

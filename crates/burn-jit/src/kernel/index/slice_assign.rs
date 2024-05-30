@@ -25,7 +25,7 @@ impl SliceAssignComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let value = self.value;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);

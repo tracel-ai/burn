@@ -4,10 +4,10 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::dialect::WorkgroupSize;
+use burn_cube::dialect::CubeDim;
+use burn_cube::CubeCount;
 use burn_cube::JitKernel;
 use burn_cube::Kernel;
-use burn_cube::WorkGroup;
 use burn_jit::JitAutotuneKey;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
@@ -46,7 +46,7 @@ pub(crate) struct CudaContext<MM: MemoryManagement<CudaStorage>> {
 
 #[derive(Debug)]
 struct CompiledKernel {
-    workgroup_size: WorkgroupSize,
+    workgroup_size: CubeDim,
     shared_mem_bytes: usize,
     func: *mut CUfunc_st,
 }
@@ -181,7 +181,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
     fn execute_task(
         &mut self,
         kernel_id: String,
-        workgroup: WorkGroup,
+        workgroup: CubeCount,
         mut bindings: Vec<Binding>,
     ) {
         let kernel = self.module_names.get(&kernel_id).unwrap();

@@ -1,11 +1,18 @@
 pub use crate::{
     cube,
-    dialect::{ComputeShader, WorkgroupSize},
-    ArgSettings, CompilationSettings, GpuComputeShaderPhase, KernelBuilder, KernelLauncher,
-    LaunchArg, Runtime, RuntimeArg, WorkGroup, ABSOLUTE_INDEX,
+    dialect::{ComputeShader, CubeDim},
+    ArgSettings, CompilationSettings, CubeCount, GpuComputeShaderPhase, KernelBuilder,
+    KernelLauncher, LaunchArg, Runtime, RuntimeArg,
 };
+
 /// Elements
 pub use crate::{CubeElement, Float, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64};
+/// Topology
+pub use crate::{
+    ABSOLUTE_POS, ABSOLUTE_POS_X, ABSOLUTE_POS_Y, ABSOLUTE_POS_Z, CUBE_COUNT, CUBE_COUNT_X,
+    CUBE_COUNT_Y, CUBE_COUNT_Z, CUBE_DIM, CUBE_DIM_X, CUBE_DIM_Y, CUBE_DIM_Z, CUBE_POS, CUBE_POS_X,
+    CUBE_POS_Y, CUBE_POS_Z, UNIT_POS, UNIT_POS_X, UNIT_POS_Y, UNIT_POS_Z,
+};
 
 /// Export subcube operations.
 pub use crate::{

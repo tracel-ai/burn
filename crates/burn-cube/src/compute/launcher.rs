@@ -1,4 +1,4 @@
-use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
+use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
 use crate::dialect::{Elem, FloatKind, IntKind};
 use crate::{calculate_num_elems_dyn_rank, GpuComputeShaderPhase, Runtime, TensorHandle};
 use burn_compute::client::ComputeClient;
@@ -69,7 +69,7 @@ impl<R: Runtime> KernelLauncher<R> {
     /// Launch the kernel.
     pub fn launch<K: GpuComputeShaderPhase>(
         self,
-        workgroup: WorkGroup,
+        workgroup: CubeCount,
         kernel: K,
         client: ComputeClient<R::Server, R::Channel>,
     ) {

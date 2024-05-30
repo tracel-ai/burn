@@ -1,6 +1,6 @@
 use burn_cube::{
-    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, Execution,
-    InputInfo, OutputInfo, TensorHandle, WorkGroup, WorkgroupLaunch,
+    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, CubeCount,
+    Execution, InputInfo, OutputInfo, TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
@@ -10,9 +10,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::dialect::{
-    Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
-};
+use burn_cube::dialect::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
 
 use super::base::ReduceDimShared;
 
@@ -84,7 +82,7 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Gpu
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,
@@ -113,13 +111,13 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
         let rank = Variable::Rank;
         let dim: Variable = self.dim.into();
 
-        let workgroup_id_x = Variable::WorkgroupIdX;
-        let workgroup_id_y = Variable::WorkgroupIdY;
-        let num_workgroups_x = Variable::NumWorkgroupsX;
-        let local_invocation_id_x = Variable::LocalInvocationIdX;
-        let local_invocation_id_y = Variable::LocalInvocationIdY;
-        let workgroup_size_x = Variable::WorkgroupSizeX;
-        let workgroup_size_y = Variable::WorkgroupSizeY;
+        let workgroup_id_x = Variable::CubePosX;
+        let workgroup_id_y = Variable::CubePosY;
+        let num_workgroups_x = Variable::CubeCountX;
+        let local_invocation_id_x = Variable::UnitPosX;
+        let local_invocation_id_y = Variable::UnitPosY;
+        let workgroup_size_x = Variable::CubeDimX;
+        let workgroup_size_y = Variable::CubeDimY;
 
         let stride_reduce_dim_input = scope.create_local(Elem::UInt);
         cpa!(scope, stride_reduce_dim_input = stride(tensor, dim));
@@ -246,7 +244,7 @@ pub fn reduce_dim_shared<
     let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);
-    let grid = WorkGroup::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
+    let grid = CubeCount::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     let reduce_group_size = input.shape.dims[dim];
     let n_invocation_per_workgroup = WORKGROUP_DEFAULT * WORKGROUP_DEFAULT;

@@ -1,5 +1,5 @@
 use burn_cube::{
-    calculate_num_elems_dyn_rank, dialect::WorkgroupSize, elemwise_workgroup, CompilationInfo,
+    calculate_num_elems_dyn_rank, dialect::CubeDim, elemwise_workgroup, CompilationInfo,
     CompilationSettings,
 };
 use burn_tensor::repr::TensorDescription;
@@ -18,7 +18,7 @@ use std::{marker::PhantomData, sync::Arc};
 pub struct ElementWiseKernelFactory<R: JitRuntime> {
     id: String,
     info: Arc<CompilationInfo>,
-    grid: WorkgroupSize,
+    grid: CubeDim,
     _runtime: PhantomData<R>,
 }
 

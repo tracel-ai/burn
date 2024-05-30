@@ -80,7 +80,7 @@ impl<E: JitElement, RD: ReduceDimNaive<E>> NaiveReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let offset_input = scope.zero(Elem::UInt);

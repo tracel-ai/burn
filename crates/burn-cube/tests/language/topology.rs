@@ -38,7 +38,7 @@ mod tests {
         let x = scope.create_local(Item::new(Elem::UInt));
         let y = scope.create_local(item);
 
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         cpa!(&mut scope, x = id + 4u32);
         cpa!(&mut scope, y = input[x]);
 

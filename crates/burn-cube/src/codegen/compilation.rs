@@ -1,8 +1,8 @@
 use super::Compiler;
 use crate::{
     codegen::dialect::{
-        Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
-        Visibility, WorkgroupSize,
+        Binding, ComputeShader, CubeDim, Elem, Item, Location, ReadingStrategy, Variable,
+        Vectorization, Visibility,
     },
     dialect::Scope,
     Runtime,
@@ -52,7 +52,7 @@ pub struct CompilationSettings {
     pub mappings: Vec<InplaceMapping>,
     vectorization_global: Option<Vectorization>,
     vectorization_partial: Vec<VectorizationPartial>,
-    workgroup_size: WorkgroupSize,
+    cube_dim: CubeDim,
     pub reading_strategy: Vec<(u16, ReadingStrategy)>,
 }
 
@@ -113,7 +113,7 @@ impl core::fmt::Display for CompilationSettings {
 
         f.write_fmt(format_args!(
             "x{}y{}z{}",
-            self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.x
+            self.cube_dim.x, self.cube_dim.y, self.cube_dim.x
         ))
     }
 }
@@ -193,10 +193,10 @@ impl CompilationSettings {
         self
     }
 
-    /// Set the grid size.
-    #[allow(dead_code)] // Only used for fusion for now.
-    pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
-        self.workgroup_size = workgroup_size;
+    /// Set cube dimension.
+    #[allow(dead_code)]
+    pub fn cube_dim(mut self, cube_dim: CubeDim) -> Self {
+        self.cube_dim = cube_dim;
         self
     }
 }
@@ -345,7 +345,7 @@ impl Compilation {
             inputs,
             outputs,
             named,
-            workgroup_size: settings.workgroup_size,
+            cube_dim: settings.cube_dim,
             body: self.info.scope,
         }
     }

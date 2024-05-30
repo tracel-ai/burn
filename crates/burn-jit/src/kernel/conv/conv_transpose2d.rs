@@ -39,7 +39,7 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let weight = self.weight;
         let bias = self.bias;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);

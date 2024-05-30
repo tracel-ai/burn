@@ -80,7 +80,7 @@ impl WgslCompiler {
                 .collect(),
             shared_memories: self.shared_memories.clone(),
             local_arrays: self.local_arrays.clone(),
-            workgroup_size: value.workgroup_size,
+            workgroup_size: value.cube_dim,
             global_invocation_id: self.global_invocation_id || self.id,
             local_invocation_index: self.local_invocation_index,
             local_invocation_id: self.local_invocation_id,
@@ -165,7 +165,7 @@ impl WgslCompiler {
                 }
                 wgsl::Variable::LocalArray(index, item, scope_depth, size)
             }
-            cube::Variable::Id => {
+            cube::Variable::AbsolutePos => {
                 self.id = true;
                 wgsl::Variable::Id
             }
@@ -173,73 +173,74 @@ impl WgslCompiler {
                 self.rank = true;
                 wgsl::Variable::Rank
             }
-            cube::Variable::LocalInvocationIndex => {
+            cube::Variable::UnitPos => {
                 self.local_invocation_index = true;
                 wgsl::Variable::LocalInvocationIndex
             }
-            cube::Variable::LocalInvocationIdX => {
+            cube::Variable::UnitPosX => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdX
             }
-            cube::Variable::LocalInvocationIdY => {
+            cube::Variable::UnitPosY => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdY
             }
-            cube::Variable::LocalInvocationIdZ => {
+            cube::Variable::UnitPosZ => {
                 self.local_invocation_id = true;
                 wgsl::Variable::LocalInvocationIdZ
             }
-            cube::Variable::WorkgroupIdX => {
+            cube::Variable::CubePosX => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdX
             }
-            cube::Variable::WorkgroupIdY => {
+            cube::Variable::CubePosY => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdY
             }
-            cube::Variable::WorkgroupIdZ => {
+            cube::Variable::CubePosZ => {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdZ
             }
-            cube::Variable::GlobalInvocationIdX => {
+            cube::Variable::AbsolutePosX => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdX
             }
-            cube::Variable::GlobalInvocationIdY => {
+            cube::Variable::AbsolutePosY => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdY
             }
-            cube::Variable::GlobalInvocationIdZ => {
+            cube::Variable::AbsolutePosZ => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdZ
             }
-            cube::Variable::WorkgroupSizeX => wgsl::Variable::WorkgroupSizeX,
-            cube::Variable::WorkgroupSizeY => wgsl::Variable::WorkgroupSizeY,
-            cube::Variable::WorkgroupSizeZ => wgsl::Variable::WorkgroupSizeZ,
-            cube::Variable::NumWorkgroupsX => {
+            cube::Variable::CubeDimX => wgsl::Variable::WorkgroupSizeX,
+            cube::Variable::CubeDimY => wgsl::Variable::WorkgroupSizeY,
+            cube::Variable::CubeDimZ => wgsl::Variable::WorkgroupSizeZ,
+            cube::Variable::CubeCountX => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsX
             }
-            cube::Variable::NumWorkgroupsY => {
+            cube::Variable::CubeCountY => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsY
             }
-            cube::Variable::NumWorkgroupsZ => {
+            cube::Variable::CubeCountZ => {
                 self.num_workgroups = true;
                 wgsl::Variable::NumWorkgroupsZ
             }
-            cube::Variable::WorkgroupId => {
+            cube::Variable::CubePos => {
                 self.workgroup_id_no_axis = true;
                 wgsl::Variable::WorkgroupId
             }
-            cube::Variable::WorkgroupSize => {
+            cube::Variable::CubeDim => {
                 self.workgroup_size_no_axis = true;
                 wgsl::Variable::WorkgroupSize
             }
-            cube::Variable::NumWorkgroups => {
+            cube::Variable::CubeCount => {
                 self.num_workgroup_no_axis = true;
                 wgsl::Variable::NumWorkgroups
             }
+            cube::Variable::SubcubeDim => wgsl::Variable::SubgroupSize,
         }
     }
 
@@ -645,7 +646,7 @@ impl WgslCompiler {
     fn compile_location(value: cube::Location) -> wgsl::Location {
         match value {
             cube::Location::Storage => wgsl::Location::Storage,
-            cube::Location::Workgroup => wgsl::Location::Workgroup,
+            cube::Location::Cube => wgsl::Location::Workgroup,
         }
     }
 

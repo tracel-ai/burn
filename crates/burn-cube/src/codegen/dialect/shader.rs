@@ -7,7 +7,7 @@ use std::fmt::Display;
 #[allow(missing_docs)]
 pub enum Location {
     Storage,
-    Workgroup,
+    Cube,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
@@ -120,13 +120,13 @@ pub struct Binding {
 
 #[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
-pub struct WorkgroupSize {
+pub struct CubeDim {
     pub x: u32,
     pub y: u32,
     pub z: u32,
 }
 
-impl Default for WorkgroupSize {
+impl Default for CubeDim {
     fn default() -> Self {
         Self {
             x: WORKGROUP_DEFAULT as u32,
@@ -142,6 +142,6 @@ pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
-    pub workgroup_size: WorkgroupSize,
+    pub cube_dim: CubeDim,
     pub body: Scope,
 }

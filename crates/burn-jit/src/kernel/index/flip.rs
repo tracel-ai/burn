@@ -28,7 +28,7 @@ impl FlipComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_local = scope.create_local(Elem::UInt);

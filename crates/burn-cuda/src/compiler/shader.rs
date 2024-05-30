@@ -1,4 +1,4 @@
-use burn_cube::{dialect::WorkgroupSize, CompilerRepresentation};
+use burn_cube::{dialect::CubeDim, CompilerRepresentation};
 
 // use super::{Body, Extension, Item};
 use super::{Body, Item};
@@ -60,7 +60,7 @@ pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
-    pub workgroup_size: WorkgroupSize,
+    pub workgroup_size: CubeDim,
     pub body: Body,
 }
 

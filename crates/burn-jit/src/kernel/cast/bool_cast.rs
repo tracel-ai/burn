@@ -91,7 +91,7 @@ impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKerne
 impl BoolCastShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let represents_true = scope.create_local(Elem::Bool);

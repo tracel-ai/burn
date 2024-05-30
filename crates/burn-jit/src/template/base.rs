@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{dialect::WorkgroupSize, CompiledKernel, JitKernel, LaunchSettings, WorkGroup};
+use burn_cube::{dialect::CubeDim, CompiledKernel, CubeCount, JitKernel, LaunchSettings};
 
 use super::SourceTemplate;
 
@@ -14,8 +14,8 @@ pub trait KernelSource: Send + 'static + Sync {
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
-    workgroup: WorkGroup,
-    workgroup_size: WorkgroupSize,
+    workgroup: CubeCount,
+    workgroup_size: CubeDim,
 }
 
 impl<K> JitKernel for SourceKernel<K>

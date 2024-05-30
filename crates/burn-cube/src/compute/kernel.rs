@@ -1,6 +1,4 @@
-use crate::{
-    codegen::CompilerRepresentation, dialect::WorkgroupSize, Compiler, GpuComputeShaderPhase,
-};
+use crate::{codegen::CompilerRepresentation, dialect::CubeDim, Compiler, GpuComputeShaderPhase};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 
@@ -51,7 +49,7 @@ pub struct CompiledKernel {
     /// Source code of the kernel
     pub source: String,
     /// Size of a workgroup for the compiled kernel
-    pub workgroup_size: WorkgroupSize,
+    pub workgroup_size: CubeDim,
     /// The number of bytes used by the share memory
     pub shared_mem_bytes: usize,
 }
@@ -59,7 +57,7 @@ pub struct CompiledKernel {
 /// Information needed to launch the kernel
 pub struct LaunchSettings {
     /// Layout of workgroups for the kernel
-    pub workgroup: WorkGroup,
+    pub workgroup: CubeCount,
 }
 
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
@@ -79,14 +77,14 @@ pub trait JitKernel: Send + Sync {
 #[derive(new)]
 pub struct FullCompilationPhase<C: Compiler, K: GpuComputeShaderPhase> {
     kernel: K,
-    workgroup: WorkGroup,
+    workgroup: CubeCount,
     _compiler: PhantomData<C>,
 }
 
 impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C, K> {
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel.compile();
-        let workgroup_size = gpu_ir.workgroup_size;
+        let workgroup_size = gpu_ir.cube_dim;
         let lower_level_ir = C::compile(gpu_ir);
         let shared_mem_bytes = lower_level_ir.shared_memory_size();
         let source = lower_level_ir.to_string();
@@ -139,7 +137,7 @@ impl JitKernel for Box<dyn JitKernel> {
 
 /// Provides launch information specifying the number of work groups to be used by a compute shader.
 #[derive(new, Clone, Debug)]
-pub struct WorkGroup {
+pub struct CubeCount {
     /// Work groups for the x axis.
     pub x: u32,
     /// Work groups for the y axis.
@@ -148,7 +146,7 @@ pub struct WorkGroup {
     pub z: u32,
 }
 
-impl WorkGroup {
+impl CubeCount {
     /// Calculate the number of invocations of a compute shader.
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize

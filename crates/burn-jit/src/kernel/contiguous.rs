@@ -93,7 +93,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEager
 impl IntoContiguousShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let offset_input = scope.zero(Elem::UInt);

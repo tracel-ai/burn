@@ -57,7 +57,7 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             let mut scope = burn_cube::dialect::Scope::root();
-            let position = burn_cube::dialect::Variable::Id;
+            let position = burn_cube::dialect::Variable::AbsolutePos;
 
             let op = $ops(&mut scope, I::cube_elem(), position);
             scope.register(op);

@@ -1,5 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_cube::{dialect::WorkgroupSize, CompilerRepresentation};
+use burn_cube::{dialect::CubeDim, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -67,7 +67,7 @@ pub struct ComputeShader {
     pub named: Vec<(String, Binding)>,
     pub shared_memories: Vec<SharedMemory>,
     pub local_arrays: Vec<LocalArray>,
-    pub workgroup_size: WorkgroupSize,
+    pub workgroup_size: CubeDim,
     pub global_invocation_id: bool,
     pub local_invocation_index: bool,
     pub local_invocation_id: bool,

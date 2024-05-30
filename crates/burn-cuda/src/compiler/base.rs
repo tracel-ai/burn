@@ -71,7 +71,7 @@ impl CudaCompiler {
                 .into_iter()
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
-            workgroup_size: value.workgroup_size,
+            workgroup_size: value.cube_dim,
             body,
         }
     }
@@ -354,7 +354,7 @@ impl CudaCompiler {
                 }
                 super::Variable::SharedMemory(index, item, size)
             }
-            gpu::Variable::Id => {
+            gpu::Variable::AbsolutePos => {
                 self.id = true;
                 super::Variable::Id
             }
@@ -362,34 +362,34 @@ impl CudaCompiler {
                 self.rank = true;
                 super::Variable::Rank
             }
-            gpu::Variable::LocalInvocationIndex => {
+            gpu::Variable::UnitPos => {
                 self.invocation_index = true;
                 super::Variable::LocalInvocationIndex
             }
-            gpu::Variable::LocalInvocationIdX => super::Variable::LocalInvocationIdX,
-            gpu::Variable::LocalInvocationIdY => super::Variable::LocalInvocationIdY,
-            gpu::Variable::LocalInvocationIdZ => super::Variable::LocalInvocationIdZ,
-            gpu::Variable::WorkgroupIdX => super::Variable::WorkgroupIdX,
-            gpu::Variable::WorkgroupIdY => super::Variable::WorkgroupIdY,
-            gpu::Variable::WorkgroupIdZ => super::Variable::WorkgroupIdZ,
-            gpu::Variable::GlobalInvocationIdX => {
+            gpu::Variable::UnitPosX => super::Variable::LocalInvocationIdX,
+            gpu::Variable::UnitPosY => super::Variable::LocalInvocationIdY,
+            gpu::Variable::UnitPosZ => super::Variable::LocalInvocationIdZ,
+            gpu::Variable::CubePosX => super::Variable::WorkgroupIdX,
+            gpu::Variable::CubePosY => super::Variable::WorkgroupIdY,
+            gpu::Variable::CubePosZ => super::Variable::WorkgroupIdZ,
+            gpu::Variable::AbsolutePosX => {
                 self.global_invocation_id.0 = true;
                 super::Variable::GlobalInvocationIdX
             }
-            gpu::Variable::GlobalInvocationIdY => {
+            gpu::Variable::AbsolutePosY => {
                 self.global_invocation_id.1 = true;
                 super::Variable::GlobalInvocationIdY
             }
-            gpu::Variable::GlobalInvocationIdZ => {
+            gpu::Variable::AbsolutePosZ => {
                 self.global_invocation_id.2 = true;
                 super::Variable::GlobalInvocationIdZ
             }
-            gpu::Variable::WorkgroupSizeX => super::Variable::WorkgroupSizeX,
-            gpu::Variable::WorkgroupSizeY => super::Variable::WorkgroupSizeY,
-            gpu::Variable::WorkgroupSizeZ => super::Variable::WorkgroupSizeZ,
-            gpu::Variable::NumWorkgroupsX => super::Variable::NumWorkgroupsX,
-            gpu::Variable::NumWorkgroupsY => super::Variable::NumWorkgroupsY,
-            gpu::Variable::NumWorkgroupsZ => super::Variable::NumWorkgroupsZ,
+            gpu::Variable::CubeDimX => super::Variable::WorkgroupSizeX,
+            gpu::Variable::CubeDimY => super::Variable::WorkgroupSizeY,
+            gpu::Variable::CubeDimZ => super::Variable::WorkgroupSizeZ,
+            gpu::Variable::CubeCountX => super::Variable::NumWorkgroupsX,
+            gpu::Variable::CubeCountY => super::Variable::NumWorkgroupsY,
+            gpu::Variable::CubeCountZ => super::Variable::NumWorkgroupsZ,
             gpu::Variable::LocalArray(id, item, depth, size) => {
                 let item = Self::compile_item(item);
                 if !self
@@ -402,9 +402,10 @@ impl CudaCompiler {
                 }
                 super::Variable::LocalArray(id, item, depth, size)
             }
-            gpu::Variable::WorkgroupId => todo!(),
-            gpu::Variable::WorkgroupSize => todo!(),
-            gpu::Variable::NumWorkgroups => todo!(),
+            gpu::Variable::CubePos => todo!(),
+            gpu::Variable::CubeDim => todo!(),
+            gpu::Variable::CubeCount => todo!(),
+            gpu::Variable::SubcubeDim => todo!(),
         }
     }
 

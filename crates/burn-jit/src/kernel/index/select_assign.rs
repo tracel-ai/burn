@@ -31,7 +31,7 @@ impl SelectAssignComputeShader {
         let tensor = self.tensor;
         let value = self.value;
         let indices = self.indices;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_tensor = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);

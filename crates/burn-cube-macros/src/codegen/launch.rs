@@ -252,7 +252,7 @@ impl Codegen {
 
             #body
 
-            launcher.launch(workgroup, kernel, client);
+            launcher.launch(cube_count, kernel, client);
         }
     }
 }
@@ -277,7 +277,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         #[allow(clippy::too_many_arguments)]
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
-            workgroup: WorkGroup,
+            cube_count: CubeCount,
             settings: CompilationSettings,
             #inputs
         ) -> #output {

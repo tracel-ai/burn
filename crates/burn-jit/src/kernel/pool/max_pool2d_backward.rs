@@ -32,7 +32,7 @@ impl MaxPool2dBackwardComputeShader {
         let grad = self.grad;
         let output = self.output;
         let indices = self.indices;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);

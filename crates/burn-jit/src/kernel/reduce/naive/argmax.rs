@@ -43,7 +43,7 @@ impl<E: JitElement> ReduceDimNaive<E> for Argmax {
         (_max, index): Self::Accumulator,
         _shape_reduce_dim: Variable,
     ) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         cpa!(scope, output[id] = index);
     }
 }

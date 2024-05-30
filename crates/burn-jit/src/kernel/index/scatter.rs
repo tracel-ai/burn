@@ -52,7 +52,7 @@ impl ScatterComputeShader {
         cpa!(scope, stride_input = stride(input, self.dim));
         cpa!(scope, shape_value = shape(value, self.dim));
 
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
 

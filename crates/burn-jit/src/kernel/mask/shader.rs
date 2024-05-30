@@ -227,7 +227,7 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeS
 
 impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
     pub(crate) fn expand(self, scope: &mut Scope) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let input = self.input;
         let mask = self.mask;
         let value = self.value;
