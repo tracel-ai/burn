@@ -17,66 +17,66 @@ use super::{
 /// Infer the dimension of each output tensor and update them.
 pub fn dim_inference(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
-        NodeType::Add => same_as_input(node),
-        NodeType::AveragePool1d => same_as_input(node),
-        NodeType::AveragePool2d => same_as_input(node),
-        NodeType::BatchNormalization => same_as_input(node),
-        NodeType::Cast => cast_update_outputs(node),
-        NodeType::Clip => same_as_input(node),
-        NodeType::Concat => concat_update_outputs(node),
-        NodeType::Constant => constant_update_outputs(node),
-        NodeType::Conv1d => conv1d_update_outputs(node),
-        NodeType::Conv2d => conv2d_update_outputs(node),
-        NodeType::Cos => same_as_input(node),
-        NodeType::Div => same_as_input(node),
-        NodeType::Dropout => same_as_input(node),
-        NodeType::Equal => equal_update_outputs(node),
-        NodeType::Erf => same_as_input(node),
-        NodeType::Exp => same_as_input(node),
-        NodeType::Flatten => flatten_update_outputs(node),
-        NodeType::Gelu => same_as_input(node),
-        NodeType::GatherElements => same_as_input(node),
-        NodeType::GlobalAveragePool => same_as_input(node),
-        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
-        NodeType::LayerNormalization => same_as_input(node),
-        NodeType::Linear => linear_update_outputs(node),
-        NodeType::Log => same_as_input(node),
-        NodeType::LogSoftmax => same_as_input(node),
-        NodeType::MatMul => matmul_update_outputs(node),
-        NodeType::Min => same_as_input(node),
-        NodeType::Max => same_as_input(node),
-        NodeType::MaxPool1d => same_as_input(node),
-        NodeType::MaxPool2d => same_as_input(node),
-        NodeType::Mul => same_as_input(node),
-        NodeType::Neg => same_as_input(node),
-        NodeType::Not => same_as_input(node),
-        NodeType::Greater => greater_update_outputs(node),
-        NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
-        NodeType::Less => less_update_outputs(node),
-        NodeType::LessOrEqual => less_or_equal_update_outputs(node),
-        NodeType::Reciprocal => same_as_input(node),
-        NodeType::ReduceMax => reduce_max_update_outputs(node),
-        NodeType::ReduceMean => reduce_mean_update_outputs(node),
-        NodeType::ReduceSum => reduce_sum_update_outputs(node),
-        NodeType::Relu => same_as_input(node),
-        NodeType::Reshape => reshape_update_outputs(node),
-        NodeType::Shape => shape_update_outputs(node),
-        NodeType::Sigmoid => same_as_input(node),
-        NodeType::Sign => same_as_input(node),
-        NodeType::Sin => same_as_input(node),
-        NodeType::Softmax => same_as_input(node),
-        NodeType::Sqrt => same_as_input(node),
-        NodeType::Sub => same_as_input(node),
-        NodeType::Tanh => same_as_input(node),
-        NodeType::Transpose => same_as_input(node),
-        NodeType::Unsqueeze => unsqueeze_update_output(node),
-        NodeType::Pow => same_as_input(node),
-        NodeType::LeakyRelu => same_as_input(node),
-        NodeType::PRelu => same_as_input(node),
-        NodeType::Where => where_update_outputs(node),
-        NodeType::Squeeze => squeeze_update_output(node),
-        NodeType::RandomUniform => random_update_output(node),
-        NodeType::RandomNormal => random_update_output(node),
+        NodeType::Add => same_as_input(node, graph_io),
+        NodeType::AveragePool1d => same_as_input(node, graph_io),
+        NodeType::AveragePool2d => same_as_input(node, graph_io),
+        NodeType::BatchNormalization => same_as_input(node, graph_io),
+        NodeType::Cast => cast_update_outputs(node, graph_io),
+        NodeType::Clip => same_as_input(node, graph_io),
+        NodeType::Concat => concat_update_outputs(node, graph_io),
+        NodeType::Constant => constant_update_outputs(node, graph_io),
+        NodeType::Conv1d => conv1d_update_outputs(node, graph_io),
+        NodeType::Conv2d => conv2d_update_outputs(node, graph_io),
+        NodeType::Cos => same_as_input(node, graph_io),
+        NodeType::Div => same_as_input(node, graph_io),
+        NodeType::Dropout => same_as_input(node, graph_io),
+        NodeType::Equal => equal_update_outputs(node, graph_io),
+        NodeType::Erf => same_as_input(node, graph_io),
+        NodeType::Exp => same_as_input(node, graph_io),
+        NodeType::Flatten => flatten_update_outputs(node, graph_io),
+        NodeType::Gelu => same_as_input(node, graph_io),
+        NodeType::GatherElements => same_as_input(node, graph_io),
+        NodeType::GlobalAveragePool => same_as_input(node, graph_io),
+        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node, graph_io),
+        NodeType::LayerNormalization => same_as_input(node, graph_io),
+        NodeType::Linear => linear_update_outputs(node, graph_io),
+        NodeType::Log => same_as_input(node, graph_io),
+        NodeType::LogSoftmax => same_as_input(node, graph_io),
+        NodeType::MatMul => matmul_update_outputs(node, graph_io),
+        NodeType::Min => same_as_input(node, graph_io),
+        NodeType::Max => same_as_input(node, graph_io),
+        NodeType::MaxPool1d => same_as_input(node, graph_io),
+        NodeType::MaxPool2d => same_as_input(node, graph_io),
+        NodeType::Mul => same_as_input(node, graph_io),
+        NodeType::Neg => same_as_input(node, graph_io),
+        NodeType::Not => same_as_input(node, graph_io),
+        NodeType::Greater => greater_update_outputs(node, graph_io),
+        NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node, graph_io),
+        NodeType::Less => less_update_outputs(node, graph_io),
+        NodeType::LessOrEqual => less_or_equal_update_outputs(node, graph_io),
+        NodeType::Reciprocal => same_as_input(node, graph_io),
+        NodeType::ReduceMax => reduce_max_update_outputs(node, graph_io),
+        NodeType::ReduceMean => reduce_mean_update_outputs(node, graph_io),
+        NodeType::ReduceSum => reduce_sum_update_outputs(node, graph_io),
+        NodeType::Relu => same_as_input(node, graph_io),
+        NodeType::Reshape => reshape_update_outputs(node, graph_io),
+        NodeType::Shape => shape_update_outputs(node, graph_io),
+        NodeType::Sigmoid => same_as_input(node, graph_io),
+        NodeType::Sign => same_as_input(node, graph_io),
+        NodeType::Sin => same_as_input(node, graph_io),
+        NodeType::Softmax => same_as_input(node, graph_io),
+        NodeType::Sqrt => same_as_input(node, graph_io),
+        NodeType::Sub => same_as_input(node, graph_io),
+        NodeType::Tanh => same_as_input(node, graph_io),
+        NodeType::Transpose => same_as_input(node, graph_io),
+        NodeType::Unsqueeze => unsqueeze_update_output(node, graph_io),
+        NodeType::Pow => same_as_input(node, graph_io),
+        NodeType::LeakyRelu => same_as_input(node, graph_io),
+        NodeType::PRelu => same_as_input(node, graph_io),
+        NodeType::Where => where_update_outputs(node, graph_io),
+        NodeType::Squeeze => squeeze_update_output(node, graph_io),
+        NodeType::RandomUniform => random_update_output(node, graph_io),
+        NodeType::RandomNormal => random_update_output(node, graph_io),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node, graph_io),
     }
@@ -129,14 +129,13 @@ fn constant_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO
     );
 }
 
-
 /// Infer the shape of a node's output with an explicit shape attribute
 /// for the Random operations with explicit shape
 ///
 /// This includes the `RandomUniform`, `RandomNormal` operators
 ///
 /// Also reads & interprets an optional `dtype` attribute
-fn random_update_output(node: &mut Node) {
+fn random_update_output(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let dtype = node
         .attrs
         .get("dtype")
@@ -156,56 +155,20 @@ fn random_update_output(node: &mut Node) {
         _ => panic!("tensor with type {dtype:?} not supported for random output"),
     };
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        dim: shape.len(),
-        shape: Some(
-            shape
-                .drain(..)
-                .map(usize::try_from)
-                .collect::<Result<Vec<usize>, _>>()
-                .unwrap(),
-        ),
-    })
-}
-
-/// Infer the shape of a node's output with an explicit shape attribute
-/// for the Random operations with explicit shape
-///
-/// This includes the `RandomUniform`, `RandomNormal` operators
-///
-/// Also reads & interprets an optional `dtype` attribute
-fn random_update_output(node: &mut Node) {
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
-        .unwrap_or(DataType::FLOAT);
-
-    let mut shape = node
-        .attrs
-        .get("shape")
-        .expect("required shape attribute missing")
-        .clone()
-        .into_i64s();
-
-    let elem_type = match dtype {
-        DataType::FLOAT => ElementType::Float32,
-        DataType::DOUBLE => ElementType::Float64,
-        _ => panic!("tensor with type {dtype:?} not supported for random output"),
-    };
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        dim: shape.len(),
-        shape: Some(
-            shape
-                .drain(..)
-                .map(usize::try_from)
-                .collect::<Result<Vec<usize>, _>>()
-                .unwrap(),
-        ),
-    })
+    graph_io.set_type(
+        &node.outputs[0],
+        ArgType::Tensor(TensorType {
+            elem_type,
+            dim: shape.len(),
+            shape: Some(
+                shape
+                    .drain(..)
+                    .map(usize::try_from)
+                    .collect::<Result<Vec<usize>, _>>()
+                    .unwrap(),
+            ),
+        }),
+    )
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
@@ -335,102 +298,65 @@ fn reshape_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO)
     }
 }
 
-fn greater_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
+fn greater_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
+    match graph_io.get_type(&node.inputs[0]) {
         ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
+            graph_io.set_type(
+                &node.outputs[0],
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Bool,
+                    ..tensor.clone()
+                }),
+            );
         }
         _ => panic!("Only tensor input is valid"),
     }
 }
 
-fn less_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
+fn less_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
+    match graph_io.get_type(&node.inputs[0]) {
         ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
+            graph_io.set_type(
+                &node.outputs[0],
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Bool,
+                    ..tensor.clone()
+                }),
+            );
         }
         _ => panic!("Only tensor input is valid"),
     }
 }
 
-fn greater_or_equal_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
+fn greater_or_equal_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
+    match graph_io.get_type(&node.inputs[0]) {
         ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
+            graph_io.set_type(
+                &node.outputs[0],
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Bool,
+                    ..tensor.clone()
+                }),
+            );
         }
         _ => panic!("Only tensor input is valid"),
     }
 }
 
-fn less_or_equal_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
+fn less_or_equal_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
+    match graph_io.get_type(&node.inputs[0]) {
         ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
+            graph_io.set_type(
+                &node.outputs[0],
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Bool,
+                    ..tensor.clone()
+                }),
+            );
         }
         _ => panic!("Only tensor input is valid"),
     }
 }
-
-fn greater_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
-        }
-        _ => panic!("Only tensor input is valid"),
-    }
-}
-
-fn less_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
-        }
-        _ => panic!("Only tensor input is valid"),
-    }
-}
-
-fn greater_or_equal_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
-        }
-        _ => panic!("Only tensor input is valid"),
-    }
-}
-
-fn less_or_equal_update_outputs(node: &mut Node) {
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
-        }
-        _ => panic!("Only tensor input is valid"),
-    }
-}
-
 
 fn reduce_mean_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
@@ -458,7 +384,7 @@ fn reduce_mean_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGrap
         // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
         // 0-dim tensor so we can't track or perform other ops on that value if we call
         // `.into_scalar()` on the result of `tensor.max()`
-        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+        // graph_io.set_type(&node.outputs[0],ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         graph_io.set_type(
             &node.outputs[0],
@@ -582,7 +508,7 @@ fn equal_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
                     ..tensor.clone()
                 }),
             );
-            // node.outputs[0].ty = ArgType::Tensor(TensorType {
+            // graph_io.set_type(&node.outputs[0],ArgType::Tensor(TensorType {
             //     elem_type: ElementType::Bool,
             //     ..tensor.clone()
             // });
@@ -733,7 +659,7 @@ fn reduce_max_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraph
             // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
             // 0-dim tensor so we can't track or perform other ops on that value if we call
             // `.into_scalar()` on the result of `tensor.max()`
-            // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+            // graph_io.set_type(&node.outputs[0],ArgType::Scalar(tensor.elem_type);
             // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
             ArgType::Tensor(TensorType {
                 dim: 1,
@@ -777,7 +703,7 @@ fn reduce_sum_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraph
             // NOTE: ReduceSum w/o keepdims reduces to a scalar value, but Burn doesn't have
             // 0-dim tensor so we can't track or perform other ops on that value if we call
             // `.into_scalar()` on the result of `tensor.sum()`
-            // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
+            // graph_io.set_type(&node.outputs[0],ArgType::Scalar(tensor.elem_type);
             // Instead, we return a tensor of rank 1 (the result of `tensor.sum()`)
             ArgType::Tensor(TensorType {
                 dim: 1,
