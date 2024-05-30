@@ -1,14 +1,14 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{ScalarType, Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct RangeNode {
-    pub start: Type,
-    pub end: Type,
-    pub step: Type,
+    pub start: ScalarType,
+    pub end: ScalarType,
+    pub step: ScalarType,
     pub output: TensorType,
 }
 
@@ -18,35 +18,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![self.start.clone(), self.end.clone(), self.step.clone()]
+        vec![
+            Type::Scalar(self.start.clone()),
+            Type::Scalar(self.end.clone()),
+            Type::Scalar(self.step.clone()),
+        ]
     }
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = &self.output.name;
 
-        let start = match &self.start {
-            Type::Scalar(s) => {
-                let name = s.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("Start must be a scalar"),
-        };
-
-        let end = match &self.end {
-            Type::Scalar(s) => {
-                let name = s.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("End must be a scalar"),
-        };
-
-        let step = match &self.step {
-            Type::Scalar(s) => {
-                let name = s.name.clone();
-                quote! { #name }
-            }
-            _ => panic!("Step must be a scalar"),
-        };
+        let start = &self.start.name;
+        let end = &self.end.name;
+        let step = &self.step.name;
 
         quote! {
             let #output = Tensor::arange_step(#start..#end, #step as usize, &*self.device);
@@ -71,9 +55,9 @@ mod tests {
 
         graph.register(
             RangeNode::new(
-                Type::Scalar(ScalarType::new("start", ScalarKind::Int64)),
-                Type::Scalar(ScalarType::new("end", ScalarKind::Int64)),
-                Type::Scalar(ScalarType::new("step", ScalarKind::Int64)),
+                ScalarType::new("start", ScalarKind::Int64),
+                ScalarType::new("end", ScalarKind::Int64),
+                ScalarType::new("step", ScalarKind::Int64),
                 TensorType::new_int("output", 1),
             )
             .into_node(),
