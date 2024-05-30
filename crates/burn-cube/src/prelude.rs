@@ -1,10 +1,11 @@
 pub use crate::{
     cube,
     dialect::{ComputeShader, WorkgroupSize},
-    ArgSettings, CompilationSettings, CubeElement, Float, GpuComputeShaderPhase, KernelBuilder,
-    KernelLauncher, LaunchArg, Runtime, RuntimeArg, Tensor, TensorHandle, UInt, WorkGroup,
-    ABSOLUTE_INDEX, F16, F32, F64, I32, I64,
+    ArgSettings, CompilationSettings, GpuComputeShaderPhase, KernelBuilder, KernelLauncher,
+    LaunchArg, Runtime, RuntimeArg, WorkGroup, ABSOLUTE_INDEX,
 };
+/// Elements
+pub use crate::{CubeElement, Float, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64};
 
 /// Export subcube operations.
 pub use crate::{

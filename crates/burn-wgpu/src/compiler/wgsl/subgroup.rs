@@ -2,48 +2,49 @@ use super::Variable;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Subgroup {
-    SubgroupElect {
+    Elect {
         out: Variable,
     },
-    SubgroupAll {
+    All {
         input: Variable,
         out: Variable,
     },
-    SubgroupAny {
+    Any {
         input: Variable,
         out: Variable,
     },
-    SubgroupBroadcast {
+    Broadcast {
         lhs: Variable,
         rhs: Variable,
         out: Variable,
     },
-    SubgroupSum {
+    Sum {
         input: Variable,
         out: Variable,
     },
-    SubgroupProduct {
+    Prod {
         input: Variable,
         out: Variable,
     },
-    SubgroupAnd {
+    And {
         input: Variable,
         out: Variable,
     },
-    SubgroupOr {
+    Or {
         input: Variable,
         out: Variable,
     },
-    SubgroupXor {
+    Xor {
         input: Variable,
         out: Variable,
     },
-    SubgroupMin {
+    Min {
         input: Variable,
         out: Variable,
     },
-    SubgroupMax {
+    Max {
         input: Variable,
         out: Variable,
     },
@@ -52,37 +53,35 @@ pub enum Subgroup {
 impl Display for Subgroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Subgroup::SubgroupElect { out } => {
-                f.write_fmt(format_args!("{out} = subgroupElect();\n"))
-            }
-            Subgroup::SubgroupAll { input, out } => {
+            Subgroup::Elect { out } => f.write_fmt(format_args!("{out} = subgroupElect();\n")),
+            Subgroup::All { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupAll({input});\n"))
             }
-            Subgroup::SubgroupAny { input, out } => {
+            Subgroup::Any { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupAny({input});\n"))
             }
-            Subgroup::SubgroupBroadcast { lhs, rhs, out } => {
+            Subgroup::Broadcast { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = subgroupBroadcast({lhs}, {rhs});\n"))
             }
-            Subgroup::SubgroupSum { input, out } => {
+            Subgroup::Sum { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupAdd({input});\n"))
             }
-            Subgroup::SubgroupProduct { input, out } => {
+            Subgroup::Prod { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupMul({input});\n"))
             }
-            Subgroup::SubgroupAnd { input, out } => {
+            Subgroup::And { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupAnd({input});\n"))
             }
-            Subgroup::SubgroupOr { input, out } => {
+            Subgroup::Or { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupOr({input});\n"))
             }
-            Subgroup::SubgroupXor { input, out } => {
+            Subgroup::Xor { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupXor({input});\n"))
             }
-            Subgroup::SubgroupMin { input, out } => {
+            Subgroup::Min { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupMin({input});\n"))
             }
-            Subgroup::SubgroupMax { input, out } => {
+            Subgroup::Max { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupMax({input});\n"))
             }
         }

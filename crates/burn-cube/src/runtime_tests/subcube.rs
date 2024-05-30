@@ -11,6 +11,36 @@ pub fn kernel_sum<F: Float>(mut output: Tensor<F>) {
     }
 }
 
+#[cube(launch)]
+pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
+    let val = output[ABSOLUTE_INDEX];
+    let val2 = subcube_prod::<F>(val);
+
+    if ABSOLUTE_INDEX == UInt::new(0) {
+        output[0] = val2;
+    }
+}
+
+#[cube(launch)]
+pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
+    let val = output[ABSOLUTE_INDEX];
+    let val2 = subcube_max::<F>(val);
+
+    if ABSOLUTE_INDEX == UInt::new(0) {
+        output[0] = val2;
+    }
+}
+
+#[cube(launch)]
+pub fn kernel_min<F: Float>(mut output: Tensor<F>) {
+    let val = output[ABSOLUTE_INDEX];
+    let val2 = subcube_min::<F>(val);
+
+    if ABSOLUTE_INDEX == UInt::new(0) {
+        output[0] = val2;
+    }
+}
+
 pub fn test_subcube_sum<TestRuntime: Runtime>(
     client: ComputeClient<TestRuntime::Server, TestRuntime::Channel>,
 ) {
@@ -22,16 +52,6 @@ pub fn test_subcube_sum<TestRuntime: Runtime>(
             kernel_sum_launch::<F32, TestRuntime>(client.clone(), workgroup, settings, handle)
         },
     );
-}
-
-#[cube(launch)]
-pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
-    let val = output[ABSOLUTE_INDEX];
-    let val2 = subcube_prod::<F>(val);
-
-    if ABSOLUTE_INDEX == UInt::new(0) {
-        output[0] = val2;
-    }
 }
 
 pub fn test_subcube_prod<TestRuntime: Runtime>(
@@ -46,17 +66,6 @@ pub fn test_subcube_prod<TestRuntime: Runtime>(
         },
     );
 }
-
-#[cube(launch)]
-pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
-    let val = output[ABSOLUTE_INDEX];
-    let val2 = subcube_max::<F>(val);
-
-    if ABSOLUTE_INDEX == UInt::new(0) {
-        output[0] = val2;
-    }
-}
-
 pub fn test_subcube_max<TestRuntime: Runtime>(
     client: ComputeClient<TestRuntime::Server, TestRuntime::Channel>,
 ) {
@@ -68,16 +77,6 @@ pub fn test_subcube_max<TestRuntime: Runtime>(
             kernel_max_launch::<F32, TestRuntime>(client.clone(), workgroup, settings, handle)
         },
     );
-}
-
-#[cube(launch)]
-pub fn kernel_min<F: Float>(mut output: Tensor<F>) {
-    let val = output[ABSOLUTE_INDEX];
-    let val2 = subcube_min::<F>(val);
-
-    if ABSOLUTE_INDEX == UInt::new(0) {
-        output[0] = val2;
-    }
 }
 
 pub fn test_subcube_min<TestRuntime: Runtime>(

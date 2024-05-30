@@ -111,17 +111,17 @@ impl SubgroupNoInput {
 impl Subcube {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
-            Subcube::SubcubeElect(op) => Subcube::SubcubeElect(op.vectorize(vectorization)),
-            Subcube::SubcubeAll(op) => Subcube::SubcubeAll(op.vectorize(vectorization)),
-            Subcube::SubcubeAny(op) => Subcube::SubcubeAny(op.vectorize(vectorization)),
-            Subcube::SubcubeBroadcast(op) => Subcube::SubcubeBroadcast(op.vectorize(vectorization)),
-            Subcube::SubcubeSum(op) => Subcube::SubcubeSum(op.vectorize(vectorization)),
-            Subcube::SubcubeProduct(op) => Subcube::SubcubeProduct(op.vectorize(vectorization)),
-            Subcube::SubcubeAnd(op) => Subcube::SubcubeAnd(op.vectorize(vectorization)),
-            Subcube::SubcubeOr(op) => Subcube::SubcubeOr(op.vectorize(vectorization)),
-            Subcube::SubcubeXor(op) => Subcube::SubcubeXor(op.vectorize(vectorization)),
-            Subcube::SubcubeMin(op) => Subcube::SubcubeMin(op.vectorize(vectorization)),
-            Subcube::SubcubeMax(op) => Subcube::SubcubeMax(op.vectorize(vectorization)),
+            Subcube::Elect(op) => Subcube::Elect(op.vectorize(vectorization)),
+            Subcube::All(op) => Subcube::All(op.vectorize(vectorization)),
+            Subcube::Any(op) => Subcube::Any(op.vectorize(vectorization)),
+            Subcube::Broadcast(op) => Subcube::Broadcast(op.vectorize(vectorization)),
+            Subcube::Sum(op) => Subcube::Sum(op.vectorize(vectorization)),
+            Subcube::Prod(op) => Subcube::Prod(op.vectorize(vectorization)),
+            Subcube::And(op) => Subcube::And(op.vectorize(vectorization)),
+            Subcube::Or(op) => Subcube::Or(op.vectorize(vectorization)),
+            Subcube::Xor(op) => Subcube::Xor(op.vectorize(vectorization)),
+            Subcube::Min(op) => Subcube::Min(op.vectorize(vectorization)),
+            Subcube::Max(op) => Subcube::Max(op.vectorize(vectorization)),
         }
     }
 }

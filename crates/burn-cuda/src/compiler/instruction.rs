@@ -1,4 +1,4 @@
-use super::{binary::*, unary::*, Component, Variable, WrapInstruction};
+use super::{binary::*, unary::*, Component, Variable, WarpInstruction};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -98,7 +98,7 @@ pub enum Instruction {
     SyncThreads,
     Ceil(UnaryInstruction),
     Floor(UnaryInstruction),
-    Wrap(WrapInstruction),
+    Wrap(WarpInstruction),
 }
 
 impl Display for Instruction {

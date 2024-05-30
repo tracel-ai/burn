@@ -7,7 +7,7 @@ mod element;
 mod instruction;
 mod settings;
 mod shader;
-mod wrap;
+mod warp;
 
 pub use base::*;
 pub use body::*;
@@ -15,4 +15,4 @@ pub use element::*;
 pub use instruction::*;
 pub use settings::*;
 pub use shader::*;
-pub use wrap::*;
+pub use warp::*;

@@ -424,55 +424,55 @@ impl TraceBuilder {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
                 Operation::Subcube(op) => match op {
-                    Subcube::SubcubeElect(op) => {
+                    Subcube::Elect(op) => {
                         mark(&op.out, &mut local_tensor_ids_output);
                     }
-                    Subcube::SubcubeAll(op) => mark_unary(
+                    Subcube::All(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeAny(op) => mark_unary(
+                    Subcube::Any(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeBroadcast(op) => mark_binary(
+                    Subcube::Broadcast(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeSum(op) => mark_unary(
+                    Subcube::Sum(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeProduct(op) => mark_unary(
+                    Subcube::Prod(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeAnd(op) => mark_unary(
+                    Subcube::And(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeOr(op) => mark_unary(
+                    Subcube::Or(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeXor(op) => mark_unary(
+                    Subcube::Xor(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeMin(op) => mark_unary(
+                    Subcube::Min(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::SubcubeMax(op) => mark_unary(
+                    Subcube::Max(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,

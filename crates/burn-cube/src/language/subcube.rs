@@ -13,9 +13,7 @@ pub fn subcube_elect_expand<E: CubeElem>(context: &mut CubeContext) -> ExpandEle
 
     let out = *output;
 
-    context.register(Operation::Subcube(Subcube::SubcubeElect(SubgroupNoInput {
-        out,
-    })));
+    context.register(Operation::Subcube(Subcube::Elect(SubgroupNoInput { out })));
 
     output
 }
@@ -33,7 +31,7 @@ pub fn subcube_sum_expand<E: CubeElem>(
     let out = *output;
     let input = *elem;
 
-    context.register(Operation::Subcube(Subcube::SubcubeSum(UnaryOperator {
+    context.register(Operation::Subcube(Subcube::Sum(UnaryOperator {
         input,
         out,
     })));
@@ -54,7 +52,7 @@ pub fn subcube_prod_expand<E: CubeElem>(
     let out = *output;
     let input = *elem;
 
-    context.register(Operation::Subcube(Subcube::SubcubeProduct(UnaryOperator {
+    context.register(Operation::Subcube(Subcube::Prod(UnaryOperator {
         input,
         out,
     })));
@@ -75,7 +73,7 @@ pub fn subcube_max_expand<E: CubeElem>(
     let out = *output;
     let input = *elem;
 
-    context.register(Operation::Subcube(Subcube::SubcubeMax(UnaryOperator {
+    context.register(Operation::Subcube(Subcube::Max(UnaryOperator {
         input,
         out,
     })));
@@ -96,7 +94,7 @@ pub fn subcube_min_expand<E: CubeElem>(
     let out = *output;
     let input = *elem;
 
-    context.register(Operation::Subcube(Subcube::SubcubeMin(UnaryOperator {
+    context.register(Operation::Subcube(Subcube::Min(UnaryOperator {
         input,
         out,
     })));
@@ -117,7 +115,7 @@ pub fn subcube_all_expand<E: CubeElem>(
     let out = *output;
     let input = *elem;
 
-    context.register(Operation::Subcube(Subcube::SubcubeAll(UnaryOperator {
+    context.register(Operation::Subcube(Subcube::All(UnaryOperator {
         input,
         out,
     })));

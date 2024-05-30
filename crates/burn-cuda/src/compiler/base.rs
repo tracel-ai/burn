@@ -1,6 +1,6 @@
 use burn_cube::{dialect as gpu, Compiler};
 
-use super::{Instruction, WrapInstruction};
+use super::{Instruction, WarpInstruction};
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
@@ -113,27 +113,27 @@ impl CudaCompiler {
             gpu::Operation::Subcube(op) => {
                 self.wrap_size_checked = true;
                 match op {
-                    gpu::Subcube::SubcubeSum(op) => {
-                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceSum {
+                    gpu::Subcube::Sum(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceSum {
                             input: self.compile_variable(op.input),
                             out: self.compile_variable(op.out),
                         }))
                     }
-                    gpu::Subcube::SubcubeProduct(op) => {
-                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceProd {
+                    gpu::Subcube::Prod(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceProd {
                             input: self.compile_variable(op.input),
                             out: self.compile_variable(op.out),
                         }))
                     }
-                    gpu::Subcube::SubcubeMax(op) => {
-                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceMax {
+                    gpu::Subcube::Max(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceMax {
                             input: self.compile_variable(op.input),
                             out: self.compile_variable(op.out),
                         }))
                     }
 
-                    gpu::Subcube::SubcubeMin(op) => {
-                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceMin {
+                    gpu::Subcube::Min(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceMin {
                             input: self.compile_variable(op.input),
                             out: self.compile_variable(op.out),
                         }))

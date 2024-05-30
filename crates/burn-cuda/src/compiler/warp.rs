@@ -3,17 +3,17 @@ use std::fmt::Display;
 use super::Variable;
 
 #[derive(Clone, Debug)]
-pub enum WrapInstruction {
+pub enum WarpInstruction {
     ReduceSum { input: Variable, out: Variable },
     ReduceProd { input: Variable, out: Variable },
     ReduceMax { input: Variable, out: Variable },
     ReduceMin { input: Variable, out: Variable },
 }
 
-impl Display for WrapInstruction {
+impl Display for WarpInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WrapInstruction::ReduceSum { input, out } => f.write_fmt(format_args!(
+            WarpInstruction::ReduceSum { input, out } => f.write_fmt(format_args!(
                 "
 {out} = {input};
                     {{
@@ -23,7 +23,7 @@ impl Display for WrapInstruction {
 }}
                         "
             )),
-            WrapInstruction::ReduceProd { input, out } => f.write_fmt(format_args!(
+            WarpInstruction::ReduceProd { input, out } => f.write_fmt(format_args!(
                 "
 {out} = {input};
                     {{
@@ -33,7 +33,7 @@ impl Display for WrapInstruction {
 }}
                         "
             )),
-            WrapInstruction::ReduceMax { input, out } => f.write_fmt(format_args!(
+            WarpInstruction::ReduceMax { input, out } => f.write_fmt(format_args!(
                 "
 {out} = {input};
                 {{
@@ -43,7 +43,7 @@ for (int offset = warpSizeChecked / 2; offset > 0; offset /= 2) {{
 }}
                     "
             )),
-            WrapInstruction::ReduceMin { input, out } => f.write_fmt(format_args!(
+            WarpInstruction::ReduceMin { input, out } => f.write_fmt(format_args!(
                 "
 {out} = {input};
                 {{
