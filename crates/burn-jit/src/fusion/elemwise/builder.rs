@@ -4,7 +4,7 @@ use crate::{
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitRuntime,
 };
-use burn_cube::dialect::{
+use burn_cube::ir::{
     BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};

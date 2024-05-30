@@ -1,4 +1,4 @@
-use burn_cube::{dialect as gpu, Compiler};
+use burn_cube::{ir as gpu, Compiler};
 
 use super::{Instruction, WarpInstruction};
 
@@ -21,7 +21,7 @@ pub struct CudaCompiler {
 impl Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
 
-    fn compile(shader: burn_cube::dialect::ComputeShader) -> Self::Representation {
+    fn compile(shader: burn_cube::ir::ComputeShader) -> Self::Representation {
         let compiler = Self::default();
         compiler.compile_shader(shader)
     }

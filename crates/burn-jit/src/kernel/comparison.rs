@@ -6,7 +6,7 @@ use crate::{
     unary, JitRuntime,
 };
 use burn_cube::{
-    dialect::{BinaryOperator, Elem, Operator, Scope, Variable},
+    ir::{BinaryOperator, Elem, Operator, Scope, Variable},
     Runtime,
 };
 use std::mem;

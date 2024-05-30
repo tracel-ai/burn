@@ -1,5 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_cube::{dialect::CubeDim, CompilerRepresentation};
+use burn_cube::{ir::CubeDim, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

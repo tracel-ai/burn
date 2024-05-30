@@ -1,7 +1,7 @@
 use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
+    ir::{ComputeShader, Elem, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
     TensorHandle,
 };

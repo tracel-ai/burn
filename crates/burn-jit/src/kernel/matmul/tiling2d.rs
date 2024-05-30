@@ -1,7 +1,5 @@
 use burn_cube::{
-    dialect::{
-        BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility,
-    },
+    ir::{BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
     OutputInfo, TensorHandle,
 };

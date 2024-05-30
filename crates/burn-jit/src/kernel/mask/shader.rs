@@ -1,8 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{
-        ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
-    },
+    ir::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;

@@ -1,6 +1,6 @@
 use super::Scalars;
 use burn_cube::{
-    dialect::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
     CompilationInfo, InputInfo, OutputInfo,
 };
 use burn_tensor::repr::TensorDescription;

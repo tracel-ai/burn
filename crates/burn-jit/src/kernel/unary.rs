@@ -58,25 +58,25 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
             settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::dialect::ComputeShader
+        ) -> burn_cube::ir::ComputeShader
         where
             E: $crate::element::JitElement
         {
 
-            let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::AbsolutePos);
+            let mut scope = burn_cube::ir::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::ir::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(E::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
+                item: burn_cube::ir::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::AbsolutePos,
+                position: burn_cube::ir::Variable::AbsolutePos,
             };
             let info = burn_cube::CompilationInfo {
                 inputs: vec![input],
@@ -92,7 +92,7 @@ macro_rules! unary {
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let settings = burn_cube::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -104,7 +104,7 @@ macro_rules! unary {
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -134,29 +134,29 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
             settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::dialect::ComputeShader
+        ) -> burn_cube::ir::ComputeShader
         where
             E: $crate::element::JitElement
         {
 
-            let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::AbsolutePos);
+            let mut scope = burn_cube::ir::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::ir::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(E::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let scalars = burn_cube::InputInfo::Scalar {
                 elem: E::cube_elem(),
                 size: $num,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
+                item: burn_cube::ir::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::AbsolutePos,
+                position: burn_cube::ir::Variable::AbsolutePos,
             };
             let info = burn_cube::CompilationInfo {
                 inputs: vec![input, scalars],
@@ -172,7 +172,7 @@ macro_rules! unary {
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let settings = burn_cube::CompilationSettings::default();
                 compile::<E>(settings)
             }
@@ -184,7 +184,7 @@ macro_rules! unary {
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,

@@ -1,5 +1,5 @@
 use burn_cube::cpa;
-use burn_cube::dialect::{BinaryOperator, Scope, Synchronization, Variable};
+use burn_cube::ir::{BinaryOperator, Scope, Synchronization, Variable};
 
 use crate::kernel::matmul::tiling2d_shader::{
     computation_loop, gather_shader_information, load_shared_memory, write_to_output,

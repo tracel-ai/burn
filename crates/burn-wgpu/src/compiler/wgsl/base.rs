@@ -1,4 +1,4 @@
-use burn_cube::dialect as cube;
+use burn_cube::ir as cube;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]

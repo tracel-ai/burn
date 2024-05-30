@@ -1,5 +1,5 @@
 use burn_cube::{
-    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, dialect::CubeDim, CompilationInfo,
+    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, ir::CubeDim, CompilationInfo,
     CompilationSettings,
 };
 use burn_tensor::repr::TensorDescription;

@@ -4,7 +4,7 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::dialect::CubeDim;
+use burn_cube::ir::CubeDim;
 use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
 use cudarc::driver::sys::CUctx_st;

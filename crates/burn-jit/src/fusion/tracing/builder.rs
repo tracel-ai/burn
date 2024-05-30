@@ -1,5 +1,5 @@
 use super::{trace::Trace, Scalars};
-use burn_cube::dialect::{
+use burn_cube::ir::{
     BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, Subcube, UnaryOperator,
     Variable,
 };
@@ -10,7 +10,7 @@ use burn_tensor::{
 use hashbrown::HashMap;
 
 /// Type facilitating building a [trace](Trace) by doing most of the conversions between the
-/// operations provided in [burn_fusion] and the [gpu dialect](gpu).
+/// operations provided in [burn_fusion] and the [gpu ir](gpu).
 #[derive(Clone)]
 pub struct TraceBuilder {
     // Input tensor descriptions with the variables created after reading from global memory.

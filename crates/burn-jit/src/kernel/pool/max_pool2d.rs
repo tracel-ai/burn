@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
+    ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution, TensorHandle,
 };
 use std::{fmt::Debug, marker::PhantomData};

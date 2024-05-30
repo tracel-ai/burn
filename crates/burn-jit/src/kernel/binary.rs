@@ -51,13 +51,13 @@ macro_rules! binary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<I, O>(
             settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::dialect::ComputeShader
+        ) -> burn_cube::ir::ComputeShader
         where
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            let mut scope = burn_cube::dialect::Scope::root();
-            let position = burn_cube::dialect::Variable::AbsolutePos;
+            let mut scope = burn_cube::ir::Scope::root();
+            let position = burn_cube::ir::Variable::AbsolutePos;
 
             let op = $ops(&mut scope, I::cube_elem(), position);
             scope.register(op);
@@ -65,15 +65,15 @@ macro_rules! binary {
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let lhs = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(I::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(I::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let rhs = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(I::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(I::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::new(O::cube_elem()),
+                item: burn_cube::ir::Item::new(O::cube_elem()),
                 local,
                 position,
             };
@@ -92,7 +92,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let settings = burn_cube::CompilationSettings::default();
                 compile::<I, O>(settings)
             }
@@ -106,7 +106,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
@@ -125,7 +125,7 @@ macro_rules! binary {
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn compile(&self) -> burn_cube::ir::ComputeShader {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,

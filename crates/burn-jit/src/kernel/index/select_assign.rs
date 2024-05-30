@@ -6,7 +6,7 @@ use crate::{
 };
 use burn_cube::{
     calculate_cube_count_elemwise, cpa,
-    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
     TensorHandle,
 };

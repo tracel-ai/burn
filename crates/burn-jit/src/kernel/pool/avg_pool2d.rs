@@ -1,7 +1,7 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
+    ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution, TensorHandle,
 };
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};

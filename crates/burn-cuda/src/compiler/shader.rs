@@ -1,4 +1,4 @@
-use burn_cube::{dialect::CubeDim, CompilerRepresentation};
+use burn_cube::{ir::CubeDim, CompilerRepresentation};
 
 // use super::{Body, Extension, Item};
 use super::{Body, Item};

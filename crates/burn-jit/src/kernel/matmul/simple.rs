@@ -9,7 +9,7 @@ use burn_cube::{
     OutputInfo, TensorHandle,
 };
 use burn_cube::{
-    dialect::{
+    ir::{
         BinaryOperator, Branch, ComputeShader, CubeDim, Elem, FloatKind,
         IndexOffsetGlobalWithLayout, Scope, Variable, Visibility,
     },

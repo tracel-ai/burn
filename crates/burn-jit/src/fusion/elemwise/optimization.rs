@@ -11,7 +11,7 @@ use crate::{
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
-use burn_cube::dialect::CubeDim;
+use burn_cube::ir::CubeDim;
 use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 

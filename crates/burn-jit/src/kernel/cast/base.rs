@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Scope, Variable, Visibility},
+    ir::{ComputeShader, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
     OutputInfo, TensorHandle,
 };

@@ -1,7 +1,7 @@
 use super::{shader::ComputeShader, Item, SharedMemory};
 use super::{LocalArray, Subgroup};
 use crate::compiler::wgsl;
-use burn_cube::dialect as cube;
+use burn_cube::ir as cube;
 
 /// Wgsl Compiler.
 #[derive(Clone, Default)]

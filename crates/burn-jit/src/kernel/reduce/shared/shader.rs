@@ -1,6 +1,6 @@
 use burn_cube::{
-    cpa, dialect::ComputeShader, prelude::CubeCount, Compilation, CompilationInfo,
-    CompilationSettings, CubeCountSettings, Execution, InputInfo, OutputInfo, TensorHandle,
+    cpa, ir::ComputeShader, prelude::CubeCount, Compilation, CompilationInfo, CompilationSettings,
+    CubeCountSettings, Execution, InputInfo, OutputInfo, TensorHandle,
 };
 use std::marker::PhantomData;
 
@@ -10,7 +10,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::dialect::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
+use burn_cube::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
 
 use super::base::ReduceDimShared;
 

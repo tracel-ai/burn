@@ -1,4 +1,4 @@
-use burn_cube::dialect as gpu;
+use burn_cube::ir as gpu;
 use half::{bf16, f16};
 use std::fmt::Display;
 

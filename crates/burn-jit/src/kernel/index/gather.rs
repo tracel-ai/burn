@@ -2,7 +2,7 @@ use crate::{
     element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
     tensor::JitTensor, JitRuntime,
 };
-use burn_cube::dialect::{
+use burn_cube::ir::{
     ComputeShader, Elem, IndexOffsetGlobalWithLayout, IntKind, Item, Scope, Variable, Visibility,
 };
 use burn_cube::{

@@ -4,7 +4,7 @@ use crate::{
     IntElement, JitBackend, JitRuntime,
 };
 use burn_compute::client::ComputeClient;
-use burn_cube::{dialect::ReadingStrategy, CompilationInfo, CompilationSettings, InplaceMapping};
+use burn_cube::{ir::ReadingStrategy, CompilationInfo, CompilationSettings, InplaceMapping};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;

@@ -9,7 +9,7 @@ use burn_cube::{
     CubeCountSettings, TensorHandle,
 };
 use burn_cube::{
-    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     Execution,
 };
 use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
