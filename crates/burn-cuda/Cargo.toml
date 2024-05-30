@@ -36,6 +36,9 @@ derive-new = { workspace = true }
 burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false, features = [
   "export_tests",
 ] }
+burn-cube = { path = "../burn-cube", version = "0.14.0", features = [
+  "export_tests",
+] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -1,6 +1,6 @@
 use burn_cube::{dialect as gpu, Compiler};
 
-use super::Instruction;
+use super::{Instruction, WrapInstruction};
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
@@ -15,6 +15,7 @@ pub struct CudaCompiler {
     rank: bool,
     invocation_index: bool,
     global_invocation_id: (bool, bool, bool),
+    wrap_size_checked: bool,
 }
 
 impl Compiler for CudaCompiler {
@@ -51,6 +52,7 @@ impl CudaCompiler {
             id: self.id,
             invocation_index: self.invocation_index,
             global_invocation_id: self.global_invocation_id,
+            wrap_size_checked: self.wrap_size_checked,
         };
 
         super::ComputeShader {
@@ -108,7 +110,38 @@ impl CudaCompiler {
                     instructions.push(Instruction::SyncThreads)
                 }
             },
-            gpu::Operation::Subcube(_) => panic!("Subgroup isn't yet supported in CUDA."),
+            gpu::Operation::Subcube(op) => {
+                self.wrap_size_checked = true;
+                match op {
+                    gpu::Subcube::SubcubeSum(op) => {
+                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceSum {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+                    gpu::Subcube::SubcubeProduct(op) => {
+                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceProd {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+                    gpu::Subcube::SubcubeMax(op) => {
+                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceMax {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+
+                    gpu::Subcube::SubcubeMin(op) => {
+                        instructions.push(Instruction::Wrap(WrapInstruction::ReduceMin {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+
+                    _ => todo!(),
+                }
+            }
         }
     }
 
