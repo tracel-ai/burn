@@ -1,8 +1,9 @@
 use crate::{
+    frontend::{indexation::Index, CubeType, ExpandElement},
+    frontend::{ArgSettings, CubeContext, CubeElem, UInt},
     ir::{Elem, Item, Metadata, Vectorization},
-    language::{indexation::Index, CubeType, ExpandElement},
     prelude::{KernelBuilder, KernelLauncher},
-    unexpanded, ArgSettings, CubeContext, CubeElem, LaunchArg, Runtime, UInt,
+    unexpanded, LaunchArg, Runtime,
 };
 use std::marker::PhantomData;
 

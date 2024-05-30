@@ -5,8 +5,8 @@ use crate::{
     JitRuntime,
 };
 use burn_cube::{
-    calculate_cube_count_elemwise, cpa, Compilation, CompilationInfo, CompilationSettings,
-    CubeCountSettings, TensorHandle,
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, Compilation, CompilationInfo,
+    CompilationSettings, CubeCountSettings,
 };
 use burn_cube::{
     ir::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},

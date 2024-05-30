@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 
 use burn_cube::{
     cpa,
+    frontend::TensorHandle,
     ir::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
-    OutputInfo, TensorHandle,
+    OutputInfo,
 };
 
 use crate::{tensor::JitTensor, JitElement, JitRuntime};

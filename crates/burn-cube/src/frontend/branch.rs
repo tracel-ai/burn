@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
+use crate::frontend::{CubeContext, ExpandElement, UInt};
 use crate::ir::{Branch, Elem, If, IfElse, Item, Loop, RangeLoop, Variable};
-use crate::language::{CubeContext, ExpandElement, UInt};
 
 use super::comptime::Comptime;
 

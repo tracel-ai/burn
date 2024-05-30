@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::language::{CubeType, ExpandElement};
+use crate::frontend::{CubeType, ExpandElement};
 
 #[derive(new, Clone, Copy)]
 pub struct Array<E> {

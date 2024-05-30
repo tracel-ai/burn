@@ -1,6 +1,7 @@
+use super::{CubeContext, CubeElem, ExpandElement};
 use crate::{
     ir::{Elem, InitOperator, Item, Operation, Subcube, UnaryOperator},
-    unexpanded, CubeContext, CubeElem, ExpandElement,
+    unexpanded,
 };
 
 /// Returns true if the cube unit has the lowest subcube_unit_id among active unit in the subcube

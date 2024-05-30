@@ -1,5 +1,5 @@
+use crate::frontend::ExpandElement;
 use crate::ir::{Elem, Item, Operation, Scope};
-use crate::language::ExpandElement;
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;

@@ -1,4 +1,4 @@
-use crate::language::{Array, CubeContext, ExpandElement, SharedMemory, Tensor, UInt};
+use crate::frontend::{Array, CubeContext, ExpandElement, SharedMemory, Tensor, UInt};
 use crate::{ir, unexpanded};
 
 pub mod assign {
@@ -19,7 +19,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::{language::CubeType, unexpanded};
+    use crate::{frontend::CubeType, unexpanded};
 
     use self::ir::{BinaryOperator, Operator, Variable};
 
@@ -62,7 +62,7 @@ pub mod index_assign {
 
 pub mod index {
     use crate::{
-        language::{operation::base::binary_expand, CubeType},
+        frontend::{operation::base::binary_expand, CubeType},
         unexpanded,
     };
 
@@ -104,7 +104,7 @@ pub mod index {
 }
 
 pub mod add_assign_op {
-    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+    use crate::frontend::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use self::ir::Operator;
 
@@ -132,7 +132,7 @@ pub mod add_assign_op {
 }
 
 pub mod sub_assign_op {
-    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+    use crate::frontend::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use self::ir::Operator;
 
@@ -160,7 +160,7 @@ pub mod sub_assign_op {
 }
 
 pub mod mul_assign_op {
-    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+    use crate::frontend::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use self::ir::Operator;
 
@@ -188,7 +188,7 @@ pub mod mul_assign_op {
 }
 
 pub mod div_assign_op {
-    use crate::language::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
+    use crate::frontend::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 
     use self::ir::Operator;
 

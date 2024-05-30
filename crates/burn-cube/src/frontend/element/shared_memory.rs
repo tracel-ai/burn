@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::{
+    frontend::{indexation::Index, CubeContext, CubeElem, CubeType, ExpandElement},
     ir::Item,
-    language::{indexation::Index, CubeType, ExpandElement},
-    CubeContext, CubeElem,
 };
 
 #[derive(Clone, Copy)]

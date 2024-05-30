@@ -1,6 +1,6 @@
+use crate::frontend::{assign, CubeContext, CubeElem, CubeType};
 use crate::ir::Item;
-use crate::language::{assign, CubeContext, CubeElem, CubeType};
-use crate::{unexpanded, ExpandElement};
+use crate::{frontend::ExpandElement, unexpanded};
 
 /// Enable elegant casting from any to any CubeElem
 pub trait Cast: CubeElem {

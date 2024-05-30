@@ -1,7 +1,8 @@
 use burn_cube::{
+    frontend::TensorHandle,
     ir::{BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
-    OutputInfo, TensorHandle,
+    OutputInfo,
 };
 use burn_tensor::{Element, Shape};
 

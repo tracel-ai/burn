@@ -1,4 +1,4 @@
-use burn_cube::{CubeCountSettings, Execution, TensorHandle};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 

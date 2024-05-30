@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{CubeCountSettings, Execution, TensorHandle};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 use burn_tensor::Shape;
 
 /// Creates a binary kernel.

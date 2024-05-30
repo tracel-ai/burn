@@ -6,9 +6,9 @@ use crate::{
 };
 use burn_cube::{
     calculate_cube_count_elemwise, cpa,
+    frontend::TensorHandle,
     ir::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
     Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
-    TensorHandle,
 };
 use std::marker::PhantomData;
 

@@ -1,7 +1,5 @@
-use crate::{
-    ir::{Elem, Variable},
-    Comptime, ExpandElement, UInt,
-};
+use super::{Comptime, ExpandElement, UInt};
+use crate::ir::{Elem, Variable};
 
 pub trait Index {
     fn value(self) -> Variable;

@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric, Tensor, UInt, ABSOLUTE_POS};
+use burn_cube::prelude::*;
 
 #[cube]
 fn topology_kernel<T: Numeric>(input: Tensor<T>) {
@@ -10,8 +10,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Elem, Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Elem, Item, Variable},
     };
 
     type ElemType = F32;

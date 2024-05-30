@@ -1,5 +1,5 @@
+use crate::frontend::{CubeContext, ExpandElement};
 use crate::ir::{BinaryOperator, Elem, Item, Operator, UnaryOperator, Variable, Vectorization};
-use crate::language::{CubeContext, ExpandElement};
 
 pub(crate) fn binary_expand<F>(
     context: &mut CubeContext,

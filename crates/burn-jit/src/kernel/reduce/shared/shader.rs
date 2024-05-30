@@ -1,6 +1,6 @@
 use burn_cube::{
-    cpa, ir::ComputeShader, prelude::CubeCount, Compilation, CompilationInfo, CompilationSettings,
-    CubeCountSettings, Execution, InputInfo, OutputInfo, TensorHandle,
+    cpa, frontend::TensorHandle, ir::ComputeShader, prelude::CubeCount, Compilation,
+    CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;
 

@@ -1,6 +1,6 @@
+use crate::frontend::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh};
+use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, FloatKind, Variable};
-use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh};
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float:

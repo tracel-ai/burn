@@ -1,7 +1,10 @@
+use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, Variable, Vectorization};
-use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::prelude::{KernelBuilder, KernelLauncher};
-use crate::{ArgSettings, Comptime, LaunchArg, Runtime};
+use crate::{
+    frontend::{ArgSettings, Comptime},
+    LaunchArg, Runtime,
+};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.

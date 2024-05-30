@@ -6,8 +6,8 @@ use burn_cube::ir::{
     ComputeShader, Elem, IndexOffsetGlobalWithLayout, IntKind, Item, Scope, Variable, Visibility,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution,
-    InputInfo, OutputInfo, TensorHandle,
+    cpa, frontend::TensorHandle, Compilation, CompilationInfo, CompilationSettings,
+    CubeCountSettings, Execution, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;
 

@@ -1,6 +1,6 @@
 use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
 use crate::ir::{Elem, FloatKind, IntKind};
-use crate::{calculate_num_elems_dyn_rank, GpuComputeShaderPhase, Runtime, TensorHandle};
+use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, GpuComputeShaderPhase, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;

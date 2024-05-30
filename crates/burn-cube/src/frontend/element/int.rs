@@ -1,5 +1,5 @@
+use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, IntKind, Variable};
-use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {

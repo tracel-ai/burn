@@ -1,6 +1,9 @@
+use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement};
 use crate::ir::{Item, Variable};
-use crate::language::{CubeContext, CubeElem, CubeType, ExpandElement};
-use crate::{index_assign, unexpanded, Abs, Max, Min, Remainder};
+use crate::{
+    frontend::{index_assign, Abs, Max, Min, Remainder},
+    unexpanded,
+};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.

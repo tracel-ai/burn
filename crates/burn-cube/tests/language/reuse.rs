@@ -1,4 +1,4 @@
-use burn_cube::{cube, Int};
+use burn_cube::prelude::*;
 
 #[cube]
 #[allow(clippy::assign_op_pattern)]
@@ -19,13 +19,11 @@ pub fn reuse_incr<I: Int>(mut x: I) {
 }
 
 mod tests {
+    use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Branch, Elem, Item, Variable},
-        CubeContext, CubeElem, I32,
+        ir::{Branch, Elem, Item, Variable},
     };
-
-    use super::{reuse_expand, reuse_incr_expand};
 
     type ElemType = I32;
     #[test]

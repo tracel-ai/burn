@@ -1,4 +1,4 @@
-use burn_cube::{cube, Comptime, Numeric, SharedMemory};
+use burn_cube::prelude::*;
 
 #[cube]
 fn shared_memory_read_write<T: Numeric>(sm_size: Comptime<u32>) {
@@ -11,8 +11,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Item, Variable},
     };
 
     type ElemType = F32;

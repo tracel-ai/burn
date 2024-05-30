@@ -1,7 +1,8 @@
 use burn_cube::{
     cpa,
+    frontend::TensorHandle,
     ir::{Elem, Item, Scope, Variable},
-    CubeCountSettings, Execution, TensorHandle,
+    CubeCountSettings, Execution,
 };
 use std::{fmt::Debug, marker::PhantomData};
 

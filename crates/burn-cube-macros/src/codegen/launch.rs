@@ -66,7 +66,7 @@ impl Codegen {
 
                     if comptime {
                         inputs.extend(quote::quote! {
-                            #ident: <#ty as burn_cube::CubeType>::ExpandType,
+                            #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                         });
                     } else {
                         inputs.extend(quote::quote! {
@@ -93,7 +93,7 @@ impl Codegen {
             syn::ReturnType::Default => output.extend(quote::quote! {()}),
             syn::ReturnType::Type(_, ty) => {
                 output.extend(quote::quote! {
-                    <#ty as burn_cube::CubeType>::ExpandType
+                    <#ty as burn_cube::frontend::CubeType>::ExpandType
                 });
             }
         }

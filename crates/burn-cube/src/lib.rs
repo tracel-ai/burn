@@ -3,6 +3,9 @@ extern crate alloc;
 #[macro_use]
 extern crate derive_new;
 
+/// Cube Frontend Types.
+pub mod frontend;
+
 /// Cube Language Internal Representation.
 pub mod ir;
 
@@ -10,13 +13,10 @@ pub mod codegen;
 pub mod compute;
 pub mod prelude;
 
-mod language;
 mod pod;
 mod runtime;
 
 pub use codegen::*;
-// pub use compute::*;
-pub use language::*;
 pub use pod::*;
 pub use runtime::*;
 
@@ -26,6 +26,7 @@ pub use burn_cube_macros::cube;
 pub const SUBCUBE_DIM_APPROX: usize = 16;
 
 use crate::ir::ComputeShader;
+use frontend::LaunchArg;
 use prelude::CubeCount;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).

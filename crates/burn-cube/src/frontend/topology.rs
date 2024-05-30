@@ -1,7 +1,7 @@
 //! In this file we use a trick where the constant has the same name as the module containing
 //! the expand function, so that a user implicitly imports the expand function when importing the constant.
 
-use crate::UInt;
+use crate::frontend::UInt;
 
 macro_rules! constant {
     ($ident:ident, $var:expr, $doc:expr) => {
@@ -11,7 +11,7 @@ macro_rules! constant {
         #[allow(non_snake_case)]
         #[doc = $doc]
         pub mod $ident {
-            use crate::{CubeContext, ExpandElement};
+            use crate::frontend::{CubeContext, ExpandElement};
 
             /// Expansion of the constant variable.
             pub fn expand(_context: &mut CubeContext) -> ExpandElement {

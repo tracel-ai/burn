@@ -1,4 +1,7 @@
-use crate::{unexpanded, CubeContext, CubeType};
+use crate::{
+    frontend::{CubeContext, CubeType},
+    unexpanded,
+};
 
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel

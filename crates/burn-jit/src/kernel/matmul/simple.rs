@@ -5,8 +5,8 @@ use crate::{
     JitRuntime,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, InputInfo,
-    OutputInfo, TensorHandle,
+    cpa, frontend::TensorHandle, Compilation, CompilationInfo, CompilationSettings,
+    CubeCountSettings, InputInfo, OutputInfo,
 };
 use burn_cube::{
     ir::{

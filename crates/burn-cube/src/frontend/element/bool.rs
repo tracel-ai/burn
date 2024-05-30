@@ -1,5 +1,5 @@
+use crate::frontend::{CubeElem, CubeType, ExpandElement};
 use crate::ir::Elem;
-use crate::language::{CubeElem, CubeType, ExpandElement};
 
 impl CubeType for bool {
     type ExpandType = ExpandElement;

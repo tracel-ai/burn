@@ -1,5 +1,8 @@
 use crate::ir::{Elem, Item, Visibility};
-use crate::{Compilation, CompilationInfo, CubeContext, ExpandElement, InputInfo, OutputInfo};
+use crate::{
+    frontend::{CubeContext, ExpandElement},
+    Compilation, CompilationInfo, InputInfo, OutputInfo,
+};
 use std::collections::HashMap;
 
 /// Prepare a kernel for [compilation](crate::Compilation).
