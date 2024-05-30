@@ -82,7 +82,8 @@ include_models!(
     squeeze_opset16,
     squeeze_opset13,
     random_uniform,
-    random_normal
+    random_normal,
+    constant_of_shape
 );
 
 #[cfg(test)]
@@ -1429,5 +1430,18 @@ mod tests {
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn constant_of_shape() {
+        let device = Default::default();
+        let model = constant_of_shape::Model::<Backend>::new(&device);
+        let shape = Shape::from([2, 3, 2]);
+        let expected = Tensor::<Backend, 3>::full(shape.clone(), 1.125f64, &device).to_data();
+
+        let input = Tensor::ones(shape, &device);
+        let output = model.forward(input);
+
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 }

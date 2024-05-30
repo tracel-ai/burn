@@ -38,7 +38,7 @@ represent the corresponding Burn Op.
 | [Concat][30]                     |       ✅       |      ✅      |
 | [ConcatFromSequence][31]         |       ❌       |      ❌      |
 | [Constant][32]                   |       ✅       |      ✅      |
-| [ConstantOfShape][33]            |       ❌       |      ❌      |
+| [ConstantOfShape][33]            |       ✅       |      ✅      |
 | [Conv1d][34]                     |       ✅       |      ✅      |
 | [Conv2d][34]                     |       ✅       |      ✅      |
 | [ConvInteger][37]                |       ❌       |      ❌      |

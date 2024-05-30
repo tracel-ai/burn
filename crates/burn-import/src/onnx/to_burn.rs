@@ -15,32 +15,15 @@ use crate::{
     burn::{
         graph::BurnGraph,
         node::{
-            avg_pool1d::AvgPool1dNode,
-            avg_pool2d::AvgPool2dNode,
-            batch_norm::BatchNormNode,
-            binary::BinaryNode,
-            clip::ClipNode,
-            concat::ConcatNode,
-            constant::{ConstantNode, ConstantValue, TensorValue},
-            conv1d::Conv1dNode,
-            conv2d::Conv2dNode,
-            conv_transpose_2d::ConvTranspose2dNode,
-            dropout::DropoutNode,
-            gather::GatherNode,
-            global_avg_pool::GlobalAvgPoolNode,
-            layer_norm::LayerNormNode,
-            linear::LinearNode,
-            mask_where::WhereNode,
-            matmul::MatmulNode,
-            max_pool1d::MaxPool1dNode,
-            max_pool2d::MaxPool2dNode,
-            prelu::PReluNode,
-            random_normal::RandomNormalNode,
-            random_uniform::RandomUniformNode,
-            reshape::ReshapeNode,
-            squeeze::SqueezeNode,
-            unary::UnaryNode,
-            unsqueeze::UnsqueezeNode,
+            avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode,
+            binary::BinaryNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
+            constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
+            conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
+            global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
+            mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
+            max_pool2d::MaxPool2dNode, prelu::PReluNode, random_normal::RandomNormalNode,
+            random_uniform::RandomUniformNode, reshape::ReshapeNode, squeeze::SqueezeNode,
+            unary::UnaryNode, unsqueeze::UnsqueezeNode,
         },
         ScalarKind, ScalarType, TensorKind, TensorType, Type,
     },
@@ -302,6 +285,9 @@ impl OnnxGraph {
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
+                NodeType::ConstantOfShape => {
+                    graph.register(Self::constant_of_shape_conversion(node))
+                }
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -329,6 +315,9 @@ impl OnnxGraph {
     }
 
     fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
+        // Additional types needed for Constant:
+        use crate::burn::node::constant::{ConstantValue, TensorValue};
+
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node);
@@ -431,6 +420,39 @@ impl OnnxGraph {
         }
 
         RandomNormalNode::new(output_type, mean, scale)
+    }
+
+    pub(crate) fn constant_of_shape_conversion(node: Node) -> ConstantOfShapeNode {
+        // Additional types needed for ConstantOfShape:
+        use crate::burn::node::constant_of_shape::ConstantValue;
+
+        let input = node
+            .inputs
+            .first()
+            .expect("ConstantOfShape requires an input tensor");
+        let output = node.outputs.first().unwrap();
+
+        let value = node
+            .attrs
+            .get("value")
+            .and_then(|val| val.clone().into_tensor().data)
+            .map(|val_data| match val_data {
+                // TODO: Handle Float16
+                Data::Float32(val) => val.into(),
+                Data::Float32s(vals) => ConstantValue::from_vec(vals),
+                Data::Float64(val) => val.into(),
+                Data::Float64s(vals) => ConstantValue::from_vec(vals),
+                Data::Int32(val) => val.into(),
+                Data::Int32s(vals) => ConstantValue::from_vec(vals),
+                Data::Int64(val) => val.into(),
+                Data::Int64s(vals) => ConstantValue::from_vec(vals),
+                Data::Bool(val) => val.into(),
+                Data::Bools(vals) => ConstantValue::from_vec(vals),
+                _ => panic!("Unsupported value type for ConstantOfShape!"),
+            })
+            .unwrap_or(ConstantValue::Float32(0.0f32));
+
+        ConstantOfShapeNode::new(input.to_type(), output.to_type(), value)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
