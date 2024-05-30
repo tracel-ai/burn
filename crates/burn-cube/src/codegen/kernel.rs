@@ -1,4 +1,4 @@
-use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
+use crate::compute::{CubeCount, FullCompilationPhase};
 use crate::frontend::TensorHandle;
 use crate::ir::Elem;
 use crate::pod::CubeElement;
@@ -214,9 +214,9 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         handles.push(handle.binding());
     }
 
-    let kernel = Kernel::JitGpu(Box::new(FullCompilationPhase::<R::Compiler, K>::new(
+    let kernel = Box::new(FullCompilationPhase::<R::Compiler, K>::new(
         kernel, workgroup,
-    )));
+    ));
 
     client.execute(kernel, handles);
 }

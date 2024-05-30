@@ -1,4 +1,4 @@
-use crate::compute::{CubeCount, FullCompilationPhase, Kernel};
+use crate::compute::{CubeCount, FullCompilationPhase};
 use crate::ir::{Elem, FloatKind, IntKind};
 use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, GpuComputeShaderPhase, Runtime};
 use burn_compute::client::ComputeClient;
@@ -75,9 +75,9 @@ impl<R: Runtime> KernelLauncher<R> {
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Kernel::JitGpu(Box::new(FullCompilationPhase::<R::Compiler, K>::new(
+        let kernel = Box::new(FullCompilationPhase::<R::Compiler, K>::new(
             kernel, workgroup,
-        )));
+        ));
 
         client.execute(kernel, bindings);
     }

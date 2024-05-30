@@ -2,48 +2,6 @@ use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, GpuComputeSh
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 
-/// Kernel for JIT backends
-///
-/// Notes: by default, only Jit variant exists,
-/// but users can add more kernels from source by activating the
-/// template feature flag.
-pub enum Kernel {
-    /// A JIT GPU compute shader
-    JitGpu(Box<dyn JitKernel>),
-    #[cfg(feature = "template")]
-    /// A kernel created from source
-    Custom(Box<dyn JitKernel>),
-}
-
-impl JitKernel for Kernel {
-    /// ID of the kernel, for caching
-    fn id(&self) -> String {
-        match self {
-            Kernel::JitGpu(shader) => shader.id(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.id(),
-        }
-    }
-
-    /// Source of the shader
-    fn compile(&self) -> CompiledKernel {
-        match self {
-            Kernel::JitGpu(shader) => shader.compile(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.compile(),
-        }
-    }
-
-    /// Launch information of the kernel
-    fn launch_settings(&self) -> LaunchSettings {
-        match self {
-            Kernel::JitGpu(shader) => shader.launch_settings(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.launch_settings(),
-        }
-    }
-}
-
 /// A kernel, compiled in the target language
 pub struct CompiledKernel {
     /// Source code of the kernel

@@ -24,7 +24,7 @@ pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_cube::prelude::{CubeCount, Kernel};
+pub use burn_cube::prelude::CubeCount;
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]

@@ -2,8 +2,7 @@ pub use crate::{cube, GpuComputeShaderPhase, RuntimeArg};
 
 pub use crate::codegen::{Compilation, CompilationInfo, CompilationSettings};
 pub use crate::compute::{
-    CompiledKernel, CubeCount, FullCompilationPhase, JitKernel, Kernel, KernelBuilder,
-    KernelLauncher,
+    CompiledKernel, CubeCount, FullCompilationPhase, JitKernel, KernelBuilder, KernelLauncher,
 };
 pub use crate::frontend::{branch::*, synchronization::*};
 pub use crate::ir::{ComputeShader, CubeDim};

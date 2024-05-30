@@ -52,7 +52,7 @@ struct CompiledKernel {
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Kernel;
+    type Kernel = Box<dyn JitKernel>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -136,7 +136,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(&mut self, kernel_id: &str, kernel: Kernel) {
+    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn JitKernel>) {
         let kernel_compiled = kernel.compile();
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
         let workgroup_size = kernel_compiled.workgroup_size;

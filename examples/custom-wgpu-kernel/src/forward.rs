@@ -4,8 +4,7 @@ use super::Backend;
 use burn::{
     backend::wgpu::{
         build_info, into_contiguous, kernel_wgsl, CubeCount, CubeDim, FloatElement, GraphicsApi,
-        IntElement, JitBackend, JitTensor, Kernel, KernelSource, SourceKernel, SourceTemplate,
-        WgpuRuntime,
+        IntElement, JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -92,11 +91,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<Wgpu
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Kernel::Custom(Box::new(SourceKernel::new(
-                kernel,
-                workgroup,
-                workgroup_size,
-            ))),
+            Box::new(SourceKernel::new(kernel, workgroup, workgroup_size)),
             vec![
                 lhs.handle.binding(),
                 rhs.handle.binding(),

@@ -68,15 +68,13 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(Kernel::JitGpu(self.kernel), self.bindings)
+        self.client.execute(self.kernel, self.bindings)
     }
 }
 
 impl<R: JitRuntime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client
-            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.bindings)
+        self.client.execute(Box::new(self.kernel), self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
