@@ -19,7 +19,7 @@ pub struct SourceKernel<K> {
     workgroup_size: CubeDim,
 }
 
-impl<K> JitKernel for SourceKernel<K>
+impl<K> CubeTask for SourceKernel<K>
 where
     K: KernelSource + 'static,
 {
@@ -29,7 +29,7 @@ where
 
         CompiledKernel {
             source,
-            workgroup_size: self.workgroup_size,
+            cube_dim: self.workgroup_size,
             shared_mem_bytes: 0,
         }
     }

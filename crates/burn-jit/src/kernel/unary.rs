@@ -2,7 +2,7 @@ use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
-use super::GpuComputeShaderPhase;
+use super::Kernel;
 
 /// Creates a unary kernel.
 #[macro_export]
@@ -206,8 +206,8 @@ pub fn unary<Kernel, KernelInplace, R: JitRuntime, E, const D: usize>(
     kernel_inplace: KernelInplace,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplace: GpuComputeShaderPhase,
+    Kernel: Kernel,
+    KernelInplace: Kernel,
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {

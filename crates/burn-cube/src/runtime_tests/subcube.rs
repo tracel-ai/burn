@@ -98,14 +98,14 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
     client: ComputeClient<TestRuntime::Server, TestRuntime::Channel>,
     launch: Launch,
 ) where
-    Launch: Fn(CubeCount, CompilationSettings, TensorHandle<'_, TestRuntime>),
+    Launch: Fn(CubeCount, KernelSettings, TensorHandle<'_, TestRuntime>),
 {
     let handle = client.create(f32::as_bytes(input));
     let (shape, strides) = ([input.len()], [1]);
 
     launch(
         CubeCount::new(1, 1, 1),
-        CompilationSettings::default().cube_dim(CubeDim::new(input.len() as u32, 1, 1)),
+        KernelSettings::default().cube_dim(CubeDim::new(input.len() as u32, 1, 1)),
         TensorHandle::new(&handle, &strides, &shape),
     );
 

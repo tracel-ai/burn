@@ -1,6 +1,6 @@
 use burn_cube::{
-    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, ir::CubeDim, CompilationInfo,
-    CompilationSettings,
+    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, ir::CubeDim, KernelExpansion,
+    KernelSettings,
 };
 use burn_tensor::repr::TensorDescription;
 
@@ -17,7 +17,7 @@ use std::{marker::PhantomData, sync::Arc};
 #[derive(new)]
 pub struct ElementWiseKernelFactory<R: JitRuntime> {
     id: String,
-    info: Arc<CompilationInfo>,
+    info: Arc<KernelExpansion>,
     grid: CubeDim,
     _runtime: PhantomData<R>,
 }
@@ -42,7 +42,7 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         let vectorize_4 = can_vectorize(handles_inputs, inputs, outputs, 4);
         let vectorize_2 = can_vectorize(handles_inputs, inputs, outputs, 2);
 
-        let mut settings = CompilationSettings::default();
+        let mut settings = KernelSettings::default();
         let mut factor = 1;
 
         settings = dynamic_settings(

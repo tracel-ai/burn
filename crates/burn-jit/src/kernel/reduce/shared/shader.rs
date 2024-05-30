@@ -1,12 +1,12 @@
 use burn_cube::{
-    cpa, frontend::TensorHandle, ir::ComputeShader, prelude::CubeCount, Compilation,
-    CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo, OutputInfo,
+    cpa, frontend::TensorHandle, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
+    Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    kernel::{GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -43,10 +43,10 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kernel
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
@@ -76,18 +76,18 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Gpu
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

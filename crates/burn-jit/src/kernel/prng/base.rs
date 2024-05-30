@@ -7,7 +7,7 @@ use burn_cube::{
 use std::marker::PhantomData;
 
 use crate::{
-    kernel::{GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitElement, JitRuntime, SEED,
 };
@@ -61,8 +61,8 @@ fn prng_cube_count(
     CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
-impl<P: Prng<E>, R: JitRuntime, E: JitElement> GpuComputeShaderPhase for PrngEagerKernel<P, R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -93,14 +93,14 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> GpuComputeShaderPhase for PrngEag
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![args, seeds],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

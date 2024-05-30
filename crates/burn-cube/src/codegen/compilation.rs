@@ -1,7 +1,7 @@
 use super::Compiler;
 use crate::{
     ir::{
-        Binding, ComputeShader, CubeDim, Elem, Item, Location, ReadingStrategy, Scope, Variable,
+        Binding, CubeDim, Elem, Item, KernelDefinition, Location, ReadingStrategy, Scope, Variable,
         Vectorization, Visibility,
     },
     Runtime,
@@ -10,8 +10,8 @@ use crate::{
 /// The compilation struct allows you to create a [compute shader](ComputeShader) based on
 /// [compilation info](CompilationInfo) and [compilation settings](CompilationSettings).
 #[derive(Clone)]
-pub struct Compilation {
-    info: CompilationInfo,
+pub struct KernelIntegrator {
+    expansion: KernelExpansion,
     input_bindings: Vec<Binding>,
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
@@ -19,7 +19,7 @@ pub struct Compilation {
 
 /// The information necessary to compile a [compute shader](ComputeShader).
 #[derive(Clone)]
-pub struct CompilationInfo {
+pub struct KernelExpansion {
     pub inputs: Vec<InputInfo>,
     pub outputs: Vec<OutputInfo>,
     pub scope: Scope,
@@ -47,7 +47,7 @@ enum VectorizationPartial {
 }
 
 #[derive(Default, Clone)]
-pub struct CompilationSettings {
+pub struct KernelSettings {
     pub mappings: Vec<InplaceMapping>,
     vectorization_global: Option<Vectorization>,
     vectorization_partial: Vec<VectorizationPartial>,
@@ -55,7 +55,7 @@ pub struct CompilationSettings {
     pub reading_strategy: Vec<(u16, ReadingStrategy)>,
 }
 
-impl core::fmt::Display for CompilationSettings {
+impl core::fmt::Display for KernelSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // The goal of this implementation is to generate the shortest representation
         // that won't clash with any other compilation settings. This is crucial since we rely on
@@ -117,7 +117,7 @@ impl core::fmt::Display for CompilationSettings {
     }
 }
 
-impl CompilationSettings {
+impl KernelSettings {
     /// Compile the shader with vectorization enabled for all inputs and outputs.
     #[allow(dead_code)]
     pub fn vectorize_global(mut self, vectorization: Vectorization) -> Self {
@@ -301,11 +301,11 @@ impl OutputInfo {
     }
 }
 
-impl Compilation {
+impl KernelIntegrator {
     /// Starts a new compilation.
-    pub fn new(info: CompilationInfo) -> Self {
+    pub fn new(info: KernelExpansion) -> Self {
         Self {
-            info,
+            expansion: info,
             input_bindings: Default::default(),
             output_bindings: Default::default(),
             named_bindings: Default::default(),
@@ -313,9 +313,9 @@ impl Compilation {
     }
 
     /// Performs the compilation with the provided [settings](CompilationSettings).
-    pub fn compile(mut self, mut settings: CompilationSettings) -> ComputeShader {
+    pub fn integrate(mut self, mut settings: KernelSettings) -> KernelDefinition {
         if let Some(vectorization) = settings.vectorization_global {
-            self.info.scope.vectorize(vectorization);
+            self.expansion.scope.vectorize(vectorization);
         }
 
         self.register_inputs(&settings);
@@ -340,21 +340,21 @@ impl Compilation {
             named.push((name, binding));
         }
 
-        ComputeShader {
+        KernelDefinition {
             inputs,
             outputs,
             named,
             cube_dim: settings.cube_dim,
-            body: self.info.scope,
+            body: self.expansion.scope,
         }
     }
 
-    fn register_inputs(&mut self, settings: &CompilationSettings) {
+    fn register_inputs(&mut self, settings: &KernelSettings) {
         for (id, strategy) in settings.reading_strategy.iter() {
-            self.info.scope.update_read(*id, *strategy);
+            self.expansion.scope.update_read(*id, *strategy);
         }
 
-        for input in self.info.inputs.drain(..) {
+        for input in self.expansion.inputs.drain(..) {
             match input {
                 InputInfo::Array { item, visibility } => {
                     let item = if let Some(vectorization) = settings.vectorization_global {
@@ -387,7 +387,7 @@ impl Compilation {
         }
     }
 
-    fn register_outputs(&mut self, settings: &mut CompilationSettings) {
+    fn register_outputs(&mut self, settings: &mut KernelSettings) {
         let mut index = 0;
 
         if !settings.mappings.is_empty() {
@@ -399,7 +399,7 @@ impl Compilation {
             }
         }
 
-        for array in self.info.outputs.drain(..) {
+        for array in self.expansion.outputs.drain(..) {
             match array {
                 OutputInfo::ArrayWrite {
                     item,
@@ -419,8 +419,8 @@ impl Compilation {
                         location: Location::Storage,
                         size: None,
                     });
-                    self.info.scope.write_global(
-                        Variable::Local(local, item, self.info.scope.depth),
+                    self.expansion.scope.write_global(
+                        Variable::Local(local, item, self.expansion.scope.depth),
                         Variable::GlobalOutputArray(index, elem_adapted),
                         position,
                     );
@@ -438,8 +438,8 @@ impl Compilation {
                         item
                     };
 
-                    self.info.scope.write_global(
-                        Variable::Local(local, item, self.info.scope.depth),
+                    self.expansion.scope.write_global(
+                        Variable::Local(local, item, self.expansion.scope.depth),
                         Variable::GlobalInputArray(input, bool_item(item)),
                         position,
                     );
@@ -466,7 +466,7 @@ impl Compilation {
     }
 
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
-        let output = match self.info.outputs.get_mut(mapping.pos_output) {
+        let output = match self.expansion.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
             None => panic!("No output found."),
         };
@@ -493,7 +493,7 @@ impl Compilation {
                 // Update input visibility.
                 binding.visibility = Visibility::ReadWrite;
                 // Inputs modified inplace should be read without any specified layout.
-                self.info
+                self.expansion
                     .scope
                     .update_read(mapping.pos_input as u16, ReadingStrategy::Plain);
 

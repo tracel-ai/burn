@@ -138,7 +138,7 @@ impl Default for CubeDim {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ComputeShader {
+pub struct KernelDefinition {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,

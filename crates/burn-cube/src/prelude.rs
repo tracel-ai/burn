@@ -1,11 +1,11 @@
-pub use crate::{cube, GpuComputeShaderPhase, RuntimeArg};
+pub use crate::{cube, Kernel, RuntimeArg};
 
-pub use crate::codegen::{Compilation, CompilationInfo, CompilationSettings};
+pub use crate::codegen::{KernelExpansion, KernelIntegrator, KernelSettings};
 pub use crate::compute::{
-    CompiledKernel, CubeCount, FullCompilationPhase, JitKernel, KernelBuilder, KernelLauncher,
+    CompiledKernel, CubeCount, CubeTask, KernelBuilder, KernelLauncher, KernelTask,
 };
 pub use crate::frontend::{branch::*, synchronization::*};
-pub use crate::ir::{ComputeShader, CubeDim};
+pub use crate::ir::{CubeDim, KernelDefinition};
 pub use crate::runtime::Runtime;
 
 /// Elements

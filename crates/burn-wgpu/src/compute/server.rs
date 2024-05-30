@@ -84,15 +84,16 @@ where
         self.tasks_count += 1;
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn JitKernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Box<dyn CubeTask>) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
+
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
         }
 
-        let source = kernel.compile().source;
-        println!("{source}");
-        let pipeline = self.compile_source(&source);
+        let compile = kernel.compile();
+        let pipeline = self.compile_source(&compile.source);
+
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline
@@ -188,7 +189,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn JitKernel>;
+    type Kernel = Box<dyn CubeTask>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;

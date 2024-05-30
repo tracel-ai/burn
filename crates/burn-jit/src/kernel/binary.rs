@@ -148,9 +148,9 @@ pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: JitRuntime, E, cons
     kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: crate::kernel::GpuComputeShaderPhase,
-    KernelInplaceLhs: crate::kernel::GpuComputeShaderPhase,
-    KernelInplaceRhs: crate::kernel::GpuComputeShaderPhase,
+    Kernel: crate::kernel::Kernel,
+    KernelInplaceLhs: crate::kernel::Kernel,
+    KernelInplaceRhs: crate::kernel::Kernel,
     E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {

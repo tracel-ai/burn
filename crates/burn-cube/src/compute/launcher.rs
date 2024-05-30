@@ -1,6 +1,6 @@
-use crate::compute::{CubeCount, FullCompilationPhase};
+use crate::compute::{CubeCount, KernelTask};
 use crate::ir::{Elem, FloatKind, IntKind};
-use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, GpuComputeShaderPhase, Runtime};
+use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, Kernel, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;
@@ -67,7 +67,7 @@ impl<R: Runtime> KernelLauncher<R> {
     }
 
     /// Launch the kernel.
-    pub fn launch<K: GpuComputeShaderPhase>(
+    pub fn launch<K: Kernel>(
         self,
         workgroup: CubeCount,
         kernel: K,
@@ -75,9 +75,7 @@ impl<R: Runtime> KernelLauncher<R> {
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Box::new(FullCompilationPhase::<R::Compiler, K>::new(
-            kernel, workgroup,
-        ));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, workgroup));
 
         client.execute(kernel, bindings);
     }

@@ -14,7 +14,7 @@ mod runtime;
 pub use burn_cube::ir::CubeDim;
 #[cfg(feature = "template")]
 pub use burn_jit::{
-    kernel::{into_contiguous, GpuComputeShaderPhase},
+    kernel::{into_contiguous, Kernel},
     kernel_wgsl,
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };

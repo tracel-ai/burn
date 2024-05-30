@@ -1,8 +1,8 @@
-use crate::compute::{CubeCount, FullCompilationPhase};
+use crate::compute::{CubeCount, KernelTask};
 use crate::frontend::TensorHandle;
 use crate::ir::Elem;
 use crate::pod::CubeElement;
-use crate::{calculate_cube_count_elemwise, GpuComputeShaderPhase, Runtime, SUBCUBE_DIM_APPROX};
+use crate::{calculate_cube_count_elemwise, Kernel, Runtime, SUBCUBE_DIM_APPROX};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::{Binding, Handle};
 
@@ -59,7 +59,7 @@ impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
 
 impl<'h, K, R> Execution<'h, K, R, ()>
 where
-    K: GpuComputeShaderPhase + 'static,
+    K: Kernel + 'static,
     R: Runtime,
 {
     pub fn with_scalars<E>(self, scalars: &[E]) -> Execution<'h, K, R, (&[E],)> {
@@ -89,7 +89,7 @@ where
 
 impl<'h, 'a, K, R, E> Execution<'h, K, R, (&'a [E],)>
 where
-    K: GpuComputeShaderPhase + 'static,
+    K: Kernel + 'static,
     R: Runtime,
     E: CubeElement,
 {
@@ -124,7 +124,7 @@ where
 
 impl<'h, 'a, 'b, K, R, E1, E2> Execution<'h, K, R, (&'a [E1], &'b [E2])>
 where
-    K: GpuComputeShaderPhase + 'static,
+    K: Kernel + 'static,
     R: Runtime,
     E1: CubeElement,
     E2: CubeElement,
@@ -146,7 +146,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn execute(self, launch: CubeCountSettings)
     where
-        K: GpuComputeShaderPhase + 'static,
+        K: Kernel + 'static,
         R: Runtime,
     {
         execute_dynamic::<R, K, E1, E2, f32>(
@@ -164,7 +164,7 @@ where
 
 impl<'h, 'a, 'b, 'c, K, R, E1, E2, E3> Execution<'h, K, R, (&'a [E1], &'b [E2], &'c [E3])>
 where
-    K: GpuComputeShaderPhase + 'static,
+    K: Kernel + 'static,
     R: Runtime,
     E1: CubeElement,
     E2: CubeElement,
@@ -197,7 +197,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
     launch: CubeCountSettings,
     client: ComputeClient<R::Server, R::Channel>,
 ) where
-    K: GpuComputeShaderPhase + 'static,
+    K: Kernel + 'static,
     R: Runtime,
     E1: CubeElement,
     E2: CubeElement,
@@ -214,9 +214,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         handles.push(handle.binding());
     }
 
-    let kernel = Box::new(FullCompilationPhase::<R::Compiler, K>::new(
-        kernel, workgroup,
-    ));
+    let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, workgroup));
 
     client.execute(kernel, handles);
 }

@@ -1,11 +1,11 @@
 use burn_cube::{
     cpa,
-    ir::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
-use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
+use crate::{kernel::Kernel, JitElement, JitRuntime};
 
 pub(crate) struct AdaptivePool2dComputeShader<R: JitRuntime, E: JitElement> {
     input: Variable,
@@ -188,8 +188,8 @@ pub(crate) struct AdaptivePool2dEagerKernel<R: JitRuntime, E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for AdaptivePool2dEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for AdaptivePool2dEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -213,14 +213,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for AdaptivePool2dEager
 
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

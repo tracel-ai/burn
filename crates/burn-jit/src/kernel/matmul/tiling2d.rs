@@ -1,14 +1,14 @@
 use burn_cube::{
     frontend::TensorHandle,
-    ir::{BinaryOperator, ComputeShader, CubeDim, Elem, FloatKind, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    ir::{BinaryOperator, CubeDim, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
 use burn_tensor::{Element, Shape};
 
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, GpuComputeShaderPhase},
+    kernel::{into_contiguous, Kernel},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -29,8 +29,8 @@ struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for MatmulTiling2dEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let elem = E::cube_elem();
         assert!(
@@ -62,18 +62,18 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEager
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.config.grid_x as u32,
             self.config.grid_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

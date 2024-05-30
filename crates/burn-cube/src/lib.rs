@@ -25,14 +25,14 @@ pub use burn_cube_macros::cube;
 /// An approximation of the subcube dimension.
 pub const SUBCUBE_DIM_APPROX: usize = 16;
 
-use crate::ir::ComputeShader;
+use crate::ir::KernelDefinition;
 use frontend::LaunchArg;
 use prelude::CubeCount;
 
 /// Dynamic jit kernel to create a [compute shader](ComputeShader).
-pub trait GpuComputeShaderPhase: Send + Sync + 'static {
+pub trait Kernel: Send + Sync + 'static {
     /// Convert to compute shader
-    fn compile(&self) -> ComputeShader;
+    fn define(&self) -> KernelDefinition;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String {
         format!("{:?}", core::any::TypeId::of::<Self>())

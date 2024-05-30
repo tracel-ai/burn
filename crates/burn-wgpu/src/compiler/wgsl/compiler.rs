@@ -33,7 +33,7 @@ impl core::fmt::Debug for WgslCompiler {
 impl burn_cube::Compiler for WgslCompiler {
     type Representation = ComputeShader;
 
-    fn compile(shader: cube::ComputeShader) -> Self::Representation {
+    fn compile(shader: cube::KernelDefinition) -> Self::Representation {
         let mut compiler = Self::default();
         compiler.compile_shader(shader)
     }
@@ -48,7 +48,7 @@ impl burn_cube::Compiler for WgslCompiler {
 }
 
 impl WgslCompiler {
-    fn compile_shader(&mut self, mut value: cube::ComputeShader) -> wgsl::ComputeShader {
+    fn compile_shader(&mut self, mut value: cube::KernelDefinition) -> wgsl::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 

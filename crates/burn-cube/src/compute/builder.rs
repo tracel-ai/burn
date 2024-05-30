@@ -1,7 +1,9 @@
 use crate::ir::{Elem, Item, Visibility};
+use crate::prelude::KernelDefinition;
+use crate::KernelSettings;
 use crate::{
     frontend::{CubeContext, ExpandElement},
-    Compilation, CompilationInfo, InputInfo, OutputInfo,
+    InputInfo, KernelExpansion, KernelIntegrator, OutputInfo,
 };
 use std::collections::HashMap;
 
@@ -58,12 +60,13 @@ impl KernelBuilder {
     }
 
     /// Build the [compilation item](Compilation).
-    pub fn build(self) -> Compilation {
-        Compilation::new(CompilationInfo {
+    pub fn build(self, settings: KernelSettings) -> KernelDefinition {
+        KernelIntegrator::new(KernelExpansion {
             scope: self.context.into_scope(),
             inputs: self.inputs,
             outputs: self.outputs,
         })
+        .integrate(settings)
     }
 }
 

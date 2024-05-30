@@ -1,9 +1,9 @@
-use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
     frontend::TensorHandle,
-    ir::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
@@ -70,8 +70,8 @@ impl SliceAssignComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -100,14 +100,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKer
             size: self.rank,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, value, ranges],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

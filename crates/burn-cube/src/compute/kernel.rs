@@ -1,4 +1,4 @@
-use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, GpuComputeShaderPhase};
+use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, Kernel};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 
@@ -7,7 +7,7 @@ pub struct CompiledKernel {
     /// Source code of the kernel
     pub source: String,
     /// Size of a workgroup for the compiled kernel
-    pub workgroup_size: CubeDim,
+    pub cube_dim: CubeDim,
     /// The number of bytes used by the share memory
     pub shared_mem_bytes: usize,
 }
@@ -22,7 +22,7 @@ pub struct LaunchSettings {
 /// provided id.
 ///
 /// The kernel will be launched with the given [launch settings](LaunchSettings).
-pub trait JitKernel: Send + Sync {
+pub trait CubeTask: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Compile the kernel into source
@@ -33,15 +33,15 @@ pub trait JitKernel: Send + Sync {
 
 /// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
 #[derive(new)]
-pub struct FullCompilationPhase<C: Compiler, K: GpuComputeShaderPhase> {
-    kernel: K,
-    workgroup: CubeCount,
+pub struct KernelTask<C: Compiler, K: Kernel> {
+    kernel_definition: K,
+    cube_count: CubeCount,
     _compiler: PhantomData<C>,
 }
 
-impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C, K> {
+impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
     fn compile(&self) -> CompiledKernel {
-        let gpu_ir = self.kernel.compile();
+        let gpu_ir = self.kernel_definition.define();
         let workgroup_size = gpu_ir.cube_dim;
         let lower_level_ir = C::compile(gpu_ir);
         let shared_mem_bytes = lower_level_ir.shared_memory_size();
@@ -49,23 +49,23 @@ impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C
 
         CompiledKernel {
             source,
-            workgroup_size,
+            cube_dim: workgroup_size,
             shared_mem_bytes,
         }
     }
 
     fn id(&self) -> String {
-        self.kernel.id().clone()
+        self.kernel_definition.id().clone()
     }
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.workgroup.clone(),
+            workgroup: self.cube_count.clone(),
         }
     }
 }
 
-impl JitKernel for Arc<dyn JitKernel> {
+impl CubeTask for Arc<dyn CubeTask> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -79,7 +79,7 @@ impl JitKernel for Arc<dyn JitKernel> {
     }
 }
 
-impl JitKernel for Box<dyn JitKernel> {
+impl CubeTask for Box<dyn CubeTask> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }

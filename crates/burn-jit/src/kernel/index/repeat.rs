@@ -1,9 +1,9 @@
-use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
     frontend::TensorHandle,
-    ir::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, CubeCountSettings, Execution, InputInfo,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
 use std::marker::PhantomData;
@@ -56,8 +56,8 @@ impl RepeatComputeShader {
         cpa!(scope, output[id] = result);
     }
 }
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -80,14 +80,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for RepeatEagerKernel<R
         };
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

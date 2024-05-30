@@ -11,7 +11,7 @@ use burn_cube::{
 };
 use std::mem;
 
-use super::GpuComputeShaderPhase;
+use super::Kernel;
 
 macro_rules! comparison {
     (
@@ -221,9 +221,9 @@ fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: JitRuntime, E, c
     kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplaceLhs: GpuComputeShaderPhase,
-    KernelInplaceRhs: GpuComputeShaderPhase,
+    Kernel: Kernel,
+    KernelInplaceLhs: Kernel,
+    KernelInplaceRhs: Kernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
@@ -248,8 +248,8 @@ fn launch_unary<Kernel, KernelInplace, R: JitRuntime, E, const D: usize>(
     kernel_inplace: KernelInplace,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplace: GpuComputeShaderPhase,
+    Kernel: Kernel,
+    KernelInplace: Kernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();

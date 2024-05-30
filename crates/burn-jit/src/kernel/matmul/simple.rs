@@ -1,17 +1,17 @@
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, GpuComputeShaderPhase, SUBCUBE_DIM_APPROX},
+    kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa, frontend::TensorHandle, Compilation, CompilationInfo, CompilationSettings,
-    CubeCountSettings, InputInfo, OutputInfo,
+    cpa, frontend::TensorHandle, CubeCountSettings, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings, OutputInfo,
 };
 use burn_cube::{
     ir::{
-        BinaryOperator, Branch, ComputeShader, CubeDim, Elem, FloatKind,
-        IndexOffsetGlobalWithLayout, Scope, Variable, Visibility,
+        BinaryOperator, Branch, CubeDim, Elem, FloatKind, IndexOffsetGlobalWithLayout,
+        KernelDefinition, Scope, Variable, Visibility,
     },
     Execution,
 };
@@ -154,8 +154,8 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for MatmulEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
             "Only square grid is supported."
@@ -191,18 +191,18 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().cube_dim(CubeDim::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

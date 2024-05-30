@@ -21,7 +21,7 @@ pub struct CudaCompiler {
 impl Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
 
-    fn compile(shader: burn_cube::ir::ComputeShader) -> Self::Representation {
+    fn compile(shader: burn_cube::ir::KernelDefinition) -> Self::Representation {
         let compiler = Self::default();
         compiler.compile_shader(shader)
     }
@@ -37,7 +37,7 @@ impl Compiler for CudaCompiler {
 }
 
 impl CudaCompiler {
-    fn compile_shader(mut self, mut value: gpu::ComputeShader) -> super::ComputeShader {
+    fn compile_shader(mut self, mut value: gpu::KernelDefinition) -> super::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 

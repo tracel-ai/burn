@@ -1,15 +1,15 @@
 use crate::{
     element::JitElement,
-    kernel::{self, GpuComputeShaderPhase},
+    kernel::{self, Kernel},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, Compilation, CompilationInfo,
-    CompilationSettings, CubeCountSettings,
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
+    KernelIntegrator, KernelSettings,
 };
 use burn_cube::{
-    ir::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
 use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
@@ -130,8 +130,8 @@ impl ScatterComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_value = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
@@ -163,14 +163,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<
             visibility: Visibility::Read,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input_output, indices, value],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
