@@ -5,7 +5,8 @@ use crate::onnx::ir::TensorType;
 use super::from_onnx::OnnxGraphIO;
 use super::ir::Dim;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
+    ArgType, Argument, AttributeValue, Attributes, ConversionNode, Data, ElementType, NodeType,
+    Tensor,
 };
 use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
@@ -180,7 +181,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_io: &mut OnnxGraphIO) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_io: &mut OnnxGraphIO) -> ConversionNode {
     let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
@@ -193,7 +194,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_io: &mut OnnxGraphIO) -> Node 
 
     let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
 
-    Node {
+    ConversionNode {
         node_type,
         name,
         inputs: node.input.clone(),

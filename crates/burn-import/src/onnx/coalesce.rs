@@ -3,7 +3,7 @@ use std::{iter::Peekable, slice::Iter};
 
 use super::{
     from_onnx::OnnxGraphIO,
-    ir::{AttributeValue, Node, NodeType},
+    ir::{AttributeValue, ConversionNode, NodeType},
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
@@ -11,7 +11,7 @@ use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
-    node: &mut Node,
+    node: &mut ConversionNode,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_io: &mut OnnxGraphIO,
 ) {
@@ -27,7 +27,7 @@ pub fn coalesce(
 /// This function converts a Gemm node into a Linear node
 ///
 /// PyTorch and other frameworks use Gemm node to represent Linear layer.
-pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+pub(crate) fn convert_gemm_to_linear(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -58,7 +58,7 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &mut OnnxGraphIO
 }
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
-fn transpose_linear_node_weights(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn transpose_linear_node_weights(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     assert!(
         node.inputs.len() > 1,
         "Linear node must have at least 2 input"
@@ -132,7 +132,7 @@ fn transpose_flattened<T: Copy>(matrix: &Vec<T>, rows: usize, cols: usize) -> Ve
 /// This function also converts the following Add node into a Linear node if possible.
 /// Add node is used to represent bias in PyTorch.
 pub(crate) fn convert_matmul_to_linear(
-    node: &mut Node,
+    node: &mut ConversionNode,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
     graph_io: &mut OnnxGraphIO,
 ) {
@@ -170,8 +170,8 @@ pub(crate) fn convert_matmul_to_linear(
 
 /// Helper function to check if the peeked node is an Add node with bias
 fn is_add_node_with_bias(
-    peek_node: &Node,
-    current_node: &Node,
+    peek_node: &ConversionNode,
+    current_node: &ConversionNode,
     graph_io: &mut OnnxGraphIO,
 ) -> bool {
     peek_node.node_type == NodeType::Add
@@ -184,8 +184,8 @@ fn is_add_node_with_bias(
 
 /// Helper function to convert and remove the Add node
 fn convert_and_remove_add_node(
-    bias_node: &Node,
-    current_node: &mut Node,
+    bias_node: &ConversionNode,
+    current_node: &mut ConversionNode,
     graph_io: &mut OnnxGraphIO,
 ) {
     let bias_input = if graph_io.get_value(&bias_node.inputs[0]).is_some() {

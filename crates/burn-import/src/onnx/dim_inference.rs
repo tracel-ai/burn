@@ -5,14 +5,17 @@ use protobuf::Enum;
 
 use super::{
     from_onnx::OnnxGraphIO,
-    ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
+    ir::{
+        ArgType, AttributeValue, ConversionNode, Data, ElementType, Node as ProcessedNode,
+        NodeType, TensorType,
+    },
     node_remap::remap_unsqueeze_to_reshape,
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
 
 /// Infer the dimension of each output tensor and update them.
-pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+pub fn dim_inference(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
         NodeType::Add
         | NodeType::AveragePool1d
@@ -83,7 +86,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     // graph_io.update_tensor_output(node);
 }
 
-fn constant_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn constant_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // Fix the tensor dimension of the output when the value is tensor
 
     let keys = [
@@ -129,7 +132,7 @@ fn constant_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
-fn linear_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn linear_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // Extract the configuration of the linear layer (inputs are known)
     let node_input = &node.inputs[0];
     let weight_key = &node.inputs[1];
@@ -158,7 +161,7 @@ fn linear_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Update the output type using "to" attribute
-fn cast_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn cast_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
         panic!("Cast: multiple inputs are not supported");
     }
@@ -212,7 +215,7 @@ fn cast_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     );
 }
 
-fn concat_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn concat_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let tensor = node
         .inputs
         .iter()
@@ -225,7 +228,7 @@ fn concat_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     graph_io.set_type(&node.outputs[0], ArgType::Tensor(tensor.clone()));
 }
 
-fn reshape_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn reshape_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let shape = if node.inputs.len() == 2 {
         match graph_io.get_value(&node.inputs[1]) {
             Some(value) => match value {
@@ -255,7 +258,7 @@ fn reshape_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     }
 }
 
-fn reduce_mean_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn reduce_mean_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
         panic!("Mean: multiple inputs are not supported");
     }
@@ -294,7 +297,7 @@ fn reduce_mean_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Update the output tensor dimension
-fn squeeze_update_output(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn squeeze_update_output(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let axes = if node.inputs.len() == 2 {
         match graph_io.get_value(&node.inputs[1]) {
             Some(value) => match value {
@@ -337,7 +340,7 @@ fn squeeze_update_output(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input
-fn unsqueeze_update_output(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn unsqueeze_update_output(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let axes = if node.inputs.len() == 2 {
         match graph_io.get_value(&node.inputs[1]) {
             Some(value) => match value {
@@ -381,18 +384,18 @@ fn unsqueeze_update_output(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     }
 }
 
-fn same_as_input(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn same_as_input(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     graph_io.copy_type(&node.inputs[0], &node.outputs[0]);
 }
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
-fn temporary_pass_through_stub(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn temporary_pass_through_stub(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     log::warn!("Must implement dimension inference for {:?}", node);
     log::warn!("Temporarily setting the output type to the input type.");
     same_as_input(node, graph_io);
 }
 
-fn equal_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn equal_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let input1_type = graph_io.get_type(&node.inputs[0]);
 
     match input1_type {
@@ -417,7 +420,7 @@ fn equal_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     }
 }
 
-fn shape_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn shape_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
         panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
@@ -438,7 +441,7 @@ fn shape_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.
-fn flatten_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn flatten_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
         panic!("Flatten: multiple inputs are not supported");
     }
@@ -453,8 +456,9 @@ fn flatten_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 
     let input_dim = tensor.dim;
 
-    //? is there a way to separate out flatten_config from dim_inference?
-    let (start_dim, end_dim) = flatten_config(node, graph_io);
+    //? is there a way to separate out flatten_config from dim_inference? may want to consider inlining
+    //to avoid the need for the conversion
+    let (start_dim, end_dim) = flatten_config(&ProcessedNode::new(node.clone(), graph_io));
 
     let collapsed_dims = end_dim - start_dim;
     let output_dim = input_dim - collapsed_dims;
@@ -469,7 +473,7 @@ fn flatten_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
-fn conv1d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn conv1d_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(_) = graph_io.get_type(&node.inputs[0]) {
         graph_io.copy_type(&node.inputs[0], &node.outputs[0]);
@@ -479,7 +483,7 @@ fn conv1d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
-fn conv2d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn conv2d_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(_) = graph_io.get_type(&node.inputs[0]) {
         graph_io.copy_type(&node.inputs[0], &node.outputs[0]);
@@ -489,7 +493,7 @@ fn conv2d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a ConvTranspose2d node and replaces the shape of the output tensor.
-fn conv_transpose2d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn conv_transpose2d_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(_) = graph_io.get_type(&node.inputs[0]) {
         graph_io.copy_type(&node.inputs[0], &node.outputs[0]);
@@ -498,7 +502,7 @@ fn conv_transpose2d_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) 
     }
 }
 
-fn matmul_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn matmul_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     // NOTE: matmul only supported for float tensors
     match (
         graph_io.get_type(&node.inputs[0]),
@@ -527,7 +531,7 @@ fn matmul_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
-fn reduce_max_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn reduce_max_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {
         panic!("ReduceMax: multiple inputs are not supported");
     }
@@ -566,7 +570,7 @@ fn reduce_max_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 }
 
 /// Infers the shape of a ReduceSum node and replaces the shape of the output tensor.
-fn reduce_sum_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn reduce_sum_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     let node_input = &node.inputs[0];
     let tensor = match graph_io.get_type(node_input) {
         ArgType::Tensor(tensor) => tensor,
@@ -609,7 +613,7 @@ fn reduce_sum_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     )
 }
 
-fn where_update_outputs(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn where_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     match (
         graph_io.get_type(&node.inputs[0]),
         graph_io.get_type(&node.inputs[1]),

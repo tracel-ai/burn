@@ -5,13 +5,10 @@ use burn::nn::{
     PaddingConfig2d,
 };
 
-use super::{
-    from_onnx::OnnxGraphIO,
-    ir::{ArgType, AttributeValue, Data, Node},
-};
+use super::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
-pub fn conv1d_config(curr: &Node, graph_io: &OnnxGraphIO) -> Conv1dConfig {
+pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1];
     let mut pads = vec![0, 0];
@@ -19,7 +16,7 @@ pub fn conv1d_config(curr: &Node, graph_io: &OnnxGraphIO) -> Conv1dConfig {
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = graph_io.get_type(&curr.inputs[1]) {
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
     } else {
         panic!("Conv1d: weight tensor must be present");
@@ -55,7 +52,7 @@ pub fn conv1d_config(curr: &Node, graph_io: &OnnxGraphIO) -> Conv1dConfig {
 }
 
 /// Create a Conv2dConfig from the attributes of the node
-pub fn conv2d_config(curr: &Node, graph_io: &OnnxGraphIO) -> Conv2dConfig {
+pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1, 1];
     let mut pads = vec![0, 0, 0, 0];
@@ -63,7 +60,7 @@ pub fn conv2d_config(curr: &Node, graph_io: &OnnxGraphIO) -> Conv2dConfig {
     let mut group: i64 = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = graph_io.get_type(&curr.inputs[1]) {
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
     } else {
         panic!("Conv1d: weight tensor must be present");
@@ -150,7 +147,7 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
-pub fn conv_transpose2d_config(curr: &Node, graph_io: &OnnxGraphIO) -> ConvTranspose2dConfig {
+pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut attrs = curr.attrs.clone();
     let kernel_shape = attrs
         .remove("kernel_shape")
@@ -179,7 +176,7 @@ pub fn conv_transpose2d_config(curr: &Node, graph_io: &OnnxGraphIO) -> ConvTrans
     }
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = graph_io.get_type(&curr.inputs[1]) {
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
     } else {
         panic!("ConvTranspose2d: weight tensor must be present");
@@ -266,7 +263,7 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
 }
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
+pub fn flatten_config(curr: &Node) -> (usize, usize) {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
     let mut start_dim: i64 = 1;
 
@@ -279,7 +276,7 @@ pub fn flatten_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
     }
 
     // extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&curr.inputs[0]) {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -312,7 +309,7 @@ pub fn flatten_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
 }
 
 /// Create a GatherConfig from the attributes of the node
-pub fn gather_config(curr: &Node, graph_io: &OnnxGraphIO) -> usize {
+pub fn gather_config(curr: &Node) -> usize {
     // Default: 0 per ONNX spec
     let mut dim: i64 = 0;
 
@@ -322,7 +319,7 @@ pub fn gather_config(curr: &Node, graph_io: &OnnxGraphIO) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&curr.inputs[0]) {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -344,13 +341,13 @@ pub fn gather_config(curr: &Node, graph_io: &OnnxGraphIO) -> usize {
 }
 
 /// Create a LinearConfig from the attributes of the node
-pub fn linear_config(node: &Node, graph_io: &OnnxGraphIO) -> LinearConfig {
+pub fn linear_config(node: &Node) -> LinearConfig {
     if node.inputs.len() < 2 {
         panic!("Linear: missing weight tensor");
     }
 
     // extract the shape of the weight tensor
-    let weight = if let ArgType::Tensor(ref weight) = graph_io.get_type(&node.inputs[0]) {
+    let weight = if let ArgType::Tensor(ref weight) = node.inputs[1].ty {
         weight
     } else {
         panic!("Linear: weight tensor must be present");
@@ -368,13 +365,13 @@ pub fn linear_config(node: &Node, graph_io: &OnnxGraphIO) -> LinearConfig {
     let (in_size, out_size) = (shape[0], shape[1]);
 
     // check if the bias is present
-    let bias = node.inputs.len() == 3 && graph_io.get_value(&node.inputs[2]).is_some();
+    let bias = node.inputs.len() == 3 && node.inputs[2].value.is_some();
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
 
 /// Create a DropoutConfig from an attribute and state of the node
-pub fn dropout_config(node: &Node, graph_io: &OnnxGraphIO) -> DropoutConfig {
+pub fn dropout_config(node: &Node) -> DropoutConfig {
     // Opset 7 and older store probability as an attribute
     if node.attrs.contains_key("ratio") {
         let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
@@ -385,10 +382,10 @@ pub fn dropout_config(node: &Node, graph_io: &OnnxGraphIO) -> DropoutConfig {
         panic!("Dropout configuration must have at least 2 inputs");
     }
 
-    let ratio = graph_io
-        .get_value(&node.inputs[1])
-        .expect("Dropout ratio must be passed in the second input")
+    let ratio = node.inputs[1]
+        .value
         .clone()
+        .expect("Dropout ratio must be passed in the second input")
         .into_scalar();
 
     let prob = match ratio {
@@ -402,7 +399,7 @@ pub fn dropout_config(node: &Node, graph_io: &OnnxGraphIO) -> DropoutConfig {
 }
 
 /// Create log_softmax config from the attributes of the node
-pub fn log_softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
+pub fn log_softmax_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = -1;
 
@@ -415,7 +412,7 @@ pub fn log_softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -437,7 +434,7 @@ pub fn log_softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
 }
 
 /// Create softmax config from the attributes of the node
-pub fn softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
+pub fn softmax_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = -1;
 
@@ -450,7 +447,7 @@ pub fn softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -472,12 +469,12 @@ pub fn softmax_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
 }
 
 /// Create concat config from the attributes of the node
-pub fn concat_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
+pub fn concat_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = 1;
 
     // extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -499,9 +496,9 @@ pub fn concat_config(node: &Node, graph_io: &OnnxGraphIO) -> usize {
 }
 
 /// Create a BatchNormConfig from the attributes of the node
-pub fn batch_norm_config(node: &Node, graph_io: &OnnxGraphIO) -> BatchNormConfig {
+pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     // extract the shape of the weight tensor
-    let tensor_type = if let ArgType::Tensor(ref tensor_type) = graph_io.get_type(&node.inputs[1]) {
+    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
         tensor_type
     } else {
         panic!("BatchNorm: weight tensor must be present");
@@ -526,9 +523,9 @@ pub fn batch_norm_config(node: &Node, graph_io: &OnnxGraphIO) -> BatchNormConfig
 }
 
 /// Create a LayerNormConfig from the attributes of the node
-pub fn layer_norm_config(node: &Node, graph_io: &OnnxGraphIO) -> (LayerNormConfig, bool) {
+pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     // Extract the shape of the weight tensor
-    let tensor_type = if let ArgType::Tensor(ref tensor_type) = graph_io.get_type(&node.inputs[1]) {
+    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
         tensor_type
     } else {
         panic!("LayerNorm: weight tensor must be present");
@@ -613,7 +610,7 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     alpha
 }
 
-pub fn reshape_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
+pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
     for (key, value) in node.attrs.iter() {
@@ -628,14 +625,14 @@ pub fn reshape_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
     if allowzero != 0 {
         panic!("Zero shape size is not supported");
     }
-    let input_value = graph_io.get_value(&node.inputs[1]);
 
     // TODO: check "shape" attribute
-    if node.inputs.len() != 2 || input_value.is_none() {
+    if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
         panic!("Reshape: shape tensor must be present for {:?}", node);
     }
 
-    match &graph_io.get_type(&node.inputs[1]) {
+    let input_value = &node.inputs[1].value;
+    match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.dim, 1, "Reshape: shape tensor must be 1D");
 
@@ -651,7 +648,7 @@ pub fn reshape_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
 
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
-pub fn unsqueeze_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
+pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
     // Check if axes attribute exists
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
@@ -665,12 +662,12 @@ pub fn unsqueeze_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
         "Unsqueeze: axes tensor must be present"
     );
 
-    let axis_arg = &node.inputs[1];
+    let input_value = &node.inputs[1];
 
-    match &graph_io.get_type(&node.inputs[1]) {
+    match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = graph_io.get_value(axis_arg) {
+            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
                 shape.clone()
             } else {
                 panic!("Tensor data type must be int64")
@@ -680,7 +677,7 @@ pub fn unsqueeze_config(node: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
     }
 }
 
-pub fn clip_config(node: &Node, graph_io: &OnnxGraphIO) -> (Option<f64>, Option<f64>) {
+pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;
 
@@ -702,11 +699,11 @@ pub fn clip_config(node: &Node, graph_io: &OnnxGraphIO) -> (Option<f64>, Option<
     // For Clip Opset 11+ , the min and max values are inputs
     // Get the min and max values from the input values
     if min_result.is_none() && max_result.is_none() {
-        let min = graph_io.get_value(&node.inputs[1]);
-        let max = graph_io.get_value(&node.inputs[2]);
+        let min = &node.inputs[1].value;
+        let max = &node.inputs[2].value;
 
         if min_result.is_none() && min.is_some() {
-            let min = min.unwrap().clone().into_scalar();
+            let min = min.clone().unwrap().into_scalar();
             min_result = match min {
                 Data::Float16(min) => Some(f32::from(min) as f64),
                 Data::Float32(min) => Some(min as f64),
@@ -716,7 +713,7 @@ pub fn clip_config(node: &Node, graph_io: &OnnxGraphIO) -> (Option<f64>, Option<
         }
 
         if max_result.is_none() && max.is_some() {
-            let max = max.unwrap().clone().into_scalar();
+            let max = max.clone().unwrap().into_scalar();
             max_result = match max {
                 Data::Float16(max) => Some(f32::from(max) as f64),
                 Data::Float32(max) => Some(max as f64),
@@ -771,11 +768,11 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     }
 }
 
-pub fn reduce_max_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
+pub fn reduce_max_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
 
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -815,11 +812,11 @@ pub fn reduce_max_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
     }
 }
 
-pub fn reduce_mean_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
+pub fn reduce_mean_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
 
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -859,11 +856,11 @@ pub fn reduce_mean_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> 
     }
 }
 
-pub fn reduce_sum_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
+pub fn reduce_sum_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
 
-    let tensor = match graph_io.get_type(&node.inputs[0]) {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -882,7 +879,7 @@ pub fn reduce_sum_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
     if let Some(value) = node
         .inputs
         .get(1)
-        .and_then(|argument| graph_io.get_value(argument))
+        .and_then(|argument| argument.value.as_ref())
     {
         axes = value.clone().into_i64s();
     }
@@ -913,7 +910,7 @@ pub fn reduce_sum_config(node: &Node, graph_io: &OnnxGraphIO) -> Option<usize> {
     }
 }
 
-pub fn shape_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
+pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
         panic!(
             "Shape: multiple inputs are not supported (got {:?})",
@@ -922,7 +919,7 @@ pub fn shape_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
     }
 
     // Extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&curr.inputs[0]) {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -951,7 +948,7 @@ pub fn shape_config(curr: &Node, graph_io: &OnnxGraphIO) -> (usize, usize) {
     (start_dim as usize, end_dim as usize)
 }
 
-pub fn transpose_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
+pub fn transpose_config(curr: &Node) -> Vec<i64> {
     if curr.inputs.len() != 1 {
         panic!(
             "Transpose: multiple inputs are not supported (got {:?})",
@@ -960,7 +957,7 @@ pub fn transpose_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
     }
 
     // Extract the shape of the input tensor
-    let tensor = match graph_io.get_type(&curr.inputs[0]) {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -975,7 +972,7 @@ pub fn transpose_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
     perm
 }
 
-pub fn squeeze_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
+pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     let mut axes = curr
         .attrs
         .iter()
@@ -994,10 +991,10 @@ pub fn squeeze_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
         assert!(!curr.inputs.is_empty(), "Squeeze: input must be present");
 
         let input_value = &curr.inputs[1];
-        match graph_io.get_type(input_value) {
+        match &input_value.ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.dim, 1, "Squeeze: axes tensor must be 1D");
-                if let Some(Data::Int64s(data)) = graph_io.get_value(input_value) {
+                if let Some(Data::Int64s(data)) = &input_value.value {
                     axes.clone_from(data)
                 } else {
                     panic!("Squeeze: Tensor data type must be int64");
@@ -1007,7 +1004,7 @@ pub fn squeeze_config(curr: &Node, graph_io: &OnnxGraphIO) -> Vec<i64> {
         }
     }
 
-    let tensor = match graph_io.get_type(&curr.inputs[0]) {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };

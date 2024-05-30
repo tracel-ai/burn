@@ -8,12 +8,12 @@ use crate::onnx::{node_remap::remap_node_type, proto_conversion::convert_node_pr
 
 use super::{
     coalesce::coalesce,
-    ir::{Attributes, Data, OnnxGraph, TensorType},
+    ir::{Attributes, Data, OnnxGraph},
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
-use super::ir::{ArgType, Argument, Node, NodeType};
+use super::ir::{ArgType, Argument, ConversionNode, Node as ProcessedNode, NodeType};
 
 use protobuf::Message;
 
@@ -364,7 +364,7 @@ impl OnnxGraphIO {
 
 #[derive(Default)]
 pub(crate) struct OnnxGraphBuilder {
-    nodes: Vec<Node>,
+    nodes: Vec<ConversionNode>,
     io: OnnxGraphIO,
     /// Counter for node names, used for renaming nodes
     node_name_counter: HashMap<NodeType, usize>,
@@ -393,31 +393,19 @@ impl OnnxGraphBuilder {
             let mut node = convert_node_proto(node_proto, &mut graph_io);
 
             remap_node_type(&mut node);
-
             coalesce(&mut node, &mut node_iter, &mut graph_io);
             self.handle_node_renaming(&mut node);
             self.check_constants(&mut node, and_idx, &mut graph_io);
-
             dim_inference(&mut node, &mut graph_io);
-
             rename_io(&mut node, &mut graph_io);
 
             self.nodes.push(node);
             and_idx += 1;
         }
-
-        let mut i = 0;
-        self.nodes.retain(|_x| {
-            let res = !self.nodes_to_remove.contains(&i);
-            i += 1;
-            res
-        });
-
-        // Remove the graph inputs/output that are not used by any node
-        self.io = graph_io; //remove_unused_graph_inputs(&graph_io);
+        self.io = graph_io;
     }
 
-    fn handle_node_renaming(&mut self, node: &mut Node) {
+    fn handle_node_renaming(&mut self, node: &mut ConversionNode) {
         log::debug!("renaming node {:?}", &node.name);
         self.node_name_counter
             .entry(node.node_type.clone())
@@ -431,13 +419,12 @@ impl OnnxGraphBuilder {
         node.name.clone_from(&new_name);
     }
 
-    fn check_constants(&mut self, node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
+    fn check_constants(&mut self, node: &mut ConversionNode, i: usize, graph_io: &mut OnnxGraphIO) {
         if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
             self.constants_map.insert(node.outputs[0].clone(), i);
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("checking input {:?} for const", input);
                 if let Some(const_idx) = self.constants_map.get(input) {
                     let constant = &self.nodes[*const_idx];
                     log::debug!("input {} matched constant node {}", &input, &constant.name);
@@ -451,6 +438,29 @@ impl OnnxGraphBuilder {
                     self.nodes_to_remove.insert(*const_idx);
                 }
             }
+        }
+    }
+
+    fn build(self) -> OnnxGraph {
+        let mut i = 0;
+        let processed_nodes = self
+            .nodes
+            .into_iter()
+            .filter_map(|x| {
+                let res = if self.nodes_to_remove.contains(&i) {
+                    None
+                } else {
+                    Some(ProcessedNode::new(x, &self.io))
+                };
+                i += 1;
+                res
+            })
+            .collect();
+        let (inputs, outputs) = remove_unused_graph_inputs(&self.io);
+        OnnxGraph {
+            nodes: processed_nodes,
+            inputs,
+            outputs,
         }
     }
 }
@@ -496,15 +506,10 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let mut builder = OnnxGraphBuilder::default();
     builder.node_gen(&onnx_model);
 
-    let OnnxGraphBuilder {
-        nodes,
-        io: graph_io,
-        ..
-    } = builder;
+    let onnx_graph = builder.build();
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
-
-    OnnxGraph { nodes, graph_io }
+    onnx_graph
 }
 
 /// Rename the inputs and output in the graph and return a map of
@@ -515,7 +520,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// the naming convention of the nodes and allow to be used as rust identifiers.
 /// Rename the inputs and output in the graph and return a map of
 /// the old names to the new names.
-fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+fn rename_io(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     log::debug!("checking inputs for node {:?}", &node.name);
     for node_input in node.inputs.iter() {
         graph_io.mark_input_passed(node_input);

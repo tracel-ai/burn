@@ -1,10 +1,10 @@
 use super::{
     from_onnx::OnnxGraphIO,
-    ir::{ArgType, Argument, AttributeValue, Data, Node, NodeType, TensorType},
+    ir::{ArgType, Argument, AttributeValue, ConversionNode, Data, NodeType, TensorType},
 };
 
 /// Remap node type using kernel shape
-pub fn remap_node_with_kernel_shape<F>(node: &mut Node, new_node_type: F)
+pub fn remap_node_with_kernel_shape<F>(node: &mut ConversionNode, new_node_type: F)
 where
     F: FnOnce(&Vec<i64>) -> NodeType,
 {
@@ -16,7 +16,7 @@ where
 }
 
 /// Remap node type to a more specific one
-pub fn remap_node_type(node: &mut Node) {
+pub fn remap_node_type(node: &mut ConversionNode) {
     match node.node_type {
         NodeType::Conv => remap_node_with_kernel_shape(node, |ints| match ints.len() {
             1 => NodeType::Conv1d,
@@ -43,7 +43,7 @@ pub fn remap_node_type(node: &mut Node) {
 }
 
 /// Remap the unsqueeze node to a reshape node
-pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+pub(crate) fn remap_unsqueeze_to_reshape(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     match graph_io.get_type(&node.outputs[0]) {
         ArgType::Tensor(output_tensor) => {
             let inner = output_tensor

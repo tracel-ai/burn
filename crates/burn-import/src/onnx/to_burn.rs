@@ -51,7 +51,7 @@ use crate::{
 };
 
 use super::{
-    from_onnx::{parse_onnx, OnnxGraphIO},
+    from_onnx::parse_onnx,
     ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
@@ -225,130 +225,72 @@ impl ModelGen {
 impl OnnxGraph {
     /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
-        let mut burn_graph = BurnGraph::<PS>::default();
+        let mut graph = BurnGraph::<PS>::default();
 
         let mut unsupported_ops = vec![];
 
         for node in self.nodes {
             match node.node_type {
-                NodeType::Add => burn_graph.register(Self::add_conversion(node, &self.graph_io)),
-                NodeType::Sub => burn_graph.register(Self::sub_conversion(node, &self.graph_io)),
-                NodeType::Mul => burn_graph.register(Self::mul_conversion(node, &self.graph_io)),
-                NodeType::Div => burn_graph.register(Self::div_conversion(node, &self.graph_io)),
-                NodeType::Equal => {
-                    burn_graph.register(Self::equal_conversion(node, &self.graph_io))
-                }
-                NodeType::Erf => burn_graph.register(Self::erf_conversion(node, &self.graph_io)),
-                NodeType::Exp => burn_graph.register(Self::exp_conversion(node, &self.graph_io)),
-                NodeType::Clip => burn_graph.register(Self::clip_conversion(node, &self.graph_io)),
-                NodeType::Cos => burn_graph.register(Self::cos_conversion(node, &self.graph_io)),
-                NodeType::Conv1d => {
-                    burn_graph.register(Self::conv1d_conversion::<PS>(node, &self.graph_io))
-                }
-                NodeType::Conv2d => {
-                    burn_graph.register(Self::conv2d_conversion::<PS>(node, &self.graph_io))
-                }
-                NodeType::MaxPool1d => {
-                    burn_graph.register(Self::max_pool1d_conversion(node, &self.graph_io))
-                }
-                NodeType::MaxPool2d => {
-                    burn_graph.register(Self::max_pool2d_conversion(node, &self.graph_io))
-                }
-                NodeType::PRelu => {
-                    burn_graph.register(Self::prelu_conversion::<PS>(node, &self.graph_io))
-                }
-                NodeType::AveragePool1d => {
-                    burn_graph.register(Self::avg_pool_1d_conversion(node, &self.graph_io))
-                }
-                NodeType::AveragePool2d => {
-                    burn_graph.register(Self::avg_pool_2d_conversion(node, &self.graph_io))
-                }
-                NodeType::MatMul => {
-                    burn_graph.register(Self::matmul_conversion(node, &self.graph_io))
-                }
-                NodeType::Neg => burn_graph.register(Self::neg_conversion(node, &self.graph_io)),
-                NodeType::Not => burn_graph.register(Self::not_conversion(node, &self.graph_io)),
+                NodeType::Add => graph.register(Self::add_conversion(node)),
+                NodeType::Sub => graph.register(Self::sub_conversion(node)),
+                NodeType::Mul => graph.register(Self::mul_conversion(node)),
+                NodeType::Div => graph.register(Self::div_conversion(node)),
+                NodeType::Equal => graph.register(Self::equal_conversion(node)),
+                NodeType::Erf => graph.register(Self::erf_conversion(node)),
+                NodeType::Exp => graph.register(Self::exp_conversion(node)),
+                NodeType::Clip => graph.register(Self::clip_conversion(node)),
+                NodeType::Cos => graph.register(Self::cos_conversion(node)),
+                NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
+                NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
+                NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
+                NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
+                NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
+                NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
+                NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
+                NodeType::Neg => graph.register(Self::neg_conversion(node)),
+                NodeType::Not => graph.register(Self::not_conversion(node)),
                 NodeType::LayerNormalization => {
-                    burn_graph.register(Self::layer_norm_conversion::<PS>(node, &self.graph_io))
+                    graph.register(Self::layer_norm_conversion::<PS>(node))
                 }
-                NodeType::Linear => {
-                    burn_graph.register(Self::linear_conversion::<PS>(node, &self.graph_io))
-                }
+                NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
-                    burn_graph.register(Self::batch_norm_conversion::<PS>(node, &self.graph_io))
+                    graph.register(Self::batch_norm_conversion::<PS>(node))
                 }
-                NodeType::Relu => burn_graph.register(Self::relu_conversion(node, &self.graph_io)),
-                NodeType::Gelu => burn_graph.register(Self::gelu_conversion(node, &self.graph_io)),
-                NodeType::Flatten => {
-                    burn_graph.register(Self::flatten_conversion(node, &self.graph_io))
-                }
-                NodeType::GatherElements => {
-                    burn_graph.register(Self::gather_conversion(node, &self.graph_io))
-                }
-                NodeType::Log => burn_graph.register(Self::log_conversion(node, &self.graph_io)),
-                NodeType::LeakyRelu => {
-                    burn_graph.register(Self::leaky_relu_conversion(node, &self.graph_io))
-                }
-                NodeType::LogSoftmax => {
-                    burn_graph.register(Self::log_softmax_conversion(node, &self.graph_io))
-                }
-                NodeType::Softmax => {
-                    burn_graph.register(Self::softmax_conversion(node, &self.graph_io))
-                }
-                NodeType::Sqrt => burn_graph.register(Self::sqrt_conversion(node, &self.graph_io)),
-                NodeType::Tanh => burn_graph.register(Self::tanh_conversion(node, &self.graph_io)),
-                NodeType::Constant => {
-                    burn_graph.register(Self::constant_conversion::<PS>(node, &self.graph_io))
-                }
-                NodeType::ReduceMax => {
-                    burn_graph.register(Self::reduce_max_conversion(node, &self.graph_io))
-                }
-                NodeType::ReduceMean => {
-                    burn_graph.register(Self::reduce_mean_conversion(node, &self.graph_io))
-                }
-                NodeType::ReduceSum => {
-                    burn_graph.register(Self::reduce_sum_conversion(node, &self.graph_io))
-                }
-                NodeType::Reshape => {
-                    burn_graph.register(Self::reshape_conversion(node, &self.graph_io))
-                }
-                NodeType::Reciprocal => {
-                    burn_graph.register(Self::reciprocal_conversion(node, &self.graph_io))
-                }
-                NodeType::Shape => {
-                    burn_graph.register(Self::shape_conversion(node, &self.graph_io))
-                }
-                NodeType::Sigmoid => {
-                    burn_graph.register(Self::sigmoid_conversion(node, &self.graph_io))
-                }
-                NodeType::Sin => burn_graph.register(Self::sin_conversion(node, &self.graph_io)),
-                NodeType::Transpose => {
-                    burn_graph.register(Self::transpose_conversion(node, &self.graph_io))
-                }
-                NodeType::Concat => {
-                    burn_graph.register(Self::concat_conversion(node, &self.graph_io))
-                }
-                NodeType::Cast => burn_graph.register(Self::cast_conversion(node, &self.graph_io)),
-                NodeType::Dropout => {
-                    burn_graph.register(Self::dropout_conversion(node, &self.graph_io))
-                }
+                NodeType::Relu => graph.register(Self::relu_conversion(node)),
+                NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
+                NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
+                NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
+                NodeType::Log => graph.register(Self::log_conversion(node)),
+                NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
+                NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
+                NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
+                NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
+                NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
+                NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
+                NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
+                NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
+                NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
+                NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
+                NodeType::Shape => graph.register(Self::shape_conversion(node)),
+                NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
+                NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
+                NodeType::Concat => graph.register(Self::concat_conversion(node)),
+                NodeType::Cast => graph.register(Self::cast_conversion(node)),
+                NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
                 NodeType::GlobalAveragePool => {
-                    burn_graph.register(Self::global_avg_pool_conversion(node, &self.graph_io))
+                    graph.register(Self::global_avg_pool_conversion(node))
                 }
                 NodeType::ConvTranspose2d => {
-                    burn_graph.register(Self::conv_transpose2d_conversion(node, &self.graph_io))
+                    graph.register(Self::conv_transpose2d_conversion(node))
                 }
-                NodeType::Pow => burn_graph.register(Self::pow_conversion(node, &self.graph_io)),
-                NodeType::Unsqueeze => {
-                    burn_graph.register(Self::unsqueeze_conversion(node, &self.graph_io))
-                }
-                NodeType::Where => {
-                    burn_graph.register(Self::where_conversion(node, &self.graph_io))
-                }
-                NodeType::Sign => burn_graph.register(Self::sign_conversion(node, &self.graph_io)),
-                NodeType::Squeeze => {
-                    burn_graph.register(Self::squeeze_conversion(node, &self.graph_io))
-                }
+                NodeType::Pow => graph.register(Self::pow_conversion(node)),
+                NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
+                NodeType::Where => graph.register(Self::where_conversion(node)),
+                NodeType::Sign => graph.register(Self::sign_conversion(node)),
+                NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -357,42 +299,25 @@ impl OnnxGraph {
             panic!("Unsupported ops: {:?}", unsupported_ops);
         }
 
-        //Get input and output names
+        // Get input and output names
         let input_names = self
-            .graph_io
             .inputs
             .iter()
-            .filter_map(|input| {
-                if input.passed {
-                    Some(input.name.clone())
-                } else {
-                    None
-                }
-            })
+            .map(|input| input.name.clone())
             .collect::<Vec<_>>();
         let output_names = self
-            .graph_io
             .outputs
             .iter()
-            .filter_map(|output| {
-                if output.passed {
-                    Some(output.name.clone())
-                } else {
-                    None
-                }
-            })
+            .map(|output| output.name.clone())
             .collect::<Vec<_>>();
 
         // Register inputs and outputs with the graph
-        burn_graph.register_input_output(input_names, output_names);
+        graph.register_input_output(input_names, output_names);
 
-        burn_graph
+        graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node.attrs);
@@ -440,345 +365,288 @@ impl OnnxGraph {
             ArgType::Shape(_) => panic!("Shape is not supported as constant value."),
         };
 
-        ConstantNode::new(
-            node.name.clone(),
-            const_value,
-            graph_io.get_arg(output).to_type(),
-        )
+        ConstantNode::new(node.name.clone(), const_value, output.to_type())
     }
 
-    fn add_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn add_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::add(lhs, rhs, output)
     }
 
-    fn sub_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn sub_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::sub(lhs, rhs, output)
     }
 
-    fn mul_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn mul_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::mul(lhs, rhs, output)
     }
 
-    fn div_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn div_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::div(lhs, rhs, output)
     }
 
-    fn matmul_conversion(node: Node, graph_io: &OnnxGraphIO) -> MatmulNode {
-        let lhs = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let rhs = graph_io
-            .get_arg(node.inputs.get(1).unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn matmul_conversion(node: Node) -> MatmulNode {
+        let lhs = node.inputs.first().unwrap().to_tensor_type();
+        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
 
         MatmulNode::new(lhs, rhs, output)
     }
 
-    fn equal_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn equal_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::equal(lhs, rhs, output)
     }
 
-    fn erf_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn erf_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::erf(input, output)
     }
 
-    fn leaky_relu_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn leaky_relu_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
         let alpha = leaky_relu_config(&node);
 
         UnaryNode::leaky_relu(input, output, alpha)
     }
 
-    fn relu_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn relu_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::relu(input, output)
     }
 
-    fn gelu_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn gelu_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::gelu(input, output)
     }
 
-    fn log_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn log_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::log(input, output)
     }
 
-    fn flatten_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let (start_dim, end_dim) = flatten_config(&node, graph_io);
+    fn flatten_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
     }
 
-    fn gather_conversion(node: Node, graph_io: &OnnxGraphIO) -> GatherNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let index = graph_io
-            .get_arg(node.inputs.get(1).unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let dim = gather_config(&node, graph_io);
+    fn gather_conversion(node: Node) -> GatherNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let index = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dim = gather_config(&node);
 
         GatherNode::new(input, index, output, dim)
     }
 
-    fn transpose_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let perm = transpose_config(&node, graph_io);
+    fn transpose_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let perm = transpose_config(&node);
 
         UnaryNode::transpose(input, output, perm)
     }
 
-    fn cast_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn cast_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::cast(input, output)
     }
 
-    fn reshape_conversion(node: Node, graph_io: &OnnxGraphIO) -> ReshapeNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let shape = reshape_config(&node, graph_io);
+    fn reshape_conversion(node: Node) -> ReshapeNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
     }
 
-    fn reduce_max_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let dim = reduce_max_config(&node, graph_io);
+    fn reduce_max_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_max_config(&node);
 
         UnaryNode::reduce_max(input, output, dim)
     }
 
-    fn reduce_mean_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let dim = reduce_mean_config(&node, graph_io);
+    fn reduce_mean_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_mean_config(&node);
 
         UnaryNode::reduce_mean(input, output, dim)
     }
 
-    fn reduce_sum_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let dim = reduce_sum_config(&node, graph_io);
+    fn reduce_sum_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_sum_config(&node);
 
         UnaryNode::reduce_sum(input, output, dim)
     }
 
-    fn shape_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let (start_dim, end_dim) = shape_config(&node, graph_io);
+    fn shape_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let (start_dim, end_dim) = shape_config(&node);
 
         UnaryNode::shape(input, output, start_dim, end_dim)
     }
 
-    fn unsqueeze_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnsqueezeNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let dims = unsqueeze_config(&node, graph_io);
+    fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dims = unsqueeze_config(&node);
 
         UnsqueezeNode::new(input, output, dims)
     }
 
-    fn where_conversion(node: Node, graph_io: &OnnxGraphIO) -> WhereNode {
-        let condition = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let x = graph_io
-            .get_arg(node.inputs.get(1).unwrap())
-            .to_tensor_type();
-        let y = graph_io
-            .get_arg(node.inputs.get(2).unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn where_conversion(node: Node) -> WhereNode {
+        let condition = node.inputs.first().unwrap().to_tensor_type();
+        let x = node.inputs.get(1).unwrap().to_tensor_type();
+        let y = node.inputs.get(2).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
 
         WhereNode::new(condition, x, y, output)
     }
 
-    fn clip_conversion(node: Node, graph_io: &OnnxGraphIO) -> ClipNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let (min, max) = clip_config(&node, graph_io);
+    fn clip_conversion(node: Node) -> ClipNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let (min, max) = clip_config(&node);
 
         ClipNode::new(input, output, min, max)
     }
 
-    fn sigmoid_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn sigmoid_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sigmoid(input, output)
     }
 
-    fn sin_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn sin_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sin(input, output)
     }
 
-    fn reciprocal_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn reciprocal_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::reciprocal(input, output)
     }
 
-    fn log_softmax_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let dim = log_softmax_config(&node, graph_io);
+    fn log_softmax_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
     }
 
-    fn softmax_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
-        let dim = softmax_config(&node, graph_io);
+    fn softmax_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = softmax_config(&node);
 
         UnaryNode::softmax(input, output, dim)
     }
 
-    fn sqrt_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn sqrt_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sqrt(input, output)
     }
 
-    fn tanh_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn tanh_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::tanh(input, output)
     }
 
-    fn concat_conversion(node: Node, graph_io: &OnnxGraphIO) -> ConcatNode {
+    fn concat_conversion(node: Node) -> ConcatNode {
         let inputs = node
             .inputs
             .iter()
-            .map(|input| graph_io.get_arg(input).to_tensor_type())
+            .map(|input| input.to_tensor_type())
             .collect();
 
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let dim = concat_config(&node, graph_io);
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dim = concat_config(&node);
 
         ConcatNode::new(inputs, output, dim)
     }
 
-    fn linear_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> LinearNode<PS> {
+    fn linear_conversion<PS: PrecisionSettings>(node: Node) -> LinearNode<PS> {
         let name = &node.name;
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let config = linear_config(&node, graph_io);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = linear_config(&node);
 
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node, graph_io)
-            .expect("Weight is required");
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Weight is required");
 
-        let bias = extract_data_serialize::<PS::FloatElem>(2, &node, graph_io);
+        let bias = extract_data_serialize::<PS::FloatElem>(2, &node);
 
         LinearNode::new(name, input, output, weight, bias, config)
     }
 
-    fn dropout_conversion(node: Node, graph_io: &OnnxGraphIO) -> DropoutNode {
+    fn dropout_conversion(node: Node) -> DropoutNode {
         let name = &node.name;
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let config = dropout_config(&node, graph_io);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = dropout_config(&node);
 
         DropoutNode::new(name, input, output, config)
     }
 
-    fn batch_norm_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> BatchNormNode<PS> {
-        let config = batch_norm_config(&node, graph_io);
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn batch_norm_conversion<PS: PrecisionSettings>(node: Node) -> BatchNormNode<PS> {
+        let config = batch_norm_config(&node);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
         let dim = input.dim - 2;
 
-        let gamma =
-            extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).expect("Gamma is required");
-        let beta =
-            extract_data_serialize::<PS::FloatElem>(2, &node, graph_io).expect("Beta is required");
-        let running_mean = extract_data_serialize::<PS::FloatElem>(3, &node, graph_io)
-            .expect("Running mean is required");
-        let running_var = extract_data_serialize::<PS::FloatElem>(4, &node, graph_io)
-            .expect("Running var is required");
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node).expect("Beta is required");
+        let running_mean =
+            extract_data_serialize::<PS::FloatElem>(3, &node).expect("Running mean is required");
+        let running_var =
+            extract_data_serialize::<PS::FloatElem>(4, &node).expect("Running var is required");
 
         let name = &node.name;
 
@@ -795,45 +663,30 @@ impl OnnxGraph {
         )
     }
 
-    fn layer_norm_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> LayerNormNode<PS> {
-        let (config, full_precision) = layer_norm_config(&node, graph_io);
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode<PS> {
+        let (config, full_precision) = layer_norm_config(&node);
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
 
         // Scale tensor (aka gamma)
-        let gamma =
-            extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).expect("Gamma is required");
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
         // Bias (B) optional tensor
-        let beta = extract_data_serialize::<PS::FloatElem>(2, &node, graph_io);
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node);
 
         let name = &node.name;
 
         LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
     }
 
-    fn conv1d_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> Conv1dNode<PS> {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let config = conv1d_config(&node, graph_io);
+    fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = conv1d_config(&node);
 
         let bias = node.inputs.len() == 3;
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).unwrap();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let bias = match bias {
-            true => extract_data_serialize::<PS::FloatElem>(2, &node, graph_io),
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
             false => None,
         };
 
@@ -841,160 +694,119 @@ impl OnnxGraph {
         Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
     }
 
-    fn conv2d_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> Conv2dNode<PS> {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let config = conv2d_config(&node, graph_io);
+    fn conv2d_conversion<PS: PrecisionSettings>(node: Node) -> Conv2dNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = conv2d_config(&node);
 
         let bias = node.inputs.len() == 3;
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).unwrap();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let bias = match bias {
-            true => extract_data_serialize::<PS::FloatElem>(2, &node, graph_io),
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
             false => None,
         };
 
         let name = &node.name;
         Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
-    fn max_pool1d_conversion(node: Node, graph_io: &OnnxGraphIO) -> MaxPool1dNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
         let config = max_pool1d_config(&node);
 
         let name = &node.name;
         MaxPool1dNode::new(name, input, output, config)
     }
 
-    fn max_pool2d_conversion(node: Node, graph_io: &OnnxGraphIO) -> MaxPool2dNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn max_pool2d_conversion(node: Node) -> MaxPool2dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
         let config = max_pool2d_config(&node);
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
     }
 
-    fn prelu_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> PReluNode<PS> {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).unwrap();
+    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let config = PReluConfig::new();
         let name = &node.name;
         PReluNode::<PS>::new(name, input, output, weight, config)
     }
-    fn conv_transpose2d_conversion<PS: PrecisionSettings>(
-        node: Node,
-        graph_io: &OnnxGraphIO,
-    ) -> ConvTranspose2dNode<PS> {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let config = conv_transpose2d_config(&node, graph_io);
+    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let config = conv_transpose2d_config(&node);
 
         let bias = node.inputs.len() == 3;
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node, graph_io).unwrap();
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let bias = match bias {
-            true => extract_data_serialize::<PS::FloatElem>(2, &node, graph_io),
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
             false => None,
         };
 
         let name = &node.name;
         ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
-    fn avg_pool_1d_conversion(node: Node, graph_io: &OnnxGraphIO) -> AvgPool1dNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
         let config = avg_pool1d_config(&node);
 
         let name = &node.name;
         AvgPool1dNode::new(name, input, output, config)
     }
 
-    fn avg_pool_2d_conversion(node: Node, graph_io: &OnnxGraphIO) -> AvgPool2dNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
         let config = avg_pool2d_config(&node);
 
         let name = &node.name;
         AvgPool2dNode::new(name, input, output, config)
     }
 
-    fn global_avg_pool_conversion(node: Node, graph_io: &OnnxGraphIO) -> GlobalAvgPoolNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
+    fn global_avg_pool_conversion(node: Node) -> GlobalAvgPoolNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
 
         let name = &node.name;
 
         GlobalAvgPoolNode::new(name, input, output)
     }
 
-    fn cos_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn cos_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::cos(input, output)
     }
 
-    fn exp_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn exp_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::exp(input, output)
     }
 
-    fn neg_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn neg_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
         UnaryNode::neg(input, output)
     }
 
-    fn not_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn not_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
         UnaryNode::not(input, output)
     }
 
-    fn pow_conversion(node: Node, graph_io: &OnnxGraphIO) -> BinaryNode {
-        let lhs = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let rhs = graph_io.get_arg(node.inputs.get(1).unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn pow_conversion(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
         match &rhs {
             Type::Tensor(x) => match x.kind {
                 TensorKind::Int => BinaryNode::powi(lhs, rhs, output),
@@ -1010,20 +822,16 @@ impl OnnxGraph {
         }
     }
 
-    fn sign_conversion(node: Node, graph_io: &OnnxGraphIO) -> UnaryNode {
-        let input = graph_io.get_arg(node.inputs.first().unwrap()).to_type();
-        let output = graph_io.get_arg(node.outputs.first().unwrap()).to_type();
+    fn sign_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
         UnaryNode::sign(input, output)
     }
 
-    fn squeeze_conversion(node: Node, graph_io: &OnnxGraphIO) -> SqueezeNode {
-        let input = graph_io
-            .get_arg(node.inputs.first().unwrap())
-            .to_tensor_type();
-        let output = graph_io
-            .get_arg(node.outputs.first().unwrap())
-            .to_tensor_type();
-        let axes = squeeze_config(&node, graph_io);
+    fn squeeze_conversion(node: Node) -> SqueezeNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let axes = squeeze_config(&node);
 
         SqueezeNode::new(input, output, axes)
     }
@@ -1036,32 +844,24 @@ impl OnnxGraph {
 /// * `input_index` - The index of the input originally from input.
 /// * `node` - The node where value are stored.
 #[track_caller]
-fn extract_data_serialize<E: Element>(
-    input_index: usize,
-    node: &Node,
-    graph_io: &OnnxGraphIO,
-) -> Option<DataSerialize<E>> {
+fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DataSerialize<E>> {
     if node.inputs.is_empty() {
         return None;
     }
 
-    let input_name = node.inputs.get(input_index);
-    input_name?;
-    let input_name = input_name.unwrap();
+    let input = node.inputs.get(input_index);
+    input?;
+    let input = input.unwrap();
+    input.value.as_ref()?;
+    let ty = input.ty.clone();
 
-    let ty = graph_io.get_type(input_name);
-    println!("input_name: {:?}", input_name);
-    println!("ty: {:?}", ty);
     match ty {
         ArgType::Tensor(tensor_type) => {
-            let value = graph_io
-                .get_value(input_name)
-                .expect("Value to be provided.")
-                .clone();
+            let value = input.value.as_ref().expect("Value to be provided.").clone();
 
             Some(serialize_data(
                 value.clone(),
-                tensor_type.shape.clone().unwrap(),
+                tensor_type.shape.unwrap().clone(),
             ))
         }
         _ => panic!("Unsupported serialization type"),
