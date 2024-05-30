@@ -17,6 +17,7 @@ pub enum Variable {
     LocalInvocationIdX,
     LocalInvocationIdY,
     LocalInvocationIdZ,
+    WorkgroupId,
     WorkgroupIdX,
     WorkgroupIdY,
     WorkgroupIdZ,
@@ -24,9 +25,11 @@ pub enum Variable {
     GlobalInvocationIdY,
     GlobalInvocationIdZ,
     Rank,
+    WorkgroupSize,
     WorkgroupSizeX,
     WorkgroupSizeY,
     WorkgroupSizeZ,
+    NumWorkgroups,
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
@@ -61,6 +64,9 @@ impl Variable {
             Variable::NumWorkgroupsX => None,
             Variable::NumWorkgroupsY => None,
             Variable::NumWorkgroupsZ => None,
+            Variable::WorkgroupId => None,
+            Variable::NumWorkgroups => None,
+            Variable::WorkgroupSize => None,
         }
     }
 
@@ -93,6 +99,9 @@ impl Variable {
             Variable::NumWorkgroupsX => Item::new(Elem::UInt),
             Variable::NumWorkgroupsY => Item::new(Elem::UInt),
             Variable::NumWorkgroupsZ => Item::new(Elem::UInt),
+            Variable::WorkgroupId => Item::new(Elem::UInt),
+            Variable::NumWorkgroups => Item::new(Elem::UInt),
+            Variable::WorkgroupSize => Item::new(Elem::UInt),
         }
     }
 }

@@ -17,7 +17,7 @@ metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.15.0", features = ["dataset"] }
+burn-core = { path = "../burn-core", version = "0.14.0", features = ["dataset"] }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -38,7 +38,7 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.14.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

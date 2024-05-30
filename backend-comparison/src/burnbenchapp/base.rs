@@ -78,6 +78,8 @@ enum BackendValues {
     Wgpu,
     #[strum(to_string = "wgpu-fusion")]
     WgpuFusion,
+    #[strum(to_string = "cuda-jit")]
+    CudaJit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
@@ -100,6 +102,10 @@ enum BenchmarkValues {
     LoadRecord,
     #[strum(to_string = "autodiff")]
     Autodiff,
+    #[strum(to_string = "conv-transpose2d")]
+    ConvTranspose2d,
+    #[strum(to_string = "conv2d")]
+    Conv2d,
 }
 
 pub fn execute() {

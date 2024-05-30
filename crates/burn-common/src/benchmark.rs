@@ -112,7 +112,7 @@ impl BenchmarkComputations {
 /// Benchmark trait.
 pub trait Benchmark {
     /// Benchmark arguments.
-    type Args;
+    type Args: Clone;
 
     /// Prepare the benchmark, run anything that is essential for the benchmark, but shouldn't
     /// count as included in the duration.
@@ -149,19 +149,20 @@ pub trait Benchmark {
         #[cfg(feature = "std")]
         {
             // Warmup
-            self.execute(self.prepare());
+            let args = self.prepare();
+
+            self.execute(args.clone());
             self.sync();
 
             let mut durations = Vec::with_capacity(self.num_samples());
 
             for _ in 0..self.num_samples() {
                 // Prepare
-                let args = self.prepare();
                 self.sync();
 
                 // Execute the benchmark
                 let start = Instant::now();
-                self.execute(args);
+                self.execute(args.clone());
                 self.sync();
                 let end = Instant::now();
 

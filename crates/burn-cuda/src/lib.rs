@@ -4,7 +4,6 @@ extern crate alloc;
 
 mod compute;
 mod device;
-mod element;
 mod runtime;
 
 pub mod compiler;

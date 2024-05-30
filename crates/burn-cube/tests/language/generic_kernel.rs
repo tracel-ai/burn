@@ -6,7 +6,11 @@ pub fn generic_kernel<T: Numeric>(lhs: T) {
 }
 
 mod tests {
-    use burn_cube::{cpa, dialect::Item, CubeContext, PrimitiveVariable, F32, I32};
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, CubeElem, F32, I32,
+    };
 
     use super::*;
 
@@ -37,11 +41,11 @@ mod tests {
     fn inline_macro_ref_float() -> String {
         let mut context = CubeContext::root();
         let item = Item::new(F32::as_elem());
-        let lhs = context.create_local(item);
+        let var = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let out = scope.create_local(item);
-        cpa!(scope, out = lhs + 5.0f32);
+        let var: Variable = var.into();
+        cpa!(scope, var = var + 5.0f32);
 
         format!("{:?}", scope.operations)
     }
@@ -49,11 +53,11 @@ mod tests {
     fn inline_macro_ref_int() -> String {
         let mut context = CubeContext::root();
         let item = Item::new(I32::as_elem());
-        let lhs = context.create_local(item);
+        let var = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let out = scope.create_local(item);
-        cpa!(scope, out = lhs + 5);
+        let var: Variable = var.into();
+        cpa!(scope, var = var + 5);
 
         format!("{:?}", scope.operations)
     }

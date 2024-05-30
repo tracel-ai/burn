@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
+use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
 use burn_tensor::Shape;
 
 /// Creates a binary kernel.
@@ -156,8 +156,8 @@ where
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         Execution::start(kernel_inplace_lhs, rhs.client)
             .inputs(&[
-                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
             .execute(WorkgroupLaunch::Input { pos: 0 });
 
@@ -165,8 +165,8 @@ where
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
         Execution::start(kernel_inplace_rhs, lhs.client)
             .inputs(&[
-                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
             .execute(WorkgroupLaunch::Input { pos: 1 });
 
@@ -189,10 +189,14 @@ where
 
         Execution::start(kernel, lhs.client)
             .inputs(&[
-                EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
-            .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
+            .outputs(&[TensorHandle::new(
+                &out.handle,
+                &out.strides,
+                &out.shape.dims,
+            )])
             .execute(WorkgroupLaunch::Output { pos: 0 });
 
         out

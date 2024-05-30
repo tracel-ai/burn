@@ -17,68 +17,66 @@ use super::{
 /// Infer the dimension of each output tensor and update them.
 pub fn dim_inference(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
-        NodeType::Add
-        | NodeType::AveragePool1d
-        | NodeType::AveragePool2d
-        | NodeType::BatchNormalization
-        | NodeType::Clip
-        | NodeType::Cos
-        | NodeType::Div
-        | NodeType::Dropout
-        | NodeType::Sigmoid
-        | NodeType::Sign
-        | NodeType::Sin
-        | NodeType::Softmax
-        | NodeType::Sqrt
-        | NodeType::Sub
-        | NodeType::Tanh
-        | NodeType::Transpose
-        | NodeType::Pow
-        | NodeType::LeakyRelu
-        | NodeType::PRelu
-        | NodeType::Erf
-        | NodeType::Exp
-        | NodeType::MaxPool1d
-        | NodeType::MaxPool2d
-        | NodeType::Mul
-        | NodeType::Neg
-        | NodeType::Not
-        | NodeType::Reciprocal
-        | NodeType::Gelu
-        | NodeType::GatherElements
-        | NodeType::GlobalAveragePool
-        | NodeType::Relu
-        | NodeType::Log
-        | NodeType::LogSoftmax
-        | NodeType::LayerNormalization => same_as_input(node, graph_io),
-        NodeType::Cast => cast_update_outputs(node, graph_io),
-
-        NodeType::Concat => concat_update_outputs(node, graph_io),
-        NodeType::Constant => constant_update_outputs(node, graph_io),
-        NodeType::Conv1d => conv1d_update_outputs(node, graph_io),
-        NodeType::Conv2d => conv2d_update_outputs(node, graph_io),
-
-        NodeType::Equal => equal_update_outputs(node, graph_io),
-
-        NodeType::Flatten => flatten_update_outputs(node, graph_io),
-
-        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node, graph_io),
-
-        NodeType::Linear => linear_update_outputs(node, graph_io),
-
-        NodeType::MatMul => matmul_update_outputs(node, graph_io),
-
-        NodeType::ReduceMax => reduce_max_update_outputs(node, graph_io),
-        NodeType::ReduceMean => reduce_mean_update_outputs(node, graph_io),
-        NodeType::ReduceSum => reduce_sum_update_outputs(node, graph_io),
-
-        NodeType::Reshape => reshape_update_outputs(node, graph_io),
-        NodeType::Shape => shape_update_outputs(node, graph_io),
-
-        NodeType::Unsqueeze => unsqueeze_update_output(node, graph_io),
-
-        NodeType::Where => where_update_outputs(node, graph_io),
-        NodeType::Squeeze => squeeze_update_output(node, graph_io),
+        NodeType::Add => same_as_input(node),
+        NodeType::AveragePool1d => same_as_input(node),
+        NodeType::AveragePool2d => same_as_input(node),
+        NodeType::BatchNormalization => same_as_input(node),
+        NodeType::Cast => cast_update_outputs(node),
+        NodeType::Clip => same_as_input(node),
+        NodeType::Concat => concat_update_outputs(node),
+        NodeType::Constant => constant_update_outputs(node),
+        NodeType::Conv1d => conv1d_update_outputs(node),
+        NodeType::Conv2d => conv2d_update_outputs(node),
+        NodeType::Cos => same_as_input(node),
+        NodeType::Div => same_as_input(node),
+        NodeType::Dropout => same_as_input(node),
+        NodeType::Equal => equal_update_outputs(node),
+        NodeType::Erf => same_as_input(node),
+        NodeType::Exp => same_as_input(node),
+        NodeType::Flatten => flatten_update_outputs(node),
+        NodeType::Gelu => same_as_input(node),
+        NodeType::GatherElements => same_as_input(node),
+        NodeType::GlobalAveragePool => same_as_input(node),
+        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::LayerNormalization => same_as_input(node),
+        NodeType::Linear => linear_update_outputs(node),
+        NodeType::Log => same_as_input(node),
+        NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MatMul => matmul_update_outputs(node),
+        NodeType::Min => same_as_input(node),
+        NodeType::Max => same_as_input(node),
+        NodeType::MaxPool1d => same_as_input(node),
+        NodeType::MaxPool2d => same_as_input(node),
+        NodeType::Mul => same_as_input(node),
+        NodeType::Neg => same_as_input(node),
+        NodeType::Not => same_as_input(node),
+        NodeType::Greater => greater_update_outputs(node),
+        NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
+        NodeType::Less => less_update_outputs(node),
+        NodeType::LessOrEqual => less_or_equal_update_outputs(node),
+        NodeType::Reciprocal => same_as_input(node),
+        NodeType::ReduceMax => reduce_max_update_outputs(node),
+        NodeType::ReduceMean => reduce_mean_update_outputs(node),
+        NodeType::ReduceSum => reduce_sum_update_outputs(node),
+        NodeType::Relu => same_as_input(node),
+        NodeType::Reshape => reshape_update_outputs(node),
+        NodeType::Shape => shape_update_outputs(node),
+        NodeType::Sigmoid => same_as_input(node),
+        NodeType::Sign => same_as_input(node),
+        NodeType::Sin => same_as_input(node),
+        NodeType::Softmax => same_as_input(node),
+        NodeType::Sqrt => same_as_input(node),
+        NodeType::Sub => same_as_input(node),
+        NodeType::Tanh => same_as_input(node),
+        NodeType::Transpose => same_as_input(node),
+        NodeType::Unsqueeze => unsqueeze_update_output(node),
+        NodeType::Pow => same_as_input(node),
+        NodeType::LeakyRelu => same_as_input(node),
+        NodeType::PRelu => same_as_input(node),
+        NodeType::Where => where_update_outputs(node),
+        NodeType::Squeeze => squeeze_update_output(node),
+        NodeType::RandomUniform => random_update_output(node),
+        NodeType::RandomNormal => random_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node, graph_io),
     }
@@ -129,6 +127,85 @@ fn constant_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO
             None => panic!("Constant node must have a value attribute"),
         },
     );
+}
+
+
+/// Infer the shape of a node's output with an explicit shape attribute
+/// for the Random operations with explicit shape
+///
+/// This includes the `RandomUniform`, `RandomNormal` operators
+///
+/// Also reads & interprets an optional `dtype` attribute
+fn random_update_output(node: &mut Node) {
+    let dtype = node
+        .attrs
+        .get("dtype")
+        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+        .unwrap_or(DataType::FLOAT);
+
+    let mut shape = node
+        .attrs
+        .get("shape")
+        .expect("required shape attribute missing")
+        .clone()
+        .into_i64s();
+
+    let elem_type = match dtype {
+        DataType::FLOAT => ElementType::Float32,
+        DataType::DOUBLE => ElementType::Float64,
+        _ => panic!("tensor with type {dtype:?} not supported for random output"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type,
+        dim: shape.len(),
+        shape: Some(
+            shape
+                .drain(..)
+                .map(usize::try_from)
+                .collect::<Result<Vec<usize>, _>>()
+                .unwrap(),
+        ),
+    })
+}
+
+/// Infer the shape of a node's output with an explicit shape attribute
+/// for the Random operations with explicit shape
+///
+/// This includes the `RandomUniform`, `RandomNormal` operators
+///
+/// Also reads & interprets an optional `dtype` attribute
+fn random_update_output(node: &mut Node) {
+    let dtype = node
+        .attrs
+        .get("dtype")
+        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+        .unwrap_or(DataType::FLOAT);
+
+    let mut shape = node
+        .attrs
+        .get("shape")
+        .expect("required shape attribute missing")
+        .clone()
+        .into_i64s();
+
+    let elem_type = match dtype {
+        DataType::FLOAT => ElementType::Float32,
+        DataType::DOUBLE => ElementType::Float64,
+        _ => panic!("tensor with type {dtype:?} not supported for random output"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type,
+        dim: shape.len(),
+        shape: Some(
+            shape
+                .drain(..)
+                .map(usize::try_from)
+                .collect::<Result<Vec<usize>, _>>()
+                .unwrap(),
+        ),
+    })
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
@@ -257,6 +334,103 @@ fn reshape_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO)
         );
     }
 }
+
+fn greater_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn greater_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn greater_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn greater_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
+fn less_or_equal_update_outputs(node: &mut Node) {
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                ..tensor.clone()
+            });
+        }
+        _ => panic!("Only tensor input is valid"),
+    }
+}
+
 
 fn reduce_mean_update_outputs(node: &mut ConversionNode, graph_io: &mut OnnxGraphIO) {
     if node.inputs.len() != 1 {

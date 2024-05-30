@@ -24,10 +24,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
-        let axis = &self.axes.first().unwrap().to_tokens();
+        let axes_arg = &self.axes.to_tokens();
 
         quote! {
-            let #output = #input.squeeze(#axis);
+            let #output = #input.squeeze_dims(&#axes_arg);
         }
     }
 
@@ -81,7 +81,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 3>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.squeeze(1);
+                    let tensor2 = tensor1.squeeze_dims(&[1]);
                     tensor2
                 }
             }

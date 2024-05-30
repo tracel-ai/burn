@@ -1,4 +1,5 @@
-use crate::{backend::Backend, Data, Float, Int, Tensor};
+use crate::{backend::Backend, Data, Float, Int, Shape, Tensor};
+
 use core::ops::Range;
 
 #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
@@ -68,6 +69,36 @@ where
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
         Tensor::new(B::int_into_float(self.primitive))
+    }
+
+    /// Generates a cartesian grid for the given tensor shape on the specified device.
+    /// The generated tensor is of dimension `D2 = D + 1`, where each element at dimension D contains the cartesian grid coordinates for that element.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape specifying the dimensions of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `D2` is not equal to `D+1`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    ///    use burn_tensor::Int;
+    ///    use burn_tensor::{backend::Backend, Shape, Tensor};
+    ///    fn example<B: Backend>() {
+    ///        let device = Default::default();
+    ///        let result: Tensor<B, 3, _> = Tensor::<B, 2, Int>::cartesian_grid([2, 3], &device);
+    ///        println!("{}", result);
+    ///    }
+    /// ```
+    pub fn cartesian_grid<S: Into<Shape<D>>, const D2: usize>(
+        shape: S,
+        device: &B::Device,
+    ) -> Tensor<B, D2, Int> {
+        Tensor::new(B::int_cartesian_grid::<S, D, D2>(shape, device))
     }
 
     /// Sort the elements by value in ascending order along a given dimension.

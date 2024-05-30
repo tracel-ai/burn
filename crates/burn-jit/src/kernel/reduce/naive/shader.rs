@@ -1,16 +1,16 @@
 use burn_cube::{
     cpa,
     dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
+    TensorHandle, WorkgroupLaunch,
 };
 use std::marker::PhantomData;
 
 use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
 
-use super::ReduceDimAlgorithm;
+use super::base::ReduceDimNaive;
 
-pub(crate) struct NaiveReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgorithm<E>> {
+pub(crate) struct NaiveReduceDimComputeShader<E: JitElement, RD: ReduceDimNaive<E>> {
     tensor: Variable,
     dim: usize,
     output: Variable,
@@ -20,7 +20,7 @@ pub(crate) struct NaiveReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgori
 
 #[derive(new)]
 pub(crate) struct NaiveReduceDimEagerKernel<
-    RD: ReduceDimAlgorithm<EI>,
+    RD: ReduceDimNaive<EI>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
@@ -32,8 +32,8 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
-    GpuComputeShaderPhase for NaiveReduceDimEagerKernel<RD, R, EI, EO>
+impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+    for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn compile(&self) -> ComputeShader {
         let mut scope = Scope::root();
@@ -76,7 +76,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
     }
 }
 
-impl<E: JitElement, RD: ReduceDimAlgorithm<E>> NaiveReduceDimComputeShader<E, RD> {
+impl<E: JitElement, RD: ReduceDimNaive<E>> NaiveReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();
@@ -136,7 +136,7 @@ impl<E: JitElement, RD: ReduceDimAlgorithm<E>> NaiveReduceDimComputeShader<E, RD
 
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<
-    RD: ReduceDimAlgorithm<EI>,
+    RD: ReduceDimNaive<EI>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
@@ -149,12 +149,12 @@ pub fn reduce_dim_naive<
     let kernel = NaiveReduceDimEagerKernel::<RD, R, EI, EO>::new(dim);
 
     Execution::start(kernel, input.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

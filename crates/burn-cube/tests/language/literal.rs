@@ -12,7 +12,11 @@ pub fn literal_float_no_decimals<F: Float>(lhs: F) {
 
 mod tests {
     use super::{literal_expand, literal_float_no_decimals_expand};
-    use burn_cube::{cpa, dialect::Item, CubeContext, PrimitiveVariable, F32};
+    use burn_cube::{
+        cpa,
+        dialect::{Item, Variable},
+        CubeContext, CubeElem, F32,
+    };
 
     type ElemType = F32;
 
@@ -46,8 +50,8 @@ mod tests {
         let lhs = context.create_local(item);
 
         let mut scope = context.into_scope();
-        let out = scope.create_local(item);
-        cpa!(scope, out = lhs + 5.0f32);
+        let lhs: Variable = lhs.into();
+        cpa!(scope, lhs = lhs + 5.0f32);
 
         format!("{:?}", scope.operations)
     }

@@ -9,7 +9,7 @@ mod tests {
     use burn_cube::{
         cpa,
         dialect::{Item, Variable},
-        CubeContext, PrimitiveVariable, F32,
+        CubeContext, CubeElem, F32,
     };
 
     use super::parenthesis_expand;
@@ -41,10 +41,9 @@ mod tests {
         let x: Variable = x.into();
         let y: Variable = y.into();
         let z: Variable = z.into();
-        let tmp = scope.create_local(item);
 
-        cpa!(scope, tmp = y + z);
-        cpa!(scope, y = x * tmp);
+        cpa!(scope, y = y + z);
+        cpa!(scope, x = x * y);
 
         format!("{:?}", scope.operations)
     }

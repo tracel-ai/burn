@@ -1,78 +1,15 @@
-use burn_cube::dialect::{Item, Scope, Variable};
-
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
-use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, ProdDim, SumDim};
+use super::{
+    naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
+    shared::{base::ReduceDimShared, shader::reduce_dim_shared},
+};
 
-/// Specifies the reduce dim algorithm in use
-pub trait ReduceDimAlgorithm<E: JitElement>: Send + Sync + 'static {
-    /// The reduction accumulator
-    type Accumulator: Copy;
-
-    /// Initialization for naive algorithm
-    fn initialize_naive(
-        scope: &mut Scope,
-        input_item: Item,
-        output_item: Item,
-    ) -> Self::Accumulator;
-
-    /// Inner loop for naive algorithm
-    fn inner_loop_naive(
-        scope: &mut Scope,
-        accumulator: Self::Accumulator,
-        current_value: Variable,
-        i: Variable,
-    );
-
-    /// Assignation for naive algorithm
-    fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        accumulator: Self::Accumulator,
-        shape_reduce_dim: Variable,
-    );
-
-    /// Initialization for shared algorithm
-    fn initialize_shared(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator;
-
-    /// How to write to shared memory
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        value: Self::Accumulator,
-    );
-
-    /// How to read from input in shared algorithm
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        i: Variable,
-    ) -> Self::Accumulator;
-
-    /// How to read from shared memory
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Self::Accumulator;
-
-    /// How to assign from shared memory
-    fn assign_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        shape_reduce_dim: Variable,
-    );
+pub(crate) trait ReduceDimAlgorithm<E: JitElement>:
+    ReduceDimNaive<E> + ReduceDimShared<E>
+{
 }
 
 /// Creates an empty output tensor with reduce output shape
@@ -98,13 +35,22 @@ pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement, const D
 
 #[derive(Copy, Clone, Debug)]
 #[allow(missing_docs)]
-#[derive(Default)]
 pub enum ReduceStrategy {
     Naive,
     SharedMemory,
     #[cfg(feature = "autotune")]
-    #[default]
     Autotune,
+}
+
+impl Default for ReduceStrategy {
+    fn default() -> Self {
+        // if autotune is enabled, default to autotune
+        #[cfg(feature = "autotune")]
+        return ReduceStrategy::Autotune;
+
+        #[cfg(not(feature = "autotune"))]
+        ReduceStrategy::Naive
+    }
 }
 
 #[cfg(feature = "autotune")]
@@ -116,7 +62,10 @@ impl Default for ReduceStrategy {
 }
 
 macro_rules! reduce_operation {
-    ($name:ident, $ops:ty) => {
+    ($name:ident, $ops:ident) => {
+        pub(crate) struct $ops;
+        impl<E: JitElement> ReduceDimAlgorithm<E> for $ops {}
+
         /// Executes the reduce operation with the given strategy.
         pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
             tensor: JitTensor<R, EI, D>,
@@ -143,5 +92,5 @@ macro_rules! reduce_operation {
 reduce_operation!(sum_dim, SumDim);
 reduce_operation!(mean_dim, MeanDim);
 reduce_operation!(prod_dim, ProdDim);
-reduce_operation!(argmin, ArgMin);
-reduce_operation!(argmax, ArgMax);
+reduce_operation!(argmin, Argmin);
+reduce_operation!(argmax, Argmax);

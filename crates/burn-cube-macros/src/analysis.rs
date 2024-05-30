@@ -4,6 +4,29 @@ use syn::{PathArguments, Stmt};
 
 use crate::VariableKey;
 
+pub const KEYWORDS: [&str; 20] = [
+    "ABSOLUTE_POS",
+    "ABSOLUTE_POS_X",
+    "ABSOLUTE_POS_Y",
+    "ABSOLUTE_POS_Z",
+    "UNIT_POS",
+    "UNIT_POS_X",
+    "UNIT_POS_Y",
+    "UNIT_POS_Z",
+    "CUBE_POS",
+    "CUBE_POS_X",
+    "CUBE_POS_Y",
+    "CUBE_POS_Z",
+    "CUBE_DIM",
+    "CUBE_DIM_X",
+    "CUBE_DIM_Y",
+    "CUBE_DIM_Z",
+    "CUBE_COUNT",
+    "CUBE_COUNT_X",
+    "CUBE_COUNT_Y",
+    "CUBE_COUNT_Z",
+];
+
 #[derive(Debug)]
 /// Information about a single variable's use in Cube code
 /// Information about a single variable's use in Cube code
@@ -150,6 +173,8 @@ impl CodeAnalysisBuilder {
     fn find_occurrences_in_expr(&mut self, expr: &syn::Expr, depth: usize) {
         match expr {
             syn::Expr::ForLoop(expr) => {
+                self.find_occurrences_in_expr(&expr.expr, depth);
+
                 let depth = depth + 1;
 
                 // Declaration of iterator
@@ -198,8 +223,10 @@ impl CodeAnalysisBuilder {
                     .get_ident()
                     .expect("Analysis: only ident path are supported.");
 
-                // Use
-                self.var_uses.push(ident.into());
+                if !KEYWORDS.contains(&ident.to_string().as_str()) {
+                    // Use
+                    self.var_uses.push(ident.into());
+                }
             }
             syn::Expr::Binary(expr) => {
                 self.find_occurrences_in_expr(&expr.left, depth);
@@ -238,6 +265,11 @@ impl CodeAnalysisBuilder {
                 }
             }
             syn::Expr::Break(_) => {}
+            syn::Expr::Return(expr) => {
+                if expr.expr.is_some() {
+                    todo!("Analysis: only void return supported")
+                }
+            }
             syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Array(expr) => {
                 for element in expr.elems.iter() {
@@ -248,6 +280,15 @@ impl CodeAnalysisBuilder {
                 }
             }
             syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
+            syn::Expr::Closure(expr) => {
+                assert!(
+                    expr.inputs.is_empty(),
+                    "Analysis: closure with args not supported"
+                );
+
+                self.find_occurrences_in_expr(&expr.body, depth + 1)
+            }
+            syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

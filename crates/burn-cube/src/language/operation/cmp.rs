@@ -9,7 +9,9 @@ macro_rules! impl_cmp {
                 self.val == other.val && self.vectorization == other.vectorization
             }
         }
+
         impl core::cmp::Eq for $type {}
+
         impl core::cmp::PartialOrd for $type {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 match self.val.partial_cmp(&other.val) {
@@ -64,6 +66,42 @@ pub mod lt {
         rhs: ExpandElement,
     ) -> ExpandElement {
         cmp_expand(context, lhs, rhs, Operator::Lower)
+    }
+}
+
+pub mod ge {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, Operator::GreaterEqual)
+    }
+}
+
+pub mod le {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, Operator::LowerEqual)
+    }
+}
+
+pub mod eq {
+    use super::*;
+
+    pub fn expand(
+        context: &mut CubeContext,
+        lhs: ExpandElement,
+        rhs: ExpandElement,
+    ) -> ExpandElement {
+        cmp_expand(context, lhs, rhs, Operator::Equal)
     }
 }
 

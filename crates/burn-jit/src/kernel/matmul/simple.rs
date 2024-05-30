@@ -5,7 +5,7 @@ use crate::{
     JitRuntime,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo, OutputInfo,
+    cpa, Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo, TensorHandle,
     WorkgroupLaunch,
 };
 use burn_cube::{
@@ -248,10 +248,14 @@ pub fn matmul_simple<R: JitRuntime, E: JitElement, const D: usize>(
 
     Execution::start(kernel, rhs.client)
         .inputs(&[
-            EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
+        .outputs(&[TensorHandle::new(
+            &out.handle,
+            &out.strides,
+            &out.shape.dims,
+        )])
         .execute(WorkgroupLaunch::Custom(workgroup));
 
     out
