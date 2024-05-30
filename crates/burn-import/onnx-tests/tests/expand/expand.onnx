@@ -1,17 +1,15 @@
 
-expand:’
-5
+expand:³
+>shapeshape_constant"Constant*
+value*:Bshape 
+.
 input_tensor
-shape_tensoroutput/Expand"ExpandExpandGraphZ
+shapeoutput/Expand"ExpandExpandGraphZ
 input_tensor
 
 
-Z
-shape_tensor
-
-
-b
-output
-
-
+b
+output
+
+
 B
