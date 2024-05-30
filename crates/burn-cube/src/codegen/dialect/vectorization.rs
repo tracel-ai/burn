@@ -1,5 +1,5 @@
 use super::{
-    BinaryOperator, ClampOperator, Item, Operation, Operator, Subgroup, SubgroupNoInput,
+    BinaryOperator, ClampOperator, Item, Operation, Operator, Subcube, SubgroupNoInput,
     UnaryOperator, Variable,
 };
 
@@ -19,7 +19,7 @@ impl Operation {
             Operation::Synchronization(_) => panic!(
                 "Synchronization instructions can't be vectorized, they should only be generated after vectorization."
             ),
-            Operation::Subgroup(op) => Operation::Subgroup(op.vectorize(vectorization)),
+            Operation::Subcube(op) => Operation::Subcube(op.vectorize(vectorization)),
         }
     }
 }
@@ -108,22 +108,20 @@ impl SubgroupNoInput {
     }
 }
 
-impl Subgroup {
+impl Subcube {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
-            Subgroup::SubgroupElect(op) => Subgroup::SubgroupElect(op.vectorize(vectorization)),
-            Subgroup::SubgroupAll(op) => Subgroup::SubgroupAll(op.vectorize(vectorization)),
-            Subgroup::SubgroupAny(op) => Subgroup::SubgroupAny(op.vectorize(vectorization)),
-            Subgroup::SubgroupBroadcast(op) => {
-                Subgroup::SubgroupBroadcast(op.vectorize(vectorization))
-            }
-            Subgroup::SubgroupSum(op) => Subgroup::SubgroupSum(op.vectorize(vectorization)),
-            Subgroup::SubgroupProduct(op) => Subgroup::SubgroupProduct(op.vectorize(vectorization)),
-            Subgroup::SubgroupAnd(op) => Subgroup::SubgroupAnd(op.vectorize(vectorization)),
-            Subgroup::SubgroupOr(op) => Subgroup::SubgroupOr(op.vectorize(vectorization)),
-            Subgroup::SubgroupXor(op) => Subgroup::SubgroupXor(op.vectorize(vectorization)),
-            Subgroup::SubgroupMin(op) => Subgroup::SubgroupMin(op.vectorize(vectorization)),
-            Subgroup::SubgroupMax(op) => Subgroup::SubgroupMax(op.vectorize(vectorization)),
+            Subcube::SubcubeElect(op) => Subcube::SubcubeElect(op.vectorize(vectorization)),
+            Subcube::SubcubeAll(op) => Subcube::SubcubeAll(op.vectorize(vectorization)),
+            Subcube::SubcubeAny(op) => Subcube::SubcubeAny(op.vectorize(vectorization)),
+            Subcube::SubcubeBroadcast(op) => Subcube::SubcubeBroadcast(op.vectorize(vectorization)),
+            Subcube::SubcubeSum(op) => Subcube::SubcubeSum(op.vectorize(vectorization)),
+            Subcube::SubcubeProduct(op) => Subcube::SubcubeProduct(op.vectorize(vectorization)),
+            Subcube::SubcubeAnd(op) => Subcube::SubcubeAnd(op.vectorize(vectorization)),
+            Subcube::SubcubeOr(op) => Subcube::SubcubeOr(op.vectorize(vectorization)),
+            Subcube::SubcubeXor(op) => Subcube::SubcubeXor(op.vectorize(vectorization)),
+            Subcube::SubcubeMin(op) => Subcube::SubcubeMin(op.vectorize(vectorization)),
+            Subcube::SubcubeMax(op) => Subcube::SubcubeMax(op.vectorize(vectorization)),
         }
     }
 }

@@ -65,7 +65,7 @@ impl Display for Subgroup {
                 f.write_fmt(format_args!("{out} = subgroupBroadcast({lhs}, {rhs});\n"))
             }
             Subgroup::SubgroupSum { input, out } => {
-                f.write_fmt(format_args!("{out} = subgroupSum({input});\n"))
+                f.write_fmt(format_args!("{out} = subgroupAdd({input});\n"))
             }
             Subgroup::SubgroupProduct { input, out } => {
                 f.write_fmt(format_args!("{out} = subgroupProduct({input});\n"))

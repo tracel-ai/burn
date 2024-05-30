@@ -108,7 +108,7 @@ impl CudaCompiler {
                     instructions.push(Instruction::SyncThreads)
                 }
             },
-            gpu::Operation::Subgroup(_) => panic!("Subgroup isn't yet supported in CUDA."),
+            gpu::Operation::Subcube(_) => panic!("Subgroup isn't yet supported in CUDA."),
         }
     }
 

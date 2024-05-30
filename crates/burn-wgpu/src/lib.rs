@@ -73,4 +73,5 @@ mod tests {
     pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi>;
 
     burn_jit::testgen_all!();
+    burn_cube::testgen_all!();
 }

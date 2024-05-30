@@ -23,8 +23,8 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
         false
     }
 
-    /// Runtime flag indicating if the runtime supports subgroup operations.
-    fn subgroup() -> bool {
+    /// Runtime flag indicating if the runtime supports subcube operations.
+    fn subcube() -> bool {
         false
     }
 }

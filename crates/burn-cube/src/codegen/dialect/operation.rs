@@ -1,4 +1,4 @@
-use super::{Branch, Procedure, Subgroup, Synchronization, Variable};
+use super::{Branch, Procedure, Subcube, Synchronization, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
@@ -17,7 +17,7 @@ pub enum Operation {
     Metadata(Metadata),
     Branch(Branch),
     Synchronization(Synchronization),
-    Subgroup(Subgroup),
+    Subcube(Subcube),
 }
 
 /// All operators that can be used in a GPU compute shader.

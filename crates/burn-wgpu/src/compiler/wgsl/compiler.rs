@@ -254,57 +254,57 @@ impl WgslCompiler {
             cube::Operation::Synchronization(val) => {
                 self.compile_synchronization(instructions, val)
             }
-            cube::Operation::Subgroup(op) => self.compile_subgroup(instructions, op),
+            cube::Operation::Subcube(op) => self.compile_subgroup(instructions, op),
         }
     }
 
     fn compile_subgroup(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
-        subgroup: cube::Subgroup,
+        subgroup: cube::Subcube,
     ) {
         let op = match subgroup {
-            cube::Subgroup::SubgroupElect(op) => Subgroup::SubgroupElect {
+            cube::Subcube::SubcubeElect(op) => Subgroup::SubgroupElect {
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupAll(op) => Subgroup::SubgroupAll {
+            cube::Subcube::SubcubeAll(op) => Subgroup::SubgroupAll {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupAny(op) => Subgroup::SubgroupAny {
+            cube::Subcube::SubcubeAny(op) => Subgroup::SubgroupAny {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupBroadcast(op) => Subgroup::SubgroupBroadcast {
+            cube::Subcube::SubcubeBroadcast(op) => Subgroup::SubgroupBroadcast {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupSum(op) => Subgroup::SubgroupSum {
+            cube::Subcube::SubcubeSum(op) => Subgroup::SubgroupSum {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupProduct(op) => Subgroup::SubgroupProduct {
+            cube::Subcube::SubcubeProduct(op) => Subgroup::SubgroupProduct {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupAnd(op) => Subgroup::SubgroupAnd {
+            cube::Subcube::SubcubeAnd(op) => Subgroup::SubgroupAnd {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupOr(op) => Subgroup::SubgroupOr {
+            cube::Subcube::SubcubeOr(op) => Subgroup::SubgroupOr {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupXor(op) => Subgroup::SubgroupXor {
+            cube::Subcube::SubcubeXor(op) => Subgroup::SubgroupXor {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupMin(op) => Subgroup::SubgroupMin {
+            cube::Subcube::SubcubeMin(op) => Subgroup::SubgroupMin {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
-            cube::Subgroup::SubgroupMax(op) => Subgroup::SubgroupMax {
+            cube::Subcube::SubcubeMax(op) => Subgroup::SubgroupMax {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },

@@ -59,7 +59,7 @@ impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
         "wgpu"
     }
 
-    fn subgroup() -> bool {
+    fn subcube() -> bool {
         // TODO: assumes that all version of wgpu on the device will have the same features
         // enabled.
         SUBGROUP.load(Ordering::Relaxed)

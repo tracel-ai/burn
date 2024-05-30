@@ -4,6 +4,7 @@ extern crate alloc;
 extern crate derive_new;
 
 pub mod codegen;
+pub mod prelude;
 
 mod compute;
 mod language;
@@ -41,3 +42,6 @@ pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup 
 }
 
 pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;
+
+#[cfg(feature = "export_tests")]
+pub mod runtime_tests;
