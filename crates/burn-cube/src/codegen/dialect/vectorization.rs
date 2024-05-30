@@ -181,6 +181,9 @@ impl Variable {
             Variable::NumWorkgroupsX => *self,
             Variable::NumWorkgroupsY => *self,
             Variable::NumWorkgroupsZ => *self,
+            Variable::WorkgroupId => *self,
+            Variable::NumWorkgroups => *self,
+            Variable::WorkgroupSize => *self,
         }
     }
 }

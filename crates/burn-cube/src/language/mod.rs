@@ -1,6 +1,7 @@
-// For use with *
-mod base;
 pub mod branch;
+pub mod synchronization;
+
+mod base;
 mod comptime;
 mod context;
 mod element;
