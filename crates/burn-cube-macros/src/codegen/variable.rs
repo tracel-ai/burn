@@ -181,7 +181,7 @@ pub(crate) fn codegen_field(
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
-    let (struc, field) = if let Member::Named(attribute_ident) = &field.member {
+    let (struct_, field) = if let Member::Named(attribute_ident) = &field.member {
         if let syn::Expr::Path(struct_expr) = &*field.base {
             let struct_ident = struct_expr
                 .path
@@ -196,27 +196,27 @@ pub(crate) fn codegen_field(
         todo!("Codegen: unnamed attribute not supported.");
     };
 
-    let will_be_used_again = variable_analyses.should_clone((struc, field).into(), loop_level);
+    let will_be_used_again = variable_analyses.should_clone((struct_, field).into(), loop_level);
 
     if will_be_used_again {
         quote::quote! {
-            #struc . #field .clone()
+            #struct_ . #field .clone()
         }
     } else {
         quote::quote! {
-            #struc . #field
+            #struct_ . #field
         }
     }
 }
 
 // Codegen for a struct declaration
 pub(crate) fn codegen_struct(
-    struc: &syn::ExprStruct,
+    struct_: &syn::ExprStruct,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let mut deconstructed_path = Vec::new();
-    for segment in struc.path.segments.iter() {
+    for segment in struct_.path.segments.iter() {
         let generics = if let PathArguments::AngleBracketed(arguments) = &segment.arguments {
             Some(arguments)
         } else {
@@ -229,7 +229,7 @@ pub(crate) fn codegen_struct(
         .pop()
         .expect("At least one ident in the path");
 
-    // This is hacky but using <Struc as CubeType>::ExpandType {...} is experimental in Rust
+    // This is hacky but using <struct_ as CubeType>::ExpandType {...} is experimental in Rust
     let expanded_struct_name = syn::Ident::new(
         format!("{}Expand", struct_name).as_str(),
         proc_macro2::Span::call_site(),
@@ -248,7 +248,7 @@ pub(crate) fn codegen_struct(
         });
     }
 
-    let fields = codegen_field_creation(&struc.fields, loop_level, variable_analyses);
+    let fields = codegen_field_creation(&struct_.fields, loop_level, variable_analyses);
     quote::quote! {
         #path_tokens { #fields }
     }

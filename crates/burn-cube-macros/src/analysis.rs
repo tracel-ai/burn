@@ -70,8 +70,8 @@ impl CodeAnalysis {
                 should_clone
                     || match key {
                         VariableKey::LocalKey(_) => false,
-                        VariableKey::Attribute((struc, _)) => {
-                            self.variable_analyses.get(&struc.into()).unwrap().num_used > 0
+                        VariableKey::Attribute((struct_, _)) => {
+                            self.variable_analyses.get(&struct_.into()).unwrap().num_used > 0
                         }
                     }
             }
@@ -127,11 +127,11 @@ impl CodeAnalysisBuilder {
                     variable_analyses.insert(id.clone(), new_analysis);
                 }
                 None => {
-                    if let VariableKey::Attribute((struc, _)) = id {
-                        let struct_analysis = variable_analyses.get(&((struc.clone()).into())).unwrap_or_else(||
+                    if let VariableKey::Attribute((struct_, _)) = id {
+                        let struct_analysis = variable_analyses.get(&((struct_.clone()).into())).unwrap_or_else(||
                             panic!(
                                 "Analysis: Struct {:?} should be declared before using its attribute",
-                                struc
+                                struct_
                             )
                         );
                         let attr_analysis = VariableAnalysis {
