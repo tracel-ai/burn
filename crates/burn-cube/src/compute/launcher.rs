@@ -69,13 +69,13 @@ impl<R: Runtime> KernelLauncher<R> {
     /// Launch the kernel.
     pub fn launch<K: Kernel>(
         self,
-        workgroup: CubeCount,
+        cube_count: CubeCount,
         kernel: K,
         client: ComputeClient<R::Server, R::Channel>,
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, workgroup));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, cube_count));
 
         client.execute(kernel, bindings);
     }

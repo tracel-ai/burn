@@ -239,7 +239,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        let work_group = kernel.launch_settings().workgroup;
+        let work_group = kernel.launch_settings().cube_count;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 

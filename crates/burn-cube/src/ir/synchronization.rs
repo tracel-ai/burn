@@ -4,6 +4,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
 pub enum Synchronization {
-    // A workgroup barrier
-    WorkgroupBarrier,
+    // Synchronizize units in a cube.
+    SyncUnits,
 }

@@ -39,13 +39,13 @@ pub trait Kernel: Send + Sync + 'static {
     }
 }
 
-pub fn calculate_cube_count_elemwise(num_elems: usize, workgroup_size: usize) -> CubeCount {
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(workgroups));
-    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
+pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeCount {
+    let num_elems_per_cube = cube_dim * cube_dim;
+    let cube_counts = f32::ceil(num_elems as f32 / num_elems_per_cube as f32);
+    let cube_count_x = f32::ceil(f32::sqrt(cube_counts));
+    let cube_count_y = f32::ceil(num_elems as f32 / (cube_count_x * num_elems_per_cube as f32));
 
-    CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::new(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
 pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;

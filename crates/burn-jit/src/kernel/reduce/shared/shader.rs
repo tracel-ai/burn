@@ -196,7 +196,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
             })
         );
 
-        scope.register(Synchronization::WorkgroupBarrier);
+        scope.register(Synchronization::SyncUnits);
 
         let several_threads_active = scope.create_local(Elem::Bool);
 
@@ -218,7 +218,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
                 RD::write_to_shared(scope, shared_memory, local_id, read_value);
             }));
 
-            scope.register(Synchronization::WorkgroupBarrier);
+            scope.register(Synchronization::SyncUnits);
         }));
 
         let is_first_thread = scope.create_local(Elem::Bool);

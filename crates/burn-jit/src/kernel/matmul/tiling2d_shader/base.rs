@@ -55,11 +55,11 @@ impl MatmulTiling2dShader {
 
                 load_shared_memory(scope, &self, &shader_state);
 
-                scope.register(Synchronization::WorkgroupBarrier);
+                scope.register(Synchronization::SyncUnits);
 
                 computation_loop(scope, &self, &shader_state);
 
-                scope.register(Synchronization::WorkgroupBarrier);
+                scope.register(Synchronization::SyncUnits);
             })
         );
 

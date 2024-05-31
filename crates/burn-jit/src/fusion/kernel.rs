@@ -22,7 +22,7 @@ pub struct FusionKernel<R: JitRuntime> {
     info: Arc<KernelExpansion>,
     settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    workgroup: CubeCount,
+    cube_count: CubeCount,
     _runtime: PhantomData<R>,
 }
 
@@ -233,7 +233,7 @@ impl<R: JitRuntime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        let workgroup = fusion_kernel.workgroup.clone();
+        let workgroup = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
             Box::new(KernelTask::<R::Compiler, FusionKernel<R>>::new(
                 fusion_kernel,

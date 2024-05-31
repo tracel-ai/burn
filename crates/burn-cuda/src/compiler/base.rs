@@ -71,7 +71,7 @@ impl CudaCompiler {
                 .into_iter()
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
-            workgroup_size: value.cube_dim,
+            cube_dim: value.cube_dim,
             body,
         }
     }
@@ -106,9 +106,7 @@ impl CudaCompiler {
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
             gpu::Operation::Synchronization(val) => match val {
-                gpu::Synchronization::WorkgroupBarrier => {
-                    instructions.push(Instruction::SyncThreads)
-                }
+                gpu::Synchronization::SyncUnits => instructions.push(Instruction::SyncThreads),
             },
             gpu::Operation::Subcube(op) => {
                 self.wrap_size_checked = true;

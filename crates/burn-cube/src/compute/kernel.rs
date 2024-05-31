@@ -15,7 +15,7 @@ pub struct CompiledKernel {
 /// Information needed to launch the kernel
 pub struct LaunchSettings {
     /// Layout of workgroups for the kernel
-    pub workgroup: CubeCount,
+    pub cube_count: CubeCount,
 }
 
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
@@ -42,14 +42,14 @@ pub struct KernelTask<C: Compiler, K: Kernel> {
 impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel_definition.define();
-        let workgroup_size = gpu_ir.cube_dim;
+        let cube_dim = gpu_ir.cube_dim;
         let lower_level_ir = C::compile(gpu_ir);
         let shared_mem_bytes = lower_level_ir.shared_memory_size();
         let source = lower_level_ir.to_string();
 
         CompiledKernel {
             source,
-            cube_dim: workgroup_size,
+            cube_dim,
             shared_mem_bytes,
         }
     }
@@ -60,7 +60,7 @@ impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.cube_count.clone(),
+            cube_count: self.cube_count.clone(),
         }
     }
 }

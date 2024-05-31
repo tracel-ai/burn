@@ -207,7 +207,7 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         inputs, outputs, scalars_1, scalars_2, scalars_3, launch, &client,
     );
     let mut handles = settings.handles_tensors;
-    let workgroup = settings.workgroup;
+    let workgroup = settings.cube_count;
 
     handles.push(settings.handle_info.binding());
     for handle in settings.handles_scalars.into_iter() {
@@ -223,7 +223,7 @@ struct ExecuteSettings<R: Runtime> {
     handles_tensors: Vec<Binding<R::Server>>,
     handle_info: Handle<R::Server>,
     handles_scalars: Vec<Handle<R::Server>>,
-    workgroup: CubeCount,
+    cube_count: CubeCount,
 }
 
 fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeElement>(
@@ -304,7 +304,7 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
         handles_tensors: handles,
         handle_info: info,
         handles_scalars,
-        workgroup,
+        cube_count: workgroup,
     }
 }
 

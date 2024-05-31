@@ -15,8 +15,8 @@ pub trait KernelSource: Send + 'static + Sync {
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
-    workgroup: CubeCount,
-    workgroup_size: CubeDim,
+    cube_count: CubeCount,
+    cube_dim: CubeDim,
 }
 
 impl<K> CubeTask for SourceKernel<K>
@@ -29,7 +29,7 @@ where
 
         CompiledKernel {
             source,
-            cube_dim: self.workgroup_size,
+            cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
         }
     }
@@ -40,7 +40,7 @@ where
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.workgroup.clone(),
+            cube_count: self.cube_count.clone(),
         }
     }
 }
