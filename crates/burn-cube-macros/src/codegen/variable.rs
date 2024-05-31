@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::Lit;
+use syn::{token::Token, Lit, Member};
 
 use crate::{
     analysis::{CodeAnalysis, KEYWORDS},
@@ -127,6 +127,18 @@ pub(crate) fn codegen_assign(
                 }
             }
         }
+        syn::Expr::Field(_) => {
+            let lhs = codegen_expr(&assign.left, loop_level, variable_analyses);
+            let rhs = codegen_expr(&assign.right, loop_level, variable_analyses);
+
+            quote::quote! {
+                {
+                    let _assign_lhs = #lhs;
+                    let _assign_rhs = #rhs;
+                    burn_cube::assign::expand(context, _assign_rhs, _assign_lhs)
+                }
+            }
+        }
         _ => todo!("Assign of expr {:?} unsupported", assign.left),
     }
 }
@@ -148,7 +160,7 @@ pub(crate) fn codegen_path_rhs(
             #ident :: expand(context)
         }
     } else {
-        let will_be_used_again = variable_analyses.should_clone(ident, loop_level);
+        let will_be_used_again = variable_analyses.should_clone(ident.into(), loop_level);
 
         if will_be_used_again {
             quote::quote! {
@@ -158,6 +170,41 @@ pub(crate) fn codegen_path_rhs(
             quote::quote! {
                 #ident
             }
+        }
+    }
+}
+
+/// Codegen for a field used in rhs of a statement
+/// This function adds cloning when necessary
+pub(crate) fn codegen_field(
+    field: &syn::ExprField,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let (struc, field) = if let Member::Named(attribute_ident) = &field.member {
+        if let syn::Expr::Path(struct_expr) = &*field.base {
+            let struct_ident = struct_expr
+                .path
+                .get_ident()
+                .expect("Codegen: field access only supported on ident struct.");
+
+            (struct_ident, attribute_ident)
+        } else {
+            todo!("Codegen: field access only supported on ident struct.");
+        }
+    } else {
+        todo!("Codegen: unnamed attribute not supported.");
+    };
+
+    let will_be_used_again = variable_analyses.should_clone((struc, field).into(), loop_level);
+
+    if will_be_used_again {
+        quote::quote! {
+            #struc . #field .clone()
+        }
+    } else {
+        quote::quote! {
+            #struc . #field
         }
     }
 }

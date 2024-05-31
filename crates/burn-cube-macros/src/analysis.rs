@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use syn::{PathArguments, Stmt};
+use syn::{Member, PathArguments, Stmt};
 
-use crate::VariableKey;
+use crate::variable_key::VariableKey;
 
 pub const KEYWORDS: [&str; 20] = [
     "ABSOLUTE_POS",
@@ -61,15 +61,21 @@ pub(crate) struct CodeAnalysisBuilder {
 }
 
 impl CodeAnalysis {
-    pub fn should_clone(&mut self, ident: &syn::Ident, loop_level: usize) -> bool {
-        let key: VariableKey = ident.into();
+    pub fn should_clone(&mut self, key: VariableKey, loop_level: usize) -> bool {
         match self.variable_analyses.remove(&key) {
             Some(mut var) => {
                 let should_clone = var.should_clone(loop_level);
-                self.variable_analyses.insert(key, var);
+                self.variable_analyses.insert(key.clone(), var);
+
                 should_clone
+                    || match key {
+                        VariableKey::LocalKey(_) => false,
+                        VariableKey::Attribute((struc, _)) => {
+                            self.variable_analyses.get(&struc.into()).unwrap().num_used > 0
+                        }
+                    }
             }
-            None => panic!("Ident {ident} not part of analysis"),
+            None => panic!("Variable {key:?} not part of analysis"),
         }
     }
 
@@ -108,18 +114,39 @@ impl CodeAnalysisBuilder {
             variable_analyses.insert(id, new_analysis);
         }
 
+        // panic!("{:?}", variable_analyses);
+        // panic!("{:?}", self.declarations);
         for id in self.var_uses.iter() {
-            let prev_analysis = variable_analyses.remove(id).unwrap_or_else(|| {
-                panic!(
-                    "Analysis: Variable {:?} should be declared before it's used",
-                    id
-                )
-            });
-            let new_analysis = VariableAnalysis {
-                num_used: prev_analysis.num_used + 1,
-                loop_level_declared: prev_analysis.loop_level_declared,
+            match variable_analyses.remove(id) {
+                Some(prev_analysis) => {
+                    let new_analysis = VariableAnalysis {
+                        num_used: prev_analysis.num_used + 1,
+                        loop_level_declared: prev_analysis.loop_level_declared,
+                    };
+
+                    variable_analyses.insert(id.clone(), new_analysis);
+                }
+                None => {
+                    if let VariableKey::Attribute((struc, _)) = id {
+                        let struct_analysis = variable_analyses.get(&((struc.clone()).into())).unwrap_or_else(||
+                            panic!(
+                                "Analysis: Struct {:?} should be declared before using its attribute",
+                                struc
+                            )
+                        );
+                        let attr_analysis = VariableAnalysis {
+                            num_used: 1,
+                            loop_level_declared: struct_analysis.loop_level_declared,
+                        };
+                        variable_analyses.insert(id.clone(), attr_analysis);
+                    } else {
+                        panic!(
+                            "Analysis: Variable {:?} should be declared before it's used",
+                            id
+                        )
+                    }
+                }
             };
-            variable_analyses.insert(id.clone(), new_analysis);
         }
 
         variable_analyses
@@ -289,6 +316,31 @@ impl CodeAnalysisBuilder {
                 self.find_occurrences_in_expr(&expr.body, depth + 1)
             }
             syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
+            syn::Expr::Field(expr) => {
+                // What do we want?
+                // Multiple structs named differently can have the same attribute name
+                // One struct can have several attribute names
+                // a.b -> a is not unique, b is not unique, but a.b is
+                // We analyze over a.b
+                // If we do c = a, then under the hood it should assign all attributes one by one. Not needed in the now
+                // We don't support structs of structs for now.
+                // Therefore we must treat a.b as a single name and have struct assignation be a deep copy (not recursive)
+
+                if let Member::Named(attribute_ident) = &expr.member {
+                    if let syn::Expr::Path(struct_expr) = &*expr.base {
+                        let struct_ident = struct_expr
+                            .path
+                            .get_ident()
+                            .expect("Analysis: field access only supported on ident struct.");
+
+                        self.var_uses.push((struct_ident, attribute_ident).into())
+                    } else {
+                        todo!("Analysis: field access only supported on ident struct.");
+                    }
+                } else {
+                    todo!("Analysis: unnamed attribute not supported.");
+                }
+            }
             _ => todo!("Analysis: unsupported expr {expr:?}"),
         }
     }

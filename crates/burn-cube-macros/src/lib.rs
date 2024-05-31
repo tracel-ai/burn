@@ -1,5 +1,6 @@
 mod analysis;
 mod codegen;
+mod variable_key;
 
 use analysis::CodeAnalysis;
 use codegen::{codegen_launch, codegen_statement};
@@ -70,19 +71,6 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
     }
 
     (mode, launch)
-}
-
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
-struct VariableKey {
-    name: String,
-}
-
-impl From<&syn::Ident> for VariableKey {
-    fn from(value: &syn::Ident) -> Self {
-        VariableKey {
-            name: value.to_string(),
-        }
-    }
 }
 
 /// Generate the expanded version of a function marked with the cube macro
