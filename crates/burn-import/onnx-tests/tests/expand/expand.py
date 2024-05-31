@@ -36,7 +36,7 @@ def main() -> None:
         nodes=[shape_node, expand_node],
         name='ExpandGraph',
         inputs=[
-            helper.make_tensor_value_info('input_tensor', TensorProto.FLOAT, [2]),
+            helper.make_tensor_value_info('input_tensor', TensorProto.FLOAT, [2, 1]),
         ],
         outputs=[
             helper.make_tensor_value_info('output', TensorProto.FLOAT, [2, 2])

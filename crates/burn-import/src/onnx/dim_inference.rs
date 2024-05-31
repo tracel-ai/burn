@@ -481,7 +481,7 @@ fn expand_update_outputs(node: &mut Node) {
             None => None,
         }
     } else {
-        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
+        panic!("Expand: invalid number of inputs");
     };
 
     let output = match &node.outputs[0].ty {

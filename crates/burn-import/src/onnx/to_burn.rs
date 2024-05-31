@@ -878,7 +878,6 @@ impl OnnxGraph {
     fn expand_conversion(node: Node) -> ExpandNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
-        println!("{:?}", node);
         let shape = expand_config(&node);
 
         ExpandNode::new(input, output, shape)
