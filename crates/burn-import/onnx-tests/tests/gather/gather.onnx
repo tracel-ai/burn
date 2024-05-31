@@ -1,16 +1,16 @@
-pytorch2.2.2:Ø
-a
-onnx::GatherElements_0
-onnx::GatherElements_12/GatherElements"GatherElements*
+pytorch2.1.1:¤
+A
+onnx::Gather_0
+onnx::Gather_12/Gather"Gather*
 axis 
-main_graphZ(
-onnx::GatherElements_0
+main_graphZ 
+onnx::Gather_0
 
 
-Z(
-onnx::GatherElements_1
-
-
+Z
+onnx::Gather_1
+
+
 b
 2
 

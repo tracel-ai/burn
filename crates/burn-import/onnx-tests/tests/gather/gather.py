@@ -11,8 +11,8 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, x, index):
-        x = torch.gather(x, 1, index)
-        return x
+        gathered = torch.index_select(x, 1, index)
+        return gathered
 
 
 def main():
@@ -24,8 +24,9 @@ def main():
     model.eval()
     device = torch.device("cpu")
     onnx_name = "gather.onnx"
-    dummy_input = torch.randn(2, 2, device=device)
-    dummy_index = torch.randint(high=2, size=(2, 2), device=device, dtype=torch.int64)
+
+    dummy_input = torch.randn(2, 3, device=device)
+    dummy_index = torch.tensor([0, 2], device=device, dtype=torch.int64)
 
     torch.onnx.export(model, (dummy_input, dummy_index), onnx_name,
                       verbose=False, opset_version=16)
@@ -33,10 +34,9 @@ def main():
     print("Finished exporting model to {}".format(onnx_name))
 
     # Output some test data for use in the test
-    test_input = torch.tensor([[1.0, 2.0],
-                               [3.0, 4.0]])
-    test_index = torch.tensor([[0, 0],
-                               [1, 0]])
+    test_input = torch.tensor([[1.0, 2.0, 3.0],
+                               [4.0, 5.0, 6.0]])
+    test_index = torch.tensor([0, 2], dtype=torch.int64)
 
     print("Test input data: {}, {}".format(test_input, test_index))
     output = model.forward(test_input, test_index)
