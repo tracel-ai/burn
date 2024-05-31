@@ -22,7 +22,8 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
     let (mode, launch) = parse_attributes(&args);
 
-    let func: syn::ItemFn = syn::parse(tokens).expect("Cube annotations only supported for functions");
+    let func: syn::ItemFn =
+        syn::parse(tokens).expect("Cube annotations only supported for functions");
     let mut variable_analyses = CodeAnalysis::create(&func);
 
     let cube = codegen_cube(&func, &mut variable_analyses);
