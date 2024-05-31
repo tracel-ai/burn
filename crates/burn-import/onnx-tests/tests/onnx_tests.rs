@@ -57,6 +57,7 @@ include_models!(
     less,
     less_or_equal,
     prelu,
+    range,
     recip,
     reduce_max,
     reduce_mean,
@@ -1068,6 +1069,21 @@ mod tests {
         // data from pyTorch
         let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn range() {
+        let device = Default::default();
+        let model: range::Model<Backend> = range::Model::new(&device);
+
+        // Run the model
+        let start = 0i64;
+        let limit = 10i64;
+        let delta = 2i64;
+        let output = model.forward(start, limit, delta);
+
+        let expected = Data::from([0, 2, 4, 6, 8]);
+        assert_eq!(output.to_data(), expected);
     }
 
     #[test]

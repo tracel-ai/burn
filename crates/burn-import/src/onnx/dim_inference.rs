@@ -51,6 +51,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
         NodeType::Less => less_update_outputs(node),
         NodeType::LessOrEqual => less_or_equal_update_outputs(node),
+        NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
@@ -585,6 +586,18 @@ fn matmul_update_outputs(node: &mut Node) {
         }
         _ => panic!("Only tensor input is valid"),
     }
+}
+
+fn range_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 3 {
+        panic!("Range: expected 3 inputs, found {}", node.inputs.len());
+    }
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: ElementType::Int64,
+        dim: 1,
+        shape: None,
+    });
 }
 
 /// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.

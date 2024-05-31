@@ -23,6 +23,7 @@ pub(crate) mod max_pool2d;
 pub(crate) mod prelu;
 pub(crate) mod random_normal;
 pub(crate) mod random_uniform;
+pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod squeeze;
 pub(crate) mod unary;

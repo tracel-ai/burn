@@ -38,6 +38,7 @@ use crate::{
             prelu::PReluNode,
             random_normal::RandomNormalNode,
             random_uniform::RandomUniformNode,
+            range::RangeNode,
             reshape::ReshapeNode,
             squeeze::SqueezeNode,
             unary::UnaryNode,
@@ -279,6 +280,7 @@ impl OnnxGraph {
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
+                NodeType::Range => graph.register(Self::range_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
@@ -573,6 +575,29 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::min_pair(lhs, rhs, output)
+    }
+
+    fn range_conversion(node: Node) -> RangeNode {
+        fn convert_arg_to_scalar(arg: &Argument) -> ScalarType {
+            match &arg.ty {
+                ArgType::Scalar(scalar) => {
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
+                }
+                ArgType::Tensor(tensor) => {
+                    if tensor.dim != 0 {
+                        panic!("Range node requires scalar inputs");
+                    }
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
+                }
+                _ => panic!("Range node requires scalar inputs"),
+            }
+        }
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
+        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
+        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+
+        RangeNode::new(start, end, step, output)
     }
 
     fn reduce_max_conversion(node: Node) -> UnaryNode {
