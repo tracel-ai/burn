@@ -4,7 +4,7 @@ use super::Backend;
 use burn::{
     backend::wgpu::{
         build_info, into_contiguous, kernel_wgsl, CubeCount, CubeDim, FloatElement, GraphicsApi,
-        IntElement, JitBackend, JitTensor, Kernel, SourceKernel, SourceTemplate, WgpuRuntime,
+        IntElement, JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -22,7 +22,7 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 }
 
 // Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> Kernel for FusedMatmulAddRelu<E> {
+impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
     fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.

@@ -56,7 +56,7 @@ macro_rules! kernel_wgsl {
         #[derive(new)]
         pub struct $struct;
 
-        impl $crate::template::KernelSource for $struct {
+        impl $struct {
             fn source(&self) -> $crate::template::SourceTemplate {
                 $crate::template::SourceTemplate::new(include_str!($file))
             }
