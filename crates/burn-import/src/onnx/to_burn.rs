@@ -27,6 +27,7 @@ use crate::{
             conv2d::Conv2dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
+            expand::ExpandNode,
             gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
@@ -244,6 +245,7 @@ impl OnnxGraph {
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
+                NodeType::Expand => graph.register(Self::expand_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -906,6 +908,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::exp(input, output)
+    }
+
+    fn expand_conversion(node: Node) -> ExpandNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let shape = expand_config(&node);
+
+        ExpandNode::new(input, output, shape)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {

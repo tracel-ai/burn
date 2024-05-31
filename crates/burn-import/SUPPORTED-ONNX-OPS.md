@@ -59,7 +59,7 @@ represent the corresponding Burn Op.
 | [Equal][51]                      |       ✅       |      ✅      |
 | [Erf][52]                        |       ✅       |      ✅      |
 | [Exp][53]                        |       ✅       |      ✅      |
-| [Expand][54]                     |       ❌       |      ✅      |
+| [Expand][54]                     |       ✅       |      ✅      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |

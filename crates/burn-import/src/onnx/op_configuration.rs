@@ -262,6 +262,21 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         .with_count_include_pad(count_include_pad == 1)
 }
 
+pub fn expand_config(node: &Node) -> Vec<i64> {
+    let input_value = &node.inputs[1].value;
+    match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
+                shape.clone()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    }
+}
+
 /// Create a FlattenConfig from the attributes of the node
 pub fn flatten_config(curr: &Node) -> (usize, usize) {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)

@@ -1,3 +1,4 @@
+use super::expand::ExpandNode;
 use super::{
     argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
@@ -90,6 +91,7 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose2d(ConvTranspose2dNode<PS>),
     PRelu(PReluNode<PS>),
     Dropout(DropoutNode),
+    Expand(ExpandNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     LayerNorm(LayerNormNode<PS>),
@@ -124,6 +126,7 @@ macro_rules! match_all {
             Node::ConvTranspose2d(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Expand(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
@@ -168,6 +171,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
+            Node::Expand(_) => "expand",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::LayerNorm(_) => "layer_norm",
