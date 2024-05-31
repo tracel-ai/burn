@@ -50,8 +50,8 @@ macro_rules! binary {
 
         #[allow(clippy::redundant_closure_call)]
         fn compile<I, O>(
-            settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::ir::ComputeShader
+            settings: burn_cube::KernelSettings,
+        ) -> burn_cube::ir::KernelDefinition
         where
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
@@ -77,60 +77,60 @@ macro_rules! binary {
                 local,
                 position,
             };
-            let info = burn_cube::CompilationInfo {
+            let info = burn_cube::prelude::KernelExpansion {
                 inputs: vec![lhs, rhs],
                 outputs: vec![out],
                 scope,
             };
-            burn_cube::Compilation::new(info).compile(settings)
+            burn_cube::prelude::KernelIntegrator::new(info).integrate(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase for Ops<C, I, O>
+        impl<C, I, O> $crate::kernel::Kernel for Ops<C, I, O>
         where
             C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::ir::ComputeShader {
-                let settings = burn_cube::CompilationSettings::default();
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
+                let settings = burn_cube::KernelSettings::default();
                 compile::<I, O>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
+        impl<C, I, O> $crate::kernel::Kernel
             for OpsInplaceLhs<C, I, O>
         where
             C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::ir::ComputeShader {
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                let settings = burn_cube::CompilationSettings::default()
+                let settings = burn_cube::KernelSettings::default()
                     .inplace(vec![mapping]);
                 compile::<I, O>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::GpuComputeShaderPhase
+        impl<C, I, O> $crate::kernel::Kernel
             for OpsInplaceRhs<C, I, O>
         where
             C: burn_cube::Compiler,
             I: $crate::element::JitElement,
             O: $crate::element::JitElement
         {
-            fn compile(&self) -> burn_cube::ir::ComputeShader {
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
                 };
-                let settings = burn_cube::CompilationSettings::default()
+                let settings = burn_cube::KernelSettings::default()
                     .inplace(vec![mapping]);
                 compile::<I, O>(settings)
             }

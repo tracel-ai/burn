@@ -118,7 +118,7 @@ impl Codegen {
 
         quote::quote! {
             pub struct #ident #generics {
-                settings: CompilationSettings,
+                settings: KernelSettings,
                 #comptimes
                 #phantoms
             }
@@ -166,16 +166,15 @@ impl Codegen {
         }
 
         quote::quote! {
-            impl #impl_gen GpuComputeShaderPhase for #ident #ty_gen #where_gen {
-                fn compile(&self) -> ComputeShader {
+            impl #impl_gen Kernel for #ident #ty_gen #where_gen {
+                fn define(&self) -> KernelDefinition {
                     let mut builder = KernelBuilder::default();
 
                     #variables
 
                     #expand::#generics(#expand_args);
 
-                    let compilation = builder.build();
-                    compilation.compile(self.settings.clone())
+                    builder.build(self.settings.clone())
                 }
 
                 fn id(&self) -> String {
@@ -278,7 +277,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
             cube_count: CubeCount,
-            settings: CompilationSettings,
+            settings: KernelSettings,
             #inputs
         ) -> #output {
             #body;
