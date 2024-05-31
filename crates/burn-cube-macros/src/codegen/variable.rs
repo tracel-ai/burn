@@ -135,7 +135,7 @@ pub(crate) fn codegen_assign(
                 {
                     let _assign_lhs = #lhs;
                     let _assign_rhs = #rhs;
-                    burn_cube::assign::expand(context, _assign_rhs, _assign_lhs)
+                    burn_cube::frontend::assign::expand(context, _assign_rhs, _assign_lhs)
                 }
             }
         }

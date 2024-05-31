@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeType, Numeric};
+use burn_cube::prelude::*;
 
 // TODO: decorate with #[cube] to generate StateExpand and impl CubeType for State<T>
 struct State<T: Numeric> {
@@ -46,8 +46,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Item, Variable},
     };
 
     type ElemType = F32;
