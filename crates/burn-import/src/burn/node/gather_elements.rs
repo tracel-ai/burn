@@ -57,7 +57,7 @@ mod tests {
     };
 
     #[test]
-    fn test_codegen_gather() {
+    fn test_codegen_gather_elements() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(GatherElementsNode::new(
