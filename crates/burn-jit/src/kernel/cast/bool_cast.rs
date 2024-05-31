@@ -1,9 +1,10 @@
-use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRuntime};
+use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, Item, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -37,7 +38,7 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -53,8 +54,8 @@ pub(crate) struct BoolCastEagerKernel<R: JitRuntime, EO: JitElement> {
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKernel<R, EO> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, EO: JitElement> Kernel for BoolCastEagerKernel<R, EO> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_input = Item::new(Elem::Bool);
         let item_output = EO::cube_elem().into();
@@ -73,14 +74,14 @@ impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKerne
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -91,7 +92,7 @@ impl<R: JitRuntime, EO: JitElement> GpuComputeShaderPhase for BoolCastEagerKerne
 impl BoolCastShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let represents_true = scope.create_local(Elem::Bool);

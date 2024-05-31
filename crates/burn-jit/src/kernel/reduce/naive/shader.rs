@@ -1,12 +1,13 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
-use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 
 use super::base::ReduceDimNaive;
 
@@ -32,10 +33,10 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kernel
     for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
@@ -61,14 +62,14 @@ impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuC
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -80,7 +81,7 @@ impl<E: JitElement, RD: ReduceDimNaive<E>> NaiveReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let offset_input = scope.zero(Elem::UInt);
@@ -159,7 +160,7 @@ pub fn reduce_dim_naive<
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

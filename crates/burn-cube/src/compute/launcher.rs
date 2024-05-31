@@ -1,6 +1,6 @@
-use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
-use crate::dialect::{Elem, FloatKind, IntKind};
-use crate::{calculate_num_elems_dyn_rank, GpuComputeShaderPhase, Runtime, TensorHandle};
+use crate::compute::{CubeCount, KernelTask};
+use crate::ir::{Elem, FloatKind, IntKind};
+use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, Kernel, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;
@@ -67,24 +67,22 @@ impl<R: Runtime> KernelLauncher<R> {
     }
 
     /// Launch the kernel.
-    pub fn launch<K: GpuComputeShaderPhase>(
+    pub fn launch<K: Kernel>(
         self,
-        workgroup: WorkGroup,
+        cube_count: CubeCount,
         kernel: K,
         client: ComputeClient<R::Server, R::Channel>,
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Kernel::JitGpu(Box::new(FullCompilationPhase::<R::Compiler, K>::new(
-            kernel, workgroup,
-        )));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, cube_count));
 
         client.execute(kernel, bindings);
     }
 
     /// We need to create the bindings in the same order they are defined in the compilation step.
     ///
-    /// The function [crate::Compilation::compile] stars by registering the input tensors followed
+    /// The function [crate::KernelIntegrator::integrate] stars by registering the input tensors followed
     /// by the output tensors. Then the tensor metadata, and the scalars at the end. The scalars
     /// are registered in the same order they are added. This is why we store the scalar data type
     /// in the `scalar_order` vector, so that we can register them in the same order.

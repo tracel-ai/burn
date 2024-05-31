@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::prelude::*;
 
 #[cube]
 pub fn parenthesis<T: Numeric>(x: T, y: T, z: T) -> T {
@@ -6,13 +6,11 @@ pub fn parenthesis<T: Numeric>(x: T, y: T, z: T) -> T {
 }
 
 mod tests {
+    use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Item, Variable},
     };
-
-    use super::parenthesis_expand;
 
     type ElemType = F32;
 

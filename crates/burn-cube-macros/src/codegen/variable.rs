@@ -86,7 +86,7 @@ pub(crate) fn codegen_index(
         {
             let _array = #array;
             let _index = #index;
-            burn_cube::index::expand(context, _array, _index)
+            burn_cube::frontend::index::expand(context, _array, _index)
         }
     }
 }
@@ -108,10 +108,10 @@ pub(crate) fn codegen_assign(
 
             quote::quote! {
                 {
-                let _array = #array;
-                let _index = #index;
-                let _value = #value;
-                burn_cube::index_assign::expand(context, _array, _index, _value)
+                    let _array = #array;
+                    let _index = #index;
+                    let _value = #value;
+                    burn_cube::frontend::index_assign::expand(context, _array, _index, _value)
                 }
             }
         }
@@ -123,7 +123,7 @@ pub(crate) fn codegen_assign(
                 {
                     let _assign_lhs = #lhs;
                     let _assign_rhs = #rhs;
-                    burn_cube::assign::expand(context, _assign_rhs, _assign_lhs)
+                    burn_cube::frontend::assign::expand(context, _assign_rhs, _assign_lhs)
                 }
             }
         }

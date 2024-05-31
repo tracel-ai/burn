@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric, Tensor, UInt, ABSOLUTE_POS};
+use burn_cube::prelude::*;
 
 #[cube]
 fn topology_kernel<T: Numeric>(input: Tensor<T>) {
@@ -10,8 +10,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Elem, Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Elem, Item, Variable},
     };
 
     type ElemType = F32;
@@ -38,7 +37,7 @@ mod tests {
         let x = scope.create_local(Item::new(Elem::UInt));
         let y = scope.create_local(item);
 
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         cpa!(&mut scope, x = id + 4u32);
         cpa!(&mut scope, y = input[x]);
 

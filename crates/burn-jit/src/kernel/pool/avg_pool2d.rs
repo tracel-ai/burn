@@ -1,8 +1,9 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
-    Execution, TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, Item, Scope, Variable},
+    CubeCountSettings, Execution,
 };
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use std::fmt::Debug;
@@ -114,7 +115,7 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
             padding[0] as u32,
             padding[1] as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

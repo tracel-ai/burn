@@ -1,4 +1,4 @@
-use burn_cube::dialect::{Item, Scope, Variable};
+use burn_cube::ir::{Item, Scope, Variable};
 
 use crate::JitElement;
 

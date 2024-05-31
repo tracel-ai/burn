@@ -66,7 +66,7 @@ impl Codegen {
 
                     if comptime {
                         inputs.extend(quote::quote! {
-                            #ident: <#ty as burn_cube::CubeType>::ExpandType,
+                            #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                         });
                     } else {
                         inputs.extend(quote::quote! {
@@ -93,7 +93,7 @@ impl Codegen {
             syn::ReturnType::Default => output.extend(quote::quote! {()}),
             syn::ReturnType::Type(_, ty) => {
                 output.extend(quote::quote! {
-                    <#ty as burn_cube::CubeType>::ExpandType
+                    <#ty as burn_cube::frontend::CubeType>::ExpandType
                 });
             }
         }
@@ -118,7 +118,7 @@ impl Codegen {
 
         quote::quote! {
             pub struct #ident #generics {
-                settings: CompilationSettings,
+                settings: KernelSettings,
                 #comptimes
                 #phantoms
             }
@@ -166,16 +166,15 @@ impl Codegen {
         }
 
         quote::quote! {
-            impl #impl_gen GpuComputeShaderPhase for #ident #ty_gen #where_gen {
-                fn compile(&self) -> ComputeShader {
+            impl #impl_gen Kernel for #ident #ty_gen #where_gen {
+                fn define(&self) -> KernelDefinition {
                     let mut builder = KernelBuilder::default();
 
                     #variables
 
                     #expand::#generics(#expand_args);
 
-                    let compilation = builder.build();
-                    compilation.compile(self.settings.clone())
+                    builder.build(self.settings.clone())
                 }
 
                 fn id(&self) -> String {
@@ -252,7 +251,7 @@ impl Codegen {
 
             #body
 
-            launcher.launch(workgroup, kernel, client);
+            launcher.launch(cube_count, kernel, client);
         }
     }
 }
@@ -277,8 +276,8 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         #[allow(clippy::too_many_arguments)]
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
-            workgroup: WorkGroup,
-            settings: CompilationSettings,
+            cube_count: CubeCount,
+            settings: KernelSettings,
             #inputs
         ) -> #output {
             #body;

@@ -1,7 +1,7 @@
 use crate::{kernel::reduce::SumDim, JitElement};
 use burn_cube::{
     cpa,
-    dialect::{Item, Scope, Variable},
+    ir::{Item, Scope, Variable},
 };
 
 use super::base::ReduceDimNaive;
@@ -23,7 +23,7 @@ impl<E: JitElement> ReduceDimNaive<E> for SumDim {
         accumulator: Variable,
         _shape_reduce_dim: Variable,
     ) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         cpa!(scope, output[id] = accumulator);
     }
 }

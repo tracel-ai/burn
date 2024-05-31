@@ -1,17 +1,17 @@
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo, TensorHandle,
-    WorkgroupLaunch,
+    cpa, frontend::TensorHandle, CubeCountSettings, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings, OutputInfo,
 };
 use burn_cube::{
-    dialect::{
-        BinaryOperator, Branch, ComputeShader, Elem, FloatKind, IndexOffsetGlobalWithLayout, Scope,
-        Variable, Visibility, WorkgroupSize,
+    ir::{
+        BinaryOperator, Branch, CubeDim, Elem, FloatKind, IndexOffsetGlobalWithLayout,
+        KernelDefinition, Scope, Variable, Visibility,
     },
     Execution,
 };
@@ -35,8 +35,8 @@ struct MatmulComputeShader {
 impl MatmulComputeShader {
     fn expand(self, scope: &mut Scope) {
         // Define out global variables.
-        let local_idx = Variable::LocalInvocationIndex;
-        let batch = Variable::GlobalInvocationIdZ;
+        let local_idx = Variable::UnitPos;
+        let batch = Variable::AbsolutePosZ;
         let rank = Variable::Rank;
         let block_size: Variable = self.block_size.into();
 
@@ -53,12 +53,12 @@ impl MatmulComputeShader {
 
         // Row position.
         cpa!(scope, tmp_index = local_idx / block_size);
-        cpa!(scope, row = block_size * Variable::WorkgroupIdX);
+        cpa!(scope, row = block_size * Variable::CubePosX);
         cpa!(scope, row = row + tmp_index);
 
         // Col position.
         cpa!(scope, tmp_index = local_idx % block_size);
-        cpa!(scope, col = block_size * Variable::WorkgroupIdY);
+        cpa!(scope, col = block_size * Variable::CubePosY);
         cpa!(scope, col = col + tmp_index);
 
         // Batch position.
@@ -154,8 +154,8 @@ impl MatmulComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for MatmulEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         assert_eq!(
             self.workgroup_size_x, self.workgroup_size_y,
             "Only square grid is supported."
@@ -191,18 +191,18 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulEagerKernel<R
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -221,7 +221,7 @@ pub fn matmul_mem_coalescing_default<R: JitRuntime, E: JitElement, const D: usiz
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    matmul_simple::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_simple::<R, E, D>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
@@ -256,7 +256,7 @@ pub fn matmul_simple<R: JitRuntime, E: JitElement, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     out
 }

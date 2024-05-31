@@ -11,7 +11,7 @@ use crate::{
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
-use burn_cube::dialect::WorkgroupSize;
+use burn_cube::ir::CubeDim;
 use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 
@@ -48,13 +48,10 @@ impl<R: JitRuntime> ElementWise<R, CompilationPhase> {
         let kernel_factory_1 = ElementWiseKernelFactory::new(
             IdGenerator::generate(),
             info.clone(),
-            WorkgroupSize::default(),
+            CubeDim::default(),
         );
-        let kernel_factory_2 = ElementWiseKernelFactory::new(
-            IdGenerator::generate(),
-            info,
-            WorkgroupSize::new(16, 16, 1),
-        );
+        let kernel_factory_2 =
+            ElementWiseKernelFactory::new(IdGenerator::generate(), info, CubeDim::new(16, 16, 1));
 
         ElementWise {
             trace: self.trace,

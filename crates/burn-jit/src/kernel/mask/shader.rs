@@ -1,13 +1,11 @@
 use burn_cube::{
     cpa,
-    dialect::{
-        ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
-    },
-    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
+    ir::{Elem, IndexOffsetGlobalWithLayout, Item, KernelDefinition, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
-use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
+use crate::{kernel::Kernel, JitElement, JitRuntime};
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
     fn mask(
@@ -96,10 +94,10 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let tensor_item = EI::cube_elem().into();
         let mask_item = EM::cube_elem().into();
@@ -137,14 +135,14 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeS
 
         let out = OutputInfo::Array { item: tensor_item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, mask, value],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -170,10 +168,10 @@ pub(crate) struct MaskInplaceEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let tensor_item = EI::cube_elem().into();
         let mask_item = EM::cube_elem().into();
@@ -206,14 +204,14 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeS
 
         let value = M::value_info(tensor_item);
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, mask, value],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -227,7 +225,7 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> GpuComputeS
 
 impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
     pub(crate) fn expand(self, scope: &mut Scope) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let input = self.input;
         let mask = self.mask;
         let value = self.value;

@@ -1,5 +1,7 @@
+use burn_cube::prelude::*;
+
 mod elsewhere {
-    use burn_cube::{cube, Float};
+    use super::*;
 
     #[cube]
     pub fn my_func<F: Float>(x: F) -> F {
@@ -8,9 +10,7 @@ mod elsewhere {
 }
 
 mod here {
-    use burn_cube::{cube, Float};
-
-    use super::elsewhere;
+    use super::*;
 
     #[cube]
     pub fn caller<F: Float>(x: F) {
@@ -24,9 +24,8 @@ mod here {
 }
 
 mod tests {
-    use burn_cube::{dialect::Item, CubeContext, CubeElem, F32};
-
-    use super::here;
+    use super::*;
+    use burn_cube::ir::Item;
 
     type ElemType = F32;
 

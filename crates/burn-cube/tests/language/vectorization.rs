@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::prelude::*;
 
 #[cube]
 pub fn vectorization_binary<T: Numeric>(lhs: T) {
@@ -11,10 +11,8 @@ pub fn vectorization_cmp<T: Numeric>(rhs: T) {
 }
 
 mod tests {
-
-    use burn_cube::{dialect::Item, CubeContext, CubeElem, F32};
-
-    use crate::language::vectorization::{vectorization_binary_expand, vectorization_cmp_expand};
+    use super::*;
+    use burn_cube::ir::Item;
 
     type ElemType = F32;
 

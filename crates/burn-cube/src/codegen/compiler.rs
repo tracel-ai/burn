@@ -1,4 +1,4 @@
-use crate::dialect::{ComputeShader, Elem};
+use crate::ir::{Elem, KernelDefinition};
 use std::fmt::Display;
 
 /// Trait for compiled code representation
@@ -12,8 +12,8 @@ pub trait Compiler: Sync + Send + 'static + Clone + Default + core::fmt::Debug {
     /// The representation for the compiled code.
     type Representation: CompilerRepresentation;
 
-    /// Compiles the [gpu shader](ComputeShader) into the compiler's representation.
-    fn compile(shader: ComputeShader) -> Self::Representation;
+    /// Compiles the [kernel definition](KernelDefinition) into the compiler's representation.
+    fn compile(kernel: KernelDefinition) -> Self::Representation;
     /// The size of the given element in bytes.
     fn elem_size(elem: Elem) -> usize;
     /// The maximal size of a shared memory

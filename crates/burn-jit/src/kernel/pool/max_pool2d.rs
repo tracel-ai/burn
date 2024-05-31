@@ -1,7 +1,8 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
-    Execution, TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, Item, Scope, Variable},
+    CubeCountSettings, Execution,
 };
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -152,7 +153,7 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
             padding[0] as u32,
             padding[1] as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -204,7 +205,7 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
             padding[0] as i32,
             padding[1] as i32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     (output, indices)
 }

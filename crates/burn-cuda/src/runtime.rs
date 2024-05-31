@@ -79,6 +79,10 @@ impl Runtime for CudaRuntime {
     fn require_array_lengths() -> bool {
         true
     }
+
+    fn subcube() -> bool {
+        true
+    }
 }
 
 fn tuner_device_id() -> String {

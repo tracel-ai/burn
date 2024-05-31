@@ -1,7 +1,7 @@
 use crate::{kernel::reduce::MeanDim, JitElement};
 use burn_cube::{
     cpa,
-    dialect::{Item, Scope, Variable},
+    ir::{Item, Scope, Variable},
 };
 
 use super::base::ReduceDimNaive;
@@ -23,7 +23,7 @@ impl<E: JitElement> ReduceDimNaive<E> for MeanDim {
         accumulator: Variable,
         shape_reduce_dim: Variable,
     ) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let denominator = scope.create_local(accumulator.item());
         cpa!(scope, denominator = cast(shape_reduce_dim));
         cpa!(scope, accumulator = accumulator / denominator);
