@@ -17,6 +17,7 @@ macro_rules! include_models {
 include_models!(
     add_int,
     add,
+    argmax,
     avg_pool2d,
     avg_pool1d,
     batch_norm,
@@ -364,6 +365,20 @@ mod tests {
         let index = Tensor::<Backend, 2, Int>::from_ints([[0, 0], [1, 0]], &device);
         let output = model.forward(input, index);
         let expected = Data::from([[1., 1.], [4., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn argmax() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: argmax::Model<Backend> = argmax::Model::default();
+
+        let device = Default::default();
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let output = model.forward(input);
+        let expected = Data::from([[2], [2]]);
 
         assert_eq!(output.to_data(), expected);
     }

@@ -14,6 +14,7 @@ use super::{
 pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
+        NodeType::ArgMax => argmax_update_outputs(node),
         NodeType::AveragePool1d => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
         NodeType::BatchNormalization => same_as_input(node),
@@ -360,6 +361,25 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
+}
+
+fn argmax_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Mean: multiple inputs are not supported");
+    }
+
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Note: argmax in burn does not support keepdims=false
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: tensor.dim,
+        shape: tensor.shape.clone(),
+        elem_type: ElementType::Int64,
+    });
 }
 
 /// Update the output tensor dimension
