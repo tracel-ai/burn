@@ -7,9 +7,9 @@ use crate::{
 };
 use std::collections::HashMap;
 
-/// Prepare a kernel for [compilation](crate::Compilation).
+/// Prepare a kernel to create a [kernel definition](crate::KernelDefinition).
 pub struct KernelBuilder {
-    /// Compilation [context](CubeContext).
+    /// Cube [context](CubeContext).
     pub context: CubeContext,
     inputs: Vec<InputInfo>,
     outputs: Vec<OutputInfo>,
@@ -59,7 +59,7 @@ impl KernelBuilder {
         variable
     }
 
-    /// Build the [compilation item](Compilation).
+    /// Build the [kernel definition](KernelDefinition).
     pub fn build(self, settings: KernelSettings) -> KernelDefinition {
         KernelIntegrator::new(KernelExpansion {
             scope: self.context.into_scope(),

@@ -31,7 +31,7 @@ pub trait CubeTask: Send + Sync {
     fn launch_settings(&self) -> LaunchSettings;
 }
 
-/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
+/// Wraps a [kernel](Kernel) with its [cube count](CubeCount) to create a [cube task](CubeTask).
 #[derive(new)]
 pub struct KernelTask<C: Compiler, K: Kernel> {
     kernel_definition: K,

@@ -29,9 +29,9 @@ use crate::ir::KernelDefinition;
 use frontend::LaunchArg;
 use prelude::CubeCount;
 
-/// Dynamic jit kernel to create a [compute shader](ComputeShader).
+/// Implement this trait to create a [kernel definition](KernelDefinition).
 pub trait Kernel: Send + Sync + 'static {
-    /// Convert to compute shader
+    /// Convert to a kernel definition.
     fn define(&self) -> KernelDefinition;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String {
@@ -39,6 +39,8 @@ pub trait Kernel: Send + Sync + 'static {
     }
 }
 
+/// Calculate the number of cubes required to execute an operation where one cube unit is
+/// assigned to one element.
 pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeCount {
     let num_elems_per_cube = cube_dim * cube_dim;
     let cube_counts = f32::ceil(num_elems as f32 / num_elems_per_cube as f32);
@@ -48,7 +50,9 @@ pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeC
     CubeCount::new(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
+/// Runtime arguments to launch a kernel.
 pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;
 
 #[cfg(feature = "export_tests")]
+/// Tests only useful for runtimes.
 pub mod runtime_tests;

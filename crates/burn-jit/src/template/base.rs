@@ -11,7 +11,7 @@ pub trait KernelSource: Send + 'static + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [JIT kernel](JitKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,

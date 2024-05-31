@@ -7,8 +7,8 @@ use crate::{
     Runtime,
 };
 
-/// The compilation struct allows you to create a [compute shader](ComputeShader) based on
-/// [compilation info](CompilationInfo) and [compilation settings](CompilationSettings).
+/// The kernel integrator allows you to create a [kernel definition](KernelDefinition) based on
+/// [kernel expansion](KernelExpansion) and [kernel settings](KernelSettings).
 #[derive(Clone)]
 pub struct KernelIntegrator {
     expansion: KernelExpansion,
@@ -17,7 +17,7 @@ pub struct KernelIntegrator {
     named_bindings: Vec<(String, Binding)>,
 }
 
-/// The information necessary to compile a [compute shader](ComputeShader).
+/// The information necessary to compile a [kernel definition](KernelDefinition).
 #[derive(Clone)]
 pub struct KernelExpansion {
     pub inputs: Vec<InputInfo>,
@@ -261,7 +261,7 @@ impl OutputInfo {
 pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
-    /// This will create a new binding in the [compute shader](ComputeShader).
+    /// This will create a new binding in the [kernel definition](KernelDefinition).
     ArrayWrite {
         item: Item,
         local: u16,
@@ -312,7 +312,7 @@ impl KernelIntegrator {
         }
     }
 
-    /// Performs the compilation with the provided [settings](CompilationSettings).
+    /// Performs the compilation with the provided [settings](KernelSettings).
     pub fn integrate(mut self, mut settings: KernelSettings) -> KernelDefinition {
         if let Some(vectorization) = settings.vectorization_global {
             self.expansion.scope.vectorize(vectorization);

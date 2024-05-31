@@ -1,8 +1,8 @@
-mod compilation;
-pub(crate) mod compiler;
-/// Contains Intermediate Representation
-mod kernel;
+mod execution;
+mod integrator;
 
-pub use compilation::*;
+mod compiler;
+
 pub use compiler::*;
-pub use kernel::*;
+pub use execution::*;
+pub use integrator::*;

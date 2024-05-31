@@ -39,7 +39,7 @@ pub enum ReadingStrategy {
 
 impl Scope {
     /// Create a scope that is at the root of a
-    /// [compute shader](crate::ir::ComputeShader).
+    /// [kernel definition](crate::ir::KernelDefinition).
     ///
     /// A local scope can be created with the [child](Self::child) method.
     pub fn root() -> Self {

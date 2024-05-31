@@ -82,7 +82,7 @@ impl<R: Runtime> KernelLauncher<R> {
 
     /// We need to create the bindings in the same order they are defined in the compilation step.
     ///
-    /// The function [crate::Compilation::compile] stars by registering the input tensors followed
+    /// The function [crate::KernelIntegrator::integrate] stars by registering the input tensors followed
     /// by the output tensors. Then the tensor metadata, and the scalars at the end. The scalars
     /// are registered in the same order they are added. This is why we store the scalar data type
     /// in the `scalar_order` vector, so that we can register them in the same order.
