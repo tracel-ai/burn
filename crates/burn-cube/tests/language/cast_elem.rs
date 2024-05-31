@@ -1,4 +1,7 @@
-use burn_cube::{cube, Cast, Numeric, UInt, F32, I32};
+use burn_cube::{
+    cube,
+    frontend::{Cast, Numeric, UInt, F32, I32},
+};
 
 // From float
 #[cube]
@@ -115,8 +118,8 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Elem, Item, Variable},
-        CubeContext, CubeElem,
+        frontend::{CubeContext, CubeElem},
+        ir::{Elem, Item, Variable},
     };
 
     macro_rules! cast_test {

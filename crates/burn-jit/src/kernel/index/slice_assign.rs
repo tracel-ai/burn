@@ -1,9 +1,9 @@
-use crate::{element::JitElement, kernel::GpuComputeShaderPhase, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, TensorHandle,
-    WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
@@ -25,7 +25,7 @@ impl SliceAssignComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let value = self.value;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
@@ -70,8 +70,8 @@ impl SliceAssignComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -100,14 +100,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKer
             size: self.rank,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, value, ranges],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -139,7 +139,7 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const 
             TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .with_scalars(&scalars)
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     tensor
 }

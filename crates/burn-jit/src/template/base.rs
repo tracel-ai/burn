@@ -1,5 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{dialect::WorkgroupSize, CompiledKernel, JitKernel, LaunchSettings, WorkGroup};
+use burn_cube::compute::LaunchSettings;
+use burn_cube::prelude::*;
 
 use super::SourceTemplate;
 
@@ -10,15 +11,15 @@ pub trait KernelSource: Send + 'static + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [JIT kernel](JitKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
-    workgroup: WorkGroup,
-    workgroup_size: WorkgroupSize,
+    cube_count: CubeCount,
+    cube_dim: CubeDim,
 }
 
-impl<K> JitKernel for SourceKernel<K>
+impl<K> CubeTask for SourceKernel<K>
 where
     K: KernelSource + 'static,
 {
@@ -28,7 +29,7 @@ where
 
         CompiledKernel {
             source,
-            workgroup_size: self.workgroup_size,
+            cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
         }
     }
@@ -39,7 +40,7 @@ where
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.workgroup.clone(),
+            cube_count: self.cube_count.clone(),
         }
     }
 }
@@ -55,7 +56,7 @@ macro_rules! kernel_wgsl {
         #[derive(new)]
         pub struct $struct;
 
-        impl $crate::template::KernelSource for $struct {
+        impl $struct {
             fn source(&self) -> $crate::template::SourceTemplate {
                 $crate::template::SourceTemplate::new(include_str!($file))
             }

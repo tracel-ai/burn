@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, FloatKind, Scope, Variable},
+    ir::{Elem, FloatKind, Scope, Variable},
 };
 use burn_tensor::Shape;
 

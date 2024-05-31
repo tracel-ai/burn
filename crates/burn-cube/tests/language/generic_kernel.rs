@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::{cube, frontend::Numeric};
 
 #[cube]
 pub fn generic_kernel<T: Numeric>(lhs: T) {
@@ -8,8 +8,8 @@ pub fn generic_kernel<T: Numeric>(lhs: T) {
 mod tests {
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32, I32,
+        frontend::{CubeContext, CubeElem, F32, I32},
+        ir::{Item, Variable},
     };
 
     use super::*;

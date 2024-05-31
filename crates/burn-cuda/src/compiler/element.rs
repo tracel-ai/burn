@@ -1,4 +1,4 @@
-use burn_cube::dialect as gpu;
+use burn_cube::ir as gpu;
 use half::{bf16, f16};
 use std::fmt::Display;
 
@@ -114,12 +114,14 @@ impl Component for Variable {
             Variable::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Variable::NumWorkgroupsZ => Item::Scalar(Elem::U32),
             Variable::LocalArray(_, e, _, _) => *e,
+            Variable::WarpSize => Item::Scalar(Elem::U32),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Variable {
+    WarpSize,
     GlobalInputArray(u16, Item),
     GlobalOutputArray(u16, Item),
     GlobalScalar(u16, Elem, gpu::Elem),
@@ -199,6 +201,7 @@ impl Display for Variable {
             Variable::LocalArray(id, _item, depth, _size) => {
                 f.write_fmt(format_args!("l_arr_{}_{}", id, depth))
             }
+            Variable::WarpSize => f.write_str("warpSize"),
         }
     }
 }
@@ -240,6 +243,7 @@ impl Variable {
             Variable::NumWorkgroupsY => true,
             Variable::NumWorkgroupsZ => true,
             Variable::LocalArray(_, _, _, _) => false,
+            Variable::WarpSize => true,
         }
     }
 

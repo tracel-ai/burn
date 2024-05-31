@@ -1,13 +1,12 @@
 use crate::{
-    element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
-    tensor::JitTensor, JitRuntime,
+    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::dialect::{
-    ComputeShader, Elem, IndexOffsetGlobalWithLayout, IntKind, Item, Scope, Variable, Visibility,
+use burn_cube::ir::{
+    Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
 };
 use burn_cube::{
-    cpa, Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    cpa, frontend::TensorHandle, CubeCountSettings, Execution, InputInfo, KernelExpansion,
+    KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -50,8 +49,8 @@ impl GatherComputeShader {
             scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
                 tensors: vec![tensor],
                 indexes: vec![offset_before],
-                layout: Variable::Id, // Will be updated.
-                position: Variable::Id,
+                layout: Variable::AbsolutePos, // Will be updated.
+                position: Variable::AbsolutePos,
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
@@ -62,8 +61,8 @@ impl GatherComputeShader {
         scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
             tensors: vec![tensor],
             indexes: vec![offset_after],
-            layout: Variable::Id, // Will be updated.
-            position: Variable::Id,
+            layout: Variable::AbsolutePos, // Will be updated.
+            position: Variable::AbsolutePos,
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
@@ -73,14 +72,14 @@ impl GatherComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_tensor = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
         let tensor = Variable::GlobalInputArray(0, item_tensor);
-        let indices = scope.read_array(1, item_indices, Variable::Id);
+        let indices = scope.read_array(1, item_indices, Variable::AbsolutePos);
 
         let output_array = Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
@@ -93,7 +92,7 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R
         }
         .expand(&mut scope);
 
-        scope.write_global(output_local, output_array, Variable::Id);
+        scope.write_global(output_local, output_array, Variable::AbsolutePos);
 
         let tensor = InputInfo::Array {
             item: item_tensor,
@@ -105,14 +104,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R
         };
         let out = OutputInfo::Array { item: item_tensor };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor, indices],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -139,7 +138,7 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

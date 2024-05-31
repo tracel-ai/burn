@@ -1,7 +1,4 @@
-use crate::{
-    codegen::dialect::Elem,
-    dialect::{FloatKind, IntKind},
-};
+use crate::ir::{Elem, FloatKind, IntKind};
 
 /// The base element trait for the jit backend.
 pub trait CubeElement: core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod {

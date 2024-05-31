@@ -1,57 +1,13 @@
-use crate::{
-    codegen::CompilerRepresentation, dialect::WorkgroupSize, Compiler, GpuComputeShaderPhase,
-};
+use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, Kernel};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
-
-/// Kernel for JIT backends
-///
-/// Notes: by default, only Jit variant exists,
-/// but users can add more kernels from source by activating the
-/// template feature flag.
-pub enum Kernel {
-    /// A JIT GPU compute shader
-    JitGpu(Box<dyn JitKernel>),
-    #[cfg(feature = "template")]
-    /// A kernel created from source
-    Custom(Box<dyn JitKernel>),
-}
-
-impl JitKernel for Kernel {
-    /// ID of the kernel, for caching
-    fn id(&self) -> String {
-        match self {
-            Kernel::JitGpu(shader) => shader.id(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.id(),
-        }
-    }
-
-    /// Source of the shader
-    fn compile(&self) -> CompiledKernel {
-        match self {
-            Kernel::JitGpu(shader) => shader.compile(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.compile(),
-        }
-    }
-
-    /// Launch information of the kernel
-    fn launch_settings(&self) -> LaunchSettings {
-        match self {
-            Kernel::JitGpu(shader) => shader.launch_settings(),
-            #[cfg(feature = "template")]
-            Kernel::Custom(template_kernel) => template_kernel.launch_settings(),
-        }
-    }
-}
 
 /// A kernel, compiled in the target language
 pub struct CompiledKernel {
     /// Source code of the kernel
     pub source: String,
     /// Size of a workgroup for the compiled kernel
-    pub workgroup_size: WorkgroupSize,
+    pub cube_dim: CubeDim,
     /// The number of bytes used by the share memory
     pub shared_mem_bytes: usize,
 }
@@ -59,14 +15,14 @@ pub struct CompiledKernel {
 /// Information needed to launch the kernel
 pub struct LaunchSettings {
     /// Layout of workgroups for the kernel
-    pub workgroup: WorkGroup,
+    pub cube_count: CubeCount,
 }
 
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
 /// provided id.
 ///
 /// The kernel will be launched with the given [launch settings](LaunchSettings).
-pub trait JitKernel: Send + Sync {
+pub trait CubeTask: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Compile the kernel into source
@@ -75,41 +31,41 @@ pub trait JitKernel: Send + Sync {
     fn launch_settings(&self) -> LaunchSettings;
 }
 
-/// Implementation of the [Jit Kernel trait](JitKernel) with knowledge of its compiler
+/// Wraps a [kernel](Kernel) with its [cube count](CubeCount) to create a [cube task](CubeTask).
 #[derive(new)]
-pub struct FullCompilationPhase<C: Compiler, K: GpuComputeShaderPhase> {
-    kernel: K,
-    workgroup: WorkGroup,
+pub struct KernelTask<C: Compiler, K: Kernel> {
+    kernel_definition: K,
+    cube_count: CubeCount,
     _compiler: PhantomData<C>,
 }
 
-impl<C: Compiler, K: GpuComputeShaderPhase> JitKernel for FullCompilationPhase<C, K> {
+impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
     fn compile(&self) -> CompiledKernel {
-        let gpu_ir = self.kernel.compile();
-        let workgroup_size = gpu_ir.workgroup_size;
+        let gpu_ir = self.kernel_definition.define();
+        let cube_dim = gpu_ir.cube_dim;
         let lower_level_ir = C::compile(gpu_ir);
         let shared_mem_bytes = lower_level_ir.shared_memory_size();
         let source = lower_level_ir.to_string();
 
         CompiledKernel {
             source,
-            workgroup_size,
+            cube_dim,
             shared_mem_bytes,
         }
     }
 
     fn id(&self) -> String {
-        self.kernel.id().clone()
+        self.kernel_definition.id().clone()
     }
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.workgroup.clone(),
+            cube_count: self.cube_count.clone(),
         }
     }
 }
 
-impl JitKernel for Arc<dyn JitKernel> {
+impl CubeTask for Arc<dyn CubeTask> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -123,7 +79,7 @@ impl JitKernel for Arc<dyn JitKernel> {
     }
 }
 
-impl JitKernel for Box<dyn JitKernel> {
+impl CubeTask for Box<dyn CubeTask> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -139,7 +95,7 @@ impl JitKernel for Box<dyn JitKernel> {
 
 /// Provides launch information specifying the number of work groups to be used by a compute shader.
 #[derive(new, Clone, Debug)]
-pub struct WorkGroup {
+pub struct CubeCount {
     /// Work groups for the x axis.
     pub x: u32,
     /// Work groups for the y axis.
@@ -148,7 +104,7 @@ pub struct WorkGroup {
     pub z: u32,
 }
 
-impl WorkGroup {
+impl CubeCount {
     /// Calculate the number of invocations of a compute shader.
     pub fn num_invocations(&self) -> usize {
         (self.x * self.y * self.z) as usize

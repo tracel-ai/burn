@@ -6,12 +6,12 @@ use crate::{
     unary, JitRuntime,
 };
 use burn_cube::{
-    dialect::{BinaryOperator, Elem, Operator, Scope, Variable},
+    ir::{BinaryOperator, Elem, Operator, Scope, Variable},
     Runtime,
 };
 use std::mem;
 
-use super::GpuComputeShaderPhase;
+use super::Kernel;
 
 macro_rules! comparison {
     (
@@ -213,22 +213,22 @@ pub fn lower_equal_elem<R: JitRuntime, E: JitElement, const D: usize>(
     )
 }
 
-fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: JitRuntime, E, const D: usize>(
+fn launch_binary<K, KinplaceLhs, KernelInplaceRhs, R: JitRuntime, E, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
-    kernel: Kernel,
-    kernel_inplace_lhs: KernelInplaceLhs,
+    kernel: K,
+    kernel_inplace_lhs: KinplaceLhs,
     kernel_inplace_rhs: KernelInplaceRhs,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplaceLhs: GpuComputeShaderPhase,
-    KernelInplaceRhs: GpuComputeShaderPhase,
+    K: Kernel,
+    KinplaceLhs: Kernel,
+    KernelInplaceRhs: Kernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
-    let output = binary::<Kernel, KernelInplaceLhs, KernelInplaceRhs, R, E, D>(
+    let output = binary::<K, KinplaceLhs, KernelInplaceRhs, R, E, D>(
         lhs,
         rhs,
         can_be_used_as_bool,
@@ -241,20 +241,20 @@ where
     JitTensor::new(output.client, output.device, output.shape, output.handle)
 }
 
-fn launch_unary<Kernel, KernelInplace, R: JitRuntime, E, const D: usize>(
+fn launch_unary<K, Kinplace, R: JitRuntime, E, const D: usize>(
     tensor: JitTensor<R, E, D>,
     scalars: E,
-    kernel: Kernel,
-    kernel_inplace: KernelInplace,
+    kernel: K,
+    kernel_inplace: Kinplace,
 ) -> JitTensor<R, u32, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplace: GpuComputeShaderPhase,
+    K: Kernel,
+    Kinplace: Kernel,
     E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
-    let output = unary::<Kernel, KernelInplace, R, E, D>(
+    let output = unary::<K, Kinplace, R, E, D>(
         tensor,
         Some(&[scalars]),
         can_be_used_as_bool,

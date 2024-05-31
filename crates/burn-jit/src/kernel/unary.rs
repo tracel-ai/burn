@@ -1,8 +1,8 @@
-use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
-use super::GpuComputeShaderPhase;
+use super::Kernel;
 
 /// Creates a unary kernel.
 #[macro_export]
@@ -57,59 +57,59 @@ macro_rules! unary {
 
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
-            settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::dialect::ComputeShader
+            settings: burn_cube::KernelSettings,
+        ) -> burn_cube::ir::KernelDefinition
         where
             E: $crate::element::JitElement
         {
 
-            let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
+            let mut scope = burn_cube::ir::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::ir::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(E::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
+                item: burn_cube::ir::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::Id,
+                position: burn_cube::ir::Variable::AbsolutePos,
             };
-            let info = burn_cube::CompilationInfo {
+            let info = burn_cube::KernelExpansion {
                 inputs: vec![input],
                 outputs: vec![out],
                 scope,
             };
-            burn_cube::Compilation::new(info).compile(settings)
+            burn_cube::KernelIntegrator::new(info).integrate(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
+        impl<C, E> $crate::kernel::Kernel for Ops<C, E>
         where
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
-                let settings = burn_cube::CompilationSettings::default();
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
+                let settings = burn_cube::KernelSettings::default();
                 compile::<E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::Kernel for OpsInplace<C, E>
         where
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                let settings = burn_cube::CompilationSettings::default()
+                let settings = burn_cube::KernelSettings::default()
                     .inplace(vec![mapping]);
                 compile::<E>(settings)
             }
@@ -133,63 +133,63 @@ macro_rules! unary {
 
         #[allow(clippy::redundant_closure_call)]
         fn compile<E>(
-            settings: burn_cube::CompilationSettings,
-        ) -> burn_cube::dialect::ComputeShader
+            settings: burn_cube::KernelSettings,
+        ) -> burn_cube::ir::KernelDefinition
         where
             E: $crate::element::JitElement
         {
 
-            let mut scope = burn_cube::dialect::Scope::root();
-            let op = $ops(&mut scope, E::cube_elem(), burn_cube::dialect::Variable::Id);
+            let mut scope = burn_cube::ir::Scope::root();
+            let op = $ops(&mut scope, E::cube_elem(), burn_cube::ir::Variable::AbsolutePos);
             scope.register(op);
 
             let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = burn_cube::InputInfo::Array {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
-                visibility: burn_cube::dialect::Visibility::Read,
+                item: burn_cube::ir::Item::new(E::cube_elem()),
+                visibility: burn_cube::ir::Visibility::Read,
             };
             let scalars = burn_cube::InputInfo::Scalar {
                 elem: E::cube_elem(),
                 size: $num,
             };
             let out = burn_cube::OutputInfo::ArrayWrite {
-                item: burn_cube::dialect::Item::new(E::cube_elem()),
+                item: burn_cube::ir::Item::new(E::cube_elem()),
                 local,
-                position: burn_cube::dialect::Variable::Id,
+                position: burn_cube::ir::Variable::AbsolutePos,
             };
-            let info = burn_cube::CompilationInfo {
+            let info = burn_cube::KernelExpansion {
                 inputs: vec![input, scalars],
                 outputs: vec![out],
                 scope,
             };
-            burn_cube::Compilation::new(info).compile(settings)
+            burn_cube::KernelIntegrator::new(info).integrate(settings)
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::GpuComputeShaderPhase for Ops<C, E>
+        impl<C, E> $crate::kernel::Kernel for Ops<C, E>
         where
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
-                let settings = burn_cube::CompilationSettings::default();
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
+                let settings = burn_cube::KernelSettings::default();
                 compile::<E>(settings)
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<C, E> $crate::kernel::GpuComputeShaderPhase for OpsInplace<C, E>
+        impl<C, E> $crate::kernel::Kernel for OpsInplace<C, E>
         where
             C: burn_cube::Compiler,
             E: $crate::element::JitElement,
         {
-            fn compile(&self) -> burn_cube::dialect::ComputeShader {
+            fn define(&self) -> burn_cube::ir::KernelDefinition {
                 let mapping = burn_cube::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                let settings = burn_cube::CompilationSettings::default()
+                let settings = burn_cube::KernelSettings::default()
                     .inplace(vec![mapping]);
                 compile::<E>(settings)
             }
@@ -198,16 +198,16 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, R: JitRuntime, E, const D: usize>(
+pub fn unary<K, Kinplace, R: JitRuntime, E, const D: usize>(
     tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-    kernel: Kernel,
-    kernel_inplace: KernelInplace,
+    kernel: K,
+    kernel_inplace: Kinplace,
 ) -> JitTensor<R, E, D>
 where
-    Kernel: GpuComputeShaderPhase,
-    KernelInplace: GpuComputeShaderPhase,
+    K: Kernel,
+    Kinplace: Kernel,
     E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
@@ -217,7 +217,7 @@ where
             &tensor.shape.dims,
         )];
 
-        let launch = WorkgroupLaunch::Input { pos: 0 };
+        let launch = CubeCountSettings::Input { pos: 0 };
 
         match scalars {
             Some(scalars) => {
@@ -256,7 +256,7 @@ where
             &output.shape.dims,
         )];
 
-        let launch = WorkgroupLaunch::Output { pos: 0 };
+        let launch = CubeCountSettings::Output { pos: 0 };
 
         match scalars {
             Some(scalars) => {

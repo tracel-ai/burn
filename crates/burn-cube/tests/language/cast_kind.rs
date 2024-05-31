@@ -1,4 +1,7 @@
-use burn_cube::{cube, Cast, Float, Int, Numeric};
+use burn_cube::{
+    cube,
+    frontend::{Cast, Float, Int, Numeric},
+};
 
 #[cube]
 pub fn cast_float_kind<F1: Float, F2: Float>(input: F1) {
@@ -32,8 +35,8 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32, F64, I32, I64,
+        frontend::{CubeContext, CubeElem, F32, F64, I32, I64},
+        ir::{Item, Variable},
     };
 
     #[test]

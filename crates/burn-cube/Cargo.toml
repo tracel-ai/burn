@@ -18,6 +18,7 @@ default = ["tensor"]
 std = []
 template = []
 tensor = ["burn-tensor"]
+export_tests = []
 
 [dependencies]
 burn-compute = { path = "../burn-compute", version = "0.14.0", default-features = false }

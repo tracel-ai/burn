@@ -1,18 +1,16 @@
 use burn_cube::{
-    cpa, dialect::ComputeShader, Compilation, CompilationInfo, CompilationSettings, Execution,
-    InputInfo, OutputInfo, TensorHandle, WorkGroup, WorkgroupLaunch,
+    cpa, frontend::TensorHandle, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
+    Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::dialect::{
-    Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
-};
+use burn_cube::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
 
 use super::base::ReduceDimShared;
 
@@ -45,10 +43,10 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
+impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kernel
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
@@ -78,18 +76,18 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Gpu
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.workgroup_size_x as u32,
             self.workgroup_size_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -113,13 +111,13 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
         let rank = Variable::Rank;
         let dim: Variable = self.dim.into();
 
-        let workgroup_id_x = Variable::WorkgroupIdX;
-        let workgroup_id_y = Variable::WorkgroupIdY;
-        let num_workgroups_x = Variable::NumWorkgroupsX;
-        let local_invocation_id_x = Variable::LocalInvocationIdX;
-        let local_invocation_id_y = Variable::LocalInvocationIdY;
-        let workgroup_size_x = Variable::WorkgroupSizeX;
-        let workgroup_size_y = Variable::WorkgroupSizeY;
+        let workgroup_id_x = Variable::CubePosX;
+        let workgroup_id_y = Variable::CubePosY;
+        let num_workgroups_x = Variable::CubeCountX;
+        let local_invocation_id_x = Variable::UnitPosX;
+        let local_invocation_id_y = Variable::UnitPosY;
+        let workgroup_size_x = Variable::CubeDimX;
+        let workgroup_size_y = Variable::CubeDimY;
 
         let stride_reduce_dim_input = scope.create_local(Elem::UInt);
         cpa!(scope, stride_reduce_dim_input = stride(tensor, dim));
@@ -198,7 +196,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
             })
         );
 
-        scope.register(Synchronization::WorkgroupBarrier);
+        scope.register(Synchronization::SyncUnits);
 
         let several_threads_active = scope.create_local(Elem::Bool);
 
@@ -220,7 +218,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
                 RD::write_to_shared(scope, shared_memory, local_id, read_value);
             }));
 
-            scope.register(Synchronization::WorkgroupBarrier);
+            scope.register(Synchronization::SyncUnits);
         }));
 
         let is_first_thread = scope.create_local(Elem::Bool);
@@ -246,10 +244,10 @@ pub fn reduce_dim_shared<
     let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);
-    let grid = WorkGroup::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
+    let grid = CubeCount::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     let reduce_group_size = input.shape.dims[dim];
-    let n_invocation_per_workgroup = WORKGROUP_DEFAULT * WORKGROUP_DEFAULT;
+    let n_invocation_per_workgroup = SUBCUBE_DIM_APPROX * SUBCUBE_DIM_APPROX;
     let n_input_values_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_workgroup as f32) as u32;
 
@@ -258,8 +256,8 @@ pub fn reduce_dim_shared<
 
     let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
-        WORKGROUP_DEFAULT,
-        WORKGROUP_DEFAULT,
+        SUBCUBE_DIM_APPROX,
+        SUBCUBE_DIM_APPROX,
         n_input_values_per_thread,
         divisible_shape,
     );
@@ -275,7 +273,7 @@ pub fn reduce_dim_shared<
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(grid));
+        .execute(CubeCountSettings::Custom(grid));
 
     output
 }
