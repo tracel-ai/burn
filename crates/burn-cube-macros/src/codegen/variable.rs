@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{token::Token, Lit, Member};
+use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token};
 
 use crate::{
     analysis::{CodeAnalysis, KEYWORDS},
@@ -207,4 +207,63 @@ pub(crate) fn codegen_field(
             #struc . #field
         }
     }
+}
+
+// Codegen for a struct declaration
+pub(crate) fn codegen_struct(
+    struc: &syn::ExprStruct,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let mut deconstructed_path = Vec::new();
+    for segment in struc.path.segments.iter() {
+        let generics = if let PathArguments::AngleBracketed(arguments) = &segment.arguments {
+            Some(arguments)
+        } else {
+            None
+        };
+        deconstructed_path.push((&segment.ident, generics));
+    }
+
+    let (struct_name, generics) = deconstructed_path
+        .pop()
+        .expect("At least one ident in the path");
+
+    // This is hacky but using <Struc as CubeType>::ExpandType {...} is experimental in Rust
+    let expanded_struct_name = syn::Ident::new(
+        format!("{}Expand", struct_name).as_str(),
+        proc_macro2::Span::call_site(),
+    );
+
+    deconstructed_path.push((&expanded_struct_name, generics));
+
+    // Reconstruct the path
+    let mut path_tokens = quote::quote! {};
+    for (ident, angle_bracketed_generics) in deconstructed_path {
+        let ident_tokens = ident.to_token_stream();
+        let generics_tokens = angle_bracketed_generics.to_token_stream();
+
+        path_tokens.extend(quote::quote! {
+            #ident_tokens #generics_tokens
+        });
+    }
+
+    let fields = codegen_field_creation(&struc.fields, loop_level, variable_analyses);
+    quote::quote! {
+        #path_tokens { #fields }
+    }
+}
+
+fn codegen_field_creation(
+    fields: &Punctuated<FieldValue, Token![,]>,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> TokenStream {
+    let mut field_tokens = quote::quote! {};
+    for field in fields.iter() {
+        let field_name_token = &field.member;
+        let field_value_token = codegen_expr(&field.expr, loop_level, variable_analyses);
+        field_tokens.extend(quote::quote! { #field_name_token : #field_value_token,  });
+    }
+    field_tokens
 }

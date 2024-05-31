@@ -317,15 +317,6 @@ impl CodeAnalysisBuilder {
             }
             syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Field(expr) => {
-                // What do we want?
-                // Multiple structs named differently can have the same attribute name
-                // One struct can have several attribute names
-                // a.b -> a is not unique, b is not unique, but a.b is
-                // We analyze over a.b
-                // If we do c = a, then under the hood it should assign all attributes one by one. Not needed in the now
-                // We don't support structs of structs for now.
-                // Therefore we must treat a.b as a single name and have struct assignation be a deep copy (not recursive)
-
                 if let Member::Named(attribute_ident) = &expr.member {
                     if let syn::Expr::Path(struct_expr) = &*expr.base {
                         let struct_ident = struct_expr
@@ -339,6 +330,11 @@ impl CodeAnalysisBuilder {
                     }
                 } else {
                     todo!("Analysis: unnamed attribute not supported.");
+                }
+            }
+            syn::Expr::Struct(expr) => {
+                for field in expr.fields.iter() {
+                    self.find_occurrences_in_expr(&field.expr, depth)
                 }
             }
             _ => todo!("Analysis: unsupported expr {expr:?}"),
