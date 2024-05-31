@@ -71,7 +71,11 @@ impl CodeAnalysis {
                     || match key {
                         VariableKey::LocalKey(_) => false,
                         VariableKey::Attribute((struct_, _)) => {
-                            self.variable_analyses.get(&struct_.into()).unwrap().num_used > 0
+                            self.variable_analyses
+                                .get(&struct_.into())
+                                .unwrap()
+                                .num_used
+                                > 0
                         }
                     }
             }
