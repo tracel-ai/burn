@@ -27,6 +27,7 @@ use crate::{
             conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
             gather::GatherNode,
+            gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -533,13 +534,13 @@ impl OnnxGraph {
         UnaryNode::flatten(input, output, start_dim, end_dim)
     }
 
-    fn gather_conversion(node: Node) -> GatherNode {
+    fn gather_conversion(node: Node) -> GatherElementsNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let index = node.inputs.get(1).unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let dim = gather_config(&node);
 
-        GatherNode::new(input, index, output, dim)
+        GatherElementsNode::new(input, index, output, dim)
     }
 
     fn transpose_conversion(node: Node) -> UnaryNode {
