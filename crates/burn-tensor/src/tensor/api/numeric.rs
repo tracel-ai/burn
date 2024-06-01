@@ -2868,6 +2868,20 @@ where
     }
 }
 
+impl<E, const D: usize, B, K> core::ops::Rem<E> for Tensor<B, D, K>
+where
+    E: ElementConversion,
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    type Output = Self;
+
+    fn rem(self, other: E) -> Self {
+        Tensor::remainder_scalar(self, other)
+    }
+}
+
 impl<B, const D: usize, K> core::ops::Mul<Tensor<B, D, K>> for Tensor<B, D, K>
 where
     B: Backend,
