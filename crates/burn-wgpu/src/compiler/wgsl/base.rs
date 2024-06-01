@@ -1,8 +1,9 @@
-use burn_cube::dialect as cube;
+use burn_cube::ir as cube;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub enum Variable {
+    SubgroupSize,
     GlobalInputArray(u16, Item),
     GlobalOutputArray(u16, Item),
     GlobalScalar(u16, Elem, cube::Elem),
@@ -25,15 +26,18 @@ pub enum Variable {
     LocalInvocationIdY,
     LocalInvocationIdZ,
     Rank,
+    WorkgroupId,
     WorkgroupIdX,
     WorkgroupIdY,
     WorkgroupIdZ,
     GlobalInvocationIdX,
     GlobalInvocationIdY,
     GlobalInvocationIdZ,
+    WorkgroupSize,
     WorkgroupSizeX,
     WorkgroupSizeY,
     WorkgroupSizeZ,
+    NumWorkgroups,
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
@@ -98,6 +102,10 @@ impl Variable {
             Variable::NumWorkgroupsX => true,
             Variable::NumWorkgroupsY => true,
             Variable::NumWorkgroupsZ => true,
+            Variable::WorkgroupId => true,
+            Variable::WorkgroupSize => true,
+            Variable::NumWorkgroups => true,
+            Variable::SubgroupSize => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -131,18 +139,22 @@ impl Variable {
                 elem,
                 scope_depth: _,
             } => Item::Scalar(*elem),
+            Self::WorkgroupId => Item::Scalar(Elem::U32),
             Self::WorkgroupIdX => Item::Scalar(Elem::U32),
             Self::WorkgroupIdY => Item::Scalar(Elem::U32),
             Self::WorkgroupIdZ => Item::Scalar(Elem::U32),
             Self::GlobalInvocationIdX => Item::Scalar(Elem::U32),
             Self::GlobalInvocationIdY => Item::Scalar(Elem::U32),
             Self::GlobalInvocationIdZ => Item::Scalar(Elem::U32),
+            Self::WorkgroupSize => Item::Scalar(Elem::U32),
             Self::WorkgroupSizeX => Item::Scalar(Elem::U32),
             Self::WorkgroupSizeY => Item::Scalar(Elem::U32),
             Self::WorkgroupSizeZ => Item::Scalar(Elem::U32),
+            Self::NumWorkgroups => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsX => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsZ => Item::Scalar(Elem::U32),
+            Self::SubgroupSize => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -234,6 +246,7 @@ impl Display for Variable {
             Variable::LocalInvocationIdY => f.write_str("local_invocation_id.y"),
             Variable::LocalInvocationIdZ => f.write_str("local_invocation_id.z"),
             Variable::Rank => f.write_str("rank"),
+            Variable::WorkgroupId => f.write_str("workgroup_id_no_axis"),
             Variable::WorkgroupIdX => f.write_str("workgroup_id.x"),
             Variable::WorkgroupIdY => f.write_str("workgroup_id.y"),
             Variable::WorkgroupIdZ => f.write_str("workgroup_id.z"),
@@ -246,6 +259,9 @@ impl Display for Variable {
             Variable::NumWorkgroupsX => f.write_str("num_workgroups.x"),
             Variable::NumWorkgroupsY => f.write_str("num_workgroups.y"),
             Variable::NumWorkgroupsZ => f.write_str("num_workgroups.z"),
+            Variable::WorkgroupSize => f.write_str("workgroup_size_no_axis"),
+            Variable::NumWorkgroups => f.write_str("num_workgroups_no_axis"),
+            Variable::SubgroupSize => f.write_str("subgroup_size"),
         }
     }
 }

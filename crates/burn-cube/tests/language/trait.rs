@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeContext, CubeType, Float, Numeric};
+use burn_cube::prelude::*;
 
 /// Traits used in Cube kernels must expose an _expand variant
 /// for all their methods. However, one does not need to provide its
@@ -98,15 +98,10 @@ fn with_trait_generic_method<S: MethodTypedStrategy, T: Numeric>(x: T, y: T) -> 
 }
 
 mod tests {
+    use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32,
-    };
-
-    use super::{
-        two_strategy_traits_expand, with_strategy_trait_expand, with_trait_generic_method_expand,
-        AddStrategy, SubStrategy,
+        ir::{Item, Variable},
     };
 
     type ElemType = F32;

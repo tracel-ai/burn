@@ -4,7 +4,7 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
 use crate::{unary, JitBackend};
 use crate::{FloatElement, IntElement, JitRuntime};
-use burn_cube::dialect::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};

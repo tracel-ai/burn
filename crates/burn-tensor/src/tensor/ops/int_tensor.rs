@@ -1,8 +1,8 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
+use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -1030,6 +1030,36 @@ pub trait IntTensorOps<B: Backend> {
         length: usize,
     ) -> IntTensor<B, D> {
         narrow::<B, D, Int>(tensor, dim, start, length)
+    }
+
+    /// Generates a cartesian grid for the given tensor shape on the specified device.
+    /// The generated tensor is of dimension `D2 = D + 1`, where each element at dimension D contains the cartesian grid coordinates for that element.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape specifying the dimensions of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `D2` is not equal to `D+1`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    ///    use burn_tensor::Int;
+    ///    use burn_tensor::{backend::Backend, Shape, Tensor};
+    ///    fn example<B: Backend>() {
+    ///        let device = Default::default();
+    ///        let result: Tensor<B, 3, _> = Tensor::<B, 2, Int>::cartesian_grid([2, 3], &device);
+    ///        println!("{}", result);
+    ///    }
+    /// ```
+    fn int_cartesian_grid<S: Into<Shape<D>>, const D: usize, const D2: usize>(
+        shape: S,
+        device: &B::Device,
+    ) -> IntTensor<B, D2> {
+        cartesian_grid::<B, _, D, D2>(shape, device)
     }
 
     /// Split the tensor along the given dimension into chunks.

@@ -118,7 +118,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
                 let ident = pat.pat.clone();
 
                 inputs.extend(quote::quote! {
-                    #ident: <#ty as burn_cube::CubeType>::ExpandType,
+                    #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                 });
             }
             _ => todo!("Only Typed inputs are supported"),
@@ -131,7 +131,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
         syn::ReturnType::Default => output.extend(quote::quote! { ()}),
         syn::ReturnType::Type(_, ty) => {
             output.extend(quote::quote! {
-                <#ty as burn_cube::CubeType>::ExpandType
+                <#ty as burn_cube::frontend::CubeType>::ExpandType
             });
         }
     }
@@ -142,6 +142,6 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let generics = sig.generics.clone().into_token_stream();
 
     quote::quote! {
-        pub fn #ident #generics (context: &mut burn_cube::CubeContext, #inputs) -> #output
+        pub fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
     }
 }

@@ -1,11 +1,13 @@
+use super::expand::ExpandNode;
 use super::{
-    avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode,
-    binary::BinaryNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
-    conv1d::Conv1dNode, conv2d::Conv2dNode, conv_transpose_2d::ConvTranspose2dNode,
-    dropout::DropoutNode, gather::GatherNode, global_avg_pool::GlobalAvgPoolNode,
-    layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
-    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode,
-    random_normal::RandomNormalNode, random_uniform::RandomUniformNode, reshape::ReshapeNode,
+    argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
+    batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
+    constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
+    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
+    global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
+    mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
+    max_pool2d::MaxPool2dNode, prelu::PReluNode, random_normal::RandomNormalNode,
+    random_uniform::RandomUniformNode, range::RangeNode, reshape::ReshapeNode,
     squeeze::SqueezeNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
@@ -76,6 +78,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
+    ArgMax(ArgMaxNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode<PS>),
@@ -88,6 +91,7 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose2d(ConvTranspose2dNode<PS>),
     PRelu(PReluNode<PS>),
     Dropout(DropoutNode),
+    Expand(ExpandNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     LayerNorm(LayerNormNode<PS>),
@@ -95,6 +99,7 @@ pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
+    Range(RangeNode),
     Reshape(ReshapeNode),
     Squeeze(SqueezeNode),
     Unary(UnaryNode),
@@ -108,6 +113,7 @@ macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         #[allow(clippy::redundant_closure_call)]
         match $self {
+            Node::ArgMax(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
@@ -120,6 +126,7 @@ macro_rules! match_all {
             Node::ConvTranspose2d(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Expand(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
@@ -127,6 +134,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Unary(node) => $func(node),
@@ -150,6 +158,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
+            Node::ArgMax(_) => "argmax",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
@@ -162,6 +171,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
+            Node::Expand(_) => "expand",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::LayerNorm(_) => "layer_norm",
@@ -169,6 +179,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
             Node::Squeeze(_) => "squeeze",
             Node::Unary(unary) => unary.kind.as_str(),

@@ -1,4 +1,4 @@
-use burn_cube::{cube, Comptime, Float, Numeric};
+use burn_cube::prelude::*;
 
 #[cube]
 pub fn if_then_else<F: Float>(lhs: F) {
@@ -21,8 +21,8 @@ pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
 mod tests {
     use burn_cube::{
         cpa,
-        dialect::{Elem, Item, Variable},
-        CubeContext, CubeElem, F32,
+        frontend::{CubeContext, CubeElem, F32},
+        ir::{Elem, Item, Variable},
     };
 
     use super::{comptime_if_else_expand, if_then_else_expand};

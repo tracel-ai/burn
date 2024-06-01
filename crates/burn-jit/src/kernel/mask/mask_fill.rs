@@ -1,4 +1,4 @@
-use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
@@ -55,7 +55,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
             &output.shape.dims,
         )])
         .with_scalars(&[value])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -75,7 +75,7 @@ fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usi
             TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
         ])
         .with_scalars(&[value])
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     input
 }

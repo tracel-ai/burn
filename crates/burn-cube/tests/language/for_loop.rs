@@ -1,4 +1,8 @@
-use burn_cube::{branch::range, cube, Array, Comptime, CubeContext, CubeElem, Float, UInt, F32};
+use burn_cube::{
+    cube,
+    frontend::branch::range,
+    frontend::{Array, Comptime, CubeContext, CubeElem, Float, UInt, F32},
+};
 
 type ElemType = F32;
 
@@ -15,7 +19,7 @@ pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: Comptime
 mod tests {
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
+        ir::{Item, Variable},
     };
 
     use super::*;

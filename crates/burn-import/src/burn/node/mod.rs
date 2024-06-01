@@ -1,5 +1,6 @@
 mod base;
 
+pub(crate) mod argmax;
 pub(crate) mod avg_pool1d;
 pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;
@@ -11,6 +12,7 @@ pub(crate) mod conv1d;
 pub(crate) mod conv2d;
 pub(crate) mod conv_transpose_2d;
 pub(crate) mod dropout;
+pub(crate) mod expand;
 pub(crate) mod gather;
 pub(crate) mod global_avg_pool;
 pub(crate) mod layer_norm;
@@ -22,6 +24,7 @@ pub(crate) mod max_pool2d;
 pub(crate) mod prelu;
 pub(crate) mod random_normal;
 pub(crate) mod random_uniform;
+pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod squeeze;
 pub(crate) mod unary;

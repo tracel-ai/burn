@@ -1,13 +1,13 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, Scope, Variable},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkGroup, WorkgroupLaunch,
+    ir::{Elem, Scope, Variable},
+    prelude::*,
+    CubeCountSettings, Execution, InputInfo, OutputInfo,
 };
 use std::marker::PhantomData;
 
 use crate::{
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitElement, JitRuntime, SEED,
 };
@@ -38,31 +38,27 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
         )])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
-        .execute(WorkgroupLaunch::Custom(prng_workgroup(
+        .execute(CubeCountSettings::Custom(prng_cube_count(
             num_elems,
-            WORKGROUP_DEFAULT,
+            SUBCUBE_DIM_APPROX,
             N_VALUES_PER_THREAD,
         )));
 
     output
 }
 
-fn prng_workgroup(
-    num_elems: usize,
-    workgroup_size: usize,
-    n_values_per_thread: usize,
-) -> WorkGroup {
+fn prng_cube_count(num_elems: usize, cube_dim: usize, n_values_per_thread: usize) -> CubeCount {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
+    let num_elems_per_cube = cube_dim * cube_dim;
+    let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);
     let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
     let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
-    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
-impl<P: Prng<E>, R: JitRuntime, E: JitElement> GpuComputeShaderPhase for PrngEagerKernel<P, R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -93,14 +89,14 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> GpuComputeShaderPhase for PrngEag
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![args, seeds],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -167,12 +163,12 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let n_values_per_thread: Variable = self.n_values_per_thread.into();
         let args = self.args;
 
-        let workgroup_size_x = Variable::WorkgroupSizeX;
-        let workgroup_size_y = Variable::WorkgroupSizeY;
-        let workgroup_id_x = Variable::WorkgroupIdX;
-        let workgroup_id_y = Variable::WorkgroupIdY;
-        let num_workgroups_y = Variable::NumWorkgroupsY;
-        let local_index = Variable::LocalInvocationIndex;
+        let workgroup_size_x = Variable::CubeDimX;
+        let workgroup_size_y = Variable::CubeDimY;
+        let workgroup_id_x = Variable::CubePosX;
+        let workgroup_id_y = Variable::CubePosY;
+        let num_workgroups_y = Variable::CubeCountY;
+        let local_index = Variable::UnitPos;
 
         let n_invocations = scope.create_local(Elem::UInt);
         cpa!(scope, n_invocations = workgroup_size_x);

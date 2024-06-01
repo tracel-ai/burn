@@ -1,4 +1,4 @@
-use burn_cube::{cube, Int};
+use burn_cube::prelude::*;
 
 #[cube]
 pub fn while_not<I: Int>(lhs: I) {
@@ -28,13 +28,11 @@ pub fn loop_with_return<I: Int>(lhs: I) {
 }
 
 mod tests {
+    use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Branch, Elem, Item, Variable},
-        CubeContext, CubeElem, I32,
+        ir::{Branch, Elem, Item, Variable},
     };
-
-    use super::{loop_with_return_expand, manual_loop_break_expand, while_not_expand};
 
     type ElemType = I32;
 

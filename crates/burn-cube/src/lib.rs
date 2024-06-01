@@ -3,41 +3,56 @@ extern crate alloc;
 #[macro_use]
 extern crate derive_new;
 
-pub mod codegen;
+/// Cube Frontend Types.
+pub mod frontend;
 
-mod compute;
-mod language;
+/// Cube Language Internal Representation.
+pub mod ir;
+
+pub mod codegen;
+pub mod compute;
+pub mod prelude;
+
 mod pod;
 mod runtime;
 
 pub use codegen::*;
-pub use compute::*;
-pub use language::*;
 pub use pod::*;
 pub use runtime::*;
 
 pub use burn_cube_macros::cube;
 
-pub const WORKGROUP_DEFAULT: usize = 16;
-use codegen::dialect::ComputeShader;
+/// An approximation of the subcube dimension.
+pub const SUBCUBE_DIM_APPROX: usize = 16;
 
-/// Dynamic jit kernel to create a [compute shader](ComputeShader).
-pub trait GpuComputeShaderPhase: Send + Sync + 'static {
-    /// Convert to compute shader
-    fn compile(&self) -> ComputeShader;
+use crate::ir::KernelDefinition;
+use frontend::LaunchArg;
+use prelude::CubeCount;
+
+/// Implement this trait to create a [kernel definition](KernelDefinition).
+pub trait Kernel: Send + Sync + 'static {
+    /// Convert to a kernel definition.
+    fn define(&self) -> KernelDefinition;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String {
         format!("{:?}", core::any::TypeId::of::<Self>())
     }
 }
 
-pub fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> WorkGroup {
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(workgroups));
-    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
+/// Calculate the number of cubes required to execute an operation where one cube unit is
+/// assigned to one element.
+pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeCount {
+    let num_elems_per_cube = cube_dim * cube_dim;
+    let cube_counts = f32::ceil(num_elems as f32 / num_elems_per_cube as f32);
+    let cube_count_x = f32::ceil(f32::sqrt(cube_counts));
+    let cube_count_y = f32::ceil(num_elems as f32 / (cube_count_x * num_elems_per_cube as f32));
 
-    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::new(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
+/// Runtime arguments to launch a kernel.
 pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;
+
+#[cfg(feature = "export_tests")]
+/// Tests only useful for runtimes.
+pub mod runtime_tests;

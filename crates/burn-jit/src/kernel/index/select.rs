@@ -1,12 +1,12 @@
 use crate::{
-    element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
-    tensor::JitTensor, JitRuntime,
+    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -29,7 +29,7 @@ impl SelectComputeShader {
         let input = self.input;
         let indices = self.indices;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let offset_input = scope.zero(Elem::UInt);
 
         cpa!(
@@ -67,8 +67,8 @@ impl SelectComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
@@ -97,14 +97,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R
         };
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, indices],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -137,7 +137,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

@@ -1,5 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_cube::{dialect::WorkgroupSize, CompilerRepresentation};
+use burn_cube::{ir::CubeDim, CompilerRepresentation};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -67,12 +67,15 @@ pub struct ComputeShader {
     pub named: Vec<(String, Binding)>,
     pub shared_memories: Vec<SharedMemory>,
     pub local_arrays: Vec<LocalArray>,
-    pub workgroup_size: WorkgroupSize,
+    pub workgroup_size: CubeDim,
     pub global_invocation_id: bool,
     pub local_invocation_index: bool,
     pub local_invocation_id: bool,
     pub num_workgroups: bool,
     pub workgroup_id: bool,
+    pub num_workgroups_no_axis: bool,
+    pub workgroup_id_no_axis: bool,
+    pub workgroup_size_no_axis: bool,
     pub body: Body,
     pub extensions: Vec<Extension>,
 }
@@ -146,6 +149,18 @@ fn main(
         }
 
         // Body
+        if self.workgroup_id_no_axis {
+            f.write_str("let workgroup_id_no_axis = (num_workgroups.y * num_workgroups.x * workgroup_id.z) + (num_workgroups.x * workgroup_id.y) + workgroup_id.x;\n")?;
+        }
+
+        if self.workgroup_size_no_axis {
+            f.write_str("let workgroup_size_no_axis = WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y * WORKGROUP_SIZE_Z;\n")?;
+        }
+
+        if self.num_workgroups_no_axis {
+            f.write_str("let num_workgroups_no_axis = num_workgroups.x * num_workgroups.y * num_workgroups.z;\n")?;
+        }
+
         f.write_fmt(format_args!("{}", self.body))?;
 
         // Close body

@@ -11,7 +11,7 @@ represent the corresponding Burn Op.
 | [Acosh][3]                       |       ❌       |      ❌      |
 | [Add][4]                         |       ✅       |      ✅      |
 | [And][5]                         |       ❌       |      ❌      |
-| [ArgMax][6]                      |       ❌       |      ✅      |
+| [ArgMax][6]                      |       ✅       |      ✅      |
 | [ArgMin][7]                      |       ❌       |      ❌      |
 | [Asin][8]                        |       ❌       |      ❌      |
 | [Asinh][9]                       |       ❌       |      ❌      |
@@ -59,7 +59,7 @@ represent the corresponding Burn Op.
 | [Equal][51]                      |       ✅       |      ✅      |
 | [Erf][52]                        |       ✅       |      ✅      |
 | [Exp][53]                        |       ✅       |      ✅      |
-| [Expand][54]                     |       ❌       |      ✅      |
+| [Expand][54]                     |       ✅       |      ✅      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |
@@ -134,7 +134,7 @@ represent the corresponding Burn Op.
 | [RandomNormalLike][127]          |       ❌       |      ✅      |
 | [RandomUniform][128]             |       ✅       |      ✅      |
 | [RandomUniformLike][129]         |       ❌       |      ✅      |
-| [Range][130]                     |       ❌       |      ✅      |
+| [Range][130]                     |       ✅       |      ✅      |
 | [Reciprocal][131]                |       ✅       |      ✅      |
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |

@@ -2,7 +2,10 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::Lit;
 
-use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
+use crate::{
+    analysis::{CodeAnalysis, KEYWORDS},
+    codegen::base::codegen_expr,
+};
 
 /// Codegen for literals
 pub(crate) fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
@@ -11,10 +14,10 @@ pub(crate) fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
         Lit::Float(_) => {
             let lit_str = lit.lit.to_token_stream().to_string();
             let float_lit = lit_str.parse::<f32>().unwrap();
-            quote::quote! { #float_lit.into() }
+            quote::quote! { #float_lit }
         }
         _ => {
-            quote::quote! { #lit.into() }
+            quote::quote! { #lit }
         }
     }
 }
@@ -83,7 +86,7 @@ pub(crate) fn codegen_index(
         {
             let _array = #array;
             let _index = #index;
-            burn_cube::index::expand(context, _array, _index)
+            burn_cube::frontend::index::expand(context, _array, _index)
         }
     }
 }
@@ -105,10 +108,10 @@ pub(crate) fn codegen_assign(
 
             quote::quote! {
                 {
-                let _array = #array;
-                let _index = #index;
-                let _value = #value;
-                burn_cube::index_assign::expand(context, _array, _index, _value)
+                    let _array = #array;
+                    let _index = #index;
+                    let _value = #value;
+                    burn_cube::frontend::index_assign::expand(context, _array, _index, _value)
                 }
             }
         }
@@ -120,7 +123,7 @@ pub(crate) fn codegen_assign(
                 {
                     let _assign_lhs = #lhs;
                     let _assign_rhs = #rhs;
-                    burn_cube::assign::expand(context, _assign_rhs, _assign_lhs)
+                    burn_cube::frontend::assign::expand(context, _assign_rhs, _assign_lhs)
                 }
             }
         }
@@ -140,15 +143,21 @@ pub(crate) fn codegen_path_rhs(
         .get_ident()
         .expect("Codegen: Only ident path are supported.");
 
-    let will_be_used_again = variable_analyses.should_clone(ident, loop_level);
-
-    if will_be_used_again {
+    if KEYWORDS.contains(&ident.to_string().as_str()) {
         quote::quote! {
-            #ident.clone()
+            #ident :: expand(context)
         }
     } else {
-        quote::quote! {
-            #ident
+        let will_be_used_again = variable_analyses.should_clone(ident, loop_level);
+
+        if will_be_used_again {
+            quote::quote! {
+                #ident.clone()
+            }
+        } else {
+            quote::quote! {
+                #ident
+            }
         }
     }
 }

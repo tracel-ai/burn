@@ -25,4 +25,5 @@ mod tests {
     pub type TestRuntime = crate::CudaRuntime;
 
     burn_jit::testgen_all!();
+    burn_cube::testgen_all!();
 }

@@ -1,7 +1,7 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
 edition.workspace = true
-license.workspace = true
+license = "MIT OR Apache-2.0"
 name = "image-classification-web"
 publish = false
 version.workspace = true
@@ -14,22 +14,24 @@ default = []
 half_precision = []
 
 [dependencies]
-burn = { path = "../../crates/burn", version = "0.15.0", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "0.14.0", default-features = false, features = [
     "ndarray",
 ] }
-burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.15.0", default-features = false }
-burn-candle = { path = "../../crates/burn-candle", version = "0.15.0", default-features = false }
+burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", default-features = false }
+burn-candle = { path = "../../crates/burn-candle", version = "0.14.0", default-features = false }
 
-js-sys = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-wasm-logger = { workspace = true }
-wasm-timer = { workspace = true }
 console_error_panic_hook = { workspace = true }
+
+# Wasm dependencies
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+serde-wasm-bindgen = "0.6"
+wasm-logger = "0.2"
+wasm-timer = "0.2"
+js-sys = "0.3"
 
 [build-dependencies]
 # Used to generate code from ONNX model

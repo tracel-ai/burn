@@ -1,4 +1,4 @@
-use burn_cube::{cube, CubeElem, Float, Numeric, UInt};
+use burn_cube::prelude::*;
 
 #[cube]
 fn add_op<T: Numeric>(a: T, b: T) -> T {
@@ -192,10 +192,7 @@ fn div_assign_op<T: Numeric>(mut a: T, b: T) {
 
 mod tests {
     use super::*;
-    use burn_cube::{
-        dialect::{Elem, FloatKind, Item},
-        CubeContext, F32,
-    };
+    use burn_cube::ir::{Elem, FloatKind, Item};
 
     macro_rules! binary_test {
         ($test_name:ident, $op_expand:ident, $op_name:expr, $func:ident) => {

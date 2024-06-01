@@ -30,19 +30,33 @@ pub(crate) fn codegen_for_loop(
             };
 
             if &func_name.to_string() == "range" {
-                let mut args = quote::quote! {
-                    context,
-                };
+                let mut args = call.args.clone();
 
-                for argument in call.args.iter() {
-                    let arg = codegen_expr(argument, loop_level, variable_analyses);
-                    args.extend(quote::quote! { #arg, });
-                }
+                let unroll = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
+                let end = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
+                let start = codegen_expr(
+                    &args.pop().unwrap().into_value(),
+                    loop_level,
+                    variable_analyses,
+                );
 
                 let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
 
                 quote::quote! {
-                    burn_cube::branch::range_expand(#args |context, #i| #block);
+                    {
+                        let _start = #start;
+                        let _end = #end;
+                        let _unroll = #unroll;
+                        burn_cube::frontend::branch::range_expand(context, _start, _end, _unroll, |context, #i| #block);
+                    }
                 }
             } else {
                 todo!("Codegen: Only range is supported")
@@ -70,7 +84,7 @@ pub(crate) fn codegen_cond(
 /// Codegen for break statement
 pub(crate) fn codegen_break() -> TokenStream {
     quote::quote! {
-        burn_cube::branch::break_expand(context);
+        burn_cube::frontend::branch::break_expand(context);
     }
 }
 
@@ -80,7 +94,7 @@ pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
         panic!("Codegen: Only void return is supported.")
     }
     quote::quote! {
-        burn_cube::branch::return_expand(context);
+        burn_cube::frontend::branch::return_expand(context);
     }
 }
 
@@ -109,7 +123,7 @@ pub(crate) fn codegen_if(
 
             quote::quote! {
                 let _cond = #cond;
-                burn_cube::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
+                burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
             }
         } else {
             todo!("Codegen: Only block else expr is supported")
@@ -117,7 +131,7 @@ pub(crate) fn codegen_if(
     } else {
         quote::quote! {
             let _cond = #cond;
-            burn_cube::branch::if_expand(context, #comptime_bool, _cond.into(), |context| #then_block);
+            burn_cube::frontend::branch::if_expand(context, #comptime_bool, _cond.into(), |context| #then_block);
         }
     }
 }
@@ -131,7 +145,7 @@ pub(crate) fn codegen_loop(
     let block = codegen_block(&loop_expr.body, loop_level + 1, variable_analyses);
 
     quote::quote! {
-        burn_cube::branch::loop_expand(context, |context| #block);
+        burn_cube::frontend::branch::loop_expand(context, |context| #block);
     }
 }
 
@@ -147,6 +161,6 @@ pub(crate) fn codegen_while_loop(
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
 
     quote::quote! {
-        burn_cube::branch::while_loop_expand(context, |context| #cond, |context| #block);
+        burn_cube::frontend::branch::while_loop_expand(context, |context| #cond, |context| #block);
     }
 }

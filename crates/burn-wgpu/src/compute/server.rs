@@ -4,7 +4,7 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::{JitKernel, Kernel, WorkGroup};
+use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
 use burn_tensor::Reader;
 use hashbrown::HashMap;
@@ -68,7 +68,7 @@ where
         &mut self,
         pipeline: Arc<ComputePipeline>,
         bind_group: BindGroup,
-        work_group: WorkGroup,
+        work_group: CubeCount,
     ) {
         let mut compute = self
             .encoder
@@ -84,14 +84,16 @@ where
         self.tasks_count += 1;
     }
 
-    fn pipeline(&mut self, kernel: Kernel) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Box<dyn CubeTask>) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
+
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
         }
 
-        let source = kernel.compile().source;
-        let pipeline = self.compile_source(&source);
+        let compile = kernel.compile();
+        let pipeline = self.compile_source(&compile.source);
+
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline
@@ -187,7 +189,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Kernel;
+    type Kernel = Box<dyn CubeTask>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -237,7 +239,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        let work_group = kernel.launch_settings().workgroup;
+        let work_group = kernel.launch_settings().cube_count;
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
