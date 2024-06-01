@@ -1,4 +1,4 @@
-use burn_cube::{cube, Float};
+use burn_cube::prelude::*;
 
 #[cube]
 pub fn literal<F: Float>(lhs: F) {
@@ -11,11 +11,10 @@ pub fn literal_float_no_decimals<F: Float>(lhs: F) {
 }
 
 mod tests {
-    use super::{literal_expand, literal_float_no_decimals_expand};
+    use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, F32,
+        ir::{Item, Variable},
     };
 
     type ElemType = F32;

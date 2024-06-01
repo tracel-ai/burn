@@ -13,6 +13,7 @@ pub struct Body {
     pub rank: bool,
     pub invocation_index: bool,
     pub global_invocation_id: (bool, bool, bool),
+    pub wrap_size_checked: bool,
 }
 
 impl Display for Body {
@@ -46,6 +47,13 @@ impl Display for Body {
                 "
     int invocationIndex = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * (blockDim.x * blockDim.y);
             ",
+            )?;
+        }
+        if self.wrap_size_checked {
+            f.write_str(
+                "
+ int warpSizeChecked = min(warpSize, blockDim.x * blockDim.y * blockDim.z);
+",
             )?;
         }
 

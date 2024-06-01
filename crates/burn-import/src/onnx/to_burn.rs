@@ -27,6 +27,7 @@ use crate::{
             conv2d::Conv2dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
+            expand::ExpandNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -39,6 +40,7 @@ use crate::{
             prelu::PReluNode,
             random_normal::RandomNormalNode,
             random_uniform::RandomUniformNode,
+            range::RangeNode,
             reshape::ReshapeNode,
             squeeze::SqueezeNode,
             unary::UnaryNode,
@@ -244,6 +246,7 @@ impl OnnxGraph {
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
+                NodeType::Expand => graph.register(Self::expand_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -281,6 +284,7 @@ impl OnnxGraph {
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
+                NodeType::Range => graph.register(Self::range_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
@@ -584,6 +588,29 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::min_pair(lhs, rhs, output)
+    }
+
+    fn range_conversion(node: Node) -> RangeNode {
+        fn convert_arg_to_scalar(arg: &Argument) -> ScalarType {
+            match &arg.ty {
+                ArgType::Scalar(scalar) => {
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
+                }
+                ArgType::Tensor(tensor) => {
+                    if tensor.dim != 0 {
+                        panic!("Range node requires scalar inputs");
+                    }
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
+                }
+                _ => panic!("Range node requires scalar inputs"),
+            }
+        }
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
+        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
+        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+
+        RangeNode::new(start, end, step, output)
     }
 
     fn reduce_max_conversion(node: Node) -> UnaryNode {
@@ -892,6 +919,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::exp(input, output)
+    }
+
+    fn expand_conversion(node: Node) -> ExpandNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let shape = expand_config(&node);
+
+        ExpandNode::new(input, output, shape)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {

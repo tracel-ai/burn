@@ -1,12 +1,13 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{kernel::GpuComputeShaderPhase, tensor::JitTensor, JitElement, JitRuntime};
+use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
 
 /// Cast a tensor to the given element type.
 ///
@@ -39,7 +40,7 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -56,10 +57,8 @@ pub(crate) struct CastEagerKernel<R: JitRuntime, EI: JitElement, EO: JitElement>
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
-    for CastEagerKernel<R, EI, EO>
-{
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, EI: JitElement, EO: JitElement> Kernel for CastEagerKernel<R, EI, EO> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
@@ -78,14 +77,14 @@ impl<R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -96,7 +95,7 @@ impl<R: JitRuntime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
 impl CastShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let value = scope.create_local(output.item());

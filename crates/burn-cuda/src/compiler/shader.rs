@@ -1,4 +1,4 @@
-use burn_cube::{dialect::WorkgroupSize, CompilerRepresentation};
+use burn_cube::{ir::CubeDim, CompilerRepresentation};
 
 // use super::{Body, Extension, Item};
 use super::{Body, Item};
@@ -8,7 +8,7 @@ use std::fmt::Display;
 pub enum Location {
     Storage,
     #[allow(dead_code)]
-    Workgroup,
+    Warp,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -60,7 +60,7 @@ pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
-    pub workgroup_size: WorkgroupSize,
+    pub cube_dim: CubeDim,
     pub body: Body,
 }
 
@@ -135,13 +135,11 @@ extern \"C\" __global__ void kernel(
     }
 }
 
-impl ComputeShader {}
-
 impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Location::Storage => f.write_str("storage"),
-            Location::Workgroup => f.write_str("workgroup"),
+            Location::Warp => f.write_str("workgroup"),
         }
     }
 }

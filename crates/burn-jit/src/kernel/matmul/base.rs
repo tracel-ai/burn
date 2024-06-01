@@ -1,9 +1,7 @@
-use std::cmp::{max, min};
-
-use burn_tensor::Shape;
-
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
-use burn_cube::{Compiler, WorkGroup};
+use burn_cube::{prelude::*, Compiler};
+use burn_tensor::Shape;
+use std::cmp::{max, min};
 
 use super::{
     init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_padded,
@@ -148,7 +146,7 @@ pub(crate) fn simple_launch_options<const D: usize>(
     output_shape: &Shape<D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> WorkGroup {
+) -> CubeCount {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
@@ -160,13 +158,13 @@ pub(crate) fn simple_launch_options<const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
 
 pub(crate) fn tiling2d_launch_options<const D: usize>(
     output_shape: &Shape<D>,
     config: Tiling2dConfig,
-) -> WorkGroup {
+) -> CubeCount {
     let num_rows = output_shape.dims[D - 2];
     let num_cols = output_shape.dims[D - 1];
 
@@ -178,5 +176,5 @@ pub(crate) fn tiling2d_launch_options<const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }

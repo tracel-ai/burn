@@ -1,8 +1,9 @@
-use burn_cube::dialect as cube;
+use burn_cube::ir as cube;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub enum Variable {
+    SubgroupSize,
     GlobalInputArray(u16, Item),
     GlobalOutputArray(u16, Item),
     GlobalScalar(u16, Elem, cube::Elem),
@@ -104,6 +105,7 @@ impl Variable {
             Variable::WorkgroupId => true,
             Variable::WorkgroupSize => true,
             Variable::NumWorkgroups => true,
+            Variable::SubgroupSize => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -152,6 +154,7 @@ impl Variable {
             Self::NumWorkgroupsX => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsZ => Item::Scalar(Elem::U32),
+            Self::SubgroupSize => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -258,6 +261,7 @@ impl Display for Variable {
             Variable::NumWorkgroupsZ => f.write_str("num_workgroups.z"),
             Variable::WorkgroupSize => f.write_str("workgroup_size_no_axis"),
             Variable::NumWorkgroups => f.write_str("num_workgroups_no_axis"),
+            Variable::SubgroupSize => f.write_str("subgroup_size"),
         }
     }
 }

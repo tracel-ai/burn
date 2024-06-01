@@ -30,6 +30,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Equal => equal_update_outputs(node),
         NodeType::Erf => same_as_input(node),
         NodeType::Exp => same_as_input(node),
+        NodeType::Expand => expand_update_outputs(node),
         NodeType::Flatten => flatten_update_outputs(node),
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
@@ -52,6 +53,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
         NodeType::Less => less_update_outputs(node),
         NodeType::LessOrEqual => less_or_equal_update_outputs(node),
+        NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
@@ -491,6 +493,33 @@ fn equal_update_outputs(node: &mut Node) {
     }
 }
 
+fn expand_update_outputs(node: &mut Node) {
+    let shape = if node.inputs.len() == 2 {
+        match &node.inputs[1].value {
+            Some(value) => match value {
+                Data::Int64s(shape) => Some(shape.clone()),
+                _ => panic!("Expand: invalid input types"),
+            },
+            None => None,
+        }
+    } else {
+        panic!("Expand: invalid number of inputs");
+    };
+
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Expand: invalid output types"),
+    };
+
+    if let Some(shape) = shape {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            dim: shape.len(),
+            shape: None, // shape is calculated at runtime
+            ..output
+        });
+    }
+}
+
 fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Shape: multiple inputs are not supported: {:?}", node);
@@ -586,6 +615,18 @@ fn matmul_update_outputs(node: &mut Node) {
         }
         _ => panic!("Only tensor input is valid"),
     }
+}
+
+fn range_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 3 {
+        panic!("Range: expected 3 inputs, found {}", node.inputs.len());
+    }
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: ElementType::Int64,
+        dim: 1,
+        shape: None,
+    });
 }
 
 /// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.

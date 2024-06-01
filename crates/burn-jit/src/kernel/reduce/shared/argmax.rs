@@ -1,7 +1,7 @@
 use crate::{kernel::reduce::Argmax, JitElement};
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
+    ir::{Elem, Item, Scope, Variable},
 };
 
 use super::base::ReduceDimShared;

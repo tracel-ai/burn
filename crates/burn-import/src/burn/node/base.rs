@@ -1,3 +1,4 @@
+use super::expand::ExpandNode;
 use super::{
     argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
@@ -6,8 +7,8 @@ use super::{
     gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode,
-    random_normal::RandomNormalNode, random_uniform::RandomUniformNode, reshape::ReshapeNode,
-    squeeze::SqueezeNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    random_normal::RandomNormalNode, random_uniform::RandomUniformNode, range::RangeNode,
+    reshape::ReshapeNode, squeeze::SqueezeNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -90,6 +91,7 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose2d(ConvTranspose2dNode<PS>),
     PRelu(PReluNode<PS>),
     Dropout(DropoutNode),
+    Expand(ExpandNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
     GlobalAvgPool(GlobalAvgPoolNode),
@@ -98,6 +100,7 @@ pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
+    Range(RangeNode),
     Reshape(ReshapeNode),
     Squeeze(SqueezeNode),
     Unary(UnaryNode),
@@ -124,6 +127,7 @@ macro_rules! match_all {
             Node::ConvTranspose2d(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Expand(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
@@ -132,6 +136,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Unary(node) => $func(node),
@@ -168,6 +173,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
+            Node::Expand(_) => "expand",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
             Node::GlobalAvgPool(_) => "global_avg_pool",
@@ -176,6 +182,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
             Node::Squeeze(_) => "squeeze",
             Node::Unary(unary) => unary.kind.as_str(),

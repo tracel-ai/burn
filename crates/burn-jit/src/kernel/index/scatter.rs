@@ -1,18 +1,18 @@
 use crate::{
     element::JitElement,
-    kernel::{self, GpuComputeShaderPhase},
+    kernel::{self, Kernel},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa, elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, TensorHandle,
-    WorkgroupLaunch,
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
+    KernelIntegrator, KernelSettings,
 };
 use burn_cube::{
-    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, WORKGROUP_DEFAULT};
+use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -52,7 +52,7 @@ impl ScatterComputeShader {
         cpa!(scope, stride_input = stride(input, self.dim));
         cpa!(scope, shape_value = shape(value, self.dim));
 
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
 
@@ -130,8 +130,8 @@ impl ScatterComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item_value = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
@@ -163,14 +163,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for ScatterEagerKernel<
             visibility: Visibility::Read,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input_output, indices, value],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -214,7 +214,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
+    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -222,7 +222,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
             TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
             TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     tensor
 }

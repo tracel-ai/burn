@@ -13,7 +13,7 @@ pub use contiguous::*;
 pub use mask::*;
 pub use unary::*;
 
-pub use burn_cube::{GpuComputeShaderPhase, WORKGROUP_DEFAULT};
+pub use burn_cube::{Kernel, SUBCUBE_DIM_APPROX};
 
 /// Convolution kernels
 pub mod conv;

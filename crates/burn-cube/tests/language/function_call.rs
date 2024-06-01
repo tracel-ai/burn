@@ -1,4 +1,7 @@
-use burn_cube::{cube, Numeric, UInt};
+use burn_cube::{
+    cube,
+    frontend::{Numeric, UInt},
+};
 
 #[cube]
 pub fn caller_no_arg(x: UInt) {
@@ -48,8 +51,8 @@ pub fn no_call_with_generics<T: Numeric>(x: T) {
 mod tests {
     use super::*;
     use burn_cube::{
-        dialect::{Elem, Item},
-        CubeContext, CubeElem, I64,
+        frontend::{CubeContext, CubeElem, I64},
+        ir::{Elem, Item},
     };
 
     #[test]

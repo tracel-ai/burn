@@ -1,6 +1,7 @@
 use super::{trace::Trace, Scalars};
-use burn_cube::dialect::{
-    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, UnaryOperator, Variable,
+use burn_cube::ir::{
+    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, Subcube, UnaryOperator,
+    Variable,
 };
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -9,7 +10,7 @@ use burn_tensor::{
 use hashbrown::HashMap;
 
 /// Type facilitating building a [trace](Trace) by doing most of the conversions between the
-/// operations provided in [burn_fusion] and the [gpu dialect](gpu).
+/// operations provided in [burn_fusion] and the [gpu ir](gpu).
 #[derive(Clone)]
 pub struct TraceBuilder {
     // Input tensor descriptions with the variables created after reading from global memory.
@@ -422,6 +423,61 @@ impl TraceBuilder {
                 Operation::Synchronization(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
+                Operation::Subcube(op) => match op {
+                    Subcube::Elect(op) => {
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    Subcube::All(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Any(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Broadcast(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Sum(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Prod(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::And(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Or(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Xor(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Min(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Subcube::Max(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                },
             }
         }
 

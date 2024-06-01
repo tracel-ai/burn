@@ -1,7 +1,7 @@
 use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::{kernel, unary, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_cube::dialect::{Elem, Item, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::ir::{Elem, Item, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};

@@ -1,14 +1,15 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, IntKind, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    kernel::{self, GpuComputeShaderPhase},
+    kernel::{self, Kernel},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
@@ -39,7 +40,7 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let weight = self.weight;
         let bias = self.bias;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -288,8 +289,8 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -328,14 +329,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEage
 
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, weight, bias, scalars],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -406,7 +407,7 @@ pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
             options.padding[1] as u32,
             options.groups as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

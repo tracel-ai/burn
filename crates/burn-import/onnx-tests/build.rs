@@ -42,6 +42,7 @@ fn main() {
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
         .input("tests/not/not.onnx")
+        .input("tests/expand/expand.onnx")
         .input("tests/greater/greater.onnx")
         .input("tests/greater_or_equal/greater_or_equal.onnx")
         .input("tests/less/less.onnx")
@@ -76,6 +77,7 @@ fn main() {
         .input("tests/squeeze/squeeze_opset13.onnx")
         .input("tests/random_uniform/random_uniform.onnx")
         .input("tests/random_normal/random_normal.onnx")
+        .input("tests/range/range.onnx")
         .out_dir("model/")
         .run_from_script();
 

@@ -1,10 +1,15 @@
-use crate::dialect::{Elem, Item};
-use crate::{Compilation, CompilationInfo, CubeContext, ExpandElement, InputInfo, OutputInfo};
+use crate::ir::{Elem, Item, Visibility};
+use crate::prelude::KernelDefinition;
+use crate::KernelSettings;
+use crate::{
+    frontend::{CubeContext, ExpandElement},
+    InputInfo, KernelExpansion, KernelIntegrator, OutputInfo,
+};
 use std::collections::HashMap;
 
-/// Prepare a kernel for [compilation](crate::Compilation).
+/// Prepare a kernel to create a [kernel definition](crate::KernelDefinition).
 pub struct KernelBuilder {
-    /// Compilation [context](CubeContext).
+    /// Cube [context](CubeContext).
     pub context: CubeContext,
     inputs: Vec<InputInfo>,
     outputs: Vec<OutputInfo>,
@@ -47,20 +52,21 @@ impl KernelBuilder {
     pub fn input_array(&mut self, item: Item) -> ExpandElement {
         self.inputs.push(InputInfo::Array {
             item,
-            visibility: crate::dialect::Visibility::Read,
+            visibility: Visibility::Read,
         });
         let variable = self.context.input(self.num_input, item);
         self.num_input += 1;
         variable
     }
 
-    /// Build the [compilation item](Compilation).
-    pub fn build(self) -> Compilation {
-        Compilation::new(CompilationInfo {
+    /// Build the [kernel definition](KernelDefinition).
+    pub fn build(self, settings: KernelSettings) -> KernelDefinition {
+        KernelIntegrator::new(KernelExpansion {
             scope: self.context.into_scope(),
             inputs: self.inputs,
             outputs: self.outputs,
         })
+        .integrate(settings)
     }
 }
 

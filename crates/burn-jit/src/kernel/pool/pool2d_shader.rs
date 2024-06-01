@@ -1,11 +1,11 @@
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo,
+    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
-use crate::{kernel::GpuComputeShaderPhase, JitElement, JitRuntime};
+use crate::{kernel::Kernel, JitElement, JitRuntime};
 
 use super::PoolStrategy;
 
@@ -23,7 +23,7 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Pool2dComputeShader<P, R, E>
     fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -172,10 +172,8 @@ pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: JitRuntime, E: JitElemen
     _elem: PhantomData<E>,
 }
 
-impl<P: PoolStrategy, R: JitRuntime, E: JitElement> GpuComputeShaderPhase
-    for Pool2dEagerKernel<P, R, E>
-{
-    fn compile(&self) -> ComputeShader {
+impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Kernel for Pool2dEagerKernel<P, R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -223,14 +221,14 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> GpuComputeShaderPhase
             vec![output]
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, scalars],
             outputs,
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {

@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric, Tensor};
+use burn_cube::prelude::*;
 
 #[cube]
 fn kernel<T: Numeric>(input: Tensor<T>) {
@@ -11,8 +11,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        dialect::{Item, Variable},
-        CubeContext, CubeElem, UInt, F32,
+        ir::{Item, Variable},
     };
 
     type ElemType = F32;

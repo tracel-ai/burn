@@ -1,4 +1,7 @@
-use super::base::{Item, Variable};
+use super::{
+    base::{Item, Variable},
+    Subgroup,
+};
 use std::fmt::Display;
 
 /// All instructions that can be used in a WGSL compute shader.
@@ -223,6 +226,7 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Subgroup(Subgroup),
 }
 
 impl Display for Instruction {
@@ -483,6 +487,7 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             Instruction::Ceil { input, out } => {
                 f.write_fmt(format_args!("{out} = ceil({input});\n"))
             }
+            Instruction::Subgroup(op) => f.write_fmt(format_args!("{op}")),
         }
     }
 }

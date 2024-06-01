@@ -1,4 +1,4 @@
-use burn_cube::{cube, Numeric};
+use burn_cube::{cube, frontend::Numeric};
 
 #[cube]
 pub fn if_greater<T: Numeric>(lhs: T) {
@@ -18,8 +18,8 @@ pub fn if_greater_var<T: Numeric>(lhs: T) {
 mod tests {
     use burn_cube::{
         cpa,
-        dialect::{Elem, Item, Variable},
-        CubeContext, CubeElem, F32,
+        frontend::{CubeContext, CubeElem, F32},
+        ir::{Elem, Item, Variable},
     };
 
     use super::if_greater_expand;
