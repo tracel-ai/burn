@@ -15,12 +15,7 @@ use crate::{
     FloatElement, JitRuntime,
 };
 
-#[cube(launch)]
-fn conv2d_kernel<F: Float>(
-    input: Tensor<F>,
-    weight: Tensor<F>,
-    bias: Tensor<F>,
-    mut output: Tensor<F>,
+struct Conv2dArgs {
     conv_stride_0: UInt,
     conv_stride_1: UInt,
     dilation_0: UInt,
@@ -28,6 +23,87 @@ fn conv2d_kernel<F: Float>(
     padding_0: UInt,
     padding_1: UInt,
     groups: UInt,
+}
+
+#[derive(Clone)]
+struct Conv2dArgsExpand {
+    conv_stride_0: <UInt as CubeType>::ExpandType,
+    conv_stride_1: <UInt as CubeType>::ExpandType,
+    dilation_0: <UInt as CubeType>::ExpandType,
+    dilation_1: <UInt as CubeType>::ExpandType,
+    padding_0: <UInt as CubeType>::ExpandType,
+    padding_1: <UInt as CubeType>::ExpandType,
+    groups: <UInt as CubeType>::ExpandType,
+}
+
+#[derive(Clone)]
+struct Conv2dArgsLaunch<'a, R: Runtime> {
+    conv_stride_0: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    conv_stride_1: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    dilation_0: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    dilation_1: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    padding_0: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    padding_1: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+    groups: <UInt as LaunchArg>::RuntimeArg<'a, R>,
+}
+
+impl<'a, R: Runtime> ArgSettings<R> for Conv2dArgsLaunch<'a, R> {
+    fn register(&self, launcher: &mut KernelLauncher<R>) {
+        self.conv_stride_0.register(launcher);
+        self.conv_stride_1.register(launcher);
+        self.dilation_0.register(launcher);
+        self.dilation_1.register(launcher);
+        self.padding_0.register(launcher);
+        self.padding_1.register(launcher);
+        self.groups.register(launcher);
+    }
+}
+
+impl CubeType for Conv2dArgs {
+    type ExpandType = Conv2dArgsExpand;
+}
+
+impl LaunchArg for Conv2dArgs {
+    type RuntimeArg<'a, R: Runtime> = Conv2dArgsLaunch<'a, R>;
+
+    fn compile_input(
+        builder: &mut KernelBuilder,
+        vectorization: burn_cube::ir::Vectorization,
+    ) -> <Self as CubeType>::ExpandType {
+        Conv2dArgsExpand {
+            conv_stride_0: UInt::compile_input(builder, vectorization),
+            conv_stride_1: UInt::compile_input(builder, vectorization),
+            dilation_0: UInt::compile_input(builder, vectorization),
+            dilation_1: UInt::compile_input(builder, vectorization),
+            padding_0: UInt::compile_input(builder, vectorization),
+            padding_1: UInt::compile_input(builder, vectorization),
+            groups: UInt::compile_input(builder, vectorization),
+        }
+    }
+
+    fn compile_output(
+        builder: &mut KernelBuilder,
+        vectorization: burn_cube::ir::Vectorization,
+    ) -> <Self as CubeType>::ExpandType {
+        Conv2dArgsExpand {
+            conv_stride_0: UInt::compile_output(builder, vectorization),
+            conv_stride_1: UInt::compile_output(builder, vectorization),
+            dilation_0: UInt::compile_output(builder, vectorization),
+            dilation_1: UInt::compile_output(builder, vectorization),
+            padding_0: UInt::compile_output(builder, vectorization),
+            padding_1: UInt::compile_output(builder, vectorization),
+            groups: UInt::compile_output(builder, vectorization),
+        }
+    }
+}
+
+#[cube(launch)]
+fn conv2d_kernel<F: Float>(
+    input: Tensor<F>,
+    weight: Tensor<F>,
+    bias: Tensor<F>,
+    mut output: Tensor<F>,
+    args: Conv2dArgs,
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
@@ -47,13 +123,13 @@ fn conv2d_kernel<F: Float>(
     let oh = ABSOLUTE_POS / output.stride(2) % output.shape(2);
     let ow = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
-    let g = (weight.shape(0) + oc) % groups;
+    let g = (weight.shape(0) + oc) % args.groups;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
 
-    let ih_base = oh * conv_stride_0;
-    let iw_base = ow * conv_stride_1;
+    let ih_base = oh * args.conv_stride_0;
+    let iw_base = ow * args.conv_stride_1;
 
     let weight_stride_1 = weight.stride(1);
     let weight_stride_2 = weight.stride(2);
@@ -65,10 +141,10 @@ fn conv2d_kernel<F: Float>(
     let input_shape_2 = input.shape(2);
     let input_shape_3 = input.shape(3);
 
-    let border_top = padding_0;
-    let border_left = padding_1;
-    let border_bottom = input_shape_2 + padding_0;
-    let border_right = input_shape_3 + padding_1;
+    let border_top = args.padding_0;
+    let border_left = args.padding_1;
+    let border_bottom = input_shape_2 + args.padding_0;
+    let border_right = input_shape_3 + args.padding_1;
 
     let index_input_0 = b * input.stride(0);
     let index_weight_0 = oc * weight.stride(0);
@@ -79,8 +155,8 @@ fn conv2d_kernel<F: Float>(
 
         for kh in range(0, kernel_size_0, unroll_0) {
             for kw in range(0, kernel_size_1, unroll_1) {
-                let ih = kh * dilation_0 + ih_base;
-                let iw = kw * dilation_1 + iw_base;
+                let ih = kh * args.dilation_0 + ih_base;
+                let iw = kw * args.dilation_1 + iw_base;
 
                 let within_padding = ih >= border_top
                     && ih < border_bottom
@@ -88,8 +164,8 @@ fn conv2d_kernel<F: Float>(
                     && iw < border_right;
 
                 if within_padding {
-                    let ih_pad = ih - padding_0;
-                    let iw_pad = iw - padding_1;
+                    let ih_pad = ih - args.padding_0;
+                    let iw_pad = iw - args.padding_1;
 
                     let index_input = index_input_0
                         + index_input_1
@@ -169,13 +245,15 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
         TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
         TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
-        options.stride[0] as u32,
-        options.stride[1] as u32,
-        options.dilation[0] as u32,
-        options.dilation[1] as u32,
-        options.padding[0] as u32,
-        options.padding[1] as u32,
-        options.groups as u32,
+        Conv2dArgsLaunch {
+            conv_stride_0: options.stride[0] as u32,
+            conv_stride_1: options.stride[1] as u32,
+            dilation_0: options.dilation[0] as u32,
+            dilation_1: options.dilation[1] as u32,
+            padding_0: options.padding[0] as u32,
+            padding_1: options.padding[1] as u32,
+            groups: options.groups as u32,
+        },
         Some(kernel_0.into()),
         Some(kernel_1.into()),
     );

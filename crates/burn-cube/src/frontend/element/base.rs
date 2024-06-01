@@ -22,14 +22,20 @@ pub trait CubeType {
 }
 
 /// Defines a type that can be used as argument to a kernel.
-pub trait LaunchArg {
+pub trait LaunchArg: CubeType {
     /// The runtime argument for the kernel.
     type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
 
     /// Register an input variable during compilation that fill the [KernelBuilder].
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
+    fn compile_input(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType;
     /// Register an output variable during compilation that fill the [KernelBuilder].
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement;
+    fn compile_output(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType;
 }
 
 /// Defines the argument settings used to launch a kernel.
