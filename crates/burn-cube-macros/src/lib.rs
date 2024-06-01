@@ -1,9 +1,11 @@
 mod analysis;
-mod codegen;
+mod codegen_function;
+mod codegen_type;
 mod variable_key;
 
 use analysis::CodeAnalysis;
-use codegen::{codegen_launch, codegen_statement};
+use codegen_function::{codegen_launch, codegen_statement};
+use codegen_type::generate_cube_type;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
@@ -14,6 +16,13 @@ enum CubeMode {
     /// Panics and prints the generated code, useful when debugging
     /// Use by writing #[cube(panic)]
     Debug,
+}
+
+// Derive macro to define a cube type.
+#[proc_macro_derive(Cube)]
+pub fn module_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+    generate_cube_type(&input)
 }
 
 /// Derive macro for the module.

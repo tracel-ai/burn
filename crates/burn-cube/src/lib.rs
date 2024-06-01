@@ -21,6 +21,7 @@ pub use pod::*;
 pub use runtime::*;
 
 pub use burn_cube_macros::cube;
+pub use burn_cube_macros::Cube;
 
 /// An approximation of the subcube dimension.
 pub const SUBCUBE_DIM_APPROX: usize = 16;

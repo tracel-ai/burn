@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 
-use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
+use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
 
 use super::{
     base::codegen_block,
