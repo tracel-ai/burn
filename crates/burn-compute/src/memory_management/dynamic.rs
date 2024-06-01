@@ -138,7 +138,7 @@ impl Slice {
 }
 
 const MIN_SIZE_NEEDED_TO_OFFSET: usize = 16;
-const BUFFER_ALLIGNEMENT: usize = 32;
+const BUFFER_ALIGNMENT: usize = 32;
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
@@ -278,33 +278,33 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     }
 
     // try first fit
-    fn find_free_slice_first_fit(
-        &self,
-        size: usize,
-        effective_size: usize,
-    ) -> Option<(SliceId, usize)> {
-        for (__, chunk) in self.chunks.iter() {
-            if size < MIN_SIZE_NEEDED_TO_OFFSET {
-                if chunk.slices.len() > 1 {
-                    continue;
-                }
-            }
-            if !self
-                .slice_strategy
-                .can_use_chunk(chunk.storage.size(), effective_size)
-            {
-                continue;
-            }
-            for slice_id in chunk.slices.iter() {
-                let slice = self.slices.get(slice_id).unwrap();
-                if slice.handle.is_free() && slice.effective_size() >= effective_size {
-                    let size_diff_current = slice.effective_size() - effective_size;
-                    return Some((slice_id.clone(), size_diff_current));
-                }
-            }
-        }
-        None
-    }
+    //   fn find_free_slice_first_fit(
+    //       &self,
+    //       size: usize,
+    //       effective_size: usize,
+    //   ) -> Option<(SliceId, usize)> {
+    //       for (__, chunk) in self.chunks.iter() {
+    //           if size < MIN_SIZE_NEEDED_TO_OFFSET {
+    //               if chunk.slices.len() > 1 {
+    //                   continue;
+    //               }
+    //           }
+    //           if !self
+    //               .slice_strategy
+    //               .can_use_chunk(chunk.storage.size(), effective_size)
+    //           {
+    //               continue;
+    //           }
+    //           for slice_id in chunk.slices.iter() {
+    //               let slice = self.slices.get(slice_id).unwrap();
+    //               if slice.handle.is_free() && slice.effective_size() >= effective_size {
+    //                   let size_diff_current = slice.effective_size() - effective_size;
+    //                   return Some((slice_id.clone(), size_diff_current));
+    //               }
+    //           }
+    //       }
+    //       None
+    //   }
 
     fn find_free_slice_best_fit(
         &self,
@@ -314,10 +314,8 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         let mut size_diff_current = usize::MAX;
         let mut found = None;
         for (__, chunk) in self.chunks.iter() {
-            if size < MIN_SIZE_NEEDED_TO_OFFSET {
-                if chunk.slices.len() > 1 {
-                    continue;
-                }
+            if size < MIN_SIZE_NEEDED_TO_OFFSET && chunk.slices.len() > 1 {
+                continue;
             }
             if !self
                 .slice_strategy
@@ -334,7 +332,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
                     let size_diff = slice.effective_size() - effective_size;
                     if size_diff < size_diff_current {
                         size_diff_current = size_diff;
-                        found = Some((slice_id.clone(), size_diff));
+                        found = Some((*slice_id, size_diff));
                     }
                 }
             }
@@ -410,7 +408,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Returns the chunk's id and size.
     fn get_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
         log::info!("Number of allocated memory chunks {:?}", self.chunks.len());
-        let padding = calculate_padding(size);
+        let padding = Self::calculate_padding(size);
         let effective_size = size + padding;
 
         let found = self.find_free_slice_best_fit(size, effective_size);
@@ -434,12 +432,12 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             return Some(self.slices.get(&slice_id).unwrap().handle.clone());
         }
 
-        assert_eq!(size_diff_current % BUFFER_ALLIGNEMENT, 0);
+        assert_eq!(size_diff_current % BUFFER_ALIGNMENT, 0);
 
         // split into 2 if needed
         let handle = self.split_slice_in_two(&slice_id, size);
         if handle.is_none() {
-            panic!("splitted should have been a valid value");
+            panic!("split should have returned a handle");
         }
 
         handle
@@ -453,8 +451,8 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         if offset > 0 && size < MIN_SIZE_NEEDED_TO_OFFSET {
             panic!("tried to create slice of size {size} with an offset while the size needs to atleast be of size {MIN_SIZE_NEEDED_TO_OFFSET} for offset support");
         }
-        if offset % BUFFER_ALLIGNEMENT != 0 {
-            panic!("slice with offset {offset} needs to be a multiple of {BUFFER_ALLIGNEMENT}");
+        if offset % BUFFER_ALIGNMENT != 0 {
+            panic!("slice with offset {offset} needs to be a multiple of {BUFFER_ALIGNMENT}");
         }
         let chunk = self.chunks.get(handle_chunk.id()).unwrap();
         let handle = SliceHandle::new();
@@ -464,14 +462,14 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             utilization: StorageUtilization::Slice { offset, size },
         };
 
-        let padding = calculate_padding(size);
+        let padding = Self::calculate_padding(size);
 
         Slice::new(storage, handle, chunk.handle.clone(), padding)
     }
 
     #[cfg(test)]
     fn insert_slice(&mut self, slice: Slice, chunk_id: ChunkId) {
-        let slice_id = slice.handle.id().clone();
+        let slice_id = *slice.handle.id();
         self.slices.insert(*slice.handle.id(), slice);
         let chunk = self.chunks.get_mut(&chunk_id).unwrap();
         chunk.slices.push(slice_id);
@@ -479,7 +477,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
     /// Creates a chunk of given size by allocating on the storage.
     fn create_chunk(&mut self, size: usize) -> ChunkHandle {
-        let padding = calculate_padding(size);
+        let padding = Self::calculate_padding(size);
         let effective_size = size + padding;
 
         let storage = self.storage.alloc(effective_size);
@@ -556,10 +554,10 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
             for merging in mergings {
                 let slice = self.create_slice(merging.offset, merging.size, chunk_handle.clone());
-                let slice_id = slice.handle.id().clone();
+                let slice_id = *slice.handle.id();
                 self.slices.insert(slice_id, slice);
                 for i in index..merging.start {
-                    slices_updated.push(slices.get(i).unwrap().clone());
+                    slices_updated.push(*slices.get(i).unwrap());
                 }
                 index = merging.end + 1;
                 slices_updated.push(slice_id);
@@ -570,10 +568,19 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             }
 
             for i in index..slices.len() {
-                slices_updated.push(slices.get(i).unwrap().clone());
+                slices_updated.push(*slices.get(i).unwrap());
             }
             let chunk = self.chunks.get_mut(&chunk_id).unwrap();
             core::mem::swap(&mut chunk.slices, &mut slices_updated);
+        }
+    }
+
+    fn calculate_padding(size: usize) -> usize {
+        let rem = size % BUFFER_ALIGNMENT;
+        if rem != 0 {
+            BUFFER_ALIGNMENT - rem
+        } else {
+            0
         }
     }
 }
@@ -687,12 +694,12 @@ mod tests {
             SliceStrategy::Ratio(0.1),
         );
 
-        //The chunk will be seperated in 7 slices. 1 free, 23 not free, 456 free and 7 not free
+        //The chunk will be separated in 7 slices. 1 free, 23 not free, 456 free and 7 not free
         let slice_size = 32;
         let num_of_slice = 7;
 
         let chunk_handle = memory_management.create_chunk(slice_size * num_of_slice);
-        let chunk_id = chunk_handle.id().clone();
+        let chunk_id = *chunk_handle.id();
         let slice = memory_management.create_slice(0, slice_size * num_of_slice, chunk_handle);
         memory_management.insert_slice(slice, chunk_id);
 
@@ -716,7 +723,7 @@ mod tests {
         let slices = &chunk.slices;
 
         // first slice test
-        let first_slice_id = slices.get(0).unwrap();
+        let first_slice_id = slices.first().unwrap();
         let first_slice = memory_management.slices.get(first_slice_id).unwrap();
         assert!(first_slice.handle.is_free());
         assert_eq!(first_slice.storage.size(), slice_size);
@@ -727,7 +734,7 @@ mod tests {
         let first_slice = memory_management.slices.get(first_slice_id).unwrap();
         assert!(!first_slice.handle.is_free());
         assert_eq!(first_slice.storage.size(), slice_size);
-        assert_eq!(first_slice.storage.offset(), slice_size * 1);
+        assert_eq!(first_slice.storage.offset(), slice_size);
 
         // third slice test
         let first_slice_id = slices.get(2).unwrap();
@@ -747,7 +754,7 @@ mod tests {
         let first_slice_id = slices.get(4).unwrap();
         let first_slice = memory_management.slices.get(first_slice_id).unwrap();
         assert!(!first_slice.handle.is_free());
-        assert_eq!(first_slice.storage.size(), slice_size * 1);
+        assert_eq!(first_slice.storage.size(), slice_size);
         assert_eq!(first_slice.storage.offset(), slice_size * 6);
     }
 
@@ -860,14 +867,5 @@ mod tests {
                 "Slice can't be reallocated when one ref still exist."
             );
         }
-    }
-}
-
-fn calculate_padding(size: usize) -> usize {
-    let rem = size % BUFFER_ALLIGNEMENT;
-    if rem != 0 {
-        BUFFER_ALLIGNEMENT - rem
-    } else {
-        0
     }
 }

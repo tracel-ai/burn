@@ -8,7 +8,7 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::dynamic::{DeallocStrategy, DynamicMemoryManagement, SliceStrategy},
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
@@ -28,20 +28,20 @@ pub struct WgpuRuntime<G: GraphicsApi> {
 
 impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
     type JitDevice = WgpuDevice;
-    type JitServer = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+    type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
 static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> =
     ComputeRuntime::new();
 
-type Server = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
     type Compiler = wgsl::WgslCompiler;
-    type Server = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+    type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-    type Channel = MutexComputeChannel<WgpuServer<DynamicMemoryManagement<WgpuStorage>>>;
+    type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;
     type Device = WgpuDevice;
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
@@ -89,7 +89,7 @@ impl Default for RuntimeOptions {
         };
 
         Self {
-            dealloc_strategy: DeallocStrategy::Never,
+            dealloc_strategy: DeallocStrategy::new_period_tick(tasks_max * 2),
             slice_strategy: SliceStrategy::Ratio(0.8),
             tasks_max,
         }
@@ -116,8 +116,8 @@ async fn create_client<G: GraphicsApi>(
     device: &WgpuDevice,
     options: RuntimeOptions,
 ) -> ComputeClient<
-    WgpuServer<DynamicMemoryManagement<WgpuStorage>>,
-    MutexComputeChannel<WgpuServer<DynamicMemoryManagement<WgpuStorage>>>,
+    WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
+    MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
 > {
     let (device_wgpu, queue, info) = select_device::<G>(device).await;
 
@@ -130,7 +130,7 @@ async fn create_client<G: GraphicsApi>(
     let device = Arc::new(device_wgpu);
     let storage = WgpuStorage::new(device.clone());
     let memory_management =
-        DynamicMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
+        SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
     let server = WgpuServer::new(memory_management, device, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
 
