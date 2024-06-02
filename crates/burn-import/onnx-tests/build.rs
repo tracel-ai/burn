@@ -68,6 +68,8 @@ fn main() {
         .input("tests/conv_transpose2d/conv_transpose2d.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
+        .input("tests/sum/sum.onnx")
+        .input("tests/sum/sum_int.onnx")
         .input("tests/unsqueeze/unsqueeze.onnx")
         .input("tests/unsqueeze/unsqueeze_opset16.onnx")
         .input("tests/unsqueeze/unsqueeze_opset11.onnx")

@@ -27,6 +27,7 @@ pub(crate) mod random_uniform;
 pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod squeeze;
+pub(crate) mod sum;
 pub(crate) mod unary;
 pub(crate) mod unsqueeze;
 pub(crate) use base::*;

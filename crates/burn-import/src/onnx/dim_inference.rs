@@ -66,6 +66,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => same_as_input(node),
+        NodeType::Sum => same_as_input(node),
         NodeType::Tanh => same_as_input(node),
         NodeType::Transpose => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
