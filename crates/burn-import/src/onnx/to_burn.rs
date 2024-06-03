@@ -29,6 +29,7 @@ use crate::{
             dropout::DropoutNode,
             expand::ExpandNode,
             gather::GatherNode,
+            gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -274,7 +275,8 @@ impl OnnxGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
-                NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
+                NodeType::Gather => graph.register(Self::gather_conversion(node)),
+                NodeType::GatherElements => graph.register(Self::gather_elements_conversion(node)),
                 NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
@@ -548,6 +550,15 @@ impl OnnxGraph {
         let dim = gather_config(&node);
 
         GatherNode::new(input, index, output, dim)
+    }
+
+    fn gather_elements_conversion(node: Node) -> GatherElementsNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let index = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dim = gather_config(&node);
+
+        GatherElementsNode::new(input, index, output, dim)
     }
 
     fn transpose_conversion(node: Node) -> UnaryNode {

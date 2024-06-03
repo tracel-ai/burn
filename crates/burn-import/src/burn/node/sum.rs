@@ -53,7 +53,7 @@ mod tests {
     };
 
     #[test]
-    fn test_codegen_concat() {
+    fn test_codegen_sum() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(SumNode::new(
