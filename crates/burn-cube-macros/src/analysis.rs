@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use syn::{Member, PathArguments, Stmt};
+use syn::{Member, Pat, PathArguments, Stmt};
 
 use crate::variable_key::VariableKey;
 
@@ -310,12 +310,25 @@ impl CodeAnalysisBuilder {
             }
             syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Closure(expr) => {
-                assert!(
-                    expr.inputs.is_empty(),
-                    "Analysis: closure with args not supported"
-                );
+                let depth = depth + 1;
 
-                self.find_occurrences_in_expr(&expr.body, depth + 1)
+                for path in expr.inputs.iter() {
+                    let ident = match path {
+                        Pat::Ident(pat_ident) => &pat_ident.ident,
+                        Pat::Type(pat_type) => {
+                            if let Pat::Ident(pat_ident) = &*pat_type.pat {
+                                &pat_ident.ident
+                            } else {
+                                todo!("Analysis: {:?} not supported in closure inputs. ", path);
+                            }
+                        }
+                        _ => todo!("Analysis: {:?} not supported in closure inputs. ", path),
+                    };
+
+                    self.declarations.push(((ident).into(), depth));
+                }
+
+                self.find_occurrences_in_expr(&expr.body, depth)
             }
             syn::Expr::Unary(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Field(expr) => {

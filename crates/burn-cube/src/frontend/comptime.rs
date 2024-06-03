@@ -25,6 +25,18 @@ impl<T> Comptime<T> {
     pub fn get(_comptime: Self) -> T {
         unexpanded!()
     }
+
+    pub fn map<R, F: Fn(T) -> R>(_comptime: Self, _closure: F) -> Comptime<R> {
+        unexpanded!()
+    }
+
+    pub fn map_expand<R, F: Fn(&mut CubeContext, T) -> R>(
+        context: &mut CubeContext,
+        inner: T,
+        closure: F,
+    ) -> R {
+        closure(context, inner)
+    }
 }
 
 impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
