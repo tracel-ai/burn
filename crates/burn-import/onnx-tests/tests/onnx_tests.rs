@@ -34,8 +34,10 @@ include_models!(
     equal,
     erf,
     exp,
+    expand,
     flatten,
     gather,
+    gather_elements,
     gelu,
     global_avr_pool,
     layer_norm,
@@ -57,6 +59,7 @@ include_models!(
     less,
     less_or_equal,
     prelu,
+    range,
     recip,
     reduce_max,
     reduce_mean,
@@ -356,8 +359,22 @@ mod tests {
 
     #[test]
     fn gather() {
-        // Initialize the model with weights (loaded from the exported file)
         let model: gather::Model<Backend> = gather::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
+        let output = model.forward(input, index);
+        let expected = Data::from([[1., 3.], [4., 6.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_elements() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: gather_elements::Model<Backend> = gather_elements::Model::default();
 
         let device = Default::default();
         // Run the model
@@ -1071,6 +1088,21 @@ mod tests {
     }
 
     #[test]
+    fn range() {
+        let device = Default::default();
+        let model: range::Model<Backend> = range::Model::new(&device);
+
+        // Run the model
+        let start = 0i64;
+        let limit = 10i64;
+        let delta = 2i64;
+        let output = model.forward(start, limit, delta);
+
+        let expected = Data::from([0, 2, 4, 6, 8]);
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
     fn recip() {
         // Initialize the model
         let device = Default::default();
@@ -1131,6 +1163,19 @@ mod tests {
         let expected = Data::from([[[[1., 2.]]]]);
 
         output.to_data().assert_approx_eq(&expected, 2);
+    }
+
+    #[test]
+    fn expand() {
+        let device = Default::default();
+        let model: expand::Model<Backend> = expand::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_floats([[-1.0], [1.0]], &device);
+
+        let output = model.forward(input1);
+        let expected_shape = Shape::from([2, 2]);
+
+        assert_eq!(output.shape(), expected_shape);
     }
 
     #[test]

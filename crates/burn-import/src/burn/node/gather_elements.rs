@@ -5,14 +5,14 @@ use burn::record::PrecisionSettings;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
-pub struct GatherNode {
+pub struct GatherElementsNode {
     pub input: TensorType,
     pub index: TensorType,
     pub output: TensorType,
     pub dim: usize,
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherElementsNode {
     fn output_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.output.clone())]
     }
@@ -35,12 +35,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         let output = &self.output.name;
 
         quote! {
-            let #output = #input.select(#dim, #index);
+            let #output = #input.gather(#dim, #index);
         }
     }
 
     fn into_node(self) -> super::Node<PS> {
-        Node::Gather(self)
+        Node::GatherElements(self)
     }
 }
 
@@ -52,19 +52,19 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{gather::GatherNode, test::assert_tokens},
+        node::{gather_elements::GatherElementsNode, test::assert_tokens},
         TensorType,
     };
 
     #[test]
-    fn test_codegen_gather() {
+    fn test_codegen_gather_elements() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(GatherNode::new(
+        graph.register(GatherElementsNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 1),
+            TensorType::new_int("tensor2", 2),
             TensorType::new_float("tensor3", 2),
-            0,
+            1,
         ));
 
         graph.register_input_output(
@@ -98,9 +98,9 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 2>,
-                    tensor2: Tensor<B, 1, Int>
+                    tensor2: Tensor<B, 2, Int>
                 ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.select(0, tensor2);
+                    let tensor3 = tensor1.gather(1, tensor2);
 
                     tensor3
                 }
