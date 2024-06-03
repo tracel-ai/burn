@@ -48,7 +48,7 @@ js-sys = "0.3.69"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.21" }
 pretty_assertions = "1.4.0"
-proc-macro2 = "1.0.84"
+proc-macro2 = "1.0.85"
 protobuf = "3.4.0"
 protobuf-codegen = "3.4.0"
 quote = "1.0.36"
