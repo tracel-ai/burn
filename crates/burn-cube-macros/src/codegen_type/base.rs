@@ -2,13 +2,15 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::Ident;
 
+use super::GenericsCodegen;
+
 struct TypeCodegen {
     name: syn::Ident,
     name_launch: syn::Ident,
     name_expand: syn::Ident,
     fields: Vec<syn::Field>,
+    generics: GenericsCodegen,
 }
-
 impl TypeCodegen {
     pub fn expand_ty(&self) -> proc_macro2::TokenStream {
         let mut fields = quote::quote! {};
@@ -23,9 +25,11 @@ impl TypeCodegen {
             });
         }
 
+        let generics = self.generics.type_definitions();
+
         quote! {
             #[derive(Clone)]
-            struct #name {
+            struct #name #generics {
                 #fields
             }
         }
@@ -45,8 +49,10 @@ impl TypeCodegen {
             });
         }
 
+        let generics = self.generics.all_definitions();
+
         quote! {
-            struct #name<'a, R: Runtime> {
+            struct #name #generics {
                 #fields
             }
         }
@@ -70,8 +76,11 @@ impl TypeCodegen {
             });
         }
 
+        let generics_impl = self.generics.all_definitions();
+        let generics_use = self.generics.all_in_use();
+
         quote! {
-            impl<'a, R: Runtime> #name<'a, R> {
+            impl #generics_impl #name #generics_use {
                 pub fn new(#args) -> Self {
                     Self {
                         #fields
@@ -94,8 +103,11 @@ impl TypeCodegen {
             });
         }
 
+        let generics_impl = self.generics.all_definitions();
+        let generics_use = self.generics.all_in_use();
+
         quote! {
-            impl<'a, R: Runtime> ArgSettings<R> for #name<'a, R> {
+            impl #generics_impl ArgSettings<R> for #name #generics_use {
                 fn register(&self, launcher: &mut KernelLauncher<R>) {
                     #body
                 }
@@ -108,9 +120,12 @@ impl TypeCodegen {
         let name = &self.name;
         let name_expand = &self.name_expand;
 
+        let generics_impl = self.generics.type_definitions();
+        let generics_use = self.generics.type_in_use();
+
         quote! {
-            impl CubeType for #name {
-                type ExpandType = #name_expand;
+            impl #generics_impl CubeType for #name #generics_use {
+                type ExpandType = #name_expand #generics_use;
             }
         }
         .into()
@@ -135,9 +150,14 @@ impl TypeCodegen {
             });
         }
 
+        let type_generics_impl = self.generics.type_definitions();
+        let type_generics_use = self.generics.type_in_use();
+        let runtime_generics_impl = self.generics.runtime_definitions();
+        let all_generics_use = self.generics.all_in_use();
+
         quote! {
-            impl LaunchArg for #name {
-                type RuntimeArg<'a, R: Runtime> = #name_launch<'a, R>;
+            impl #type_generics_impl LaunchArg for #name #type_generics_use {
+                type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
 
                 fn compile_input(
                     builder: &mut KernelBuilder,
@@ -164,6 +184,7 @@ impl TypeCodegen {
 
 pub(crate) fn generate_cube_type(ast: &syn::DeriveInput) -> TokenStream {
     let name = ast.ident.clone();
+    let generics = ast.generics.clone();
     let name_string = name.to_string();
     let name_expand = Ident::new(format!("{}Expand", name_string).as_str(), name.span());
     let name_launch = Ident::new(format!("{}Launch", name_string).as_str(), name.span());
@@ -184,6 +205,7 @@ pub(crate) fn generate_cube_type(ast: &syn::DeriveInput) -> TokenStream {
         name_launch,
         name_expand,
         fields,
+        generics: GenericsCodegen::new(generics),
     };
 
     let expand_ty = codegen.expand_ty();

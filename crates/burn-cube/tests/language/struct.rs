@@ -1,21 +1,12 @@
 use burn_cube::prelude::*;
 
-// TODO: decorate with #[cube] to generate StateExpand and impl CubeType for State<T>
+#[derive(Cube)]
 struct State<T: Numeric> {
     first: T,
     second: T,
 }
 
-#[derive(Clone)]
-struct StateExpand<T: Numeric> {
-    first: <T as CubeType>::ExpandType,
-    second: <T as CubeType>::ExpandType,
-}
-
-impl<T: Numeric> CubeType for State<T> {
-    type ExpandType = StateExpand<T>;
-}
-
+//
 #[cube]
 fn state_receiver_with_reuse<T: Numeric>(state: State<T>) -> T {
     let x = state.first + state.second;

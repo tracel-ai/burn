@@ -5,11 +5,14 @@ use crate::{
     unexpanded,
 };
 
+use super::LaunchArg;
+
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
 pub trait Numeric:
     Clone
     + Copy
+    + LaunchArg
     + CubeElem
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign

@@ -22,7 +22,8 @@ enum CubeMode {
 #[proc_macro_derive(Cube)]
 pub fn module_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    generate_cube_type(&input)
+    let tokens = generate_cube_type(&input);
+    tokens
 }
 
 /// Derive macro for the module.
