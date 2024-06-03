@@ -6,7 +6,6 @@ struct State<T: Numeric> {
     second: T,
 }
 
-//
 #[cube]
 fn state_receiver_with_reuse<T: Numeric>(state: State<T>) -> T {
     let x = state.first + state.second;
