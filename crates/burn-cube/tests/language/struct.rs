@@ -1,6 +1,6 @@
 use burn_cube::prelude::*;
 
-#[derive(Cube)]
+#[derive(CubeType)]
 struct State<T: Numeric> {
     first: T,
     second: T,

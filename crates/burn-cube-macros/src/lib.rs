@@ -18,12 +18,20 @@ enum CubeMode {
     Debug,
 }
 
-// Derive macro to define a cube type.
-#[proc_macro_derive(Cube)]
-pub fn module_derive(input: TokenStream) -> TokenStream {
+// Derive macro to define a cube type that is launched with a kernel
+#[proc_macro_derive(CubeLaunch)]
+pub fn module_derive_cube_launch(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
 
-    generate_cube_type(&input)
+    generate_cube_type(&input, true)
+}
+
+// Derive macro to define a cube type that is not launched
+#[proc_macro_derive(CubeType)]
+pub fn module_derive_cube_type(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+
+    generate_cube_type(&input, false)
 }
 
 /// Derive macro for the module.

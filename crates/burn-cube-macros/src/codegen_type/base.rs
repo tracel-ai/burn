@@ -176,7 +176,7 @@ impl TypeCodegen {
     }
 }
 
-pub(crate) fn generate_cube_type(ast: &syn::DeriveInput) -> TokenStream {
+pub(crate) fn generate_cube_type(ast: &syn::DeriveInput, with_launch: bool) -> TokenStream {
     let name = ast.ident.clone();
     let generics = ast.generics.clone();
     let name_string = name.to_string();
@@ -210,14 +210,22 @@ pub(crate) fn generate_cube_type(ast: &syn::DeriveInput) -> TokenStream {
     let arg_settings_impl = codegen.arg_settings_impl();
     let launch_arg_impl = codegen.launch_arg_impl();
 
-    quote! {
-        #expand_ty
-        #launch_ty
-        #launch_new
+    if with_launch {
+        quote! {
+            #expand_ty
+            #launch_ty
+            #launch_new
 
-        #cube_type_impl
-        #arg_settings_impl
-        #launch_arg_impl
+            #cube_type_impl
+            #arg_settings_impl
+            #launch_arg_impl
+        }
+        .into()
+    } else {
+        quote! {
+            #expand_ty
+            #cube_type_impl
+        }
+        .into()
     }
-    .into()
 }
