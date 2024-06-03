@@ -79,7 +79,7 @@ serial_test = "3.1.1"
 web-time = "1.1.0"
 hound = "3.5.1"
 image = "0.25.1"
-zip = "2.1.1"
+zip = "2.1.2"
 
 # Terminal UI
 ratatui = "0.26.3"
