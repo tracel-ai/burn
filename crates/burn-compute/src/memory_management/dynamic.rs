@@ -35,12 +35,12 @@ pub enum DynamicBinding {
     Slice(SliceBinding),
 }
 
-/// The strategy defines the frequency at which deallocation of unused memory chunks should occur.
+/// The strategy defines the frequency at which merging of free slices (defragmentation) occurs
 #[derive(Debug)]
 pub enum MergingStrategy {
     /// Once every n calls to reserve.
     PeriodTick {
-        /// Number of calls to be executed before triggering the deallocation.
+        /// Number of calls to be executed before triggering the defragmentation.
         period: usize,
         /// Current state. Should start at zero.
         state: usize,
@@ -48,12 +48,12 @@ pub enum MergingStrategy {
     #[cfg(feature = "std")]
     /// Once every period of time
     PeriodTime {
-        /// Number of time before triggering the deallocation.
+        /// Number of time before triggering the defragmentation.
         period: time::Duration,
         /// Current state. Should start at now.
         state: time::Instant,
     },
-    /// Never deallocate.
+    /// Never defragment.
     Never,
 }
 
