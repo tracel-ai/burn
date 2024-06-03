@@ -29,7 +29,6 @@ impl TypeCodegen {
                 #fields
             }
         }
-        .into()
     }
 
     pub fn launch_ty(&self) -> proc_macro2::TokenStream {
@@ -50,7 +49,6 @@ impl TypeCodegen {
                 #fields
             }
         }
-        .into()
     }
 
     pub fn launch_new(&self) -> proc_macro2::TokenStream {
@@ -79,7 +77,6 @@ impl TypeCodegen {
                 }
             }
         }
-        .into()
     }
 
     pub fn arg_settings_impl(&self) -> proc_macro2::TokenStream {
@@ -101,7 +98,6 @@ impl TypeCodegen {
                 }
             }
         }
-        .into()
     }
 
     pub fn cube_type_impl(&self) -> proc_macro2::TokenStream {
@@ -113,7 +109,6 @@ impl TypeCodegen {
                 type ExpandType = #name_expand;
             }
         }
-        .into()
     }
 
     pub fn launch_arg_impl(&self) -> proc_macro2::TokenStream {
@@ -158,7 +153,6 @@ impl TypeCodegen {
                 }
             }
         }
-        .into()
     }
 }
 
