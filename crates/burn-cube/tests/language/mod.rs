@@ -12,6 +12,7 @@ mod ops;
 mod parenthesis;
 mod reuse;
 mod shared_memory;
+mod r#struct;
 mod tensor;
 mod topology;
 mod r#trait;

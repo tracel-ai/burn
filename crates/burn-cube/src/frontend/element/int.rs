@@ -1,5 +1,9 @@
+use crate::compute::{KernelBuilder, KernelLauncher};
 use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::ir::{Elem, IntKind, Variable};
+use crate::ir::{Elem, IntKind, Variable, Vectorization};
+use crate::Runtime;
+
+use super::{ArgSettings, LaunchArg};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -8,7 +12,7 @@ pub trait Int: Numeric + std::ops::Rem<Output = Self> {
 }
 
 macro_rules! impl_int {
-    ($type:ident) => {
+    ($type:ident, $primitive:ty) => {
         #[derive(Clone, Copy)]
         pub struct $type {
             pub val: i64,
@@ -40,8 +44,40 @@ macro_rules! impl_int {
                 ExpandElement::Plain(new_var)
             }
         }
+
+        impl LaunchArg for $type {
+            type RuntimeArg<'a, R: Runtime> = $primitive;
+
+            fn compile_input(
+                builder: &mut KernelBuilder,
+                vectorization: Vectorization,
+            ) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar(Self::as_elem())
+            }
+
+            fn compile_output(
+                builder: &mut KernelBuilder,
+                vectorization: Vectorization,
+            ) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar(Self::as_elem())
+            }
+        }
     };
 }
 
-impl_int!(I32);
-impl_int!(I64);
+impl_int!(I32, i32);
+impl_int!(I64, i64);
+
+impl<R: Runtime> ArgSettings<R> for i32 {
+    fn register(&self, settings: &mut KernelLauncher<R>) {
+        settings.register_i32(*self);
+    }
+}
+
+impl<R: Runtime> ArgSettings<R> for i64 {
+    fn register(&self, settings: &mut KernelLauncher<R>) {
+        settings.register_i64(*self);
+    }
+}
