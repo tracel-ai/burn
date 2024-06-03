@@ -118,8 +118,6 @@ impl CodeAnalysisBuilder {
             variable_analyses.insert(id, new_analysis);
         }
 
-        // panic!("{:?}", variable_analyses);
-        // panic!("{:?}", self.declarations);
         for id in self.var_uses.iter() {
             match variable_analyses.remove(id) {
                 Some(prev_analysis) => {
