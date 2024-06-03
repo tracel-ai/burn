@@ -43,6 +43,7 @@ use crate::{
             range::RangeNode,
             reshape::ReshapeNode,
             squeeze::SqueezeNode,
+            sum::SumNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -293,6 +294,7 @@ impl OnnxGraph {
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
@@ -682,6 +684,17 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sin(input, output)
+    }
+
+    fn sum_conversion(node: Node) -> SumNode {
+        let inputs = node
+            .inputs
+            .iter()
+            .map(|input| input.to_tensor_type())
+            .collect();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        SumNode::new(inputs, output)
     }
 
     fn reciprocal_conversion(node: Node) -> UnaryNode {
