@@ -15,7 +15,7 @@ use crate::{
     FloatElement, JitRuntime,
 };
 
-#[derive(Cube)]
+#[derive(CubeLaunch)]
 struct Conv2dArgs {
     conv_stride_0: UInt,
     conv_stride_1: UInt,

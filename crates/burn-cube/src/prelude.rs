@@ -1,4 +1,4 @@
-pub use crate::{cube, Cube, Kernel, RuntimeArg};
+pub use crate::{cube, CubeLaunch, CubeType, Kernel, RuntimeArg};
 
 pub use crate::codegen::{KernelExpansion, KernelIntegrator, KernelSettings};
 pub use crate::compute::{

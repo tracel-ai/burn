@@ -32,13 +32,28 @@ pub(crate) fn codegen_closure(
 ) -> TokenStream {
     let mut inputs = quote::quote! {};
     for input in closure.inputs.iter() {
-        let ident = match input {
-            syn::Pat::Ident(ident) => &ident.ident,
+        let (ident, ty) = match input {
+            syn::Pat::Ident(ident) => (&ident.ident, None),
+            syn::Pat::Type(pat_type) => (
+                if let syn::Pat::Ident(ident) = &*pat_type.pat {
+                    &ident.ident
+                } else {
+                    panic!("Codegen: Unsupported {:?}", input);
+                },
+                Some(pat_type.ty.clone()),
+            ),
             _ => panic!("Codegen: Unsupported {:?}", input),
         };
-        inputs.extend(quote::quote! {
-            #ident,
-        });
+
+        if let Some(ty) = ty {
+            inputs.extend(quote::quote! {
+                #ident : #ty,
+            });
+        } else {
+            inputs.extend(quote::quote! {
+                #ident,
+            });
+        }
     }
 
     let body = codegen_expr(closure.body.as_ref(), loop_level, variable_analyses);
@@ -123,6 +138,14 @@ pub(crate) fn parse_function_call(
             "get" | "new" => {
                 let code = call.args.first().unwrap();
                 quote::quote! {#code}
+            }
+            "map" => {
+                let args = codegen_args(&call.args, loop_level, variable_analyses);
+
+                // Codegen
+                quote::quote! {
+                    Comptime::map_expand(#args)
+                }
             }
             "unwrap_or_else" => {
                 let args = codegen_args(&call.args, loop_level, variable_analyses);
