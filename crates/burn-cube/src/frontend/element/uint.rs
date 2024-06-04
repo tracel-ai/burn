@@ -6,6 +6,8 @@ use crate::{
     LaunchArg, Runtime,
 };
 
+use super::Vectorized;
+
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
 /// Preferred for indexing operations
@@ -81,5 +83,16 @@ impl From<usize> for UInt {
 impl From<i32> for UInt {
     fn from(value: i32) -> Self {
         UInt::new(value as u32)
+    }
+}
+
+impl Vectorized for UInt {
+    fn vectorization_factor(&self) -> u8 {
+        self.vectorization
+    }
+
+    fn vectorize(mut self, factor: u8) -> Self {
+        self.vectorization = factor;
+        self
     }
 }

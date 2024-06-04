@@ -1,11 +1,14 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote_spanned;
 use syn::{
     punctuated::Punctuated, spanned::Spanned, AngleBracketedGenericArguments, Expr, Ident,
     PathArguments, Token,
 };
 
-use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
+use crate::{
+    analysis::CodeAnalysis,
+    codegen_function::{base::codegen_expr, variable},
+};
 
 /// Codegen for method call
 /// Supports [expr].method(args)
@@ -19,9 +22,12 @@ pub(crate) fn codegen_expr_method_call(
         format!("{}_expand", call.method).as_str(),
         proc_macro2::Span::call_site(),
     );
-    let args = codegen_args(&call.args, loop_level, variable_analyses);
+    let (expansion, variables) = codegen_args(&call.args, loop_level, variable_analyses);
 
-    quote::quote!( #receiver . #method_expand ( #args ))
+    quote::quote!( {
+        #expansion
+        #receiver . #method_expand ( #variables )
+    })
 }
 
 /// Codegen for a closure
@@ -59,7 +65,7 @@ pub(crate) fn codegen_closure(
     let body = codegen_expr(closure.body.as_ref(), loop_level, variable_analyses);
 
     quote::quote! {
-        |context, #inputs| #body
+        |context: &mut CubeContext, #inputs| #body
     }
 }
 
@@ -140,36 +146,53 @@ pub(crate) fn parse_function_call(
                 quote::quote! {#code}
             }
             "map" => {
-                let args = codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) =
+                    codegen_args(&call.args, loop_level, variable_analyses);
 
                 // Codegen
                 quote::quote! {
-                    Comptime::map_expand(#args)
+                    {
+                        #expansion
+                        Comptime::map_expand(#variables)
+                    }
                 }
             }
             "unwrap_or_else" => {
-                let args = codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) =
+                    codegen_args(&call.args, loop_level, variable_analyses);
 
                 // Codegen
-                quote::quote! {
-                    Comptime::unwrap_or_else_expand(#args)
-                }
+                quote::quote! {{
+                    #expansion
+                    Comptime::unwrap_or_else_expand(#variables)
+                }}
             }
             "is_some" => {
                 let code = call.args.first().unwrap();
                 quote::quote! { #code.is_some() }
+            }
+            "vectorization" => {
+                let (expansion, variables) =
+                    codegen_args(&call.args, loop_level, variable_analyses);
+
+                // Codegen
+                quote::quote! {{
+                    #expansion
+                    Comptime::vectorization_expand(#variables)
+                }}
             }
             _ => panic!("Codegen: Comptime function {:?} does not exist", func_name),
         };
 
         (tokens, true)
     } else {
-        let args = codegen_args(&call.args, loop_level, variable_analyses);
+        let (expansion, variables) = codegen_args(&call.args, loop_level, variable_analyses);
 
         // Codegen
-        let tokens = quote::quote! {
-            #path_tokens (#args)
-        };
+        let tokens = quote::quote! {{
+            #expansion
+            #path_tokens (#variables)
+        }};
 
         (tokens, false)
     }
@@ -179,12 +202,18 @@ fn codegen_args(
     args: &Punctuated<Expr, Token![,]>,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
-) -> TokenStream {
-    let mut arg_tokens = quote::quote! {};
-    arg_tokens.extend(quote::quote! { context, });
-    for argument in args.iter() {
+) -> (TokenStream, TokenStream) {
+    let mut expansion = quote::quote! {};
+    let mut variables = quote::quote! {};
+
+    variables.extend(quote::quote! { context, });
+
+    for (i, argument) in args.iter().enumerate() {
+        let ident = Ident::new(format!("_var_{i}").as_str(), Span::call_site());
         let arg_token = codegen_expr(argument, loop_level, variable_analyses);
-        arg_tokens.extend(quote::quote! { #arg_token, });
+        expansion.extend(quote::quote! { let #ident = #arg_token; });
+        variables.extend(quote::quote! { #ident, });
     }
-    arg_tokens
+
+    (expansion, variables)
 }

@@ -3,7 +3,7 @@ use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, IntKind, Variable, Vectorization};
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg};
+use super::{ArgSettings, LaunchArg, Vectorized};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -62,6 +62,17 @@ macro_rules! impl_int {
             ) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar(Self::as_elem())
+            }
+        }
+
+        impl Vectorized for $type {
+            fn vectorization_factor(&self) -> u8 {
+                self.vectorization
+            }
+
+            fn vectorize(mut self, factor: u8) -> Self {
+                self.vectorization = factor;
+                self
             }
         }
     };

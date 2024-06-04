@@ -5,12 +5,13 @@ use crate::{
     unexpanded,
 };
 
-use super::LaunchArg;
+use super::{LaunchArg, Vectorized};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
 pub trait Numeric:
-    Clone
+    Vectorized
+    + Clone
     + Copy
     + LaunchArg
     + CubeElem

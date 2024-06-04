@@ -9,6 +9,7 @@ mod numeric;
 mod shared_memory;
 mod tensor;
 mod uint;
+mod vectorized;
 
 pub use array::*;
 pub use base::*;
@@ -20,3 +21,4 @@ pub use numeric::*;
 pub use shared_memory::*;
 pub use tensor::*;
 pub use uint::*;
+pub use vectorized::*;

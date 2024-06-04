@@ -3,6 +3,8 @@ use crate::{
     unexpanded,
 };
 
+use super::{UInt, Vectorized};
+
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
 ///
@@ -50,7 +52,7 @@ impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
     /// otherwise tell how to compute it at runtime
     pub fn unwrap_or_else<F>(_comptime: Self, mut _alt: F) -> T
     where
-        F: FnMut() -> T,
+        F: FnOnce() -> T,
     {
         unexpanded!()
     }
@@ -62,7 +64,7 @@ impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
         mut alt: F,
     ) -> <T as CubeType>::ExpandType
     where
-        F: FnMut(&mut CubeContext) -> T::ExpandType,
+        F: FnOnce(&mut CubeContext) -> T::ExpandType,
     {
         match t {
             Some(t) => t.into(),
@@ -73,4 +75,14 @@ impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
 
 impl<T: Clone> CubeType for Comptime<T> {
     type ExpandType = T;
+}
+
+impl<T: Vectorized> Comptime<T> {
+    pub fn vectorization(_state: T) -> Comptime<UInt> {
+        unexpanded!()
+    }
+
+    pub fn vectorization_expand(_context: &mut CubeContext, state: T) -> Comptime<UInt> {
+        Comptime::new(UInt::new(state.vectorization_factor() as u32))
+    }
 }

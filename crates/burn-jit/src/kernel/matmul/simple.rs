@@ -18,6 +18,34 @@ use burn_cube::{
 use std::marker::PhantomData;
 
 use super::simple_launch_options;
+use burn_cube::prelude::*;
+
+#[cube(launch)]
+fn matmul_kernel<F: Float>(
+    lhs: Tensor<F>,
+    rhs: Tensor<F>,
+    mut out: Tensor<F>,
+    num_batches: Comptime<Option<UInt>>,
+) {
+    let rank = out.rank();
+    let end = Comptime::unwrap_or_else(num_batches, || rank - UInt::new(2));
+    let unroll = Comptime::is_some(num_batches);
+
+    let n_rows = lhs.shape(rank - UInt::new(2));
+    let n_cols = lhs.shape(rank - UInt::new(1));
+    let batch_pos = ABSOLUTE_POS_Z;
+
+    let vectorization_factor: Comptime<UInt> = Comptime::vectorization(out);
+
+    let mut offset_lhs = 0;
+    let mut offset_rhs = 0;
+    let offset_out = n_rows * n_cols * batch_pos;
+
+    for i in range(0, end, unroll) {
+        let stride_layout = out.stride(i);
+        // let ogwl = offset_out *
+    }
+}
 
 #[derive(new, Debug)]
 struct MatmulEagerKernel<R: JitRuntime, E: JitElement> {

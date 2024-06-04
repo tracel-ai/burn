@@ -7,7 +7,7 @@ use crate::ir::{Elem, FloatKind, Variable, Vectorization};
 use crate::compute::{KernelBuilder, KernelLauncher};
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg};
+use super::{ArgSettings, LaunchArg, Vectorized};
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float:
@@ -69,6 +69,17 @@ macro_rules! impl_float {
             ) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar(Self::as_elem())
+            }
+        }
+
+        impl Vectorized for $type {
+            fn vectorization_factor(&self) -> u8 {
+                self.vectorization
+            }
+
+            fn vectorize(mut self, factor: u8) -> Self {
+                self.vectorization = factor;
+                self
             }
         }
     };
