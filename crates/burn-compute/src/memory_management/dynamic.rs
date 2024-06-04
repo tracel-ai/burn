@@ -266,7 +266,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         Self {
             chunks: HashMap::new(),
             slices: HashMap::new(),
-            merging_strategy: merging_strategy,
+            merging_strategy,
             slice_strategy,
             storage,
         }
