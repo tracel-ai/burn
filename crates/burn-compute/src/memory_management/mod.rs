@@ -1,5 +1,7 @@
 mod base;
-mod simple;
-
 pub use base::*;
-pub use simple::*;
+
+/// Dynamic memory management strategy.
+pub mod dynamic;
+/// Simple memory management strategy.
+pub mod simple;

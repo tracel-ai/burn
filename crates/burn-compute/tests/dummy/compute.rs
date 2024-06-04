@@ -4,7 +4,9 @@ use super::DummyServer;
 use burn_common::stub::RwLock;
 use burn_compute::channel::MutexComputeChannel;
 use burn_compute::client::ComputeClient;
-use burn_compute::memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy};
+use burn_compute::memory_management::simple::{
+    DeallocStrategy, SimpleMemoryManagement, SliceStrategy,
+};
 use burn_compute::storage::BytesStorage;
 use burn_compute::tune::Tuner;
 use burn_compute::ComputeRuntime;

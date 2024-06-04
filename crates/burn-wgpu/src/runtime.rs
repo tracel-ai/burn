@@ -8,7 +8,7 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
