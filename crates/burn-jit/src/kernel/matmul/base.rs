@@ -1,4 +1,4 @@
-use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 use burn_cube::{prelude::*, Compiler};
 use burn_tensor::Shape;
 use std::cmp::{max, min};
@@ -117,7 +117,7 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: JitRuntime, E: JitElement, const D: usize>(
+pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     strategy: MatmulStrategy,

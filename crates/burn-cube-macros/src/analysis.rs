@@ -107,7 +107,7 @@ impl CodeAnalysisBuilder {
             let id = declaration.0.clone();
             let new_analysis = match variable_analyses.remove(&id) {
                 Some(_) => {
-                    panic!("Analysis: Multiple variables with the same identifier is not supported")
+                    panic!("Analysis: {:?}: Multiple variables with the same identifier is not supported", id)
                 }
                 None => VariableAnalysis {
                     num_used: 0,

@@ -1,10 +1,9 @@
 use crate::{
     frontend::{CubeContext, CubeType},
-    ir::Variable,
-    runtime, unexpanded,
+    unexpanded,
 };
 
-use super::{CubeElem, ExpandElement, UInt, Vectorized};
+use super::{ExpandElement, UInt, Vectorized};
 
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
@@ -18,8 +17,8 @@ impl<T> Comptime<T> {
     /// Create a new Comptime. Useful when hardcoding values in
     /// Cube kernels. For instance:
     /// if Comptime::new(false) {...} never generates the inner code block
-    pub fn new(_inner: T) -> Self {
-        unexpanded!()
+    pub fn new(inner: T) -> Self {
+        Self { inner }
     }
 
     /// Get the inner value of a Comptime. For instance:
@@ -62,7 +61,7 @@ impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
     pub fn unwrap_or_else_expand<F>(
         context: &mut CubeContext,
         t: Option<T>,
-        mut alt: F,
+        alt: F,
     ) -> <T as CubeType>::ExpandType
     where
         F: FnOnce(&mut CubeContext) -> T::ExpandType,

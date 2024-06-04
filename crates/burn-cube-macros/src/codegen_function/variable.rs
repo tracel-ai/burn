@@ -46,9 +46,13 @@ pub(crate) fn codegen_local(
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let let_tok = local.let_token;
+    let mut is_mut = false;
 
     let ident = match &local.pat {
-        syn::Pat::Ident(ident) => ident.to_token_stream(),
+        syn::Pat::Ident(ident) => {
+            is_mut = ident.mutability.is_some();
+            ident.to_token_stream()
+        }
         syn::Pat::Type(pat_type) => match &*pat_type.pat {
             syn::Pat::Ident(pat_ident) => pat_ident.to_token_stream(),
             _ => todo!("Codegen: Unsupported typed path {:?}", pat_type.pat),
@@ -61,8 +65,17 @@ pub(crate) fn codegen_local(
         Some(init) => {
             let init = codegen_expr(&init.expr, loop_level, variable_analyses);
 
-            quote::quote! {
-                #let_tok #ident = #init;
+            if is_mut {
+                quote::quote! {
+                    #let_tok #ident = {
+                        let _inner = #init;
+                        burn_cube::frontend::init::expand(context, _inner)
+                    };
+                }
+            } else {
+                quote::quote! {
+                    #let_tok #ident = #init;
+                }
             }
         }
         None => {
