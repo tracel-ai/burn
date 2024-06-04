@@ -1,9 +1,10 @@
 use crate::{
     frontend::{CubeContext, CubeType},
-    unexpanded,
+    ir::Variable,
+    runtime, unexpanded,
 };
 
-use super::{UInt, Vectorized};
+use super::{CubeElem, ExpandElement, UInt, Vectorized};
 
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
@@ -84,5 +85,14 @@ impl<T: Vectorized> Comptime<T> {
 
     pub fn vectorization_expand(_context: &mut CubeContext, state: T) -> Comptime<UInt> {
         Comptime::new(UInt::new(state.vectorization_factor() as u32))
+    }
+}
+
+impl<T: Into<ExpandElement>> Comptime<T> {
+    pub fn runtime(_comptime: Self) -> T {
+        unexpanded!()
+    }
+    pub fn runtime_expand(_context: &mut CubeContext, comptime: Self) -> ExpandElement {
+        comptime.inner.into()
     }
 }

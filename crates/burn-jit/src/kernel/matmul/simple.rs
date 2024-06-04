@@ -35,16 +35,21 @@ fn matmul_kernel<F: Float>(
     let n_cols = lhs.shape(rank - UInt::new(1));
     let batch_pos = ABSOLUTE_POS_Z;
 
-    let vectorization_factor: Comptime<UInt> = Comptime::vectorization(out);
+    let vectorization_factor = Comptime::vectorization(out);
 
-    let mut offset_lhs = 0;
-    let mut offset_rhs = 0;
+    let mut offset_lhs = UInt::new(0);
+    let mut offset_rhs = UInt::new(0);
     let offset_out = n_rows * n_cols * batch_pos;
 
     for i in range(0, end, unroll) {
-        let stride_layout = out.stride(i);
-        // let ogwl = offset_out *
+        let ogwl = offset_out * Comptime::runtime(vectorization_factor) / out.stride(i);
+
+        offset_lhs += ogwl % lhs.shape(i) * lhs.stride(i);
+        offset_rhs += ogwl % rhs.shape(i) * rhs.stride(i);
     }
+
+    offset_lhs /= Comptime::runtime(vectorization_factor);
+    offset_rhs /= Comptime::runtime(vectorization_factor);
 }
 
 #[derive(new, Debug)]

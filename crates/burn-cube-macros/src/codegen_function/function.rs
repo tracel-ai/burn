@@ -181,6 +181,17 @@ pub(crate) fn parse_function_call(
                     Comptime::vectorization_expand(#variables)
                 }}
             }
+            "runtime" => {
+                let (expansion, variables) =
+                    codegen_args(&call.args, loop_level, variable_analyses);
+
+                // Codegen
+                quote::quote! {{
+                    #expansion
+                    Comptime::runtime_expand(#variables)
+                }}
+            }
+
             _ => panic!("Codegen: Comptime function {:?} does not exist", func_name),
         };
 
