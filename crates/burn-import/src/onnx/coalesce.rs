@@ -1,23 +1,23 @@
 use std::{iter::Peekable, slice::Iter};
 
 use super::{
-    from_onnx::OnnxGraphIO,
+    from_onnx::GraphData,
     ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
-use crate::onnx::ir::{ArgType, Data, TensorType};
+use crate::{burn::graph, onnx::ir::{ArgType, Data, TensorType}};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
     node: &mut Node,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
-    graph_io: &OnnxGraphIO,
+    graph_data: &GraphData,
 ) {
     match node.node_type {
-        NodeType::Gemm => convert_gemm_to_linear(node),
+        NodeType::Gemm => convert_gemm_to_linear(node, graph_data),
         NodeType::MatMul => {
-            convert_matmul_to_linear(node, nodes_iter, graph_io);
+            convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
         _ => {}
     }
@@ -26,7 +26,7 @@ pub fn coalesce(
 /// This function converts a Gemm node into a Linear node
 ///
 /// PyTorch and other frameworks use Gemm node to represent Linear layer.
-pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
+pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &GraphData) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -50,20 +50,22 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
         node.attrs.remove("transB");
 
         // Transpose the weights
-        transpose_linear_node_weights(node);
+        transpose_linear_node_weights(node,graph_io);
     } else {
         panic!("Full Gemm node not supported yet.");
     }
 }
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
-fn transpose_linear_node_weights(node: &mut Node) {
+fn transpose_linear_node_weights(node: &mut Node, graph_data: &GraphData) {
     assert!(
         node.inputs.len() > 1,
         "Linear node must have at least 2 input"
     );
 
     assert!(node.inputs[1].value.is_some(), "Input must have a value");
+
+    assert!(graph_data.initializers.contains_key(&node.inputs[1].name), "Currently only initializers are supported for weights.\nPlease open an issue if you encounter this error.");
 
     let weight = node.inputs[1]
         .clone()
@@ -120,7 +122,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
-    graph_io: &OnnxGraphIO,
+    graph_io: &GraphData,
 ) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
