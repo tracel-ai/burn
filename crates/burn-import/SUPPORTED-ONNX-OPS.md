@@ -63,7 +63,7 @@ represent the corresponding Burn Op.
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |
-| [Gather][58]                     |       ❌       |      ✅      |
+| [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ✅       |      ✅      |
 | [GatherND][60]                   |       ❌       |      ❌      |
 | [Gelu][61]                       |       ✅       |      ✅      |
@@ -184,7 +184,7 @@ represent the corresponding Burn Op.
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
 | [Sub][179]                       |       ✅       |      ✅      |
-| [Sum][180]                       |       ❌       |      ✅      |
+| [Sum][180]                       |       ✅       |      ✅      |
 | [Tan][181]                       |       ❌       |      ❌      |
 | [Tanh][182]                      |       ✅       |      ✅      |
 | [TfIdfVectorizer][183]           |       ❌       |      ❌      |

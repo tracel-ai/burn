@@ -5,7 +5,7 @@ use syn::{
     PathArguments, Token,
 };
 
-use crate::{analysis::CodeAnalysis, codegen::base::codegen_expr};
+use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
 
 /// Codegen for method call
 /// Supports [expr].method(args)

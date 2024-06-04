@@ -1,70 +1,67 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{TensorType, ToTokens, Type};
+use crate::burn::{Scope, TensorType, Type};
 
 use burn::record::PrecisionSettings;
+use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
-pub struct GatherNode {
-    pub input: TensorType,
-    pub index: TensorType,
+pub struct SumNode {
+    pub inputs: Vec<TensorType>,
     pub output: TensorType,
-    pub dim: usize,
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for SumNode {
     fn output_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.output.clone())]
     }
 
-    fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![
-            Type::Tensor(self.input.clone()),
-            Type::Tensor(self.index.clone()),
-        ]
+    fn input_types(&self) -> Vec<Type> {
+        self.inputs
+            .iter()
+            .map(|t| Type::Tensor(t.clone()))
+            .collect()
     }
 
-    fn forward(
-        &self,
-        scope: &mut crate::burn::Scope,
-        node_position: usize,
-    ) -> proc_macro2::TokenStream {
-        let dim = self.dim.to_tokens();
-        let input = scope.tensor_use_owned(&self.input, node_position);
-        let index = scope.tensor_use_owned(&self.index, node_position);
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|t| scope.tensor_use_owned(t, node_position));
+
         let output = &self.output.name;
 
         quote! {
-            let #output = #input.select(#dim, #index);
+            let #output = #(#inputs)+*;
         }
     }
 
-    fn into_node(self) -> super::Node<PS> {
-        Node::Gather(self)
+    fn into_node(self) -> Node<PS> {
+        Node::Sum(self)
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use burn::record::FullPrecisionSettings;
 
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{gather::GatherNode, test::assert_tokens},
+        node::{sum::SumNode, test::assert_tokens},
         TensorType,
     };
 
     #[test]
-    fn test_codegen_gather() {
+    fn test_codegen_sum() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(GatherNode::new(
-            TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 1),
-            TensorType::new_float("tensor3", 2),
-            0,
+        graph.register(SumNode::new(
+            vec![
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ],
+            TensorType::new_float("tensor3", 4),
         ));
 
         graph.register_input_output(
@@ -73,7 +70,6 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -97,10 +93,10 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    tensor1: Tensor<B, 2>,
-                    tensor2: Tensor<B, 1, Int>
-                ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.select(0, tensor2);
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>
+                ) -> Tensor<B, 4> {
+                    let tensor3 = tensor1 + tensor2;
 
                     tensor3
                 }

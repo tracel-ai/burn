@@ -37,6 +37,7 @@ include_models!(
     expand,
     flatten,
     gather,
+    gather_elements,
     gelu,
     global_avr_pool,
     layer_norm,
@@ -74,6 +75,8 @@ include_models!(
     sqrt,
     sub_int,
     sub,
+    sum,
+    sum_int,
     tanh,
     transpose,
     conv_transpose2d,
@@ -156,6 +159,36 @@ mod tests {
         let scalar = 3;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[6, 6, 6, 6]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn sum_tensor_and_tensor() {
+        let device = Default::default();
+        let model: sum::Model<Backend> = sum::Model::default();
+
+        let input1 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
+        let input2 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
+        let input3 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
+
+        let output = model.forward(input1, input2, input3);
+        let expected = Data::from([3., 6., 9., 12.]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn sum_int_tensor_and_int_tensor() {
+        let device = Default::default();
+        let model: sum_int::Model<Backend> = sum_int::Model::default();
+
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let input3 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+
+        let output = model.forward(input1, input2, input3);
+        let expected = Data::from([3, 6, 9, 12]);
 
         assert_eq!(output.to_data(), expected);
     }
@@ -358,8 +391,22 @@ mod tests {
 
     #[test]
     fn gather() {
-        // Initialize the model with weights (loaded from the exported file)
         let model: gather::Model<Backend> = gather::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
+        let output = model.forward(input, index);
+        let expected = Data::from([[1., 3.], [4., 6.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_elements() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: gather_elements::Model<Backend> = gather_elements::Model::default();
 
         let device = Default::default();
         // Run the model

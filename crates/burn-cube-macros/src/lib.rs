@@ -1,8 +1,11 @@
 mod analysis;
-mod codegen;
+mod codegen_function;
+mod codegen_type;
+mod variable_key;
 
 use analysis::CodeAnalysis;
-use codegen::{codegen_launch, codegen_statement};
+use codegen_function::{codegen_launch, codegen_statement};
+use codegen_type::generate_cube_type;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
@@ -15,13 +18,22 @@ enum CubeMode {
     Debug,
 }
 
+// Derive macro to define a cube type.
+#[proc_macro_derive(Cube)]
+pub fn module_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+
+    generate_cube_type(&input)
+}
+
 /// Derive macro for the module.
 #[proc_macro_attribute]
 pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
     let (mode, launch) = parse_attributes(&args);
 
-    let func: syn::ItemFn = syn::parse(tokens).unwrap();
+    let func: syn::ItemFn =
+        syn::parse(tokens).expect("Cube annotations only supported for functions");
     let mut variable_analyses = CodeAnalysis::create(&func);
 
     let cube = codegen_cube(&func, &mut variable_analyses);
@@ -70,19 +82,6 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
     }
 
     (mode, launch)
-}
-
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
-struct VariableKey {
-    name: String,
-}
-
-impl From<&syn::Ident> for VariableKey {
-    fn from(value: &syn::Ident) -> Self {
-        VariableKey {
-            name: value.to_string(),
-        }
-    }
 }
 
 /// Generate the expanded version of a function marked with the cube macro
