@@ -121,4 +121,23 @@ impl ComputeStorage for WgpuStorage {
     fn dealloc(&mut self, id: StorageId) {
         self.deallocations.push(id);
     }
+
+    fn copy(&mut self, from: &StorageHandle, to: &StorageHandle) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        let from = self.get(from);
+        let to = self.get(to);
+
+        encoder.copy_buffer_to_buffer(
+            &from.buffer,
+            from.offset(),
+            &to.buffer,
+            to.offset(),
+            to.size(),
+        );
+
+        queue.submit(Some(new_encoder.finish()));
+    }
 }

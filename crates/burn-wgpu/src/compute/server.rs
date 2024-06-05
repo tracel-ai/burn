@@ -51,14 +51,27 @@ where
         }
     }
 
-    fn submit(&mut self) {
-        let mut new_encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, &mut self.encoder);
+    fn subit_partial(
+        encoder: &mut CommandEncoder,
+        queue: &mut wgpu::Queue,
+        device: &wgpu::Device,
+        tasks_count: &mut usize,
+    ) {
+        let mut new_encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut new_encoder, encoder);
 
-        self.queue.submit(Some(new_encoder.finish()));
-        self.tasks_count = 0;
+        queue.submit(Some(new_encoder.finish()));
+        *tasks_count = 0;
+    }
+
+    fn submit(&mut self) {
+        Self::subit_partial(
+            &mut self.encoder,
+            &mut self.queue,
+            &self.device,
+            &mut self.tasks_count,
+        );
 
         // Cleanup allocations and deallocations.
         self.memory_management.storage().perform_deallocations();
@@ -211,7 +224,16 @@ where
     /// This is important, otherwise the compute passes are going to be too small and we won't be able to
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
-        let handle = server::Handle::new(self.memory_management.reserve(data.len()));
+        let handle = server::Handle::new(self.memory_management.reserve(data.len(), || {
+            Self::subit_partial(
+                &mut self.encoder,
+                &mut self.queue,
+                &self.device,
+                &mut self.tasks_count,
+            );
+            self.device.poll(wgpu::Maintain::Wait);
+        }));
+
         let binding = handle.clone().binding();
 
         let buffer_src = Arc::new(self.device.create_buffer_init(&BufferInitDescriptor {
@@ -235,7 +257,15 @@ where
     }
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
-        server::Handle::new(self.memory_management.reserve(size))
+        server::Handle::new(self.memory_management.reserve(size, || {
+            Self::subit_partial(
+                &mut self.encoder,
+                &mut self.queue,
+                &self.device,
+                &mut self.tasks_count,
+            );
+            self.device.poll(wgpu::Maintain::Wait);
+        }))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {

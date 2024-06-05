@@ -1,9 +1,9 @@
 use crate::{
     memory_id_type,
-    storage::{ComputeStorage, StorageHandle, StorageUtilization},
+    storage::{ComputeStorage, StorageHandle, StorageId, StorageUtilization},
 };
 use alloc::vec::Vec;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use std::collections::BTreeMap;
 #[cfg(all(not(target_family = "wasm"), feature = "std"))]
@@ -187,17 +187,18 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         slice_strategy: SliceStrategy,
     ) -> Self {
         let mut small_memory_pool = MemoryPool::new(
-            MergingStrategy::new_period_tick(8),
+            MergingStrategy::Never,
             SliceStrategy::Always,
             RoundingStrategy::None,
-            false,
+            true,
         );
 
-        small_memory_pool.reserve(&mut storage, 1024 * 1024 * 8);
+        // Nothing to sync yet.
+        small_memory_pool.reserve(&mut storage, 1024 * 1024 * 8, || {});
 
         Self {
             main_memory_pool: MemoryPool::new(
-                merging_strategy,
+                MergingStrategy::Never,
                 slice_strategy,
                 RoundingStrategy::RoundUp,
                 true,
@@ -216,6 +217,7 @@ struct MemoryPool {
     rounding: RoundingStrategy,
     defragmentation_on_alloc: bool,
     slice_index: SizeIndex<SliceId>,
+    chunk_index: SizeIndex<ChunkId>,
 }
 
 struct SizeIndex<T> {
@@ -238,7 +240,11 @@ impl<T: PartialEq> SizeIndex<T> {
     }
 
     fn find_min_size(&self, size: usize) -> impl Iterator<Item = &T> {
-        self.map.range(size..usize::MAX).map(|a| a.1).flatten()
+        self.find_range(size, usize::MAX)
+    }
+
+    fn find_range(&self, start: usize, end: usize) -> impl Iterator<Item = &T> {
+        self.map.range(start..end).map(|a| a.1).flatten()
     }
 
     fn remove(&mut self, slice: &T, size: usize) {
@@ -309,12 +315,13 @@ impl MemoryPool {
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, merging free slices together if permitted by the merging strategy
-    fn reserve<Storage: ComputeStorage>(
+    fn reserve<Storage: ComputeStorage, Sync: FnOnce()>(
         &mut self,
         storage: &mut Storage,
         size: usize,
+        sync: Sync,
     ) -> DynamicHandle {
-        let handle = self.reserve_algorithm(storage, size);
+        let handle = self.reserve_algorithm(storage, size, sync);
 
         if self.merging_strategy.should_perform_defragmentation() {
             self.slice_defragmentation();
@@ -323,16 +330,24 @@ impl MemoryPool {
         handle
     }
 
-    fn alloc<Storage: ComputeStorage>(
+    fn alloc<Storage: ComputeStorage, Sync: FnOnce()>(
         &mut self,
         storage: &mut Storage,
         size: usize,
+        sync: Sync,
     ) -> DynamicHandle {
         if self.defragmentation_on_alloc {
             self.slice_defragmentation();
 
             if let Some(handle) = self.get_free_slice(size) {
                 return DynamicHandle::Slice(handle);
+            } else {
+                sync();
+                self.chunk_defragmentation(storage);
+
+                if let Some(handle) = self.get_free_slice(size) {
+                    return DynamicHandle::Slice(handle);
+                }
             }
         }
 
@@ -387,6 +402,9 @@ impl MemoryPool {
         match binding {
             DynamicBinding::Chunk(chunk) => {
                 if let Some(chunk) = self.chunks.remove(chunk.id()) {
+                    self.chunk_index
+                        .remove(chunk.handle.id(), chunk.storage.size());
+
                     storage.dealloc(chunk.storage.id);
                     for slice_id in chunk.slices {
                         if let Some(slice) = self.slices.remove(&slice_id) {
@@ -416,19 +434,20 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
         panic!("No handle found in the small and main memory pool");
     }
 
-    fn reserve(&mut self, size: usize) -> Self::Handle {
+    fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
         if size < 1024 {
-            self.small_memory_pool.reserve(&mut self.storage, size)
+            self.small_memory_pool
+                .reserve(&mut self.storage, size, sync)
         } else {
-            self.main_memory_pool.reserve(&mut self.storage, size)
+            self.main_memory_pool.reserve(&mut self.storage, size, sync)
         }
     }
 
-    fn alloc(&mut self, size: usize) -> Self::Handle {
+    fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
         if size < 1024 {
-            self.small_memory_pool.alloc(&mut self.storage, size)
+            self.small_memory_pool.alloc(&mut self.storage, size, sync)
         } else {
-            self.main_memory_pool.alloc(&mut self.storage, size)
+            self.main_memory_pool.alloc(&mut self.storage, size, sync)
         }
     }
 
@@ -457,20 +476,22 @@ impl MemoryPool {
             rounding: alloc_strategy,
             defragmentation_on_alloc,
             slice_index: SizeIndex::new(),
+            chunk_index: SizeIndex::new(),
         }
     }
 
-    fn reserve_algorithm<Storage: ComputeStorage>(
+    fn reserve_algorithm<Storage: ComputeStorage, Sync: FnOnce()>(
         &mut self,
         storage: &mut Storage,
         size: usize,
+        sync: Sync,
     ) -> DynamicHandle {
         // Looks for a large enough, existing but unused chunk of memory.
         let slice = self.get_free_slice(size);
 
         match slice {
             Some(slice) => DynamicHandle::Slice(slice.clone()),
-            None => self.alloc(storage, size),
+            None => self.alloc(storage, size, sync),
         }
     }
 
@@ -632,11 +653,12 @@ impl MemoryPool {
 
         let storage = storage.alloc(effective_size);
         let handle = ChunkHandle::new();
+        let id = *handle.id();
+        let size = storage.size();
 
-        self.chunks.insert(
-            *handle.id(),
-            Chunk::new(storage, handle.clone(), Vec::new()),
-        );
+        self.chunks
+            .insert(id, Chunk::new(storage, handle.clone(), Vec::new()));
+        self.chunk_index.insert(id, size);
 
         handle
     }
@@ -727,6 +749,7 @@ impl MemoryPool {
 
     // Merge all contiguous free_slices together, assumes that slices are in sorted order.
     fn slice_defragmentation(&mut self) {
+        log::info!("Slice defragmentation ...");
         let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
         for (.., chunk) in self.chunks.iter() {
             self.generate_mergings(chunk, &mut chunk_to_merged_slice);
@@ -734,6 +757,75 @@ impl MemoryPool {
 
         for (chunk_id, mergings) in chunk_to_merged_slice.into_iter() {
             self.merge_contiguous_slices(chunk_id, &mergings);
+        }
+    }
+
+    fn chunk_defragmentation<Storage: ComputeStorage>(&mut self, storage: &mut Storage) {
+        log::info!("Chunk defragmentation ...");
+        struct SliceUpdate {
+            slice_id: SliceId,
+            size: usize,
+        }
+
+        let max_chunk_size = 1024 * 1024 * 1000; // 1 Gib
+
+        let mut slices = Vec::<SliceUpdate>::new();
+        let mut current_size = 0;
+
+        let chunks_sorted = self
+            .chunk_index
+            .find_range(0, max_chunk_size)
+            .map(Clone::clone)
+            .collect::<Vec<_>>();
+
+        for chunk_id in chunks_sorted {
+            let chunk = self.chunks.get(&chunk_id).unwrap();
+            let chunk_srotage_id = chunk.storage.id.clone();
+            let slices_ids = chunk.slices.clone();
+            let mut deallocations = HashSet::<StorageId>::new();
+
+            for slice_id in slices_ids {
+                let slice = self.slices.get(&slice_id).unwrap();
+                let chunk_id = *slice.chunk.id();
+                let size = slice.storage.size();
+
+                let effective_size = slice.effective_size();
+                current_size += effective_size;
+
+                if current_size >= max_chunk_size {
+                    let alloc_size = current_size - effective_size;
+                    let chunk = self.create_chunk(storage, alloc_size);
+                    let storage_id = self.chunks.get(chunk.id()).unwrap().storage.id.clone();
+                    let mut offset = 0;
+
+                    for update in slices.drain(..) {
+                        let slice_id = update.slice_id;
+
+                        let slice = self.slices.get_mut(&slice_id).unwrap();
+                        let old_storage = slice.storage.clone();
+
+                        offset += slice.effective_size();
+                        slice.chunk = chunk.clone();
+                        slice.storage = StorageHandle {
+                            id: storage_id.clone(),
+                            utilization: StorageUtilization::Slice {
+                                offset,
+                                size: update.size,
+                            },
+                        };
+                        // storage.copy(&old_storage, &slice.storage);
+                    }
+
+                    for id in deallocations.drain() {
+                        storage.dealloc(id);
+                    }
+
+                    current_size = effective_size;
+                }
+
+                deallocations.insert(chunk_srotage_id.clone());
+                slices.push(SliceUpdate { slice_id, size });
+            }
         }
     }
 
@@ -758,6 +850,9 @@ mod tests {
     impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
         fn create_chunk(&mut self, size: usize) -> ChunkHandle {
             self.main_memory_pool.create_chunk(&mut self.storage, size)
+        }
+        fn reserve_no_sync(&mut self, size: usize) -> DynamicHandle {
+            self.reserve(size, || {})
         }
     }
 
@@ -803,8 +898,8 @@ mod tests {
             SliceStrategy::Never,
         );
         let chunk_size = 4;
-        let _chunk_handle = memory_management.reserve(chunk_size);
-        let _new_handle = memory_management.reserve(chunk_size);
+        let _chunk_handle = memory_management.reserve_no_sync(chunk_size);
+        let _new_handle = memory_management.reserve_no_sync(chunk_size);
 
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 2);
     }
@@ -819,11 +914,11 @@ mod tests {
         const NUMBER_OF_USED_SLICES: usize = 3;
         const BIG_SLICE_SIZE: usize = CHUNK_ROUNDING - BUFFER_ALIGNMENT * NUMBER_OF_USED_SLICES;
 
-        let first_slice_to_be_dropped = memory_management.reserve(BUFFER_ALIGNMENT);
+        let first_slice_to_be_dropped = memory_management.reserve_no_sync(BUFFER_ALIGNMENT);
         drop(first_slice_to_be_dropped);
         let mut slice_holder = Vec::new();
         for _ in 0..NUMBER_OF_USED_SLICES {
-            slice_holder.push(memory_management.reserve(BUFFER_ALIGNMENT));
+            slice_holder.push(memory_management.reserve_no_sync(BUFFER_ALIGNMENT));
         }
 
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
@@ -853,8 +948,8 @@ mod tests {
             .main_memory_pool
             .insert_slice(slice, *chunk_handle.id());
 
-        let _slice_1 = memory_management.reserve(32);
-        let _slice_2 = memory_management.reserve(32);
+        let _slice_1 = memory_management.reserve_no_sync(32);
+        let _slice_2 = memory_management.reserve_no_sync(32);
 
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
         assert_eq!(memory_management.main_memory_pool.slices.len(), 2);
@@ -886,13 +981,13 @@ mod tests {
             .main_memory_pool
             .insert_slice(slice, chunk_id);
 
-        let _slice_1 = memory_management.reserve(slice_size);
-        let _slice_2 = memory_management.reserve(slice_size);
-        let _slice_3 = memory_management.reserve(slice_size);
-        let _slice_4 = memory_management.reserve(slice_size);
-        let _slice_5 = memory_management.reserve(slice_size);
-        let _slice_6 = memory_management.reserve(slice_size);
-        let _slice_7 = memory_management.reserve(slice_size);
+        let _slice_1 = memory_management.reserve_no_sync(slice_size);
+        let _slice_2 = memory_management.reserve_no_sync(slice_size);
+        let _slice_3 = memory_management.reserve_no_sync(slice_size);
+        let _slice_4 = memory_management.reserve_no_sync(slice_size);
+        let _slice_5 = memory_management.reserve_no_sync(slice_size);
+        let _slice_6 = memory_management.reserve_no_sync(slice_size);
+        let _slice_7 = memory_management.reserve_no_sync(slice_size);
         drop(_slice_1);
         drop(_slice_4);
         drop(_slice_5);
@@ -1017,7 +1112,7 @@ mod tests {
             MergingStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
-        let handle = memory_management.reserve(10);
+        let handle = memory_management.reserve_no_sync(10);
 
         let other_ref = handle.clone();
 
@@ -1033,12 +1128,12 @@ mod tests {
             MergingStrategy::Never,
             SliceStrategy::MinimumSize(0),
         );
-        let handle = memory_management.reserve(100);
+        let handle = memory_management.reserve_no_sync(100);
         core::mem::drop(handle);
 
-        let _slice_1 = memory_management.reserve(BUFFER_ALIGNMENT);
-        let _slice_2 = memory_management.reserve(BUFFER_ALIGNMENT);
-        let _slice_3 = memory_management.reserve(BUFFER_ALIGNMENT);
+        let _slice_1 = memory_management.reserve_no_sync(BUFFER_ALIGNMENT);
+        let _slice_2 = memory_management.reserve_no_sync(BUFFER_ALIGNMENT);
+        let _slice_3 = memory_management.reserve_no_sync(BUFFER_ALIGNMENT);
         memory_management.main_memory_pool.slice_defragmentation();
 
         assert_eq!(
@@ -1060,11 +1155,11 @@ mod tests {
             MergingStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
-        let first_slice = memory_management.reserve(10);
+        let first_slice = memory_management.reserve_no_sync(10);
 
         drop(first_slice);
 
-        let slice = memory_management.reserve(8);
+        let slice = memory_management.reserve_no_sync(8);
 
         if let super::DynamicHandle::Slice(slice) = slice {
             let other_ref = slice.clone();
@@ -1094,7 +1189,7 @@ mod tests {
             SliceStrategy::Never,
         );
 
-        memory_management.alloc(alloc_size);
+        memory_management.alloc(alloc_size, || {});
 
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
         assert_eq!(memory_management.main_memory_pool.slices.len(), 1);
@@ -1115,7 +1210,7 @@ mod tests {
             SliceStrategy::Never,
         );
 
-        memory_management.alloc(alloc_size);
+        memory_management.alloc(alloc_size, || {});
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
         assert_eq!(memory_management.main_memory_pool.slices.len(), 1);
         for (.., slice) in memory_management.main_memory_pool.slices.iter() {
@@ -1136,7 +1231,7 @@ mod tests {
             SliceStrategy::Never,
         );
 
-        memory_management.alloc(alloc_size);
+        memory_management.alloc(alloc_size, || {});
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
         assert_eq!(memory_management.main_memory_pool.slices.len(), 2);
         for (.., slice) in memory_management.main_memory_pool.slices.iter() {
