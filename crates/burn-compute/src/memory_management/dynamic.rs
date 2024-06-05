@@ -184,11 +184,10 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     pub fn new(
         mut storage: Storage,
         merging_strategy: MergingStrategy,
-        slice_strategy: SliceStrategy,
+        _slice_strategy: SliceStrategy,
     ) -> Self {
         let mut small_memory_pool = MemoryPool::new(
             MergingStrategy::Never,
-            SliceStrategy::Always,
             RoundingStrategy::None,
             1024 * 1024 * 10,
         );
@@ -198,8 +197,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
         Self {
             main_memory_pool: MemoryPool::new(
-                MergingStrategy::new_period_tick(32),
-                slice_strategy,
+                merging_strategy,
                 RoundingStrategy::RoundUp,
                 1024 * 1024 * 1000,
             ),
@@ -213,7 +211,6 @@ struct MemoryPool {
     chunks: HashMap<ChunkId, Chunk>,
     slices: HashMap<SliceId, Slice>,
     merging_strategy: MergingStrategy,
-    slice_strategy: SliceStrategy,
     rounding: RoundingStrategy,
     slice_index: SizeIndex<SliceId>,
     chunk_index: SizeIndex<ChunkId>,
@@ -239,11 +236,11 @@ impl<T: PartialEq> SizeIndex<T> {
         }
     }
 
-    fn find_min_size(&self, size: usize) -> impl Iterator<Item = &T> {
+    fn find_min_size(&self, size: usize) -> impl DoubleEndedIterator<Item = &T> {
         self.find_range(size, usize::MAX)
     }
 
-    fn find_range(&self, start: usize, end: usize) -> impl Iterator<Item = &T> {
+    fn find_range(&self, start: usize, end: usize) -> impl DoubleEndedIterator<Item = &T> {
         self.map.range(start..end).map(|a| a.1).flatten()
     }
 
@@ -458,7 +455,6 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
 impl MemoryPool {
     fn new(
         merging_strategy: MergingStrategy,
-        slice_strategy: SliceStrategy,
         alloc_strategy: RoundingStrategy,
         max_chunk_size: usize,
     ) -> Self {
@@ -466,7 +462,6 @@ impl MemoryPool {
             chunks: HashMap::new(),
             slices: HashMap::new(),
             merging_strategy,
-            slice_strategy,
             rounding: alloc_strategy,
             max_chunk_size,
             slice_index: SizeIndex::new(),
