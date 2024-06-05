@@ -53,7 +53,7 @@ where
 
     fn subit_partial(
         encoder: &mut CommandEncoder,
-        queue: &mut wgpu::Queue,
+        queue: &wgpu::Queue,
         device: &wgpu::Device,
         tasks_count: &mut usize,
     ) {
@@ -68,7 +68,7 @@ where
     fn submit(&mut self) {
         Self::subit_partial(
             &mut self.encoder,
-            &mut self.queue,
+            &self.queue,
             &self.device,
             &mut self.tasks_count,
         );
@@ -227,7 +227,7 @@ where
         let handle = server::Handle::new(self.memory_management.reserve(data.len(), || {
             Self::subit_partial(
                 &mut self.encoder,
-                &mut self.queue,
+                &self.queue,
                 &self.device,
                 &mut self.tasks_count,
             );
@@ -260,7 +260,7 @@ where
         server::Handle::new(self.memory_management.reserve(size, || {
             Self::subit_partial(
                 &mut self.encoder,
-                &mut self.queue,
+                &self.queue,
                 &self.device,
                 &mut self.tasks_count,
             );

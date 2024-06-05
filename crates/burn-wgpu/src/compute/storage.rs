@@ -7,6 +7,7 @@ pub struct WgpuStorage {
     memory: HashMap<StorageId, Arc<wgpu::Buffer>>,
     deallocations: Vec<StorageId>,
     device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
 }
 
 impl core::fmt::Debug for WgpuStorage {
@@ -67,11 +68,12 @@ pub enum WgpuResourceKind {
 /// Keeps actual wgpu buffer references in a hashmap with ids as key.
 impl WgpuStorage {
     /// Create a new storage on the given [device](wgpu::Device).
-    pub fn new(device: Arc<wgpu::Device>) -> Self {
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         Self {
             memory: HashMap::new(),
             deallocations: Vec::new(),
             device,
+            queue,
         }
     }
 
@@ -138,6 +140,6 @@ impl ComputeStorage for WgpuStorage {
             to.size(),
         );
 
-        queue.submit(Some(new_encoder.finish()));
+        self.queue.submit(Some(encoder.finish()));
     }
 }

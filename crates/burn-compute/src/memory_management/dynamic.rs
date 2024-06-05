@@ -1,6 +1,6 @@
 use crate::{
     memory_id_type,
-    storage::{ComputeStorage, StorageHandle, StorageId, StorageUtilization},
+    storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
 use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
@@ -190,18 +190,18 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             MergingStrategy::Never,
             SliceStrategy::Always,
             RoundingStrategy::None,
-            true,
+            1024 * 1024 * 10,
         );
 
         // Nothing to sync yet.
-        small_memory_pool.reserve(&mut storage, 1024 * 1024 * 8, || {});
+        small_memory_pool.reserve(&mut storage, 1024 * 1024 * 10, || {});
 
         Self {
             main_memory_pool: MemoryPool::new(
-                MergingStrategy::Never,
+                MergingStrategy::new_period_tick(32),
                 slice_strategy,
                 RoundingStrategy::RoundUp,
-                true,
+                1024 * 1024 * 1000,
             ),
             small_memory_pool,
             storage,
@@ -215,9 +215,9 @@ struct MemoryPool {
     merging_strategy: MergingStrategy,
     slice_strategy: SliceStrategy,
     rounding: RoundingStrategy,
-    defragmentation_on_alloc: bool,
     slice_index: SizeIndex<SliceId>,
     chunk_index: SizeIndex<ChunkId>,
+    max_chunk_size: usize,
 }
 
 struct SizeIndex<T> {
@@ -321,13 +321,7 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> DynamicHandle {
-        let handle = self.reserve_algorithm(storage, size, sync);
-
-        if self.merging_strategy.should_perform_defragmentation() {
-            self.slice_defragmentation();
-        }
-
-        handle
+        self.reserve_algorithm(storage, size, sync)
     }
 
     fn alloc<Storage: ComputeStorage, Sync: FnOnce()>(
@@ -336,26 +330,26 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> DynamicHandle {
-        if self.defragmentation_on_alloc {
-            self.slice_defragmentation();
+        let may_perform_full_defrag = self.merging_strategy.should_perform_defragmentation();
+
+        self.slice_defragmentation();
+
+        if let Some(handle) = self.get_free_slice(size) {
+            return DynamicHandle::Slice(handle);
+        } else if may_perform_full_defrag {
+            sync();
+            self.chunk_defragmentation(storage);
 
             if let Some(handle) = self.get_free_slice(size) {
                 return DynamicHandle::Slice(handle);
-            } else {
-                sync();
-                self.chunk_defragmentation(storage);
-
-                if let Some(handle) = self.get_free_slice(size) {
-                    return DynamicHandle::Slice(handle);
-                }
             }
         }
 
         let alloc_size = self.rounding.alloc_size(size);
-        self.alloc_init(storage, alloc_size, size)
+        self.alloc_slice(storage, alloc_size, size)
     }
 
-    fn alloc_init<Storage: ComputeStorage>(
+    fn alloc_slice<Storage: ComputeStorage>(
         &mut self,
         storage: &mut Storage,
         alloc_size: usize,
@@ -466,7 +460,7 @@ impl MemoryPool {
         merging_strategy: MergingStrategy,
         slice_strategy: SliceStrategy,
         alloc_strategy: RoundingStrategy,
-        defragmentation_on_alloc: bool,
+        max_chunk_size: usize,
     ) -> Self {
         Self {
             chunks: HashMap::new(),
@@ -474,7 +468,7 @@ impl MemoryPool {
             merging_strategy,
             slice_strategy,
             rounding: alloc_strategy,
-            defragmentation_on_alloc,
+            max_chunk_size,
             slice_index: SizeIndex::new(),
             chunk_index: SizeIndex::new(),
         }
@@ -505,7 +499,11 @@ impl MemoryPool {
     ) -> Option<SliceHandle> {
         let slice_to_split = self.slices.get(slice_to_split_id).unwrap();
         let slice_to_split_effective_size = slice_to_split.effective_size();
-        let chunk = self.chunks.get_mut(slice_to_split.chunk.id()).unwrap();
+        let chunk = if let Some(chunk) = self.chunks.get_mut(slice_to_split.chunk.id()) {
+            chunk
+        } else {
+            panic!("Can't use chunk {:?}", slice_to_split.chunk.id());
+        };
         let current_slice_chunk_handle = chunk.handle.clone();
 
         let mut slices = Vec::with_capacity(chunk.slices.len() + 1);
@@ -762,71 +760,107 @@ impl MemoryPool {
 
     fn chunk_defragmentation<Storage: ComputeStorage>(&mut self, storage: &mut Storage) {
         log::info!("Chunk defragmentation ...");
-        struct SliceUpdate {
-            slice_id: SliceId,
-            size: usize,
-        }
-
-        let max_chunk_size = 1024 * 1024 * 1000; // 1 Gib
 
         let mut slices = Vec::<SliceUpdate>::new();
         let mut current_size = 0;
 
         let chunks_sorted = self
             .chunk_index
-            .find_range(0, max_chunk_size)
+            .find_range(0, self.max_chunk_size)
             .map(Clone::clone)
             .collect::<Vec<_>>();
 
+        let mut deallocations = HashSet::<ChunkId>::new();
+
         for chunk_id in chunks_sorted {
             let chunk = self.chunks.get(&chunk_id).unwrap();
-            let chunk_srotage_id = chunk.storage.id.clone();
+            let chunk_id = chunk.handle.id().clone();
             let slices_ids = chunk.slices.clone();
-            let mut deallocations = HashSet::<StorageId>::new();
 
             for slice_id in slices_ids {
                 let slice = self.slices.get(&slice_id).unwrap();
-                let chunk_id = *slice.chunk.id();
                 let size = slice.storage.size();
 
                 let effective_size = slice.effective_size();
                 current_size += effective_size;
 
-                if current_size >= max_chunk_size {
+                if current_size >= self.max_chunk_size {
                     let alloc_size = current_size - effective_size;
-                    let chunk = self.create_chunk(storage, alloc_size);
-                    let storage_id = self.chunks.get(chunk.id()).unwrap().storage.id.clone();
-                    let mut offset = 0;
-
-                    for update in slices.drain(..) {
-                        let slice_id = update.slice_id;
-
-                        let slice = self.slices.get_mut(&slice_id).unwrap();
-                        let old_storage = slice.storage.clone();
-
-                        offset += slice.effective_size();
-                        slice.chunk = chunk.clone();
-                        slice.storage = StorageHandle {
-                            id: storage_id.clone(),
-                            utilization: StorageUtilization::Slice {
-                                offset,
-                                size: update.size,
-                            },
-                        };
-                        // storage.copy(&old_storage, &slice.storage);
-                    }
-
-                    for id in deallocations.drain() {
-                        storage.dealloc(id);
-                    }
-
+                    self.move_to_new_chunk(alloc_size, storage, &mut slices, &mut deallocations);
                     current_size = effective_size;
                 }
 
-                deallocations.insert(chunk_srotage_id.clone());
                 slices.push(SliceUpdate { slice_id, size });
             }
+
+            deallocations.insert(chunk_id);
         }
+
+        if !slices.is_empty() {
+            self.move_to_new_chunk(current_size, storage, &mut slices, &mut deallocations);
+        } else {
+            self.deallocate(storage, &mut deallocations);
+        }
+    }
+
+    fn deallocate<Storage: ComputeStorage>(
+        &mut self,
+        storage: &mut Storage,
+        deallocations: &mut HashSet<ChunkId>,
+    ) {
+        for id in deallocations.drain() {
+            let mut chunk = self.chunks.remove(&id).unwrap();
+
+            for slice in chunk.slices.drain(..) {
+                let slice = self.slices.get(&slice).unwrap();
+                let chunk_id = *slice.chunk.id();
+
+                assert_ne!(chunk_id, id, "Chunk id should be updated");
+            }
+
+            self.chunk_index.remove(&id, chunk.storage.size());
+            storage.dealloc(chunk.storage.id);
+        }
+    }
+
+    fn move_to_new_chunk<Storage: ComputeStorage>(
+        &mut self,
+        alloc_size: usize,
+        storage: &mut Storage,
+        slices: &mut Vec<SliceUpdate>,
+        deallocations: &mut HashSet<ChunkId>,
+    ) {
+        let chunk = self.create_chunk(storage, alloc_size);
+        let storage_id = self.chunks.get(chunk.id()).unwrap().storage.id.clone();
+        let mut offset = 0;
+        let mut slices_ids = Vec::new();
+
+        for update in slices.drain(..) {
+            let slice_id = update.slice_id;
+
+            let slice = self.slices.get_mut(&slice_id).unwrap();
+            let old_storage = slice.storage.clone();
+
+            slice.chunk = chunk.clone();
+            slice.storage = StorageHandle {
+                id: storage_id.clone(),
+                utilization: StorageUtilization::Slice {
+                    offset,
+                    size: update.size,
+                },
+            };
+            // log::info!("Update slice to {:?}", slice.chunk.id());
+            // log::info!("From {:?} to {:?}", old_storage, slice.storage);
+            storage.copy(&old_storage, &slice.storage);
+            slices_ids.push(slice_id);
+
+            offset += slice.effective_size();
+        }
+
+        let chunk = self.chunks.get_mut(chunk.id()).unwrap();
+        chunk.slices = slices_ids;
+
+        self.deallocate(storage, deallocations);
     }
 
     fn calculate_padding(size: usize) -> usize {
@@ -1244,4 +1278,8 @@ mod tests {
             assert_eq!(chunk.storage.size(), CHUNK_ROUNDING);
         }
     }
+}
+struct SliceUpdate {
+    slice_id: SliceId,
+    size: usize,
 }
