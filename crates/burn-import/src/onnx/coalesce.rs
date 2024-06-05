@@ -122,7 +122,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
-    graph_io: &GraphData,
+    graph_data: &GraphData,
 ) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
@@ -145,7 +145,7 @@ pub(crate) fn convert_matmul_to_linear(
 
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
-        let peek_node = convert_node_proto(peek_node, graph_io).clone();
+        let peek_node = convert_node_proto(peek_node, graph_data);
         if is_add_node_with_bias(&peek_node, node) {
             convert_and_remove_add_node(&peek_node, node);
 

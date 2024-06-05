@@ -182,7 +182,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
 
 
 
-pub fn convert_node_proto2(node: &NodeProto, graph_data: &GraphData) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
     let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
@@ -206,32 +206,8 @@ pub fn convert_node_proto2(node: &NodeProto, graph_data: &GraphData) -> Node {
 
 
 
-pub fn convert_node_proto(node: &NodeProto, graph_io: &GraphData) -> Node {
-    let name = node.name.clone();
 
-    log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
-    let inputs = node
-        .input
-        .clone()
-        .iter()
-        .map(|x| graph_io.init_in(x))
-        .collect();
-
-    let outputs = node.output.clone().into_iter().map(Argument::new).collect();
-
-    let attrs = convert_vec_attrs_proto(node.attribute.clone());
-
-    let node_type = NodeType::from_str(node.op_type.as_str()).expect("Unknown node type");
-
-    Node {
-        node_type,
-        name,
-        inputs,
-        outputs,
-        attrs,
-    }
-}
 
 fn to_string(bytes: Vec<u8>) -> String {
     from_utf8(bytes.as_slice()).unwrap().to_string()

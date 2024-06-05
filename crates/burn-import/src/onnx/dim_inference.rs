@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Infer the dimension of each output tensor and update them.
-pub fn dim_inference(node: &mut Node, graph_io: &mut GraphData) {
+pub fn dim_inference(node: &mut Node) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
         NodeType::ArgMax => argmax_update_outputs(node),
