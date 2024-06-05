@@ -124,11 +124,12 @@ where
     }
 
     /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
+    pub fn with_checkpointing_strategy<CS>(mut self, strategy: CS) -> Self
     where
         CS: CheckpointingStrategy + 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
+        self
     }
 
     /// Replace the default CLI renderer with a custom one.
