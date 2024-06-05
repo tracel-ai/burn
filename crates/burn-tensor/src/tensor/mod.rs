@@ -3,11 +3,13 @@ pub(crate) mod stats;
 mod api;
 mod data;
 mod element;
+mod quantization;
 mod shape;
 
 pub use api::*;
 pub use data::*;
 pub use element::*;
+pub use quantization::*;
 pub use shape::*;
 
 /// The activation module.

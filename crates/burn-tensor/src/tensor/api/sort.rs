@@ -87,6 +87,7 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let dims = data.shape.dims;
+    // Note on quantization: the quantized values (in `data.value`) can be used for the sorting operation.
     if D == 1 {
         // 1D sort
         data.value

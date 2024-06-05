@@ -5,7 +5,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::{tensor::Shape, Element, ElementConversion};
+use crate::{tensor::Shape, Element, ElementConversion, QuantizationStrategy};
 
 use num_traits::pow::Pow;
 
@@ -22,6 +22,10 @@ pub struct DataSerialize<E> {
     pub value: Vec<E>,
     /// The shape of the tensor.
     pub shape: Vec<usize>,
+    /// The quantization strategy.
+    #[new(value = "None")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quantization: Option<QuantizationStrategy>,
 }
 
 /// Data structure for tensors.
@@ -32,6 +36,10 @@ pub struct Data<E, const D: usize> {
 
     /// The shape of the tensor.
     pub shape: Shape<D>,
+
+    /// The quantization strategy.
+    #[new(value = "None")]
+    pub quantization: Option<QuantizationStrategy>,
 }
 
 /// Distribution for random value of a tensor.
@@ -140,6 +148,19 @@ impl Distribution {
     }
 }
 
+impl<const D: usize, E> Data<E, D> {
+    /// Sets the data quantization strategy and converts the values to a lower precision data type `Q`.
+    pub fn with_quantization<Q>(self, quantization: QuantizationStrategy) -> Data<Q, D> {
+        let value = quantization.quantize::<E, Q>(&self.value);
+
+        Data {
+            value,
+            shape: self.shape,
+            quantization: Some(quantization),
+        }
+    }
+}
+
 impl<const D: usize, E: Element> Data<E, D> {
     /// Converts the data to a different element type.
     pub fn convert<EOther: Element>(self) -> Data<EOther, D> {
@@ -148,6 +169,10 @@ impl<const D: usize, E: Element> Data<E, D> {
         Data {
             value,
             shape: self.shape,
+            // Note: conversion of quantized values assumes that the target element type can represent
+            // the quantized values adequatly. It is implemented for good measure, but users
+            // should be mindful of the possible impacts.
+            quantization: self.quantization,
         }
     }
 
@@ -188,6 +213,7 @@ impl<E: Element> DataSerialize<E> {
         DataSerialize {
             value,
             shape: self.shape,
+            quantization: self.quantization,
         }
     }
 }
@@ -200,6 +226,10 @@ impl<const D: usize> Data<bool, D> {
         Data {
             value,
             shape: self.shape,
+            // Note: conversion of quantized values assumes that the target element type can represent
+            // the quantized values adequatly. It is implemented for good measure, but users
+            // should be mindful of the possible impacts.
+            quantization: self.quantization,
         }
     }
 }
@@ -279,6 +309,7 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
         DataSerialize {
             value: self.value.clone(),
             shape: self.shape.dims.to_vec(),
+            quantization: self.quantization.clone(),
         }
     }
 }
@@ -377,6 +408,10 @@ impl<const D: usize> Data<usize, D> {
         Data {
             value,
             shape: self.shape,
+            // Note: conversion of quantized values assumes that the target element type can represent
+            // the quantized values adequatly. It is implemented for good measure, but users
+            // should be mindful of the possible impacts.
+            quantization: self.quantization,
         }
     }
 }

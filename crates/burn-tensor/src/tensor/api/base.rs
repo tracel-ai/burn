@@ -2131,6 +2131,7 @@ where
         let serialized: DataSerialize<K::Elem> = DataSerialize {
             value: data.value,
             shape: data.shape.dims.to_vec(),
+            quantization: data.quantization,
         };
         serialized.serialize(serializer)
     }
