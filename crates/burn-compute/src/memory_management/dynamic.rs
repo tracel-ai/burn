@@ -2,7 +2,7 @@ use crate::{
     memory_id_type,
     storage::{ComputeStorage, StorageHandle, StorageUtilization},
 };
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use hashbrown::{HashMap, HashSet};
 
 use std::collections::BTreeMap;
@@ -24,7 +24,7 @@ pub enum DynamicHandle {
     /// A whole chunk of memory.
     Chunk(ChunkHandle),
     /// A slice of a chunk of memory.
-    Slice(SliceHandle),
+    Slice(SliceHandle, DroppedSlices),
 }
 
 /// Binding of the [dynamic handle](DynamicHandle).
@@ -33,7 +33,19 @@ pub enum DynamicBinding {
     /// Binding of the [chunk handle](ChunkHandle).
     Chunk(ChunkBinding),
     /// Binding of the [slice handle](SliceHandle)
-    Slice(SliceBinding),
+    Slice(SliceBinding, DroppedSlices),
+}
+
+type DroppedSlices = std::sync::Arc<spin::Mutex<Vec<SliceId>>>;
+
+impl Drop for DynamicBinding {
+    fn drop(&mut self) {
+        if let DynamicBinding::Slice(slice, slices) = self {
+            if slice.value.can_mut() {
+                slices.lock().push(*slice.id());
+            }
+        }
+    }
 }
 
 /// The strategy defines the frequency at which merging of free slices (defragmentation) occurs
@@ -181,11 +193,7 @@ impl RoundingStrategy {
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(
-        mut storage: Storage,
-        merging_strategy: MergingStrategy,
-        _slice_strategy: SliceStrategy,
-    ) -> Self {
+    pub fn new(mut storage: Storage) -> Self {
         let mut small_memory_pool = MemoryPool::new(
             MergingStrategy::Never,
             RoundingStrategy::None,
@@ -197,7 +205,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
         Self {
             main_memory_pool: MemoryPool::new(
-                merging_strategy,
+                MergingStrategy::new_period_tick(10),
                 RoundingStrategy::RoundUp,
                 1024 * 1024 * 1000,
             ),
@@ -214,6 +222,7 @@ struct MemoryPool {
     rounding: RoundingStrategy,
     slice_index: SizeIndex<SliceId>,
     chunk_index: SizeIndex<ChunkId>,
+    dropped: DroppedSlices,
     max_chunk_size: usize,
 }
 
@@ -281,14 +290,14 @@ impl MemoryHandle<DynamicBinding> for DynamicHandle {
     fn can_mut(&self) -> bool {
         match &self {
             DynamicHandle::Chunk(id) => id.can_mut(),
-            DynamicHandle::Slice(id) => id.can_mut(),
+            DynamicHandle::Slice(id, _) => id.can_mut(),
         }
     }
 
     fn binding(self) -> DynamicBinding {
         match self {
             Self::Chunk(handle) => DynamicBinding::Chunk(handle.binding()),
-            Self::Slice(handle) => DynamicBinding::Slice(handle.binding()),
+            Self::Slice(handle, slices) => DynamicBinding::Slice(handle.binding(), slices),
         }
     }
 }
@@ -302,7 +311,9 @@ impl MemoryPool {
     ) -> Option<Storage::Resource> {
         let handle = match binding {
             DynamicBinding::Chunk(chunk) => self.chunks.get(chunk.id()).map(|c| &c.storage),
-            DynamicBinding::Slice(slice) => self.slices.get(slice.id()).map(|s| &s.storage),
+            DynamicBinding::Slice(slice, _slices) => {
+                self.slices.get(slice.id()).map(|s| &s.storage)
+            }
         };
 
         handle.map(|h| storage.get(h))
@@ -318,6 +329,7 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> DynamicHandle {
+        self.slice_defragmentation();
         self.reserve_algorithm(storage, size, sync)
     }
 
@@ -329,16 +341,12 @@ impl MemoryPool {
     ) -> DynamicHandle {
         let may_perform_full_defrag = self.merging_strategy.should_perform_defragmentation();
 
-        self.slice_defragmentation();
-
-        if let Some(handle) = self.get_free_slice(size) {
-            return DynamicHandle::Slice(handle);
-        } else if may_perform_full_defrag {
+        if may_perform_full_defrag {
             sync();
             self.chunk_defragmentation(storage);
 
             if let Some(handle) = self.get_free_slice(size) {
-                return DynamicHandle::Slice(handle);
+                return DynamicHandle::Slice(handle, self.dropped.clone());
             }
         }
 
@@ -360,7 +368,7 @@ impl MemoryPool {
 
         let handle_slice = slice.handle.clone();
         let slice_id = *handle_slice.id();
-        let returned = DynamicHandle::Slice(handle_slice);
+        let returned = DynamicHandle::Slice(handle_slice, self.dropped.clone());
 
         let extra_slice = if effective_size < alloc_size {
             Some(self.create_slice(effective_size, alloc_size - effective_size, handle_chunk))
@@ -404,7 +412,7 @@ impl MemoryPool {
                     }
                 }
             }
-            DynamicBinding::Slice(_) => panic!("Can't dealloc slice manually"),
+            DynamicBinding::Slice(_, _) => panic!("Can't dealloc slice manually"),
         }
     }
 }
@@ -466,6 +474,7 @@ impl MemoryPool {
             max_chunk_size,
             slice_index: SizeIndex::new(),
             chunk_index: SizeIndex::new(),
+            dropped: Arc::new(spin::Mutex::new(Vec::new())),
         }
     }
 
@@ -479,7 +488,7 @@ impl MemoryPool {
         let slice = self.get_free_slice(size);
 
         match slice {
-            Some(slice) => DynamicHandle::Slice(slice.clone()),
+            Some(slice) => DynamicHandle::Slice(slice.clone(), self.dropped.clone()),
             None => self.alloc(storage, size, sync),
         }
     }
@@ -742,9 +751,17 @@ impl MemoryPool {
 
     // Merge all contiguous free_slices together, assumes that slices are in sorted order.
     fn slice_defragmentation(&mut self) {
-        log::info!("Slice defragmentation ...");
+        let mut chunks = HashSet::new();
+        for dropped in self.dropped.lock().drain(..) {
+            if let Some(slice) = self.slices.get(&dropped) {
+                chunks.insert(*slice.chunk.id());
+            }
+        }
+
         let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
-        for (.., chunk) in self.chunks.iter() {
+
+        for id in chunks {
+            let chunk = self.chunks.get(&id).unwrap();
             self.generate_mergings(chunk, &mut chunk_to_merged_slice);
         }
 
@@ -887,11 +904,7 @@ mod tests {
 
     #[test]
     fn can_mut_with_single_tensor_reference() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
@@ -904,11 +917,7 @@ mod tests {
 
     #[test]
     fn two_tensor_references_remove_mutability() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         let chunk_size = 4;
         let simple_handle = memory_management.create_chunk(chunk_size);
@@ -921,11 +930,7 @@ mod tests {
 
     #[test]
     fn when_non_empty_chunk_exists_and_other_one_created_there_should_be_two() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
         let chunk_size = 4;
         let _chunk_handle = memory_management.reserve_no_sync(chunk_size);
         let _new_handle = memory_management.reserve_no_sync(chunk_size);
@@ -935,11 +940,7 @@ mod tests {
 
     #[test]
     fn when_big_chunk_is_freed_should_be_filled_with_smaller_slices() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::MinimumSize(0),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
         const NUMBER_OF_USED_SLICES: usize = 3;
         const BIG_SLICE_SIZE: usize = CHUNK_ROUNDING - BUFFER_ALIGNMENT * NUMBER_OF_USED_SLICES;
 
@@ -962,11 +963,7 @@ mod tests {
 
     #[test]
     fn when_defragmentation_called_if_two_slices_free_should_merge_into_bigger_slice() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::new_period_tick(1),
-            SliceStrategy::Ratio(0.2),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         let chunk_handle = memory_management.create_chunk(32 + 32);
         let slice =
@@ -989,11 +986,7 @@ mod tests {
 
     #[test]
     fn when_defragmentation_called_should_merge_contiguous_free_slice_together() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::new_period_tick(1),
-            SliceStrategy::Ratio(0.1),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         //The chunk will be separated in 7 slices. 1 free, 23 not free, 456 free and 7 not free
         let slice_size = 32;
@@ -1136,11 +1129,7 @@ mod tests {
 
     #[test]
     fn test_handle_mutability() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Ratio(0.5),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
         let handle = memory_management.reserve_no_sync(10);
 
         let other_ref = handle.clone();
@@ -1152,11 +1141,7 @@ mod tests {
 
     #[test]
     fn support_multiple_slices_for_a_chunk() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::MinimumSize(0),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
         let handle = memory_management.reserve_no_sync(100);
         core::mem::drop(handle);
 
@@ -1179,18 +1164,14 @@ mod tests {
 
     #[test]
     fn test_slice_mutability() {
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Ratio(0.5),
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
         let first_slice = memory_management.reserve_no_sync(10);
 
         drop(first_slice);
 
         let slice = memory_management.reserve_no_sync(8);
 
-        if let super::DynamicHandle::Slice(slice) = slice {
+        if let super::DynamicHandle::Slice(slice, _) = slice {
             let other_ref = slice.clone();
 
             assert!(
@@ -1212,11 +1193,7 @@ mod tests {
     #[test]
     fn when_size_not_big_enough_to_offset_should_alloc_not_rounded_chunk() {
         let alloc_size = MIN_SIZE_NEEDED_TO_OFFSET - 1;
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         memory_management.alloc(alloc_size, || {});
 
@@ -1233,11 +1210,7 @@ mod tests {
     #[test]
     fn when_alloc_is_too_big_for_second_slice_should_only_have_one_slice() {
         let alloc_size = CHUNK_ROUNDING - 2;
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         memory_management.alloc(alloc_size, || {});
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);
@@ -1254,11 +1227,7 @@ mod tests {
     fn when_alloc_is_small_enough_for_second_slice_should_have_two_slice() {
         let alloc_size = MIN_SIZE_NEEDED_TO_OFFSET;
         let padded_first_slice_size = MemoryPool::calculate_padding(alloc_size) + alloc_size;
-        let mut memory_management = DynamicMemoryManagement::new(
-            BytesStorage::default(),
-            MergingStrategy::Never,
-            SliceStrategy::Never,
-        );
+        let mut memory_management = DynamicMemoryManagement::new(BytesStorage::default());
 
         memory_management.alloc(alloc_size, || {});
         assert_eq!(memory_management.main_memory_pool.chunks.len(), 1);

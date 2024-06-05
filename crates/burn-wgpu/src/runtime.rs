@@ -163,8 +163,7 @@ fn create_client(
     MutexComputeChannel<WgpuServer<DynamicMemoryManagement<WgpuStorage>>>,
 > {
     let storage = WgpuStorage::new(device_wgpu.clone(), queue.clone());
-    let memory_management =
-        DynamicMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
+    let memory_management = DynamicMemoryManagement::new(storage);
     let server = WgpuServer::new(memory_management, device_wgpu, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
     let tuner_device_id = tuner_device_id(adapter.get_info());
