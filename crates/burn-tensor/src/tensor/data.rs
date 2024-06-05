@@ -148,10 +148,10 @@ impl Distribution {
     }
 }
 
-impl<const D: usize, E> Data<E, D> {
-    /// Sets the data quantization strategy and converts the values to a lower precision data type `Q`.
-    pub fn with_quantization<Q>(self, quantization: QuantizationStrategy) -> Data<Q, D> {
-        let value = quantization.quantize::<E, Q>(&self.value);
+impl<const D: usize> Data<f32, D> {
+    /// Sets the data quantization strategy and converts the values to a lower precision data type `i8`.
+    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Data<i8, D> {
+        let value = quantization.quantize(&self.value);
 
         Data {
             value,
