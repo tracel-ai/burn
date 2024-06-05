@@ -24,6 +24,10 @@ pub struct HalfPrecisionSettings;
 #[derive(Debug, Default, Clone)]
 pub struct DoublePrecisionSettings;
 
+/// Precision settings optimized for `int8` quantization.
+#[derive(Debug, Default, Clone)]
+pub struct Int8PrecisionSettings;
+
 impl PrecisionSettings for FullPrecisionSettings {
     type FloatElem = f32;
     type IntElem = i32;
@@ -37,4 +41,9 @@ impl PrecisionSettings for DoublePrecisionSettings {
 impl PrecisionSettings for HalfPrecisionSettings {
     type FloatElem = half::f16;
     type IntElem = i16;
+}
+
+impl PrecisionSettings for Int8PrecisionSettings {
+    type FloatElem = f32;
+    type IntElem = i8;
 }
