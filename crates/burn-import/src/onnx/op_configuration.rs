@@ -1015,6 +1015,53 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     (start_dim as usize, end_dim as usize)
 }
 
+pub fn slice_config(
+    node: &Node,
+) -> (
+    Vec<usize>,
+    Vec<usize>, /*, Option<Vec<i64>>, Option<Vec<i64>> */
+) {
+    let start_value = &node.inputs[1].value;
+    let end_value = &node.inputs[2].value;
+
+    let starts = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = start_value.as_ref() {
+                shape.iter().map(|x| *x as usize).collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    let ends = match &node.inputs[2].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = end_value.as_ref() {
+                shape.iter().map(|x| *x as usize).collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    // let mut axes = None;
+    // let mut steps = None;
+    //
+    // for (key, value) in node.attrs.iter() {
+    //     match key.as_str() {
+    //         "axes" => axes = Some(value.clone().into_i64s()),
+    //         "steps" => steps = Some(value.clone().into_i64s()),
+    //         _ => {}
+    //     }
+    // }
+
+    (starts, ends /*, axes, steps*/)
+}
+
 pub fn transpose_config(curr: &Node) -> Vec<i64> {
     if curr.inputs.len() != 1 {
         panic!(

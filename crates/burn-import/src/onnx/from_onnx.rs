@@ -17,7 +17,7 @@ use super::ir::{ArgType, Argument, Node, NodeType};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 10] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 11] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -27,6 +27,7 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 10] = [
     NodeType::Reshape,
     NodeType::Unsqueeze,
     NodeType::ReduceSum,
+    NodeType::Slice,
     NodeType::Squeeze,
 ];
 
