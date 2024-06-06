@@ -31,7 +31,7 @@ use core::ops::Deref;
 /// let module = module.load_record(record);
 /// ```
 pub struct Param<T: Parameter> {
-    /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter. ///
+    /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
     state: OnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
