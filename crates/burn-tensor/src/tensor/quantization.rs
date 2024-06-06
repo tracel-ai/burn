@@ -31,13 +31,13 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Eq for AffineQuantization<E, Q, A> {}
 
 impl<E: Float, Q: PrimInt, A: PrimInt> PartialEq for AffineQuantization<E, Q, A> {
     fn eq(&self, other: &Self) -> bool {
-        match (
-            self.scale.partial_cmp(&other.scale),
-            self.offset.cmp(&other.offset),
-        ) {
-            (Some(Ordering::Equal), Ordering::Equal) => true,
-            _ => false,
-        }
+        matches!(
+            (
+                self.scale.partial_cmp(&other.scale),
+                self.offset.cmp(&other.offset)
+            ),
+            (Some(Ordering::Equal), Ordering::Equal)
+        )
     }
 }
 
@@ -100,10 +100,7 @@ impl<E: Float, Q: PrimInt> Eq for SymmetricQuantization<E, Q> {}
 
 impl<E: Float, Q: PrimInt> PartialEq for SymmetricQuantization<E, Q> {
     fn eq(&self, other: &Self) -> bool {
-        match self.scale.partial_cmp(&other.scale) {
-            Some(Ordering::Equal) => true,
-            _ => false,
-        }
+        matches!(self.scale.partial_cmp(&other.scale), Some(Ordering::Equal))
     }
 }
 
