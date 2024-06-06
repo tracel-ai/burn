@@ -41,7 +41,8 @@ pub struct GraphData {
     pub(crate) outputs: Vec<Argument>,
     pub(crate) initializers: HashMap<String, Argument>,
     pub(crate) input_name_map: HashMap<String, IOEntry>,
-    pub(crate) node_name_counter: HashMap<NodeType, usize>,
+    graph_input_name_map: HashMap<String, usize>,
+    
 }
 
 impl GraphData {
@@ -49,8 +50,9 @@ impl GraphData {
         outputs: &Vec<ValueInfoProto>,
         initializers: &Vec<TensorProto>) -> Self {
         let mut input_name_map = HashMap::new();
-        let node_name_counter = HashMap::new();
-        let mut in_count = 1;
+        let mut graph_input_name_map = HashMap::new();
+        //let node_name_counter = HashMap::new();
+        
         
         let constants = initializers
             .iter()
@@ -66,9 +68,10 @@ impl GraphData {
             .iter()
             .enumerate()
             .map(|(i, x)| {
-                let in_name = format!("input{}", in_count);
+                let in_name = format!("input{}", i+1);
                 
                 input_name_map.insert(x.name.clone(), IOEntry::In(i));
+                graph_input_name_map.insert(in_name.clone(), i);
                 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 if let Some(initial_arg) = constants.get(&x.name) {
@@ -77,7 +80,7 @@ impl GraphData {
                     }
                 }
 
-                in_count += 1;
+                
                 arg.name = in_name;
                 arg
             })
@@ -88,7 +91,8 @@ impl GraphData {
             initializers: constants,
             processed_nodes: Vec::new(),
             input_name_map,
-            node_name_counter,
+            graph_input_name_map,
+            //node_name_counter,
         }
     }
 
@@ -113,48 +117,53 @@ impl GraphData {
         }
     }
 
-    fn predict_node_name(&self, node_type: &NodeType) -> String {
-        format!("{}{}", node_type, self.node_name_counter.get(node_type).unwrap_or(&0_usize)+1).to_lowercase()
-    }
+    // fn predict_node_name(&self, node_type: &NodeType) -> String {
+    //     format!("{}{}", node_type, self.node_name_counter.get(node_type).unwrap_or(&0_usize)+1).to_lowercase()
+    // }
 
-    /// Used for correctly mapping constants and identity nodes
-    fn predict_out_name(&self, node_type: &NodeType, out_idx: usize) -> String {
-        format!("{}{}_out{}",node_type,self.node_name_counter.get(node_type).unwrap_or(&0_usize)+1, out_idx+1).to_lowercase()
-    }
+    // /// Used for correctly mapping constants and identity nodes
+    // fn predict_out_name(&self, node_type: &NodeType, out_idx: usize) -> String {
+    //     format!("{}{}_out{}",node_type,self.node_name_counter.get(node_type).unwrap_or(&0_usize)+1, out_idx+1).to_lowercase()
+    // }
         
             
-    fn rename_node(&mut self, node: &mut Node) {
-        log::debug!("renaming node {:?}", &node.name);
-        self.node_name_counter
-            .entry(node.node_type.clone())
-            .and_modify(|e| *e += 1)
-            .or_insert(1);
-        let new_name = format!(
-            "{}{}",
-            node.node_type, self.node_name_counter[&node.node_type]
-        )
-        .to_lowercase();
-        node.name.clone_from(&new_name);
-    }
+    // fn rename_node(&mut self, node: &mut Node) {
+    //     log::debug!("renaming node {:?}", &node.name);
+    //     self.node_name_counter
+    //         .entry(node.node_type.clone())
+    //         .and_modify(|e| *e += 1)
+    //         .or_insert(1);
+    //     let new_name = format!(
+    //         "{}{}",
+    //         node.node_type, self.node_name_counter[&node.node_type]
+    //     )
+    //     .to_lowercase();
+    //     node.name.clone_from(&new_name);
+    // }
     fn mark_input_passed(&mut self, node: &Node) {
         //I don't like this, but consider:
         //1. input names are set from the beginning
         //2. A node might replace an input (unsqueeze to reshape)
         //3. graph inputs are generally 1 to 3 arguments
-        for node_input in node.inputs.iter() {
-            for graph_input in self.inputs.iter_mut() {
-                if node_input.name == graph_input.name {
-                    graph_input.passed = true;
-                }
+        // for node_input in node.inputs.iter() {
+        //     for graph_input in self.inputs.iter_mut() {
+        //         if node_input.name == graph_input.name {
+        //             graph_input.passed = true;
+        //         }
+        //     }
+        // }
+        node.inputs.iter().for_each(|node_input| {
+            if let Some(idx) = self.graph_input_name_map.get(&node_input.name) {
+                self.inputs[*idx].passed = true;
             }
-        }
+        });
     }
     ///This function does three things:
     /// renames the nodes
     /// marks the inputs as passed
     /// renames the output and maps the old output names to it
     pub fn add_node(&mut self, mut node: Node) {
-        self.rename_node(&mut node);
+        //self.rename_node(&mut node);
         self.mark_input_passed(&node);
         let mut out_count=1;
         for output in node.outputs.iter_mut() {
@@ -194,10 +203,11 @@ pub(crate) struct OnnxGraphBuilder {
     constants_types: HashSet<NodeType>,
     /// Map from identity node output names to indices of identity nodes
     identity_idx: HashMap<String, usize>,
+    node_name_counter: HashMap<NodeType, usize>,
 }
 
 impl OnnxGraphBuilder {
-    pub(crate) fn node_gen(mut self, model_proto: &ModelProto) -> OnnxGraph {
+    pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
 
@@ -214,7 +224,7 @@ impl OnnxGraphBuilder {
             let mut node = convert_node_proto(node_proto, &graph_data);
 
             remap_node_type(&mut node);
-
+            self.handle_node_renaming(&mut node);
             coalesce(&mut node, &mut node_iter, &graph_data);
             // NOTE: start of stateful filter functions
             // args : node, graph_io/data, and_idx
@@ -246,13 +256,25 @@ impl OnnxGraphBuilder {
         }
     }
 
-   
+    fn handle_node_renaming(&mut self, node: &mut Node) {
+        log::debug!("renaming node {:?}", &node.name);
+        self.node_name_counter
+            .entry(node.node_type.clone())
+            .and_modify(|e| *e += 1)
+            .or_insert(1);
+        let new_name = format!(
+            "{}{}",
+            node.node_type, self.node_name_counter[&node.node_type]
+        )
+        .to_lowercase();
+        node.name.clone_from(&new_name);
+    }
 
     fn check_constants(&mut self, node: &mut Node, i: usize, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant
             || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
         {
-            self.constants_map.insert(graph_data.predict_out_name(&node.node_type, 0), i);
+            self.constants_map.insert( format!("{}_out{}",&node.name, 1),i);
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
@@ -289,7 +311,7 @@ impl OnnxGraphBuilder {
         {
             //if the output has a shape, it's only because it's a graph output
             if let Some(out_arg) = graph_data.get_graph_output(&node.outputs[0].name) {
-                remap_unsqueeze_to_reshape(node, &out_arg, graph_data);
+                remap_unsqueeze_to_reshape(node, &out_arg);
             }
         }
     }
@@ -298,7 +320,7 @@ impl OnnxGraphBuilder {
         if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
             log::debug!("\nfound identity node:\n{:?}\n", &node);
             //map the output name to check for pass through values
-            self.identity_idx.insert(node.outputs[0].name.clone(), i);
+            self.identity_idx.insert(format!("{}_out1",&node.name), i);
             self.nodes_to_remove.insert(i);
         } else {
             //NOTE: it might be possible to rework the API to handle all "per input" operations
@@ -353,7 +375,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 
     log::debug!("Number of outputs: {:?}", onnx_model.graph.output.len());
     let builder = OnnxGraphBuilder::default();
-    let graph = builder.node_gen(&onnx_model);
+    let graph = builder.build(&onnx_model);
 
     // let OnnxGraphBuilder {
     //     processed_nodes: nodes,
@@ -377,7 +399,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// node renaming has been done. avoids marking rhs as passed so that it can be
 /// properly deleted if nothing else uses it
 /// Remap the unsqueeze node to a reshape node
-pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument,graph_data: &GraphData) {
+pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
     match &out_arg.ty {
         ArgType::Tensor(output_tensor) => {
             let inner = output_tensor
@@ -391,7 +413,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument,gra
             let new_rhs_value = Some(Data::Int64s(inner));
             //moving the remap to here
             let rhs_arg = Argument {
-                name: format!("{}_generated_const", graph_data.predict_node_name(&NodeType::Reshape)),
+                name: format!("{}_generated_const", &node.name),
                 ty: ArgType::Tensor(TensorType {
                     elem_type: super::ir::ElementType::Int64,
                     dim: 1,
