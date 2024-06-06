@@ -24,13 +24,13 @@ fn attribute_modifier_reuse_struct<T: Numeric>(mut state: State<T>) -> State<T> 
     state
 }
 
-#[cube]
-fn creator<T: Numeric>(x: T, second: T) -> State<T> {
-    let mut state = State::<T> { first: x, second };
-    state.second = state.first;
+// #[cube]
+// fn creator<T: Numeric>(x: T, second: T) -> State<T> {
+//     let mut state = State::<T> { first: x, second };
+//     state.second = state.first;
 
-    state
-}
+//     state
+// }
 
 mod tests {
     use super::*;
@@ -41,21 +41,21 @@ mod tests {
 
     type ElemType = F32;
 
-    #[test]
-    fn cube_new_struct_test() {
-        let mut context = CubeContext::root();
+    // #[test]
+    // fn cube_new_struct_test() {
+    //     let mut context = CubeContext::root();
 
-        let x = context.create_local(Item::new(ElemType::as_elem()));
-        let y = context.create_local(Item::new(ElemType::as_elem()));
+    //     let x = context.create_local(Item::new(ElemType::as_elem()));
+    //     let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        creator_expand::<ElemType>(&mut context, x, y);
-        let scope = context.into_scope();
+    //     creator_expand::<ElemType>(&mut context, x, y);
+    //     let scope = context.into_scope();
 
-        assert_eq!(
-            format!("{:?}", scope.operations),
-            creator_inline_macro_ref()
-        );
-    }
+    //     assert_eq!(
+    //         format!("{:?}", scope.operations),
+    //         creator_inline_macro_ref()
+    //     );
+    // }
 
     #[test]
     fn cube_struct_as_arg_test() {

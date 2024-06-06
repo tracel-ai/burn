@@ -32,12 +32,8 @@ impl<T> Comptime<T> {
         unexpanded!()
     }
 
-    pub fn map_expand<R, F: Fn(&mut CubeContext, T) -> R>(
-        context: &mut CubeContext,
-        inner: T,
-        closure: F,
-    ) -> R {
-        closure(context, inner)
+    pub fn map_expand<R, F: Fn(T) -> R>(inner: T, closure: F) -> R {
+        closure(inner)
     }
 }
 
@@ -82,8 +78,8 @@ impl<T: Vectorized> Comptime<T> {
         unexpanded!()
     }
 
-    pub fn vectorization_expand(_context: &mut CubeContext, state: T) -> Comptime<UInt> {
-        Comptime::new(UInt::new(state.vectorization_factor() as u32))
+    pub fn vectorization_expand(_context: &mut CubeContext, state: T) -> UInt {
+        state.vectorization_factor()
     }
 }
 
@@ -91,7 +87,8 @@ impl<T: Into<ExpandElement>> Comptime<T> {
     pub fn runtime(_comptime: Self) -> T {
         unexpanded!()
     }
-    pub fn runtime_expand(_context: &mut CubeContext, comptime: Self) -> ExpandElement {
-        comptime.inner.into()
+
+    pub fn runtime_expand(_context: &mut CubeContext, inner: T) -> ExpandElement {
+        inner.into()
     }
 }

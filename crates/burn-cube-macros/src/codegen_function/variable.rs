@@ -40,32 +40,39 @@ pub(crate) fn codegen_array_lit(array: &syn::ExprArray) -> TokenStream {
 /// let x = ...
 /// let x: T = ...
 /// let _ = ...
+/// let mut _ = ...
 pub(crate) fn codegen_local(
     local: &syn::Local,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
     let let_tok = local.let_token;
-    let mut is_mut = false;
 
-    let ident = match &local.pat {
-        syn::Pat::Ident(ident) => {
-            is_mut = ident.mutability.is_some();
-            ident.to_token_stream()
-        }
+    let (ident, lhs_is_mut) = match &local.pat {
+        syn::Pat::Ident(ident) => (ident.to_token_stream(), ident.mutability.is_some()),
         syn::Pat::Type(pat_type) => match &*pat_type.pat {
-            syn::Pat::Ident(pat_ident) => pat_ident.to_token_stream(),
+            syn::Pat::Ident(pat_ident) => {
+                (pat_ident.to_token_stream(), pat_ident.mutability.is_some())
+            }
             _ => todo!("Codegen: Unsupported typed path {:?}", pat_type.pat),
         },
-        syn::Pat::Wild(wild) => wild.underscore_token.to_token_stream(),
+        syn::Pat::Wild(wild) => (wild.underscore_token.to_token_stream(), false),
         _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
 
     match local.init.as_ref() {
         Some(init) => {
             let init = codegen_expr(&init.expr, loop_level, variable_analyses);
+            let rhs_is_mut = if let Some(rhs) = variable_analyses
+                .variable_analyses
+                .get(&init.to_string().into())
+            {
+                rhs.is_mut
+            } else {
+                false
+            };
 
-            if is_mut {
+            if lhs_is_mut || rhs_is_mut {
                 quote::quote! {
                     #let_tok #ident = {
                         let _inner = #init;

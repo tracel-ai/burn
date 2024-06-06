@@ -2,8 +2,6 @@ use crate::frontend::UInt;
 use crate::frontend::{CubeType, ExpandElement};
 use crate::ir::{Elem, Variable};
 
-use super::Vectorized;
-
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
 pub trait CubeElem:

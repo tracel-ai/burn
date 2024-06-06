@@ -5,10 +5,7 @@ use syn::{
     PathArguments, Token,
 };
 
-use crate::{
-    analysis::CodeAnalysis,
-    codegen_function::{base::codegen_expr, variable},
-};
+use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
 
 /// Codegen for method call
 /// Supports [expr].method(args)
@@ -146,14 +143,12 @@ pub(crate) fn parse_function_call(
                 quote::quote! {#code}
             }
             "map" => {
-                let (expansion, variables) =
-                    codegen_args(&call.args, loop_level, variable_analyses);
+                let args = &call.args;
 
                 // Codegen
                 quote::quote! {
                     {
-                        #expansion
-                        Comptime::map_expand(#variables)
+                        Comptime::map_expand(#args)
                     }
                 }
             }
@@ -179,6 +174,16 @@ pub(crate) fn parse_function_call(
                 quote::quote! {{
                     #expansion
                     Comptime::vectorization_expand(#variables)
+                }}
+            }
+            "vectorize" => {
+                let (expansion, variables) =
+                    codegen_args(&call.args, loop_level, variable_analyses);
+
+                // Codegen
+                quote::quote! {{
+                    #expansion
+                    Comptime::vectorize_expand(#variables)
                 }}
             }
             "runtime" => {

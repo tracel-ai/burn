@@ -105,8 +105,8 @@ pub(crate) fn codegen_expr(
         syn::Expr::Array(array) => codegen_array_lit(array),
         syn::Expr::Reference(reference) => codegen_ref(reference, loop_level, variable_analyses),
         syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_analyses),
-        syn::Expr::Field(op) => codegen_field(op, loop_level, variable_analyses),
-        syn::Expr::Struct(op) => codegen_struct(op, loop_level, variable_analyses),
+        syn::Expr::Field(field) => codegen_field(field, loop_level, variable_analyses),
+        syn::Expr::Struct(struct_) => codegen_struct(struct_, loop_level, variable_analyses),
         _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }
