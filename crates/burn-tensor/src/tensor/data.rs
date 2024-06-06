@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn should_support_quantization() {
-        let quant = QuantizationStrategy::Int8Affine(AffineQuantization::new(-1.8, 0.5));
+        let quant = QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::new(-1.8, 0.5));
         let data1 = Data::<f32, 2>::from([[-1.8, -1.0, 0.0, 0.5]]);
         let data2 = data1.clone().with_quantization(quant.clone());
 
