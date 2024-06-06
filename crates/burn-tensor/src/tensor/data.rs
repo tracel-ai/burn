@@ -518,6 +518,8 @@ impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{AffineQuantization, Quantization};
+
     use super::*;
     use rand::{rngs::StdRng, SeedableRng};
 
@@ -549,6 +551,18 @@ mod tests {
         let data2 = Data::<f32, 2>::from([[3.01, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    fn should_support_quantization() {
+        let data = Data::<f32, 2>::from([[-1.8, -1.0, 0.0, 0.5]]).with_quantization(
+            QuantizationStrategy::Int8Affine(AffineQuantization::new(-1.8, 0.5)),
+        );
+
+        let expected = Data::<i8, 2>::from([[-128, -39, 72, 127]]);
+
+        assert_eq!(data.value, expected.value);
+        assert_eq!(data.shape, expected.shape);
     }
 
     #[test]
