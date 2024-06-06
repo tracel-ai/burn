@@ -52,6 +52,7 @@ for serialization and deserialization.
 | `DoublePrecisionSettings` | `f64`           | `i64`             |
 | `FullPrecisionSettings`   | `f32`           | `i32`             |
 | `HalfPrecisionSettings`   | `f16`           | `i16`             |
+| `Int8PrecisionSettings`   | `f32`           | `i8`              |
 
 Note that when loading a record into a module, the type conversion is automatically handled, so you
 can't encounter errors. The only crucial aspect is using the same recorder for both serialization
