@@ -116,9 +116,10 @@ impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
         let b = E::from(Q::max_value()).unwrap();
         let a = b.neg();
 
-        // Compute scale to convert a floating point value in range `[alpha, beta]` to the quantized range
+        // Compute scale to convert a floating point value in range `[-alpha, alpha]` to the quantized range
+        let alpha = alpha.abs().max(beta.abs());
         Self {
-            scale: (beta - alpha) / (b - a),
+            scale: (alpha + alpha) / (b - a),
             _q: PhantomData,
         }
     }
@@ -173,6 +174,7 @@ impl QuantizationStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_int8_affine_quantization() {
@@ -193,8 +195,8 @@ mod tests {
     #[test]
     fn test_int8_symmetric_quantization() {
         let x: [f32; 4] = [-1.8, -1.0, 0.0, 0.5];
-        let expected_q = vec![-127, -110, 0, 55];
-        let expected_d = vec![-1.15, -0.996063, 0.0, 0.4980315];
+        let expected_q = vec![-127, -71, 0, 35];
+        let expected_d = vec![-1.8, -1.0062993, 0.0, 0.496063];
 
         let symmetric = QuantizationStrategy::Int8Symmetric(SymmetricQuantization::new(-1.8, 0.5));
 
