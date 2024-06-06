@@ -1,5 +1,6 @@
 use core::{cmp::Ordering, marker::PhantomData};
 
+use alloc::vec::Vec;
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
