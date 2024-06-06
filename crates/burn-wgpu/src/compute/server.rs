@@ -218,6 +218,13 @@ where
         Reader::Concrete(self.buffer_reader(binding).read(&self.device))
     }
 
+    fn get_resource(
+        &mut self,
+        binding: server::Binding<Self>,
+    ) -> <Self::Storage as burn_compute::storage::ComputeStorage>::Resource {
+        self.memory_management.get(binding.memory)
+    }
+
     /// When we create a new handle from existing data, we use custom allocations so that we don't
     /// have to execute the current pending tasks.
     ///
