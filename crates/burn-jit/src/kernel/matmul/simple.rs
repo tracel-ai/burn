@@ -101,7 +101,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     let lhs = into_contiguous(lhs);
 
     let rhs_original_shape = rhs.shape.clone();
-    let rhs = into_contiguous(swap_dims(into_contiguous(rhs), D - 1, D - 2));
+    let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
 
     let workgroup = simple_launch_options(
         &lhs.shape,
