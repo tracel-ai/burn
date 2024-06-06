@@ -2,7 +2,7 @@ use std::str::{from_utf8, FromStr};
 
 use crate::onnx::ir::TensorType;
 
-use super::from_onnx::{GraphData};
+use super::from_onnx::GraphData;
 use super::ir::Dim;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
@@ -180,8 +180,6 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-
-
 pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
     let name = node.name.clone();
 
@@ -189,7 +187,11 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
 
     let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
 
-    let outputs = node.output.iter().map(|x| Argument::new(x.to_string())).collect();
+    let outputs = node
+        .output
+        .iter()
+        .map(|x| Argument::new(x.to_string()))
+        .collect();
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
@@ -203,11 +205,6 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
         attrs,
     }
 }
-
-
-
-
-
 
 fn to_string(bytes: Vec<u8>) -> String {
     from_utf8(bytes.as_slice()).unwrap().to_string()

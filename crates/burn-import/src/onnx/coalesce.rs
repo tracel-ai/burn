@@ -6,7 +6,7 @@ use super::{
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
-use crate::{burn::graph, onnx::ir::{ArgType, Data, TensorType}};
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
@@ -50,7 +50,7 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &GraphData) {
         node.attrs.remove("transB");
 
         // Transpose the weights
-        transpose_linear_node_weights(node,graph_io);
+        transpose_linear_node_weights(node, graph_io);
     } else {
         panic!("Full Gemm node not supported yet.");
     }

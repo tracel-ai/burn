@@ -4,7 +4,6 @@ use core::panic;
 use protobuf::Enum;
 
 use super::{
-    from_onnx::GraphData,
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,

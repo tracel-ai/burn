@@ -7,7 +7,10 @@ use std::{
 use crate::onnx::node_remap::remap_node_type;
 
 use super::{
-    coalesce::coalesce, ir::{Data, OnnxGraph, TensorType}, proto_conversion::convert_node_proto, protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto}
+    coalesce::coalesce,
+    ir::{Data, OnnxGraph, TensorType},
+    proto_conversion::convert_node_proto,
+    protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
@@ -28,7 +31,6 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 10] = [
     NodeType::Squeeze,
 ];
 
-
 #[derive(Debug, Clone)]
 pub(crate) enum IOEntry {
     In(usize),
@@ -43,37 +45,35 @@ pub struct GraphData {
     pub(crate) input_name_map: HashMap<String, IOEntry>,
     //This is cursed
     input_key_map: HashMap<String, String>,
-    
 }
 
 impl GraphData {
-    pub(crate) fn new(inputs: &Vec<ValueInfoProto>,
+    pub(crate) fn new(
+        inputs: &Vec<ValueInfoProto>,
         outputs: &Vec<ValueInfoProto>,
-        initializers: &Vec<TensorProto>) -> Self {
+        initializers: &Vec<TensorProto>,
+    ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
         //let node_name_counter = HashMap::new();
-        
-        
+
         let constants = initializers
             .iter()
             .map(|x| (x.name.clone(), Argument::from_initializer(x)))
             .collect::<HashMap<String, Argument>>();
         let outputs = outputs
             .iter()
-            .map(|x| {
-                Argument::try_from(x.clone()).unwrap()
-            })
+            .map(|x| Argument::try_from(x.clone()).unwrap())
             .collect::<Vec<Argument>>();
         let inputs = inputs
             .iter()
             .enumerate()
             .map(|(i, x)| {
-                let in_name = format!("input{}", i+1);
-                
+                let in_name = format!("input{}", i + 1);
+
                 input_name_map.insert(x.name.clone(), IOEntry::In(i));
                 input_key_map.insert(in_name.clone(), x.name.clone());
-                
+
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 if let Some(initial_arg) = constants.get(&x.name) {
                     if arg.value.is_none() {
@@ -81,7 +81,6 @@ impl GraphData {
                     }
                 }
 
-                
                 arg.name = in_name;
                 arg
             })
@@ -107,17 +106,17 @@ impl GraphData {
                 } else {
                     //should I throw a warning here to support coalesce?, or make a separate function
                     //that doesn't panic
-                    log::warn!("Input {} not found, should only happen when peeking", proto_str);
+                    log::warn!(
+                        "Input {} not found, should only happen when peeking",
+                        proto_str
+                    );
                     Argument::new(proto_str.to_string())
                 }
             }
             Some(IOEntry::In(i)) => self.inputs[*i].clone(),
-            Some(IOEntry::Node(i, j)) => {
-                self.processed_nodes[*i].outputs[*j].clone()
-            }
+            Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
         }
     }
-
 
     fn mark_input_passed(&mut self, node: &Node) {
         // we have to double map the inputs because the input might be replaced by an initializer
@@ -142,34 +141,35 @@ impl GraphData {
     pub fn add_node(&mut self, mut node: Node) {
         //self.rename_node(&mut node);
         self.mark_input_passed(&node);
-        let mut out_count=1;
+        let mut out_count = 1;
         for output in node.outputs.iter_mut() {
-            self.input_name_map.insert(output.name.clone(), IOEntry::Node(self.processed_nodes.len(), 0));
+            self.input_name_map.insert(
+                output.name.clone(),
+                IOEntry::Node(self.processed_nodes.len(), 0),
+            );
             output.name = format!("{}_out{}", node.name, out_count);
-            out_count+=1;
+            out_count += 1;
         }
         self.processed_nodes.push(node);
-        
     }
 
     pub fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-        
         self.inputs.retain(|x| x.passed);
-        let outputs = self.outputs.into_iter().filter_map(|x| {
-            match self.input_name_map.get(&x.name) {
+        let outputs = self
+            .outputs
+            .into_iter()
+            .filter_map(|x| match self.input_name_map.get(&x.name) {
                 Some(IOEntry::Node(i, j)) => Some(self.processed_nodes[*i].outputs[*j].clone()),
-                _ => None
-            }
-        }).collect();
+                _ => None,
+            })
+            .collect();
         (self.processed_nodes, self.inputs, outputs)
     }
-    
+
     fn get_graph_output(&self, name: &str) -> Option<&Argument> {
         self.outputs.iter().find(|x| x.name == name)
     }
-    
 }
-
 
 #[derive(Default)]
 pub(crate) struct OnnxGraphBuilder {
@@ -186,7 +186,6 @@ pub(crate) struct OnnxGraphBuilder {
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
-
 
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
@@ -207,7 +206,7 @@ impl OnnxGraphBuilder {
             // args : node, graph_io/data, and_idx
             self.handle_identity(&mut node, and_idx, &graph_data);
             self.check_constants(&mut node, and_idx, &graph_data);
-            
+
             self.handle_unsqueeze(&mut node, &graph_data);
 
             dim_inference(&mut node);
@@ -220,13 +219,17 @@ impl OnnxGraphBuilder {
         }
 
         let mut i = 0;
-    
+
         let (mut processed_nodes, inputs, outputs) = graph_data.consume();
         //println!("processed_nodes: {:#?}", processed_nodes);
         //println!("inputs: {:#?}", inputs);
         // Remove the graph inputs/output that are not used by any node
         //remove_unused_graph_inputs(&mut inputs, &mut outputs);
-        processed_nodes.retain(|_| {let keep = !self.nodes_to_remove.contains(&i); i+=1; keep});
+        processed_nodes.retain(|_| {
+            let keep = !self.nodes_to_remove.contains(&i);
+            i += 1;
+            keep
+        });
         OnnxGraph {
             nodes: processed_nodes,
             inputs,
@@ -252,7 +255,8 @@ impl OnnxGraphBuilder {
         if node.node_type == NodeType::Constant
             || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
         {
-            self.constants_map.insert( format!("{}_out{}",&node.name, 1),i);
+            self.constants_map
+                .insert(format!("{}_out{}", &node.name, 1), i);
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
@@ -289,7 +293,7 @@ impl OnnxGraphBuilder {
         {
             //if the output has a shape, it's only because it's a graph output
             if let Some(out_arg) = graph_data.get_graph_output(&node.outputs[0].name) {
-                remap_unsqueeze_to_reshape(node, &out_arg);
+                remap_unsqueeze_to_reshape(node, out_arg);
             }
         }
     }
@@ -298,7 +302,7 @@ impl OnnxGraphBuilder {
         if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
             log::debug!("\nfound identity node:\n{:?}\n", &node);
             //map the output name to check for pass through values
-            self.identity_idx.insert(format!("{}_out1",&node.name), i);
+            self.identity_idx.insert(format!("{}_out1", &node.name), i);
             self.nodes_to_remove.insert(i);
         } else {
             //NOTE: it might be possible to rework the API to handle all "per input" operations
@@ -372,7 +376,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     graph
 }
 
-
 /// Remap the unsqueeze node to a reshape node, Should only be called after
 /// node renaming has been done. avoids marking rhs as passed so that it can be
 /// properly deleted if nothing else uses it
@@ -406,8 +409,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
             node.outputs[0] = out_arg.clone();
             node.node_type = NodeType::Reshape;
         }
-        _ => {
-        }
+        _ => {}
     }
 }
 // Define a trait for topological sorting
