@@ -9,7 +9,7 @@ use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
     // memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
-    memory_management::dynamic::{DynamicMemoryManagement, MergingStrategy, SliceStrategy},
+    memory_management::dynamic::DynamicMemoryManagement,
     tune::Tuner,
     ComputeRuntime,
 };
@@ -88,9 +88,9 @@ impl DeviceOps for WgpuDevice {
 /// The values that control how a WGPU Runtime will perform its calculations.
 pub struct RuntimeOptions {
     /// How the buffers are deallocated.
-    pub dealloc_strategy: MergingStrategy,
+    // pub dealloc_strategy: MergingStrategy,
     /// Control the slicing strategy.
-    pub slice_strategy: SliceStrategy,
+    // pub slice_strategy: SliceStrategy,
     /// Control the amount of compute tasks to be aggregated into a single GPU command.
     pub tasks_max: usize,
 }
@@ -107,8 +107,8 @@ impl Default for RuntimeOptions {
         };
 
         Self {
-            dealloc_strategy: MergingStrategy::new_period_tick(1),
-            slice_strategy: SliceStrategy::Ratio(0.1),
+            // dealloc_strategy: MergingStrategy::new_period_tick(1),
+            // slice_strategy: SliceStrategy::Ratio(0.1),
             tasks_max,
         }
     }
