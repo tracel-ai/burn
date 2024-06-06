@@ -15,7 +15,7 @@ use wgpu::{
     BindGroup, CommandEncoder, ComputePipeline, ShaderModuleDescriptor,
 };
 
-// Allocations with existin data smaller than this can use a staging belt
+// Allocations with existing data smaller than this can use a staging belt
 // which speeds up the allocation. A higher number here will catch more
 // allocations, but can also increase memory usage.
 const SMALL_ALLOC_SIZE: usize = 512;
