@@ -1,5 +1,6 @@
 use super::ComputeChannel;
 use crate::server::{Binding, ComputeServer, Handle};
+use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -44,6 +45,13 @@ where
 {
     fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
         self.server.borrow_mut().read(binding)
+    }
+
+    fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        self.server.borrow_mut().get_resource(binding)
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {
