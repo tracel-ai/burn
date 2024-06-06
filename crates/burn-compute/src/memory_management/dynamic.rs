@@ -14,36 +14,31 @@ use web_time as time;
 use super::{MemoryBinding, MemoryHandle, MemoryManagement};
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk.
-memory_id_type!(ChunkId, ChunkHandle, ChunkBinding);
+memory_id_type!(ChunkId, ChunkHandle);
 // The SliceId allows to keep track of how many references there are to a specific slice.
 memory_id_type!(SliceId, SliceHandle, SliceBinding);
 
 /// A tensor memory handle, referring to either a chunk or a slice.
 #[derive(Debug, Clone)]
-pub enum DynamicHandle {
-    /// A whole chunk of memory.
-    Chunk(ChunkHandle),
-    /// A slice of a chunk of memory.
-    Slice(SliceHandle, DroppedSlices),
+pub struct DynamicHandle {
+    slice: SliceHandle,
+    dropped: DroppedSlices,
 }
 
 /// Binding of the [dynamic handle](DynamicHandle).
 #[derive(Debug, Clone)]
-pub enum DynamicBinding {
-    /// Binding of the [chunk handle](ChunkHandle).
-    Chunk(ChunkBinding),
-    /// Binding of the [slice handle](SliceHandle)
-    Slice(SliceBinding, DroppedSlices),
+pub struct DynamicBinding {
+    slice: SliceBinding,
+    dropped: DroppedSlices,
 }
 
 type DroppedSlices = std::sync::Arc<spin::Mutex<Vec<SliceId>>>;
 
 impl Drop for DynamicBinding {
     fn drop(&mut self) {
-        if let DynamicBinding::Slice(slice, slices) = self {
-            if slice.value.can_mut() {
-                slices.lock().push(*slice.id());
-            }
+        if self.slice.value.can_mut() {
+            let id = *self.slice.id();
+            self.dropped.lock().push(id);
         }
     }
 }
@@ -288,16 +283,13 @@ impl MemoryBinding for DynamicBinding {}
 
 impl MemoryHandle<DynamicBinding> for DynamicHandle {
     fn can_mut(&self) -> bool {
-        match &self {
-            DynamicHandle::Chunk(id) => id.can_mut(),
-            DynamicHandle::Slice(id, _) => id.can_mut(),
-        }
+        self.slice.can_mut()
     }
 
     fn binding(self) -> DynamicBinding {
-        match self {
-            Self::Chunk(handle) => DynamicBinding::Chunk(handle.binding()),
-            Self::Slice(handle, slices) => DynamicBinding::Slice(handle.binding(), slices),
+        DynamicBinding {
+            slice: self.slice.binding(),
+            dropped: self.dropped,
         }
     }
 }
@@ -309,14 +301,10 @@ impl MemoryPool {
         storage: &mut Storage,
         binding: &DynamicBinding,
     ) -> Option<Storage::Resource> {
-        let handle = match binding {
-            DynamicBinding::Chunk(chunk) => self.chunks.get(chunk.id()).map(|c| &c.storage),
-            DynamicBinding::Slice(slice, _slices) => {
-                self.slices.get(slice.id()).map(|s| &s.storage)
-            }
-        };
-
-        handle.map(|h| storage.get(h))
+        self.slices
+            .get(binding.slice.id())
+            .map(|s| &s.storage)
+            .map(|h| storage.get(h))
     }
 
     /// Reserves memory of specified size using the reserve algorithm, and return
@@ -346,7 +334,10 @@ impl MemoryPool {
             self.chunk_defragmentation(storage);
 
             if let Some(handle) = self.get_free_slice(size) {
-                return DynamicHandle::Slice(handle, self.dropped.clone());
+                return DynamicHandle {
+                    slice: handle,
+                    dropped: self.dropped.clone(),
+                };
             }
         }
 
@@ -368,7 +359,10 @@ impl MemoryPool {
 
         let handle_slice = slice.handle.clone();
         let slice_id = *handle_slice.id();
-        let returned = DynamicHandle::Slice(handle_slice, self.dropped.clone());
+        let returned = DynamicHandle {
+            slice: handle_slice,
+            dropped: self.dropped.clone(),
+        };
 
         let extra_slice = if effective_size < alloc_size {
             Some(self.create_slice(effective_size, alloc_size - effective_size, handle_chunk))
@@ -391,29 +385,6 @@ impl MemoryPool {
         }
 
         returned
-    }
-
-    fn dealloc<Storage: ComputeStorage>(
-        &mut self,
-        storage: &mut Storage,
-        binding: &DynamicBinding,
-    ) {
-        match binding {
-            DynamicBinding::Chunk(chunk) => {
-                if let Some(chunk) = self.chunks.remove(chunk.id()) {
-                    self.chunk_index
-                        .remove(chunk.handle.id(), chunk.storage.size());
-
-                    storage.dealloc(chunk.storage.id);
-                    for slice_id in chunk.slices {
-                        if let Some(slice) = self.slices.remove(&slice_id) {
-                            self.slice_index.remove(&slice_id, slice.effective_size());
-                        }
-                    }
-                }
-            }
-            DynamicBinding::Slice(_, _) => panic!("Can't dealloc slice manually"),
-        }
     }
 }
 
@@ -450,9 +421,8 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
         }
     }
 
-    fn dealloc(&mut self, binding: Self::Binding) {
-        self.main_memory_pool.dealloc(&mut self.storage, &binding);
-        self.small_memory_pool.dealloc(&mut self.storage, &binding);
+    fn dealloc(&mut self, _binding: Self::Binding) {
+        // Can't dealloc slices.
     }
 
     fn storage(&mut self) -> &mut Storage {
@@ -488,7 +458,10 @@ impl MemoryPool {
         let slice = self.get_free_slice(size);
 
         match slice {
-            Some(slice) => DynamicHandle::Slice(slice.clone(), self.dropped.clone()),
+            Some(slice) => DynamicHandle {
+                slice: slice.clone(),
+                dropped: self.dropped.clone(),
+            },
             None => self.alloc(storage, size, sync),
         }
     }
@@ -1169,25 +1142,23 @@ mod tests {
 
         drop(first_slice);
 
-        let slice = memory_management.reserve_no_sync(8);
+        let slice = memory_management.reserve_no_sync(8).slice;
 
-        if let super::DynamicHandle::Slice(slice, _) = slice {
-            let other_ref = slice.clone();
+        let other_ref = slice.clone();
 
-            assert!(
-                !slice.can_mut(),
-                "Slice can't be mut when multiple ref to the same handle."
-            );
-            drop(other_ref);
-            assert!(
-                slice.can_mut(),
-                "Slice should be mut when only one ref to the same handle."
-            );
-            assert!(
-                !slice.is_free(),
-                "Slice can't be reallocated when one ref still exist."
-            );
-        }
+        assert!(
+            !slice.can_mut(),
+            "Slice can't be mut when multiple ref to the same handle."
+        );
+        drop(other_ref);
+        assert!(
+            slice.can_mut(),
+            "Slice should be mut when only one ref to the same handle."
+        );
+        assert!(
+            !slice.is_free(),
+            "Slice can't be reallocated when one ref still exist."
+        );
     }
 
     #[test]
