@@ -148,16 +148,11 @@ impl Distribution {
     }
 }
 
-impl<const D: usize> Data<f32, D> {
-    /// Sets the data quantization strategy and converts the values to a lower precision data type `i8`.
-    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Data<i8, D> {
-        let value = quantization.quantize(&self.value);
-
-        Data {
-            value,
-            shape: self.shape,
-            quantization: Some(quantization),
-        }
+impl<const D: usize, E> Data<E, D> {
+    /// Sets the data quantization strategy.
+    pub fn with_quantization(mut self, quantization: QuantizationStrategy) -> Self {
+        self.quantization = Some(quantization);
+        self
     }
 }
 
@@ -555,14 +550,13 @@ mod tests {
 
     #[test]
     fn should_support_quantization() {
-        let data = Data::<f32, 2>::from([[-1.8, -1.0, 0.0, 0.5]]).with_quantization(
-            QuantizationStrategy::Int8Affine(AffineQuantization::new(-1.8, 0.5)),
-        );
+        let quant = QuantizationStrategy::Int8Affine(AffineQuantization::new(-1.8, 0.5));
+        let data1 = Data::<f32, 2>::from([[-1.8, -1.0, 0.0, 0.5]]);
+        let data2 = data1.clone().with_quantization(quant.clone());
 
-        let expected = Data::<i8, 2>::from([[-128, -39, 72, 127]]);
-
-        assert_eq!(data.value, expected.value);
-        assert_eq!(data.shape, expected.shape);
+        assert_eq!(data1.value, data2.value);
+        assert_eq!(data1.shape, data2.shape);
+        assert_eq!(data2.quantization, Some(quant));
     }
 
     #[test]
