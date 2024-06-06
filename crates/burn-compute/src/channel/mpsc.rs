@@ -37,7 +37,7 @@ where
     Server: ComputeServer,
 {
     Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
-    ReadResource(
+    GetResource(
         Binding<Server>,
         Callback<<Server::Storage as ComputeStorage>::Resource>,
     ),
@@ -62,7 +62,7 @@ where
                         let data = server.read(binding);
                         callback.send(data).unwrap();
                     }
-                    Message::ReadResource(binding, callback) => {
+                    Message::GetResource(binding, callback) => {
                         let data = server.get_resource(binding);
                         callback.send(data).unwrap();
                     }
@@ -122,7 +122,7 @@ where
 
         self.state
             .sender
-            .send(Message::ReadResource(binding, callback))
+            .send(Message::GetResource(binding, callback))
             .unwrap();
 
         self.response(response)
