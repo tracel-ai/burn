@@ -105,9 +105,10 @@ pub enum MatmulStrategy {
 #[cfg(feature = "autotune")]
 impl Default for MatmulStrategy {
     fn default() -> Self {
+        // MatmulStrategy::Tiling2d(Tiling2dConfig::default())
         MatmulStrategy::Simple {
-            grid_x: 16,
-            grid_y: 16,
+            grid_x: 32,
+            grid_y: 32,
         }
     }
 }

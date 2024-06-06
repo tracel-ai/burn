@@ -1,6 +1,6 @@
 use crate::{
     kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
-    ops::into_data,
+    ops::{into_data, swap_dims},
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
@@ -92,32 +92,20 @@ pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement, const D: us
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
 pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
-    mut rhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
 ) -> JitTensor<R, E, D> {
-    println!("{:?}", lhs.shape.dims);
-    println!("{:?}", rhs.shape.dims);
     lhs.assert_is_on_same_device(&rhs);
     let lhs = into_contiguous(lhs);
-    let mut rhs = into_contiguous(rhs);
-    let tmp = rhs.strides[D - 1];
-    rhs.strides[D - 1] = rhs.strides[D - 2];
-    rhs.strides[D - 2] = tmp;
-    let tmp = rhs.shape.dims[D - 1];
-    rhs.shape.dims[D - 1] = rhs.shape.dims[D - 2];
-    rhs.shape.dims[D - 2] = tmp;
-    let mut rhs = into_contiguous(rhs);
-    let tmp = rhs.shape.dims[D - 1];
-    rhs.shape.dims[D - 1] = rhs.shape.dims[D - 2];
-    rhs.shape.dims[D - 2] = tmp;
-    // println!("{:?}", into_data(lhs.clone()).read_sync());
-    // println!("{:?}", into_data(rhs.clone()).read_sync());
+
+    let rhs_original_shape = rhs.shape.clone();
+    let rhs = into_contiguous(swap_dims(into_contiguous(rhs), D - 1, D - 2));
 
     let workgroup = simple_launch_options(
         &lhs.shape,
-        &rhs.shape,
+        &rhs_original_shape,
         &out.shape,
         workgroup_size_x,
         workgroup_size_y,
@@ -137,7 +125,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         workgroup,
         settings,
         TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-        TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+        TensorHandle::new(&rhs.handle, &rhs.strides, &rhs_original_shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
         Some(UInt::new(D as u32 - 2)),
     );
