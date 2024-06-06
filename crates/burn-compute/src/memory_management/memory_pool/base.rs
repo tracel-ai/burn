@@ -355,11 +355,15 @@ impl MemoryPool {
             return Some(slice.handle.clone());
         }
 
+        if size < MIN_SIZE_NEEDED_TO_OFFSET {
+            return None;
+        }
+
         assert_eq!(size_diff % BUFFER_ALIGNMENT, 0);
 
         // split into 2 if needed
         let handle = self
-            .split_slice_in_two(&slice_id, effective_size)
+            .split_slice_in_two(&slice_id, size)
             .expect("split should have returned a handle");
 
         self.slice_size_index.remove(handle.id());
