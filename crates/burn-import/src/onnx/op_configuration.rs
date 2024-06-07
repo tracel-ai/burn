@@ -1,14 +1,12 @@
-use burn::{
-    nn::{
-        conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
-        pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-        BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-        PaddingConfig2d,
-    },
-    tensor::ops::InterpolateMode,
+use burn::nn::{
+    conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
+    pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d,
 };
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::resize::ResizeMode;
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -716,7 +714,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
-pub fn resize_config(node: &Node) -> InterpolateMode {
+pub fn resize_config(node: &Node) -> ResizeMode {
     let mut mode: String = "".to_string();
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
@@ -729,9 +727,9 @@ pub fn resize_config(node: &Node) -> InterpolateMode {
     }
 
     let mode = match mode.as_str() {
-        "nearest" => InterpolateMode::Nearest,
-        "linear" => InterpolateMode::Bilinear,
-        "cubic" => InterpolateMode::Bicubic,
+        "nearest" => ResizeMode::Nearest,
+        "linear" => ResizeMode::Linear,
+        "cubic" => ResizeMode::Cubic,
         _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
     };
 

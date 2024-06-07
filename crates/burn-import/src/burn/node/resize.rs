@@ -1,9 +1,21 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{OtherType, Scope, TensorType, Type};
+use burn::module::Module;
 use burn::record::PrecisionSettings;
-use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use proc_macro2::TokenStream;
 use quote::quote;
+
+#[derive(Module, Debug, Clone)]
+pub enum ResizeMode {
+    Nearest,
+    Linear,
+    Cubic,
+}
+
+#[derive(new, Module, Debug, Clone)]
+pub struct ResizeOptions {
+    pub mode: ResizeMode,
+}
 
 #[derive(Debug, Clone)]
 pub struct ResizeNode {
@@ -11,7 +23,7 @@ pub struct ResizeNode {
     pub input: TensorType,
     pub output: TensorType,
     pub output_size: TensorType,
-    pub config: InterpolateOptions,
+    pub config: ResizeOptions,
 }
 
 impl ResizeNode {
@@ -20,13 +32,13 @@ impl ResizeNode {
         input: TensorType,
         output: TensorType,
         output_size: TensorType,
-        config: InterpolateOptions,
+        config: ResizeOptions,
     ) -> Self {
         Self {
             field: OtherType::new(
                 name,
                 quote! {
-                    InterpolateOptions
+                    burn::module::Ignored<InterpolateOptions>
                 },
             ),
             input,
@@ -57,15 +69,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         let name = &self.field.name;
 
         let mode = match self.config.mode {
-            InterpolateMode::Bilinear => quote! { InterpolateMode::Bilinear },
-            InterpolateMode::Nearest => quote! { InterpolateMode::Nearest },
-            InterpolateMode::Bicubic => quote! { InterpolateMode::Bicubic },
+            ResizeMode::Linear => quote! { InterpolateMode::Bilinear },
+            ResizeMode::Nearest => quote! { InterpolateMode::Nearest },
+            ResizeMode::Cubic => quote! { InterpolateMode::Bicubic },
         };
 
         let tokens = quote! {
             let #name = InterpolateOptions {
                 mode: #mode,
             };
+            let #name = burn::module::Ignored(#name);
         };
 
         Some(tokens)
@@ -83,18 +96,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         let field = &self.field.name;
 
         quote! {
-            let output_size: [usize; 2] = #output_size.to_data()
-                .value
-                .iter()
-                .map(|x| x.elem::<i64>() as usize)
-                .collect::<Vec<usize>>()
-                .try_into()
-                .unwrap();
+            let output_size_raw = #output_size.to_data().value;
+            let mut output_size = [0usize; 2];
+
+            for (i, &x) in output_size_raw.iter().rev().take(2).rev().enumerate() {
+                output_size[i] = x.elem::<i64>() as usize;
+            }
 
             let #output = interpolate(
                 #input,
                 output_size,
-                self.#field,
+                self.#field.0.clone(),
             );
         }
     }
@@ -104,6 +116,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     }
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        imports.register("burn::tensor::ElementConversion");
         imports.register("burn::tensor::module::interpolate");
         imports.register("burn::tensor::ops::InterpolateMode");
         imports.register("burn::tensor::ops::InterpolateOptions");
@@ -129,8 +142,8 @@ mod tests {
             "resize",
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            TensorType::new_float("output_size", 1),
-            InterpolateOptions::new(InterpolateMode::Bilinear),
+            TensorType::new_int("output_size", 1),
+            ResizeOptions::new(ResizeMode::Linear),
         ));
 
         graph.register_input_output(
@@ -139,6 +152,11 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::module::interpolate;
+            use burn::tensor::ops::InterpolateMode;
+            use burn::tensor::ops::InterpolateOptions;
+            use burn::tensor::ElementConversion;
+            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -146,7 +164,7 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                resize: InterpolateOptions,
+                resize: burn::module::Ignored<InterpolateOptions>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -157,6 +175,7 @@ mod tests {
                     let resize = InterpolateOptions {
                         mode: InterpolateMode::Bilinear,
                     };
+                    let resize = burn::module::Ignored(resize);
                     Self {
                         resize,
                         phantom: core::marker::PhantomData,
@@ -164,16 +183,19 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output_size: [i64; 2] = output_size.to_data()
-                        .value
-                        .iter()
-                        .map(|x| x.elem())
-                        .collect::<Vec<i64>>()
-                        .try_into()
-                        .unwrap();
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 4>,
+                    output_size: Tensor<B, 1, Int>
+                ) -> Tensor<B, 4> {
+                    let output_size_raw = output_size.to_data().value;
+                    let mut output_size = [0usize; 2];
 
-                    let tensor2 = interpolate(tensor1, output_size, self.resize);
+                    for (i, &x) in output_size_raw.iter().rev().take(2).rev().enumerate() {
+                        output_size[i] = x.elem::<i64>() as usize;
+                    }
+
+                    let tensor2 = interpolate(tensor1, output_size, self.resize.0.clone());
 
                     tensor2
                 }

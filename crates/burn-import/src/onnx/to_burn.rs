@@ -7,7 +7,7 @@ use std::{
 use burn::{
     nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
-    tensor::{ops::InterpolateOptions, DataSerialize, Element},
+    tensor::{DataSerialize, Element},
 };
 use log::warn;
 
@@ -42,7 +42,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
-            resize::ResizeNode,
+            resize::{ResizeNode, ResizeOptions},
             squeeze::SqueezeNode,
             sum::SumNode,
             unary::UnaryNode,
@@ -596,13 +596,7 @@ impl OnnxGraph {
 
         let mode = resize_config(&node);
 
-        ResizeNode::new(
-            name,
-            input,
-            output,
-            output_size,
-            InterpolateOptions { mode },
-        )
+        ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
     }
 
     fn min_conversion(node: Node) -> BinaryNode {
