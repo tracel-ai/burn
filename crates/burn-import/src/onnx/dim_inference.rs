@@ -1,7 +1,6 @@
 use core::cmp::max;
 use core::panic;
 
-use burn::tensor::ops::conv::calculate_conv_output_size;
 use protobuf::Enum;
 
 use super::{
@@ -300,24 +299,39 @@ fn resize_update_outputs(node: &mut Node) {
         _ => panic!("Resize: invalid output type"),
     };
 
-    let output_size = match node.inputs[1].value.as_ref().expect("Resize must specify an output size") {
-        Data::Int64s(output_size) => output_size.clone(),
-        _ => panic!("Resize: invalid output_size type"),
-    }.iter().map(|x| *x as usize).collect::<Vec<_>>();
 
-    if output_size.len() != 2 {
-        panic!("Resize: output size must be 2D");
+    let output_size = match &node.inputs[3].ty {
+        ArgType::Tensor(output_size) => output_size.clone(),
+        _ => panic!("Resize: invalid output_size type"),
+    };
+
+    if output_size.dim != 1 {
+        panic!("Resize: output size must be 1D");
     }
 
-    let input_shape = input.shape.as_ref().expect("Resize: Input shape must be known");
+    // node.inputs[3]
+    //     .clone()
+    //     .into_tensor()
+    //     .expect("Resize: output_size must be a tensor")
+    //     .data
+    //     .expect("Resize: output_size must have data");
 
-    let mut shape = input_shape.clone();
-    shape[input_shape.len() - 2] = output_size[0];
-    shape[input_shape.len() - 1] = output_size[1];
-    let shape = shape.into();
+    // let output_size = match node.inputs[3].value.as_ref().expect("Resize must specify an output size") {
+    //     Data::Int64s(output_size) => output_size.clone(),
+    //     _ => panic!("Resize: invalid output_size type"),
+    // };
+
+
+    // let input_shape = input.shape.as_ref().expect("Resize: Input shape must be known");
+
+    // let mut shape = input_shape.clone();
+    // shape[input_shape.len() - 2] = output_size[0] as usize;
+    // shape[input_shape.len() - 1] = output_size[1] as usize;
+    // let shape = shape.into();
+
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        shape,
+        dim: input.dim,
         ..output
     });
 }

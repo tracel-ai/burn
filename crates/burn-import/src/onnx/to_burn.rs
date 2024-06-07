@@ -589,15 +589,18 @@ impl OnnxGraph {
     fn resize_conversion(node: Node) -> ResizeNode {
         let name = &node.name;
 
-        let input = node.inputs.first().unwrap().to_tensor_type();
+        let input = node.inputs[0].to_tensor_type();
+        let output_size = node.inputs[1].to_tensor_type();
+
         let output = node.outputs.first().unwrap().to_tensor_type();
-        let (output_size, mode) = resize_config(&node);
+
+        let mode = resize_config(&node);
 
         ResizeNode::new(
             name,
             input,
             output,
-            output_size.try_into().unwrap(),
+            output_size,
             InterpolateOptions {
                 mode,
             },

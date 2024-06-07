@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{OtherType, Scope, TensorType, ToTokens, Type};
+use crate::burn::{OtherType, Scope, TensorType, Type};
 use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -10,7 +10,7 @@ pub struct ResizeNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub output_size: [i64; 2],
+    pub output_size: TensorType,
     pub config: InterpolateOptions,
 }
 
@@ -19,14 +19,14 @@ impl ResizeNode {
         name: S,
         input: TensorType,
         output: TensorType,
-        output_size: [i64; 2],
+        output_size: TensorType,
         config: InterpolateOptions,
     ) -> Self {
         Self {
             field: OtherType::new(
                 name,
                 quote! {
-                    B
+                    InterpolateOptions
                 },
             ),
             input,
@@ -71,15 +71,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
+        let output_size = &self.output_size.name;
 
-        let output_size = &self.output_size.to_tokens();
         let field = &self.field.name;
 
         quote! {
+            // TODO: get last two dimensions of input tensor `output_size` and use them as output size
             let #output = interpolate(
                 #input,
                 #output_size,
-                #field,
+                self.#field,
             );
         }
     }
@@ -108,11 +109,14 @@ mod tests {
             "resize",
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            [2, 2],
+            TensorType::new_float("output_size", 2),
             InterpolateOptions::new(InterpolateMode::Bilinear),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
 
         let expected = quote! {
             use burn::{
@@ -122,6 +126,7 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
+                resize: InterpolateOptions,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -129,20 +134,18 @@ mod tests {
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
+                    let resize = InterpolateOptions {
+                        mode: InterpolateMode::Bilinear,
+                    };
                     Self {
+                        resize,
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = resize(
-                        tensor1,
-                        [2, 2],
-                        InterpolateOptions {
-                            mode: InterpolateMode::Bilinear,
-                        },
-                    );
+                    let tensor2 = interpolate(tensor1, output_size, self.resize);
 
                     tensor2
                 }

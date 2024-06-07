@@ -12,8 +12,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, x):
-        output_size = (2, 2)
-        x = F.interpolate(x, size=output_size, mode='bilinear', align_corners=True)
+        x = F.interpolate(x, size=(2, 2), mode='bilinear', align_corners=True)
         return x
 
 
@@ -30,8 +29,14 @@ def main():
 
     file_name = "resize.onnx"
     test_input = torch.randn(1, 1, 4, 4)
-    torch.onnx.export(model, test_input, file_name,
-                      verbose=False, opset_version=16)
+
+    torch.onnx.export(
+        model,
+        test_input,
+        file_name,
+        verbose=False,
+        opset_version=16
+    )
 
     print("Finished exporting model to {}".format(file_name))
 

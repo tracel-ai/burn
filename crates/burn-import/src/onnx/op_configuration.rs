@@ -715,32 +715,26 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 
 pub fn resize_config(
     node: &Node,
-) -> (
-    Vec<i64>,
-    InterpolateMode,
- ) {
-    if node.inputs.len() != 3 || node.inputs[1].value.is_none() || node.inputs[2].value.is_none() {
-        panic!("Resize: output size tensor and mode must be present for {:?}", node);
+) -> InterpolateMode {
+    let mut mode: String = "".to_string();
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "coordinate_transformation_mode" => {},
+            "cubic_coeff_a" => {},
+            "mode" => mode = value.clone().into_string(),
+            "nearest_mode" => {},
+            _ => {}
+        }
     }
-
-    let output_size = match node.inputs[1].value.as_ref().expect("Resize must specify an output size") {
-        Data::Int64s(output_size) => output_size.clone(),
-        _ => panic!("Resize: invalid output_size type"),
-    };
-
-    let mode = match node.inputs[2].value.as_ref().expect("Resize must specify mode") {
-        Data::String(mode) => mode.clone(),
-        _ => panic!("Resize: invalid mode type"),
-    };
 
     let mode = match mode.as_str() {
         "nearest" => InterpolateMode::Nearest,
-        "bilinear" => InterpolateMode::Bilinear,
-        "bicubic" => InterpolateMode::Bicubic,
-        _ => panic!("Resize: invalid mode string, must be 'nearest', 'bilinear', or 'bicubic'"),
+        "linear" => InterpolateMode::Bilinear,
+        "cubic" => InterpolateMode::Bicubic,
+        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
     };
 
-    (output_size, mode)
+    mode
 }
 
 //Note this function should only execute if the second input is a constant
