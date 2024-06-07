@@ -14,14 +14,6 @@ pub mod not {
     }
 }
 
-pub mod init {
-    use super::*;
-
-    pub fn expand(context: &mut CubeContext, x: ExpandElement) -> ExpandElement {
-        unary_expand(context, x, Operator::Assign)
-    }
-}
-
 macro_rules! impl_unary_func {
     ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
         pub trait $trait_name: CubeType + Sized {

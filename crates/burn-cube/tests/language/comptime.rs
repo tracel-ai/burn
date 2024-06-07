@@ -6,6 +6,12 @@ pub struct State {
     bound: u32,
 }
 
+impl Init for State {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
+}
+
 #[cube]
 pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
     if Comptime::get(cond) {

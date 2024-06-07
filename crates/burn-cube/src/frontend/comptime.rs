@@ -3,7 +3,7 @@ use crate::{
     unexpanded,
 };
 
-use super::{ExpandElement, UInt, Vectorized};
+use super::{ExpandElement, Init, UInt, Vectorized};
 
 #[derive(Clone, Copy)]
 /// Encapsulates a value to signify it must be used at compilation time rather than in the kernel
@@ -69,7 +69,7 @@ impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {
     }
 }
 
-impl<T: Clone> CubeType for Comptime<T> {
+impl<T: Clone + Init> CubeType for Comptime<T> {
     type ExpandType = T;
 }
 

@@ -31,7 +31,11 @@ pub fn module_derive_cube_launch(input: TokenStream) -> TokenStream {
 pub fn module_derive_cube_type(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
 
-    generate_cube_type(&input, false)
+    let codegen = generate_cube_type(&input, false);
+
+    // panic!("{codegen}");
+
+    codegen
 }
 
 /// Derive macro for the module.
@@ -149,6 +153,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let generics = sig.generics.clone().into_token_stream();
 
     quote::quote! {
+        /// Expanded Cube function
         pub fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
     }
 }

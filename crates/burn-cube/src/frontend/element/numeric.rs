@@ -11,7 +11,6 @@ use super::{LaunchArg, Vectorized};
 /// Used in kernels that should work for both.
 pub trait Numeric:
     Vectorized
-    + Clone
     + Copy
     + LaunchArg
     + CubeElem

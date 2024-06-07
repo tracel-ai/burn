@@ -11,6 +11,7 @@ pub trait CubeElem:
     + Send
     + Sync
     + 'static
+    + Clone
 {
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;

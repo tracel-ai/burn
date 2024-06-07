@@ -159,9 +159,6 @@ mod tests {
         cpa!(scope, x[one] = one);
         cpa!(scope, x[two] = one);
         cpa!(scope, x[three] = one);
-        // Todo: init is uselessly called. However this is not trivial to remove
-        // because it would need to detect that UInt::vectorized does not need it
-        cpa!(scope, x = x);
         cpa!(scope, x = x + y);
 
         format!("{:?}", scope.operations)

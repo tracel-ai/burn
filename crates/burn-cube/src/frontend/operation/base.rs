@@ -139,11 +139,7 @@ where
     lhs
 }
 
-pub(crate) fn unary_expand<F>(
-    context: &mut CubeContext,
-    input: ExpandElement,
-    func: F,
-) -> ExpandElement
+pub fn unary_expand<F>(context: &mut CubeContext, input: ExpandElement, func: F) -> ExpandElement
 where
     F: Fn(UnaryOperator) -> Operator,
 {
@@ -167,6 +163,32 @@ where
     context.register(op);
 
     out
+}
+
+pub fn init_expand<F>(context: &mut CubeContext, input: ExpandElement, func: F) -> ExpandElement
+where
+    F: Fn(UnaryOperator) -> Operator,
+{
+    if input.can_mut() {
+        input
+    } else {
+        let input_var: Variable = *input;
+
+        let item = input.item();
+
+        let out = context.create_local(item);
+
+        let out_var = *out;
+
+        let op = func(UnaryOperator {
+            input: input_var,
+            out: out_var,
+        });
+
+        context.register(op);
+
+        out
+    }
 }
 
 fn check_vectorization(lhs: Vectorization, rhs: Vectorization) -> Vectorization {

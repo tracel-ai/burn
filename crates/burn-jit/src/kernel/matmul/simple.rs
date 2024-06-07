@@ -1,6 +1,6 @@
 use crate::{
     kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
-    ops::{into_data, swap_dims},
+    ops::swap_dims,
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
