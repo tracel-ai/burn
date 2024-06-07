@@ -170,25 +170,23 @@ where
     F: Fn(UnaryOperator) -> Operator,
 {
     if input.can_mut() {
-        input
-    } else {
-        let input_var: Variable = *input;
-
-        let item = input.item();
-
-        let out = context.create_local(item);
-
-        let out_var = *out;
-
-        let op = func(UnaryOperator {
-            input: input_var,
-            out: out_var,
-        });
-
-        context.register(op);
-
-        out
+        return input;
     }
+
+    let input_var: Variable = *input;
+    let item = input.item();
+
+    let out = context.create_local(item);
+    let out_var = *out;
+
+    let op = func(UnaryOperator {
+        input: input_var,
+        out: out_var,
+    });
+
+    context.register(op);
+
+    out
 }
 
 fn check_vectorization(lhs: Vectorization, rhs: Vectorization) -> Vectorization {

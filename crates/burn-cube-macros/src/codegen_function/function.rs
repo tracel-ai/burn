@@ -66,22 +66,13 @@ pub(crate) fn codegen_closure(
     }
 }
 
-/// Codegen for a function call
-pub(crate) fn codegen_call(
-    call: &syn::ExprCall,
-    loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
-) -> TokenStream {
-    parse_function_call(call, loop_level, variable_analyses).0
-}
-
 /// Maps
 /// [A[::<...>]?::]^* func[::<...>] (args)
 /// to
 /// [A[::<...>]?::]^* func_expand[::<...>] (context, args)
 ///
 /// Also returns a bool that is true if it's comptime
-pub(crate) fn parse_function_call(
+pub(crate) fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,

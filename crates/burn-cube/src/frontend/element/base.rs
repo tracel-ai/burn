@@ -114,3 +114,9 @@ macro_rules! impl_init_for {
 
 // Add all types used within comptime
 impl_init_for!(u32, bool, UInt);
+
+impl<T> Init for Option<T> {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
+}
