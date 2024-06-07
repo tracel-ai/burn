@@ -147,7 +147,7 @@ represent the corresponding Burn Op.
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
 | [Reshape][142]                   |       ✅       |      ✅      |
-| [Resize][143]                    |       ❌       |      ✅      |
+| [Resize][143]                    |       ✅       |      ✅      |
 | [ReverseSequence][144]           |       ❌       |      ❌      |
 | [RNN][145]                       |       ❌       |      ✅      |
 | [RoiAlign][146]                  |       ❌       |      ❌      |

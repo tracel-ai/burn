@@ -1,9 +1,9 @@
-use burn::nn::{
+use burn::{nn::{
     conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
     PaddingConfig2d,
-};
+}, tensor::ops::InterpolateMode};
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
 
@@ -711,6 +711,36 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         }
         _ => panic!("Only tensor input is valid for shape"),
     }
+}
+
+pub fn resize_config(
+    node: &Node,
+) -> (
+    Vec<i64>,
+    InterpolateMode,
+ ) {
+    if node.inputs.len() != 3 || node.inputs[1].value.is_none() || node.inputs[2].value.is_none() {
+        panic!("Resize: output size tensor and mode must be present for {:?}", node);
+    }
+
+    let output_size = match node.inputs[1].value.as_ref().expect("Resize must specify an output size") {
+        Data::Int64s(output_size) => output_size.clone(),
+        _ => panic!("Resize: invalid output_size type"),
+    };
+
+    let mode = match node.inputs[2].value.as_ref().expect("Resize must specify mode") {
+        Data::String(mode) => mode.clone(),
+        _ => panic!("Resize: invalid mode type"),
+    };
+
+    let mode = match mode.as_str() {
+        "nearest" => InterpolateMode::Nearest,
+        "bilinear" => InterpolateMode::Bilinear,
+        "bicubic" => InterpolateMode::Bicubic,
+        _ => panic!("Resize: invalid mode string, must be 'nearest', 'bilinear', or 'bicubic'"),
+    };
+
+    (output_size, mode)
 }
 
 //Note this function should only execute if the second input is a constant

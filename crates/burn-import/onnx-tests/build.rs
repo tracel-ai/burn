@@ -56,6 +56,7 @@ fn main() {
         .input("tests/reduce_sum/reduce_sum_opset13.onnx")
         .input("tests/reduce_sum/reduce_sum_opset11.onnx")
         .input("tests/reshape/reshape.onnx")
+        .input("tests/resize/resize.onnx")
         .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/sign/sign.onnx")

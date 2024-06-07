@@ -7,7 +7,7 @@ use std::{
 use burn::{
     nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
-    tensor::{DataSerialize, Element},
+    tensor::{ops::InterpolateOptions, DataSerialize, Element},
 };
 use log::warn;
 
@@ -42,6 +42,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
+            resize::ResizeNode,
             squeeze::SqueezeNode,
             sum::SumNode,
             unary::UnaryNode,
@@ -63,7 +64,7 @@ use super::{
     ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
-        softmax_config,
+        resize_config, softmax_config,
     },
 };
 
@@ -290,6 +291,7 @@ impl OnnxGraph {
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -582,6 +584,24 @@ impl OnnxGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+
+    fn resize_conversion(node: Node) -> ResizeNode {
+        let name = &node.name;
+
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let (output_size, mode) = resize_config(&node);
+
+        ResizeNode::new(
+            name,
+            input,
+            output,
+            output_size.try_into().unwrap(),
+            InterpolateOptions {
+                mode,
+            },
+        )
     }
 
     fn min_conversion(node: Node) -> BinaryNode {

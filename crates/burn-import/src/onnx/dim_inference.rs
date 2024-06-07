@@ -1,6 +1,7 @@
 use core::cmp::max;
 use core::panic;
 
+use burn::tensor::ops::conv::calculate_conv_output_size;
 use protobuf::Enum;
 
 use super::{
@@ -60,6 +61,7 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
+        NodeType::Resize => resize_update_outputs(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
@@ -285,6 +287,39 @@ fn reshape_update_outputs(node: &mut Node) {
             ..output
         });
     }
+}
+
+fn resize_update_outputs(node: &mut Node) {
+    let input = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Resize: invalid input type"),
+    };
+
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Resize: invalid output type"),
+    };
+
+    let output_size = match node.inputs[1].value.as_ref().expect("Resize must specify an output size") {
+        Data::Int64s(output_size) => output_size.clone(),
+        _ => panic!("Resize: invalid output_size type"),
+    }.iter().map(|x| *x as usize).collect::<Vec<_>>();
+
+    if output_size.len() != 2 {
+        panic!("Resize: output size must be 2D");
+    }
+
+    let input_shape = input.shape.as_ref().expect("Resize: Input shape must be known");
+
+    let mut shape = input_shape.clone();
+    shape[input_shape.len() - 2] = output_size[0];
+    shape[input_shape.len() - 1] = output_size[1];
+    let shape = shape.into();
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        shape,
+        ..output
+    });
 }
 
 fn greater_update_outputs(node: &mut Node) {
