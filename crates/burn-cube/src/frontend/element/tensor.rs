@@ -1,7 +1,8 @@
 use crate::{
-    frontend::{indexation::Index, CubeType, ExpandElement},
-    frontend::{ArgSettings, CubeContext, CubeElem, UInt},
-    ir::{Elem, Item, Metadata, Vectorization},
+    frontend::{
+        indexation::Index, ArgSettings, CubeContext, CubeElem, CubeType, ExpandElement, UInt,
+    },
+    ir::{Elem, Item, Metadata, Variable, Vectorization},
     prelude::{KernelBuilder, KernelLauncher},
     unexpanded, LaunchArg, Runtime,
 };
@@ -9,6 +10,7 @@ use std::marker::PhantomData;
 
 #[derive(new, Clone, Copy)]
 pub struct Tensor<T: CubeType> {
+    pub(crate) factor: u8,
     _val: PhantomData<T>,
 }
 
@@ -56,6 +58,10 @@ impl<T: CubeType> Tensor<T> {
     pub fn len(self) -> UInt {
         unexpanded!()
     }
+
+    pub fn rank(&self) -> UInt {
+        unexpanded!()
+    }
 }
 
 impl ExpandElement {
@@ -89,5 +95,10 @@ impl ExpandElement {
             out: out.clone().into(),
         });
         out
+    }
+
+    // Expanded version of Tensor::len
+    pub fn rank_expand(self, _context: &mut CubeContext) -> ExpandElement {
+        ExpandElement::Plain(Variable::Rank)
     }
 }

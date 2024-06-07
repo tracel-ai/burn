@@ -41,6 +41,45 @@ where
     out
 }
 
+pub(crate) fn binary_expand_no_vec<F>(
+    context: &mut CubeContext,
+    lhs: ExpandElement,
+    rhs: ExpandElement,
+    func: F,
+) -> ExpandElement
+where
+    F: Fn(BinaryOperator) -> Operator,
+{
+    let lhs_var: Variable = *lhs;
+    let rhs_var: Variable = *rhs;
+
+    let item_lhs = lhs.item();
+    let item_rhs = rhs.item();
+
+    let item = Item::new(item_lhs.elem);
+
+    // We can only reuse rhs.
+    let out = if lhs.can_mut() && item_lhs == item {
+        lhs
+    } else if rhs.can_mut() && item_rhs == item {
+        rhs
+    } else {
+        context.create_local(item)
+    };
+
+    let out_var = *out;
+
+    let op = func(BinaryOperator {
+        lhs: lhs_var,
+        rhs: rhs_var,
+        out: out_var,
+    });
+
+    context.register(op);
+
+    out
+}
+
 pub(crate) fn cmp_expand<F>(
     context: &mut CubeContext,
     lhs: ExpandElement,
@@ -100,11 +139,7 @@ where
     lhs
 }
 
-pub(crate) fn unary_expand<F>(
-    context: &mut CubeContext,
-    input: ExpandElement,
-    func: F,
-) -> ExpandElement
+pub fn unary_expand<F>(context: &mut CubeContext, input: ExpandElement, func: F) -> ExpandElement
 where
     F: Fn(UnaryOperator) -> Operator,
 {
@@ -118,6 +153,30 @@ where
         context.create_local(item)
     };
 
+    let out_var = *out;
+
+    let op = func(UnaryOperator {
+        input: input_var,
+        out: out_var,
+    });
+
+    context.register(op);
+
+    out
+}
+
+pub fn init_expand<F>(context: &mut CubeContext, input: ExpandElement, func: F) -> ExpandElement
+where
+    F: Fn(UnaryOperator) -> Operator,
+{
+    if input.can_mut() {
+        return input;
+    }
+
+    let input_var: Variable = *input;
+    let item = input.item();
+
+    let out = context.create_local(item);
     let out_var = *out;
 
     let op = func(UnaryOperator {

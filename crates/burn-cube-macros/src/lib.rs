@@ -149,6 +149,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let generics = sig.generics.clone().into_token_stream();
 
     quote::quote! {
+        /// Expanded Cube function
         pub fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
     }
 }

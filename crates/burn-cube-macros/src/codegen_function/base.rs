@@ -74,39 +74,65 @@ pub(crate) fn codegen_ref(
     quote::quote! { & #inner }
 }
 
-/// Codegen for expressions
-/// There are many variants of expression, treated differently
 pub(crate) fn codegen_expr(
     expr: &syn::Expr,
     loop_level: usize,
     variable_analyses: &mut CodeAnalysis,
 ) -> TokenStream {
+    codegen_expr_with_comptime(expr, loop_level, variable_analyses).0
+}
+
+/// Codegen for expressions
+/// There are many variants of expression, treated differently
+pub(crate) fn codegen_expr_with_comptime(
+    expr: &syn::Expr,
+    loop_level: usize,
+    variable_analyses: &mut CodeAnalysis,
+) -> (TokenStream, bool) {
     match expr {
-        syn::Expr::Binary(op) => codegen_binary(op, loop_level, variable_analyses),
-        syn::Expr::Path(path) => codegen_path_rhs(path, loop_level, variable_analyses),
         syn::Expr::Call(call) => codegen_call(call, loop_level, variable_analyses),
-        syn::Expr::Lit(lit) => codegen_lit(lit),
-        syn::Expr::Closure(closure) => codegen_closure(closure, loop_level, variable_analyses),
-        syn::Expr::Block(block) => codegen_expr_block(block, loop_level, variable_analyses),
-        syn::Expr::Assign(assign) => codegen_assign(assign, loop_level, variable_analyses),
-        syn::Expr::ForLoop(for_loop) => codegen_for_loop(for_loop, loop_level, variable_analyses),
-        syn::Expr::While(while_loop) => {
-            codegen_while_loop(while_loop, loop_level, variable_analyses)
+        syn::Expr::Paren(paren) => {
+            codegen_expr_with_comptime(&paren.expr, loop_level, variable_analyses)
         }
-        syn::Expr::Loop(loop_expr) => codegen_loop(loop_expr, loop_level, variable_analyses),
-        syn::Expr::Break(_) => codegen_break(),
-        syn::Expr::Return(return_expr) => codegen_return(return_expr),
-        syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
-        syn::Expr::MethodCall(call) => {
-            codegen_expr_method_call(call, loop_level, variable_analyses)
+        _ => {
+            let tokens = match expr {
+                syn::Expr::Binary(op) => codegen_binary(op, loop_level, variable_analyses),
+                syn::Expr::Path(path) => codegen_path_rhs(path, loop_level, variable_analyses),
+                syn::Expr::Lit(lit) => codegen_lit(lit),
+                syn::Expr::Closure(closure) => {
+                    codegen_closure(closure, loop_level, variable_analyses)
+                }
+                syn::Expr::Block(block) => codegen_expr_block(block, loop_level, variable_analyses),
+                syn::Expr::Assign(assign) => codegen_assign(assign, loop_level, variable_analyses),
+                syn::Expr::ForLoop(for_loop) => {
+                    codegen_for_loop(for_loop, loop_level, variable_analyses)
+                }
+                syn::Expr::While(while_loop) => {
+                    codegen_while_loop(while_loop, loop_level, variable_analyses)
+                }
+                syn::Expr::Loop(loop_expr) => {
+                    codegen_loop(loop_expr, loop_level, variable_analyses)
+                }
+                syn::Expr::Break(_) => codegen_break(),
+                syn::Expr::Return(return_expr) => codegen_return(return_expr),
+                syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level, variable_analyses),
+                syn::Expr::MethodCall(call) => {
+                    codegen_expr_method_call(call, loop_level, variable_analyses)
+                }
+                syn::Expr::Index(index) => codegen_index(index, loop_level, variable_analyses),
+                syn::Expr::Array(array) => codegen_array_lit(array),
+                syn::Expr::Reference(reference) => {
+                    codegen_ref(reference, loop_level, variable_analyses)
+                }
+                syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_analyses),
+                syn::Expr::Field(field) => codegen_field(field, loop_level, variable_analyses),
+                syn::Expr::Struct(struct_) => {
+                    codegen_struct(struct_, loop_level, variable_analyses)
+                }
+                _ => panic!("Codegen: Unsupported {:?}", expr),
+            };
+
+            (tokens, false)
         }
-        syn::Expr::Index(index) => codegen_index(index, loop_level, variable_analyses),
-        syn::Expr::Paren(paren) => codegen_expr(&paren.expr, loop_level, variable_analyses),
-        syn::Expr::Array(array) => codegen_array_lit(array),
-        syn::Expr::Reference(reference) => codegen_ref(reference, loop_level, variable_analyses),
-        syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_analyses),
-        syn::Expr::Field(op) => codegen_field(op, loop_level, variable_analyses),
-        syn::Expr::Struct(op) => codegen_struct(op, loop_level, variable_analyses),
-        _ => panic!("Codegen: Unsupported {:?}", expr),
     }
 }
