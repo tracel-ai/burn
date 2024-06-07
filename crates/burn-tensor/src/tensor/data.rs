@@ -119,6 +119,80 @@ impl<const D: usize> TensorData<D> {
     }
 }
 
+impl<E: Element, const A: usize> From<[E; A]> for TensorData<1> {
+    fn from(elems: [E; A]) -> Self {
+        TensorData::new(elems.to_vec(), [A])
+    }
+}
+
+impl<E: Element> From<&[E]> for TensorData<1> {
+    fn from(elems: &[E]) -> Self {
+        let mut data = Vec::with_capacity(elems.len());
+        for elem in elems.iter() {
+            data.push(*elem);
+        }
+
+        TensorData::new(data, [elems.len()])
+    }
+}
+
+impl<E: Element, const A: usize, const B: usize> From<[[E; B]; A]> for TensorData<2> {
+    fn from(elems: [[E; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B);
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                data.push(elem);
+            }
+        }
+
+        TensorData::new(data, [A, B])
+    }
+}
+
+impl<E: Element, const A: usize, const B: usize, const C: usize> From<[[[E; C]; B]; A]>
+    for TensorData<3>
+{
+    fn from(elems: [[[E; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    data.push(elem);
+                }
+            }
+        }
+
+        TensorData::new(data, [A, B, C])
+    }
+}
+
+impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
+    From<[[[[E; D]; C]; B]; A]> for TensorData<4>
+{
+    fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C * D);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    for elem in elem.into_iter().take(D) {
+                        data.push(elem);
+                    }
+                }
+            }
+        }
+
+        TensorData::new(data, [A, B, C, D])
+    }
+}
+
+impl<const D: usize> core::fmt::Display for TensorData<D> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(format!("{:?}", &self.value).as_str())
+    }
+}
+
 /// Data structure for serializing and deserializing tensor data.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
 pub struct DataSerialize<E> {
