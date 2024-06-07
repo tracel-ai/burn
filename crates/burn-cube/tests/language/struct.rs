@@ -6,20 +6,6 @@ struct State<T: Numeric> {
     second: T,
 }
 
-// #[derive(Clone)]
-// struct StateExpand<T: Numeric> {
-//     first: <T as CubeType>::ExpandType,
-//     second: <T as CubeType>::ExpandType,
-// }
-// impl<T: Numeric> CubeType for State<T> {
-//     type ExpandType = StateExpand<T>;
-// }
-// impl<T: Numeric> Init for StateExpand<T> {
-//     fn init(self, context: &mut CubeContext) -> Self {
-//         self
-//     }
-// }
-
 #[cube]
 fn state_receiver_with_reuse<T: Numeric>(state: State<T>) -> T {
     let x = state.first + state.second;
