@@ -20,7 +20,7 @@ fn shared_memory_read_write<T: Numeric>(sm_size: Comptime<u32>) {
 pub fn shared_memory_read_write_expand<T: Numeric>(
     context: &mut burn_cube::frontend::CubeContext,
     sm_size: <Comptime<u32> as burn_cube::frontend::CubeType>::ExpandType,
-) -> () {
+) {
     let mut shared = {
         let _inner = {
             let _var_0 = sm_size;
