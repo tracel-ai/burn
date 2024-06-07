@@ -1,7 +1,7 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{OtherType, Scope, TensorType, Type};
-use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::record::PrecisionSettings;
+use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -113,10 +113,7 @@ mod tests {
             InterpolateOptions::new(InterpolateMode::Bilinear),
         ));
 
-        graph.register_input_output(
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
             use burn::{

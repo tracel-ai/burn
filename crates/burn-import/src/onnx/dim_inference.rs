@@ -299,7 +299,6 @@ fn resize_update_outputs(node: &mut Node) {
         _ => panic!("Resize: invalid output type"),
     };
 
-
     let output_size = match &node.inputs[3].ty {
         ArgType::Tensor(output_size) => output_size.clone(),
         _ => panic!("Resize: invalid output_size type"),
@@ -321,14 +320,12 @@ fn resize_update_outputs(node: &mut Node) {
     //     _ => panic!("Resize: invalid output_size type"),
     // };
 
-
     // let input_shape = input.shape.as_ref().expect("Resize: Input shape must be known");
 
     // let mut shape = input_shape.clone();
     // shape[input_shape.len() - 2] = output_size[0] as usize;
     // shape[input_shape.len() - 1] = output_size[1] as usize;
     // let shape = shape.into();
-
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         dim: input.dim,

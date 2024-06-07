@@ -601,9 +601,7 @@ impl OnnxGraph {
             input,
             output,
             output_size,
-            InterpolateOptions {
-                mode,
-            },
+            InterpolateOptions { mode },
         )
     }
 

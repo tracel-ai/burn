@@ -1,9 +1,12 @@
-use burn::{nn::{
-    conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
-    pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d,
-}, tensor::ops::InterpolateMode};
+use burn::{
+    nn::{
+        conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
+        pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
+        BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+        PaddingConfig2d,
+    },
+    tensor::ops::InterpolateMode,
+};
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
 
@@ -713,16 +716,14 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
-pub fn resize_config(
-    node: &Node,
-) -> InterpolateMode {
+pub fn resize_config(node: &Node) -> InterpolateMode {
     let mut mode: String = "".to_string();
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "coordinate_transformation_mode" => {},
-            "cubic_coeff_a" => {},
+            "coordinate_transformation_mode" => {}
+            "cubic_coeff_a" => {}
             "mode" => mode = value.clone().into_string(),
-            "nearest_mode" => {},
+            "nearest_mode" => {}
             _ => {}
         }
     }
