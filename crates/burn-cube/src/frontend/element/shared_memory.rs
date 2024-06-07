@@ -17,9 +17,9 @@ pub struct SharedMemoryExpand<T: CubeElem> {
     pub val: <T as CubeType>::ExpandType,
 }
 
-impl<T: CubeElem> Into<ExpandElement> for SharedMemoryExpand<T> {
-    fn into(self) -> ExpandElement {
-        self.val
+impl<T: CubeElem> From<SharedMemoryExpand<T>> for ExpandElement {
+    fn from(shared_memory_expand: SharedMemoryExpand<T>) -> Self {
+        shared_memory_expand.val
     }
 }
 
