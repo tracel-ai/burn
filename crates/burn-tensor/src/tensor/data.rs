@@ -4,8 +4,9 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use half::{bf16, f16};
 
-use crate::{tensor::Shape, Distribution, Element, ElementConversion};
+use crate::{tensor::Shape, DType, Distribution, Element, ElementConversion};
 
 use num_traits::pow::Pow;
 
@@ -14,6 +15,109 @@ use num_traits::pow::Pow;
 use num_traits::Float;
 
 use rand::RngCore;
+
+/// Data structure for tensors.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TensorData<const D: usize> {
+    /// The values of the tensor (as bytes).
+    value: Vec<u8>,
+
+    /// The shape of the tensor.
+    #[serde(flatten)]
+    pub shape: Shape<D>,
+
+    /// The data type of the tensor.
+    pub dtype: DType,
+}
+
+impl<const D: usize> TensorData<D> {
+    /// Creates a new tensor data structure.
+    pub fn new<E: Element, S: Into<Shape<D>>>(value: Vec<E>, shape: S) -> Self {
+        Self {
+            value: bytemuck::cast_vec(value),
+            shape: shape.into(),
+            dtype: E::dtype(),
+        }
+    }
+
+    /// Returns an iterator over the values of the tensor data.
+    pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
+        if E::dtype() == self.dtype {
+            Box::new(
+                bytemuck::cast_slice(&self.value)
+                    .into_iter()
+                    .map(|&x| x)
+                    .into_iter(),
+            )
+        } else {
+            match self.dtype {
+                DType::I8 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &i8| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::I16 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &i16| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::I32 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &i32| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::I64 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &i64| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::U8 => Box::new(self.value.iter().map(|e| e.elem::<E>()).into_iter()),
+                DType::U32 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &u32| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::U64 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &u64| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::BF16 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &bf16| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::F16 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &f16| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::F32 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &f32| e.elem::<E>())
+                        .into_iter(),
+                ),
+                DType::F64 => Box::new(
+                    bytemuck::cast_slice(&self.value)
+                        .into_iter()
+                        .map(|e: &f64| e.elem::<E>())
+                        .into_iter(),
+                ),
+                // bool is a byte value equal to either 0 or 1
+                DType::Bool => Box::new(self.value.iter().map(|e| e.elem::<E>()).into_iter()),
+            }
+        }
+    }
+}
 
 /// Data structure for serializing and deserializing tensor data.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]

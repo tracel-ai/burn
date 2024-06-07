@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
+use serde_big_array::BigArray;
 
 /// Shape of a tensor.
-#[derive(new, Debug, Clone, PartialEq, Eq)]
+#[derive(new, Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Shape<const D: usize> {
     /// The dimensions of the tensor.
+    #[serde(with = "BigArray")]
     pub dims: [usize; D],
 }
 
