@@ -31,11 +31,7 @@ pub fn module_derive_cube_launch(input: TokenStream) -> TokenStream {
 pub fn module_derive_cube_type(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
 
-    let codegen = generate_cube_type(&input, false);
-
-    // panic!("{codegen}");
-
-    codegen
+    generate_cube_type(&input, false)
 }
 
 /// Derive macro for the module.
