@@ -1,53 +1,57 @@
 #!/usr/bin/env python3
 
-# used to generate model: resize.onnx
+# used to generate model: onnx-tests/tests/resize/resize.onnx
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import onnx
+from onnx import helper, TensorProto
 
+def main() -> None:
+    # Define the input tensor
+    input_tensor = helper.make_tensor_value_info("input_tensor", TensorProto.FLOAT, [1, 1, 4, 4])
 
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
-
-    def forward(self, x):
-        x = F.interpolate(x, size=(2, 2), mode='bilinear', align_corners=True)
-        return x
-
-
-def main():
-
-    # Set seed for reproducibility
-    torch.manual_seed(42)
-
-    torch.set_printoptions(precision=8)
-
-    # Export to onnx
-    model = Model()
-    model.eval()
-
-    file_name = "resize.onnx"
-    test_input = torch.randn(1, 1, 4, 4)
-
-    torch.onnx.export(
-        model,
-        test_input,
-        file_name,
-        verbose=False,
-        opset_version=16
+    # Sizes
+    sizes_val = [1, 1, 2, 2]  # Downsample to [1, 1, 2, 2]
+    sizes_tensor = helper.make_tensor(
+        name="sizes",
+        data_type=TensorProto.INT64,
+        dims=[len(sizes_val)],
+        vals=sizes_val,
+    )
+    sizes_node = helper.make_node(
+        "Constant",
+        name="sizes_constant",
+        inputs=[],
+        outputs=["sizes"],
+        value=sizes_tensor,
     )
 
-    print("Finished exporting model to {}".format(file_name))
+    # Define the Resize node that uses the outputs from the constant nodes
+    resize_node = helper.make_node(
+        "Resize",
+        name="resize_node",
+        inputs=["input_tensor", "", "", "sizes"],
+        outputs=["output"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",  # Example mode
+        antialias=1,  # Antialiasing enabled
+    )
 
-    # Output some test data for use in the test
-    print("Test input data of ones: {}".format(test_input))
-    print("Test input data shape of ones: {}".format(test_input.shape))
-    output = model.forward(test_input)
-    print("Test output data shape: {}".format(output.shape))
+    # Create the graph
+    graph_def = helper.make_graph(
+        nodes=[sizes_node, resize_node],
+        name="ResizeGraph",
+        inputs=[input_tensor],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 1, 2, 2])
+        ],
+    )
 
-    print("Test output: {}".format(output))
+    # Create the model
+    model_def = helper.make_model(graph_def, producer_name="resize")
+
+    # Save the model to a file
+    onnx.save(model_def, "resize.onnx")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

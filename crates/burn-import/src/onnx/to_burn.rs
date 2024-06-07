@@ -590,7 +590,7 @@ impl OnnxGraph {
         let name = &node.name;
 
         let input = node.inputs[0].to_tensor_type();
-        let output_size = node.inputs[1].to_tensor_type();
+        let output_size = node.inputs[3].to_tensor_type();
 
         let output = node.outputs.first().unwrap().to_tensor_type();
 

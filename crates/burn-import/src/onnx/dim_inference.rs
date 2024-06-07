@@ -305,7 +305,7 @@ fn resize_update_outputs(node: &mut Node) {
     };
 
     if output_size.dim != 1 {
-        panic!("Resize: output size must be 1D");
+        panic!("Resize: output_size must be 1D");
     }
 
     // node.inputs[3]

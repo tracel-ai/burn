@@ -43,7 +43,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        vec![
+            Type::Tensor(self.input.clone()),
+            Type::Tensor(self.output_size.clone()),
+        ]
     }
 
     fn field_type(&self) -> Option<Type> {
@@ -68,18 +71,29 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         Some(tokens)
     }
 
+    fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        S::serialize_none(serializer)
+    }
+
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
+        let output_size = scope.tensor_use_owned(&self.output_size, node_position);
         let output = &self.output.name;
-        let output_size = &self.output_size.name;
 
         let field = &self.field.name;
 
         quote! {
-            // TODO: get last two dimensions of input tensor `output_size` and use them as output size
+            let output_size: [usize; 2] = #output_size.to_data()
+                .value
+                .iter()
+                .map(|x| x.elem::<i64>() as usize)
+                .collect::<Vec<usize>>()
+                .try_into()
+                .unwrap();
+
             let #output = interpolate(
                 #input,
-                #output_size,
+                output_size,
                 self.#field,
             );
         }
@@ -87,6 +101,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Resize(self)
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        imports.register("burn::tensor::module::interpolate");
+        imports.register("burn::tensor::ops::InterpolateMode");
+        imports.register("burn::tensor::ops::InterpolateOptions");
     }
 }
 
@@ -109,11 +129,14 @@ mod tests {
             "resize",
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            TensorType::new_float("output_size", 2),
+            TensorType::new_float("output_size", 1),
             InterpolateOptions::new(InterpolateMode::Bilinear),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "output_size".to_string()],
+            vec!["tensor2".to_string()],
+        );
 
         let expected = quote! {
             use burn::{
@@ -142,6 +165,14 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let output_size: [i64; 2] = output_size.to_data()
+                        .value
+                        .iter()
+                        .map(|x| x.elem())
+                        .collect::<Vec<i64>>()
+                        .try_into()
+                        .unwrap();
+
                     let tensor2 = interpolate(tensor1, output_size, self.resize);
 
                     tensor2
