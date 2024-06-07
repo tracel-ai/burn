@@ -44,6 +44,7 @@ where
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
+    Submit(Callback<()>),
     Sync(Callback<()>),
 }
 
@@ -79,6 +80,10 @@ where
                     }
                     Message::Sync(callback) => {
                         server.sync();
+                        callback.send(()).unwrap();
+                    }
+                    Message::Submit(callback) => {
+                        server.submit();
                         callback.send(()).unwrap();
                     }
                 };
@@ -159,9 +164,13 @@ where
 
     fn sync(&self) {
         let (callback, response) = mpsc::channel();
-
         self.state.sender.send(Message::Sync(callback)).unwrap();
+        self.response(response)
+    }
 
+    fn submit(&self) {
+        let (callback, response) = mpsc::channel();
+        self.state.sender.send(Message::Submit(callback)).unwrap();
         self.response(response)
     }
 }

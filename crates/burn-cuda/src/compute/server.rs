@@ -110,6 +110,11 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         // self.memory_management.storage().perform_deallocations();
     }
 
+    fn submit(&mut self) {
+        // Nothing to do here for the cuda backend.
+        //execute() is sent to the CUDA stream straight away.
+    }
+
     fn sync(&mut self) {
         let ctx = self.get_context();
         ctx.sync();

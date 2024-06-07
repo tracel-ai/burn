@@ -26,6 +26,9 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send
     /// Executes the `kernel` over the given `bindings`.
     fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>);
 
+    /// Submit the current queued tasks to the server.
+    fn submit(&self);
+
     /// Wait for the completion of every task in the server.
     fn sync(&self);
 }

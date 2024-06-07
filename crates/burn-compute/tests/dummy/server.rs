@@ -62,6 +62,10 @@ where
         kernel.compute(&mut resources);
     }
 
+    fn submit(&mut self) {
+        // Nothing to do with dummy backend.
+    }
+
     fn sync(&mut self) {
         // Nothing to do with dummy backend.
     }

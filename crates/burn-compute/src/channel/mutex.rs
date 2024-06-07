@@ -59,6 +59,10 @@ where
         self.server.lock().execute(kernel, handles)
     }
 
+    fn submit(&self) {
+        self.server.lock().submit()
+    }
+
     fn sync(&self) {
         self.server.lock().sync()
     }

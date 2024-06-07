@@ -60,23 +60,6 @@ where
         }
     }
 
-    fn submit(&mut self) {
-        self.staging_belt.finish();
-
-        let mut new_encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, &mut self.encoder);
-
-        self.queue.submit(Some(new_encoder.finish()));
-        self.tasks_count = 0;
-
-        // Cleanup allocations and deallocations.
-        self.memory_management.storage().perform_deallocations();
-
-        self.staging_belt.recall();
-    }
-
     fn register_compute(
         &mut self,
         pipeline: Arc<ComputePipeline>,
@@ -306,6 +289,23 @@ where
         if self.tasks_count >= self.tasks_max {
             self.submit();
         }
+    }
+
+    fn submit(&mut self) {
+        self.staging_belt.finish();
+
+        let mut new_encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut new_encoder, &mut self.encoder);
+
+        self.queue.submit(Some(new_encoder.finish()));
+        self.tasks_count = 0;
+
+        // Cleanup allocations and deallocations.
+        self.memory_management.storage().perform_deallocations();
+
+        self.staging_belt.recall();
     }
 
     fn sync(&mut self) {

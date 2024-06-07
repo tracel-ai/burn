@@ -45,6 +45,9 @@ where
     /// and are responsible of determining which should be read or written.
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>);
 
+    /// Submit the current queued tasks to the server.
+    fn submit(&mut self);
+
     /// Wait for the completion of every task in the server.
     fn sync(&mut self);
 }

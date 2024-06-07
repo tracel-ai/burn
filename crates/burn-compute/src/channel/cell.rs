@@ -68,6 +68,10 @@ where
             .execute(kernel_description, bindings)
     }
 
+    fn submit(&self) {
+        self.server.borrow_mut().submit()
+    }
+
     fn sync(&self) {
         self.server.borrow_mut().sync()
     }
