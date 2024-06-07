@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use burn_common::reader::Reader;
 use burn_compute::{
-    memory_management::{MemoryHandle, MemoryManagement, SimpleMemoryManagement},
+    memory_management::{simple::SimpleMemoryManagement, MemoryHandle, MemoryManagement},
     server::{Binding, ComputeServer, Handle},
-    storage::BytesStorage,
+    storage::{BytesResource, BytesStorage},
 };
 use derive_new::new;
 
@@ -30,6 +30,10 @@ where
         let bytes = self.memory_management.get(binding.memory);
 
         Reader::Concrete(bytes.read().to_vec())
+    }
+
+    fn get_resource(&mut self, binding: Binding<Self>) -> BytesResource {
+        self.memory_management.get(binding.memory)
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {

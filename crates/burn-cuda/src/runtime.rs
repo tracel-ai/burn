@@ -2,7 +2,7 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
@@ -23,7 +23,6 @@ impl burn_jit::JitRuntime for CudaRuntime {
     type JitServer = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 }
 
-// static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
     ComputeRuntime::new();
 
@@ -33,7 +32,6 @@ impl Runtime for CudaRuntime {
     type Compiler = CudaCompiler;
     type Server = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 
-    // type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Device = CudaDevice;
 

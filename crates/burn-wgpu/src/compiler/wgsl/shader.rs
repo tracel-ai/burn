@@ -228,7 +228,7 @@ impl Display for Location {
 impl Display for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Visibility::Read => f.write_str("read"),
+            Visibility::Read => f.write_str("read_write"),
             Visibility::ReadWrite => f.write_str("read_write"),
         }
     }

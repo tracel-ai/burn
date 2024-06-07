@@ -5,7 +5,7 @@ use alloc::sync::Arc;
 macro_rules! storage_id_type {
     ($name:ident) => {
         /// Storage ID.
-        #[derive(Clone, Hash, PartialEq, Eq)]
+        #[derive(Clone, Hash, PartialEq, Eq, Debug)]
         pub struct $name {
             value: usize,
         }

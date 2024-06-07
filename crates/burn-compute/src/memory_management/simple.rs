@@ -381,12 +381,11 @@ impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
-        memory_management::{MemoryHandle, MemoryManagement, SliceStrategy},
+        memory_management::{MemoryHandle, MemoryManagement},
         storage::BytesStorage,
     };
-
-    use super::{DeallocStrategy, SimpleMemoryManagement};
 
     #[test]
     fn can_mut_with_single_tensor_reference() {
