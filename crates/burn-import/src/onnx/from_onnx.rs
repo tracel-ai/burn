@@ -38,12 +38,17 @@ pub(crate) enum IOEntry {
 }
 
 pub struct GraphData {
+    /// The nodes that have been processed, used to copy the outputs to a child node
     pub(crate) processed_nodes: Vec<Node>,
+    /// The inputs of the graph
     pub(crate) inputs: Vec<Argument>,
+    /// The outputs of the graph
     pub(crate) outputs: Vec<Argument>,
+    /// The initializers of the graph
     pub(crate) initializers: HashMap<String, Argument>,
+    /// Maps the original input name to a graph input
     pub(crate) input_name_map: HashMap<String, IOEntry>,
-    //This is cursed
+    /// Maps the updated input name to the original input name. Required to check if the input is an initializer
     input_key_map: HashMap<String, String>,
 }
 
@@ -55,7 +60,6 @@ impl GraphData {
     ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
-        //let node_name_counter = HashMap::new();
 
         let constants = initializers
             .iter()
@@ -77,6 +81,7 @@ impl GraphData {
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 if let Some(initial_arg) = constants.get(&x.name) {
                     if arg.value.is_none() {
+                        log::warn!("Input {} is also an initializer. Initializer as default values are currently not supported", x.name);
                         arg.copy_value(initial_arg);
                     }
                 }
@@ -92,10 +97,10 @@ impl GraphData {
             processed_nodes: Vec::new(),
             input_name_map,
             input_key_map,
-            //node_name_counter,
         }
     }
 
+    /// Get the value of an input from the original input name. Used during proto conversion
     pub fn init_in(&self, proto_str: &str) -> Argument {
         match self.input_name_map.get(proto_str) {
             None => {
@@ -118,6 +123,7 @@ impl GraphData {
         }
     }
 
+    /// Mark the graph_inputs to a node as passed, unless they are also initializers
     fn mark_input_passed(&mut self, node: &Node) {
         // we have to double map the inputs because the input might be replaced by an initializer
         node.inputs.iter().for_each(|node_input| {
@@ -135,11 +141,11 @@ impl GraphData {
     }
 
     ///This function does three things:
-    /// renames the nodes
     /// marks the inputs as passed
-    /// renames the output and maps the old output names to it
+    /// maps the old output names to the node output
+    /// renames the node output
     pub fn add_node(&mut self, mut node: Node) {
-        //self.rename_node(&mut node);
+        log::debug!("adding node {:?}", &node.name);
         self.mark_input_passed(&node);
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
@@ -153,6 +159,7 @@ impl GraphData {
         self.processed_nodes.push(node);
     }
 
+    /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
     pub fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         self.inputs.retain(|x| x.passed);
         let outputs = self
@@ -166,17 +173,25 @@ impl GraphData {
         (self.processed_nodes, self.inputs, outputs)
     }
 
+    /// Used to get the output of the graph by name. Only used to remap unsqueeze nodes
     fn get_graph_output(&self, name: &str) -> Option<&Argument> {
         self.outputs.iter().find(|x| x.name == name)
+    }
+
+    // Since Nodes are added at the end of conversion, the current index is the length of the processed nodes
+    /// Get the current index of the processed nodes. Useful when lifting values or marking nodes for removal
+    pub fn get_current_index(&self) -> usize {
+        self.processed_nodes.len()
     }
 }
 
 #[derive(Default)]
 pub(crate) struct OnnxGraphBuilder {
-    /// Nodes to remove
+    /// Nodes to remove. Note may be moved to graph data if we implement support for custom ops
     nodes_to_remove: HashSet<usize>,
     /// Map from constant node output names to indices of constant nodes
     constants_map: HashMap<String, usize>,
+    /// Node types that should be lifted to constants
     constants_types: HashSet<NodeType>,
     /// Map from identity node output names to indices of identity nodes
     identity_idx: HashMap<String, usize>,
@@ -193,7 +208,6 @@ impl OnnxGraphBuilder {
             &model_proto.graph.initializer,
         );
 
-        let mut and_idx = 0;
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
         while let Some(node_proto) = node_iter.next() {
@@ -202,29 +216,21 @@ impl OnnxGraphBuilder {
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
             coalesce(&mut node, &mut node_iter, &graph_data);
-            // NOTE: start of stateful filter functions
-            // args : node, graph_io/data, and_idx
-            self.handle_identity(&mut node, and_idx, &graph_data);
-            self.check_constants(&mut node, and_idx, &graph_data);
-
+            self.handle_identity(&mut node, &graph_data);
+            self.check_constants(&mut node, &graph_data);
+            // NOTE: potential start of custom functions
+            // can filter, coalesce, or modify the nodes here
+            // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
             dim_inference(&mut node);
-
-            //rename_io(&mut node, &mut graph_io);
             graph_data.add_node(node);
-
-            //self.processed_nodes.push(node);
-            and_idx += 1;
         }
 
         let mut i = 0;
 
         let (mut processed_nodes, inputs, outputs) = graph_data.consume();
-        //println!("processed_nodes: {:#?}", processed_nodes);
-        //println!("inputs: {:#?}", inputs);
         // Remove the graph inputs/output that are not used by any node
-        //remove_unused_graph_inputs(&mut inputs, &mut outputs);
         processed_nodes.retain(|_| {
             let keep = !self.nodes_to_remove.contains(&i);
             i += 1;
@@ -251,12 +257,14 @@ impl OnnxGraphBuilder {
         node.name.clone_from(&new_name);
     }
 
-    fn check_constants(&mut self, node: &mut Node, i: usize, graph_data: &GraphData) {
+    fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant
             || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
         {
-            self.constants_map
-                .insert(format!("{}_out{}", &node.name, 1), i);
+            self.constants_map.insert(
+                format!("{}_out{}", &node.name, 1),
+                graph_data.get_current_index(),
+            );
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
@@ -298,15 +306,14 @@ impl OnnxGraphBuilder {
         }
     }
 
-    fn handle_identity(&mut self, node: &mut Node, i: usize, graph_data: &GraphData) {
+    fn handle_identity(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
             log::debug!("\nfound identity node:\n{:?}\n", &node);
+            let i = graph_data.get_current_index();
             //map the output name to check for pass through values
             self.identity_idx.insert(format!("{}_out1", &node.name), i);
             self.nodes_to_remove.insert(i);
         } else {
-            //NOTE: it might be possible to rework the API to handle all "per input" operations
-            //in a new function that operates on each input.
             node.inputs.iter_mut().for_each(|x| {
                 if let Some(identity_idx) = self.identity_idx.get(&x.name) {
                     let input_name = &graph_data.processed_nodes[*identity_idx].inputs[0].name;
@@ -359,20 +366,8 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let builder = OnnxGraphBuilder::default();
     let graph = builder.build(&onnx_model);
 
-    // let OnnxGraphBuilder {
-    //     processed_nodes: nodes,
-    //     inputs: inner_inputs,
-    //     outputs: inner_outputs,
-    //     ..
-    // } = builder;
-
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
-    // OnnxGraph {
-    //     nodes,
-    //     inputs: inner_inputs,
-    //     outputs: inner_outputs,
-    // }
     graph
 }
 

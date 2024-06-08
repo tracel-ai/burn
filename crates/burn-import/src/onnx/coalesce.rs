@@ -143,6 +143,7 @@ pub(crate) fn convert_matmul_to_linear(
     // Convert the node to Linear
     node.node_type = NodeType::Linear;
 
+    log::debug!("peeking next node for bias conversion");
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_data);
