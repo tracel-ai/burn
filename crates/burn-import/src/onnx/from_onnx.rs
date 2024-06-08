@@ -109,8 +109,6 @@ impl GraphData {
                 if let Some(init_arg) = self.initializers.get(proto_str) {
                     init_arg.clone()
                 } else {
-                    //should I throw a warning here to support coalesce?, or make a separate function
-                    //that doesn't panic
                     log::warn!(
                         "Input {} not found, should only happen when peeking",
                         proto_str
@@ -140,10 +138,10 @@ impl GraphData {
         });
     }
 
-    ///This function does three things:
-    /// marks the inputs as passed
-    /// maps the old output names to the node output
-    /// renames the node output
+    /// This function does three things:
+    ///     1. marks the inputs as passed
+    ///     2. maps the old output names to the node output
+    ///     3. renames the node output
     fn add_node(&mut self, mut node: Node) {
         log::debug!("adding node {:?}", &node.name);
         self.mark_input_passed(&node);
