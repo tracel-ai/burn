@@ -15,7 +15,7 @@ pub fn coalesce(
     graph_data: &GraphData,
 ) {
     match node.node_type {
-        NodeType::Gemm => convert_gemm_to_linear(node, graph_data),
+        NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
             convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
@@ -26,7 +26,7 @@ pub fn coalesce(
 /// This function converts a Gemm node into a Linear node
 ///
 /// PyTorch and other frameworks use Gemm node to represent Linear layer.
-pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &GraphData) {
+pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -50,14 +50,14 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node, graph_io: &GraphData) {
         node.attrs.remove("transB");
 
         // Transpose the weights
-        transpose_linear_node_weights(node, graph_io);
+        transpose_linear_node_weights(node);
     } else {
         panic!("Full Gemm node not supported yet.");
     }
 }
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
-fn transpose_linear_node_weights(node: &mut Node, graph_data: &GraphData) {
+fn transpose_linear_node_weights(node: &mut Node) {
     assert!(
         node.inputs.len() > 1,
         "Linear node must have at least 2 input"
