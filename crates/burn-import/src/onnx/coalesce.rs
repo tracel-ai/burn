@@ -65,8 +65,6 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &GraphData) {
 
     assert!(node.inputs[1].value.is_some(), "Input must have a value");
 
-    assert!(graph_data.initializers.contains_key(&node.inputs[1].name), "Currently only initializers are supported for weights.\nPlease open an issue if you encounter this error.");
-
     let weight = node.inputs[1]
         .clone()
         .into_tensor()
