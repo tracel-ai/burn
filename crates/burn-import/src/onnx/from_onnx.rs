@@ -39,15 +39,15 @@ pub(crate) enum IOEntry {
 
 pub struct GraphData {
     /// The nodes that have been processed, used to copy the outputs to a child node
-    pub(crate) processed_nodes: Vec<Node>,
+    processed_nodes: Vec<Node>,
     /// The inputs of the graph
-    pub(crate) inputs: Vec<Argument>,
+    inputs: Vec<Argument>,
     /// The outputs of the graph
-    pub(crate) outputs: Vec<Argument>,
+    outputs: Vec<Argument>,
     /// The initializers of the graph
     pub(crate) initializers: HashMap<String, Argument>,
     /// Maps the original input name to a graph input
-    pub(crate) input_name_map: HashMap<String, IOEntry>,
+    input_name_map: HashMap<String, IOEntry>,
     /// Maps the updated input name to the original input name. Required to check if the input is an initializer
     input_key_map: HashMap<String, String>,
 }
@@ -101,7 +101,7 @@ impl GraphData {
     }
 
     /// Get the value of an input from the original input name. Used during proto conversion
-    pub fn init_in(&self, proto_str: &str) -> Argument {
+    pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
         match self.input_name_map.get(proto_str) {
             None => {
                 //NOTE: if initializers are guaranteed to be unique, (I think they are
@@ -144,7 +144,7 @@ impl GraphData {
     /// marks the inputs as passed
     /// maps the old output names to the node output
     /// renames the node output
-    pub fn add_node(&mut self, mut node: Node) {
+    fn add_node(&mut self, mut node: Node) {
         log::debug!("adding node {:?}", &node.name);
         self.mark_input_passed(&node);
         let mut out_count = 1;
@@ -160,7 +160,7 @@ impl GraphData {
     }
 
     /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
-    pub fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         self.inputs.retain(|x| x.passed);
         let outputs = self
             .outputs
@@ -174,7 +174,7 @@ impl GraphData {
     }
 
     /// Used to get the output of the graph by name. Only used to remap unsqueeze nodes
-    fn get_graph_output(&self, name: &str) -> Option<&Argument> {
+    pub fn get_graph_output(&self, name: &str) -> Option<&Argument> {
         self.outputs.iter().find(|x| x.name == name)
     }
 
@@ -227,10 +227,9 @@ impl OnnxGraphBuilder {
             graph_data.add_node(node);
         }
 
-        let mut i = 0;
-
         let (mut processed_nodes, inputs, outputs) = graph_data.consume();
         // Remove the graph inputs/output that are not used by any node
+        let mut i = 0;
         processed_nodes.retain(|_| {
             let keep = !self.nodes_to_remove.contains(&i);
             i += 1;
