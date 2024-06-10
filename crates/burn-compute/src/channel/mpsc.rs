@@ -3,7 +3,7 @@ use std::{
     thread,
 };
 
-use burn_common::reader::Reader;
+use burn_common::{reader::Reader, sync_type::SyncType};
 
 use super::ComputeChannel;
 use crate::{
@@ -44,8 +44,7 @@ where
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
-    Submit(Callback<()>),
-    Sync(Callback<()>),
+    Sync(SyncType, Callback<()>),
 }
 
 impl<Server> MpscComputeChannel<Server>
@@ -78,12 +77,8 @@ where
                     Message::ExecuteKernel(kernel, bindings) => {
                         server.execute(kernel, bindings);
                     }
-                    Message::Sync(callback) => {
-                        server.sync();
-                        callback.send(()).unwrap();
-                    }
-                    Message::Submit(callback) => {
-                        server.submit();
+                    Message::Sync(sync_type, callback) => {
+                        server.sync(sync_type);
                         callback.send(()).unwrap();
                     }
                 };
@@ -162,15 +157,12 @@ where
             .unwrap()
     }
 
-    fn sync(&self) {
+    fn sync(&self, sync_type: SyncType) {
         let (callback, response) = mpsc::channel();
-        self.state.sender.send(Message::Sync(callback)).unwrap();
-        self.response(response)
-    }
-
-    fn submit(&self) {
-        let (callback, response) = mpsc::channel();
-        self.state.sender.send(Message::Submit(callback)).unwrap();
+        self.state
+            .sender
+            .send(Message::Sync(sync_type, callback))
+            .unwrap();
         self.response(response)
     }
 }

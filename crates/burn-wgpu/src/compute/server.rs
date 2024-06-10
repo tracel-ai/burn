@@ -8,7 +8,7 @@ use burn_compute::{
 };
 use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
-use burn_tensor::Reader;
+use burn_tensor::{backend::SyncType, Reader};
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt, StagingBelt},
@@ -133,7 +133,7 @@ where
         );
         self.tasks_count += 1;
 
-        self.submit();
+        self.sync(SyncType::Flush);
 
         BufferReader::new(buffer_dest)
     }
@@ -287,11 +287,12 @@ where
         self.register_compute(pipeline, bind_group, work_group);
 
         if self.tasks_count >= self.tasks_max {
-            self.submit();
+            self.sync(SyncType::Flush);
         }
     }
 
-    fn submit(&mut self) {
+    fn sync(&mut self, sync_type: SyncType) {
+        // Flush commands to the queue.
         self.staging_belt.finish();
 
         let mut new_encoder = self
@@ -306,10 +307,9 @@ where
         self.memory_management.storage().perform_deallocations();
 
         self.staging_belt.recall();
-    }
 
-    fn sync(&mut self) {
-        self.submit();
-        self.device.poll(wgpu::Maintain::Wait);
+        if sync_type == SyncType::Wait {
+            self.device.poll(wgpu::Maintain::Wait);
+        }
     }
 }

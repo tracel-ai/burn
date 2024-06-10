@@ -4,6 +4,7 @@ use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_common::sync_type::SyncType;
 use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
@@ -59,11 +60,7 @@ where
         self.server.lock().execute(kernel, handles)
     }
 
-    fn submit(&self) {
-        self.server.lock().submit()
-    }
-
-    fn sync(&self) {
-        self.server.lock().sync()
+    fn sync(&self, sync_type: SyncType) {
+        self.server.lock().sync(sync_type)
     }
 }
