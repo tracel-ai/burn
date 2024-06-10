@@ -28,7 +28,7 @@ half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true }
 rand_distr = { workspace = true } # use instead of statrs because it supports no_std
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["extern_crate_alloc"]}
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = { workspace = true } # no_std compatible
