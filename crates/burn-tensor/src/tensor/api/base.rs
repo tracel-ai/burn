@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::format;
@@ -10,8 +10,9 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
-use core::iter::repeat;
-use core::{fmt::Debug, ops::Range};
+use core::{fmt::Debug, isize, ops::Range};
+use core::{iter::repeat, usize};
+use num_traits::PrimInt;
 use serde::{Deserialize, Deserializer};
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
@@ -169,6 +170,34 @@ where
         check!(TensorCheck::permute(transformed_axes));
 
         Tensor::new(K::permute(self.primitive, transformed_axes))
+    }
+
+    pub fn movedim<S: MovedimArgs>(self, source: S, destination: S) -> Tensor<B, D, K> {
+        let source_dims: BTreeSet<_> = source.into_dim_set::<D>();
+        let destination_dims: BTreeSet<_> = destination.into_dim_set::<D>();
+        let rank = self.dims().len();
+
+        let mut m = std::collections::HashMap::new();
+        for (d, s) in destination_dims.iter().zip(source_dims.iter()) {
+            m.insert(*d, *s);
+        }
+
+        let mut axes: [isize; D] = [0; D];
+        let mut source_i = 0;
+        for (dest_i, item) in axes.iter_mut().enumerate().take(rank) {
+            *item = if let Some(&s) = m.get(&dest_i) {
+                s as isize
+            } else {
+                while source_dims.contains(&source_i) {
+                    source_i += 1;
+                }
+                let result = source_i as isize;
+                source_i += 1;
+                result
+            };
+        }
+
+        self.permute(axes)
     }
 
     /// Reverse the order of elements in the tensor along the given dimensions.
@@ -1266,6 +1295,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The tensor with the dimensions permuted.
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
 
+    fn movedim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        source: Vec<usize>,
+        dest: Vec<usize>,
+    ) -> Self::Primitive<D> {
+        let mut axes = (0..D).collect::<Vec<usize>>();
+        for (s, d) in source.iter().zip(dest.iter()) {
+            axes.swap(*s, *d);
+        }
+        Self::permute(tensor, axes.try_into().unwrap())
+    }
+
     /// Flips the tensor along the given axes.
     ///
     /// # Arguments
@@ -1983,6 +2024,76 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 }
 
+/// Trait used for movedim arguments
+pub trait MovedimArgs {
+    /// Converts into a set of dimensions `BTreeSet<usize>` for the `tensor.movedim()` function
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize>;
+}
+
+impl MovedimArgs for BTreeSet<usize> {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        for item in self.iter() {
+            check!(TensorCheck::movedim_args_usize::<D>(*item))
+        }
+        self
+    }
+}
+
+impl MovedimArgs for BTreeSet<isize> {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        let mut set = BTreeSet::new();
+        for dim in self {
+            set.insert(dim.into_dim_set::<D>().into_iter().next().unwrap());
+        }
+        set
+    }
+}
+
+impl MovedimArgs for Vec<isize> {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        let mut set = BTreeSet::new();
+        for dim in self {
+            set.insert(dim.into_dim_set::<D>().into_iter().next().unwrap());
+        }
+        set
+    }
+}
+
+impl MovedimArgs for Vec<usize> {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        let set: BTreeSet<_> = self.into_iter().collect();
+
+        set.into_dim_set::<D>()
+    }
+}
+
+impl MovedimArgs for usize {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        check!(TensorCheck::movedim_args_usize::<D>(self));
+
+        let mut set = BTreeSet::new();
+        set.insert(self);
+
+        set
+    }
+}
+
+impl MovedimArgs for isize {
+    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+        check!(TensorCheck::movedim_args_isize::<D>(self));
+
+        let dim = if self < 0 {
+            (D as isize + self) as usize
+        } else {
+            self as usize
+        };
+
+        let mut set = BTreeSet::new();
+        set.insert(dim);
+
+        set
+    }
+}
 /// Trait used for reshape arguments.
 pub trait ReshapeArgs<const D2: usize> {
     /// Converts to a shape.

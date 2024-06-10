@@ -172,6 +172,42 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn movedim_args_usize<const D: usize>(dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim >= D {
+            check = check.register(
+                "Movedim",
+                TensorError::new(
+                    "The given dimension exceeds the number of dimensions of the current tensor.",
+                )
+                .details(format!(
+                    "Current tensor has {D} dimensions, but the given dimension is {dim}.",
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn movedim_args_isize<const D: usize>(dim: isize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim < -(D as isize) || dim >= D as isize {
+            check = check.register(
+                "Movedim",
+                TensorError::new(
+                    "The given dimension is out of bounds for the current tensor dimensions.",
+                )
+                .details(format!(
+                    "Current tensor has {D} dimensions, but the given dimension is {dim}.",
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn flatten<const D1: usize, const D2: usize>(
         start_dim: usize,
         end_dim: usize,
