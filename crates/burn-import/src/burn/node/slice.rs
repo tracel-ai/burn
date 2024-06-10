@@ -10,8 +10,6 @@ pub struct SliceNode {
     pub output: TensorType,
     pub starts: Vec<usize>,
     pub ends: Vec<usize>,
-    // pub axes: Option<Vec<i64>>,
-    // pub steps: Option<Vec<i64>>,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
@@ -24,18 +22,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
-        // let axes = match &self.axes {
-        //     Some(axes) => axes.to_tokens(),
-        //     None => quote! { None },
-        // };
-        // let steps = match &self.steps {
-        //     Some(steps) => steps.to_tokens(),
-        //     None => quote! { None },
-        // };
-
-        // compine starts and ends into ranges
-        // example: starts = [0, 0, 0, 0], ends = [1, 1, 1, 1]
-        // ranges = [0..1, 0..1, 0..1, 0..1]
         let starts = &self.starts;
         let ends = &self.ends;
 
