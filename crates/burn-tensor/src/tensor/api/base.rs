@@ -9,6 +9,8 @@ use alloc::string::String;
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::vec;
 
+use hashbrown::HashMap;
+
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, isize, ops::Range};
 use core::{iter::repeat, usize};
@@ -198,7 +200,7 @@ where
         ));
         let rank = self.dims().len();
 
-        let mut m = std::collections::HashMap::new();
+        let mut m = HashMap::new();
         for (d, s) in destination_dims.iter().zip(source_dims.iter()) {
             m.insert(*d, *s);
         }
@@ -1315,18 +1317,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// The tensor with the dimensions permuted.
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
-
-    fn movedim<const D: usize>(
-        tensor: Self::Primitive<D>,
-        source: Vec<usize>,
-        dest: Vec<usize>,
-    ) -> Self::Primitive<D> {
-        let mut axes = (0..D).collect::<Vec<usize>>();
-        for (s, d) in source.iter().zip(dest.iter()) {
-            axes.swap(*s, *d);
-        }
-        Self::permute(tensor, axes.try_into().unwrap())
-    }
 
     /// Flips the tensor along the given axes.
     ///
