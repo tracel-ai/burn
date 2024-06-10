@@ -117,6 +117,60 @@ impl<const D: usize> TensorData<D> {
             }
         }
     }
+
+    /// Populates the data with random values.
+    pub fn random<E: Element, R: RngCore>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        rng: &mut R,
+    ) -> Self {
+        let num_elements = shape.num_elements();
+        let mut data = Vec::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(E::random(distribution, rng));
+        }
+
+        TensorData::new(data, shape)
+    }
+
+    /// Populates the data with zeros.
+    pub fn zeros<E: Element, S: Into<Shape<D>>>(shape: S) -> TensorData<D> {
+        let shape = shape.into();
+        let num_elements = shape.num_elements();
+        let mut data = Vec::<E>::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(0.elem());
+        }
+
+        TensorData::new(data, shape)
+    }
+
+    /// Populates the data with ones.
+    pub fn ones<E: Element, S: Into<Shape<D>>>(shape: S) -> TensorData<D> {
+        let shape = shape.into();
+        let num_elements = shape.num_elements();
+        let mut data = Vec::<E>::with_capacity(num_elements);
+
+        for _ in 0..num_elements {
+            data.push(1.elem());
+        }
+
+        TensorData::new(data, shape)
+    }
+
+    /// Populates the data with the given value
+    pub fn full<E: Element, S: Into<Shape<D>>>(shape: S, fill_value: E) -> TensorData<D> {
+        let shape = shape.into();
+        let num_elements = shape.num_elements();
+        let mut data = Vec::<E>::with_capacity(num_elements);
+        for _ in 0..num_elements {
+            data.push(fill_value)
+        }
+
+        TensorData::new(data, shape)
+    }
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData<1> {
