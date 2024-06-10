@@ -4,14 +4,13 @@ use core::panic;
 use protobuf::Enum;
 
 use super::{
-    from_onnx::OnnxGraphIO,
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
 
 /// Infer the dimension of each output tensor and update them.
-pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+pub fn dim_inference(node: &mut Node) {
     match node.node_type {
         NodeType::Add => same_as_input(node),
         NodeType::ArgMax => argmax_update_outputs(node),
@@ -81,8 +80,6 @@ pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
-
-    graph_io.update_tensor_output(node);
 }
 
 fn constant_update_outputs(node: &mut Node) {
