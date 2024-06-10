@@ -169,6 +169,34 @@ mod tests {
     }
 
     #[test]
+    fn different_input_types() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+            .reshape([2, 3, 4])
+            .float();
+
+        let permuted = tensor.clone().movedim(0_usize, 2_i32);
+
+        // from pytorch:
+        // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim(0, 2).float()
+        let data_expected = Data::from([
+            [[0., 12.], [1., 13.], [2., 14.], [3., 15.]],
+            [[4., 16.], [5., 17.], [6., 18.], [7., 19.]],
+            [[8., 20.], [9., 21.], [10., 22.], [11., 23.]],
+        ]);
+
+        assert_eq!(data_expected, permuted.into_data());
+
+        // Test with negative axis
+        let permuted = tensor.clone().movedim(0_usize, -1);
+        assert_eq!(data_expected, permuted.into_data());
+
+        // Test with the same axis
+        let permuted = tensor.clone().movedim(0_i32, 0_usize);
+        assert_eq!(tensor.into_data(), permuted.into_data());
+    }
+
+    #[test]
     #[should_panic]
     fn edge_different_sizes() {
         let device = Default::default();

@@ -196,7 +196,7 @@ where
     /// The tensor with the dimensions moved.
     // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
     // for it
-    pub fn movedim<S: MovedimArgs>(self, src: S, dst: S) -> Tensor<B, D, K> {
+    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
         let source_dims = src.into_dim_vec::<D>();
         let destination_dims = dst.into_dim_vec::<D>();
 
