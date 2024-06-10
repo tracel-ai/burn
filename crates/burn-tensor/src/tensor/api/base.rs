@@ -2101,7 +2101,7 @@ impl MovedimArgs for usize {
 
 impl MovedimArgs for i32 {
     fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        check!(TensorCheck::movedim_args_i32::<D>(self as i32));
+        check!(TensorCheck::movedim_args_i32::<D>(self));
 
         let dim = if self < 0 {
             (D as i32 + self) as usize
@@ -2115,6 +2115,7 @@ impl MovedimArgs for i32 {
         set
     }
 }
+
 /// Trait used for reshape arguments.
 pub trait ReshapeArgs<const D2: usize> {
     /// Converts to a shape.
