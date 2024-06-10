@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::format;
@@ -191,8 +191,8 @@ where
     // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
     // for it
     pub fn movedim<S: MovedimArgs>(self, source: S, destination: S) -> Tensor<B, D, K> {
-        let source_dims: BTreeSet<_> = source.into_dim_set::<D>();
-        let destination_dims: BTreeSet<_> = destination.into_dim_set::<D>();
+        let source_dims = source.into_dim_vec::<D>();
+        let destination_dims = destination.into_dim_vec::<D>();
 
         check!(TensorCheck::movedim_args_length(
             &source_dims,
@@ -204,7 +204,6 @@ where
         for (d, s) in destination_dims.iter().zip(source_dims.iter()) {
             m.insert(*d, *s);
         }
-
         let mut axes: [isize; D] = [0; D];
         let mut source_i = 0;
         for (dest_i, item) in axes.iter_mut().enumerate().take(rank) {
@@ -2037,60 +2036,45 @@ impl<B: Backend> BasicOps<B> for Bool {
 
 /// Trait used for movedim arguments
 pub trait MovedimArgs {
-    /// Converts into a set of dimensions `BTreeSet<usize>` for the `tensor.movedim()` function
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize>;
-}
-
-impl MovedimArgs for BTreeSet<usize> {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        for item in self.iter() {
-            check!(TensorCheck::movedim_args_usize::<D>(*item))
-        }
-        self
-    }
-}
-
-impl MovedimArgs for BTreeSet<isize> {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        let mut set = BTreeSet::new();
-        for dim in self {
-            set.insert((dim as i32).into_dim_set::<D>().into_iter().next().unwrap());
-        }
-        set
-    }
+    /// Converts into a set of dimensions `Vec<usize>` for the `tensor.movedim()` function
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize>;
 }
 
 impl MovedimArgs for Vec<i32> {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        let mut set = BTreeSet::new();
-        for dim in self {
-            set.insert(dim.into_dim_set::<D>().into_iter().next().unwrap());
-        }
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        let set = self
+            .iter()
+            .map(|&dim| {
+                if dim < 0 {
+                    (D as i32 + dim) as usize
+                } else {
+                    dim as usize
+                }
+            })
+            .collect::<Vec<usize>>();
+        check!(TensorCheck::movedim_args_vec::<D>(&set));
+
         set
     }
 }
 
 impl MovedimArgs for Vec<usize> {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        let set: BTreeSet<_> = self.into_iter().collect();
-
-        set.into_dim_set::<D>()
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_vec::<D>(&self));
+        self
     }
 }
 
 impl MovedimArgs for usize {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         check!(TensorCheck::movedim_args_usize::<D>(self));
 
-        let mut set = BTreeSet::new();
-        set.insert(self);
-
-        set
+        vec![self]
     }
 }
 
 impl MovedimArgs for i32 {
-    fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         check!(TensorCheck::movedim_args_i32::<D>(self));
 
         let dim = if self < 0 {
@@ -2099,10 +2083,7 @@ impl MovedimArgs for i32 {
             self as usize
         };
 
-        let mut set = BTreeSet::new();
-        set.insert(dim);
-
-        set
+        vec![dim]
     }
 }
 

@@ -1,9 +1,10 @@
 use crate::{backend::Backend, BasicOps, Shape, Tensor};
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use alloc::{collections::BTreeSet, format};
 use core::ops::Range;
+use hashbrown::HashSet;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -208,9 +209,39 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn movedim_args_vec<const D: usize>(dims: &Vec<usize>) -> Self {
+        let mut check = Self::Ok;
+
+        // Check out of bounds
+        if dims.iter().any(|&x| x >= D) {
+            check = check.register(
+                "Movedim",
+                TensorError::new("The given dimensions are out of bounds.").details(format!(
+                    "Current tensor has {D} dimensions, but the given dimensions are {:?}.",
+                    dims
+                )),
+            );
+        }
+
+        // Check there are no duplicates
+        let mut uniq = HashSet::new();
+        let duplicates = dims.iter().find(|&&x| !uniq.insert(x));
+        if let Some(duplicate) = duplicates {
+            check = check.register(
+                "Movedim",
+                TensorError::new("The given dimensions contain duplicates.").details(format!(
+                    "The dimension {} is duplicated in the given dimensions {:?}.",
+                    duplicate, dims
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn movedim_args_length(
-        source_dims: &BTreeSet<usize>,
-        destination_dims: &BTreeSet<usize>,
+        source_dims: &Vec<usize>,
+        destination_dims: &Vec<usize>,
     ) -> Self {
         let mut check = Self::Ok;
 

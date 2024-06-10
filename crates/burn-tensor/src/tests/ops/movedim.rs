@@ -187,4 +187,14 @@ mod tests {
         // Test with an out of bound axis
         let _ = tensor.clone().movedim(0, 100);
     }
+
+    #[test]
+    #[should_panic]
+    fn edge_vec_is_not_a_set() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+
+        // Test with a repeated axis
+        let _ = tensor.clone().movedim(vec![0, 1, 1, 1, 1], vec![0, 0, 1]);
+    }
 }
