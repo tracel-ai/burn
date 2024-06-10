@@ -1193,4 +1193,42 @@ mod tests {
             &8
         ));
     }
+
+    #[test]
+    #[should_panic]
+    fn movedim_args_out_of_bounds() {
+        check!(TensorCheck::movedim_args_usize::<3>(5));
+    }
+
+    #[test]
+    fn movedim_args_i32() {
+        check!(TensorCheck::movedim_args_i32::<3>(-3));
+    }
+
+    #[test]
+    #[should_panic]
+    fn movedim_args_too_negative() {
+        check!(TensorCheck::movedim_args_i32::<3>(-4));
+    }
+
+    #[test]
+    #[should_panic]
+    fn movedim_args_vec_out_of_bounds() {
+        check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 3]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn movedim_args_vec_duplicates() {
+        check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 1]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn movedim_args_length() {
+        check!(TensorCheck::movedim_args_length(
+            &vec![0, 1],
+            &vec![0, 1, 2]
+        ));
+    }
 }
