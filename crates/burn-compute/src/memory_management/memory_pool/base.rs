@@ -3,6 +3,7 @@ use super::{
     ChunkHandle, ChunkId, DroppedSlices, MemoryPoolBinding, MemoryPoolHandle, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
+use alloc::slice;
 use alloc::sync::Arc;
 use hashbrown::{HashMap, HashSet};
 
@@ -15,6 +16,7 @@ pub struct MemoryPool {
     chunk_index: SearchIndex<ChunkId>,
     dropped: DroppedSlices,
     max_chunk_size: usize,
+    factor: f64,
 }
 
 #[derive(new, Debug)]
@@ -22,6 +24,8 @@ struct Chunk {
     storage: StorageHandle,
     handle: ChunkHandle,
     slices: Vec<SliceId>,
+    start_size: usize,
+    end_size: usize,
 }
 
 #[derive(new, Debug)]
@@ -124,6 +128,7 @@ impl MemoryPool {
             slice_size_index: SearchIndex::new(),
             chunk_index: SearchIndex::new(),
             dropped: Arc::new(spin::Mutex::new(Vec::new())),
+            factor: 1000000.0,
         }
     }
 
@@ -149,6 +154,7 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
+        self.display_memory_usage();
         self.merge_unused_slices();
         self.reserve_algorithm(storage, size, sync)
     }
@@ -219,6 +225,21 @@ impl MemoryPool {
         }
 
         returned
+    }
+
+    fn display_memory_usage(&self) {
+        let mut total_memory_usage: f64 = 0.0;
+        for (.., chunk) in self.chunks.iter() {
+            total_memory_usage += chunk.storage.size() as f64;
+        }
+        let mut effective_memory_usage: f64 = 0.0;
+        for (.., slice) in self.slices.iter() {
+            if slice.handle.is_free() {
+                effective_memory_usage += slice.storage.size() as f64;
+            }
+        }
+        let ratio = 100.0 * effective_memory_usage / total_memory_usage;
+        log::info!("the memory usage is {ratio}");
     }
 
     fn reserve_algorithm<Storage: ComputeStorage, Sync: FnOnce()>(
@@ -319,24 +340,52 @@ impl MemoryPool {
         handle
     }
 
+    fn find_smallest_free_slice_in_chunk(
+        &self,
+        chunk: &Chunk,
+        min_size: usize,
+    ) -> Option<(SliceId, usize)> {
+        let mut found: Option<(SliceId, usize)> = None;
+        for slice_id in chunk.slices.iter() {
+            let slice = self.slices.get(slice_id).unwrap();
+            if slice.handle.is_free() && slice.effective_size() >= min_size {
+                if found.is_some() {
+                    if slice.effective_size() < found.unwrap().1 {
+                        found = Some((*slice_id, slice.effective_size()));
+                    }
+                } else {
+                    found = Some((*slice_id, slice.effective_size()));
+                }
+            }
+        }
+        found
+    }
+
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
     fn get_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
         let padding = Self::calculate_padding(size);
         let effective_size = size + padding;
-
-        let (slice_id, slice_size) = match self
-            .slice_size_index
-            .find_by_size(effective_size..usize::MAX)
-            .next()
-        {
-            Some(id) => {
-                let slice = self.slices.get(id).unwrap();
-
-                (*id, slice.effective_size())
+        let mut slice_id_size_pair: Option<(SliceId, usize)> = None;
+        for (.., chunk) in self.chunks.iter() {
+            if effective_size <= chunk.end_size && effective_size >= chunk.start_size {
+                let possible_new_thing: Option<(SliceId, usize)> =
+                    self.find_smallest_free_slice_in_chunk(chunk, effective_size);
+                if slice_id_size_pair.is_some() && possible_new_thing.is_some() {
+                    if slice_id_size_pair.unwrap().1 > possible_new_thing.unwrap().1 {
+                        slice_id_size_pair = possible_new_thing;
+                    }
+                } else {
+                    slice_id_size_pair = possible_new_thing;
+                }
             }
-            None => return None,
-        };
+        }
+
+        if slice_id_size_pair.is_none() {
+            return None;
+        }
+        let slice_id = slice_id_size_pair.unwrap().0;
+        let slice_size = slice_id_size_pair.unwrap().1;
 
         let size_diff = slice_size - effective_size;
 
@@ -404,9 +453,17 @@ impl MemoryPool {
         let handle = ChunkHandle::new();
         let id = *handle.id();
         let size = storage.size();
+        let end_size = size;
+        let start_size = (end_size as f64 / self.factor).ceil() as usize;
+        log::info!("start_size {start_size} and end_size {end_size}");
 
-        self.chunks
-            .insert(id, Chunk::new(storage, handle.clone(), Vec::new()));
+        //assert_eq!(start_size % BUFFER_ALIGNMENT, 0);
+        //assert_eq!(end_size % BUFFER_ALIGNMENT, 0);
+
+        self.chunks.insert(
+            id,
+            Chunk::new(storage, handle.clone(), Vec::new(), start_size, end_size),
+        );
         self.chunk_index.insert(id, size);
 
         handle
