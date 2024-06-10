@@ -2066,14 +2066,19 @@ impl MovedimArgs for Vec<usize> {
 }
 
 impl MovedimArgs for usize {
+    #[allow(clippy::vec_init_then_push)]
     fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         check!(TensorCheck::movedim_args_usize::<D>(self));
 
-        vec![self]
+        let mut set = Vec::with_capacity(1);
+        set.push(self);
+
+        set
     }
 }
 
 impl MovedimArgs for i32 {
+    #[allow(clippy::vec_init_then_push)]
     fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
         check!(TensorCheck::movedim_args_i32::<D>(self));
 
@@ -2083,7 +2088,10 @@ impl MovedimArgs for i32 {
             self as usize
         };
 
-        vec![dim]
+        let mut set = Vec::with_capacity(1);
+        set.push(dim);
+
+        set
     }
 }
 
