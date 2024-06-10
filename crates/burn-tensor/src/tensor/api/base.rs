@@ -12,7 +12,6 @@ use alloc::vec;
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, isize, ops::Range};
 use core::{iter::repeat, usize};
-use num_traits::PrimInt;
 use serde::{Deserialize, Deserializer};
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
@@ -2065,13 +2064,13 @@ impl MovedimArgs for BTreeSet<isize> {
     fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
         let mut set = BTreeSet::new();
         for dim in self {
-            set.insert(dim.into_dim_set::<D>().into_iter().next().unwrap());
+            set.insert((dim as i32).into_dim_set::<D>().into_iter().next().unwrap());
         }
         set
     }
 }
 
-impl MovedimArgs for Vec<isize> {
+impl MovedimArgs for Vec<i32> {
     fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
         let mut set = BTreeSet::new();
         for dim in self {
@@ -2100,12 +2099,12 @@ impl MovedimArgs for usize {
     }
 }
 
-impl MovedimArgs for isize {
+impl MovedimArgs for i32 {
     fn into_dim_set<const D: usize>(self) -> BTreeSet<usize> {
-        check!(TensorCheck::movedim_args_isize::<D>(self));
+        check!(TensorCheck::movedim_args_i32::<D>(self as i32));
 
         let dim = if self < 0 {
-            (D as isize + self) as usize
+            (D as i32 + self) as usize
         } else {
             self as usize
         };

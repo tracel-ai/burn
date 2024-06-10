@@ -190,10 +190,10 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn movedim_args_isize<const D: usize>(dim: isize) -> Self {
+    pub(crate) fn movedim_args_i32<const D: usize>(dim: i32) -> Self {
         let mut check = Self::Ok;
 
-        if dim < -(D as isize) || dim >= D as isize {
+        if dim < -(D as i32) || dim >= D as i32 {
             check = check.register(
                 "Movedim",
                 TensorError::new(
