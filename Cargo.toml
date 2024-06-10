@@ -66,7 +66,7 @@ sanitize-filename = "0.5.0"
 serde_rusqlite = "0.35.0"
 spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
 strum = "0.26.2"
-strum_macros = "0.26.2"
+strum_macros = "0.26.4"
 syn = { version = "2.0.66", features = ["full", "extra-traits"] }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
