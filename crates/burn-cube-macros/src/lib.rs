@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate derive_new;
+
 mod analysis;
 mod codegen_function;
 mod codegen_type;
@@ -94,7 +97,7 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
 
 /// Generate the expanded version of a function marked with the cube macro
 fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_macro2::TokenStream {
-    let signature = expand_sig(&func.sig);
+    let signature = expand_sig(&func.sig, code_analysis);
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
@@ -115,7 +118,7 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_ma
     }
 }
 
-fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
+fn expand_sig(sig: &syn::Signature, code_analysis: &mut CodeAnalysis) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
 
     for input in &sig.inputs {
@@ -123,6 +126,12 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
             syn::FnArg::Typed(pat) => {
                 let ty = &pat.ty;
                 let ident = pat.pat.clone();
+
+                if let syn::Pat::Ident(ident) = ident.as_ref() {
+                    code_analysis
+                        .vif
+                        .codegen_declare(ident.ident.to_string(), 0);
+                }
 
                 inputs.extend(quote::quote! {
                     #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,

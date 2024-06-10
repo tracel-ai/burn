@@ -5,6 +5,7 @@ use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token}
 use crate::{
     analysis::{CodeAnalysis, KEYWORDS},
     codegen_function::base::{codegen_expr, codegen_expr_with_comptime},
+    variable_key::VariableIdent,
 };
 
 /// Codegen for literals
@@ -57,6 +58,10 @@ pub(crate) fn codegen_local(
         syn::Pat::Wild(wild) => wild.underscore_token.to_token_stream(),
         _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
+
+    variable_analyses
+        .vif
+        .codegen_declare(ident.to_string(), loop_level as u8);
 
     match local.init.as_ref() {
         Some(init) => {
@@ -171,7 +176,10 @@ pub(crate) fn codegen_path_rhs(
             #ident :: expand(context)
         }
     } else {
-        let will_be_used_again = variable_analyses.should_clone(ident.into(), loop_level);
+        let will_be_used_again = variable_analyses
+            .vif
+            .codegen_reuse(ident.to_string(), loop_level as u8, None)
+            .unwrap_or(true);
 
         if will_be_used_again {
             quote::quote! {
@@ -207,7 +215,15 @@ pub(crate) fn codegen_field(
         todo!("Codegen: unnamed attribute not supported.");
     };
 
-    let will_be_used_again = variable_analyses.should_clone((struct_, field).into(), loop_level);
+    let will_be_used_again = variable_analyses
+        .vif
+        .codegen_reuse(
+            struct_.to_string(),
+            loop_level as u8,
+            Some(field.to_string()),
+        )
+        // .unwrap_or(true);
+        .unwrap();
 
     if will_be_used_again {
         quote::quote! {

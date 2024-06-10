@@ -11,6 +11,7 @@ mod r#loop;
 mod module_import;
 mod ops;
 mod parenthesis;
+mod redeclare;
 mod reuse;
 mod shared_memory;
 mod r#struct;
