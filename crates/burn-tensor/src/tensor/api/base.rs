@@ -172,9 +172,31 @@ where
         Tensor::new(K::permute(self.primitive, transformed_axes))
     }
 
+    /// Moves the dimension(s) of input at the position(s) in source to the position(s) in destination.
+    ///
+    /// Other dimensions of input that are not explicitly moved remain in their original order and appear
+    /// at the positions not specified in destination.
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
+    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// * `destination` - Destination positions for each of the original dims. These must also be unique.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions moved.
+    // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
+    // for it
     pub fn movedim<S: MovedimArgs>(self, source: S, destination: S) -> Tensor<B, D, K> {
         let source_dims: BTreeSet<_> = source.into_dim_set::<D>();
         let destination_dims: BTreeSet<_> = destination.into_dim_set::<D>();
+
+        check!(TensorCheck::movedim_args_length(
+            &source_dims,
+            &destination_dims
+        ));
         let rank = self.dims().len();
 
         let mut m = std::collections::HashMap::new();

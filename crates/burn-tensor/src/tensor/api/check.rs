@@ -1,8 +1,8 @@
 use crate::{backend::Backend, BasicOps, Shape, Tensor};
-use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, format};
 use core::ops::Range;
 
 /// The struct should always be used with the [check](crate::check) macro.
@@ -203,6 +203,28 @@ impl TensorCheck {
                     "Current tensor has {D} dimensions, but the given dimension is {dim}.",
                 )),
             );
+        }
+
+        check
+    }
+
+    pub(crate) fn movedim_args_length(
+        source_dims: &BTreeSet<usize>,
+        destination_dims: &BTreeSet<usize>,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        if source_dims.len() != destination_dims.len() {
+            check = check.register(
+                "Movedim",
+                TensorError::new(
+                    "The number of dimensions in source and destination must be equal.",
+                )
+                .details(format!(
+                    "Source dimensions: {:?}, Destination dimensions: {:?}.",
+                    source_dims, destination_dims
+                )),
+            )
         }
 
         check
