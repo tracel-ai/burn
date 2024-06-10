@@ -12,8 +12,8 @@ use alloc::vec;
 use hashbrown::HashMap;
 
 use burn_common::{reader::Reader, stub::Mutex};
-use core::{fmt::Debug, isize, ops::Range};
-use core::{iter::repeat, usize};
+use core::iter::repeat;
+use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
@@ -180,19 +180,25 @@ where
     ///
     /// # Arguments
     ///
-    /// * `source` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
+    /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
     ///              The values can be negative, in which case they are used as an offset from the end.
     ///
-    /// * `destination` - Destination positions for each of the original dims. These must also be unique.
+    /// * `dst` - Destination positions for each of the original dims. These must also be unique.
+    ///
+    /// # Panics
+    ///
+    /// - If the source and destination dimensions are not of the same length.
+    /// - If the source and destination vectors contain duplicate values.
+    /// - If the source and destination vectors contain values that are out of bounds.
     ///
     /// # Returns
     ///
     /// The tensor with the dimensions moved.
     // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
     // for it
-    pub fn movedim<S: MovedimArgs>(self, source: S, destination: S) -> Tensor<B, D, K> {
-        let source_dims = source.into_dim_vec::<D>();
-        let destination_dims = destination.into_dim_vec::<D>();
+    pub fn movedim<S: MovedimArgs>(self, src: S, dst: S) -> Tensor<B, D, K> {
+        let source_dims = src.into_dim_vec::<D>();
+        let destination_dims = dst.into_dim_vec::<D>();
 
         check!(TensorCheck::movedim_args_length(
             &source_dims,
