@@ -160,7 +160,6 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`  |
 | `tensor.not_equal(other)`             | `x != y`                             |
 | `tensor.permute(axes)`                | `tensor.permute(axes)`               |
-| `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`           |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`           |
 | `tensor.reshape(shape)`               | `tensor.view(shape)`                 |
 | `tensor.shape()`                      | `tensor.shape`                       |
@@ -296,16 +295,16 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API                             | PyTorch Equivalent              |
-| ------------------------------------ | ------------------------------- |
-| `Tensor::diag_mask(shape, diagonal)` | N/A                             |
-| `Tensor::tril_mask(shape, diagonal)` | N/A                             |
-| `Tensor::triu_mask(shape, diagonal)` | N/A                             |
-| `tensor.argwhere()`                  | `tensor.argwhere()`             |
-| `tensor.float()`                     | `tensor.to(torch.float)`        |
-| `tensor.int()`                       | `tensor.to(torch.long)`         |
-| `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
-| `tensor.not()`                       | `tensor.logical_not()`          |
+| Burn API                            | PyTorch Equivalent              |
+| ----------------------------------- | ------------------------------- |
+| `Tensor::diag_mask(shape, diagonal)`| N/A                             |
+| `Tensor::tril_mask(shape, diagonal)`| N/A                             |
+| `Tensor::triu_mask(shape, diagonal)`| N/A                             |
+| `tensor.argwhere()`                 | `tensor.argwhere()`             |
+| `tensor.float()`                    | `tensor.to(torch.float)`        |
+| `tensor.int()`                      | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                      | `tensor.logical_not()`          |
 
 ## Activation Functions
 
