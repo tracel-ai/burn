@@ -11,7 +11,7 @@ use half::{bf16, f16};
 ///
 /// Adapted from [num_traits::identities::Zero] to support [bool].
 ///
-/// Note: [Add](core::ops::Add) is not explicitely required since it cannot be implemented for [bool].
+/// Note: [Add](core::ops::Add) is not explicitly required since it cannot be implemented for [bool].
 pub trait Zero: Sized {
     /// Returns the additive identity element of `Self`, `0`.
     /// # Purity
@@ -90,7 +90,7 @@ zero_impl!(bool, false);
 ///
 /// Adapted from [num_traits::identities::One] to support [bool].
 ///
-/// Note: [Mul](core::ops::Mul) is not explicitely required since it cannot be implemented for [bool].
+/// Note: [Mul](core::ops::Mul) is not explicitly required since it cannot be implemented for [bool].
 pub trait One: Sized {
     /// Returns the multiplicative identity element of `Self`, `1`.
     ///
