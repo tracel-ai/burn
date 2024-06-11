@@ -71,6 +71,7 @@ include_models!(
     sigmoid,
     sign,
     sin,
+    slice,
     softmax,
     sqrt,
     sub_int,
@@ -457,6 +458,24 @@ mod tests {
 
         assert!(expected_sum_1d.approx_eq(output_sum_1d, (1.0e-4, 2)));
         assert!(expected_sum_2d.approx_eq(output_sum_2d, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn slice() {
+        let model: slice::Model<Backend> = slice::Model::default();
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::from_floats(
+            [
+                [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.],
+                [11., 12., 13., 14., 15., 16., 17., 18., 19., 20.],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([[1., 2., 3., 4., 5.]]);
+
+        assert_eq!(output.to_data(), expected);
     }
 
     #[test]

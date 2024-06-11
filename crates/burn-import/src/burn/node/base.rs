@@ -7,7 +7,7 @@ use super::{
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode,
     random_normal::RandomNormalNode, random_uniform::RandomUniformNode, range::RangeNode,
-    reshape::ReshapeNode, squeeze::SqueezeNode, sum::SumNode, unary::UnaryNode,
+    reshape::ReshapeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
@@ -102,6 +102,7 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool2d(MaxPool2dNode),
     Range(RangeNode),
     Reshape(ReshapeNode),
+    Slice(SliceNode),
     Squeeze(SqueezeNode),
     Sum(SumNode),
     Unary(UnaryNode),
@@ -139,6 +140,7 @@ macro_rules! match_all {
             Node::MaxPool2d(node) => $func(node),
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
+            Node::Slice(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Unary(node) => $func(node),
@@ -186,6 +188,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
+            Node::Slice(_) => "slice",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Unary(unary) => unary.kind.as_str(),

@@ -42,6 +42,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
+            slice::SliceNode,
             squeeze::SqueezeNode,
             sum::SumNode,
             unary::UnaryNode,
@@ -294,6 +295,7 @@ impl OnnxGraph {
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Slice => graph.register(Self::slice_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
@@ -684,6 +686,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::sin(input, output)
+    }
+
+    fn slice_conversion(node: Node) -> SliceNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let (starts, ends) = slice_config(&node);
+
+        SliceNode::new(input, output, starts, ends)
     }
 
     fn sum_conversion(node: Node) -> SumNode {
