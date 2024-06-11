@@ -3,10 +3,9 @@ use alloc::vec::Vec;
 use crate::alloc::borrow::ToOwned;
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
-    ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+    backend::Backend, check, check::TensorCheck, identities::Zero, BasicOps, Bool, Distribution,
+    Element, ElementConversion, Float, Int, Shape, Tensor, TensorKind,
 };
-use num_traits::Zero;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where

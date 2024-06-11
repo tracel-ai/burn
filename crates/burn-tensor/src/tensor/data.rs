@@ -192,18 +192,6 @@ impl<E: Element> DataSerialize<E> {
     }
 }
 
-impl<const D: usize> Data<bool, D> {
-    /// Converts the data to a different element type.
-    pub fn convert<E: Element>(self) -> Data<E, D> {
-        let value: Vec<E> = self.value.into_iter().map(|a| (a as i64).elem()).collect();
-
-        Data {
-            value,
-            shape: self.shape,
-        }
-    }
-}
-
 impl<E: Element, const D: usize> Data<E, D> {
     /// Populates the data with random values.
     pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution, rng: &mut R) -> Self {

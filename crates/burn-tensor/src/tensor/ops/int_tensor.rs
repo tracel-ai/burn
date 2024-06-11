@@ -1,13 +1,13 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::tensor::cast::ToPrimitive;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
-use num_traits::ToPrimitive;
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use crate::{argsort, sort, sort_with_indices};

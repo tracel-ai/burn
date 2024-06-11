@@ -567,12 +567,12 @@ where
             tensor
                 .array
                 .mapv(|x| {
-                    if x > E::zero() {
-                        E::one()
-                    } else if x < E::zero() {
-                        -E::one()
+                    if x > <E as burn_tensor::identities::Zero>::zero() {
+                        <E as burn_tensor::identities::One>::one()
+                    } else if x < <E as burn_tensor::identities::Zero>::zero() {
+                        -<E as burn_tensor::identities::One>::one()
                     } else {
-                        E::zero()
+                        <E as burn_tensor::identities::Zero>::zero()
                     }
                 })
                 .into_shared(),

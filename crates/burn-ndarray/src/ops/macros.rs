@@ -63,7 +63,11 @@ pub(crate) fn prod_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
 ) -> NdArrayTensor<E, D2> {
     let array = tensor
         .array
-        .fold_axis(Axis(dim), E::one(), |acc, &x| acc.mul(x.elem()))
+        .fold_axis(
+            Axis(dim),
+            <E as burn_tensor::identities::One>::one(),
+            |acc, &x| acc.mul(x.elem()),
+        )
         .into_shared();
 
     NdArrayTensor { array }

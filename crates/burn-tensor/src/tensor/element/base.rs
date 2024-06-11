@@ -1,8 +1,11 @@
 use core::cmp::Ordering;
 
-use crate::Distribution;
+use crate::{
+    cast::ToPrimitive,
+    identities::{One, Zero},
+    Distribution,
+};
 use half::{bf16, f16};
-use num_traits::{identities::Zero, One, ToPrimitive};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
@@ -221,6 +224,17 @@ make_element!(
     },
     cmp |a: &bf16, b: &bf16| a.total_cmp(b),
     dtype DType::BF16
+);
+
+make_element!(
+    ty bool Precision::Other,
+    convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap() != 0,
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: u8 = distribution.sampler(rng).sample();
+        bool::from_elem(sample)
+    },
+    cmp |a: &bool, b: &bool| Ord::cmp(a, b),
+    dtype DType::Bool
 );
 
 #[allow(missing_docs)]
