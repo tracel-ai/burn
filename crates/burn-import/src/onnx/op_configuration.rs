@@ -6,6 +6,7 @@ use burn::nn::{
 };
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::resize::ResizeMode;
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -711,6 +712,28 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         }
         _ => panic!("Only tensor input is valid for shape"),
     }
+}
+
+pub fn resize_config(node: &Node) -> ResizeMode {
+    let mut mode: String = "".to_string();
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "coordinate_transformation_mode" => {}
+            "cubic_coeff_a" => {}
+            "mode" => mode = value.clone().into_string(),
+            "nearest_mode" => {}
+            _ => {}
+        }
+    }
+
+    let mode = match mode.as_str() {
+        "nearest" => ResizeMode::Nearest,
+        "linear" => ResizeMode::Linear,
+        "cubic" => ResizeMode::Cubic,
+        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
+    };
+
+    mode
 }
 
 //Note this function should only execute if the second input is a constant
