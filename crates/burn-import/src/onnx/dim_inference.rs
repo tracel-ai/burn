@@ -306,27 +306,9 @@ fn resize_update_outputs(node: &mut Node) {
         panic!("Resize: output_size must be 1D");
     }
 
-    // node.inputs[3]
-    //     .clone()
-    //     .into_tensor()
-    //     .expect("Resize: output_size must be a tensor")
-    //     .data
-    //     .expect("Resize: output_size must have data");
-
-    // let output_size = match node.inputs[3].value.as_ref().expect("Resize must specify an output size") {
-    //     Data::Int64s(output_size) => output_size.clone(),
-    //     _ => panic!("Resize: invalid output_size type"),
-    // };
-
-    // let input_shape = input.shape.as_ref().expect("Resize: Input shape must be known");
-
-    // let mut shape = input_shape.clone();
-    // shape[input_shape.len() - 2] = output_size[0] as usize;
-    // shape[input_shape.len() - 1] = output_size[1] as usize;
-    // let shape = shape.into();
-
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         dim: input.dim,
+        shape: None, // shape is calculated at runtime
         ..output
     });
 }
