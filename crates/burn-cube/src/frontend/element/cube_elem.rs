@@ -5,7 +5,13 @@ use crate::ir::{Elem, Variable};
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
 pub trait CubeElem:
-    CubeType<ExpandType = ExpandElement> + core::cmp::Eq + core::cmp::PartialEq + Send + Sync + 'static
+    CubeType<ExpandType = ExpandElement>
+    + core::cmp::Eq
+    + core::cmp::PartialEq
+    + Send
+    + Sync
+    + 'static
+    + Clone
 {
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;

@@ -1,3 +1,4 @@
+mod assign;
 mod cast_elem;
 mod cast_kind;
 mod comptime;

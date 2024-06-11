@@ -6,7 +6,10 @@ use std::{
 use burn_common::reader::Reader;
 
 use super::ComputeChannel;
-use crate::server::{Binding, ComputeServer, Handle};
+use crate::{
+    server::{Binding, ComputeServer, Handle},
+    storage::ComputeStorage,
+};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -34,6 +37,10 @@ where
     Server: ComputeServer,
 {
     Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
+    GetResource(
+        Binding<Server>,
+        Callback<<Server::Storage as ComputeStorage>::Resource>,
+    ),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
@@ -53,6 +60,10 @@ where
                 match message {
                     Message::Read(binding, callback) => {
                         let data = server.read(binding);
+                        callback.send(data).unwrap();
+                    }
+                    Message::GetResource(binding, callback) => {
+                        let data = server.get_resource(binding);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
@@ -98,6 +109,20 @@ where
         self.state
             .sender
             .send(Message::Read(binding, callback))
+            .unwrap();
+
+        self.response(response)
+    }
+
+    fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        let (callback, response) = mpsc::channel();
+
+        self.state
+            .sender
+            .send(Message::GetResource(binding, callback))
             .unwrap();
 
         self.response(response)

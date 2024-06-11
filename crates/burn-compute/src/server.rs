@@ -27,6 +27,12 @@ where
     /// Given a handle, returns the owned resource as bytes.
     fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>>;
 
+    /// Given a resource handle, returns the storage resource.
+    fn get_resource(
+        &mut self,
+        binding: Binding<Self>,
+    ) -> <Self::Storage as ComputeStorage>::Resource;
+
     /// Given a resource as bytes, stores it and returns the memory handle.
     fn create(&mut self, data: &[u8]) -> Handle<Self>;
 

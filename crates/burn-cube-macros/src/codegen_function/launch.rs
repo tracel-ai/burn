@@ -117,6 +117,7 @@ impl Codegen {
         }
 
         quote::quote! {
+            /// Kernel
             pub struct #ident #generics {
                 settings: KernelSettings,
                 #comptimes
@@ -274,6 +275,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         #compile
 
         #[allow(clippy::too_many_arguments)]
+        /// Launch
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
             cube_count: CubeCount,

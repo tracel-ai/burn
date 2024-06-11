@@ -1,9 +1,11 @@
 use crate::{
-    ir::{Variable, Vectorization},
-    prelude::{KernelBuilder, KernelLauncher},
+    ir::{Operator, Variable, Vectorization},
+    prelude::{init_expand, CubeContext, KernelBuilder, KernelLauncher},
     Runtime,
 };
 use alloc::rc::Rc;
+
+use super::UInt;
 
 /// Types used in a cube function must implement this trait
 ///
@@ -18,7 +20,11 @@ use alloc::rc::Rc;
 /// in algorithmic code. The necessary cloning will automatically appear in
 /// the generated code.
 pub trait CubeType {
-    type ExpandType: Clone;
+    type ExpandType: Clone + Init;
+}
+
+pub trait Init {
+    fn init(self, context: &mut CubeContext) -> Self;
 }
 
 /// Defines a type that can be used as argument to a kernel.
@@ -85,5 +91,32 @@ impl From<ExpandElement> for Variable {
             ExpandElement::Managed(var) => *var,
             ExpandElement::Plain(var) => var,
         }
+    }
+}
+
+impl Init for ExpandElement {
+    fn init(self, context: &mut CubeContext) -> Self {
+        init_expand(context, self, Operator::Assign)
+    }
+}
+
+macro_rules! impl_init_for {
+    ($($t:ty),*) => {
+        $(
+            impl Init for $t {
+                fn init(self, _context: &mut CubeContext) -> Self {
+                    self
+                }
+            }
+        )*
+    };
+}
+
+// Add all types used within comptime
+impl_init_for!(u32, bool, UInt);
+
+impl<T> Init for Option<T> {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
     }
 }

@@ -171,7 +171,7 @@ represent the corresponding Burn Op.
 | [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
-| [Slice][167]                     |       ❌       |      ✅      |
+| [Slice][167]                     |       ✅       |      ✅      |
 | [Softmax][168]                   |       ✅       |      ✅      |
 | [SoftmaxCrossEntropyLoss][169]   |       ❌       |      ❌      |
 | [Softplus][170]                  |       ❌       |      ❌      |
