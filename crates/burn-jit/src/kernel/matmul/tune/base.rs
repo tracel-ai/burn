@@ -2,7 +2,7 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    element::JitElement,
+    element::FloatElement,
     kernel::{
         matmul::{utils::init_matmul_output, Tiling2dConfig},
         prng::random_like_uniform,
@@ -17,13 +17,13 @@ use super::key::MatmulAutotuneKey;
 
 /// Set of matmul implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of m, k and n
-pub struct MatmulAutotuneOperationSet<R: JitRuntime, E: JitElement, const D: usize> {
+pub struct MatmulAutotuneOperationSet<R: JitRuntime, E: FloatElement, const D: usize> {
     key: JitAutotuneKey,
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 }
-impl<R: JitRuntime, E: JitElement, const D: usize> MatmulAutotuneOperationSet<R, E, D> {
+impl<R: JitRuntime, E: FloatElement, const D: usize> MatmulAutotuneOperationSet<R, E, D> {
     fn new(lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>) -> Self {
         Self {
             key: JitAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
@@ -34,7 +34,7 @@ impl<R: JitRuntime, E: JitElement, const D: usize> MatmulAutotuneOperationSet<R,
     }
 }
 
-impl<R: JitRuntime, E: JitElement + Element, const D: usize> AutotuneOperationSet<JitAutotuneKey>
+impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperationSet<JitAutotuneKey>
     for MatmulAutotuneOperationSet<R, E, D>
 {
     fn key(&self) -> JitAutotuneKey {
@@ -94,7 +94,7 @@ impl<R: JitRuntime, E: JitElement + Element, const D: usize> AutotuneOperationSe
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<R: JitRuntime, E: JitElement + Element, const D: usize>(
+pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
@@ -112,13 +112,13 @@ pub fn matmul_autotune<R: JitRuntime, E: JitElement + Element, const D: usize>(
 macro_rules! matmul_tune_ops {
     ($name:ident, $func:expr) => {
         #[derive(new)]
-        pub(crate) struct $name<R: JitRuntime, E: JitElement, const D: usize> {
+        pub(crate) struct $name<R: JitRuntime, E: FloatElement, const D: usize> {
             lhs: JitTensor<R, E, D>,
             rhs: JitTensor<R, E, D>,
             out: JitTensor<R, E, D>,
         }
 
-        impl<R: JitRuntime, E: JitElement, const D: usize> AutotuneOperation for $name<R, E, D> {
+        impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperation for $name<R, E, D> {
             fn execute(self: Box<Self>) {
                 #[allow(clippy::redundant_closure_call)]
                 $func(self.lhs, self.rhs, self.out);

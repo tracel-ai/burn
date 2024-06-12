@@ -62,7 +62,10 @@ pub mod index_assign {
 
 pub mod index {
     use crate::{
-        frontend::{operation::base::binary_expand, CubeType},
+        frontend::{
+            operation::base::{binary_expand, binary_expand_no_vec},
+            CubeType,
+        },
         unexpanded,
     };
 
@@ -83,7 +86,14 @@ pub mod index {
             }
             _ => index,
         };
-        binary_expand(context, array.into(), index, Operator::Index)
+        let array = array.into();
+        let var: Variable = *array;
+        match var {
+            Variable::Local(_, _, _) => {
+                binary_expand_no_vec(context, array, index, Operator::Index)
+            }
+            _ => binary_expand(context, array, index, Operator::Index),
+        }
     }
 
     macro_rules! impl_index {

@@ -6,6 +6,7 @@ use burn::nn::{
 };
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::resize::ResizeMode;
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -713,6 +714,28 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
+pub fn resize_config(node: &Node) -> ResizeMode {
+    let mut mode: String = "".to_string();
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "coordinate_transformation_mode" => {}
+            "cubic_coeff_a" => {}
+            "mode" => mode = value.clone().into_string(),
+            "nearest_mode" => {}
+            _ => {}
+        }
+    }
+
+    let mode = match mode.as_str() {
+        "nearest" => ResizeMode::Nearest,
+        "linear" => ResizeMode::Linear,
+        "cubic" => ResizeMode::Cubic,
+        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
+    };
+
+    mode
+}
+
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
 pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
@@ -1013,6 +1036,67 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     }
 
     (start_dim as usize, end_dim as usize)
+}
+
+pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
+    let start_value = &node.inputs[1].value;
+    let end_value = &node.inputs[2].value;
+
+    let starts = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = start_value.as_ref() {
+                shape
+                    .iter()
+                    .map(|x| {
+                        assert!(*x >= 0, "Slice: start must be positive");
+                        *x as usize
+                    })
+                    .collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    let ends = match &node.inputs[2].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = end_value.as_ref() {
+                shape
+                    .iter()
+                    .map(|x| {
+                        assert!(*x >= 0, "Slice: end must be positive");
+                        *x as usize
+                    })
+                    .collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => {
+                let mut i = 0;
+                value.clone().into_i64s().iter().for_each(|x| {
+                    assert_eq!(*x, i, "Slice: axes must be consecutive");
+                    i += 1;
+                })
+            }
+            "steps" => value.clone().into_i64s().into_iter().for_each(|x| {
+                if x != 1 {
+                    panic!("Slice: steps other than 1 are not supported");
+                }
+            }),
+            _ => {}
+        }
+    }
+
+    (starts, ends)
 }
 
 pub fn transpose_config(curr: &Node) -> Vec<i64> {

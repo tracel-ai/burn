@@ -1,20 +1,39 @@
 use std::marker::PhantomData;
 
 use crate::{
-    frontend::{indexation::Index, CubeContext, CubeElem, CubeType, ExpandElement},
+    frontend::{indexation::Index, CubeContext, CubeElem, CubeType},
     ir::Item,
 };
 
+use super::{ExpandElement, Init};
+
 #[derive(Clone, Copy)]
-pub struct SharedMemory<T> {
+pub struct SharedMemory<T: CubeType> {
     _val: PhantomData<T>,
 }
 
-impl<T: CubeType> CubeType for SharedMemory<T> {
-    type ExpandType = ExpandElement;
+#[derive(Clone)]
+pub struct SharedMemoryExpand<T: CubeElem> {
+    pub val: <T as CubeType>::ExpandType,
 }
 
-impl<T: CubeElem> SharedMemory<T> {
+impl<T: CubeElem> From<SharedMemoryExpand<T>> for ExpandElement {
+    fn from(shared_memory_expand: SharedMemoryExpand<T>) -> Self {
+        shared_memory_expand.val
+    }
+}
+
+impl<T: CubeElem> Init for SharedMemoryExpand<T> {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
+}
+
+impl<T: CubeElem> CubeType for SharedMemory<T> {
+    type ExpandType = SharedMemoryExpand<T>;
+}
+
+impl<T: CubeElem + Clone> SharedMemory<T> {
     pub fn new<S: Index>(_size: S) -> Self {
         SharedMemory { _val: PhantomData }
     }

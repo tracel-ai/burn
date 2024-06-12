@@ -34,6 +34,7 @@ pub const KEYWORDS: [&str; 20] = [
 pub(crate) struct VariableAnalysis {
     num_used: usize,
     loop_level_declared: usize,
+    pub is_mut: bool,
 }
 
 impl VariableAnalysis {
@@ -56,7 +57,7 @@ pub(crate) struct CodeAnalysis {
 #[derive(Debug, Default)]
 /// Reads the Cube code and accumulates information, to generate a CodeAnalysis artefact
 pub(crate) struct CodeAnalysisBuilder {
-    declarations: Vec<(VariableKey, usize)>,
+    declarations: Vec<(VariableKey, usize, bool)>,
     var_uses: Vec<VariableKey>,
 }
 
@@ -107,11 +108,12 @@ impl CodeAnalysisBuilder {
             let id = declaration.0.clone();
             let new_analysis = match variable_analyses.remove(&id) {
                 Some(_) => {
-                    panic!("Analysis: Multiple variables with the same identifier is not supported")
+                    panic!("Analysis: {:?}: Multiple variables with the same identifier is not supported", id)
                 }
                 None => VariableAnalysis {
                     num_used: 0,
                     loop_level_declared: declaration.1,
+                    is_mut: declaration.2,
                 },
             };
 
@@ -124,6 +126,7 @@ impl CodeAnalysisBuilder {
                     let new_analysis = VariableAnalysis {
                         num_used: prev_analysis.num_used + 1,
                         loop_level_declared: prev_analysis.loop_level_declared,
+                        is_mut: prev_analysis.is_mut,
                     };
 
                     variable_analyses.insert(id.clone(), new_analysis);
@@ -139,6 +142,7 @@ impl CodeAnalysisBuilder {
                         let attr_analysis = VariableAnalysis {
                             num_used: 1,
                             loop_level_declared: struct_analysis.loop_level_declared,
+                            is_mut: struct_analysis.is_mut,
                         };
                         variable_analyses.insert(id.clone(), attr_analysis);
                     } else {
@@ -162,7 +166,8 @@ impl CodeAnalysisBuilder {
                     match ident {
                         syn::Pat::Ident(pat_ident) => {
                             let id = &pat_ident.ident;
-                            self.declarations.push((id.into(), 0));
+                            let is_mut = pat_ident.mutability.is_some();
+                            self.declarations.push((id.into(), 0, is_mut));
                         }
                         _ => todo!("Analysis: unsupported ident {ident:?}"),
                     }
@@ -177,17 +182,21 @@ impl CodeAnalysisBuilder {
             match stmt {
                 // Declaration
                 syn::Stmt::Local(local) => {
-                    let id = match &local.pat {
-                        syn::Pat::Ident(pat_ident) => Some(&pat_ident.ident),
-                        syn::Pat::Type(pat_type) => Some(match &*pat_type.pat {
-                            syn::Pat::Ident(pat_ident) => &pat_ident.ident,
+                    let (id, is_mut) = match &local.pat {
+                        syn::Pat::Ident(pat_ident) => {
+                            (Some(&pat_ident.ident), pat_ident.mutability.is_some())
+                        }
+                        syn::Pat::Type(pat_type) => match &*pat_type.pat {
+                            syn::Pat::Ident(pat_ident) => {
+                                (Some(&pat_ident.ident), pat_ident.mutability.is_some())
+                            }
                             _ => todo!("Analysis: unsupported typed path {:?}", pat_type.pat),
-                        }),
-                        syn::Pat::Wild(_) => None,
+                        },
+                        syn::Pat::Wild(_) => (None, false),
                         _ => todo!("Analysis: unsupported path {:?}", local.pat),
                     };
                     if let Some(id) = id {
-                        self.declarations.push((id.into(), depth));
+                        self.declarations.push((id.into(), depth, is_mut));
                     }
                     if let Some(local_init) = &local.init {
                         self.find_occurrences_in_expr(&local_init.expr, depth)
@@ -209,7 +218,8 @@ impl CodeAnalysisBuilder {
                 // Declaration of iterator
                 if let syn::Pat::Ident(pat_ident) = &*expr.pat {
                     let id = &pat_ident.ident;
-                    self.declarations.push((id.into(), depth));
+                    let is_mut = pat_ident.mutability.is_some();
+                    self.declarations.push((id.into(), depth, is_mut));
                 }
 
                 self.find_occurrences_in_stmts(&expr.body.stmts, depth);
@@ -313,11 +323,11 @@ impl CodeAnalysisBuilder {
                 let depth = depth + 1;
 
                 for path in expr.inputs.iter() {
-                    let ident = match path {
-                        Pat::Ident(pat_ident) => &pat_ident.ident,
+                    let (ident, is_mut) = match path {
+                        Pat::Ident(pat_ident) => (&pat_ident.ident, pat_ident.mutability.is_some()),
                         Pat::Type(pat_type) => {
                             if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                                &pat_ident.ident
+                                (&pat_ident.ident, pat_ident.mutability.is_some())
                             } else {
                                 todo!("Analysis: {:?} not supported in closure inputs. ", path);
                             }
@@ -325,7 +335,7 @@ impl CodeAnalysisBuilder {
                         _ => todo!("Analysis: {:?} not supported in closure inputs. ", path),
                     };
 
-                    self.declarations.push(((ident).into(), depth));
+                    self.declarations.push(((ident).into(), depth, is_mut));
                 }
 
                 self.find_occurrences_in_expr(&expr.body, depth)

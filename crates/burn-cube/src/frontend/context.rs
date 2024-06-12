@@ -4,6 +4,8 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
+use super::{CubeElem, SharedMemoryExpand};
+
 #[derive(Default, Clone)]
 pub struct VariablePool {
     map: Rc<RefCell<HashMap<Item, Vec<ExpandElement>>>>,
@@ -109,8 +111,10 @@ impl CubeContext {
         new
     }
 
-    pub fn create_shared(&mut self, item: Item, size: u32) -> ExpandElement {
-        ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size))
+    pub fn create_shared<T: CubeElem>(&mut self, item: Item, size: u32) -> SharedMemoryExpand<T> {
+        SharedMemoryExpand {
+            val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
+        }
     }
 
     /// Obtain the index-th input

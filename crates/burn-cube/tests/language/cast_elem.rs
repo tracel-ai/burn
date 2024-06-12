@@ -5,7 +5,6 @@ use burn_cube::{
 
 // From float
 #[cube]
-// #[allow(clippy::useless_conversion)]
 pub fn float_to_float(x: F32) {
     let y = x + F32::from_int(2);
     let _ = F32::cast_from(y) + F32::from_int(34);

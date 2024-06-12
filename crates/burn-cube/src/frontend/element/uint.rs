@@ -1,10 +1,12 @@
 use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
-use crate::ir::{Elem, Variable, Vectorization};
-use crate::prelude::{KernelBuilder, KernelLauncher};
+use crate::ir::{Elem, Item, Variable, Vectorization};
+use crate::prelude::{index_assign, KernelBuilder, KernelLauncher};
 use crate::{
     frontend::{ArgSettings, Comptime},
     LaunchArg, Runtime,
 };
+
+use super::Vectorized;
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -58,6 +60,35 @@ impl UInt {
         let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
         ExpandElement::Plain(new_var)
     }
+
+    pub fn vectorized(val: u32, vectorization: UInt) -> Self {
+        if vectorization.val == 1 {
+            Self::new(val)
+        } else {
+            Self {
+                val,
+                vectorization: vectorization.val as u8,
+            }
+        }
+    }
+
+    pub fn vectorized_expand(
+        context: &mut CubeContext,
+        val: u32,
+        vectorization: UInt,
+    ) -> <Self as CubeType>::ExpandType {
+        if vectorization.val == 1 {
+            Self::new_expand(context, val)
+        } else {
+            let mut new_var =
+                context.create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8));
+            for (i, element) in vec![val; vectorization.val as usize].iter().enumerate() {
+                new_var = index_assign::expand(context, new_var, i, *element);
+            }
+
+            new_var
+        }
+    }
 }
 
 impl From<u32> for UInt {
@@ -81,5 +112,19 @@ impl From<usize> for UInt {
 impl From<i32> for UInt {
     fn from(value: i32) -> Self {
         UInt::new(value as u32)
+    }
+}
+
+impl Vectorized for UInt {
+    fn vectorization_factor(&self) -> UInt {
+        UInt {
+            val: self.vectorization as u32,
+            vectorization: 1,
+        }
+    }
+
+    fn vectorize(mut self, factor: UInt) -> Self {
+        self.vectorization = factor.vectorization;
+        self
     }
 }

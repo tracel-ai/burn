@@ -4,7 +4,7 @@ use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token}
 
 use crate::{
     analysis::{CodeAnalysis, KEYWORDS},
-    codegen_function::base::codegen_expr,
+    codegen_function::base::{codegen_expr, codegen_expr_with_comptime},
 };
 
 /// Codegen for literals
@@ -40,6 +40,7 @@ pub(crate) fn codegen_array_lit(array: &syn::ExprArray) -> TokenStream {
 /// let x = ...
 /// let x: T = ...
 /// let _ = ...
+/// let mut _ = ...
 pub(crate) fn codegen_local(
     local: &syn::Local,
     loop_level: usize,
@@ -59,10 +60,20 @@ pub(crate) fn codegen_local(
 
     match local.init.as_ref() {
         Some(init) => {
-            let init = codegen_expr(&init.expr, loop_level, variable_analyses);
+            let (init, is_comptime) =
+                codegen_expr_with_comptime(&init.expr, loop_level, variable_analyses);
 
-            quote::quote! {
-                #let_tok #ident = #init;
+            if is_comptime {
+                quote::quote! {
+                    #let_tok #ident = #init;
+                }
+            } else {
+                quote::quote! {
+                    #let_tok #ident = {
+                        let _inner = #init;
+                        burn_cube::frontend::Init::init(_inner, context)
+                    };
+                }
             }
         }
         None => {

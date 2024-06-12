@@ -118,6 +118,14 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         let ctx = self.get_context();
         ctx.sync();
     }
+
+    fn get_resource(
+        &mut self,
+        binding: server::Binding<Self>,
+    ) -> <Self::Storage as burn_compute::storage::ComputeStorage>::Resource {
+        let ctx = self.get_context();
+        ctx.memory_management.get(binding.memory)
+    }
 }
 
 impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {

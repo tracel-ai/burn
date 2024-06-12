@@ -27,6 +27,8 @@ pub(crate) mod random_normal;
 pub(crate) mod random_uniform;
 pub(crate) mod range;
 pub(crate) mod reshape;
+pub(crate) mod resize;
+pub(crate) mod slice;
 pub(crate) mod squeeze;
 pub(crate) mod sum;
 pub(crate) mod unary;

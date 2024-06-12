@@ -1,7 +1,7 @@
 use std::{iter::Peekable, slice::Iter};
 
 use super::{
-    from_onnx::OnnxGraphIO,
+    from_onnx::GraphData,
     ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
     protos::NodeProto,
@@ -12,12 +12,12 @@ use crate::onnx::ir::{ArgType, Data, TensorType};
 pub fn coalesce(
     node: &mut Node,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
-    graph_io: &OnnxGraphIO,
+    graph_data: &GraphData,
 ) {
     match node.node_type {
         NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
-            convert_matmul_to_linear(node, nodes_iter, graph_io);
+            convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
         _ => {}
     }
@@ -120,7 +120,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
-    graph_io: &OnnxGraphIO,
+    graph_data: &GraphData,
 ) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
@@ -141,9 +141,10 @@ pub(crate) fn convert_matmul_to_linear(
     // Convert the node to Linear
     node.node_type = NodeType::Linear;
 
+    log::debug!("peeking next node for bias conversion");
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
-        let peek_node = convert_node_proto(peek_node, graph_io).clone();
+        let peek_node = convert_node_proto(peek_node, graph_data);
         if is_add_node_with_bias(&peek_node, node) {
             convert_and_remove_add_node(&peek_node, node);
 

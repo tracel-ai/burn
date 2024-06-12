@@ -1,6 +1,7 @@
 use crate::{
     channel::ComputeChannel,
     server::{Binding, ComputeServer, Handle},
+    storage::ComputeStorage,
     tune::{AutotuneOperationSet, Tuner},
 };
 use alloc::vec::Vec;
@@ -42,6 +43,14 @@ where
     /// Given a binding, returns owned resource as bytes.
     pub fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
         self.channel.read(binding)
+    }
+
+    /// Given a resource handle, returns the storage resource.
+    pub fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        self.channel.get_resource(binding)
     }
 
     /// Given a resource, stores it and returns the resource handle.

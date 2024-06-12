@@ -5,12 +5,12 @@ use crate::{
     unexpanded,
 };
 
-use super::LaunchArg;
+use super::{LaunchArg, Vectorized};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
 pub trait Numeric:
-    Clone
+    Vectorized
     + Copy
     + LaunchArg
     + CubeElem
@@ -51,10 +51,7 @@ pub trait Numeric:
     }
 
     fn from_vec_expand(context: &mut CubeContext, vec: &[i64]) -> <Self as CubeType>::ExpandType {
-        let mut new_var = context.create_local(Item {
-            elem: Self::as_elem(),
-            vectorization: (vec.len() as u8),
-        });
+        let mut new_var = context.create_local(Item::vectorized(Self::as_elem(), vec.len() as u8));
         for (i, element) in vec.iter().enumerate() {
             new_var = index_assign::expand(context, new_var, i, *element);
         }
