@@ -52,6 +52,10 @@ where
         let client = R::client(device);
         client.sync();
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        R::list_available_devices()
+    }
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement> core::fmt::Debug for JitBackend<R, F, I> {

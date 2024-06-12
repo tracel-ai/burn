@@ -63,4 +63,8 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        vec![NdArrayDevice::Cpu]
+    }
 }

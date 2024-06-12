@@ -54,6 +54,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn ad_enabled() -> bool {
         false
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        B::list_available_devices()
+    }
 }
 
 /// The status of a [builder](OptimizationBuilder).

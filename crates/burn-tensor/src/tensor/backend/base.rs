@@ -1,4 +1,5 @@
 use alloc::string::String;
+use alloc::vec::Vec;
 
 use crate::ops::*;
 use crate::tensor::Element;
@@ -97,6 +98,9 @@ pub trait Backend:
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) {}
+
+    /// List available devices.
+    fn list_available_devices() -> Vec<Self::Device>;
 }
 
 /// Trait that allows a backend to support autodiff.

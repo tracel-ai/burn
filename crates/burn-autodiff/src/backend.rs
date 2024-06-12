@@ -46,6 +46,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn sync(device: &B::Device) {
         B::sync(device);
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        B::list_available_devices()
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
