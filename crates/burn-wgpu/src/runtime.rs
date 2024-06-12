@@ -19,7 +19,7 @@ use std::{
     marker::PhantomData,
     sync::atomic::{AtomicBool, Ordering},
 };
-use wgpu::{AdapterInfo, DeviceDescriptor, DeviceType};
+use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
@@ -33,7 +33,14 @@ impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
     type JitDevice = WgpuDevice;
     type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
+    #[cfg(target_family = "wasm")]
     fn list_available_devices() -> Vec<Self::JitDevice> {
+        vec![WgpuDevice::BestAvailable]
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn list_available_devices() -> Vec<Self::JitDevice> {
+        use wgpu::DeviceType;
         let instance = wgpu::Instance::default();
         let mut discrete_cnt = 0;
         let mut integrated_cnt = 0;
