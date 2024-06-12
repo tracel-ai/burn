@@ -7,33 +7,41 @@
 
 ---
 
-**CubeCL is a Compute Language Extension for Rust with optimal performance on any hardware.**
+**Multi-platform high-performance compute language for Rust.**
 <br/>
 
 </div>
 
 <div align="left">
 
-## Goal
+## TL;DR
+
+With CubeCL, you can use Rust to program your GPU.
+
+## Motivation
 
 The goal of CubeCL is to ease the pain of writing highly optimized compute kernels that are portable across hardwares.
-There are currently no solution when you want optimal performance while still being multi-platform, you either have to write custom kernels for differnent hardware, with sometimes different languages such as CUDA and Metal.
-In order to make it possible, we created a Just-in-Time compiler with three core features: automatic vectorization, comptime and autotune!
+There is currently no adequate solution when you want optimal performance while still being multi-platform.
+You either have to write custom kernels for different hardwares, often with different languages such as CUDA, Metal or ROCm.
+To make it possible, we created a Just-in-Time compiler with three core features: **automatic vectorization**, **comptime** and **autotune**!
 
-Even without portability in mind, those features are extremely useful on top of a compute language that you normally have to built yourself.
-It improves code composability, reusability, maintainability while staying optimal.
-Making it easier to write high performance procedures will result in faster software being written!
+Those features are extremely useful for anyone writing high-performance kernels, even when portability is not a concern.
+It improves code composability, reusability, maintainability, all while staying optimal.
 
-### Disclamer & History
+### Disclaimer & History
 
 CubeCL is currently in **alpha**.
+The only supported runtimes are CUDA and WebGPU for now.
+It's easy to add more GPU runtimes and we intend to support Metal, ROCm and Vulkan; contributions are welcomed!
+We also want to have an optimized JIT CPU runtime with SIMD instructions, leveraging Cranelift.
 
-While it is currently in used by Burn, the UX, the error messages and other edge cases aren't fully handled.
-The project started as a WebGPU only backend for Burn.
-The more we needed to optimize it, we realized that we needed an intermediate representation that we can compile to WGSL.
-Having an intermediate representation made it easy to compile it to another runtime, so we made a CUDA backend.
-However writing kernels in that intermediate representation wasn't easy so we created a Rust frontend using the `syn` crate.
-Navigating the differences between CUDA & WebGPU while leveraging both platform forces us to come up with general concepts that works everywhere, CubeCL was born!
+While CubeCL is currently in use in Burn, the user experience, such as error messages and other edge cases aren't graciously handled.
+The project started as a WebGPU-only backend for Burn.
+As we optimized it, we realized that we needed an intermediate representation (IR) that could be optimized then compiled to WGSL.
+Having an IR made it easy to support another compilation target, so we made a CUDA runtime.
+However, writing kernels directly in that IR wasn't easy, so we created a Rust frontend using the `syn` crate.
+Navigating the differences between CUDA and WebGPU, while leveraging both platforms, forced us to come up with general concepts that worked everywhere.
+Hence, CubeCL was born!
 
 ## Design
 
