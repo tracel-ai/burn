@@ -200,7 +200,6 @@ impl CodeAnalysisBuilder {
                 // Declaration of iterator
                 if let syn::Pat::Ident(pat_ident) = &*expr.pat {
                     let id = &pat_ident.ident;
-                    let is_mut = pat_ident.mutability.is_some();
                     self.variable_ident_factory
                         .analyze_declare(id.to_string(), depth);
                 }

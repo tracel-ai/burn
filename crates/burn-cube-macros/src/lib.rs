@@ -60,6 +60,8 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
         cube.into()
     };
 
+    // panic!("{:?}", variable_analyses);
+
     match mode {
         CubeMode::Default => code,
         CubeMode::Debug => panic!("{code}"),

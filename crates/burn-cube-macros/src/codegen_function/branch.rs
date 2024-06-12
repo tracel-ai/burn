@@ -19,6 +19,13 @@ pub(crate) fn codegen_for_loop(
 ) -> TokenStream {
     let i = &for_loop.pat;
 
+    if let syn::Pat::Ident(pat_ident) = &*for_loop.pat {
+        let id = &pat_ident.ident;
+        variable_analyses
+            .vif
+            .codegen_declare(id.to_string(), loop_level as u8 + 1);
+    }
+
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {

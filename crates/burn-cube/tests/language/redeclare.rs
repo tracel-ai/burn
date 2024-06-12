@@ -20,9 +20,20 @@ pub fn redeclare_same_scope_other_type<I: Int, F: Float>(mut x: I) -> F {
 pub fn redeclare_different_scope<I: Int>(mut x: I) {
     let y = I::new(1);
     x += y;
-    for i in range(0u32, 2u32, Comptime::new(false)) {
+    for _ in range(0u32, 2u32, Comptime::new(false)) {
         let y = I::new(2);
         x += y;
+    }
+}
+
+#[cube]
+pub fn redeclare_two_for_loops(mut x: UInt) {
+    for i in range(0u32, 2u32, Comptime::new(false)) {
+        x += i;
+    }
+    for i in range(0u32, 2u32, Comptime::new(false)) {
+        x += i;
+        x += i;
     }
 }
 
@@ -67,6 +78,21 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
 
         redeclare_different_scope_expand::<ElemType>(&mut context, x);
+        let scope = context.into_scope();
+
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_different()
+        );
+    }
+
+    #[test]
+    fn cube_redeclare_two_for_loops_test() {
+        let mut context = CubeContext::root();
+
+        let x = context.create_local(Item::new(UInt::as_elem()));
+
+        redeclare_two_for_loops_expand(&mut context, x);
         let scope = context.into_scope();
 
         assert_eq!(

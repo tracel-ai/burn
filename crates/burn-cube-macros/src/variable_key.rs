@@ -159,7 +159,9 @@ impl VariableReuseAnalyzer {
             .get_mut(&ident)
             .ok_or_else(|| VariableNotFound::new(name, scope_declared, field))?;
 
-        analysis.num_used -= 1;
+        // if analysis.num_used > 0 {
+            analysis.num_used -= 1;
+        // }
         Ok(analysis.should_clone() || should_clone_parent || scope_declared != scope)
     }
 }
