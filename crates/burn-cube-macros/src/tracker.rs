@@ -109,7 +109,7 @@ impl VariableTracker {
             let declaration = self
                 .variable_uses
                 .get_mut(&declaration_ident)
-                .expect(&format!("Struct {:?} does not exist", declaration_ident));
+                .unwrap_or_else(|| panic!("Struct {:?} does not exist", declaration_ident));
             declaration.num_used += 1;
         }
     }
