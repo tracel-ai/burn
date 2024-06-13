@@ -42,6 +42,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
+            resize::{ResizeNode, ResizeOptions},
             slice::SliceNode,
             squeeze::SqueezeNode,
             sum::SumNode,
@@ -64,7 +65,7 @@ use super::{
     ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
-        softmax_config,
+        resize_config, softmax_config,
     },
 };
 
@@ -291,6 +292,7 @@ impl OnnxGraph {
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
@@ -584,6 +586,19 @@ impl OnnxGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+
+    fn resize_conversion(node: Node) -> ResizeNode {
+        let name = &node.name;
+
+        let input = node.inputs[0].to_tensor_type();
+        let output_size = node.inputs[3].to_tensor_type();
+
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        let mode = resize_config(&node);
+
+        ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
     }
 
     fn min_conversion(node: Node) -> BinaryNode {

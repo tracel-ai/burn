@@ -1,17 +1,17 @@
 use crate as burn;
 
-use super::checks;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::conv::checks;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
+use crate::tensor::module::conv_transpose2d;
+use crate::tensor::ops::ConvTransposeOptions;
 use crate::tensor::Tensor;
 
-use burn_tensor::module::conv_transpose2d;
-use burn_tensor::ops::ConvTransposeOptions;
-
-/// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer.
+/// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer
+/// using the [init function](ConvTranspose2dConfig::init).
 #[derive(Config, Debug)]
 pub struct ConvTranspose2dConfig {
     /// The number of channels.
@@ -44,12 +44,6 @@ pub struct ConvTranspose2dConfig {
 }
 
 /// Applies a 2D transposed convolution over input tensors.
-///
-/// # Params
-///
-/// - weight: Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
-///
-/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct ConvTranspose2d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
@@ -105,10 +99,12 @@ impl ConvTranspose2dConfig {
 impl<B: Backend> ConvTranspose2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [conv_transpose2d](crate::tensor::module::conv_transpose2d).
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, height_in, width_in],
-    /// - output: [batch_size, channels_out, height_out, width_out],
+    /// - input: `[batch_size, channels_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         conv_transpose2d(
             input,
@@ -128,8 +124,8 @@ impl<B: Backend> ConvTranspose2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

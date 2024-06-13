@@ -7,7 +7,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [BatchNorm](BatchNorm) layer.
+/// Configuration to create a [BatchNorm](BatchNorm) layer using the [init function](BatchNormConfig::init).
 #[derive(Config, Debug)]
 pub struct BatchNormConfig {
     /// The number of features.
@@ -23,18 +23,31 @@ pub struct BatchNormConfig {
 /// Applies Batch Normalization over a tensor as described in the paper [Batch Normalization](https://arxiv.org/abs/1502.03167)
 ///
 /// `Y = norm(X) * γ + β`
+///
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `norm` is the normalization function
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
+///
+/// Should be created using [BatchNormConfig].
 #[derive(Module, Debug)]
 pub struct BatchNorm<B: Backend, const D: usize> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
-    running_mean: RunningState<Tensor<B, 1>>,
-    running_var: RunningState<Tensor<B, 1>>,
+    /// The learnable weight gamma.
+    pub gamma: Param<Tensor<B, 1>>,
+    /// The learnable weight beta.
+    pub beta: Param<Tensor<B, 1>>,
+    /// The running mean.
+    pub running_mean: RunningState<Tensor<B, 1>>,
+    /// The running variance.
+    pub running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
     epsilon: f64,
 }
 
 impl BatchNormConfig {
-    /// Initialize a new [batch norm](BatchNorm) module.
+    /// Initializes a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
         let gamma = Initializer::Ones.init([self.num_features], device);
         let beta = Initializer::Zeros.init([self.num_features], device);
@@ -56,10 +69,16 @@ impl BatchNormConfig {
 impl<const D: usize, B: Backend> BatchNorm<B, D> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [BatchNorm](BatchNorm) for more information.
+    ///
     /// # Shapes
     ///
     /// - input: `[batch_size, channels, ...]`
     /// - output: `[batch_size, channels, ...]`
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the input tensor has a dimension different from `D + 2`.
     pub fn forward<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
         // Should be move to a compilation error when const generic support that kind of
         // validation. https://github.com/rust-lang/rust/issues/76560
@@ -168,8 +187,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {
@@ -228,8 +247,8 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
+    use crate::tensor::Data;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
-    use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {

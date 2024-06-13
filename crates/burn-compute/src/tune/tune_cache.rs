@@ -52,6 +52,8 @@ pub(crate) struct TuneCache<K> {
     persistent_cache: HashMap<K, PersistentCacheEntry>,
     #[cfg(feature = "autotune-persistent-cache")]
     device_id: String,
+    #[cfg(feature = "autotune-persistent-cache")]
+    name: String,
 }
 
 /// Result of the cache try
@@ -64,6 +66,7 @@ pub enum TuneCacheResult<K> {
 
 impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn new(
+        #[cfg_attr(not(feature = "autotune-persistent-cache"), allow(unused_variables))] name: &str,
         #[cfg_attr(not(feature = "autotune-persistent-cache"), allow(unused_variables))]
         device_id: &str,
     ) -> Self {
@@ -73,6 +76,7 @@ impl<K: AutotuneKey> TuneCache<K> {
                 in_memory_cache: HashMap::new(),
                 persistent_cache: HashMap::new(),
                 device_id: device_id.to_string(),
+                name: name.to_string(),
             };
             if let Err(e) = cache.load() {
                 log::warn!(
@@ -239,6 +243,6 @@ impl<K: AutotuneKey> TuneCache<K> {
     /// Return the file path for the persistent cache on disk
     #[cfg(feature = "autotune-persistent-cache")]
     pub fn get_persistent_cache_file_path(&self) -> PathBuf {
-        get_persistent_cache_file_path(&self.device_id)
+        get_persistent_cache_file_path(&format!("{}-{}", self.name, self.device_id))
     }
 }

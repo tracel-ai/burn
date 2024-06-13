@@ -4,25 +4,25 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
+use crate::tensor::Data;
 use crate::tensor::Tensor;
-use burn_tensor::Data;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create an [PositionalEncoding](PositionalEncoding) layer.
+/// Configuration to create a [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
 #[derive(Config)]
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.
     #[config(default = "5_000")]
-    max_sequence_size: usize,
+    pub max_sequence_size: usize,
 
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
 
     /// Max time scale to use.
     #[config(default = "10_000")]
-    max_timescale: usize,
+    pub max_timescale: usize,
 }
 
 /// Positional encoding layer for transformer models.
@@ -37,6 +37,8 @@ pub struct PositionalEncodingConfig {
 /// The reference implementation can be found here:
 /// [LANGUAGE MODELING WITH NN.TRANSFORMER AND TORCHTEXT
 /// ](https://pytorch.org/tutorials/beginner/transformer_tutorial.html)
+///
+/// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
 pub struct PositionalEncoding<B: Backend> {
     sinusoids: Tensor<B, 3>,

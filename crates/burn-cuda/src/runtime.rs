@@ -65,7 +65,7 @@ impl Runtime for CudaRuntime {
             let tuner_device_id = tuner_device_id();
             ComputeClient::new(
                 MutexComputeChannel::new(server),
-                Arc::new(RwLock::new(Tuner::new(&tuner_device_id))),
+                Arc::new(RwLock::new(Tuner::new("cuda", &tuner_device_id))),
             )
         })
     }

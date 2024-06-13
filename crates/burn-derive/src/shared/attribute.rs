@@ -1,4 +1,4 @@
-use syn::{Attribute, Ident, Meta};
+use syn::{Attribute, Meta};
 
 pub struct AttributeAnalyzer {
     attr: Attribute,
@@ -6,7 +6,6 @@ pub struct AttributeAnalyzer {
 
 #[derive(Clone)]
 pub struct AttributeItem {
-    pub ident: Ident,
     pub value: syn::Lit,
 }
 
@@ -27,10 +26,7 @@ impl AttributeAnalyzer {
             _ => panic!("Only literal is supported"),
         };
 
-        AttributeItem {
-            ident: value.path.get_ident().unwrap().clone(),
-            value: lit,
-        }
+        AttributeItem { value: lit }
     }
 
     pub fn has_name(&self, name: &str) -> bool {
