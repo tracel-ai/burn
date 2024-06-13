@@ -3,7 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Module, Param};
 use crate::tensor::{backend::Backend, Tensor};
-use crate::nn::norm::GroupNorm;
+use crate::nn::norm::group_norm;
 use crate::nn::Initializer;
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
@@ -70,14 +70,12 @@ impl<B: Backend> InstanceNorm<B> {
     /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         // Instance norm is equivalent to group norm when the number of groups is equal to the number of channels.
-        GroupNorm {
-            gamma: self.gamma.clone(),
-            beta: self.beta.clone(),
-            num_groups: self.num_channels,
-            num_channels: self.num_channels,
-            epsilon: self.epsilon,
-            affine: self.affine,
-        }.forward(input)
+        let num_groups = self.num_channels;
+
+        let gamma = self.gamma.as_ref().map(|x| x.val());
+        let beta = self.beta.as_ref().map(|x| x.val());
+
+        group_norm(input, gamma, beta, num_groups, self.epsilon, self.affine)
     }
 }
 
