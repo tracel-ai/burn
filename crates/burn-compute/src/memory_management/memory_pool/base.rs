@@ -168,13 +168,34 @@ impl RingBuffer {
 
     fn push_chunk(&mut self, chunk_id: ChunkId) {
         self.ordered_chunks.insert(self.total, chunk_id);
+        self.chunk_positions.insert(chunk_id, self.total);
         self.total += 1;
     }
 
     fn remove_chunk(&mut self, chunk_id: ChunkId) {
-        if let Some(position) = self.chunk_positions.get(&chunk_id) {
-            self.ordered_chunks.remove(position);
+        let position = self
+            .chunk_positions
+            .get(&chunk_id)
+            .expect("chunk should be in the chunk position BTree")
+            .to_owned();
+
+        self.ordered_chunks.remove(&position);
+        self.chunk_positions.remove(&chunk_id);
+
+        let keys_to_update: Vec<_> = self
+            .ordered_chunks
+            .range(position..)
+            .map(|(&pos, _)| pos)
+            .collect();
+
+        for &old_pos in &keys_to_update {
+            let new_pos = old_pos - 1;
+            let id = self.ordered_chunks.remove(&old_pos).unwrap();
+            self.ordered_chunks.insert(new_pos, id);
+            self.chunk_positions.insert(id, new_pos);
         }
+
+        self.total -= 1;
     }
 
     fn find_free_slice_in_chunk(
