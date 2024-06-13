@@ -134,8 +134,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
 #[cfg(feature = "std")]
 fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     // delete the cache file
-    let file_path =
-        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_PREFIX);
     let _ = std::fs::remove_file(file_path);
 
     type Runtime = ComputeRuntime<DummyDevice, dummy::DummyServer, dummy::DummyChannel>;
@@ -176,8 +175,7 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
 #[cfg(feature = "std")]
 fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // delete the cache file
-    let file_path =
-        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_PREFIX);
     let parent_dir = file_path
         .parent()
         .expect("Cache file should have a parent directory");
