@@ -3,7 +3,10 @@ use burn::tensor::{
     backend::Backend, module::conv_transpose2d, ops::ConvTransposeOptions, Distribution, Shape,
     Tensor,
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 
 pub struct ConvTranspose2dBenchmark<B: Backend> {
     input_shape: Shape<4>,
@@ -49,7 +52,7 @@ impl<B: Backend> Benchmark for ConvTranspose2dBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 

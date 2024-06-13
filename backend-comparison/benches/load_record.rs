@@ -3,6 +3,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::Device;
 use burn::{config::Config, module::Module, nn};
 use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::sync_type::SyncType;
 use derive_new::new;
 
 #[derive(Module, Debug)]
@@ -93,7 +94,7 @@ impl<B: Backend> Benchmark for LoadRecordBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 
