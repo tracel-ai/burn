@@ -69,11 +69,11 @@ pub struct MultiHeadAttention<B: Backend> {
 /// [Multihead attention](MultiHeadAttention) forward pass input argument.
 #[derive(Debug, Clone)]
 pub struct MhaInput<B: Backend> {
-    // Shape `[batch_size, seq_length_1, d_model]`
+    /// Shape `[batch_size, seq_length_1, d_model]`
     query: Tensor<B, 3>,
-    // Shape `[batch_size, seq_length_2, d_model]`
+    /// Shape `[batch_size, seq_length_2, d_model]`
     key: Tensor<B, 3>,
-    // Shape `[batch_size, seq_length_2, d_model]`
+    /// Shape `[batch_size, seq_length_2, d_model]`
     value: Tensor<B, 3>,
     mask_pad: Option<Tensor<B, 2, Bool>>,
     mask_attn: Option<Tensor<B, 3, Bool>>,
