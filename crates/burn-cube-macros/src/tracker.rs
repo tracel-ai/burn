@@ -177,6 +177,7 @@ pub struct VariableNotFound {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum VariableReuseError {
     VariableNotFound(VariableNotFound),
 }
