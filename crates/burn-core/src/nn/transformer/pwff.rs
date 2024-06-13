@@ -32,7 +32,7 @@ pub struct PositionWiseFeedForwardConfig {
 /// - linear inner: Linear layer with `d_model` input features and `d_ff` output features.
 /// - linear outer: Linear layer with `d_ff` input features and `d_model` output features.
 ///
-/// FFN(x) = max(0, xW1 + b1)W2 + b2
+/// `FFN(x) = max(0, xW1 + b1)W2 + b2`
 ///
 /// Should be created using [PositionWiseFeedForwardConfig]
 #[derive(Module, Debug)]
