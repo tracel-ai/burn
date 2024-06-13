@@ -25,7 +25,7 @@ pub struct LayerNormConfig {
 /// - `X` is the input tensor
 /// - `Y` is the output tensor
 /// - `γ` is the learnable weight
-/// - `β` is the learnable bias#[derive(Module, Debug)]
+/// - `β` is the learnable bias
 ///
 /// Should be created using the [LayerNormConfig](LayerNormConfig) struct.
 #[derive(Module, Debug)]
