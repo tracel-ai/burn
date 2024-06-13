@@ -205,7 +205,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
             norm_first: config.norm_first,
         }
     }
-    /// forward pass for the TransformerDecoder layer
+    /// Forward pass for the TransformerDecoder layer
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
