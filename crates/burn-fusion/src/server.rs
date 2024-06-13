@@ -11,7 +11,6 @@ use std::sync::Arc;
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
     pub(crate) handles: HandleContainer<R::FusionHandle>,
-    pub device: R::FusionDevice,
 }
 
 impl<R> FusionServer<R>
@@ -22,7 +21,6 @@ where
         Self {
             streams: MultiStream::new(device.clone()),
             handles: HandleContainer::new(),
-            device,
         }
     }
 
