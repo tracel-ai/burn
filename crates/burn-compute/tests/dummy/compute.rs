@@ -27,7 +27,7 @@ pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServ
         SimpleMemoryManagement::new(storage, DeallocStrategy::Never, SliceStrategy::Never);
     let server = DummyServer::new(memory_management);
     let channel = MutexComputeChannel::new(server);
-    let tuner = Arc::new(RwLock::new(Tuner::new(TUNER_DEVICE_ID)));
+    let tuner = Arc::new(RwLock::new(Tuner::new("dymmy", TUNER_DEVICE_ID)));
     ComputeClient::new(channel, tuner)
 }
 

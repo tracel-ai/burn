@@ -25,9 +25,9 @@ pub struct Tuner<K: AutotuneKey> {
 #[allow(clippy::new_without_default)]
 impl<K: AutotuneKey> Tuner<K> {
     /// Returns a tuner with cache initialized from persistent cache
-    pub fn new(device_id: &str) -> Self {
+    pub fn new(name: &str, device_id: &str) -> Self {
         Self {
-            tune_cache: TuneCache::new(device_id),
+            tune_cache: TuneCache::new(name, device_id),
         }
     }
 
