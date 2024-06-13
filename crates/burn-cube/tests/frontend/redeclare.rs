@@ -56,7 +56,10 @@ mod tests {
         redeclare_same_scope_expand::<ElemType>(&mut context, x);
         let scope = context.into_scope();
 
-        assert_eq!(format!("{:?}", scope.operations), "".to_string());
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_same_scope()
+        );
     }
 
     #[test]
@@ -68,7 +71,10 @@ mod tests {
         redeclare_same_scope_other_type_expand::<ElemType, F32>(&mut context, x);
         let scope = context.into_scope();
 
-        assert_eq!(format!("{:?}", scope.operations), "".to_string());
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_same_scope_other_type()
+        );
     }
 
     #[test]
@@ -97,8 +103,40 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", scope.operations),
-            inline_macro_ref_different()
+            inline_macro_ref_two_for_loops()
         );
+    }
+
+    fn inline_macro_ref_same_scope() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+
+        let x = context.create_local(item);
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+
+        let i = scope.create_with_value(1, item);
+        cpa!(scope, x += i);
+        let value = Variable::ConstantScalar(2., item.elem());
+        cpa!(scope, i = value);
+        cpa!(scope, x += i);
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_same_scope_other_type() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+
+        let x = context.create_local(item);
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+
+        let i = scope.create_with_value(1, item);
+        cpa!(scope, x += i);
+        let _ = scope.create_with_value(2, Item::new(F32::as_elem()));
+
+        format!("{:?}", scope.operations)
     }
 
     fn inline_macro_ref_different() -> String {
@@ -110,16 +148,42 @@ mod tests {
         let mut scope = context.into_scope();
         let x: Variable = x.into();
 
-        // Kernel
         let y = scope.create_with_value(1, item);
         cpa!(scope, x += y);
 
         cpa!(
             &mut scope,
-            range(0u32, end, false).for_each(|i, scope| {
+            range(0u32, end, false).for_each(|_, scope| {
                 let value = Variable::ConstantScalar(2.into(), item.elem());
                 cpa!(scope, y = value);
                 cpa!(scope, x += y);
+            })
+        );
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_two_for_loops() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(UInt::as_elem());
+
+        let x = context.create_local(item);
+        let end = 2u32;
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+
+        cpa!(
+            &mut scope,
+            range(0u32, end, false).for_each(|i, scope| {
+                cpa!(scope, x += i);
+            })
+        );
+
+        cpa!(
+            &mut scope,
+            range(0u32, end, false).for_each(|i, scope| {
+                cpa!(scope, x += i);
+                cpa!(scope, x += i);
             })
         );
 

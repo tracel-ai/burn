@@ -60,8 +60,6 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
         cube.into()
     };
 
-    // panic!("{:?}", variable_analyses);
-
     match mode {
         CubeMode::Default => code,
         CubeMode::Debug => panic!("{code}"),
@@ -109,11 +107,9 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_ma
 
     quote::quote! {
         #[allow(dead_code)]
-        #[allow(clippy::too_many_arguments)] // TODO support structs in Cube
         #func
 
         #[allow(unused_mut)]
-        #[allow(clippy::too_many_arguments)] // TODO support structs in Cube
         #signature {
             #body
         }

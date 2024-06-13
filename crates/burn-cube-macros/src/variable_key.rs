@@ -78,7 +78,6 @@ impl VariableReuseAnalyzer {
         match self.analyses.get_mut(variable_ident) {
             Some(analysis) => {
                 analysis.num_used += 1;
-                core::mem::drop(analysis);
 
                 if variable_ident.field.is_some() {
                     let mut declaration_ident = variable_ident.clone();
@@ -143,13 +142,13 @@ impl VariableReuseAnalyzer {
 
         let should_clone_parent = if field.is_some() {
             let struct_ident = VariableIdent::new(name.clone(), *repeat, scope_declared, None);
-            let analysis = self
+            let parent_analysis = self
                 .analyses
                 .get_mut(&struct_ident)
                 .ok_or_else(|| VariableNotFound::new(name.clone(), scope_declared, None))?;
 
-            analysis.num_used -= 1;
-            analysis.should_clone()
+            parent_analysis.num_used -= 1;
+            parent_analysis.should_clone()
         } else {
             false
         };
@@ -159,18 +158,16 @@ impl VariableReuseAnalyzer {
             .get_mut(&ident)
             .ok_or_else(|| VariableNotFound::new(name, scope_declared, field))?;
 
-        // if analysis.num_used > 0 {
-            analysis.num_used -= 1;
-        // }
+        analysis.num_used -= 1;
         Ok(analysis.should_clone() || should_clone_parent || scope_declared != scope)
     }
 }
 
 #[derive(new, Debug)]
 pub struct VariableNotFound {
-    name: String,
-    scope: u8,
-    field: Option<String>,
+    _name: String,
+    _scope: u8,
+    _field: Option<String>,
 }
 
 #[derive(Debug)]

@@ -5,7 +5,6 @@ use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token}
 use crate::{
     analysis::{CodeAnalysis, KEYWORDS},
     codegen_function::base::{codegen_expr, codegen_expr_with_comptime},
-    variable_key::VariableIdent,
 };
 
 /// Codegen for literals
