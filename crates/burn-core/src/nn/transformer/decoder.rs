@@ -206,7 +206,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         }
     }
 
-    /// Applies the TransformerDecorder forward pass to the input tensor.
+    /// Applies the TransformerDecoder forward pass to the input tensor.
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
