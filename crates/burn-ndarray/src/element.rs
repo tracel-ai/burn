@@ -151,7 +151,7 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn int_abs_elem(self) -> Self {
-                (self as i32).abs() as $ty
+                (self as i32).unsigned_abs() as $ty
             }
         }
     };
