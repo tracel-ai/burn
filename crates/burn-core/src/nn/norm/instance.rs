@@ -2,9 +2,9 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::{Module, Param};
-use crate::tensor::{backend::Backend, Tensor};
 use crate::nn::norm::group_norm;
 use crate::nn::Initializer;
+use crate::tensor::{backend::Backend, Tensor};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -39,7 +39,6 @@ pub struct InstanceNorm<B: Backend> {
 impl InstanceNormConfig {
     /// Initialize a new [instance norm](InstanceNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
-        
         let (gamma, beta) = if self.affine {
             let gamma = Initializer::Ones.init([self.num_channels], device);
             let beta = Initializer::Zeros.init([self.num_channels], device);

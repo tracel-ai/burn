@@ -33,7 +33,7 @@ pub struct GroupNorm<B: Backend> {
     pub gamma: Option<Param<Tensor<B, 1>>>,
     /// The learnable bias
     pub beta: Option<Param<Tensor<B, 1>>>,
-    
+
     pub(crate) num_groups: usize,
     pub(crate) num_channels: usize,
     pub(crate) epsilon: f64,
@@ -90,7 +90,14 @@ impl<B: Backend> GroupNorm<B> {
         let gamma = self.gamma.as_ref().map(|x| x.val());
         let beta = self.beta.as_ref().map(|x| x.val());
 
-        group_norm(input, gamma, beta, self.num_groups, self.epsilon, self.affine)
+        group_norm(
+            input,
+            gamma,
+            beta,
+            self.num_groups,
+            self.epsilon,
+            self.affine,
+        )
     }
 }
 
@@ -103,16 +110,15 @@ impl<B: Backend> GroupNorm<B> {
 /// - `Y` is the output tensor
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
-/// 
+///
 pub(crate) fn group_norm<B: Backend, const D: usize>(
-    input: Tensor<B, D>, 
-    gamma: Option<Tensor<B, 1>>, 
-    beta: Option<Tensor<B, 1>>, 
-    num_groups: usize, 
-    epsilon: f64, 
-    affine: bool
+    input: Tensor<B, D>,
+    gamma: Option<Tensor<B, 1>>,
+    beta: Option<Tensor<B, 1>>,
+    num_groups: usize,
+    epsilon: f64,
+    affine: bool,
 ) -> Tensor<B, D> {
-
     if (affine && gamma.is_none()) || (affine && beta.is_none()) {
         panic!("Affine is set to true, but gamma or beta is None");
     }
@@ -128,8 +134,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
     let batch_size = shape.dims[0];
     let num_channels = shape.dims[1];
 
-    let hidden_size =
-        shape.dims[2..].iter().product::<usize>() * num_channels / num_groups;
+    let hidden_size = shape.dims[2..].iter().product::<usize>() * num_channels / num_groups;
     let input = input.reshape([batch_size, num_groups, hidden_size]);
 
     let mean = input.clone().sum_dim(2) / hidden_size as f64;
