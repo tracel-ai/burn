@@ -1,7 +1,7 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::tensor::cast::ToPrimitive;
+use crate::tensor::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
@@ -536,10 +536,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D> {
-        B::float_into_int(B::float_powf_scalar(
-            B::int_into_float(lhs),
-            rhs.to_f32().unwrap(),
-        ))
+        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs.to_f32()))
     }
 
     /// Element-wise power with a floatTensor.

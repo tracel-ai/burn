@@ -1,13 +1,13 @@
 use core::cmp::Ordering;
 
-use crate::{cast::ToPrimitive, Distribution};
+use crate::{cast::ToElement, Distribution};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 /// Element trait for tensor.
 pub trait Element:
-    ToPrimitive
+    ToElement
     + ElementRandom
     + ElementConversion
     + ElementPrecision
@@ -35,7 +35,7 @@ pub trait ElementConversion {
     /// # Returns
     ///
     /// The converted element.
-    fn from_elem<E: ToPrimitive>(elem: E) -> Self;
+    fn from_elem<E: ToElement>(elem: E) -> Self;
 
     /// Converts and returns the converted element.
     fn elem<E: Element>(self) -> E;
@@ -102,7 +102,7 @@ macro_rules! make_element {
         }
 
         impl ElementConversion for $type {
-            fn from_elem<E: ToPrimitive>(elem: E) -> Self {
+            fn from_elem<E: ToElement>(elem: E) -> Self {
                 #[allow(clippy::redundant_closure_call)]
                 $convert(&elem)
             }
@@ -137,7 +137,7 @@ macro_rules! make_element {
 
 make_element!(
     ty f64 Precision::Double,
-    convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_f64(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f64, b: &f64| a.total_cmp(b),
     dtype DType::F64
@@ -145,7 +145,7 @@ make_element!(
 
 make_element!(
     ty f32 Precision::Full,
-    convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_f32(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f32, b: &f32| a.total_cmp(b),
     dtype DType::F32
@@ -153,7 +153,7 @@ make_element!(
 
 make_element!(
     ty i64 Precision::Double,
-    convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_i64(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i64, b: &i64| Ord::cmp(a, b),
     dtype DType::I64
@@ -161,7 +161,7 @@ make_element!(
 
 make_element!(
     ty i32 Precision::Full,
-    convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_i32(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i32, b: &i32| Ord::cmp(a, b),
     dtype DType::I32
@@ -169,7 +169,7 @@ make_element!(
 
 make_element!(
     ty u32 Precision::Full,
-    convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_u32(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u32, b: &u32| Ord::cmp(a, b),
     dtype DType::U32
@@ -177,7 +177,7 @@ make_element!(
 
 make_element!(
     ty i16 Precision::Half,
-    convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_i16(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i16, b: &i16| Ord::cmp(a, b),
     dtype DType::I16
@@ -185,7 +185,7 @@ make_element!(
 
 make_element!(
     ty i8 Precision::Other,
-    convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_i8(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i8, b: &i8| Ord::cmp(a, b),
     dtype DType::I8
@@ -193,7 +193,7 @@ make_element!(
 
 make_element!(
     ty u8 Precision::Other,
-    convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_u8(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u8, b: &u8| Ord::cmp(a, b),
     dtype DType::U8
@@ -201,7 +201,7 @@ make_element!(
 
 make_element!(
     ty f16 Precision::Half,
-    convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
+    convert |elem: &dyn ToElement| f16::from_f32(elem.to_f32()),
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
         f16::from_elem(sample)
@@ -211,7 +211,7 @@ make_element!(
 );
 make_element!(
     ty bf16 Precision::Half,
-    convert |elem: &dyn ToPrimitive| bf16::from_f32(elem.to_f32().unwrap()),
+    convert |elem: &dyn ToElement| bf16::from_f32(elem.to_f32()),
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
         bf16::from_elem(sample)
@@ -222,7 +222,7 @@ make_element!(
 
 make_element!(
     ty bool Precision::Other,
-    convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap() != 0,
+    convert |elem: &dyn ToElement| elem.to_u8() != 0,
     random |distribution: Distribution, rng: &mut R| {
         let sample: u8 = distribution.sampler(rng).sample();
         bool::from_elem(sample)

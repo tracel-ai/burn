@@ -563,12 +563,12 @@ where
     where
         E: Signed,
     {
+        let zero = 0.elem();
+        let one = 1.elem::<E>();
         NdArrayTensor::new(
             tensor
                 .array
                 .mapv(|x| {
-                    let zero = 0.elem();
-                    let one = 1.elem::<E>();
                     if x > zero {
                         one
                     } else if x < zero {
