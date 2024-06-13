@@ -187,7 +187,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
 
     #[test]
@@ -198,7 +198,7 @@ mod tests_1d {
         let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [1.1483e+00, 3.7521e-01],
                     [1.6272e-03, 7.5067e-01],
@@ -224,7 +224,7 @@ mod tests_1d {
         let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
                 [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
             ]),
@@ -247,7 +247,7 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
 
     #[test]
@@ -258,7 +258,7 @@ mod tests_2d {
         let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [[1.5136, 0.7506], [-1.2216, 0.1477]],
                     [[0.3135, 1.2252], [-0.4150, 0.6130]],
@@ -284,7 +284,7 @@ mod tests_2d {
         let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [[0.9538, 0.7103], [0.0808, 0.5179]],
                     [[0.6015, 0.8910], [0.3703, 0.6966]],
@@ -312,7 +312,7 @@ mod tests_2d {
         running_mean
             .reshape([3])
             .into_data()
-            .assert_approx_eq(&Data::from([0.0499, 0.0532, 0.0656]), 2);
+            .assert_approx_eq(&TensorData::from([0.0499, 0.0532, 0.0656]), 2);
     }
 
     #[test]
@@ -327,7 +327,7 @@ mod tests_2d {
         running_var
             .reshape([3])
             .into_data()
-            .assert_approx_eq(&Data::from([0.9106, 0.9105, 0.9045]), 2);
+            .assert_approx_eq(&TensorData::from([0.9106, 0.9105, 0.9045]), 2);
     }
 
     #[test]
@@ -362,7 +362,7 @@ mod tests_2d {
             .unwrap()
             .reshape([3])
             .into_data()
-            .assert_approx_eq(&Data::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
+            .assert_approx_eq(&TensorData::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
 
         module
             .beta
@@ -370,10 +370,10 @@ mod tests_2d {
             .unwrap()
             .reshape([3])
             .into_data()
-            .assert_approx_eq(&Data::from([8., 8., 8.]), 3);
+            .assert_approx_eq(&TensorData::from([8., 8., 8.]), 3);
 
         input.grad(&grads).unwrap().into_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [[0.0000e+00, 0.0000e+00], [0.0000e+00, 0.0000e+00]],
                     [[7.6400e-08, 2.9848e-07], [-1.0110e-07, 1.4933e-07]],

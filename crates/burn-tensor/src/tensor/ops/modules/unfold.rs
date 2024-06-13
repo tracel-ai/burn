@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::ops::FloatTensor;
-use crate::{Data, ElementConversion, Shape};
+use crate::{ElementConversion, Shape, TensorData};
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -54,7 +54,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
         }
     }
 
-    B::float_from_data(Data::new(weight, shape), device)
+    B::float_from_data(TensorData::new(weight, shape), device)
 }
 
 /// Compute the unfold4d operation using the conv2d operations.

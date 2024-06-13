@@ -253,7 +253,8 @@ pub(crate) mod tests {
         BurnImports, TensorType,
     };
     use burn::{
-        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings,
+        tensor::TensorData,
     };
     use proc_macro2::TokenStream;
     use quote::quote;
@@ -314,7 +315,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor3", 4),
             TensorType::new_float("tensor4", 4),
-            Data::from([2.]).serialize(),
+            burn::tensor::DataSerialize::from_tensor_data(TensorData::from([2f32])),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
@@ -387,7 +388,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor2", 4),
             TensorType::new_float("tensor4", 4),
-            Data::from([2.]).serialize(),
+            burn::tensor::DataSerialize::from_tensor_data(TensorData::from([2f32])),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));

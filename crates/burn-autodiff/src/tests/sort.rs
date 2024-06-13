@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_sort)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_sort() {
@@ -20,10 +20,10 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[35.0, 35.0], [-1.0, -8.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[35.0, 35.0], [-1.0, -8.0]]), 5);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[11.0, 7.0], [55.0, 16.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[11.0, 7.0], [55.0, 16.0]]), 5);
     }
 
     #[test]
@@ -43,9 +43,9 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[35.0, 35.0], [-1.0, -8.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[35.0, 35.0], [-1.0, -8.0]]), 5);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[11.0, 7.0], [55.0, 16.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[11.0, 7.0], [55.0, 16.0]]), 5);
     }
 }

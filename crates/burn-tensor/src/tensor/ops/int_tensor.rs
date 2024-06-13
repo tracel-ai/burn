@@ -1,8 +1,8 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::tensor::cast::ToElement;
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
+use crate::cast::ToElement;
+use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
 use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -47,7 +47,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>>;
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData<D>>;
 
     /// Gets the data from the tensor.
     ///
@@ -58,7 +58,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>> {
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData<D>> {
         Self::int_into_data(tensor.clone())
     }
 
@@ -72,10 +72,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn int_from_data<const D: usize>(
-        data: Data<IntElem<B>, D>,
-        device: &Device<B>,
-    ) -> IntTensor<B, D>;
+    fn int_from_data<const D: usize>(data: TensorData<D>, device: &Device<B>) -> IntTensor<B, D>;
 
     /// Gets the device of the tensor.
     ///
@@ -1111,7 +1108,7 @@ pub trait IntTensorOps<B: Backend> {
             .map(|i| i.elem())
             .collect::<Vec<IntElem<B>>>();
         let shape = Shape::new([value.len()]);
-        let data = Data::new(value, shape);
+        let data = TensorData::new(value, shape);
         B::int_from_data(data, device)
     }
 

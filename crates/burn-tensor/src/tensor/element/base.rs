@@ -12,7 +12,9 @@ pub trait Element:
     + ElementConversion
     + ElementPrecision
     + ElementComparison
-    + bytemuck::Pod
+    // + bytemuck::Pod
+    + bytemuck::CheckedBitPattern
+    + bytemuck::NoUninit
     + core::fmt::Debug
     + core::fmt::Display
     + Default
@@ -162,7 +164,7 @@ make_element!(
 
 make_element!(
     ty u64 Precision::Double,
-    convert |elem: &dyn ToPrimitive| elem.to_u64().unwrap(),
+    convert |elem: &dyn ToElement| elem.to_u64(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u64, b: &u64| Ord::cmp(a, b),
     dtype DType::U64

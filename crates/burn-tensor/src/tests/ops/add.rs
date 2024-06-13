@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn test_add_d2() {
@@ -11,7 +11,7 @@ mod tests {
 
         let data_actual = (tensor_1 + tensor_2).into_data();
 
-        let data_expected = Data::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]);
+        let data_expected = TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -22,7 +22,7 @@ mod tests {
 
         let data_actual = (tensor_1 + tensor_2).into_data();
 
-        let data_expected = Data::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]);
+        let data_expected = TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -35,7 +35,7 @@ mod tests {
 
         let data_actual = (tensor_1 + tensor_2.transpose()).into_data();
 
-        let data_expected = Data::from([[4.0, 7.0], [7.0, 10.0]]);
+        let data_expected = TensorData::from([[4.0, 7.0], [7.0, 10.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -48,7 +48,7 @@ mod tests {
 
         let data_actual = (tensor_1.transpose() + tensor_2).into_data();
 
-        let data_expected = Data::from([[4.0, 7.0], [7.0, 10.0]]);
+        let data_expected = TensorData::from([[4.0, 7.0], [7.0, 10.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -61,7 +61,7 @@ mod tests {
 
         let data_actual = (tensor_1.transpose() + tensor_2).into_data();
 
-        let data_expected = Data::from([[4.0, 7.0], [5.0, 8.0]]);
+        let data_expected = TensorData::from([[4.0, 7.0], [5.0, 8.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -73,7 +73,7 @@ mod tests {
         let output = tensor + scalar;
 
         let data_actual = output.into_data();
-        let data_expected = Data::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]);
+        let data_expected = TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -84,7 +84,7 @@ mod tests {
 
         let data_actual = (tensor_1 + tensor_2).into_data();
 
-        let data_expected = Data::from([[6, 8, 10], [12, 14, 16]]);
+        let data_expected = TensorData::from([[6, 8, 10], [12, 14, 16]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -95,7 +95,7 @@ mod tests {
 
         let data_actual = (tensor_1 + tensor_2).into_data();
 
-        let data_expected = Data::from([[3, 5, 7], [6, 8, 10]]);
+        let data_expected = TensorData::from([[3, 5, 7], [6, 8, 10]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -107,7 +107,7 @@ mod tests {
         let output = tensor + scalar;
 
         let data_actual = output.into_data();
-        let data_expected = Data::from([[2, 3, 4], [5, 6, 7]]);
+        let data_expected = TensorData::from([[2, 3, 4], [5, 6, 7]]);
         assert_eq!(data_expected, data_actual);
     }
 }

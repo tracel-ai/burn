@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Int, Tensor};
+    use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
     fn select_should_work_with_multiple_workgroups() {
@@ -11,7 +11,9 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
+            indices
+                .to_data()
+                .convert::<<ReferenceBackend as Backend>::IntElem>(),
             &Default::default(),
         );
 

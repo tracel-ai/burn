@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(create_like)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, TensorData};
 
     #[test]
     fn should_support_zeros_like() {
@@ -16,7 +16,7 @@ mod tests {
         let data_actual = tensor.zeros_like().into_data();
 
         let data_expected =
-            Data::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]]);
+            TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]]);
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }
@@ -34,7 +34,7 @@ mod tests {
         let data_actual = tensor.ones_like().into_data();
 
         let data_expected =
-            Data::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }
@@ -54,7 +54,7 @@ mod tests {
             .into_data();
 
         let data_expected =
-            Data::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
         data_expected.assert_approx_eq(&data_actual, 3);
     }

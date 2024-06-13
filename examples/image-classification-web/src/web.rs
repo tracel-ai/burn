@@ -151,11 +151,16 @@ impl<B: Backend> Model<B> {
         let probabilities = softmax(output, 1);
 
         #[cfg(not(target_family = "wasm"))]
-        let result = probabilities.into_data().convert::<f32>().value;
+        let result = probabilities.into_data().convert::<f32>().to_vec().unwrap();
 
         // Forces the result to be computed
         #[cfg(target_family = "wasm")]
-        let result = probabilities.into_data().await.convert::<f32>().value;
+        let result = probabilities
+            .into_data()
+            .await
+            .convert::<f32>()
+            .to_vec()
+            .unwrap();
 
         result
     }

@@ -60,7 +60,7 @@ impl<B: Backend> Embedding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
@@ -79,10 +79,12 @@ mod tests {
                 std: 1.0
             }
         );
-        var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 0);
+        var_act
+            .to_data()
+            .assert_approx_eq(&TensorData::from([1.0f32]), 0);
         mean_act
             .to_data()
-            .assert_approx_eq(&Data::from([0.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([0.0f32]), 0);
     }
 
     #[test]
@@ -96,6 +98,6 @@ mod tests {
         embed
             .weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(embed.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(embed.weight.shape()), 3);
     }
 }

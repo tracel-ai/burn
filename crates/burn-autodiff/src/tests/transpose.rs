@@ -1,12 +1,12 @@
 #[burn_tensor_testgen::testgen(ad_transpose)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_transpose() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [2.0, 3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1 = TensorData::from([[1.0, 7.0], [2.0, 3.0]]);
+        let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
@@ -19,8 +19,14 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), Data::from([[6.0, 10.0], [6.0, 10.0]]));
-        assert_eq!(grad_2.to_data(), Data::from([[3.0, 10.0], [3.0, 10.0]]));
+        assert_eq!(
+            grad_1.to_data(),
+            TensorData::from([[6.0, 10.0], [6.0, 10.0]])
+        );
+        assert_eq!(
+            grad_2.to_data(),
+            TensorData::from([[3.0, 10.0], [3.0, 10.0]])
+        );
     }
 
     #[test]
@@ -46,11 +52,11 @@ mod tests {
 
         assert_eq!(
             grad_1.to_data(),
-            Data::from([[[66., 78.], [66., 78.]], [[270., 306.], [270., 306.]]])
+            TensorData::from([[[66., 78.], [66., 78.]], [[270., 306.], [270., 306.]]])
         );
         assert_eq!(
             grad_2.to_data(),
-            Data::from([[[22., 286.], [28., 316.]], [[172., 652.], [190., 694.]]])
+            TensorData::from([[[22., 286.], [28., 316.]], [[172., 652.], [190., 694.]]])
         );
     }
 }

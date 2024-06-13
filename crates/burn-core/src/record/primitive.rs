@@ -145,6 +145,7 @@ where
     }
 }
 
+#[allow(deprecated)]
 impl<E, B> Record<B> for DataSerialize<E>
 where
     E: Element,
@@ -172,7 +173,7 @@ impl<B, const D: usize> Record<B> for Param<Tensor<B, D>>
 where
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<S>>;
+    type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<D, S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
@@ -192,7 +193,7 @@ impl<B, const D: usize> Record<B> for Param<Tensor<B, D, Int>>
 where
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<S>>;
+    type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<D, S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
@@ -211,7 +212,7 @@ impl<B, const D: usize> Record<B> for Param<Tensor<B, D, Bool>>
 where
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde>;
+    type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde<D>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();

@@ -1,13 +1,13 @@
 #[burn_tensor_testgen::testgen(module_backward)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module::embedding, Data, Int, Tensor};
+    use burn_tensor::{backend::Backend, module::embedding, Int, Tensor, TensorData};
 
     #[test]
     fn test_embedding_backward() {
-        let weights = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indices = Data::from([[0, 1], [1, 1]]);
-        let x = Data::from([
+        let weights = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let indices = TensorData::from([[0, 1], [1, 1]]);
+        let x = TensorData::from([
             [[1.0, 2.0], [4.0, 5.0], [3.0, 4.0]],
             [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
         ]);
@@ -21,10 +21,7 @@ mod tests {
         let grads = output.backward();
 
         let grad = weights.grad(&grads).unwrap();
-        let expected = Data::<<TestAutodiffBackend as Backend>::FloatElem, 2>::from([
-            [3., 9., 7.],
-            [21., 35., 27.],
-        ]);
+        let expected = TensorData::from([[3., 9., 7.], [21., 35., 27.]]);
         assert_eq!(grad.to_data(), expected);
     }
 }

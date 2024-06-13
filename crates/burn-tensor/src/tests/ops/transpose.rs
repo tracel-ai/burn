@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(transpose)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Int, Tensor};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_transpose_ops() {
@@ -15,7 +15,7 @@ mod tests {
 
         let data_actual = tensor.transpose().into_data();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
             [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
         ]);
@@ -34,7 +34,7 @@ mod tests {
 
         let data_actual = tensor.swap_dims(0, 2).into_data();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0.0, 6.0], [3.0, 9.0]],
             [[1.0, 7.0], [4.0, 10.0]],
             [[2.0, 8.0], [5.0, 11.0]],
@@ -51,7 +51,8 @@ mod tests {
 
         let data_actual = tensor.transpose().into_data();
 
-        let data_expected = Data::from([[[0, 3], [1, 4], [2, 5]], [[6, 9], [7, 10], [8, 11]]]);
+        let data_expected =
+            TensorData::from([[[0, 3], [1, 4], [2, 5]], [[6, 9], [7, 10], [8, 11]]]);
         assert_eq!(&data_expected, &data_actual);
     }
 
@@ -64,7 +65,8 @@ mod tests {
 
         let data_actual = tensor.swap_dims(0, 2).into_data();
 
-        let data_expected = Data::from([[[0, 6], [3, 9]], [[1, 7], [4, 10]], [[2, 8], [5, 11]]]);
+        let data_expected =
+            TensorData::from([[[0, 6], [3, 9]], [[1, 7], [4, 10]], [[2, 8], [5, 11]]]);
         assert_eq!(&data_expected, &data_actual);
     }
 
@@ -80,7 +82,7 @@ mod tests {
 
         let data_actual = tensor.transpose().into_data();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[false, false], [true, false], [false, false]],
             [[false, false], [false, false], [true, true]],
         ]);
@@ -99,7 +101,7 @@ mod tests {
 
         let data_actual = tensor.swap_dims(0, 2).into_data();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[false, false], [false, false]],
             [[true, false], [false, false]],
             [[false, true], [false, true]],

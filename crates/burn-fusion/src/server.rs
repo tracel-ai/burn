@@ -2,10 +2,7 @@ use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
 };
-use burn_tensor::{
-    ops::{FloatElem, IntElem},
-    repr::{HandleContainer, OperationDescription, TensorDescription, TensorId},
-};
+use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription, TensorId};
 use std::sync::Arc;
 
 pub struct FusionServer<R: FusionRuntime> {
@@ -46,7 +43,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -62,7 +59,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -78,7 +75,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

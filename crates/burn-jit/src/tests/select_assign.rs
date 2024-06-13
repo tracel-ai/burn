@@ -41,7 +41,7 @@ mod tests {
                 &Default::default(),
             )
             .into_data()
-            .convert(),
+            .convert::<<TestBackend as Backend>::IntElem>(),
             &Default::default(),
         );
         let tensor_ref =
@@ -49,7 +49,9 @@ mod tests {
         let value_ref =
             Tensor::<ReferenceBackend, D>::from_data(value.to_data(), &Default::default());
         let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
+            indices
+                .to_data()
+                .convert::<<ReferenceBackend as Backend>::IntElem>(),
             &Default::default(),
         );
 

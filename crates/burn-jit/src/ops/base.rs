@@ -1,36 +1,36 @@
 use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
 use burn_cube::CubeElement;
-use burn_tensor::{Data, Reader, Shape};
+use burn_tensor::{Reader, Shape, TensorData};
 use std::marker::PhantomData;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
-    data: Data<E, D>,
+    data: TensorData<D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
     let client = R::client(device);
-    let buffer = client.create(E::as_bytes(&data.value));
+    let buffer = client.create(E::as_bytes(data.as_slice().unwrap()));
 
     JitTensor::new(client, device.clone(), data.shape, buffer)
 }
 
 pub(crate) fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
-) -> Reader<Data<E, D>> {
+) -> Reader<TensorData<D>> {
     let tensor = kernel::into_contiguous(tensor);
 
     tensor
         .client
         .read(tensor.handle.binding())
-        .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
+        .map(|bytes| TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
 }
 
 pub(crate) fn bool_into_data<R: JitRuntime, const D: usize>(
     tensor: JitTensor<R, u32, D>,
-) -> Reader<Data<bool, D>> {
+) -> Reader<TensorData<D>> {
     let tensor = kernel::into_contiguous(tensor);
 
     tensor.client.read(tensor.handle.binding()).map(|bytes| {
-        Data::new(
+        TensorData::new(
             u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
             tensor.shape,
         )

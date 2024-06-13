@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(softmax)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Data, Tensor};
+    use burn_tensor::{activation, Tensor, TensorData};
 
     #[test]
     fn test_softmax_d2() {
@@ -9,7 +9,7 @@ mod tests {
 
         let data_actual = activation::softmax(tensor, 1).into_data();
 
-        let data_expected = Data::from([[2.47e-03, 9.975e-01], [1.0, 1.1254e-07]]);
+        let data_expected = TensorData::from([[2.47e-03, 9.975e-01], [1.0, 1.1254e-07]]);
         data_actual.assert_approx_eq(&data_expected, 4);
     }
 }

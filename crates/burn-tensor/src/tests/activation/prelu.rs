@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(prelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Data, Tensor};
+    use burn_tensor::{activation, Tensor, TensorData};
 
     #[test]
     fn test_prelu_2_dimension() {
@@ -12,7 +12,7 @@ mod tests {
         let tensor = TestTensor::from(data);
         let data_actual =
             activation::prelu(tensor, TestTensor::from([0.5, 0.25, 0.0, -0.8, -0.4])).into_data();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [-0.5500, 0.0000, 1.2000, 0.2500, 2.1600],
             [-2.2835, 0.5600, -0.0000, 99.9000, -0.0000],
         ]);
@@ -26,7 +26,7 @@ mod tests {
         ];
         let tensor = TestTensor::from(data);
         let data_actual = activation::prelu(tensor, TestTensor::from([-0.8])).into_data();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [0.8800, -0.0000, 1.2000, 0.2500, 4.3200],
             [3.6536, 0.5600, 1.2400, 99.9000, -0.0000],
         ]);
@@ -41,7 +41,7 @@ mod tests {
         ]];
         let tensor = TestTensor::from(data);
         let data_actual = activation::prelu(tensor, TestTensor::from([0.25])).into_data();
-        let data_expected = Data::from(data);
+        let data_expected = TensorData::from(data);
         data_expected.assert_approx_eq(&data_actual, 9);
     }
     #[test]
@@ -50,7 +50,7 @@ mod tests {
         let data = [-1.1, 0.0, 1.2, 0.25, -5.4];
         let tensor = TestTensor::from(data);
         let data_actual = activation::prelu(tensor, TestTensor::from([0.0])).into_data();
-        let data_expected = Data::from([0.0, 0.0, 1.2, 0.25, 0.0]);
+        let data_expected = TensorData::from([0.0, 0.0, 1.2, 0.25, 0.0]);
         data_expected.assert_approx_eq(&data_actual, 9);
     }
     #[test]
@@ -59,7 +59,7 @@ mod tests {
         let data = [-1.1, 0.0, 1.2, 0.25, -5.4];
         let tensor = TestTensor::from(data);
         let data_actual = activation::prelu(tensor, TestTensor::from([0.5])).into_data();
-        let data_expected = Data::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
+        let data_expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
         data_expected.assert_approx_eq(&data_actual, 9);
     }
     #[test]
@@ -70,7 +70,7 @@ mod tests {
         let tensor = TestTensor::from(data);
         let data_actual =
             activation::prelu(tensor, TestTensor::from([0.5, -0.25, 0.0, 0.5, -1.0])).into_data();
-        let data_expected = Data::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
+        let data_expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
         data_expected.assert_approx_eq(&data_actual, 9);
     }
     #[test]

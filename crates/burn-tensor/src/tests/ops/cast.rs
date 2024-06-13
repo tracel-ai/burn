@@ -1,14 +1,14 @@
 #[burn_tensor_testgen::testgen(cast)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Tensor};
+    use burn_tensor::{Bool, Tensor, TensorData};
 
     #[test]
     fn cast_float_to_int() {
         let tensor = TestTensor::from([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
 
         let actual = tensor.int().into_data();
-        let expected = Data::from([[1, 2, 3], [4, 5, 6]]);
+        let expected = TensorData::from([[1, 2, 3], [4, 5, 6]]);
         assert_eq!(expected, actual);
     }
 
@@ -17,7 +17,7 @@ mod tests {
         let tensor = TestTensorInt::from([[1, 2, 3], [4, 5, 6]]);
 
         let actual = tensor.float().into_data();
-        let expected = Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         assert_eq!(expected, actual);
     }
 
@@ -26,7 +26,7 @@ mod tests {
         let tensor = TestTensorBool::from([[true, false, true], [false, false, true]]);
 
         let actual = tensor.int().into_data();
-        let expected = Data::from([[1, 0, 1], [0, 0, 1]]);
+        let expected = TensorData::from([[1, 0, 1], [0, 0, 1]]);
         assert_eq!(expected, actual);
     }
 
@@ -36,7 +36,7 @@ mod tests {
             Tensor::<TestBackend, 2, Bool>::from([[true, false, true], [false, false, true]]);
 
         let actual = tensor.float().into_data();
-        let expected = Data::from([[1., 0., 1.], [0., 0., 1.]]);
+        let expected = TensorData::from([[1., 0., 1.], [0., 0., 1.]]);
         assert_eq!(expected, actual);
     }
 }

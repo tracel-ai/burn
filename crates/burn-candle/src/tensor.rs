@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{Data, Element, Shape};
+use burn_tensor::{Element, Shape, TensorData};
 
 use crate::{element::CandleElement, CandleDevice};
 
@@ -30,10 +30,13 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
     /// # Returns
     ///
     /// A new tensor.
-    pub fn from_data(data: Data<E, D>, device: CandleDevice) -> Self {
+    pub fn from_data(data: TensorData<D>, device: CandleDevice) -> Self {
         let candle_shape: candle_core::Shape = (&data.shape.dims).into();
-        let tensor =
-            candle_core::Tensor::from_slice(data.value.as_slice(), candle_shape, &device.into());
+        let tensor = candle_core::Tensor::from_slice(
+            data.as_slice::<E>().unwrap(),
+            candle_shape,
+            &device.into(),
+        );
         Self::new(tensor.unwrap())
     }
 

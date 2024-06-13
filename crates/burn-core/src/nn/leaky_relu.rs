@@ -46,16 +46,17 @@ impl LeakyRelu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
     fn test_leaky_relu_forward() {
         let device = <TestBackend as Backend>::Device::default();
-        let model = LeakyReluConfig::new().init();
-        let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.4410, -0.2507]]), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
-        assert_eq!(out.to_data(), Data::from([[0.4410, -0.002507]]));
+        assert_eq!(out.to_data(), TensorData::from([[0.4410, -0.002507]]));
     }
     #[test]
     fn test_leaky_relu_forward_multi_dim() {
@@ -85,11 +86,11 @@ mod tests {
         ];
 
         let device = <TestBackend as Backend>::Device::default();
-        let model = LeakyReluConfig::new().init();
-        let input_data = Tensor::<TestBackend, 3>::from_data(Data::from(input), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);
         actual_output
             .to_data()
-            .assert_approx_eq(&Data::from(expected_output), 4)
+            .assert_approx_eq(&TensorData::from(expected_output), 4)
     }
 }

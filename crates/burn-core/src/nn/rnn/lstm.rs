@@ -306,7 +306,7 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, Device, Distribution};
+    use crate::tensor::{Device, Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
 
     #[cfg(feature = "std")]
@@ -355,12 +355,12 @@ mod tests {
             device: &Device<TestBackend>,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             GateController::create_with_weights(
                 d_input,
@@ -410,17 +410,17 @@ mod tests {
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let (output, state) = lstm.forward(input, None);
         state
             .cell
             .to_data()
-            .assert_approx_eq(&Data::from([[0.046]]), 3);
+            .assert_approx_eq(&TensorData::from([[0.046]]), 3);
         state
             .hidden
             .to_data()
-            .assert_approx_eq(&Data::from([[0.024]]), 3);
+            .assert_approx_eq(&TensorData::from([[0.024]]), 3);
         output
             .select(0, Tensor::arange(0..1, &device))
             .squeeze(0)
@@ -478,7 +478,15 @@ mod tests {
             .unwrap();
 
         // Asserts that the gradients exist and are non-zero
-        assert!(*some_gradient.any().into_data().value.first().unwrap());
+        assert!(
+            some_gradient
+                .any()
+                .into_data()
+                .iter::<f32>()
+                .next()
+                .unwrap()
+                != 0.0
+        );
     }
 
     #[test]
@@ -499,12 +507,12 @@ mod tests {
             let d_output = input_weights.len();
 
             let input_record = LinearRecord {
-                weight: Param::from_data(Data::from(input_weights), device),
-                bias: Some(Param::from_data(Data::from(input_biases), device)),
+                weight: Param::from_data(TensorData::from(input_weights), device),
+                bias: Some(Param::from_data(TensorData::from(input_biases), device)),
             };
             let hidden_record = LinearRecord {
-                weight: Param::from_data(Data::from(hidden_weights), device),
-                bias: Some(Param::from_data(Data::from(hidden_biases), device)),
+                weight: Param::from_data(TensorData::from(hidden_weights), device),
+                bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
             GateController::create_with_weights(
                 d_input,
@@ -517,7 +525,7 @@ mod tests {
         }
 
         let input = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[
+            TensorData::from([[
                 [0.949, -0.861],
                 [0.892, 0.927],
                 [-0.173, -0.301],
@@ -526,11 +534,11 @@ mod tests {
             &device,
         );
         let h0 = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
+            TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
         let c0 = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[[0.723, 0.397, -0.262]], [[0.471, 0.613, 1.885]]]),
+            TensorData::from([[[0.723, 0.397, -0.262]], [[0.471, 0.613, 1.885]]]),
             &device,
         );
 
@@ -630,31 +638,31 @@ mod tests {
             &device,
         );
 
-        let expected_output_with_init_state = Data::from([[
+        let expected_output_with_init_state = TensorData::from([[
             [0.23764, -0.03442, 0.04414, -0.15635, -0.03366, -0.05798],
             [0.00473, -0.02254, 0.02988, -0.16510, -0.00306, 0.08742],
             [0.06210, -0.06509, -0.05339, -0.01710, 0.02091, 0.16012],
             [-0.03420, 0.07774, -0.09774, -0.02604, 0.12584, 0.20872],
         ]]);
-        let expected_output_without_init_state = Data::from([[
+        let expected_output_without_init_state = TensorData::from([[
             [0.08679, -0.08776, -0.00528, -0.15969, -0.05322, -0.08863],
             [-0.02577, -0.05057, 0.00033, -0.17558, -0.03679, 0.03142],
             [0.02942, -0.07411, -0.06044, -0.03601, -0.09998, 0.04846],
             [-0.04026, 0.07178, -0.10189, -0.07349, -0.04576, 0.05550],
         ]]);
-        let expected_hn_with_init_state = Data::from([
+        let expected_hn_with_init_state = TensorData::from([
             [[-0.03420, 0.07774, -0.09774]],
             [[-0.15635, -0.03366, -0.05798]],
         ]);
-        let expected_cn_with_init_state = Data::from([
+        let expected_cn_with_init_state = TensorData::from([
             [[-0.13593, 0.17125, -0.22395]],
             [[-0.45425, -0.11206, -0.12908]],
         ]);
-        let expected_hn_without_init_state = Data::from([
+        let expected_hn_without_init_state = TensorData::from([
             [[-0.04026, 0.07178, -0.10189]],
             [[-0.15969, -0.05322, -0.08863]],
         ]);
-        let expected_cn_without_init_state = Data::from([
+        let expected_cn_without_init_state = TensorData::from([
             [[-0.15839, 0.15923, -0.23569]],
             [[-0.47407, -0.17493, -0.19643]],
         ]);

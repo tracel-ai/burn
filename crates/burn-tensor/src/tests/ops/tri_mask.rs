@@ -1,12 +1,12 @@
 #[burn_tensor_testgen::testgen(tri_mask)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Tensor};
+    use burn_tensor::{Bool, Tensor, TensorData};
 
     #[test]
     fn square_diag() {
         let device = Default::default();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [false, true, true],
             [true, false, true],
             [true, true, false],
@@ -19,7 +19,7 @@ mod tests {
     fn square_diag_offset() {
         let device = Default::default();
         let data_expected =
-            Data::from([[true, false, true], [true, true, false], [true, true, true]]);
+            TensorData::from([[true, false, true], [true, true, false], [true, true, true]]);
         let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([3, 3], 1, &device);
         assert_eq!(data_expected, tensor.into_data());
     }
@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn square_tri_upper() {
         let device = Default::default();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [false, false, false],
             [true, false, false],
             [true, true, false],
@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn square_tri_upper_offset() {
         let device = Default::default();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [true, false, false],
             [true, true, false],
             [true, true, true],
@@ -52,7 +52,7 @@ mod tests {
     fn square_tri_lower() {
         let device = Default::default();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [false, true, true],
             [false, false, true],
             [false, false, false],
@@ -65,7 +65,7 @@ mod tests {
     fn square_tri_lower_offset() {
         let device = Default::default();
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [true, true, true],
             [false, true, true],
             [false, false, true],
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn rect_diag() {
         let device = Default::default();
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [false, true, true, true],
             [true, false, true, true],
             [true, true, false, true],
@@ -85,7 +85,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([3, 4], 0, &device);
         assert_eq!(data_expected, tensor.into_data());
 
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [false, true, true],
             [true, false, true],
             [true, true, false],

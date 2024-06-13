@@ -17,14 +17,14 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Data, Device, ElementConversion, Reader, Shape, Tensor,
+    Device, ElementConversion, Reader, Shape, Tensor, TensorData,
 };
 
 use super::maxmin::MaxMinDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
-        data: Data<FloatElem<B>, D>,
+        data: TensorData<D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_from_data(data, device))
@@ -50,15 +50,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_shape(&tensor.primitive)
     }
 
-    fn float_to_data<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
+    fn float_to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Reader<TensorData<D>> {
         B::float_to_data(&tensor.primitive)
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
+    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData<D>> {
         B::float_into_data(tensor.primitive)
     }
 

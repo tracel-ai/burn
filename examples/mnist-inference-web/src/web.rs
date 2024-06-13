@@ -69,13 +69,13 @@ impl Mnist {
 
         // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
         #[cfg(not(target_family = "wasm"))]
-        let output = output.into_data().convert::<f32>().value;
+        let output = output.into_data();
 
         #[cfg(target_family = "wasm")]
-        let output = output.into_data().await.convert::<f32>().value;
+        let output = output.into_data().await;
 
         let array = Array::new();
-        for value in output {
+        for value in output.iter::<f32>() {
             array.push(&value.into());
         }
 

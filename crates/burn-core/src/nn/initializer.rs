@@ -200,17 +200,21 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use crate::tensor::{Data, ElementConversion};
+    use crate::tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
 
     pub type TB = burn_ndarray::NdArray<f32>;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
+        let actual_vars = actual_vars.to_data();
+        let actual_vars = actual_vars.as_slice::<f64>().unwrap();
+        let actual_means = actual_means.to_data();
+        let actual_means = actual_means.as_slice::<f64>().unwrap();
 
         for i in 0..tensor.shape().dims[0] {
-            let actual_var = actual_vars.to_data().value[i] as f64;
-            let actual_mean = actual_means.to_data().value[i] as f64;
+            let actual_var = actual_vars[i];
+            let actual_mean = actual_means[i];
 
             assert!(
                 (expected_var - actual_var).abs() <= 0.1,
@@ -266,7 +270,7 @@ mod tests {
         constants
             .sum()
             .to_data()
-            .assert_approx_eq(&Data::from([value as f32 * 16.0]), 3);
+            .assert_approx_eq(&TensorData::from([value as f32 * 16.0]), 3);
     }
 
     #[test]
@@ -277,7 +281,7 @@ mod tests {
         zeros
             .sum()
             .to_data()
-            .assert_approx_eq(&Data::from([0.0]), 3);
+            .assert_approx_eq(&TensorData::from([0.0]), 3);
     }
 
     #[test]
@@ -287,7 +291,7 @@ mod tests {
             .into_value();
         ones.sum()
             .to_data()
-            .assert_approx_eq(&Data::from([16.0]), 3);
+            .assert_approx_eq(&TensorData::from([16.0]), 3);
     }
 
     #[test]

@@ -318,7 +318,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-    use crate::tensor::{Data, Distribution, Tensor};
+    use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{nn, TestAutodiffBackend, TestBackend};
     use tempfile::TempDir;
 
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn test_rmsprop_optimizer_with_numbers_basic() {
         let linear = given_linear_layer(
-            Data::from([
+            TensorData::from([
                 [1., 1., 1., 1., 1., 1.],
                 [1., 1., 1., 1., 1., 1.],
                 [1., 1., 1., 1., 1., 1.],
@@ -363,7 +363,7 @@ mod tests {
                 [1., 1., 1., 1., 1., 1.],
                 [1., 1., 1., 1., 1., 1.],
             ]),
-            Data::from([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
+            TensorData::from([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
         );
         let device = Default::default();
         let x_1 = Tensor::from_floats(
@@ -412,7 +412,7 @@ mod tests {
         // println!("\nweight_updated\n{:?}", weight_updated);
         // println!("\nbias_updated\n{:?}", bias_updated);
 
-        let weights_expected = Data::from([
+        let weights_expected = TensorData::from([
             [0.743937, 0.743937, 0.743937, 0.743937, 0.743937, 0.743937],
             [0.783809, 0.783809, 0.783809, 0.783809, 0.783809, 0.783809],
             [0.742881, 0.742881, 0.742881, 0.742881, 0.742881, 0.742881],
@@ -421,7 +421,7 @@ mod tests {
             [0.743710, 0.743710, 0.743710, 0.743710, 0.743710, 0.743710],
         ]);
         let bias_expected =
-            Data::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
+            TensorData::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn test_rmsprop_optimizer_with_numbers() {
         let linear = given_linear_layer(
-            Data::from([
+            TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
                 [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
@@ -438,7 +438,7 @@ mod tests {
                 [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
-            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
         let device = Default::default();
         let x_1 = Tensor::from_floats(
@@ -475,7 +475,7 @@ mod tests {
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
-        let weights_expected = Data::from([
+        let weights_expected = TensorData::from([
             [
                 -0.576399, -0.118494, 0.148353, 0.064070, -0.169983, -0.188779,
             ],
@@ -495,7 +495,7 @@ mod tests {
                 -0.271996, -0.268097, -0.130324, -0.064037, -0.226805, 0.127126,
             ],
         ]);
-        let bias_expected = Data::from([
+        let bias_expected = TensorData::from([
             -0.651299, -0.172400, -0.357800, -0.143200, -0.124200, -0.247800,
         ]);
 
@@ -512,8 +512,8 @@ mod tests {
     }
 
     fn given_linear_layer(
-        weight: Data<f32, 2>,
-        bias: Data<f32, 1>,
+        weight: TensorData<2>,
+        bias: TensorData<1>,
     ) -> nn::Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = nn::LinearRecord {

@@ -21,7 +21,7 @@ pub(crate) mod test_utils {
     impl<B: Backend> Adaptor<LossInput<B>> for f64 {
         fn adapt(&self) -> LossInput<B> {
             let device = B::Device::default();
-            LossInput::new(Tensor::from_data([self.elem()], &device))
+            LossInput::new(Tensor::from_data([self.elem::<B::FloatElem>()], &device))
         }
     }
 

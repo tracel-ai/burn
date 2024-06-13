@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(sign)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_support_sign_ops_float() {
@@ -9,7 +9,7 @@ mod tests {
 
         let data_actual = tensor.sign().into_data();
 
-        let data_expected = Data::from([[-1.0, -1.0, 1.0], [1.0, 0.0, -1.0]]);
+        let data_expected = TensorData::from([[-1.0, -1.0, 1.0], [1.0, 0.0, -1.0]]);
         assert_eq!(data_actual, data_expected);
     }
 
@@ -19,7 +19,7 @@ mod tests {
 
         let data_actual = tensor.sign().into_data();
 
-        let data_expected = Data::from([[-1, -1, 1], [1, 0, -1]]);
+        let data_expected = TensorData::from([[-1, -1, 1], [1, 0, -1]]);
         assert_eq!(data_actual, data_expected);
     }
 }

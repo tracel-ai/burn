@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_gather_1d_dim0() {
@@ -11,7 +11,10 @@ mod tests {
 
         let output = tensor.gather(0, indices);
 
-        assert_eq!(output.into_data(), Data::from([1.0, 1.0, 0.0, 1.0, 2.0]));
+        assert_eq!(
+            output.into_data(),
+            TensorData::from([1.0, 1.0, 0.0, 1.0, 2.0])
+        );
     }
 
     #[test]
@@ -22,7 +25,7 @@ mod tests {
 
         let output = tensor.gather(0, indices);
 
-        assert_eq!(output.into_data(), Data::from([6, 6, 5, 6, 7]));
+        assert_eq!(output.into_data(), TensorData::from([6, 6, 5, 6, 7]));
     }
 
     #[test]
@@ -35,7 +38,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([[0.0, 4.0, 2.0], [3.0, 1.0, 5.0]])
+            TensorData::from([[0.0, 4.0, 2.0], [3.0, 1.0, 5.0]])
         );
     }
 
@@ -49,7 +52,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([[2.0, 1.0, 0.0, 0.0], [5.0, 3.0, 4.0, 5.0]])
+            TensorData::from([[2.0, 1.0, 0.0, 0.0], [5.0, 3.0, 4.0, 5.0]])
         );
     }
 
@@ -70,7 +73,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([
+            TensorData::from([
                 [[3.0, 1.0, 2.0], [0.0, 4.0, 2.0]],
                 [[6.0, 7.0, 11.0], [6.0, 10.0, 11.0]]
             ])
@@ -85,7 +88,7 @@ mod tests {
 
         let output = tensor.gather(1, indices);
 
-        assert_eq!(output.into_data(), Data::from([[1.0], [5.0]]));
+        assert_eq!(output.into_data(), TensorData::from([[1.0], [5.0]]));
     }
 
     #[test]
@@ -97,7 +100,7 @@ mod tests {
 
         let output = tensor.scatter(0, indices, values);
 
-        assert_eq!(output.into_data(), Data::from([4.0, 5.0, 3.0]));
+        assert_eq!(output.into_data(), TensorData::from([4.0, 5.0, 3.0]));
     }
 
     #[test]
@@ -109,7 +112,7 @@ mod tests {
 
         let output = tensor.scatter(0, indices, values);
 
-        assert_eq!(output.into_data(), Data::from([4, 5, 3]));
+        assert_eq!(output.into_data(), TensorData::from([4, 5, 3]));
     }
 
     #[test]
@@ -123,7 +126,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([[0.0, 2.0, 6.0], [5.0, 5.0, 3.0]])
+            TensorData::from([[0.0, 2.0, 6.0], [5.0, 5.0, 3.0]])
         );
     }
 
@@ -138,7 +141,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([[2.0, 1.0, 3.0], [6.0, 4.0, 5.0]])
+            TensorData::from([[2.0, 1.0, 3.0], [6.0, 4.0, 5.0]])
         );
     }
 
@@ -166,7 +169,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([
+            TensorData::from([
                 [[15.0, 14.0, 33.0], [15.0, 20.0, 5.0]],
                 [[45.0, 26.0, 8.0], [9.0, 32.0, 54.0]]
             ])
@@ -184,7 +187,7 @@ mod tests {
 
         assert_eq!(
             output.into_data(),
-            Data::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
+            TensorData::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
         );
     }
 

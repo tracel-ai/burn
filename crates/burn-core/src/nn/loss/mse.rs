@@ -55,17 +55,21 @@ impl<B: Backend> MseLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
     fn test_mse_loss() {
         let device = Default::default();
-        let logits =
-            Tensor::<TestBackend, 2>::from_data(Data::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+        let logits = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
+            &device,
+        );
 
-        let targets =
-            Tensor::<TestBackend, 2>::from_data(Data::from([[2.0, 1.0], [3.0, 2.0]]), &device);
+        let targets = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
+            &device,
+        );
 
         let mse = MseLoss::new();
         let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());
@@ -74,9 +78,9 @@ mod tests {
 
         assert_eq!(
             loss_no_reduction.into_data(),
-            Data::from([[1.0, 1.0], [0.0, 4.0]])
+            TensorData::from([[1.0, 1.0], [0.0, 4.0]])
         );
-        assert_eq!(loss.into_data(), Data::from([1.5]));
-        assert_eq!(loss_sum.into_data(), Data::from([6.0]));
+        assert_eq!(loss.into_data(), TensorData::from([1.5]));
+        assert_eq!(loss_sum.into_data(), TensorData::from([6.0]));
     }
 }

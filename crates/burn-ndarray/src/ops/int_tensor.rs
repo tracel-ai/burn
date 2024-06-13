@@ -16,13 +16,13 @@ use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Data, Shape};
+use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
     fn int_from_data<const D: usize>(
-        data: Data<i64, D>,
+        data: TensorData<D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<i64, D> {
         NdArrayTensor::from_data(data)
@@ -32,11 +32,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<Data<i64, D>> {
+    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<TensorData<D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        Reader::Concrete(Data::new(values, shape))
+        Reader::Concrete(TensorData::new(values, shape))
     }
 
     fn int_to_device<const D: usize>(
@@ -71,7 +71,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         _device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
         let values = vec![0; shape.num_elements()];
-        NdArrayTensor::from_data(Data::new(values, shape))
+        NdArrayTensor::from_data(TensorData::new(values, shape))
     }
 
     fn int_mask_where<const D: usize>(
@@ -257,14 +257,14 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         shape: Shape<D>,
         device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
-        Self::int_from_data(Data::zeros(shape), device)
+        Self::int_from_data(TensorData::zeros::<i64, _>(shape), device)
     }
 
     fn int_ones<const D: usize>(
         shape: Shape<D>,
         device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
-        Self::int_from_data(Data::ones(shape), device)
+        Self::int_from_data(TensorData::ones::<i64, _>(shape), device)
     }
 
     fn int_full<const D: usize>(
@@ -272,7 +272,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         fill_value: i64,
         device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
-        Self::int_from_data(Data::full(shape, fill_value), device)
+        Self::int_from_data(TensorData::full(shape, fill_value), device)
     }
 
     fn int_sum<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, 1> {
@@ -417,7 +417,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         };
 
         let tensor = Self::int_from_data(
-            Data::random(shape, effective_distribution, &mut rng),
+            TensorData::random::<i64, _>(shape, effective_distribution, &mut rng),
             device,
         );
         *seed = Some(rng);

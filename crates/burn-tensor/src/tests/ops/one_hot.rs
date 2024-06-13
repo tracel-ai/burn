@@ -1,23 +1,23 @@
 #[burn_tensor_testgen::testgen(one_hot)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int};
+    use burn_tensor::{Int, TensorData};
 
     #[test]
     fn should_support_one_hot() {
         let device = Default::default();
 
         let tensor = TestTensor::<1>::one_hot(0, 5, &device);
-        assert_eq!(tensor.to_data(), Data::from([1., 0., 0., 0., 0.]));
+        assert_eq!(tensor.to_data(), TensorData::from([1., 0., 0., 0., 0.]));
 
         let tensor = TestTensor::<1>::one_hot(1, 5, &device);
-        assert_eq!(tensor.to_data(), Data::from([0., 1., 0., 0., 0.]));
+        assert_eq!(tensor.to_data(), TensorData::from([0., 1., 0., 0., 0.]));
 
         let tensor = TestTensor::<1>::one_hot(4, 5, &device);
-        assert_eq!(tensor.to_data(), Data::from([0., 0., 0., 0., 1.]));
+        assert_eq!(tensor.to_data(), TensorData::from([0., 0., 0., 0., 1.]));
 
         let tensor = TestTensor::<1>::one_hot(1, 2, &device);
-        assert_eq!(tensor.to_data(), Data::from([0., 1.]));
+        assert_eq!(tensor.to_data(), TensorData::from([0., 1.]));
     }
 
     #[test]

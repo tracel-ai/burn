@@ -1,7 +1,6 @@
 #[burn_tensor_testgen::testgen(ad_cat)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Float};
 
     #[test]
     fn should_diff_cat() {

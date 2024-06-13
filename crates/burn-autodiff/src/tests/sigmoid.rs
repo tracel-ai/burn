@@ -1,11 +1,11 @@
 #[burn_tensor_testgen::testgen(ad_sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Data};
+    use burn_tensor::{activation, TensorData};
 
     #[test]
     fn should_diff_sigmoid() {
-        let data = Data::<f32, 1>::from([0.8762]);
+        let data = TensorData::from([0.8762]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data, &device).require_grad();
@@ -14,12 +14,13 @@ mod tests {
 
         let grad = tensor_1.grad(&grads).unwrap();
 
-        grad.to_data().assert_approx_eq(&Data::from([0.207549]), 4);
+        grad.to_data()
+            .assert_approx_eq(&TensorData::from([0.207549]), 4);
     }
 
     #[test]
     fn small_neg_val_should_not_cause_grad_overflow() {
-        let data = Data::<f32, 1>::from([-90.0]);
+        let data = TensorData::from([-90.0]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data, &device).require_grad();
@@ -28,6 +29,6 @@ mod tests {
 
         let grad = tensor_1.grad(&grads).unwrap();
 
-        grad.to_data().assert_approx_eq(&Data::from([0.0]), 4);
+        grad.to_data().assert_approx_eq(&TensorData::from([0.0]), 4);
     }
 }

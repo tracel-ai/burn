@@ -179,7 +179,7 @@ impl<B: Backend> Gru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, Distribution};
+    use crate::tensor::{Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
 
     /// Test forward pass with simple input vector.
@@ -206,12 +206,12 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -251,13 +251,15 @@ mod tests {
             &device,
         );
 
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let state = gru.forward(input, None);
 
         let output = state.select(0, Tensor::arange(0..1, &device)).squeeze(0);
 
-        output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
+        output
+            .to_data()
+            .assert_approx_eq(&TensorData::from([[0.034]]), 3);
     }
 
     #[test]

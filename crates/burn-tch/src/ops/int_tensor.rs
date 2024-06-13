@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Distribution, Reader, Shape};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Distribution, Reader, Shape, TensorData};
 
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 
@@ -8,7 +8,7 @@ use super::TchOps;
 
 impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data<const D: usize>(
-        data: Data<i64, D>,
+        data: TensorData<D>,
         device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
         TchTensor::from_data(data, (*device).into())
@@ -26,12 +26,12 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<Data<i64, D>> {
+    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<TensorData<D>> {
         let shape = Self::int_shape(&tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
-        Reader::Concrete(Data::new(values.unwrap(), shape))
+        Reader::Concrete(TensorData::new(values.unwrap(), shape))
     }
 
     fn int_to_device<const D: usize>(

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Data, Int, Shape, Tensor};
+    use burn_tensor::{Int, Shape, Tensor, TensorData};
 
     fn test_chunk_evenly_divisible() {
         let tensors: Vec<Tensor<TestBackend, 1, Int>> =
@@ -10,12 +10,12 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            Data::from([0, 1]),
-            Data::from([2, 3]),
-            Data::from([4, 5]),
-            Data::from([6, 7]),
-            Data::from([8, 9]),
-            Data::from([10, 11]),
+            TensorData::from([0, 1]),
+            TensorData::from([2, 3]),
+            TensorData::from([4, 5]),
+            TensorData::from([6, 7]),
+            TensorData::from([8, 9]),
+            TensorData::from([10, 11]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
@@ -30,12 +30,12 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            Data::from([0, 1]),
-            Data::from([2, 3]),
-            Data::from([4, 5]),
-            Data::from([6, 7]),
-            Data::from([8, 9]),
-            Data::from([10]),
+            TensorData::from([0, 1]),
+            TensorData::from([2, 3]),
+            TensorData::from([4, 5]),
+            TensorData::from([6, 7]),
+            TensorData::from([8, 9]),
+            TensorData::from([10]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
@@ -63,12 +63,12 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            Data::from([0]),
-            Data::from([1]),
-            Data::from([2]),
-            Data::from([3]),
-            Data::from([4]),
-            Data::from([5]),
+            TensorData::from([0]),
+            TensorData::from([1]),
+            TensorData::from([2]),
+            TensorData::from([3]),
+            TensorData::from([4]),
+            TensorData::from([5]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
@@ -79,10 +79,10 @@ mod tests {
     #[test]
     fn test_chunk_multi_dimension() {
         let tensors: Vec<Tensor<TestBackend, 2, Int>> =
-            Tensor::from_data(Data::from([[0, 1, 2, 3]]), &Default::default()).chunk(2, 1);
+            Tensor::from_data(TensorData::from([[0, 1, 2, 3]]), &Default::default()).chunk(2, 1);
         assert_eq!(tensors.len(), 2);
 
-        let expected = vec![Data::from([[0, 1]]), Data::from([[2, 3]])];
+        let expected = vec![TensorData::from([[0, 1]]), TensorData::from([[2, 3]])];
 
         for (index, tensor) in tensors.iter().enumerate() {
             assert_eq!(tensor.to_data(), expected[index]);

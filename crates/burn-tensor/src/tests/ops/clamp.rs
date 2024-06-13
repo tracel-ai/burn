@@ -1,25 +1,25 @@
 #[burn_tensor_testgen::testgen(clamp)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int, Tensor};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn clamp_min() {
         let device = Default::default();
         // test float tensor
-        let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
 
         let data_actual = tensor.clamp_min(2.0).into_data();
 
-        let data_expected = Data::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data_expected = TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]);
         assert_eq!(data_expected, data_actual);
 
         // test int tensor
-        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let data_actual = tensor.clamp_min(2).into_data();
-        let data_expected = Data::from([[2, 2, 2], [3, 4, 5]]);
+        let data_expected = TensorData::from([[2, 2, 2], [3, 4, 5]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -27,19 +27,19 @@ mod tests {
     fn clamp_max() {
         let device = Default::default();
         // test float tensor
-        let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
 
         let data_actual = tensor.clamp_max(2.0).into_data();
 
-        let data_expected = Data::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]);
+        let data_expected = TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]);
         assert_eq!(data_expected, data_actual);
 
         // test int tensor
-        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let data_actual = tensor.clamp_max(4).into_data();
-        let data_expected = Data::from([[0, 1, 2], [3, 4, 4]]);
+        let data_expected = TensorData::from([[0, 1, 2], [3, 4, 4]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -47,17 +47,17 @@ mod tests {
     fn clamp_min_max() {
         let device = Default::default();
         // test float tensor
-        let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
         let data_actual = tensor.clamp(1.0, 4.0).into_data();
-        let data_expected = Data::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]);
+        let data_expected = TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]);
         assert_eq!(data_expected, data_actual);
 
         // test int tensor
-        let data = Data::from([[0, 1, 2], [3, 4, 5]]);
+        let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let data_actual = tensor.clamp(1, 4).into_data();
-        let data_expected = Data::from([[1, 1, 2], [3, 4, 4]]);
+        let data_expected = TensorData::from([[1, 1, 2], [3, 4, 4]]);
         assert_eq!(data_expected, data_actual);
     }
 }

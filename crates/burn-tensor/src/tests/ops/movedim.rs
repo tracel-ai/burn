@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Device, Int, Shape, Tensor};
+    use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
     fn normal_int() {
@@ -13,7 +13,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim(0, 2)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0, 12], [1, 13], [2, 14], [3, 15]],
             [[4, 16], [5, 17], [6, 18], [7, 19]],
             [[8, 20], [9, 21], [10, 22], [11, 23]],
@@ -41,7 +41,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim(0, 2).float()
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0., 12.], [1., 13.], [2., 14.], [3., 15.]],
             [[4., 16.], [5., 17.], [6., 18.], [7., 19.]],
             [[8., 20.], [9., 21.], [10., 22.], [11., 23.]],
@@ -69,7 +69,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim(0, 2).gt(10)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[false, true], [false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true], [true, true]],
@@ -95,7 +95,7 @@ mod tests {
 
         // from pytorch
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim([0, 1], [1, 0])
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0, 1, 2, 3], [12, 13, 14, 15]],
             [[4, 5, 6, 7], [16, 17, 18, 19]],
             [[8, 9, 10, 11], [20, 21, 22, 23]],
@@ -123,7 +123,7 @@ mod tests {
 
         // from pytorch
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim([0, 1], [1, 0]).float()
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0., 1., 2., 3.], [12., 13., 14., 15.]],
             [[4., 5., 6., 7.], [16., 17., 18., 19.]],
             [[8., 9., 10., 11.], [20., 21., 22., 23.]],
@@ -151,7 +151,7 @@ mod tests {
 
         // from pytorch
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim([0, 1], [1, 0]).gt(10)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[false, false, false, false], [true, true, true, true]],
             [[false, false, false, false], [true, true, true, true]],
             [[false, false, false, true], [true, true, true, true]],
@@ -179,7 +179,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).movedim(0, 2).float()
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0., 12.], [1., 13.], [2., 14.], [3., 15.]],
             [[4., 16.], [5., 17.], [6., 18.], [7., 19.]],
             [[8., 20.], [9., 21.], [10., 22.], [11., 23.]],

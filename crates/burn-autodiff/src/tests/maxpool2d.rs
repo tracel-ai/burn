@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_max_pool2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::max_pool2d, Data};
+    use burn_tensor::module::max_pool2d;
 
     #[test]
     fn test_max_pool2d_simple_1() {

@@ -86,7 +86,7 @@ impl<B: Backend> Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, Shape};
+    use crate::tensor::{Shape, TensorData};
     use crate::TestBackend;
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
         linear
             .weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(linear.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
     }
 
     #[test]

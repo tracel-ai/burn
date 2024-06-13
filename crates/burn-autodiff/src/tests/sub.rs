@@ -1,12 +1,12 @@
 #[burn_tensor_testgen::testgen(ad_sub)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_sub() {
-        let data_1 = Data::from([2.0, 5.0]);
-        let data_2 = Data::from([4.0, 1.0]);
+        let data_1 = TensorData::from([2.0, 5.0]);
+        let data_2 = TensorData::from([4.0, 1.0]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
@@ -18,29 +18,29 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), Data::from([1.0, 1.0]));
-        assert_eq!(grad_2.to_data(), Data::from([-1.0, -1.0]));
-        assert_eq!(tensor_3.into_data(), Data::from([-2.0, 4.0]));
+        assert_eq!(grad_1.to_data(), TensorData::from([1.0, 1.0]));
+        assert_eq!(grad_2.to_data(), TensorData::from([-1.0, -1.0]));
+        assert_eq!(tensor_3.into_data(), TensorData::from([-2.0, 4.0]));
     }
 
     #[test]
     fn should_diff_sub_scalar() {
-        let data = Data::from([2.0, 10.0]);
+        let data = TensorData::from([2.0, 10.0]);
         let tensor = TestAutodiffTensor::from_data(data, &Default::default()).require_grad();
         let tensor_out = tensor.clone().sub_scalar(5.0);
         let grads = tensor_out.backward();
 
         let grad = tensor.grad(&grads).unwrap();
 
-        assert_eq!(grad.to_data(), Data::from([1.0, 1.0]));
-        assert_eq!(tensor_out.into_data(), Data::from([-3.0, 5.0]));
+        assert_eq!(grad.to_data(), TensorData::from([1.0, 1.0]));
+        assert_eq!(tensor_out.into_data(), TensorData::from([-3.0, 5.0]));
     }
 
     #[test]
     fn test_sub_complex_1() {
-        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
-        let data_3: Data<f32, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
+        let data_1 = TensorData::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_3 = TensorData::from([[2.0, 2.0], [2.0, 2.0]]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
@@ -56,7 +56,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), Data::from([[0.0, 0.0], [0.0, 0.0]]));
-        assert_eq!(grad_2.to_data(), Data::from([[1.0, 1.0], [1.0, 1.0]]));
+        assert_eq!(grad_1.to_data(), TensorData::from([[0.0, 0.0], [0.0, 0.0]]));
+        assert_eq!(grad_2.to_data(), TensorData::from([[1.0, 1.0], [1.0, 1.0]]));
     }
 }

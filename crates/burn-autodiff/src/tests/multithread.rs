@@ -1,12 +1,12 @@
 #[burn_tensor_testgen::testgen(ad_multithread)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_behave_the_same_with_multithread() {
-        let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
+        let data_1 = TensorData::from([[1.0, 7.0], [13.0, -3.0]]);
+        let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let with_move = || {
             let device = Default::default();

@@ -406,6 +406,7 @@ mod tests {
     mod padding {
         use super::*;
         use burn_jit::kernel::matmul::padding::{crop, pad_round};
+        use burn_tensor::backend::Backend;
 
         fn padding_already_round_should_have_same_shape() {
             let row = 10;
@@ -476,10 +477,16 @@ mod tests {
                 pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor).into_tensor();
 
             let padded = TestTensor::from_primitive(padded).to_data();
+            let padded = padded
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
             let tensor = tensor.into_data();
+            let tensor = tensor
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
             for i in 0..row {
                 for j in 0..col {
-                    assert!(padded.value[i * 15 + j] == tensor.value[i * col + j]);
+                    assert!(padded[i * 15 + j] == tensor[i * col + j]);
                 }
             }
         }
@@ -498,17 +505,20 @@ mod tests {
 
             let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
             let padded = TestTensor::from_primitive(padded).to_data();
+            let padded = padded
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
 
             // check right of matrix
             for i in 0..row {
                 for j in col..15 {
-                    assert!(padded.value[i * 15 + j] == 0.0);
+                    assert!(padded[i * 15 + j] == 0.0);
                 }
             }
             // check below matrix, including bottom right
             for i in row..12 {
                 for j in 0..15 {
-                    assert!(padded.value[i * 15 + j] == 0.0);
+                    assert!(padded[i * 15 + j] == 0.0);
                 }
             }
         }
@@ -598,10 +608,16 @@ mod tests {
             );
 
             let unpadded = TestTensor::from_primitive(unpadded).to_data();
+            let unpadded = unpadded
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
             let tensor = tensor.into_data();
+            let tensor = tensor
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
             for i in 0..row {
                 for j in 0..col {
-                    assert!(unpadded.value[i * col + j] == tensor.value[i * col + j]);
+                    assert!(unpadded[i * col + j] == tensor[i * col + j]);
                 }
             }
         }
@@ -641,11 +657,17 @@ mod tests {
             );
 
             let unpadded = TestTensor::from_primitive(unpadded).to_data();
+            let unpadded = unpadded
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
             let tensor = tensor.into_data();
+            let tensor = tensor
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap();
 
             for i in 0..keep_rows {
                 for j in 0..keep_cols {
-                    assert!(unpadded.value[i * keep_cols + j] == tensor.value[i * col + j]);
+                    assert!(unpadded[i * keep_cols + j] == tensor[i * col + j]);
                 }
             }
         }

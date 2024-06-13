@@ -1,15 +1,15 @@
 #[burn_tensor_testgen::testgen(checkpoint)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Tensor};
+    use burn_tensor::{Bool, Tensor, TensorData};
 
     #[test]
     fn test_autodiff_checkpoint_complicated_computation() {
-        let data_0 = Data::from([[0.0, 7.0], [7.0, 7.0]]);
-        let data_1 = Data::from([[0.1, 7.0], [7.0, 7.0]]);
-        let data_2 = Data::from([[0.2, 7.0], [7.0, 7.0]]);
-        let data_3 = Data::from([[0.3, 7.0], [7.0, 7.0]]);
-        let data_4 = Data::from([[0.4, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
+        let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
+        let data_2 = TensorData::from([[0.2, 7.0], [7.0, 7.0]]);
+        let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
+        let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
@@ -32,8 +32,8 @@ mod tests {
 
     #[test]
     fn test_autodiff_checkpoint_with_missing_requirement() {
-        let data_0 = Data::from([[0.0, 7.0], [7.0, 7.0]]);
-        let data_1 = Data::from([[0.1, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
+        let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_autodiff_checkpoint_with_many_duplicates() {
-        let data_0 = Data::from([[4.0, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[4.0, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
@@ -76,11 +76,11 @@ mod tests {
 
     #[test]
     fn test_autodiff_checkpoint_with_long_chain_of_eager_memory_bound() {
-        let data_0 = Data::from([[0.0, 7.0], [7.0, 7.0]]);
-        let data_1 = Data::from([[0.1, 7.0], [7.0, 7.0]]);
-        let data_2 = Data::from([[0.2, 7.0], [7.0, 7.0]]);
-        let data_3 = Data::from([[0.3, 7.0], [7.0, 7.0]]);
-        let data_4 = Data::from([[0.4, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
+        let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
+        let data_2 = TensorData::from([[0.2, 7.0], [7.0, 7.0]]);
+        let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
+        let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
@@ -100,12 +100,12 @@ mod tests {
 
     #[test]
     fn test_autodiff_checkpoint_half_sub_graph_not_tracked() {
-        let data_0 = Data::from([[0.0, 7.0], [7.0, 7.0]]);
-        let data_1 = Data::from([[0.1, 7.0], [7.0, 7.0]]);
-        let data_2 = Data::from([[0.2, 7.0], [7.0, 7.0]]);
-        let data_3 = Data::from([[0.3, 7.0], [7.0, 7.0]]);
-        let data_4 = Data::from([[0.4, 7.0], [7.0, 7.0]]);
-        let data_5 = Data::from([[0.5, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
+        let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
+        let data_2 = TensorData::from([[0.2, 7.0], [7.0, 7.0]]);
+        let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
+        let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
+        let data_5 = TensorData::from([[0.5, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device);
@@ -128,11 +128,11 @@ mod tests {
 
     #[test]
     fn test_autodiff_checkpoint_very_complex() {
-        let data_0 = Data::from([[0.0, 7.0], [7.0, 7.0]]);
-        let data_1 = Data::from([[0.1, 7.0], [7.0, 7.0]]);
-        let data_2 = Data::from([[0.2, 7.0], [7.0, 7.0]]);
-        let data_3 = Data::from([[0.3, 7.0], [7.0, 7.0]]);
-        let data_4 = Data::from([[0.4, 7.0], [7.0, 7.0]]);
+        let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
+        let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
+        let data_2 = TensorData::from([[0.2, 7.0], [7.0, 7.0]]);
+        let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
+        let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
         let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();

@@ -81,7 +81,7 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
@@ -92,7 +92,7 @@ mod tests {
             .init::<TestBackend>(&device);
 
         let input = Tensor::from_data(
-            Data::from([
+            TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
                     [-1.1845, 1.4078, 0.9774],
@@ -116,7 +116,7 @@ mod tests {
         let output = module.forward(input);
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [0.0569, 1.1952, -1.2522],
                     [-1.3971, 0.8883, 0.5088],
@@ -146,7 +146,7 @@ mod tests {
             .init::<TestBackend>(&device);
 
         let input = Tensor::from_data(
-            Data::from([
+            TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
                     [0.5041, 0.4175, 0.8437],
@@ -170,7 +170,7 @@ mod tests {
         let output = module.forward(input);
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [-1.06458, -0.2738, 1.33838],
                     [-0.45848, -0.92929, 1.38777],

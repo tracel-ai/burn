@@ -74,7 +74,7 @@ impl<B: Backend> RmsNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
@@ -89,7 +89,7 @@ mod tests {
         let output = module.forward(input);
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [0.0000, 0.7746, 1.5492],
                 [0.7348, 0.9798, 1.2247],
                 [0.8514, 0.9933, 1.1352],

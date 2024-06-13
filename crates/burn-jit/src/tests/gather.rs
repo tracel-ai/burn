@@ -29,14 +29,16 @@ mod tests {
                 &Default::default(),
             )
             .into_data()
-            .convert(),
+            .convert::<<TestBackend as Backend>::IntElem>(),
             &Default::default(),
         )
         .reshape(shape);
         let tensor_ref =
             Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &Default::default());
         let indices_ref = Tensor::<ReferenceBackend, D, Int>::from_data(
-            indices.to_data().convert(),
+            indices
+                .to_data()
+                .convert::<<ReferenceBackend as Backend>::IntElem>(),
             &Default::default(),
         );
 

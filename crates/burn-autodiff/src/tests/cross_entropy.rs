@@ -1,13 +1,13 @@
 #[burn_tensor_testgen::testgen(ad_cross_entropy_loss)]
 mod tests {
     use super::*;
-    use burn_tensor::{loss, Data, Tensor};
+    use burn_tensor::{loss, Tensor, TensorData};
 
     #[test]
     fn test_cross_entropy_loss_grad() {
-        let data_1 = Data::from([[0.0, 1.0], [3.0, 4.0]]);
-        let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
-        let data_targets = Data::from([[0.8, 0.2], [0.9, 0.1]]);
+        let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
+        let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
+        let data_targets = TensorData::from([[0.8, 0.2], [0.9, 0.1]]);
 
         let device = Default::default();
         let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1, &device).require_grad();
@@ -24,9 +24,9 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[0.2655, 0.2655], [0.4496, 0.4496]]), 3);
+            .assert_approx_eq(&TensorData::from([[0.2655, 0.2655], [0.4496, 0.4496]]), 3);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[-1.3486, 1.3486], [-2.0637, 2.0637]]), 3);
+            .assert_approx_eq(&TensorData::from([[-1.3486, 1.3486], [-2.0637, 2.0637]]), 3);
     }
 }

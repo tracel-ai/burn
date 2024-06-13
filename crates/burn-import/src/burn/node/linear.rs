@@ -76,12 +76,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         let record = LinearRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert(), &device),
+                Tensor::from_data(
+                    self.data_weights
+                        .clone()
+                        .convert::<PS::FloatElem>()
+                        .into_tensor_data(),
+                    &device,
+                ),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
-                    Tensor::from_data(bias.clone().convert(), &device),
+                    Tensor::from_data(
+                        bias.clone().convert::<PS::FloatElem>().into_tensor_data(),
+                        &device,
+                    ),
                 )
             }),
         };
@@ -114,7 +123,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::{record::FullPrecisionSettings, tensor::TensorData};
 
     #[test]
     fn test_codegen() {
@@ -124,7 +133,7 @@ mod tests {
             "linear",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
             None,
             LinearConfig::new(128, 128),
         ));

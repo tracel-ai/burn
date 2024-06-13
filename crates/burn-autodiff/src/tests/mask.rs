@@ -1,13 +1,13 @@
 #[burn_tensor_testgen::testgen(ad_mask)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Tensor};
+    use burn_tensor::{Bool, Tensor, TensorData};
 
     #[test]
     fn should_diff_mask_fill() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [2.0, 3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
-        let mask = Data::<bool, 2>::from([[true, false], [false, true]]);
+        let data_1 = TensorData::from([[1.0, 7.0], [2.0, 3.0]]);
+        let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
+        let mask = TensorData::from([[true, false], [false, true]]);
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
@@ -21,8 +21,8 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), Data::from([[7.0, 3.0], [4.0, 2.0]]));
-        assert_eq!(grad_2.to_data(), Data::from([[2.0, 1.0], [3.0, 7.0]]));
+        assert_eq!(grad_1.to_data(), TensorData::from([[7.0, 3.0], [4.0, 2.0]]));
+        assert_eq!(grad_2.to_data(), TensorData::from([[2.0, 1.0], [3.0, 7.0]]));
     }
 
     #[test]
@@ -50,12 +50,12 @@ mod tests {
 
         grad_1
             .into_data()
-            .assert_approx_eq(&Data::from([[121.8, 55.0], [110.8, 50.0]]), 3);
+            .assert_approx_eq(&TensorData::from([[121.8, 55.0], [110.8, 50.0]]), 3);
         grad_2
             .into_data()
-            .assert_approx_eq(&Data::from([[27.4, 33.4], [95.0, 115.0]]), 3);
+            .assert_approx_eq(&TensorData::from([[27.4, 33.4], [95.0, 115.0]]), 3);
         grad_3
             .into_data()
-            .assert_approx_eq(&Data::from([[15., 18.], [23., 29.]]), 3);
+            .assert_approx_eq(&TensorData::from([[15., 18.], [23., 29.]]), 3);
     }
 }

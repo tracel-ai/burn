@@ -82,19 +82,19 @@ macro_rules! batch_norm_serialize {
         BatchNormRecord {
             gamma: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert(), &device),
+                Tensor::from_data($self.gamma.clone().convert::<PS::FloatElem>().into_tensor_data(), &device),
             ),
             beta: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert(), &device),
+                Tensor::from_data($self.beta.clone().convert::<PS::FloatElem>().into_tensor_data(), &device),
             ),
             running_mean: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.running_mean.clone().convert(), &device),
+                Tensor::from_data($self.running_mean.clone().convert::<PS::FloatElem>().into_tensor_data(), &device),
             ),
             running_var: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.running_var.clone().convert(), &device),
+                Tensor::from_data($self.running_var.clone().convert::<PS::FloatElem>().into_tensor_data(), &device),
             ),
             epsilon: ConstantRecord::new(),
             momentum: ConstantRecord::new(),
@@ -156,7 +156,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::{record::FullPrecisionSettings, tensor::TensorData};
 
     #[test]
     fn test_codegen() {
@@ -167,10 +167,11 @@ mod tests {
             "norm",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
+            // TODO: remove DataSerialize usage
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
             BatchNormConfig::new(128),
         ));
 

@@ -167,7 +167,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
@@ -181,7 +181,7 @@ mod tests {
         assert!(module.beta.is_none());
 
         let input = Tensor::from_data(
-            Data::from([
+            TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
                     [-1.1845, -1.3236, 0.0172],
@@ -205,7 +205,7 @@ mod tests {
         let output = module.forward(input);
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [-0.1653, 0.3748, -0.7866],
                     [-0.9916, -1.1220, 0.1353],
@@ -240,7 +240,7 @@ mod tests {
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::ones([6].into()), 3);
+            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 3);
 
         module
             .beta
@@ -248,10 +248,10 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::zeros([6]), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
 
         let input = Tensor::from_data(
-            Data::from([
+            TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
                     [0.5041, 0.4175, 0.8437],
@@ -275,7 +275,7 @@ mod tests {
         let output = module.forward(input);
 
         output.to_data().assert_approx_eq(
-            &Data::from([
+            &TensorData::from([
                 [
                     [-1.1694, -0.5353, 0.7572],
                     [-0.1775, -0.6838, 1.8087],

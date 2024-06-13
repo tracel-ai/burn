@@ -85,6 +85,8 @@ pub struct LossInput<B: Backend> {
     tensor: Tensor<B, 1>,
 }
 
+TODO: burn book changes
+
 impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 

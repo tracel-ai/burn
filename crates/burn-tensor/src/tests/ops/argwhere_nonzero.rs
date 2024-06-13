@@ -2,14 +2,14 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn test_argwhere_1d() {
         // 1-D tensor
         let tensor = TestTensorBool::from([false, true, false, true, true]);
         let data_actual = tensor.argwhere().into_data();
-        let data_expected = Data::from([[1], [3], [4]]);
+        let data_expected = TensorData::from([[1], [3], [4]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -18,8 +18,8 @@ mod tests {
         // 2-D tensor
         let tensor = TestTensorBool::from([[false, false], [false, true], [true, true]]);
         let data_actual = tensor.argwhere().into_data();
-        // let data_expected = vec![Data::from([1, 2, 2]), Data::from([1, 0, 1])];
-        let data_expected = Data::from([[1, 1], [2, 0], [2, 1]]);
+        // let data_expected = vec![TensorData::from([1, 2, 2]), TensorData::from([1, 0, 1])];
+        let data_expected = TensorData::from([[1, 1], [2, 0], [2, 1]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -31,7 +31,8 @@ mod tests {
             [[true, false, true], [true, true, false]],
         ]);
         let data_actual = tensor.argwhere().into_data();
-        let data_expected = Data::from([[0, 1, 1], [1, 0, 0], [1, 0, 2], [1, 1, 0], [1, 1, 1]]);
+        let data_expected =
+            TensorData::from([[0, 1, 1], [1, 0, 0], [1, 0, 2], [1, 1, 0], [1, 1, 1]]);
         assert_eq!(data_expected, data_actual);
     }
 
@@ -44,7 +45,7 @@ mod tests {
             .into_iter()
             .map(|t| t.into_data())
             .collect::<Vec<_>>();
-        let data_expected = vec![Data::from([1, 3, 4])];
+        let data_expected = vec![TensorData::from([1, 3, 4])];
         assert_eq!(data_expected, data_actual);
     }
 
@@ -57,7 +58,7 @@ mod tests {
             .into_iter()
             .map(|t| t.into_data())
             .collect::<Vec<_>>();
-        let data_expected = vec![Data::from([1, 2, 2]), Data::from([1, 0, 1])];
+        let data_expected = vec![TensorData::from([1, 2, 2]), TensorData::from([1, 0, 1])];
         assert_eq!(data_expected, data_actual);
     }
 
@@ -74,9 +75,9 @@ mod tests {
             .map(|t| t.into_data())
             .collect::<Vec<_>>();
         let data_expected = vec![
-            Data::from([0, 1, 1, 1, 1]),
-            Data::from([1, 0, 0, 1, 1]),
-            Data::from([1, 0, 2, 0, 1]),
+            TensorData::from([0, 1, 1, 1, 1]),
+            TensorData::from([1, 0, 0, 1, 1]),
+            TensorData::from([1, 0, 2, 0, 1]),
         ];
         assert_eq!(data_expected, data_actual);
     }

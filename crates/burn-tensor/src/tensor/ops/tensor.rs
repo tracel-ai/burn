@@ -4,7 +4,7 @@ use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, In
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
 use crate::Tensor;
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
+use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -26,7 +26,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given data.
     fn float_from_data<const D: usize>(
-        data: Data<FloatElem<B>, D>,
+        data: TensorData<D>,
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
@@ -58,7 +58,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and zeros.
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<B>) -> FloatTensor<B, D> {
-        Self::float_from_data(Data::zeros(shape), device)
+        Self::float_from_data(TensorData::zeros::<FloatElem<B>, _>(shape), device)
     }
 
     /// Creates a new tensor with ones.
@@ -72,7 +72,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and ones.
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<B>) -> FloatTensor<B, D> {
-        Self::float_from_data(Data::ones(shape), device)
+        Self::float_from_data(TensorData::ones::<FloatElem<B>, _>(shape), device)
     }
 
     /// Creates a tensor filled with given value.
@@ -114,7 +114,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_to_data<const D: usize>(tensor: &FloatTensor<B, D>) -> Reader<Data<FloatElem<B>, D>> {
+    fn float_to_data<const D: usize>(tensor: &FloatTensor<B, D>) -> Reader<TensorData<D>> {
         Self::float_into_data(tensor.clone())
     }
 
@@ -127,7 +127,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<Data<FloatElem<B>, D>>;
+    fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<TensorData<D>>;
 
     /// Gets the device of the tensor.
     ///

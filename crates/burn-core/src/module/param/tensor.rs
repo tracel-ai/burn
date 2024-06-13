@@ -5,7 +5,7 @@ use crate::tensor::{
     Tensor,
 };
 use alloc::vec::Vec;
-use burn_tensor::{Bool, Data, Float, Int};
+use burn_tensor::{Bool, Float, Int, TensorData};
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     type Device = B::Device;
@@ -72,7 +72,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// Create a new parameter from data.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
-        T: Into<Data<B::FloatElem, D>>,
+        T: Into<TensorData<D>>,
     {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.

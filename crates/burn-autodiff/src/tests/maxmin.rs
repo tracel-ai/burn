@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_maxmin)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_max_dim() {
@@ -20,10 +20,10 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[50.0, 34.0], [40.0, -10.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[50.0, 34.0], [40.0, -10.0]]), 5);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[8.0, 10.0], [56.0, 15.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[8.0, 10.0], [56.0, 15.0]]), 5);
     }
 
     #[test]
@@ -43,9 +43,9 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_approx_eq(&Data::from([[-42.0, 38.0], [-34.0, -24.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[-42.0, 38.0], [-34.0, -24.0]]), 5);
         grad_2
             .to_data()
-            .assert_approx_eq(&Data::from([[10.0, 8.0], [15.0, 56.0]]), 5);
+            .assert_approx_eq(&TensorData::from([[10.0, 8.0], [15.0, 56.0]]), 5);
     }
 }

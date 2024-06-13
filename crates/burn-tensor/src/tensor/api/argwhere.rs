@@ -1,7 +1,7 @@
 use crate::{
     backend::Backend,
     ops::{BoolTensor, IntTensor},
-    Data, Device, ElementConversion, Shape,
+    Device, ElementConversion, Shape, TensorData,
 };
 use alloc::vec::Vec;
 
@@ -61,11 +61,11 @@ pub async fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> I
 }
 
 fn argwhere_data<B: Backend, const D: usize>(
-    data: Data<bool, D>,
+    data: TensorData<D>,
     device: &Device<B>,
 ) -> IntTensor<B, 2> {
     let dims = data.shape.dims;
-    let count_nonzero = data.value.iter().filter(|&v| *v).count();
+    let count_nonzero = data.iter::<bool>().filter(|&v| v).count();
 
     /// Converts a flat index into a vector of indices for the specified tensor shape
     fn unravel_index<B: Backend, const D: usize>(
@@ -87,13 +87,15 @@ fn argwhere_data<B: Backend, const D: usize>(
     }
 
     let indices = data
-        .value
-        .iter()
+        .iter::<bool>()
         .enumerate()
-        .filter_map(|(index, &v)| if v { Some(index) } else { None })
+        .filter_map(|(index, v)| if v { Some(index) } else { None })
         .map(|index| unravel_index::<B, D>(index, &dims))
         .collect::<Vec<_>>()
         .concat();
 
-    B::int_from_data(Data::new(indices, Shape::new([count_nonzero, D])), device)
+    B::int_from_data(
+        TensorData::new(indices, Shape::new([count_nonzero, D])),
+        device,
+    )
 }

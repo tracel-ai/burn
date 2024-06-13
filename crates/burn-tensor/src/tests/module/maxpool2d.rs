@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
-    use burn_tensor::{backend::Backend, Data, Tensor};
+    use burn_tensor::{backend::Backend, Tensor, TensorData};
 
     type IntElem = <TestBackend as Backend>::IntElem;
 
@@ -247,7 +247,7 @@ mod tests {
             [0.5416, 0.8602, 0.8129, 0.1662],
             [0.3358, 0.3059, 0.8293, 0.0990],
         ]]]);
-        let indices = Data::<IntElem, 4>::from([[[
+        let indices = TensorData::from([[[
             [0, 1, 1, 3, 3],
             [4, 4, 1, 7, 7],
             [4, 9, 9, 7, 7],
@@ -271,7 +271,10 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(indices.value, output_indices.into_data().value);
+        assert_eq!(
+            indices.as_slice::<i64>().unwrap(),
+            output_indices.into_data().as_slice::<i64>().unwrap()
+        );
     }
 
     #[test]
@@ -294,7 +297,7 @@ mod tests {
             [0.4384, 0.9963, 0.9698, 0.4988, 0.2609],
             [0.3391, 0.2230, 0.4610, 0.5365, 0.6880],
         ]]]);
-        let indices = Data::<IntElem, 4>::from([[[
+        let indices = TensorData::from([[[
             [5, 7, 3],
             [5, 7, 3],
             [5, 16, 3],
@@ -319,6 +322,9 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(indices.value, output_indices.into_data().value);
+        assert_eq!(
+            indices.as_slice::<i64>().unwrap(),
+            output_indices.into_data().as_slice::<i64>().unwrap()
+        );
     }
 }

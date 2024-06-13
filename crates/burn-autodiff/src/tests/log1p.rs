@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_log1p)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_log1p() {
@@ -15,11 +15,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[64.80622, 75.49362], [64.80622, 75.49362]]), 3);
+        grad_1.to_data().assert_approx_eq(
+            &TensorData::from([[64.80622, 75.49362], [64.80622, 75.49362]]),
+            3,
+        );
         grad_2.to_data().assert_approx_eq(
-            &Data::from([[22.922085, 24.475657], [24.727802, 26.864166]]),
+            &TensorData::from([[22.922085, 24.475657], [24.727802, 26.864166]]),
             3,
         );
     }

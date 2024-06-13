@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Data, Float, Int, Shape, Tensor};
+use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData};
 
 use core::ops::Range;
 
@@ -48,8 +48,8 @@ where
     ///     let _y: Tensor<B, 2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
     /// }
     /// ```
-    pub fn from_ints<A: Into<Data<i32, D>>>(ints: A, device: &B::Device) -> Self {
-        Self::from_data(ints.into().convert(), device)
+    pub fn from_ints<A: Into<TensorData<D>>>(ints: A, device: &B::Device) -> Self {
+        Self::from_data(ints.into().convert::<i32>(), device)
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data

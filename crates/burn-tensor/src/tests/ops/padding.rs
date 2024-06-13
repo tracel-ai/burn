@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(padding)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int, Numeric, Shape, Tensor};
+    use burn_tensor::{Int, Numeric, Shape, Tensor, TensorData};
 
     #[test]
     fn padding_2d_test() {
@@ -19,7 +19,7 @@ mod tests {
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
         ];
 
-        let padded_data_expected = Data::from(padded_primitive_data_expected);
+        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
         let padded_data_actual = padded_tensor.into_data();
         assert_eq!(padded_data_expected, padded_data_actual);
     }
@@ -41,7 +41,7 @@ mod tests {
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
         ]]];
 
-        let padded_data_expected = Data::from(padded_primitive_data_expected);
+        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
         let padded_data_actual = padded_tensor.into_data();
         assert_eq!(padded_data_expected, padded_data_actual);
     }
@@ -87,7 +87,7 @@ mod tests {
             [6, 6, 6, 6, 6],
         ]]];
 
-        let padded_data_expected = Data::from(padded_primitive_data_expected);
+        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
         let padded_data_actual = padded_tensor.into_data();
         assert_eq!(padded_data_expected, padded_data_actual);
     }

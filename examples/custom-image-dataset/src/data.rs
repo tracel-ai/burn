@@ -73,7 +73,10 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             .map(|item| {
                 // Expect class label (int) as target
                 if let Annotation::Label(y) = item.annotation {
-                    Tensor::<B, 1, Int>::from_data(Data::from([(y as i64).elem()]), &self.device)
+                    Tensor::<B, 1, Int>::from_data(
+                        TensorData::from([(y as i64).elem::<B::IntElem>()]),
+                        &self.device,
+                    )
                 } else {
                     panic!("Invalid target type")
                 }
@@ -82,9 +85,9 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
 
         let images = items
             .into_iter()
-            .map(|item| Data::new(image_as_vec_u8(item), Shape::new([32, 32, 3])))
+            .map(|item| TensorData::new(image_as_vec_u8(item), Shape::new([32, 32, 3])))
             .map(|data| {
-                Tensor::<B, 3>::from_data(data.convert(), &self.device)
+                Tensor::<B, 3>::from_data(data.convert::<B::FloatElem>(), &self.device)
                     // permute(2, 0, 1)
                     .swap_dims(2, 1) // [H, C, W]
                     .swap_dims(1, 0) // [C, H, W]

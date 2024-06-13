@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Bool, Data, Int, Tensor};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
     #[test]
     fn should_support_cat_ops_2d_dim0() {
         let device = Default::default();
@@ -11,7 +11,7 @@ mod tests {
 
         let data_actual = TestTensor::cat(vec![tensor_1, tensor_2], 0).into_data();
 
-        let data_expected = Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let data_expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 
@@ -23,7 +23,7 @@ mod tests {
 
         let data_actual = Tensor::cat(vec![tensor_1, tensor_2], 0).into_data();
 
-        let data_expected = Data::from([[1, 2, 3], [4, 5, 6]]);
+        let data_expected = TensorData::from([[1, 2, 3], [4, 5, 6]]);
         assert_eq!(&data_actual, &data_expected);
     }
 
@@ -35,7 +35,7 @@ mod tests {
 
         let data_actual = Tensor::cat(vec![tensor_1, tensor_2], 0).into_data();
 
-        let data_expected = Data::from([[false, true, true], [true, true, false]]);
+        let data_expected = TensorData::from([[false, true, true], [true, true, false]]);
         assert_eq!(&data_actual, &data_expected);
     }
 
@@ -47,7 +47,7 @@ mod tests {
 
         let data_actual = TestTensor::cat(vec![tensor_1, tensor_2], 1).into_data();
 
-        let data_expected = Data::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
+        let data_expected = TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 
@@ -59,7 +59,8 @@ mod tests {
 
         let data_actual = TestTensor::cat(vec![tensor_1, tensor_2], 0).into_data();
 
-        let data_expected = Data::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
+        let data_expected =
+            TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
         data_expected.assert_approx_eq(&data_actual, 3);
     }
 

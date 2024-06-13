@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Data, Device, Distribution, ElementConversion, Reader, Shape,
+    Device, Distribution, ElementConversion, Reader, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
@@ -15,7 +15,7 @@ use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
-        data: Data<F, D>,
+        data: TensorData<D>,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
@@ -59,7 +59,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::shape(tensor)
     }
 
-    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<Data<F, D>> {
+    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<TensorData<D>> {
         Reader::Concrete(super::base::into_data(tensor))
     }
 
@@ -361,7 +361,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<F>().unwrap();
         CandleTensor::from_data(
-            Data::new([sum].into(), [1].into()),
+            TensorData::new([sum].into(), [1]),
             Self::float_device(&tensor),
         )
     }

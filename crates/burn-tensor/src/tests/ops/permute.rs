@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Device, Int, Shape, Tensor};
+    use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
     fn normal_int() {
@@ -13,7 +13,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0, 12], [4, 16], [8, 20]],
             [[1, 13], [5, 17], [9, 21]],
             [[2, 14], [6, 18], [10, 22]],
@@ -42,7 +42,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0).float()
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[0., 12.], [4., 16.], [8., 20.]],
             [[1., 13.], [5., 17.], [9., 21.]],
             [[2., 14.], [6., 18.], [10., 22.]],
@@ -71,7 +71,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0).gt(10)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [[false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true]],

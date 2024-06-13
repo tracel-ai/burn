@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use crate::{
     backend::Backend,
     ops::{IntElem, IntTensor},
-    BasicOps, Data, Device, Element, ElementComparison, ElementConversion, TensorKind,
+    BasicOps, Device, Element, ElementComparison, ElementConversion, TensorData, TensorKind,
 };
 use alloc::vec::Vec;
 
@@ -78,7 +78,7 @@ where
 }
 
 pub fn sort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: Data<<K as BasicOps<B>>::Elem, D>,
+    mut data: TensorData<D>,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -87,12 +87,12 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let dims = data.shape.dims;
+    let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
         // 1D sort
-        data.value
-            .sort_unstable_by(|&a, &b| compare(&a, &b, descending));
+        data_slice.sort_unstable_by(|&a, &b| compare(&a, &b, descending));
     } else {
-        sort_slice::<B, D, K>(&mut data.value, &dims, dim, None, false, descending);
+        sort_slice::<B, D, K>(data_slice, &dims, dim, None, false, descending);
     }
 
     K::from_data(data, device)
@@ -171,7 +171,7 @@ where
 }
 
 fn sort_data_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: Data<<K as BasicOps<B>>::Elem, D>,
+    mut data: TensorData<D>,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -181,12 +181,13 @@ where
 {
     let dims = data.shape.dims;
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
+    let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
         // 1D sort
         indices_data.sort_unstable_by(|&a, &b| {
             compare(
-                &data.value[a.elem::<i64>() as usize],
-                &data.value[b.elem::<i64>() as usize],
+                &data_slice[a.elem::<i64>() as usize],
+                &data_slice[b.elem::<i64>() as usize],
                 descending,
             )
         });
@@ -209,14 +210,14 @@ where
                     }
 
                     // Permute data by indices
-                    data.value.swap(current_idx, target_idx);
+                    data_slice.swap(current_idx, target_idx);
                     current_idx = target_idx;
                 }
             }
         }
     } else {
         sort_slice::<B, D, K>(
-            &mut data.value,
+            data_slice,
             &dims,
             dim,
             Some(&mut indices_data),
@@ -228,7 +229,7 @@ where
     let shape = data.shape.clone();
     (
         K::from_data(data, device),
-        B::int_from_data(Data::new(indices_data, shape), device),
+        B::int_from_data(TensorData::new(indices_data, shape), device),
     )
 }
 
@@ -303,7 +304,7 @@ where
 }
 
 fn argsort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: Data<<K as BasicOps<B>>::Elem, D>,
+    mut data: TensorData<D>,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -315,16 +316,17 @@ where
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
     if D == 1 {
         // 1D sort
+        let slice = data.as_slice::<<K as BasicOps<B>>::Elem>().unwrap();
         indices_data.sort_unstable_by(|&a, &b| {
             compare(
-                &data.value[a.elem::<i64>() as usize],
-                &data.value[b.elem::<i64>() as usize],
+                &slice[a.elem::<i64>() as usize],
+                &slice[b.elem::<i64>() as usize],
                 descending,
             )
         });
     } else {
         sort_slice::<B, D, K>(
-            &mut data.value,
+            data.as_mut_slice().unwrap(),
             &dims,
             dim,
             Some(&mut indices_data),
@@ -333,7 +335,7 @@ where
         );
     }
 
-    B::int_from_data(Data::new(indices_data, data.shape), device)
+    B::int_from_data(TensorData::new(indices_data, data.shape), device)
 }
 
 /// Sort the elements by value along a given dimension.

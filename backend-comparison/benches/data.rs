@@ -1,5 +1,5 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
+use burn::tensor::{backend::Backend, Distribution, Shape, Tensor, TensorData};
 use burn_common::{
     benchmark::{run_benchmark, Benchmark},
     sync_type::SyncType,
@@ -43,7 +43,7 @@ struct FromDataBenchmark<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
-    type Args = (Data<B::FloatElem, D>, B::Device);
+    type Args = (TensorData<D>, B::Device);
 
     fn name(&self) -> String {
         "from_data".into()
@@ -59,7 +59,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 
     fn prepare(&self) -> Self::Args {
         (
-            Data::random(
+            TensorData::random::<B::FloatElem, _>(
                 self.shape.clone(),
                 Distribution::Default,
                 &mut rand::thread_rng(),

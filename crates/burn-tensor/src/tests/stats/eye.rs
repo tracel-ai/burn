@@ -2,7 +2,7 @@
 
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int, Tensor};
+    use burn_tensor::{Int, Tensor};
 
     #[test]
     fn test_eye_float() {

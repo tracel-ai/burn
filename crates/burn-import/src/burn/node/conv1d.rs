@@ -85,12 +85,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode<PS> {
         let record = Conv1dRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert(), &device),
+                Tensor::from_data(
+                    self.data_weights
+                        .clone()
+                        .convert::<PS::FloatElem>()
+                        .into_tensor_data(),
+                    &device,
+                ),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
-                    Tensor::from_data(bias.clone().convert(), &device),
+                    Tensor::from_data(
+                        bias.clone().convert::<PS::FloatElem>().into_tensor_data(),
+                        &device,
+                    ),
                 )
             }),
             stride: ConstantRecord::new(),
@@ -133,7 +142,9 @@ mod tests {
         TensorType,
     };
     use burn::{
-        nn::conv::Conv1dConfig, nn::PaddingConfig1d, record::FullPrecisionSettings, tensor::Data,
+        nn::{conv::Conv1dConfig, PaddingConfig1d},
+        record::FullPrecisionSettings,
+        tensor::{DataSerialize, TensorData},
     };
 
     #[test]
@@ -144,7 +155,7 @@ mod tests {
             "conv1d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
+            DataSerialize::from_tensor_data(TensorData::from([2f32])),
             None,
             Conv1dConfig::new(3, 3, 3).with_padding(PaddingConfig1d::Valid),
         ));

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(max_pool2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, Distribution, Tensor};
+    use burn_tensor::{backend::Backend, module, Distribution, Tensor};
 
     #[test]
     pub fn max_pool2d_should_work_with_multiple_invocations() {
@@ -47,6 +47,11 @@ mod tests {
         pooled
             .into_data()
             .assert_approx_eq(&pooled_ref.into_data(), 3);
-        assert_eq!(indices.into_data(), indices_ref.into_data().convert());
+        assert_eq!(
+            indices.into_data(),
+            indices_ref
+                .into_data()
+                .convert::<<TestBackend as Backend>::FloatElem>()
+        );
     }
 }
