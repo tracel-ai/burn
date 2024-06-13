@@ -13,7 +13,7 @@ pub fn redeclare_same_scope_other_type<I: Int, F: Float>(mut x: I) -> F {
     let i = I::new(1);
     x += i;
     let i = F::new(2.);
-    i
+    i + i
 }
 
 #[cube]
@@ -134,7 +134,9 @@ mod tests {
 
         let i = scope.create_with_value(1, item);
         cpa!(scope, x += i);
-        let _ = scope.create_with_value(2, Item::new(F32::as_elem()));
+        let i = scope.create_with_value(2, Item::new(F32::as_elem()));
+        let y = scope.create_local(Item::new(F32::as_elem()));
+        cpa!(scope, y = i + i);
 
         format!("{:?}", scope.operations)
     }
