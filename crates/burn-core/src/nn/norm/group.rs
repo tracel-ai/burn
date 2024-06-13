@@ -26,7 +26,7 @@ pub struct GroupNormConfig {
 
 /// Applies Group Normalization over a mini-batch of inputs. See the [group_norm](group_norm) function for more information.
 ///
-/// Should be created using the [GroupNormConfig](GroupNormConfig) struct.
+/// Should be created using [GroupNormConfig](GroupNormConfig).
 #[derive(Module, Debug)]
 pub struct GroupNorm<B: Backend> {
     /// The learnable weight

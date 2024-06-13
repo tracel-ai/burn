@@ -27,7 +27,7 @@ pub struct LayerNormConfig {
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
 ///
-/// Should be created using the [LayerNormConfig](LayerNormConfig) struct.
+/// Should be created using [LayerNormConfig](LayerNormConfig).
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.

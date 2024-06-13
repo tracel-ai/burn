@@ -23,7 +23,7 @@ pub struct InstanceNormConfig {
 
 /// Applies Instance Normalization over a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
 ///
-/// Should be created using the [InstanceNormConfig](InstanceNormConfig) struct.
+/// Should be created using [InstanceNormConfig](InstanceNormConfig).
 #[derive(Module, Debug)]
 pub struct InstanceNorm<B: Backend> {
     /// The learnable weight
