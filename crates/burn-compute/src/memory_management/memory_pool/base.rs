@@ -36,6 +36,136 @@ struct Slice {
     padding: usize,
 }
 
+#[derive(Debug)]
+struct ChunkRingBuffer<'a> {
+    ordered_chunks: Vec<ChunkId>,
+    chunks: &'a HashMap<ChunkId, Chunk>,
+    slices: &'a HashMap<SliceId, Slice>,
+    chunk_index: usize,
+    slice_index: usize,
+    //total_slices: usize, MAYBE
+    count: usize,
+}
+
+impl ChunkRingBuffer {
+    fn new() -> Self {
+        Self {
+            chunks: Vec::new(),
+            chunk_index: 0,
+            slice_index: 0,
+            count: 0,
+        }
+    }
+
+    fn push_chunk(&mut self, chunk_id: ChunkId) {
+        self.chunks.push(chunk_id);
+    }
+
+    fn remove_chunk(&mut self, chunk_id: ChunkId) {
+        self.chunks.retain(|&id| id != chunk_id);
+    }
+}
+
+//impl ChunkRingBuffer {
+//    fn new() -> Self {
+//        Self {
+//            // needs to be updated if we change chunks in the memory pool
+//            last_chunk_position: None,
+//            last_slice_offset: None,
+//            chunks: Vec::new(),
+//        }
+//    }
+//
+//    fn get_next_fit(
+//        &mut self,
+//        chunks: &HashMap<ChunkId, Chunk>,
+//        slices: &HashMap<SliceId, Slice>,
+//        alloc_size: usize,
+//    ) -> Option<SliceId> {
+//        let last_chunk_id = match &self.last_chunk_position {
+//            Some(chunk_position) => Some(self.chunks.get(*chunk_position).unwrap()),
+//            None => {
+//                let chunk = self.chunks.get(0);
+//                if chunk.is_some() {
+//                    self.last_chunk_position = Some(0);
+//                    self.last_slice_offset = None;
+//                }
+//                chunk
+//            }
+//        };
+//        let last_chunk = chunks.get(last_chunk_id?);
+//        let mut last_chunk = match last_chunk {
+//            Some(chunk) => {
+//                let current_slice_id_offset_and_positon =
+//                    chunk.get_next_slice(self.last_slice_offset, slices);
+//                while current_slice_id_offset_and_positon.is_some() {
+//                    let current_slice_id = current_slice_id_offset_and_positon.unwrap().slice_id;
+//                    let current_slice = slices.get(&current_slice_id).unwrap();
+//                    let alloc_can_fit = current_slice.effective_size() >= alloc_size
+//                        && current_slice.handle.is_free();
+//                    if alloc_can_fit {
+//                        return Some(current_slice_id);
+//                    }
+//                    let current_slice_position =
+//                        current_slice_id_offset_and_positon.unwrap().position;
+//                    let current_slice_id_offset_and_positon =
+//                        chunk.get_specific_slice(current_slice_position + 1);
+//                }
+//            }
+//            // no chunks at all
+//            None => {
+//                return None;
+//            }
+//        };
+//    }
+//}
+//
+//#[derive(Debug, new)]
+//struct SliceIdOffsetPosition {
+//    slice_id: SliceId,
+//    offset: usize,
+//    position: usize,
+//}
+//
+//impl Chunk {
+//    fn get_next_slice(
+//        &self,
+//        last_offset: Option<usize>,
+//        slices: &HashMap<SliceId, Slice>,
+//    ) -> Option<SliceIdOffsetPosition> {
+//        match last_offset {
+//            Some(last_offset) => {
+//                let mut temp_offset = 0;
+//                for i in 0..(self.slices.len() - 1) {
+//                    let slice_id = self.slices.get(i).unwrap();
+//                    let slice = slices.get(slice_id).unwrap();
+//                    temp_offset += slice.effective_size();
+//                    if temp_offset > last_offset {
+//                        return Some(SliceIdOffsetPosition::new(
+//                            *self.slices.get(i + 1).unwrap(),
+//                            temp_offset,
+//                            i + 1,
+//                        ));
+//                    }
+//                }
+//                return None;
+//            }
+//            // assumes slices are stored contiguously in the chunk's vec
+//            None => {
+//                return Some(SliceIdOffsetPosition::new(
+//                    *self.slices.get(0).expect("chunk shouldn't have 0 slices"),
+//                    0,
+//                    0,
+//                ));
+//            }
+//        }
+//    }
+//
+//    fn get_specific_slice(&self, position: usize) -> Option<SliceId> {
+//        return self.slices.get(position).copied();
+//    }
+//}
+
 impl Slice {
     pub fn effective_size(&self) -> usize {
         self.storage.size() + self.padding
@@ -44,9 +174,10 @@ impl Slice {
 
 const MIN_SIZE_NEEDED_TO_OFFSET: usize = 16;
 const BUFFER_ALIGNMENT: usize = 32;
-const CHUNK_ROUNDING: usize = 2 * 1024 * 1024; // 2 MB
+const MB: usize = 1024 * 1024;
 
 pub enum RoundingStrategy {
+    // TODO : Figure out a better name for this
     RoundUp,
     None,
 }
@@ -55,13 +186,14 @@ impl RoundingStrategy {
     fn alloc_size(&self, size: usize) -> usize {
         match self {
             RoundingStrategy::RoundUp => {
-                if size < CHUNK_ROUNDING {
-                    return size;
+                if size < MB {
+                    return 2 * MB;
+                } else if size < 10 * MB {
+                    return 20 * MB;
+                } else {
+                    let factor = (size + (2 * MB - 1)) / (2 * MB);
+                    factor * 2 * MB
                 }
-
-                let factor = (size + (CHUNK_ROUNDING - 1)) / CHUNK_ROUNDING;
-
-                factor * CHUNK_ROUNDING
             }
             RoundingStrategy::None => size,
         }
