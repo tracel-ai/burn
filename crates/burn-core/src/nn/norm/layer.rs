@@ -1,13 +1,13 @@
 use crate as burn;
-use crate::nn::Initializer;
 
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Configuration to create a [LayerNorm](LayerNorm) layer.
+/// Configuration to create a [LayerNorm](LayerNorm) layer using the [init function](LayerNormConfig::init).
 #[derive(Debug, Config)]
 pub struct LayerNormConfig {
     /// The size of the input features.
@@ -20,9 +20,19 @@ pub struct LayerNormConfig {
 /// Applies Layer Normalization over an input tensor as described in the paper [Layer Normalization](https://arxiv.org/abs/1607.06450).
 ///
 /// `Y = norm(X) * γ + β`
+///
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
+///
+/// Should be created using [LayerNormConfig](LayerNormConfig).
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
+    /// The learnable weight.
     gamma: Param<Tensor<B, 1>>,
+    /// The learnable bias.
     beta: Param<Tensor<B, 1>>,
     epsilon: f64,
 }
@@ -44,6 +54,8 @@ impl LayerNormConfig {
 impl<B: Backend> LayerNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See the [LayerNorm](LayerNorm) documentation for more information.
+    ///
     /// # Shapes
     ///
     /// - input: `[..., any, d_model]`
@@ -62,7 +74,7 @@ impl<B: Backend> LayerNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use crate::tensor::Data;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};

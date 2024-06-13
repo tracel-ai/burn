@@ -5,7 +5,7 @@ use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
-/// Configuration to create a [Dropout](Dropout) layer.
+/// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
 #[derive(Config, Debug)]
 pub struct DropoutConfig {
     /// The probability of randomly zeroes some elements of the input tensor during training.
@@ -18,6 +18,8 @@ pub struct DropoutConfig {
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
 ///
 /// The input is also scaled during training to `1 / (1 - prob_keep)`.
+///
+/// Should be created with [DropoutConfig].
 #[derive(Module, Clone, Debug)]
 pub struct Dropout {
     prob: f64,
@@ -32,6 +34,8 @@ impl DropoutConfig {
 
 impl Dropout {
     /// Applies the forward pass on the input tensor.
+    ///
+    /// See [Dropout](Dropout) for more information.
     ///
     /// # Shapes
     ///

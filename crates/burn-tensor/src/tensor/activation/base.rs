@@ -2,7 +2,10 @@ use crate::backend::Backend;
 use crate::check::TensorCheck;
 use crate::{check, Tensor};
 
-/// Applies the rectified linear unit function.
+/// Applies the rectified linear unit function as described in the paper [Deep Learning using
+/// Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
+///
+/// `y = max(0, x)`
 pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.relu()
 }
@@ -20,12 +23,12 @@ pub fn leaky_relu<const D: usize, B: Backend>(
     ))
 }
 
-/// Applies the Gaussian Error Linear Units function as described in the paper in [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
+/// Applies the Gaussian Error Linear Units function as described in the paper [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
 }
 
-/// Applies Parametric ReLu activation
+/// Applies Parametric ReLu activation function as described in the paper [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
 /// ` PReLu(x) = max(0,x) + \alpha * min(0,x)`
 /// tensor is assumed to be of shape \[batch_size, channels, ...\]
 /// alpha is assumed to be of shape \[channels\] or \[1\]

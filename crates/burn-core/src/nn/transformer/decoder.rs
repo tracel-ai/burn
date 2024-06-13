@@ -1,5 +1,5 @@
+use crate::tensor::Bool;
 use alloc::vec::Vec;
-use burn_tensor::Bool;
 
 use crate::{
     self as burn,
@@ -17,7 +17,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer.
+/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
 #[derive(Config)]
 pub struct TransformerDecoderConfig {
     /// The size of the model.
@@ -54,6 +54,8 @@ pub struct TransformerDecoderConfig {
 /// # Params
 ///
 /// - layers: transformer decoder layers with `d_model` input and output features.
+///
+/// Should be created using [TransformerDecoderConfig]
 #[derive(Module, Debug)]
 pub struct TransformerDecoder<B: Backend> {
     layers: Vec<TransformerDecoderLayer<B>>,
@@ -204,6 +206,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         }
     }
 
+    /// Applies the TransformerDecoder forward pass to the input tensor.
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
@@ -401,8 +404,8 @@ impl<B: Backend> TransformerDecoder<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Distribution;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
-    use burn_tensor::Distribution;
 
     #[test]
     fn test_autoregressive_norm_last() {
