@@ -3,7 +3,7 @@ use crate::{
     storage::ComputeStorage,
 };
 use alloc::vec::Vec;
-use burn_common::reader::Reader;
+use burn_common::{reader::Reader, sync_type::SyncType};
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
@@ -26,6 +26,6 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send
     /// Executes the `kernel` over the given `bindings`.
     fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>);
 
-    /// Wait for the completion of every task in the server.
-    fn sync(&self);
+    /// Perform some synchronization of commands on the server.
+    fn sync(&self, sync_type: SyncType);
 }

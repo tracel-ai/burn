@@ -6,8 +6,8 @@ use crate::{
 };
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
-use burn_common::reader::Reader;
 use burn_common::stub::RwLock;
+use burn_common::{reader::Reader, sync_type::SyncType};
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
@@ -69,8 +69,8 @@ where
     }
 
     /// Wait for the completion of every task in the server.
-    pub fn sync(&self) {
-        self.channel.sync()
+    pub fn sync(&self, sync_type: SyncType) {
+        self.channel.sync(sync_type)
     }
 
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
