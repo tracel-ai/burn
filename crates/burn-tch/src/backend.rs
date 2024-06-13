@@ -135,8 +135,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
         let mut devices = vec![LibTorchDevice::Cpu];
 
         if tch::utils::has_cuda() {
-            devices
-                .extend((0..tch::Cuda::device_count() as usize).map(|id| LibTorchDevice::Cuda(id)));
+            devices.extend((0..tch::Cuda::device_count() as usize).map(LibTorchDevice::Cuda));
         }
 
         if tch::utils::has_mps() {

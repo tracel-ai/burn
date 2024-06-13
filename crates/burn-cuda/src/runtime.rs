@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
@@ -24,7 +25,7 @@ impl burn_jit::JitRuntime for CudaRuntime {
 
     fn list_available_devices() -> Vec<Self::JitDevice> {
         (0..cudarc::driver::result::device::get_count().unwrap() as usize)
-            .map(|id| CudaDevice::new(id))
+            .map(CudaDevice::new)
             .collect()
     }
 }

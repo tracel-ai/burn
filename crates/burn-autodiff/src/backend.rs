@@ -5,6 +5,7 @@ use crate::{
     tensor::AutodiffTensor,
     AutodiffBridge,
 };
+use alloc::vec::Vec;
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 

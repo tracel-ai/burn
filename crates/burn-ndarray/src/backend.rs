@@ -1,6 +1,7 @@
 use crate::NdArrayTensor;
 use crate::{element::FloatNdArrayElement, PrecisionBridge};
 use alloc::string::String;
+use alloc::{vec, vec::Vec};
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use core::marker::PhantomData;
