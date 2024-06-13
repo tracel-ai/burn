@@ -11,13 +11,13 @@ entrypoint of our program, namely the `main` function defined in `src/main.rs`.
 # 
 use crate::{model::ModelConfig, training::TrainingConfig};
 use burn::{
-    backend::{wgpu::AutoGraphicsApi, Autodiff, Wgpu},
+    backend::{Autodiff, Wgpu},
 #     data::dataset::Dataset,
     optim::AdamConfig,
 };
 
 fn main() {
-    type MyBackend = Wgpu<AutoGraphicsApi, f32, i32>;
+    type MyBackend = Wgpu<f32, i32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
 
     let device = burn::backend::wgpu::WgpuDevice::default();
@@ -32,10 +32,9 @@ fn main() {
 
 In this example, we use the `Wgpu` backend which is compatible with any operating system and will
 use the GPU. For other options, see the Burn README. This backend type takes the graphics API, the
-float type and the int type as generic arguments that will be used during the training. By leaving
-the graphics API as `AutoGraphicsApi`, it should automatically use an API available on your machine.
-The autodiff backend is simply the same backend, wrapped within the `Autodiff` struct which imparts
-differentiability to any backend.
+float type and the int type as generic arguments that will be used during the training. The autodiff 
+backend is simply the same backend, wrapped within the `Autodiff` struct which imparts differentiability \
+to any backend.
 
 We call the `train` function defined earlier with a directory for artifacts, the configuration of
 the model (the number of digit classes is 10 and the hidden dimension is 512), the optimizer

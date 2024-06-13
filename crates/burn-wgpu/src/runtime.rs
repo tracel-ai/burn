@@ -1,7 +1,7 @@
 use crate::{
     compiler::wgsl,
     compute::{WgpuServer, WgpuStorage},
-    GraphicsApi, WgpuDevice,
+    AutoGraphicsApi, GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -15,21 +15,16 @@ use burn_compute::{
 use burn_cube::Runtime;
 use burn_jit::JitRuntime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
-use std::{
-    marker::PhantomData,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
 /// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
 /// The [graphics api](GraphicsApi) type is passed as generic.
 #[derive(Debug)]
-pub struct WgpuRuntime<G: GraphicsApi> {
-    _g: PhantomData<G>,
-}
+pub struct WgpuRuntime {}
 
-impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
+impl JitRuntime for WgpuRuntime {
     type JitDevice = WgpuDevice;
     type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 }
@@ -42,7 +37,7 @@ type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 static SUBGROUP: AtomicBool = AtomicBool::new(false);
 
-impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
+impl Runtime for WgpuRuntime {
     type Compiler = wgsl::WgslCompiler;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
@@ -51,7 +46,8 @@ impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
         RUNTIME.client(device, move || {
-            let (adapter, device_wgpu, queue) = pollster::block_on(create_wgpu_setup::<G>(device));
+            let (adapter, device_wgpu, queue) =
+                pollster::block_on(create_wgpu_setup::<AutoGraphicsApi>(device));
             create_client(adapter, device_wgpu, queue, RuntimeOptions::default())
         })
     }
