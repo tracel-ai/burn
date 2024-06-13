@@ -1,4 +1,7 @@
-use crate::gpu::{gpu, Elem, Scope, Variable};
+use burn_cube::{
+    cpa,
+    ir::{Elem, Scope, Variable},
+};
 
 use super::{MatmulTiling2dShader, Tiling2dState};
 
@@ -31,7 +34,7 @@ pub fn computation_loop(
     let results_before = scope.create_local(elem);
     let results_after = scope.create_local(elem);
 
-    gpu!(
+    cpa!(
         scope,
         range(
             0u32,
@@ -40,40 +43,40 @@ pub fn computation_loop(
         )
         .for_each(|dot_index, scope| {
             // Load a subcolumn of values from lhs
-            gpu!(scope, lhs_sm_position = thread_row / 4u32);
-            gpu!(scope, lhs_sm_position *= block_size_k);
-            gpu!(scope, lhs_sm_position += dot_index);
-            gpu!(scope, register_m = shared_lhs[lhs_sm_position]);
+            cpa!(scope, lhs_sm_position = thread_row / 4u32);
+            cpa!(scope, lhs_sm_position *= block_size_k);
+            cpa!(scope, lhs_sm_position += dot_index);
+            cpa!(scope, register_m = shared_lhs[lhs_sm_position]);
 
             // Load a subrow of values from rhs
-            gpu!(scope, rhs_sm_position = dot_index * block_size_n);
-            gpu!(scope, rhs_sm_position += thread_col);
-            gpu!(scope, rhs_sm_position = rhs_sm_position / 4u32);
-            gpu!(scope, register_n = shared_rhs[rhs_sm_position]);
+            cpa!(scope, rhs_sm_position = dot_index * block_size_n);
+            cpa!(scope, rhs_sm_position += thread_col);
+            cpa!(scope, rhs_sm_position = rhs_sm_position / 4u32);
+            cpa!(scope, register_n = shared_rhs[rhs_sm_position]);
 
-            gpu!(
+            cpa!(
                 scope,
                 range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
                     |res_idx_m, scope| {
-                        gpu!(
+                        cpa!(
                             scope,
                             range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
                                 .for_each(|res_idx_n, scope| {
-                                    gpu!(scope, registered_m = register_m[res_idx_m]);
-                                    gpu!(scope, registered_n = register_n[res_idx_n]);
+                                    cpa!(scope, registered_m = register_m[res_idx_m]);
+                                    cpa!(scope, registered_n = register_n[res_idx_n]);
 
-                                    gpu!(scope, multiplied = registered_m * registered_n);
+                                    cpa!(scope, multiplied = registered_m * registered_n);
 
-                                    gpu!(
+                                    cpa!(
                                         scope,
                                         results_position = res_idx_m * shader.config.tile_size_n
                                     );
-                                    gpu!(scope, results_position += res_idx_n);
+                                    cpa!(scope, results_position += res_idx_n);
 
-                                    gpu!(scope, results_before = results[results_position]);
-                                    gpu!(scope, results_after = results_before + multiplied);
+                                    cpa!(scope, results_before = results[results_position]);
+                                    cpa!(scope, results_after = results_before + multiplied);
 
-                                    gpu!(scope, results[results_position] = results_after);
+                                    cpa!(scope, results[results_position] = results_after);
                                 })
                         );
                     }

@@ -7,7 +7,10 @@ use burn::{
         Distribution, Tensor,
     },
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 
 pub struct AutodiffOverheadBenchmark<B: AutodiffBackend> {
     config: nn::LstmConfig,
@@ -47,7 +50,7 @@ impl<B: AutodiffBackend> Benchmark for AutodiffOverheadBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 

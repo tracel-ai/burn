@@ -1,10 +1,6 @@
-use crate::{
-    compute::{CompiledKernel, JitKernel, LaunchSettings, WorkGroup},
-    element::JitElement,
-    gpu::WorkgroupSize,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use burn_cube::compute::LaunchSettings;
+use burn_cube::prelude::*;
 
 use super::SourceTemplate;
 
@@ -15,15 +11,15 @@ pub trait KernelSource: Send + 'static + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [JIT kernel](JitKernel) with launch
+/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask) with launch
 /// information.
 pub struct SourceKernel<K> {
     kernel_source: K,
-    workgroup: WorkGroup,
-    workgroup_size: WorkgroupSize,
+    cube_count: CubeCount,
+    cube_dim: CubeDim,
 }
 
-impl<K> JitKernel for SourceKernel<K>
+impl<K> CubeTask for SourceKernel<K>
 where
     K: KernelSource + 'static,
 {
@@ -33,7 +29,7 @@ where
 
         CompiledKernel {
             source,
-            workgroup_size: self.workgroup_size,
+            cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
         }
     }
@@ -44,7 +40,7 @@ where
 
     fn launch_settings(&self) -> LaunchSettings {
         LaunchSettings {
-            workgroup: self.workgroup.clone(),
+            cube_count: self.cube_count.clone(),
         }
     }
 }
@@ -60,7 +56,7 @@ macro_rules! kernel_wgsl {
         #[derive(new)]
         pub struct $struct;
 
-        impl $crate::template::KernelSource for $struct {
+        impl $struct {
             fn source(&self) -> $crate::template::SourceTemplate {
                 $crate::template::SourceTemplate::new(include_str!($file))
             }
@@ -81,7 +77,7 @@ macro_rules! kernel_wgsl {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: Runtime, E: JitElement, const D: usize>(
+pub fn build_info<R: JitRuntime, E: JitElement, const D: usize>(
     tensors: &[&JitTensor<R, E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];

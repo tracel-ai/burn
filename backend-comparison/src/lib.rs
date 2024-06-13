@@ -57,6 +57,8 @@ macro_rules! bench_on_backend {
         let feature_name = "wgpu";
         #[cfg(feature = "wgpu-fusion")]
         let feature_name = "wgpu-fusion";
+        #[cfg(feature = "cuda-jit")]
+        let feature_name = "cuda-jit";
 
         #[cfg(feature = "wgpu")]
         {
@@ -128,6 +130,13 @@ macro_rules! bench_on_backend {
 
             let device = CandleDevice::Metal(0);
             bench::<Candle>(&device, feature_name, url, token);
+        }
+
+        #[cfg(feature = "cuda-jit")]
+        {
+            use burn_cuda::{Cuda, CudaDevice};
+
+            bench::<Cuda>(&CudaDevice::default(), feature_name, url, token);
         }
     };
 }

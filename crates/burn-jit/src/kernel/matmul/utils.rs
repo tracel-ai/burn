@@ -1,15 +1,15 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, Runtime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<R: Runtime, E: JitElement, const D: usize>(
+pub fn init_matmul_output<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: &JitTensor<R, E, D>,
     rhs: &JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn shape_out<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: &JitTensor<R, E, D>,
     rhs: &JitTensor<R, E, D>,
 ) -> Shape<D> {

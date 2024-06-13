@@ -1,20 +1,18 @@
+use burn_cube::{
+    cpa,
+    frontend::TensorHandle,
+    ir::{KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
+};
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    gpu::{gpu, ComputeShader, Scope, Variable, Visibility},
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    JitElement, Runtime,
-};
+use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
 
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     tensor: JitTensor<R, EI, D>,
 ) -> JitTensor<R, EO, D> {
     if TypeId::of::<EI>() == TypeId::of::<EO>() {
@@ -32,17 +30,17 @@ pub fn cast<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
     );
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -53,19 +51,17 @@ pub(crate) struct CastShader {
 }
 
 #[derive(new)]
-pub(crate) struct CastEagerKernel<R: Runtime, EI: JitElement, EO: JitElement> {
+pub(crate) struct CastEagerKernel<R: JitRuntime, EI: JitElement, EO: JitElement> {
     _runtime: PhantomData<R>,
     _elem_in: PhantomData<EI>,
     _elem_out: PhantomData<EO>,
 }
 
-impl<R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
-    for CastEagerKernel<R, EI, EO>
-{
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, EI: JitElement, EO: JitElement> Kernel for CastEagerKernel<R, EI, EO> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item_input = EI::gpu_elem().into();
-        let item_output = EO::gpu_elem().into();
+        let item_input = EI::cube_elem().into();
+        let item_output = EO::cube_elem().into();
 
         let tensor = Variable::GlobalInputArray(0, item_input);
         let output = Variable::GlobalOutputArray(0, item_output);
@@ -81,14 +77,14 @@ impl<R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
 
         let out = OutputInfo::Array { item: item_output };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -99,11 +95,11 @@ impl<R: Runtime, EI: JitElement, EO: JitElement> GpuComputeShaderPhase
 impl CastShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let output = self.output;
 
         let value = scope.create_local(output.item());
-        gpu!(scope, value = tensor[id]);
-        gpu!(scope, output[id] = value);
+        cpa!(scope, value = tensor[id]);
+        cpa!(scope, output[id] = value);
     }
 }

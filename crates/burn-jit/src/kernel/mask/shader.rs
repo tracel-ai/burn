@@ -1,13 +1,11 @@
+use burn_cube::{
+    cpa,
+    ir::{Elem, IndexOffsetGlobalWithLayout, Item, KernelDefinition, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+};
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{
-        gpu, ComputeShader, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility,
-    },
-    kernel::GpuComputeShaderPhase,
-    JitElement, Runtime,
-};
+use crate::{kernel::Kernel, JitElement, JitRuntime};
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
     fn mask(
@@ -30,7 +28,7 @@ impl MaskStrategy for MaskFill {
         value: Variable,
         _index: Variable,
     ) -> Variable {
-        gpu!(scope, masked_value = value);
+        cpa!(scope, masked_value = value);
         masked_value
     }
 
@@ -55,7 +53,7 @@ impl MaskStrategy for MaskWhere {
         value: Variable,
         index: Variable,
     ) -> Variable {
-        gpu!(scope, masked_value = value[index]);
+        cpa!(scope, masked_value = value[index]);
         masked_value
     }
 
@@ -85,7 +83,7 @@ pub(crate) struct MaskShader<EI: JitElement, EM: JitElement, M: MaskStrategy> {
 #[derive(new)]
 pub(crate) struct MaskReadOnlyEagerKernel<
     M: MaskStrategy,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EM: JitElement,
 > {
@@ -96,13 +94,13 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let tensor_item = EI::gpu_elem().into();
-        let mask_item = EM::gpu_elem().into();
+        let tensor_item = EI::cube_elem().into();
+        let mask_item = EM::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, tensor_item);
         let mask = Variable::GlobalInputArray(1, mask_item);
@@ -137,14 +135,14 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShad
 
         let out = OutputInfo::Array { item: tensor_item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, mask, value],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -159,7 +157,7 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShad
 #[derive(new)]
 pub(crate) struct MaskInplaceEagerKernel<
     M: MaskStrategy,
-    R: Runtime,
+    R: JitRuntime,
     EI: JitElement,
     EM: JitElement,
 > {
@@ -170,13 +168,13 @@ pub(crate) struct MaskInplaceEagerKernel<
     _mask_elem: PhantomData<EM>,
 }
 
-impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShaderPhase
+impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     for MaskInplaceEagerKernel<M, R, EI, EM>
 {
-    fn compile(&self) -> ComputeShader {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let tensor_item = EI::gpu_elem().into();
-        let mask_item = EM::gpu_elem().into();
+        let tensor_item = EI::cube_elem().into();
+        let mask_item = EM::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, tensor_item);
         let mask = Variable::GlobalInputArray(1, mask_item);
@@ -206,14 +204,14 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShad
 
         let value = M::value_info(tensor_item);
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, mask, value],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -227,7 +225,7 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> GpuComputeShad
 
 impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
     pub(crate) fn expand(self, scope: &mut Scope) {
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let input = self.input;
         let mask = self.mask;
         let value = self.value;
@@ -240,7 +238,7 @@ impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
             tensors: vec![input, mask],
             indexes: vec![index_input, index_mask],
             layout: output,
-            index_ref: id,
+            position: id,
             dim_start: 0u32.into(),
             dim_end: Variable::Rank,
         }
@@ -248,22 +246,22 @@ impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
 
         // Determine if index should be masked
         let value_in_mask = scope.create_local(mask.item());
-        gpu!(scope, value_in_mask = mask[index_mask]);
+        cpa!(scope, value_in_mask = mask[index_mask]);
         let masked = scope.create_local(Elem::Bool);
         let zero = scope.zero(value_in_mask.item());
         if self.reversed {
-            gpu!(scope, masked = value_in_mask == zero);
+            cpa!(scope, masked = value_in_mask == zero);
         } else {
-            gpu!(scope, masked = value_in_mask != zero);
+            cpa!(scope, masked = value_in_mask != zero);
         }
 
         // Assign a value at the index
         let used_value = scope.create_local(output.item());
-        gpu!(scope, if(masked).then(|scope| {
+        cpa!(scope, if(masked).then(|scope| {
             M::mask(scope, used_value, value, index_input );
         }).else(|scope| {
-            gpu!(scope, used_value = input[index_input]);
+            cpa!(scope, used_value = input[index_input]);
         }));
-        gpu!(scope, output[id] = used_value);
+        cpa!(scope, output[id] = used_value);
     }
 }

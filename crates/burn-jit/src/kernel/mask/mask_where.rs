@@ -1,10 +1,6 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
+
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{MaskInplaceEagerKernel, MaskReadOnlyEagerKernel, MaskWhere};
 
@@ -24,7 +20,7 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
+pub fn mask_where<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: JitTensor<R, E, D>,
@@ -37,7 +33,7 @@ pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_where_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: JitTensor<R, EI, D>,
@@ -53,21 +49,21 @@ fn mask_where_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usiz
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
 
-fn mask_where_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: JitTensor<R, EI, D>,
@@ -79,11 +75,11 @@ fn mask_where_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     input
 }

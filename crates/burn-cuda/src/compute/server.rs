@@ -4,8 +4,10 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
-use burn_jit::gpu::WorkgroupSize;
+use burn_cube::ir::CubeDim;
+use burn_cube::prelude::*;
+use burn_jit::JitAutotuneKey;
+use burn_tensor::backend::SyncType;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
 use std::collections::HashMap;
@@ -43,7 +45,7 @@ pub(crate) struct CudaContext<MM: MemoryManagement<CudaStorage>> {
 
 #[derive(Debug)]
 struct CompiledKernel {
-    workgroup_size: WorkgroupSize,
+    cube_dim: CubeDim,
     shared_mem_bytes: usize,
     func: *mut CUfunc_st,
 }
@@ -51,7 +53,7 @@ struct CompiledKernel {
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Kernel;
+    type Kernel = Box<dyn CubeTask>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -104,14 +106,29 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             .map(|binding| ctx.memory_management.get(binding.memory).as_binding())
             .collect();
 
-        ctx.execute_task(kernel_id, settings.workgroup, bindings);
+        ctx.execute_task(kernel_id, settings.cube_count, bindings);
         // TODO: fix this
         // self.memory_management.storage().perform_deallocations();
     }
 
-    fn sync(&mut self) {
+    fn sync(&mut self, sync_type: SyncType) {
+        match sync_type {
+            // Synchronize the stream if waiting.
+            SyncType::Wait => {
+                let ctx = self.get_context();
+                ctx.sync();
+            }
+            // Nothing to do - all tasks are already submitted to the stream.
+            SyncType::Flush => (),
+        }
+    }
+
+    fn get_resource(
+        &mut self,
+        binding: server::Binding<Self>,
+    ) -> <Self::Storage as burn_compute::storage::ComputeStorage>::Resource {
         let ctx = self.get_context();
-        ctx.sync();
+        ctx.memory_management.get(binding.memory)
     }
 }
 
@@ -135,10 +152,10 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(&mut self, kernel_id: &str, kernel: Kernel) {
+    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>) {
         let kernel_compiled = kernel.compile();
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
-        let workgroup_size = kernel_compiled.workgroup_size;
+        let cube_dim = kernel_compiled.cube_dim;
 
         let ptx = unsafe {
             let program = cudarc::nvrtc::result::create_program(kernel_compiled.source).unwrap();
@@ -168,7 +185,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         self.module_names.insert(
             kernel_id.to_string(),
             CompiledKernel {
-                workgroup_size,
+                cube_dim,
                 shared_mem_bytes,
                 func,
             },
@@ -178,17 +195,17 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
     fn execute_task(
         &mut self,
         kernel_id: String,
-        workgroup: WorkGroup,
+        cube_count: CubeCount,
         mut bindings: Vec<Binding>,
     ) {
         let kernel = self.module_names.get(&kernel_id).unwrap();
-        let workgroup_size = kernel.workgroup_size;
+        let cube_dim = kernel.cube_dim;
 
         unsafe {
             cudarc::driver::result::launch_kernel(
                 kernel.func,
-                (workgroup.x, workgroup.y, workgroup.z),
-                (workgroup_size.x, workgroup_size.y, workgroup_size.z),
+                (cube_count.x, cube_count.y, cube_count.z),
+                (cube_dim.x, cube_dim.y, cube_dim.z),
                 kernel.shared_mem_bytes as u32,
                 self.stream,
                 &mut bindings,

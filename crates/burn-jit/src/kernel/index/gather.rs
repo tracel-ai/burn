@@ -1,21 +1,17 @@
-use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
-use crate::codegen::Execution;
-use crate::gpu::{ComputeShader, IntKind};
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    kernel::GpuComputeShaderPhase,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
+    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
+};
+use burn_cube::ir::{
+    Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
+};
+use burn_cube::{
+    cpa, frontend::TensorHandle, CubeCountSettings, Execution, InputInfo, KernelExpansion,
+    KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
 #[derive(new)]
-struct GatherEagerKernel<R: Runtime, E: JitElement> {
+struct GatherEagerKernel<R: JitRuntime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -43,49 +39,49 @@ impl GatherComputeShader {
         let offset = scope.create_local(Elem::UInt);
 
         // The offset of the `dim` dimension is obtained by the indices tensor.
-        gpu!(scope, offset = cast(self.indices));
-        gpu!(scope, stride = stride(tensor, self.dim));
-        gpu!(scope, offset = offset * stride);
+        cpa!(scope, offset = cast(self.indices));
+        cpa!(scope, stride = stride(tensor, self.dim));
+        cpa!(scope, offset = offset * stride);
 
         // We fetch the offset before the `dim` dimension.
         if self.dim > 0 {
             let offset_before = scope.create_local(Elem::UInt);
-            scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+            scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
                 tensors: vec![tensor],
                 indexes: vec![offset_before],
-                layout: Variable::Id, // Will be updated.
-                index_ref: Variable::Id,
+                layout: Variable::AbsolutePos, // Will be updated.
+                position: Variable::AbsolutePos,
                 dim_start: 0u32.into(),
                 dim_end: self.dim.into(),
             });
-            gpu!(scope, offset += offset_before);
+            cpa!(scope, offset += offset_before);
         }
 
         let offset_after = scope.create_local(Elem::UInt);
-        scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+        scope.index_offset_with_output_layout(IndexOffsetGlobalWithLayout {
             tensors: vec![tensor],
             indexes: vec![offset_after],
-            layout: Variable::Id, // Will be updated.
-            index_ref: Variable::Id,
+            layout: Variable::AbsolutePos, // Will be updated.
+            position: Variable::AbsolutePos,
             dim_start: (self.dim + 1).into(),
             dim_end: Variable::Rank,
         });
-        gpu!(scope, offset += offset_after);
+        cpa!(scope, offset += offset_after);
 
-        gpu!(scope, output = tensor[offset]);
+        cpa!(scope, output = tensor[offset]);
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
-        let mut scope = gpu::Scope::root();
-        let item_tensor = E::gpu_elem().into();
-        let item_indices: gpu::Item = gpu::Elem::Int(IntKind::I32).into();
+impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
+        let mut scope = Scope::root();
+        let item_tensor = E::cube_elem().into();
+        let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);
-        let indices = scope.read_array(1, item_indices);
+        let tensor = Variable::GlobalInputArray(0, item_tensor);
+        let indices = scope.read_array(1, item_indices, Variable::AbsolutePos);
 
-        let output_array = gpu::Variable::GlobalOutputArray(0, item_tensor);
+        let output_array = Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
 
         GatherComputeShader {
@@ -96,26 +92,26 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
         }
         .expand(&mut scope);
 
-        scope.write_global(output_local, output_array);
+        scope.write_global(output_local, output_array, Variable::AbsolutePos);
 
         let tensor = InputInfo::Array {
             item: item_tensor,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let indices = InputInfo::Array {
-            item: gpu::Elem::Int(IntKind::I32).into(),
-            visibility: gpu::Visibility::Read,
+            item: Elem::Int(IntKind::I32).into(),
+            visibility: Visibility::Read,
         };
         let out = OutputInfo::Array { item: item_tensor };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor, indices],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -123,7 +119,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for GatherEagerKernel<R, E
     }
 }
 
-pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     dim: usize,
     tensor: JitTensor<R, E, D>,
     indices: JitTensor<R, I, D>,
@@ -134,15 +130,15 @@ pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

@@ -97,6 +97,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_sort_argsort!();
         burn_tensor::testgen_topk!();
         burn_tensor::testgen_remainder!();
+        burn_tensor::testgen_cartesian_grid!();
 
         // test stats
         burn_tensor::testgen_var!();

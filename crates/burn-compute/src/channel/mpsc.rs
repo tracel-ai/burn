@@ -3,10 +3,13 @@ use std::{
     thread,
 };
 
-use burn_common::reader::Reader;
+use burn_common::{reader::Reader, sync_type::SyncType};
 
 use super::ComputeChannel;
-use crate::server::{Binding, ComputeServer, Handle};
+use crate::{
+    server::{Binding, ComputeServer, Handle},
+    storage::ComputeStorage,
+};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -34,10 +37,14 @@ where
     Server: ComputeServer,
 {
     Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
+    GetResource(
+        Binding<Server>,
+        Callback<<Server::Storage as ComputeStorage>::Resource>,
+    ),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
-    Sync(Callback<()>),
+    Sync(SyncType, Callback<()>),
 }
 
 impl<Server> MpscComputeChannel<Server>
@@ -55,6 +62,10 @@ where
                         let data = server.read(binding);
                         callback.send(data).unwrap();
                     }
+                    Message::GetResource(binding, callback) => {
+                        let data = server.get_resource(binding);
+                        callback.send(data).unwrap();
+                    }
                     Message::Create(data, callback) => {
                         let handle = server.create(&data);
                         callback.send(handle).unwrap();
@@ -66,8 +77,8 @@ where
                     Message::ExecuteKernel(kernel, bindings) => {
                         server.execute(kernel, bindings);
                     }
-                    Message::Sync(callback) => {
-                        server.sync();
+                    Message::Sync(sync_type, callback) => {
+                        server.sync(sync_type);
                         callback.send(()).unwrap();
                     }
                 };
@@ -103,6 +114,20 @@ where
         self.response(response)
     }
 
+    fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        let (callback, response) = mpsc::channel();
+
+        self.state
+            .sender
+            .send(Message::GetResource(binding, callback))
+            .unwrap();
+
+        self.response(response)
+    }
+
     fn create(&self, data: &[u8]) -> Handle<Server> {
         let (callback, response) = mpsc::channel();
 
@@ -132,11 +157,12 @@ where
             .unwrap()
     }
 
-    fn sync(&self) {
+    fn sync(&self, sync_type: SyncType) {
         let (callback, response) = mpsc::channel();
-
-        self.state.sender.send(Message::Sync(callback)).unwrap();
-
+        self.state
+            .sender
+            .send(Message::Sync(sync_type, callback))
+            .unwrap();
         self.response(response)
     }
 }

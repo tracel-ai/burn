@@ -1,29 +1,28 @@
+use burn_cube::{
+    calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, ir::CubeDim, KernelExpansion,
+    KernelSettings,
+};
 use burn_tensor::repr::TensorDescription;
 
 use crate::{
-    codegen::{
-        calculate_num_elems_dyn_rank,
-        dialect::gpu::{self, WorkgroupSize},
-        CompilationInfo, CompilationSettings,
-    },
     fusion::{
+        dynamic_settings,
         kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},
         JitFusionHandle,
     },
-    kernel::elemwise_workgroup,
-    Runtime,
+    JitRuntime,
 };
 use std::{marker::PhantomData, sync::Arc};
 
 #[derive(new)]
-pub struct ElementWiseKernelFactory<R: Runtime> {
+pub struct ElementWiseKernelFactory<R: JitRuntime> {
     id: String,
-    info: Arc<CompilationInfo>,
-    grid: WorkgroupSize,
+    info: Arc<KernelExpansion>,
+    cube_dim: CubeDim,
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
+impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
     fn create(
         &self,
         handles_inputs: &[JitFusionHandle<R>],
@@ -31,30 +30,32 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         outputs: &[&TensorDescription],
         stateful: bool,
     ) -> FusionKernel<R> {
-        let workgroup_size_x = self.grid.x;
-        let workgroup_size_y = self.grid.y;
+        let cube_dim_x = self.cube_dim.x;
+        let cube_dim_y = self.cube_dim.y;
 
-        assert_eq!(
-            workgroup_size_x, workgroup_size_y,
-            "The grid must be a square"
-        );
-        let workgroup_size = workgroup_size_x as usize;
+        assert_eq!(cube_dim_x, cube_dim_y, "The grid must be a square");
+        let cube_dim = cube_dim_x as usize;
 
         let vectorize_4 = can_vectorize(handles_inputs, inputs, outputs, 4);
         let vectorize_2 = can_vectorize(handles_inputs, inputs, outputs, 2);
 
-        let mut settings = CompilationSettings::default();
+        let mut settings = KernelSettings::default();
         let mut factor = 1;
 
-        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs, stateful);
+        settings = dynamic_settings(
+            settings,
+            &self.info,
+            inputs,
+            outputs,
+            handles_inputs,
+            stateful,
+        );
 
         if vectorize_4 {
-            settings = settings.vectorize(gpu::Vectorization::Vec4);
+            settings = settings.vectorize_global(4);
             factor = 4;
-        }
-
-        if !vectorize_4 && vectorize_2 {
-            settings = settings.vectorize(gpu::Vectorization::Vec2);
+        } else if vectorize_2 {
+            settings = settings.vectorize_global(2);
             factor = 2;
         }
 
@@ -68,7 +69,7 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
 
                 let reference_tensor = inputs[settings.mappings[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
+                let cube_count = calculate_cube_count_elemwise(num_elems / factor, cube_dim);
                 let output_infos =
                     inplace_output2input
                         .iter()
@@ -89,13 +90,13 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
                     self.info.clone(),
                     settings,
                     output_infos.collect(),
-                    workgroup,
+                    cube_count,
                 )
             }
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
+                let cube_count = calculate_cube_count_elemwise(num_elems / factor, cube_dim);
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let size = calculate_num_elems_dyn_rank(&tensor.shape)
                         * self.info.outputs[pos].elem_size::<R>();
@@ -107,14 +108,14 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
                     self.info.clone(),
                     settings,
                     output_infos.collect(),
-                    workgroup,
+                    cube_count,
                 )
             }
         }
     }
 }
 
-fn can_vectorize<R: Runtime>(
+fn can_vectorize<R: JitRuntime>(
     handles_inputs: &[JitFusionHandle<R>],
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],

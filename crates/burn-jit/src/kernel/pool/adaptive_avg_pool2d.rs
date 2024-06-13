@@ -1,15 +1,10 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 use burn_tensor::Shape;
 
 use super::AdaptivePool2dEagerKernel;
 
-pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
     input: JitTensor<R, E, 4>,
     output_size: [usize; 2],
 ) -> JitTensor<R, E, 4> {
@@ -21,17 +16,17 @@ pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: JitElement>(
     let kernel = AdaptivePool2dEagerKernel::<R, E>::new();
 
     Execution::start(kernel, input.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

@@ -1,13 +1,12 @@
+use burn_cube::{
+    cpa,
+    frontend::TensorHandle,
+    ir::{Elem, Item, Scope, Variable},
+    CubeCountSettings, Execution,
+};
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{
-    codegen::{dialect::gpu::Variable, EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    gpu::{gpu, Elem, Item, Scope},
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 
 use super::{Pool2dEagerKernel, PoolStrategy};
@@ -24,7 +23,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         let max_val = scope.create_local(item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
-        gpu!(scope, max_val = max_initial);
+        cpa!(scope, max_val = max_initial);
         max_val
     }
 
@@ -36,9 +35,9 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         _idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
-        gpu!(scope, is_max = result > accumulator);
-        gpu!(scope, if(is_max).then(|scope|{
-            gpu!(scope, accumulator = result);
+        cpa!(scope, is_max = result > accumulator);
+        cpa!(scope, if(is_max).then(|scope|{
+            cpa!(scope, accumulator = result);
         }));
         accumulator
     }
@@ -51,7 +50,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
         _indices: Option<Variable>,
         accumulator: Self::Accumulator,
     ) {
-        gpu!(scope, output[id] = accumulator);
+        cpa!(scope, output[id] = accumulator);
     }
 
     fn with_indices() -> bool {
@@ -71,7 +70,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         let max_val = scope.create_local(item);
         let max_initial =
             Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
-        gpu!(scope, max_val = max_initial);
+        cpa!(scope, max_val = max_initial);
         let max_index = scope.create_local(Elem::UInt);
         (max_val, max_index)
     }
@@ -84,10 +83,10 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         idx: Variable,
     ) -> Self::Accumulator {
         let is_max = scope.create_local(Elem::Bool);
-        gpu!(scope, is_max = result > max_val);
-        gpu!(scope, if(is_max).then(|scope|{
-            gpu!(scope, max_val = result);
-            gpu!(scope, max_index = idx);
+        cpa!(scope, is_max = result > max_val);
+        cpa!(scope, if(is_max).then(|scope|{
+            cpa!(scope, max_val = result);
+            cpa!(scope, max_index = idx);
         }));
         (max_val, max_index)
     }
@@ -101,8 +100,8 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
         (max_val, max_index): Self::Accumulator,
     ) {
         let indices = indices.unwrap();
-        gpu!(scope, output[id] = max_val);
-        gpu!(scope, indices[id] = max_index);
+        cpa!(scope, output[id] = max_val);
+        cpa!(scope, indices[id] = max_index);
     }
 
     fn with_indices() -> bool {
@@ -110,7 +109,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
     }
 }
 
-pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -140,8 +139,8 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
-        .outputs(&[EagerHandle::new(
+        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -154,12 +153,12 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
             padding[0] as u32,
             padding[1] as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
+pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElement>(
     x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -193,10 +192,10 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
     );
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
         .outputs(&[
-            EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
-            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
         .with_scalars(&[
             stride[0] as i32,
@@ -206,7 +205,7 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
             padding[0] as i32,
             padding[1] as i32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     (output, indices)
 }

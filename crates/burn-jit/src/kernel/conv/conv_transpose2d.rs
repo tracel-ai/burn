@@ -1,19 +1,21 @@
+use burn_cube::{
+    cpa,
+    frontend::TensorHandle,
+    ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
+};
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
-    gpu::{gpu, ComputeShader, Elem, IntKind, Scope, Variable, Visibility},
-    kernel::{self, GpuComputeShaderPhase},
+    kernel::{self, Kernel},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
@@ -38,7 +40,7 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let weight = self.weight;
         let bias = self.bias;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -48,14 +50,14 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let input_shape_1 = scope.create_local(Elem::UInt);
         let input_shape_2 = scope.create_local(Elem::UInt);
         let input_shape_3 = scope.create_local(Elem::UInt);
-        gpu!(scope, input_stride_0 = stride(input, 0u32));
-        gpu!(scope, input_stride_1 = stride(input, 1u32));
-        gpu!(scope, input_stride_2 = stride(input, 2u32));
-        gpu!(scope, input_stride_3 = stride(input, 3u32));
-        gpu!(scope, input_shape_0 = shape(input, 0u32));
-        gpu!(scope, input_shape_1 = shape(input, 1u32));
-        gpu!(scope, input_shape_2 = shape(input, 2u32));
-        gpu!(scope, input_shape_3 = shape(input, 3u32));
+        cpa!(scope, input_stride_0 = stride(input, 0u32));
+        cpa!(scope, input_stride_1 = stride(input, 1u32));
+        cpa!(scope, input_stride_2 = stride(input, 2u32));
+        cpa!(scope, input_stride_3 = stride(input, 3u32));
+        cpa!(scope, input_shape_0 = shape(input, 0u32));
+        cpa!(scope, input_shape_1 = shape(input, 1u32));
+        cpa!(scope, input_shape_2 = shape(input, 2u32));
+        cpa!(scope, input_shape_3 = shape(input, 3u32));
 
         let output_stride_0 = scope.create_local(Elem::UInt);
         let output_stride_1 = scope.create_local(Elem::UInt);
@@ -65,14 +67,14 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let output_shape_1 = scope.create_local(Elem::UInt);
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cpa!(scope, output_stride_0 = stride(output, 0u32));
+        cpa!(scope, output_stride_1 = stride(output, 1u32));
+        cpa!(scope, output_stride_2 = stride(output, 2u32));
+        cpa!(scope, output_stride_3 = stride(output, 3u32));
+        cpa!(scope, output_shape_0 = shape(output, 0u32));
+        cpa!(scope, output_shape_1 = shape(output, 1u32));
+        cpa!(scope, output_shape_2 = shape(output, 2u32));
+        cpa!(scope, output_shape_3 = shape(output, 3u32));
 
         let weight_stride_0 = scope.create_local(Elem::UInt);
         let weight_stride_1 = scope.create_local(Elem::UInt);
@@ -82,14 +84,14 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let weight_shape_1 = scope.create_local(Elem::UInt);
         let kernel_size_0 = scope.create_local(Elem::UInt);
         let kernel_size_1 = scope.create_local(Elem::UInt);
-        gpu!(scope, weight_stride_0 = stride(weight, 0u32));
-        gpu!(scope, weight_stride_1 = stride(weight, 1u32));
-        gpu!(scope, weight_stride_2 = stride(weight, 2u32));
-        gpu!(scope, weight_stride_3 = stride(weight, 3u32));
-        gpu!(scope, in_channels = shape(weight, 0u32));
-        gpu!(scope, weight_shape_1 = shape(weight, 1u32));
-        gpu!(scope, kernel_size_0 = shape(weight, 2u32));
-        gpu!(scope, kernel_size_1 = shape(weight, 3u32));
+        cpa!(scope, weight_stride_0 = stride(weight, 0u32));
+        cpa!(scope, weight_stride_1 = stride(weight, 1u32));
+        cpa!(scope, weight_stride_2 = stride(weight, 2u32));
+        cpa!(scope, weight_stride_3 = stride(weight, 3u32));
+        cpa!(scope, in_channels = shape(weight, 0u32));
+        cpa!(scope, weight_shape_1 = shape(weight, 1u32));
+        cpa!(scope, kernel_size_0 = shape(weight, 2u32));
+        cpa!(scope, kernel_size_1 = shape(weight, 3u32));
 
         let conv_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
         let conv_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
@@ -101,8 +103,8 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
 
         let stride_0_i = scope.create_local(Elem::Int(IntKind::I32));
         let stride_1_i = scope.create_local(Elem::Int(IntKind::I32));
-        gpu!(scope, stride_0_i = cast(conv_stride_0));
-        gpu!(scope, stride_1_i = cast(conv_stride_1));
+        cpa!(scope, stride_0_i = cast(conv_stride_0));
+        cpa!(scope, stride_1_i = cast(conv_stride_1));
 
         let oc_out = scope.create_local(Elem::UInt);
         let oc = scope.create_local(Elem::UInt);
@@ -117,26 +119,26 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let ic_end = scope.create_local(Elem::UInt);
         let ic_tmp = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cpa!(scope, b = id / output_stride_0);
+        cpa!(scope, b = b % output_shape_0);
 
-        gpu!(scope, oc_out = id / output_stride_1);
-        gpu!(scope, oc_out = oc_out % output_shape_1);
+        cpa!(scope, oc_out = id / output_stride_1);
+        cpa!(scope, oc_out = oc_out % output_shape_1);
 
-        gpu!(scope, oh = id / output_stride_2);
-        gpu!(scope, oh = oh % output_shape_2);
+        cpa!(scope, oh = id / output_stride_2);
+        cpa!(scope, oh = oh % output_shape_2);
 
-        gpu!(scope, ow = id / output_stride_3);
-        gpu!(scope, ow = ow % output_shape_3);
+        cpa!(scope, ow = id / output_stride_3);
+        cpa!(scope, ow = ow % output_shape_3);
 
-        gpu!(scope, k = oc_out / weight_shape_1);
-        gpu!(scope, g = k % groups);
-        gpu!(scope, oc = weight_shape_1 * g);
-        gpu!(scope, oc = oc_out - oc);
+        cpa!(scope, k = oc_out / weight_shape_1);
+        cpa!(scope, g = k % groups);
+        cpa!(scope, oc = weight_shape_1 * g);
+        cpa!(scope, oc = oc_out - oc);
 
-        gpu!(scope, ic_tmp = in_channels / groups);
-        gpu!(scope, ic_start = g * ic_tmp);
-        gpu!(scope, ic_end = ic_start + ic_tmp);
+        cpa!(scope, ic_tmp = in_channels / groups);
+        cpa!(scope, ic_start = g * ic_tmp);
+        cpa!(scope, ic_end = ic_start + ic_tmp);
 
         let tmp_u = scope.create_local(Elem::UInt);
         let tmp_i = scope.create_local(Elem::Int(IntKind::I32));
@@ -153,37 +155,37 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let ih_end = scope.create_local(Elem::UInt);
         let iw_end = scope.create_local(Elem::UInt);
 
-        gpu!(scope, kms_u = kernel_size_0 * dilation_0);
-        gpu!(scope, kms_0 = cast(kms_u));
-        gpu!(scope, kms_0 = kms_0 - stride_0_i);
-        gpu!(scope, kms_u = kernel_size_1 * dilation_1);
-        gpu!(scope, kms_1 = cast(kms_u));
-        gpu!(scope, kms_1 = kms_1 - stride_1_i);
+        cpa!(scope, kms_u = kernel_size_0 * dilation_0);
+        cpa!(scope, kms_0 = cast(kms_u));
+        cpa!(scope, kms_0 = kms_0 - stride_0_i);
+        cpa!(scope, kms_u = kernel_size_1 * dilation_1);
+        cpa!(scope, kms_1 = cast(kms_u));
+        cpa!(scope, kms_1 = kms_1 - stride_1_i);
 
-        gpu!(scope, tmp_u = oh + padding_0);
-        gpu!(scope, tmp_i = cast(tmp_u));
-        gpu!(scope, ih_start_tmp = tmp_i - kms_0);
-        gpu!(scope, ih_start_tmp = ih_start_tmp / stride_0_i);
-        gpu!(scope, tmp_u = ow + padding_1);
-        gpu!(scope, tmp_i = cast(tmp_u));
-        gpu!(scope, iw_start_tmp = tmp_i - kms_1);
-        gpu!(scope, iw_start_tmp = iw_start_tmp / stride_1_i);
+        cpa!(scope, tmp_u = oh + padding_0);
+        cpa!(scope, tmp_i = cast(tmp_u));
+        cpa!(scope, ih_start_tmp = tmp_i - kms_0);
+        cpa!(scope, ih_start_tmp = ih_start_tmp / stride_0_i);
+        cpa!(scope, tmp_u = ow + padding_1);
+        cpa!(scope, tmp_i = cast(tmp_u));
+        cpa!(scope, iw_start_tmp = tmp_i - kms_1);
+        cpa!(scope, iw_start_tmp = iw_start_tmp / stride_1_i);
 
-        gpu!(scope, tmp_i = max(ih_start_tmp, zero_i));
-        gpu!(scope, ih_start = cast(tmp_i));
-        gpu!(scope, tmp_i = kms_0 + ih_start_tmp);
-        gpu!(scope, tmp_i += one_i);
-        gpu!(scope, tmp_i = max(tmp_i, zero_i));
-        gpu!(scope, tmp_u = cast(tmp_i));
-        gpu!(scope, ih_end = min(tmp_u, input_shape_2));
+        cpa!(scope, tmp_i = max(ih_start_tmp, zero_i));
+        cpa!(scope, ih_start = cast(tmp_i));
+        cpa!(scope, tmp_i = kms_0 + ih_start_tmp);
+        cpa!(scope, tmp_i += one_i);
+        cpa!(scope, tmp_i = max(tmp_i, zero_i));
+        cpa!(scope, tmp_u = cast(tmp_i));
+        cpa!(scope, ih_end = min(tmp_u, input_shape_2));
 
-        gpu!(scope, tmp_i = max(iw_start_tmp, zero_i));
-        gpu!(scope, iw_start = cast(tmp_i));
-        gpu!(scope, tmp_i = kms_1 + iw_start_tmp);
-        gpu!(scope, tmp_i += one_i);
-        gpu!(scope, tmp_i = max(tmp_i, zero_i));
-        gpu!(scope, tmp_u = cast(tmp_i));
-        gpu!(scope, iw_end = min(tmp_u, input_shape_3));
+        cpa!(scope, tmp_i = max(iw_start_tmp, zero_i));
+        cpa!(scope, iw_start = cast(tmp_i));
+        cpa!(scope, tmp_i = kms_1 + iw_start_tmp);
+        cpa!(scope, tmp_i += one_i);
+        cpa!(scope, tmp_i = max(tmp_i, zero_i));
+        cpa!(scope, tmp_u = cast(tmp_i));
+        cpa!(scope, iw_end = min(tmp_u, input_shape_3));
 
         let index_input = scope.create_local(Elem::UInt);
         let index_weight = scope.create_local(Elem::UInt);
@@ -197,13 +199,13 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let index_weight_kh = scope.create_local(Elem::UInt);
         let index_weight_kw = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index_input_b = b * input_stride_0);
-        gpu!(scope, index_weight_oc = oc * weight_stride_1);
+        cpa!(scope, index_input_b = b * input_stride_0);
+        cpa!(scope, index_weight_oc = oc * weight_stride_1);
 
         let prod = scope.create_local(output.item());
         let prod_tmp = scope.create_local(output.item());
         let sum = scope.create_local(output.item());
-        gpu!(scope, sum = bias[oc_out]);
+        cpa!(scope, sum = bias[oc_out]);
 
         let kh = scope.create_local(Elem::UInt);
         let kw = scope.create_local(Elem::UInt);
@@ -218,61 +220,61 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         let not_neg = scope.create_local(Elem::Bool);
         let cond = scope.create_local(Elem::Bool);
 
-        gpu!(scope, numerator_h_base = oh + padding_0);
-        gpu!(scope, numerator_w_base = ow + padding_1);
+        cpa!(scope, numerator_h_base = oh + padding_0);
+        cpa!(scope, numerator_w_base = ow + padding_1);
 
-        gpu!(
+        cpa!(
             scope,
             range(ic_start, ic_end).for_each(|ic, scope| {
-                gpu!(scope, index_input_ic = ic * input_stride_1);
-                gpu!(scope, index_weight_ic = ic * weight_stride_0);
+                cpa!(scope, index_input_ic = ic * input_stride_1);
+                cpa!(scope, index_weight_ic = ic * weight_stride_0);
 
-                gpu!(
+                cpa!(
                     scope,
                     range(ih_start, ih_end).for_each(|ih, scope| {
-                        gpu!(scope, numerator_tmp = ih * conv_stride_0);
-                        gpu!(scope, not_neg = numerator_h_base >= numerator_tmp);
-                        gpu!(scope, numerator_h = numerator_h_base - numerator_tmp);
+                        cpa!(scope, numerator_tmp = ih * conv_stride_0);
+                        cpa!(scope, not_neg = numerator_h_base >= numerator_tmp);
+                        cpa!(scope, numerator_h = numerator_h_base - numerator_tmp);
 
-                        gpu!(scope, numerator_mod = numerator_h % dilation_0);
-                        gpu!(scope, divisible = numerator_mod == zero);
-                        gpu!(scope, cond = not_neg && divisible);
+                        cpa!(scope, numerator_mod = numerator_h % dilation_0);
+                        cpa!(scope, divisible = numerator_mod == zero);
+                        cpa!(scope, cond = not_neg && divisible);
 
-                        gpu!(scope, if(cond).then(|scope|{
-                            gpu!(scope, kh = numerator_h / dilation_0);
-                            gpu!(scope, index_input_ih = ih * input_stride_2);
-                            gpu!(scope, index_weight_kh = kh * weight_stride_2);
+                        cpa!(scope, if(cond).then(|scope|{
+                            cpa!(scope, kh = numerator_h / dilation_0);
+                            cpa!(scope, index_input_ih = ih * input_stride_2);
+                            cpa!(scope, index_weight_kh = kh * weight_stride_2);
 
-                            gpu!(
+                            cpa!(
                                 scope,
                                 range(iw_start, iw_end).for_each(|iw, scope| {
-                                    gpu!(scope, numerator_tmp = iw * conv_stride_1);
-                                    gpu!(scope, not_neg = numerator_w_base >= numerator_tmp);
-                                    gpu!(scope, numerator_w = numerator_w_base - numerator_tmp);
+                                    cpa!(scope, numerator_tmp = iw * conv_stride_1);
+                                    cpa!(scope, not_neg = numerator_w_base >= numerator_tmp);
+                                    cpa!(scope, numerator_w = numerator_w_base - numerator_tmp);
 
-                                    gpu!(scope, numerator_mod = numerator_w % dilation_1);
-                                    gpu!(scope, divisible = numerator_mod == zero);
-                                    gpu!(scope, cond = not_neg && divisible);
+                                    cpa!(scope, numerator_mod = numerator_w % dilation_1);
+                                    cpa!(scope, divisible = numerator_mod == zero);
+                                    cpa!(scope, cond = not_neg && divisible);
 
-                                    gpu!(scope, if(cond).then(|scope|{
-                                        gpu!(scope, kw = numerator_w / dilation_1);
-                                        gpu!(scope, index_input_iw = iw * input_stride_3);
-                                        gpu!(scope, index_weight_kw = kw * weight_stride_3);
+                                    cpa!(scope, if(cond).then(|scope|{
+                                        cpa!(scope, kw = numerator_w / dilation_1);
+                                        cpa!(scope, index_input_iw = iw * input_stride_3);
+                                        cpa!(scope, index_weight_kw = kw * weight_stride_3);
 
-                                        gpu!(scope, index_input = index_input_b);
-                                        gpu!(scope, index_input += index_input_ic);
-                                        gpu!(scope, index_input += index_input_ih);
-                                        gpu!(scope, index_input += index_input_iw);
+                                        cpa!(scope, index_input = index_input_b);
+                                        cpa!(scope, index_input += index_input_ic);
+                                        cpa!(scope, index_input += index_input_ih);
+                                        cpa!(scope, index_input += index_input_iw);
 
-                                        gpu!(scope, index_weight = index_weight_ic);
-                                        gpu!(scope, index_weight += index_weight_oc);
-                                        gpu!(scope, index_weight += index_weight_kh);
-                                        gpu!(scope, index_weight += index_weight_kw);
+                                        cpa!(scope, index_weight = index_weight_ic);
+                                        cpa!(scope, index_weight += index_weight_oc);
+                                        cpa!(scope, index_weight += index_weight_kh);
+                                        cpa!(scope, index_weight += index_weight_kw);
 
-                                        gpu!(scope, prod = input[index_input]);
-                                        gpu!(scope, prod_tmp = weight[index_weight]);
-                                        gpu!(scope, prod *= prod_tmp);
-                                        gpu!(scope, sum += prod);
+                                        cpa!(scope, prod = input[index_input]);
+                                        cpa!(scope, prod_tmp = weight[index_weight]);
+                                        cpa!(scope, prod *= prod_tmp);
+                                        cpa!(scope, sum += prod);
                                     }));
                                 })
                             );
@@ -283,14 +285,14 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
             })
         );
 
-        gpu!(scope, output[id] = sum);
+        cpa!(scope, output[id] = sum);
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let weight = Variable::GlobalInputArray(1, item);
@@ -327,14 +329,14 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKe
 
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, weight, bias, scalars],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -342,7 +344,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for Conv2dTransposeEagerKe
     }
 }
 
-pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
+pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,
@@ -387,11 +389,11 @@ pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
 
     Execution::start(kernel, input.client.clone())
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
+            TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -405,7 +407,7 @@ pub(crate) fn conv_transpose2d<R: Runtime, E: JitElement + Element>(
             options.padding[1] as u32,
             options.groups as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

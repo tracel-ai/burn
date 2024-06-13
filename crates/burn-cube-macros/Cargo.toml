@@ -1,0 +1,27 @@
+[package]
+authors = [
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+    "louisfd <louisfd94@gmail.com",
+]
+categories = ["science"]
+description = "TODO"
+edition.workspace = true
+keywords = []
+license.workspace = true
+name = "burn-cube-macros"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-cube-macros"
+version.workspace = true
+
+[lib]
+proc-macro = true
+
+[features]
+default = []
+std = []
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+derive-new = { workspace = true }

@@ -1,10 +1,6 @@
-use crate::{
-    codegen::{EagerHandle, Execution, WorkgroupLaunch},
-    element::JitElement,
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
+
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{MaskFill, MaskInplaceEagerKernel, MaskReadOnlyEagerKernel};
 
@@ -22,7 +18,7 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
+pub fn mask_fill<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: E,
@@ -34,7 +30,7 @@ pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_fill_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: EI,
@@ -50,21 +46,21 @@ fn mask_fill_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
         .with_scalars(&[value])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
 
-fn mask_fill_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
     input: JitTensor<R, EI, D>,
     mask: JitTensor<R, EM, D>,
     value: EI,
@@ -75,11 +71,11 @@ fn mask_fill_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
         ])
         .with_scalars(&[value])
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     input
 }

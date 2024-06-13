@@ -1,4 +1,4 @@
-use super::{binary::*, unary::*, Component, Variable};
+use super::{binary::*, unary::*, Component, Variable, WarpInstruction};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -98,6 +98,7 @@ pub enum Instruction {
     SyncThreads,
     Ceil(UnaryInstruction),
     Floor(UnaryInstruction),
+    Wrap(WarpInstruction),
 }
 
 impl Display for Instruction {
@@ -228,6 +229,7 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                     "{out} = info[({offset} * 2 * info[0]) + {index}];\n"
                 ))
             }
+            Instruction::Wrap(it) => f.write_fmt(format_args!("{it}")),
         }
     }
 }

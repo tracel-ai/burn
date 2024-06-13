@@ -1,16 +1,10 @@
-use crate::codegen::calculate_num_elems_dyn_rank;
-use crate::codegen::Compilation;
-use crate::codegen::CompilationInfo;
-use crate::codegen::CompilationSettings;
-use crate::compute::FullCompilationPhase;
-use crate::compute::JitKernel;
-use crate::compute::Kernel;
-use crate::compute::WorkGroup;
+use burn_cube::calculate_num_elems_dyn_rank;
+use burn_cube::prelude::*;
+
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
-use crate::gpu::ComputeShader;
-use crate::kernel::GpuComputeShaderPhase;
-use crate::Runtime;
+use crate::kernel::Kernel;
+use crate::JitRuntime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use burn_compute::tune::AutotuneOperation;
@@ -23,16 +17,16 @@ use std::sync::Arc;
 use super::tracing::ExecutionInfo;
 
 #[derive(new)]
-pub struct FusionKernel<R: Runtime> {
+pub struct FusionKernel<R: JitRuntime> {
     id: String, // Same ID for all different settings.
-    info: Arc<CompilationInfo>,
-    settings: CompilationSettings,
+    info: Arc<KernelExpansion>,
+    settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    workgroup: WorkGroup,
+    cube_count: CubeCount,
     _runtime: PhantomData<R>,
 }
 
-pub trait FusionKernelFactory<R: Runtime> {
+pub trait FusionKernelFactory<R: JitRuntime> {
     /// Create a new kernel.
     fn create(
         &self,
@@ -45,8 +39,8 @@ pub trait FusionKernelFactory<R: Runtime> {
 
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
-pub struct ExecutableKernel<R: Runtime> {
-    kernel: Box<dyn JitKernel>,
+pub struct ExecutableKernel<R: JitRuntime> {
+    kernel: Box<dyn CubeTask>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -58,8 +52,8 @@ pub struct ExecutableKernel<R: Runtime> {
 ///
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
-pub struct AutotunableKernel<R: Runtime> {
-    kernel: Arc<dyn JitKernel>,
+pub struct AutotunableKernel<R: JitRuntime> {
+    kernel: Arc<dyn CubeTask>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -71,18 +65,16 @@ pub enum OutputRuntimeInfo {
     Array { size: usize },
 }
 
-impl<R: Runtime> ExecutableKernel<R> {
+impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(Kernel::JitGpu(self.kernel), self.bindings)
+        self.client.execute(self.kernel, self.bindings)
     }
 }
 
-impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
+impl<R: JitRuntime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client
-            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.bindings)
+        self.client.execute(Box::new(self.kernel), self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
@@ -94,7 +86,7 @@ impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     }
 }
 
-impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
+impl<R: JitRuntime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
@@ -104,7 +96,7 @@ impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     }
 }
 
-impl<R: Runtime> FusionKernel<R> {
+impl<R: JitRuntime> FusionKernel<R> {
     pub fn create<K>(
         factory: &K,
         running_info: &ExecutionInfo<'_>,
@@ -241,9 +233,9 @@ impl<R: Runtime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        let workgroup = fusion_kernel.workgroup.clone();
+        let workgroup = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
-            Box::new(FullCompilationPhase::<R::Compiler, FusionKernel<R>>::new(
+            Box::new(KernelTask::<R::Compiler, FusionKernel<R>>::new(
                 fusion_kernel,
                 workgroup,
             )),
@@ -253,10 +245,10 @@ impl<R: Runtime> FusionKernel<R> {
     }
 }
 
-impl<R: Runtime> GpuComputeShaderPhase for FusionKernel<R> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime> Kernel for FusionKernel<R> {
+    fn define(&self) -> KernelDefinition {
         log::info!("Compiling ... {:?}", self.id());
-        Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
+        KernelIntegrator::new(self.info.as_ref().clone()).integrate(self.settings.clone())
     }
 
     fn id(&self) -> String {
@@ -264,7 +256,7 @@ impl<R: Runtime> GpuComputeShaderPhase for FusionKernel<R> {
     }
 }
 
-fn register_info_tensor<R: Runtime>(
+fn register_info_tensor<R: JitRuntime>(
     info: &mut Vec<u32>,
     tensor: &TensorDescription,
     handle: &JitFusionHandle<R>,
@@ -292,7 +284,7 @@ fn process_inputs_outputs<'a, R>(
     Vec<&'a TensorDescription>,
 )
 where
-    R: Runtime,
+    R: JitRuntime,
 {
     let mut inputs_description_updated = Vec::with_capacity(inputs.len());
     let mut outputs_description_updated = Vec::with_capacity(outputs.len());

@@ -1,16 +1,14 @@
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    gpu::{gpu, ComputeShader, Elem, Scope, Variable, Visibility},
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    Runtime,
+use burn_cube::{
+    cpa,
+    frontend::TensorHandle,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
+
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 
 #[derive(new)]
 struct AdaptiveAvgPool2dBackwardEagerKernel<R, E> {
@@ -28,7 +26,7 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.grad;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);
@@ -48,40 +46,40 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, grad_stride_0 = stride(grad, 0u32));
-        gpu!(scope, grad_stride_1 = stride(grad, 1u32));
-        gpu!(scope, grad_stride_2 = stride(grad, 2u32));
-        gpu!(scope, grad_stride_3 = stride(grad, 3u32));
+        cpa!(scope, grad_stride_0 = stride(grad, 0u32));
+        cpa!(scope, grad_stride_1 = stride(grad, 1u32));
+        cpa!(scope, grad_stride_2 = stride(grad, 2u32));
+        cpa!(scope, grad_stride_3 = stride(grad, 3u32));
 
-        gpu!(scope, grad_shape_2 = shape(grad, 2u32));
-        gpu!(scope, grad_shape_3 = shape(grad, 3u32));
+        cpa!(scope, grad_shape_2 = shape(grad, 2u32));
+        cpa!(scope, grad_shape_3 = shape(grad, 3u32));
 
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
+        cpa!(scope, output_stride_0 = stride(output, 0u32));
+        cpa!(scope, output_stride_1 = stride(output, 1u32));
+        cpa!(scope, output_stride_2 = stride(output, 2u32));
+        cpa!(scope, output_stride_3 = stride(output, 3u32));
 
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cpa!(scope, output_shape_0 = shape(output, 0u32));
+        cpa!(scope, output_shape_1 = shape(output, 1u32));
+        cpa!(scope, output_shape_2 = shape(output, 2u32));
+        cpa!(scope, output_shape_3 = shape(output, 3u32));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let ih = scope.create_local(Elem::UInt);
         let iw = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cpa!(scope, b = id / output_stride_0);
+        cpa!(scope, b = b % output_shape_0);
 
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
+        cpa!(scope, c = id / output_stride_1);
+        cpa!(scope, c = c % output_shape_1);
 
-        gpu!(scope, ih = id / output_stride_2);
-        gpu!(scope, ih = ih % output_shape_2);
+        cpa!(scope, ih = id / output_stride_2);
+        cpa!(scope, ih = ih % output_shape_2);
 
-        gpu!(scope, iw = id / output_stride_3);
-        gpu!(scope, iw = iw % output_shape_3);
+        cpa!(scope, iw = id / output_stride_3);
+        cpa!(scope, iw = iw % output_shape_3);
 
         let oh_start = Self::start_index(scope, ih, output_shape_2, grad_shape_2);
         let oh_end = Self::end_index(scope, ih, output_shape_2, grad_shape_2);
@@ -103,46 +101,46 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let index_base = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
         let index = scope.create_local(Elem::UInt);
-        gpu!(scope, index_base = b * grad_stride_0);
-        gpu!(scope, index_tmp = c * grad_stride_1);
-        gpu!(scope, index_base += index_tmp);
+        cpa!(scope, index_base = b * grad_stride_0);
+        cpa!(scope, index_tmp = c * grad_stride_1);
+        cpa!(scope, index_base += index_tmp);
 
-        gpu!(
+        cpa!(
             scope,
             range(oh_start, oh_end).for_each(|oh, scope| {
                 let ih_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
                 let ih_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
-                gpu!(scope, contributed_h = ih >= ih_start);
-                gpu!(scope, contributed_tmp = ih < ih_end);
-                gpu!(scope, contributed_h = contributed_h && contributed_tmp);
+                cpa!(scope, contributed_h = ih >= ih_start);
+                cpa!(scope, contributed_tmp = ih < ih_end);
+                cpa!(scope, contributed_h = contributed_h && contributed_tmp);
 
-                gpu!(scope, if(contributed_h).then(|scope|{
-                    gpu!(
+                cpa!(scope, if(contributed_h).then(|scope|{
+                    cpa!(
                         scope,
                         range(ow_start, ow_end).for_each(|ow, scope| {
                             let iw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
                             let iw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
 
-                            gpu!(scope, contributed_w = iw >= iw_start);
-                            gpu!(scope, contributed_tmp = iw < iw_end);
-                            gpu!(scope, contributed_w = contributed_w && contributed_tmp);
+                            cpa!(scope, contributed_w = iw >= iw_start);
+                            cpa!(scope, contributed_tmp = iw < iw_end);
+                            cpa!(scope, contributed_w = contributed_w && contributed_tmp);
 
 
-                            gpu!(scope, if(contributed_w).then(|scope|{
-                                gpu!(scope, count = ih_end - ih_start);
-                                gpu!(scope, count_tmp = iw_end - iw_start);
-                                gpu!(scope, count *= count_tmp);
-                                gpu!(scope, count_float = cast(count));
+                            cpa!(scope, if(contributed_w).then(|scope|{
+                                cpa!(scope, count = ih_end - ih_start);
+                                cpa!(scope, count_tmp = iw_end - iw_start);
+                                cpa!(scope, count *= count_tmp);
+                                cpa!(scope, count_float = cast(count));
 
-                                gpu!(scope, index = index_base);
-                                gpu!(scope, index_tmp = oh * grad_stride_2);
-                                gpu!(scope, index += index_tmp);
-                                gpu!(scope, index_tmp = ow * grad_stride_3);
-                                gpu!(scope, index += index_tmp);
+                                cpa!(scope, index = index_base);
+                                cpa!(scope, index_tmp = oh * grad_stride_2);
+                                cpa!(scope, index += index_tmp);
+                                cpa!(scope, index_tmp = ow * grad_stride_3);
+                                cpa!(scope, index += index_tmp);
 
-                                gpu!(scope, the_grad = grad[index]);
-                                gpu!(scope, avg = the_grad / count_float);
-                                gpu!(scope, grad_acc += avg);
+                                cpa!(scope, the_grad = grad[index]);
+                                cpa!(scope, avg = the_grad / count_float);
+                                cpa!(scope, grad_acc += avg);
                             }));
                         })
                     );
@@ -150,7 +148,7 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
             })
         );
 
-        gpu!(scope, output[id] = grad_acc);
+        cpa!(scope, output[id] = grad_acc);
     }
 
     fn start_index(
@@ -159,17 +157,17 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let elem = E::gpu_elem();
+        let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = output_size_index * input_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(output_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = floor(div));
-        gpu!(scope, index = cast(div));
+        cpa!(scope, index = output_size_index * input_size);
+        cpa!(scope, numerator_float = cast(index));
+        cpa!(scope, div = cast(output_size));
+        cpa!(scope, div = numerator_float / div);
+        cpa!(scope, div = floor(div));
+        cpa!(scope, index = cast(div));
         index
     }
 
@@ -179,37 +177,35 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         output_size: Variable,
         input_size: Variable,
     ) -> Variable {
-        let elem = E::gpu_elem();
+        let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(Elem::Bool);
         let end_index = scope.create_local(Elem::UInt);
 
-        gpu!(scope, index = output_size_index + 1u32);
-        gpu!(scope, index *= input_size);
-        gpu!(scope, numerator_float = cast(index));
-        gpu!(scope, div = cast(output_size));
-        gpu!(scope, div = numerator_float / div);
-        gpu!(scope, div = ceil(div));
-        gpu!(scope, index = cast(div));
+        cpa!(scope, index = output_size_index + 1u32);
+        cpa!(scope, index *= input_size);
+        cpa!(scope, numerator_float = cast(index));
+        cpa!(scope, div = cast(output_size));
+        cpa!(scope, div = numerator_float / div);
+        cpa!(scope, div = ceil(div));
+        cpa!(scope, index = cast(div));
 
-        gpu!(scope, min = input_size < index);
-        gpu!(scope, if(min).then(|scope|{
-            gpu!(scope, end_index = input_size);
+        cpa!(scope, min = input_size < index);
+        cpa!(scope, if(min).then(|scope|{
+            cpa!(scope, end_index = input_size);
         }).else(|scope|{
-            gpu!(scope, end_index = index);
+            cpa!(scope, end_index = index);
         }));
         end_index
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
-    for AdaptiveAvgPool2dBackwardEagerKernel<R, E>
-{
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for AdaptiveAvgPool2dBackwardEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let grad = Variable::GlobalInputArray(0, item);
         let output = Variable::GlobalOutputArray(0, item);
@@ -233,14 +229,14 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
         };
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![grad, scalars],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -248,7 +244,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<R: Runtime, E: JitElement>(
+pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     x: JitTensor<R, E, 4>,
     out_grad: JitTensor<R, E, 4>,
 ) -> JitTensor<R, E, 4> {
@@ -265,17 +261,17 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: Runtime, E: JitElement>(
     let kernel = AdaptiveAvgPool2dBackwardEagerKernel::<R, E>::new();
 
     Execution::start(kernel, x.client)
-        .inputs(&[EagerHandle::<R>::new(
+        .inputs(&[TensorHandle::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
         )])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

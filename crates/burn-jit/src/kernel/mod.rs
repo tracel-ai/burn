@@ -1,4 +1,3 @@
-mod base;
 mod binary;
 mod cast;
 mod clamp;
@@ -8,12 +7,13 @@ mod index;
 mod mask;
 mod unary;
 
-pub use base::*;
 pub use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
 pub use unary::*;
+
+pub use burn_cube::{Kernel, SUBCUBE_DIM_APPROX};
 
 /// Convolution kernels
 pub mod conv;

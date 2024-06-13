@@ -228,6 +228,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
 | `tensor.prod()`                                                 | `tensor.prod()`                                |
 | `tensor.prod_dim(dim)`                                          | `tensor.prod(dim, keepdim=True)`               |
+| `tensor.rem(other)` or `tensor % other`                         | `tensor % other`                               |
 | `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
 | `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
 | `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
@@ -288,6 +289,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
+| `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
 
 # Bool Operations
 

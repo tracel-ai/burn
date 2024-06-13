@@ -32,16 +32,16 @@ with Gzip compression).
 Recorders are independent of the backend and serialize records with precision and a format. Note
 that the format can also be in-memory, allowing you to save the records directly into bytes.
 
-| Recorder               | Format                    | Compression |
-| ---------------------- | ------------------------- | ----------- |
-| DefaultFileRecorder    | File - Named Message Park | None        |
-| NamedMpkFileRecorder   | File - Named Message Park | None        |
-| NamedMpkGzFileRecorder | File - Named Message Park | Gzip        |
-| BinFileRecorder        | File - Binary             | None        |
-| BinGzFileRecorder      | File - Binary             | Gzip        |
-| JsonGzFileRecorder     | File - Json               | Gzip        |
-| PrettyJsonFileRecorder | File - Pretty Json        | Gzip        |
-| BinBytesRecorder       | In Memory - Binary        | None        |
+| Recorder               | Format                   | Compression |
+| ---------------------- | ------------------------ | ----------- |
+| DefaultFileRecorder    | File - Named MessagePack | None        |
+| NamedMpkFileRecorder   | File - Named MessagePack | None        |
+| NamedMpkGzFileRecorder | File - Named MessagePack | Gzip        |
+| BinFileRecorder        | File - Binary            | None        |
+| BinGzFileRecorder      | File - Binary            | Gzip        |
+| JsonGzFileRecorder     | File - Json              | Gzip        |
+| PrettyJsonFileRecorder | File - Pretty Json       | Gzip        |
+| BinBytesRecorder       | In Memory - Binary       | None        |
 
 Each recorder supports precision settings decoupled from the precision used for training or
 inference. These settings allow you to define the floating-point and integer types that will be used
@@ -60,8 +60,8 @@ and deserialization; otherwise, you will encounter loading errors.
 **Which recorder should you use?**
 
 - If you want fast serialization and deserialization, choose a recorder without compression. The one
-  with the lowest file size without compression is the binary format; otherwise, the named message
-  park could be used.
+  with the lowest file size without compression is the binary format; otherwise, the named
+  MessagePack could be used.
 - If you want to save models for storage, you can use compression, but avoid using the binary
   format, as it may not be backward compatible.
 - If you want to debug your model's weights, you can use the pretty JSON format.

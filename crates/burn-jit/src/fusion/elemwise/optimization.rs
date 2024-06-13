@@ -5,18 +5,18 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::WorkgroupSize,
-    compute::JitAutotuneKey,
     fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
-    Runtime,
+    tune_key::JitAutotuneKey,
+    JitRuntime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
+use burn_cube::ir::CubeDim;
 use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
+pub struct ElementWise<R: JitRuntime, Phase = ExecutionPhase<R>> {
     pub(super) trace: Trace,
     pub(super) num_operations: usize,
     pub(super) device: R::Device,
@@ -28,7 +28,7 @@ pub struct CompilationPhase;
 
 /// Phase where the kernel should be executed.
 #[derive(new)]
-pub struct ExecutionPhase<R: Runtime> {
+pub struct ExecutionPhase<R: JitRuntime> {
     /// Kernel set with default workgroup size.
     pub(super) kernel_factory_1: ElementWiseKernelFactory<R>,
     /// Kernel set with custom workgroup size.
@@ -41,20 +41,17 @@ pub struct ElementWiseState {
     num_operations: usize,
 }
 
-impl<R: Runtime> ElementWise<R, CompilationPhase> {
+impl<R: JitRuntime> ElementWise<R, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
         let info = Arc::new(self.trace.compiling());
 
         let kernel_factory_1 = ElementWiseKernelFactory::new(
             IdGenerator::generate(),
             info.clone(),
-            WorkgroupSize::default(),
+            CubeDim::default(),
         );
-        let kernel_factory_2 = ElementWiseKernelFactory::new(
-            IdGenerator::generate(),
-            info,
-            WorkgroupSize::new(16, 16, 1),
-        );
+        let kernel_factory_2 =
+            ElementWiseKernelFactory::new(IdGenerator::generate(), info, CubeDim::new(16, 16, 1));
 
         ElementWise {
             trace: self.trace,
@@ -65,7 +62,7 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
     }
 }
 
-impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
+impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         let client = R::client(&self.device);
 

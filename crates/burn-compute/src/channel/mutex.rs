@@ -1,8 +1,10 @@
 use super::ComputeChannel;
 use crate::server::{Binding, ComputeServer, Handle};
+use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_common::sync_type::SyncType;
 use spin::Mutex;
 
 /// The MutexComputeChannel ensures thread-safety by locking the server
@@ -39,6 +41,13 @@ where
         self.server.lock().read(handle)
     }
 
+    fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        self.server.lock().get_resource(binding)
+    }
+
     fn create(&self, data: &[u8]) -> Handle<Server> {
         self.server.lock().create(data)
     }
@@ -51,7 +60,7 @@ where
         self.server.lock().execute(kernel, handles)
     }
 
-    fn sync(&self) {
-        self.server.lock().sync()
+    fn sync(&self, sync_type: SyncType) {
+        self.server.lock().sync(sync_type)
     }
 }

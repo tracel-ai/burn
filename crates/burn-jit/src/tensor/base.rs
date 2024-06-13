@@ -1,18 +1,19 @@
-use crate::codegen::dialect::gpu::{Elem, Operator, Scope, UnaryOperator};
 use crate::element::JitElement;
-use crate::{unary, Runtime};
+use crate::{unary, JitRuntime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
+use burn_cube::ir::{Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::Runtime;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 pub struct JitTensor<R, E, const D: usize>
 where
-    R: Runtime,
+    R: JitRuntime,
     E: JitElement,
 {
-    /// Compute client for the [runtime](Runtime).
+    /// Compute client for the [runtime](JitRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
     pub handle: Handle<R::Server>,
@@ -27,7 +28,7 @@ where
 
 impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
 where
-    R: Runtime,
+    R: JitRuntime,
     E: JitElement,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -44,7 +45,7 @@ where
 
 impl<R, E, const D: usize> Clone for JitTensor<R, E, D>
 where
-    R: Runtime,
+    R: JitRuntime,
     E: JitElement,
 {
     fn clone(&self) -> Self {
@@ -61,7 +62,7 @@ where
 
 impl<R, E, const D: usize> JitTensor<R, E, D>
 where
-    R: Runtime,
+    R: JitRuntime,
     E: JitElement,
 {
     /// Create a new tensor with a contiguous memory layout.
@@ -145,8 +146,8 @@ where
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Assign(UnaryOperator {
-                input: scope.read_array(0, elem),
+            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Assign(UnaryOperator {
+                input: scope.read_array(0, elem, position),
                 out: scope.create_local(elem),
             }),
             runtime: R,

@@ -15,7 +15,7 @@ idea of what kind of work is currently being planned or is in progress.
 
 ### Step 2: Get Familiar with the Project Architecture
 
-It's crucial to have an understanding of the [project's architecture](/ARCHITECTURE.md). Familiarize
+It's crucial to have an understanding of the [project's architecture](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture). Familiarize
 yourself with the structure of the project, the purpose of different components, and how they
 interact with each other. This will give you the context needed to make meaningful contributions.
 

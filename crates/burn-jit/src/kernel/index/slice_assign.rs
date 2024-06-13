@@ -1,20 +1,15 @@
-use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        WorkgroupLaunch,
-    },
-    element::JitElement,
-    gpu::ComputeShader,
-    kernel::GpuComputeShaderPhase,
-    tensor::JitTensor,
-    Runtime,
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
+use burn_cube::{
+    cpa,
+    frontend::TensorHandle,
+    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
 
 #[derive(new)]
-struct SliceAssignEagerKernel<R: Runtime, E: JitElement> {
+struct SliceAssignEagerKernel<R: JitRuntime, E: JitElement> {
     rank: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -30,7 +25,7 @@ impl SliceAssignComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let value = self.value;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
@@ -46,39 +41,39 @@ impl SliceAssignComputeShader {
         let range_start = scope.create_local(Elem::UInt);
 
         for i in 0..self.rank {
-            gpu!(scope, stride_input = stride(input, i));
-            gpu!(scope, stride_value = stride(value, i));
-            gpu!(scope, shape_value = shape(value, i));
-            gpu!(scope, shape_input = shape(input, i));
-            gpu!(
+            cpa!(scope, stride_input = stride(input, i));
+            cpa!(scope, stride_value = stride(value, i));
+            cpa!(scope, shape_value = shape(value, i));
+            cpa!(scope, shape_input = shape(input, i));
+            cpa!(
                 scope,
                 range_start = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
             );
 
-            gpu!(scope, offset_local = id / stride_value);
-            gpu!(scope, offset_local = offset_local % shape_value);
+            cpa!(scope, offset_local = id / stride_value);
+            cpa!(scope, offset_local = offset_local % shape_value);
 
-            gpu!(scope, offset_local_value = offset_local * stride_value);
-            gpu!(scope, offset_local_input = offset_local + range_start);
-            gpu!(
+            cpa!(scope, offset_local_value = offset_local * stride_value);
+            cpa!(scope, offset_local_input = offset_local + range_start);
+            cpa!(
                 scope,
                 offset_local_input = offset_local_input * stride_input
             );
 
-            gpu!(scope, offset_value += offset_local_value);
-            gpu!(scope, offset_input += offset_local_input);
+            cpa!(scope, offset_value += offset_local_value);
+            cpa!(scope, offset_input += offset_local_input);
         }
 
         let result = scope.create_local(input.item());
-        gpu!(scope, result = value[offset_value]);
-        gpu!(scope, input[offset_input] = result);
+        cpa!(scope, result = value[offset_value]);
+        cpa!(scope, input[offset_input] = result);
     }
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
         let input = Variable::GlobalInputArray(0, item);
         let value = Variable::GlobalInputArray(1, item);
@@ -105,14 +100,14 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel
             size: self.rank,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, value, ranges],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -120,7 +115,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for SliceAssignEagerKernel
     }
 }
 
-pub(crate) fn slice_assign<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
     value: JitTensor<R, E, D1>,
@@ -140,11 +135,11 @@ pub(crate) fn slice_assign<R: Runtime, E: JitElement, const D1: usize, const D2:
 
     Execution::start(kernel, value.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .with_scalars(&scalars)
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     tensor
 }

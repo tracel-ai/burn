@@ -1,15 +1,16 @@
+use burn_cube::{
+    frontend::TensorHandle,
+    ir::{BinaryOperator, CubeDim, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
+};
 use burn_tensor::{Element, Shape};
 
 use crate::{
-    codegen::{
-        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution,
-        InputInfo, OutputInfo, WorkgroupLaunch,
-    },
     element::JitElement,
-    gpu::ComputeShader,
-    kernel::{into_contiguous, GpuComputeShaderPhase},
+    kernel::{into_contiguous, Kernel},
     tensor::JitTensor,
-    Runtime,
+    JitRuntime,
 };
 use std::marker::PhantomData;
 
@@ -21,32 +22,31 @@ use super::{
 };
 
 #[derive(new, Debug)]
-struct MatmulTiling2dEagerKernel<R: Runtime, E: JitElement> {
+struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
     config: Tiling2dConfig,
     bounds_check_required: bool,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
-        let mut scope = gpu::Scope::root();
-        let elem = E::gpu_elem();
+impl<R: JitRuntime, E: JitElement> Kernel for MatmulTiling2dEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
+        let mut scope = Scope::root();
+        let elem = E::cube_elem();
         assert!(
-            elem == gpu::Elem::Float(gpu::FloatKind::F32)
-                || elem == gpu::Elem::Float(gpu::FloatKind::F64),
+            elem == Elem::Float(FloatKind::F32) || elem == Elem::Float(FloatKind::F64),
             "Only float elements are supported."
         );
         let item = elem.into();
 
-        let lhs = gpu::Variable::GlobalInputArray(0, item);
-        let rhs = gpu::Variable::GlobalInputArray(1, item);
-        let out = gpu::Variable::GlobalOutputArray(0, item);
+        let lhs = Variable::GlobalInputArray(0, item);
+        let rhs = Variable::GlobalInputArray(1, item);
+        let out = Variable::GlobalOutputArray(0, item);
 
         scope.write_global_custom(out);
 
         MatmulTiling2dShader {
-            variables: gpu::BinaryOperator { lhs, rhs, out },
+            variables: BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
             bounds_check_required: self.bounds_check_required,
         }
@@ -54,26 +54,26 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKer
 
         let lhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let rhs = InputInfo::Array {
             item,
-            visibility: gpu::Visibility::Read,
+            visibility: Visibility::Read,
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.config.grid_x as u32,
             self.config.grid_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -88,7 +88,7 @@ impl<R: Runtime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKer
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -110,11 +110,15 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .outputs(&[TensorHandle::new(
+            &out.handle,
+            &out.strides,
+            &out.shape.dims,
+        )])
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &out.shape, config,
         )));
 
@@ -122,7 +126,7 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
 }
 
 /// Matrix multiplication using tiling 2d algorithm with padding needed
-pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -163,15 +167,15 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &rounded_output.handle,
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &rounded_output.shape,
             config,
         )));

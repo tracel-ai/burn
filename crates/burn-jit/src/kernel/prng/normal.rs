@@ -1,12 +1,15 @@
+use burn_cube::{
+    cpa,
+    ir::{Elem, FloatKind, Scope, Variable},
+};
 use std::f32::consts::PI;
 
 use burn_tensor::Shape;
 
 use crate::{
-    gpu::{gpu, Elem, Scope, Variable},
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::JitTensor,
-    JitElement, Runtime,
+    JitElement, JitRuntime,
 };
 
 use super::{random, Prng};
@@ -33,15 +36,15 @@ impl<E: JitElement> Prng<E> for Normal<E> {
         state_3: Variable,
         output: Variable,
     ) {
-        let elem = E::gpu_elem();
+        let float_elem = Elem::Float(FloatKind::F32);
         let item = output.item();
         let mean = args[0];
         let std = args[1];
-        let two_pi = scope.create_with_value(2. * PI, elem);
+        let two_pi = scope.create_with_value(2. * PI, float_elem);
         let t_neg = scope.create_with_value(-2.0, item);
         let two: Variable = 2u32.into();
 
-        gpu!(
+        cpa!(
             scope,
             range(0u32, n_values_per_thread / 2).for_each(|i, scope| {
                 let int_random = scope.create_local(Elem::UInt);
@@ -52,11 +55,11 @@ impl<E: JitElement> Prng<E> for Normal<E> {
                 taus_step_2(scope, state_2);
                 lcg_step(scope, state_3);
 
-                gpu!(scope, int_random = state_0 ^ state_1);
-                gpu!(scope, int_random = int_random ^ state_2);
-                gpu!(scope, int_random = int_random ^ state_3);
+                cpa!(scope, int_random = state_0 ^ state_1);
+                cpa!(scope, int_random = int_random ^ state_2);
+                cpa!(scope, int_random = int_random ^ state_3);
 
-                let unit_0 = scope.create_local(elem);
+                let unit_0 = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, unit_0);
 
                 // Second random uniform integer
@@ -65,44 +68,44 @@ impl<E: JitElement> Prng<E> for Normal<E> {
                 taus_step_2(scope, state_2);
                 lcg_step(scope, state_3);
 
-                gpu!(scope, int_random = state_0 ^ state_1);
-                gpu!(scope, int_random = int_random ^ state_2);
-                gpu!(scope, int_random = int_random ^ state_3);
+                cpa!(scope, int_random = state_0 ^ state_1);
+                cpa!(scope, int_random = int_random ^ state_2);
+                cpa!(scope, int_random = int_random ^ state_3);
 
-                let unit_1 = scope.create_local(elem);
+                let unit_1 = scope.create_local(float_elem);
                 cast_uint_to_float(scope, int_random, unit_1);
 
                 // Box-Muller transform
                 let coeff = scope.create_local(item);
-                gpu!(scope, coeff = log(unit_0));
-                gpu!(scope, coeff *= t_neg);
-                gpu!(scope, coeff = sqrt(coeff));
-                gpu!(scope, coeff *= std);
+                cpa!(scope, coeff = log(unit_0));
+                cpa!(scope, coeff *= t_neg);
+                cpa!(scope, coeff = sqrt(coeff));
+                cpa!(scope, coeff *= std);
 
                 let trigo_arg = scope.create_local(item);
-                gpu!(scope, trigo_arg = two_pi * unit_1);
+                cpa!(scope, trigo_arg = two_pi * unit_1);
 
                 let normal_0 = scope.create_local(item);
                 let normal_1 = scope.create_local(item);
-                gpu!(scope, normal_0 = cos(trigo_arg));
-                gpu!(scope, normal_0 *= coeff);
-                gpu!(scope, normal_0 += mean);
-                gpu!(scope, normal_1 = sin(trigo_arg));
-                gpu!(scope, normal_1 *= coeff);
-                gpu!(scope, normal_1 += mean);
+                cpa!(scope, normal_0 = cos(trigo_arg));
+                cpa!(scope, normal_0 *= coeff);
+                cpa!(scope, normal_0 += mean);
+                cpa!(scope, normal_1 = sin(trigo_arg));
+                cpa!(scope, normal_1 *= coeff);
+                cpa!(scope, normal_1 += mean);
 
                 // Write to output
                 let write_index_0 = scope.create_local(Elem::UInt);
                 let write_index_1 = scope.create_local(Elem::UInt);
                 let iteration_offset = scope.create_local(Elem::UInt);
-                gpu!(scope, write_index_0 = write_index_base);
-                gpu!(scope, iteration_offset = two * i);
-                gpu!(scope, iteration_offset *= n_invocations);
-                gpu!(scope, write_index_0 += iteration_offset);
-                gpu!(scope, write_index_1 = write_index_0 + n_invocations);
+                cpa!(scope, write_index_0 = write_index_base);
+                cpa!(scope, iteration_offset = two * i);
+                cpa!(scope, iteration_offset *= n_invocations);
+                cpa!(scope, write_index_0 += iteration_offset);
+                cpa!(scope, write_index_1 = write_index_0 + n_invocations);
 
-                gpu!(scope, output[write_index_0] = normal_0);
-                gpu!(scope, output[write_index_1] = normal_1);
+                cpa!(scope, output[write_index_0] = normal_0);
+                cpa!(scope, output[write_index_1] = normal_1);
             })
         );
     }
@@ -113,7 +116,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
 }
 
 /// Pseudo-random generator with uniform distribution
-pub fn random_normal<R: Runtime, E: JitElement, const D: usize>(
+pub fn random_normal<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     mean: E,
