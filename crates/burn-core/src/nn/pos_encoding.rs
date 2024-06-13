@@ -10,7 +10,7 @@ use crate::tensor::Tensor;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create an [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
+/// Configuration to create a [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
 #[derive(Config)]
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.

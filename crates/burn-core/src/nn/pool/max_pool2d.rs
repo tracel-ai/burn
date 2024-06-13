@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 
 use crate::tensor::module::max_pool2d;
 
-/// Configuration to create an [2D max pooling](MaxPool2d) layer using the [init function](MaxPool2dConfig::init).
+/// Configuration to create a [2D max pooling](MaxPool2d) layer using the [init function](MaxPool2dConfig::init).
 #[derive(Debug, Config)]
 pub struct MaxPool2dConfig {
     /// The size of the kernel.
