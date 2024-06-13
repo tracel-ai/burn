@@ -26,10 +26,10 @@ pub struct BatchNormConfig {
 ///
 /// Where:
 /// - `X` is the input tensor
+/// - `Y` is the output tensor
 /// - `norm` is the normalization function
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
-/// - `Y` is the output tensor
 ///
 /// Should be created using [BatchNormConfig].
 #[derive(Module, Debug)]
