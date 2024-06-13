@@ -10,7 +10,7 @@ use crate::tensor::module::conv1d;
 use crate::tensor::ops::ConvOptions;
 use crate::tensor::Tensor;
 
-/// Configuration to create an [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
+/// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
 pub struct Conv1dConfig {
     /// The number of input channels.

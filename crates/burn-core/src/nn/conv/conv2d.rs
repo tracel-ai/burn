@@ -12,7 +12,7 @@ use crate::tensor::Tensor;
 
 use crate::nn::conv::checks;
 
-/// Configuration to create an [2D convolution](Conv2d) layer, using the [init function](Conv2dConfig::init).
+/// Configuration to create a [2D convolution](Conv2d) layer, using the [init function](Conv2dConfig::init).
 #[derive(Config, Debug)]
 pub struct Conv2dConfig {
     /// The number of channels.
