@@ -8,11 +8,7 @@ use core::convert::Into;
 
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
-use burn::{
-    backend::{Autodiff, NdArray},
-    prelude::*,
-    tensor::activation::softmax,
-};
+use burn::{backend::NdArray, prelude::*, tensor::activation::softmax};
 
 use burn_candle::Candle;
 use burn_wgpu::{init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
@@ -38,7 +34,7 @@ pub enum ModelType {
     WithNdArrayBackend(Model<NdArray<f32>>),
 
     /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Autodiff<Wgpu<AutoGraphicsApi, f32, i32>>>),
+    WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)
