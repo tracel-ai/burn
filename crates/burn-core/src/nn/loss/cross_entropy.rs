@@ -1,18 +1,18 @@
 use crate as burn;
 
+use crate::tensor::activation::log_softmax;
+use crate::tensor::{backend::Backend, Bool, Int, Tensor};
 use crate::{config::Config, module::Module};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::activation::log_softmax;
-use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
-/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss).
+/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
     /// Prevents pad tokens from impacting loss calculation.
-    pad_tokens: Option<Vec<usize>>,
+    pub pad_tokens: Option<Vec<usize>>,
 
     /// Create weighted cross-entropy.
     ///
@@ -21,18 +21,18 @@ pub struct CrossEntropyLossConfig {
     /// # Pre-conditions
     ///   - The order of the weight vector should correspond to the label integer assignment.
     ///   - Targets assigned negative Int's will not be allowed.
-    weights: Option<Vec<f32>>,
+    pub weights: Option<Vec<f32>>,
 
     /// Create cross-entropy with label smoothing.
     ///
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
     /// Create cross-entropy with probabilities as input instead of logits.    
     ///
     #[config(default = true)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl CrossEntropyLossConfig {
@@ -68,6 +68,8 @@ impl CrossEntropyLossConfig {
 }
 
 /// Calculate the cross entropy loss from the input logits and the targets.
+///
+/// Should be created using [CrossEntropyLossConfig]
 #[derive(Module, Debug)]
 pub struct CrossEntropyLoss<B: Backend> {
     pad_tokens: Option<Vec<usize>>,
@@ -214,8 +216,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{loss::cross_entropy_with_logits, Data, Distribution};
     use crate::TestBackend;
-    use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
 
     macro_rules! setup {
         () => {{

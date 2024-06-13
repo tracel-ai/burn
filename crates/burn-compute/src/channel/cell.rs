@@ -4,6 +4,7 @@ use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_common::sync_type::SyncType;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
 ///
@@ -68,8 +69,8 @@ where
             .execute(kernel_description, bindings)
     }
 
-    fn sync(&self) {
-        self.server.borrow_mut().sync()
+    fn sync(&self, sync_type: SyncType) {
+        self.server.borrow_mut().sync(sync_type)
     }
 }
 

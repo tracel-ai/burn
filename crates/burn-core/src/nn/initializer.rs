@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use crate::tensor::Shape;
 
 use crate::config::Config;
 use crate::module::{Param, ParamId};
@@ -200,7 +200,7 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use burn_tensor::{Data, ElementConversion};
+    use crate::tensor::{Data, ElementConversion};
     use num_traits::Pow;
 
     pub type TB = burn_ndarray::NdArray<f32>;

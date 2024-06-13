@@ -12,21 +12,21 @@ use crate::{
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
+/// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer using the [init function](MultiHeadAttentionConfig::init).
 #[derive(Config)]
 pub struct MultiHeadAttentionConfig {
     /// The size of each linear layer.
-    d_model: usize,
+    pub d_model: usize,
     /// The number of heads.
-    n_heads: usize,
+    pub n_heads: usize,
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
-    dropout: f64,
+    pub dropout: f64,
     /// The minimum value a float can take. Default: -1.0e4
     /// This is used to mask attention scores before calculating attention weights.
     /// A value too low might result in NaN.
     #[config(default = -1.0e4)]
-    min_float: f64,
+    pub min_float: f64,
     /// Use "quiet softmax" instead of regular softmax.
     ///
     /// - Usage may improve performance by allowing attention heads to deposit no information (if the sequence contains no information relevant to that head).
@@ -34,7 +34,7 @@ pub struct MultiHeadAttentionConfig {
     ///
     /// Reference: <https://www.evanmiller.org/attention-is-off-by-one.html>
     #[config(default = false)]
-    quiet_softmax: bool,
+    pub quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
@@ -50,6 +50,8 @@ pub struct MultiHeadAttentionConfig {
 /// - key: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - value: [Linear](nn::Linear) layer with `d_model` input and output features.
 /// - output: [Linear](nn::Linear) layer with `d_model` input and output features.
+///
+/// Should be created with [MultiHeadAttentionConfig].
 #[derive(Module, Debug)]
 pub struct MultiHeadAttention<B: Backend> {
     query: nn::Linear<B>,
@@ -67,8 +69,11 @@ pub struct MultiHeadAttention<B: Backend> {
 /// [Multihead attention](MultiHeadAttention) forward pass input argument.
 #[derive(Debug, Clone)]
 pub struct MhaInput<B: Backend> {
+    /// Shape `[batch_size, seq_length_1, d_model]`
     query: Tensor<B, 3>,
+    /// Shape `[batch_size, seq_length_2, d_model]`
     key: Tensor<B, 3>,
+    /// Shape `[batch_size, seq_length_2, d_model]`
     value: Tensor<B, 3>,
     mask_pad: Option<Tensor<B, 2, Bool>>,
     mask_attn: Option<Tensor<B, 3, Bool>>,
@@ -101,6 +106,9 @@ impl MultiHeadAttentionConfig {
 impl<B: Backend> MhaInput<B> {
     /// Create a [multihead attention](MultiHeadAttention) input argument
     /// by setting the query, key and value to the given tensor.
+    ///
+    /// # Shape
+    /// - tensor: `[batch_size, seq_length, d_model]`
     pub fn self_attn(tensor: Tensor<B, 3>) -> Self {
         Self {
             query: tensor.clone(),
@@ -138,14 +146,16 @@ impl<B: Backend> MhaInput<B> {
 /// [Multihead attention](MultiHeadAttention) outputs.
 #[derive(Debug, Clone)]
 pub struct MhaOutput<B: Backend> {
-    /// The attention weights [batch_size, n_heads, seq_length_1, seq_length_2].
+    /// The attention weights `[batch_size, n_heads, seq_length_1, seq_length_2]`.
     pub weights: Tensor<B, 4>,
-    /// The context tensor [batch_size, seq_length_1, d_model].
+    /// The context tensor `[batch_size, seq_length_1, d_model]`.
     pub context: Tensor<B, 3>,
 }
 
 impl<B: Backend> MultiHeadAttention<B> {
     /// Applies the forward pass on the input tensors.
+    ///
+    /// See [MultiHeadAttention](MultiHeadAttention) for more information.
     ///
     /// # Shapes
     ///
@@ -310,10 +320,10 @@ impl<B: Backend, const D: usize> MhaLinearCache<B, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Int;
+    use crate::tensor::{Distribution, Shape};
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use alloc::vec::Vec;
-    use burn::tensor::{Distribution, Shape};
-    use burn_tensor::Int;
 
     #[test]
     fn test_self_attention_shapes() {

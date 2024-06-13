@@ -2,25 +2,25 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
+use crate::tensor::Int;
 use crate::tensor::Tensor;
 use alloc::vec;
-use burn_tensor::Int;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer.
+/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer using the [init function](RotaryEncodingConfig::init).
 #[derive(Config, Debug)]
 pub struct RotaryEncodingConfig {
     /// Maximum sequence length of input
-    max_sequence_length: usize,
+    pub max_sequence_length: usize,
 
     /// Size of the input embedding or hidden dimension
-    d_model: usize,
+    pub d_model: usize,
 
     /// Scaling factor for frequency computation. Defaults to 10000.0
     #[config(default = "10000.0")]
-    theta: f32,
+    pub theta: f32,
 }
 
 impl RotaryEncodingConfig {
@@ -84,6 +84,8 @@ impl RotaryEncodingConfig {
 /// explicit relative position dependency in self-attention formulation.
 ///
 /// Introduced in the paper: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
+///
+/// Should be created using [RotaryEncodingConfig].
 #[derive(Module, Debug)]
 pub struct RotaryEncoding<B: Backend> {
     /// Frequency Tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components

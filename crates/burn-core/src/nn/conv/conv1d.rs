@@ -3,15 +3,14 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::nn::conv::checks;
 use crate::nn::{Initializer, PaddingConfig1d};
 use crate::tensor::backend::Backend;
+use crate::tensor::module::conv1d;
+use crate::tensor::ops::ConvOptions;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv1d;
-use burn_tensor::ops::ConvOptions;
 
-use super::checks;
-
-/// Configuration to create an [1D convolution](Conv1d) layer.
+/// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
 pub struct Conv1dConfig {
     /// The number of input channels.
@@ -44,14 +43,10 @@ pub struct Conv1dConfig {
 
 /// Applies a 1D convolution over input tensors.
 ///
-/// # Params
-///
-/// - weight: Tensor of shape [channels_out, channels_in / groups, kernel_size]
-///
-/// - bias:   Tensor of shape `[channels_out]`
+/// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
 pub struct Conv1d<B: Backend> {
-    /// Tensor of shape [channels_out, channels_in / groups, kernel_size]
+    /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
@@ -102,10 +97,12 @@ impl Conv1dConfig {
 impl<B: Backend> Conv1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [conv1d](crate::tensor::module::conv1d) for more information.
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, length_in],
-    /// - output: [batch_size, channels_out, length_out],
+    /// - input: `[batch_size, channels_in, length_in]`
+    /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self
@@ -124,8 +121,8 @@ impl<B: Backend> Conv1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

@@ -6,13 +6,15 @@ use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 /// Parametric Relu layer.
+///
+/// Should be created using [PReluConfig]
 #[derive(Module, Debug)]
 pub struct PRelu<B: Backend> {
     /// the weights learnt for PReLu. can be of shape \[1\] or \[num_parameters\] in which case it must
     /// be the same as number of channels in the input tensor
     pub alpha: Param<Tensor<B, 1>>,
 }
-/// Configuration to create a [Parametric Relu](PRelu) layer.
+/// Configuration to create a [Parametric Relu](PRelu) layer using the [init function](PReluConfig::init).
 #[derive(Config, Debug)]
 pub struct PReluConfig {
     /// The number of parameters.
@@ -39,6 +41,8 @@ impl<B: Backend> PRelu<B> {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
+    ///
+    /// See also [prelu](crate::tensor::activation::prelu) for more information.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         crate::tensor::activation::prelu(input, self.alpha.val())
     }

@@ -1,6 +1,6 @@
 use crate as burn;
 
-use burn_tensor::ops::conv::calculate_conv_padding;
+use crate::tensor::ops::conv::calculate_conv_padding;
 
 use crate::config::Config;
 use crate::module::Module;

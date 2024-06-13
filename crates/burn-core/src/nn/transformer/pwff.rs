@@ -8,7 +8,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer.
+/// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).
 #[derive(Config)]
 pub struct PositionWiseFeedForwardConfig {
     /// The size of the input and output features.
@@ -25,12 +25,16 @@ pub struct PositionWiseFeedForwardConfig {
     pub initializer: Initializer,
 }
 
-/// Applies the position-wise feed-forward network to the input tensor.
+/// Applies the position-wise feed-forward network to the input tensor from the paper [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7).
 ///
 /// # Params
 ///
 /// - linear inner: Linear layer with `d_model` input features and `d_ff` output features.
 /// - linear outer: Linear layer with `d_ff` input features and `d_model` output features.
+///
+/// `FFN(x) = max(0, xW1 + b1)W2 + b2`
+///
+/// Should be created using [PositionWiseFeedForwardConfig]
 #[derive(Module, Debug)]
 pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: Linear<B>,
