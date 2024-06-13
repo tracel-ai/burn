@@ -32,6 +32,49 @@ pub struct WgpuRuntime<G: GraphicsApi> {
 impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
     type JitDevice = WgpuDevice;
     type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
+
+    #[cfg(target_family = "wasm")]
+    fn list_available_devices() -> Vec<Self::JitDevice> {
+        vec![WgpuDevice::BestAvailable]
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn list_available_devices() -> Vec<Self::JitDevice> {
+        use wgpu::DeviceType;
+        let instance = wgpu::Instance::default();
+        let mut discrete_cnt = 0;
+        let mut integrated_cnt = 0;
+        let mut virtual_cnt = 0;
+
+        instance
+            .enumerate_adapters(G::backend().into())
+            .into_iter()
+            .map(|adapter| {
+                let device_type = adapter.get_info().device_type;
+
+                match device_type {
+                    DeviceType::Cpu => WgpuDevice::Cpu,
+                    DeviceType::DiscreteGpu => {
+                        let d = WgpuDevice::DiscreteGpu(discrete_cnt);
+                        discrete_cnt += 1;
+                        d
+                    }
+                    DeviceType::IntegratedGpu => {
+                        let d = WgpuDevice::IntegratedGpu(integrated_cnt);
+                        integrated_cnt += 1;
+                        d
+                    }
+                    DeviceType::VirtualGpu => {
+                        let d = WgpuDevice::VirtualGpu(virtual_cnt);
+                        virtual_cnt += 1;
+                        d
+                    }
+                    // Can't map other/unknown to a type, but the `BestAvailable` strategy will capture it
+                    DeviceType::Other => WgpuDevice::BestAvailable,
+                }
+            })
+            .collect()
+    }
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).

@@ -5,6 +5,7 @@ use crate::{
     tensor::AutodiffTensor,
     AutodiffBridge,
 };
+use alloc::vec::Vec;
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 
@@ -45,6 +46,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn sync(device: &B::Device) {
         B::sync(device);
+    }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        B::list_available_devices()
     }
 }
 

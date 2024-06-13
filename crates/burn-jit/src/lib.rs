@@ -49,4 +49,7 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
         AutotuneKey = JitAutotuneKey,
         Kernel = Box<dyn CubeTask>,
     >;
+
+    /// List available devices.
+    fn list_available_devices() -> Vec<Self::JitDevice>;
 }

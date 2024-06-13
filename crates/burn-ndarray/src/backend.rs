@@ -1,6 +1,7 @@
 use crate::NdArrayTensor;
 use crate::{element::FloatNdArrayElement, PrecisionBridge};
 use alloc::string::String;
+use alloc::{vec, vec::Vec};
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use core::marker::PhantomData;
@@ -62,5 +63,9 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
         let rng = StdRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
+    }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        vec![NdArrayDevice::Cpu]
     }
 }

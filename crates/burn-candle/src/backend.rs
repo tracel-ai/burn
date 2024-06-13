@@ -121,4 +121,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
             }
         }
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        let mut devices = vec![CandleDevice::Cpu];
+
+        // Not sure how to get devices count or list?
+        if candle_core::utils::cuda_is_available() {
+            devices.push(CandleDevice::Cuda(0))
+        }
+
+        if candle_core::utils::metal_is_available() {
+            devices.push(CandleDevice::Metal(0))
+        }
+        devices
+    }
 }

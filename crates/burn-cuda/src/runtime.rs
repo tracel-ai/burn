@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
@@ -21,6 +22,12 @@ pub struct CudaRuntime;
 impl burn_jit::JitRuntime for CudaRuntime {
     type JitDevice = CudaDevice;
     type JitServer = CudaServer<SimpleMemoryManagement<CudaStorage>>;
+
+    fn list_available_devices() -> Vec<Self::JitDevice> {
+        (0..cudarc::driver::result::device::get_count().unwrap() as usize)
+            .map(CudaDevice::new)
+            .collect()
+    }
 }
 
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =

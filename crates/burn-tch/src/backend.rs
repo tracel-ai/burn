@@ -130,4 +130,22 @@ impl<E: TchElement> Backend for LibTorch<E> {
             }
         }
     }
+
+    fn list_available_devices() -> Vec<Self::Device> {
+        let mut devices = vec![LibTorchDevice::Cpu];
+
+        if tch::utils::has_cuda() {
+            devices.extend((0..tch::Cuda::device_count() as usize).map(LibTorchDevice::Cuda));
+        }
+
+        if tch::utils::has_mps() {
+            devices.push(LibTorchDevice::Mps);
+        }
+
+        if tch::utils::has_vulkan() {
+            devices.push(LibTorchDevice::Vulkan)
+        }
+
+        devices
+    }
 }
