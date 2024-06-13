@@ -2,7 +2,7 @@ use std::str::{from_utf8, FromStr};
 
 use crate::onnx::ir::TensorType;
 
-use super::from_onnx::OnnxGraphIO;
+use super::from_onnx::GraphData;
 use super::ir::Dim;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
@@ -180,19 +180,18 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_io: &OnnxGraphIO) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
     let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
-    let inputs = node
-        .input
-        .clone()
-        .into_iter()
-        .map(|x| graph_io.init_in(x))
-        .collect();
+    let inputs = node.input.iter().map(|x| graph_data.init_in(x)).collect();
 
-    let outputs = node.output.clone().into_iter().map(Argument::new).collect();
+    let outputs = node
+        .output
+        .iter()
+        .map(|x| Argument::new(x.to_string()))
+        .collect();
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());
 
