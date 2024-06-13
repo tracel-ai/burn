@@ -1,17 +1,18 @@
 #[macro_use]
 extern crate derive_new;
 
-mod analysis;
+mod analyzer;
 mod codegen_function;
 mod codegen_type;
-mod variable_key;
+mod tracker;
 
-use analysis::CodeAnalysis;
+use analyzer::VariableAnalyzer;
 use codegen_function::{codegen_launch, codegen_statement};
 use codegen_type::generate_cube_type;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
+use tracker::VariableTracker;
 
 enum CubeMode {
     /// Generates the expanded version of the function
@@ -45,9 +46,10 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 
     let func: syn::ItemFn =
         syn::parse(tokens).expect("Cube annotations only supported for functions");
-    let mut variable_analyses = CodeAnalysis::create(&func);
 
-    let cube = codegen_cube(&func, &mut variable_analyses);
+    let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
+
+    let cube = codegen_cube(&func, &mut variable_tracker);
     let code: TokenStream = if launch {
         let launch = codegen_launch(&func.sig);
 
@@ -96,12 +98,15 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
 }
 
 /// Generate the expanded version of a function marked with the cube macro
-fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_macro2::TokenStream {
-    let signature = expand_sig(&func.sig, code_analysis);
+fn codegen_cube(
+    func: &syn::ItemFn,
+    variable_tracker: &mut VariableTracker,
+) -> proc_macro2::TokenStream {
+    let signature = expand_sig(&func.sig, variable_tracker);
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
-        let tokens = codegen_statement(statement, 0, code_analysis);
+        let tokens = codegen_statement(statement, 0, variable_tracker);
         body.extend(tokens);
     }
 
@@ -116,7 +121,10 @@ fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_ma
     }
 }
 
-fn expand_sig(sig: &syn::Signature, code_analysis: &mut CodeAnalysis) -> proc_macro2::TokenStream {
+fn expand_sig(
+    sig: &syn::Signature,
+    variable_tracker: &mut VariableTracker,
+) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
 
     for input in &sig.inputs {
@@ -126,9 +134,7 @@ fn expand_sig(sig: &syn::Signature, code_analysis: &mut CodeAnalysis) -> proc_ma
                 let ident = pat.pat.clone();
 
                 if let syn::Pat::Ident(ident) = ident.as_ref() {
-                    code_analysis
-                        .vif
-                        .codegen_declare(ident.ident.to_string(), 0);
+                    variable_tracker.codegen_declare(ident.ident.to_string(), 0);
                 }
 
                 inputs.extend(quote::quote! {

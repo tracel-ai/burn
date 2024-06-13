@@ -3,8 +3,9 @@ use quote::ToTokens;
 use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token};
 
 use crate::{
-    analysis::{CodeAnalysis, KEYWORDS},
+    analyzer::KEYWORDS,
     codegen_function::base::{codegen_expr, codegen_expr_with_comptime},
+    tracker::VariableTracker,
 };
 
 /// Codegen for literals
@@ -44,7 +45,7 @@ pub(crate) fn codegen_array_lit(array: &syn::ExprArray) -> TokenStream {
 pub(crate) fn codegen_local(
     local: &syn::Local,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let let_tok = local.let_token;
 
@@ -58,14 +59,12 @@ pub(crate) fn codegen_local(
         _ => todo!("Codegen: Declaration {:?} is unsupported.", local.pat),
     };
 
-    variable_analyses
-        .vif
-        .codegen_declare(ident.to_string(), loop_level as u8);
+    variable_tracker.codegen_declare(ident.to_string(), loop_level as u8);
 
     match local.init.as_ref() {
         Some(init) => {
             let (init, is_comptime) =
-                codegen_expr_with_comptime(&init.expr, loop_level, variable_analyses);
+                codegen_expr_with_comptime(&init.expr, loop_level, variable_tracker);
 
             if is_comptime {
                 quote::quote! {
@@ -92,10 +91,10 @@ pub(crate) fn codegen_local(
 pub(crate) fn codegen_index(
     index: &syn::ExprIndex,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let array = codegen_expr(&index.expr, loop_level, variable_analyses);
-    let index = codegen_expr(&index.index, loop_level, variable_analyses);
+    let array = codegen_expr(&index.expr, loop_level, variable_tracker);
+    let index = codegen_expr(&index.index, loop_level, variable_tracker);
 
     quote::quote! {
         {
@@ -113,13 +112,13 @@ pub(crate) fn codegen_index(
 pub(crate) fn codegen_assign(
     assign: &syn::ExprAssign,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     match assign.left.as_ref() {
         syn::Expr::Index(index) => {
-            let array = codegen_expr(&index.expr, loop_level, variable_analyses);
-            let index = codegen_expr(&index.index, loop_level, variable_analyses);
-            let value = codegen_expr(&assign.right, loop_level, variable_analyses);
+            let array = codegen_expr(&index.expr, loop_level, variable_tracker);
+            let index = codegen_expr(&index.index, loop_level, variable_tracker);
+            let value = codegen_expr(&assign.right, loop_level, variable_tracker);
 
             quote::quote! {
                 {
@@ -131,8 +130,8 @@ pub(crate) fn codegen_assign(
             }
         }
         syn::Expr::Path(_) => {
-            let lhs = codegen_expr(&assign.left, loop_level, variable_analyses);
-            let rhs = codegen_expr(&assign.right, loop_level, variable_analyses);
+            let lhs = codegen_expr(&assign.left, loop_level, variable_tracker);
+            let rhs = codegen_expr(&assign.right, loop_level, variable_tracker);
 
             quote::quote! {
                 {
@@ -143,8 +142,8 @@ pub(crate) fn codegen_assign(
             }
         }
         syn::Expr::Field(_) => {
-            let lhs = codegen_expr(&assign.left, loop_level, variable_analyses);
-            let rhs = codegen_expr(&assign.right, loop_level, variable_analyses);
+            let lhs = codegen_expr(&assign.left, loop_level, variable_tracker);
+            let rhs = codegen_expr(&assign.right, loop_level, variable_tracker);
 
             quote::quote! {
                 {
@@ -163,7 +162,7 @@ pub(crate) fn codegen_assign(
 pub(crate) fn codegen_path_rhs(
     path: &syn::ExprPath,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let ident = path
         .path
@@ -175,8 +174,7 @@ pub(crate) fn codegen_path_rhs(
             #ident :: expand(context)
         }
     } else {
-        let will_be_used_again = variable_analyses
-            .vif
+        let will_be_used_again = variable_tracker
             .codegen_reuse(ident.to_string(), loop_level as u8, None)
             .unwrap_or(true);
 
@@ -197,7 +195,7 @@ pub(crate) fn codegen_path_rhs(
 pub(crate) fn codegen_field(
     field: &syn::ExprField,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let (struct_, field) = if let Member::Named(attribute_ident) = &field.member {
         if let syn::Expr::Path(struct_expr) = &*field.base {
@@ -214,8 +212,7 @@ pub(crate) fn codegen_field(
         todo!("Codegen: unnamed attribute not supported.");
     };
 
-    let will_be_used_again = variable_analyses
-        .vif
+    let will_be_used_again = variable_tracker
         .codegen_reuse(
             struct_.to_string(),
             loop_level as u8,
@@ -239,7 +236,7 @@ pub(crate) fn codegen_field(
 pub(crate) fn codegen_struct(
     struct_: &syn::ExprStruct,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let mut deconstructed_path = Vec::new();
     for segment in struct_.path.segments.iter() {
@@ -274,7 +271,7 @@ pub(crate) fn codegen_struct(
         });
     }
 
-    let fields = codegen_field_creation(&struct_.fields, loop_level, variable_analyses);
+    let fields = codegen_field_creation(&struct_.fields, loop_level, variable_tracker);
     quote::quote! {
         #path_tokens { #fields }
     }
@@ -283,12 +280,12 @@ pub(crate) fn codegen_struct(
 fn codegen_field_creation(
     fields: &Punctuated<FieldValue, Token![,]>,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let mut field_tokens = quote::quote! {};
     for field in fields.iter() {
         let field_name_token = &field.member;
-        let field_value_token = codegen_expr(&field.expr, loop_level, variable_analyses);
+        let field_value_token = codegen_expr(&field.expr, loop_level, variable_tracker);
         field_tokens.extend(quote::quote! { #field_name_token : #field_value_token,  });
     }
     field_tokens

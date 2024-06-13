@@ -1,6 +1,6 @@
 use syn::{Member, Pat, PathArguments, Stmt};
 
-use crate::variable_key::VariableReuseAnalyzer;
+use crate::tracker::VariableTracker;
 
 pub const KEYWORDS: [&str; 20] = [
     "ABSOLUTE_POS",
@@ -25,34 +25,27 @@ pub const KEYWORDS: [&str; 20] = [
     "CUBE_COUNT_Z",
 ];
 
-#[derive(Debug)]
-/// Information about all variables in the Cube code, transmitted to codegen
-pub(crate) struct CodeAnalysis {
-    pub vif: VariableReuseAnalyzer,
-}
-
 #[derive(Debug, Default)]
-// /// Reads the Cube code and accumulates information, to generate a CodeAnalysis artefact
-pub(crate) struct CodeAnalysisBuilder {
-    variable_ident_factory: VariableReuseAnalyzer,
+/// Reads the whole Cube code and accumulates information,
+/// to generate a VariableTracker that looked variable uses ahead
+pub(crate) struct VariableAnalyzer {
+    variable_tracker: VariableTracker,
 }
 
-impl CodeAnalysis {
-    pub fn create(func: &syn::ItemFn) -> CodeAnalysis {
-        let code_analysis_builder = CodeAnalysisBuilder::default();
-        code_analysis_builder.analyze(func)
+impl VariableAnalyzer {
+    pub fn create_tracker(func: &syn::ItemFn) -> VariableTracker {
+        let analyzer = VariableAnalyzer::default();
+        analyzer.analyze(func)
     }
 }
 
-impl CodeAnalysisBuilder {
-    fn analyze(mut self, func: &syn::ItemFn) -> CodeAnalysis {
+impl VariableAnalyzer {
+    fn analyze(mut self, func: &syn::ItemFn) -> VariableTracker {
         // Build the vector of (Id, depth), using recursion
         self.signature_declarations(&func.sig);
         self.find_occurrences_in_stmts(&func.block.stmts, 0);
 
-        CodeAnalysis {
-            vif: self.variable_ident_factory,
-        }
+        self.variable_tracker
     }
 
     fn signature_declarations(&mut self, sig: &syn::Signature) {
@@ -63,8 +56,7 @@ impl CodeAnalysisBuilder {
                     match ident {
                         syn::Pat::Ident(pat_ident) => {
                             let id = &pat_ident.ident;
-                            self.variable_ident_factory
-                                .analyze_declare(id.to_string(), 0);
+                            self.variable_tracker.analyze_declare(id.to_string(), 0);
                         }
                         _ => todo!("Analysis: unsupported ident {ident:?}"),
                     }
@@ -89,8 +81,7 @@ impl CodeAnalysisBuilder {
                         _ => todo!("Analysis: unsupported path {:?}", local.pat),
                     };
                     if let Some(id) = id {
-                        self.variable_ident_factory
-                            .analyze_declare(id.to_string(), depth);
+                        self.variable_tracker.analyze_declare(id.to_string(), depth);
                     }
                     if let Some(local_init) = &local.init {
                         self.find_occurrences_in_expr(&local_init.expr, depth)
@@ -112,8 +103,7 @@ impl CodeAnalysisBuilder {
                 // Declaration of iterator
                 if let syn::Pat::Ident(pat_ident) = &*expr.pat {
                     let id = &pat_ident.ident;
-                    self.variable_ident_factory
-                        .analyze_declare(id.to_string(), depth);
+                    self.variable_tracker.analyze_declare(id.to_string(), depth);
                 }
 
                 self.find_occurrences_in_stmts(&expr.body.stmts, depth);
@@ -157,7 +147,7 @@ impl CodeAnalysisBuilder {
                     .expect("Analysis: only ident path are supported.");
 
                 if !KEYWORDS.contains(&ident.to_string().as_str()) {
-                    self.variable_ident_factory
+                    self.variable_tracker
                         .analyze_reuse(ident.to_string(), depth, None);
                 }
             }
@@ -229,7 +219,7 @@ impl CodeAnalysisBuilder {
                         _ => todo!("Analysis: {:?} not supported in closure inputs. ", path),
                     };
 
-                    self.variable_ident_factory
+                    self.variable_tracker
                         .analyze_declare(ident.to_string(), depth);
                 }
 
@@ -244,7 +234,7 @@ impl CodeAnalysisBuilder {
                             .get_ident()
                             .expect("Analysis: field access only supported on ident struct.");
 
-                        self.variable_ident_factory.analyze_reuse(
+                        self.variable_tracker.analyze_reuse(
                             struct_ident.to_string(),
                             depth,
                             Some(attribute_ident.to_string()),
