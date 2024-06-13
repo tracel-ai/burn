@@ -45,61 +45,86 @@ Hence, CubeCL was born!
 
 ## Design
 
-CubeCL is desied around, you guessed it, Cubes! We chose this since all compute API needs to map to the hardware, which is always tiles that can be access using a 3D representation: the cube.
-You can easily map the concepts to other APIs.
+CubeCL is designed around -you guessed it- Cubes! Since all compute APIs need to map to the hardware, which are tiles that can be accessed using a 3D representation: the cube.
+Our topology can easily be mapped to concepts from other APIs.
 
-| CubeCL       | Description                                                 |
-| ------------ | ----------------------------------------------------------- |
-| CUBE_COUNT   | The number of cubes launched.                               |
-| CUBE_POS     | The cube position in all launched cubes.                    |
-| CUBE_DIM     | The total amont of working unit in a cube.                  |
-| UNIT_POS     | The position of the working unit inside a cube.             |
-| SUBCUBE_DIM  | The total amount of working units in a subcube.             |
-| ABSOLUTE_POS | The position of the working unit without regards for cubes. |
+<details>
+<summary>Topology 👇</summary>
+
+| CubeCL         | CUDA        | WebGPU                 |
+| -------------- | ----------- | ---------------------- |
+| CUBE_COUNT     | N/A         | N/A                    |
+| CUBE_COUNT_X   | gridDim.x   | num_workgroups.x       |
+| CUBE_COUNT_Y   | gridDim.y   | num_workgroups.y       |
+| CUBE_COUNT_Z   | gridDim.z   | num_workgroups.z       |
+| CUBE_POS       | N/A         | N/A                    |
+| CUBE_POS_X     | blockIdx.x  | workgroup.x            |
+| CUBE_POS_Y     | blockIdx.y  | workgroup.y            |
+| CUBE_POS_Z     | blockIdx.z  | workgroup.z            |
+| CUBE_DIM       | N/A         | N/A                    |
+| CUBE_DIM_X     | blockDim.x  | workgroup_size.x       |
+| CUBE_DIM_Y     | blockDim.y  | workgroup_size.y       |
+| CUBE_DIM_Z     | blockDim.z  | workgroup_size.z       |
+| UNIT_POS       | N/A         | local_invocation_index |
+| UNIT_POS_X     | threadIdx.x | local_invocation_id.x  |
+| UNIT_POS_Y     | threadIdx.y | local_invocation_id.y  |
+| UNIT_POS_Z     | threadIdx.z | local_invocation_id.z  |
+| SUBCUBE_DIM    | warpSize    | subgroup_size          |
+| ABSOLUTE_POS   | N/A         | N/A                    |
+| ABSOLUTE_POS_X | N/A         | global_id.x            |
+| ABSOLUTE_POS_Y | N/A         | global_id.y            |
+| ABSOLUTE_POS_Z | N/A         | global_id.z            |
+
+TODO FIGURES
+
+</details>
 
 ## Special Features
 
 #### Automatic Vectorization
 
-When you can use SIMD instructions, you should, but it can get pretty complicate pretty fast!
-With CubeCL you can specified the vectorization factor of each input variable when launching a kernel.
-There is only one type that is dynamically vectorized that supports automatic broadcasting.
-The runtimes are able to compile kernels and have all information necessary to use the best instruction!
-However, often you actually need to know the vectorization factor in your algorithm, and you can actually access it directly in the kernel when you need it without any performance loss: it's going to use the comptime system!
+High-performance kernels should rely on SIMD instructions whenever possible, but doing so can quickly get pretty complicated!
+With CubeCL you can specify the vectorization factor of each input variable when launching a kernel.
+Inside the kernel code, you still use only one type, which is dynamically vectorized and supports automatic broadcasting.
+The runtimes are able to compile kernels and have all the necessary information to use the best instruction!
+However, since the algorithmic behaviour may depend on the vectorization factor, CubeCL allows to actually access it directly in the kernel when needed, without any performance loss, using the comptime system!
 
 #### Comptime
 
-CubeCL isn't just a new compute language, it feels like you are writing GPU kernels, but in fact you are writing compiler plugins that you can fully customize!
-Comptime is a way to modify the compiler internal representation (IR) at runtime, when compiling a shader for the first time.
+CubeCL isn't just a new compute language: though it feels like you are writing GPU kernels, you are in fact writing compiler plugins that you can fully customize!
+Comptime is a way to modify the compiler IR during Rust's runtime, when compiling a kernel for the first time.
 
-This allows lots of optimizations and flexibility without having to write 10 different variants of the same kernels for max performance.
+This allows for lots of optimizations and flexibility without having to write many separate variants of the same kernels to ensure maximal performance.
 
-| Feature                        | Description                                                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Instruction Specialisation** | Not all instrustion are available on all hardware, but when a specialized instruction exist, should be able to activate them with a simple if statement.                |
-| **Automatic Vectorization**    | When you can use SIMD instructions, you should! But not all hardware support the same vectorization factor, so you can inject the vectorization factor as runtime!      |
-| **Loop Unrolling**             | You may want multiple different flavor of the same kernels with loop Unrolling for only a certain range of values, you can do it at runtime easily with Comptime        |
-| **Shape Specialisation**       | For deep learning kernels, it's often crucial to have different kernels for different size, you can do it by passing the shape information as comptime values.          |
-| **Compile Time Calculation**   | In general, you can calculate a constant using runtime properties and inject them into a kernel during compilation, which avoid recalculating it during each execution. |
+| Feature                        | Description                                                                                                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Instruction Specialization** | Not all instructions are available on all hardware, but when a specialized one exists, it should be enablable with a simple if statement.                                     |
+| **Automatic Vectorization**    | When you can use SIMD instructions, you should! But since not all hardware support the same vectorization factors, it can be injected at Rust's runtime!                      |
+| **Loop Unrolling**             | You may want multiple flavors of the same kernel, with loop unrolling for only a certain range of values. This can be configured easily with Comptime.                        |
+| **Shape Specialization**       | For Deep Learning kernels, it's often crucial to rely on different kernels for different input sizes; you can do it by passing the shape information as Comptime values.      |
+| **Compile Time Calculation**   | In general, you can calculate a constant using Rust runtime properties and inject them into a kernel during its compilation, to avoid recalculating it during each execution. |
 
-#### Autonuning
+#### Autotuning
 
-Autotuning drastically simplify kernel selection by running small benchmarks at runtime to figure out the best kernels with the best configurations to run on the current hardware, essential for portability.
-This feature combines gracefully with comptime, since you can test the effect of different comptime on performance, sometime you can get surprised!
-Even if the benchmarks may takes some time to run when first running the application, the information gets cache on the hardware.
-It is often a no-brainer traideoff when you build throughput oriented programs such as deep learning models.
+Autotuning drastically simplifies kernel selection by running small benchmarks at runtime to figure out the best kernels with the best configurations to run on the current hardware; an essential feature for portability.
+This feature combines gracefully with comptime to test the effect of different comptime values on performance; sometimes it can be surprising!
+
+Even if the benchmarks may add some overhead when first running the application, the information gets cached on the hardware.
+It is usually a no-brainer tradeoff for throughput-oriented programs such as Deep Learning models.
 You can ship the autotune cache with your program, reducing cold start when you have more control over the deployment platform.
 
 ## Example
 
-CubeCL is designed to be easy to use for Rust programmers by using the same syntax and being fully integrated with the language.
-You can simply add an attribute on the top of a Rust function and then be executed on the GPU.
+CubeCL is designed to be easy to use for Rust programmers: it relies on the same syntax and is fully integrated with the language.
+You can simply add an attribute on the top of a Rust function for it to be executed on the GPU.
 
 ```rust
 #[cube(launch)]
-fn pow2<F: Float>(input: Tensor<F>, mut output: Tensor<F>) {
-    if ABSOLUTE_POS < input.shape(0) {
-        output[ABSOLUTE_POS] = input[ABSOLUTE_POS] * input[ABSOLUTE_POS];
+fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
+    if ABSOLUTE_POS < input.len() {
+        let x = input[ABSOLUTE_POS]
+        let gelu = x * (1 + erf(x / sqrt(2))) / 2;
+        output[ABSOLUTE_POS] = gelu;
     }
 }
 
@@ -109,7 +134,7 @@ fn main() {
     let device = Default::default();
     let client = Runtime::client(&device);
 
-    let input: &[f32] = &[1.0, 2.0, 3.0, 4.0];
+    let input: &[f32] = &[-1., 0., 1., 5.];
     let (shape, strides) = ([4], [1]);
 
     let input_handle = client.create(f32::as_bytes(input));
@@ -125,53 +150,39 @@ fn main() {
     let output = client.read(output_handle.binding()).read_sync().unwrap();
     let output = f32::from_bytes(&output);
 
-    assert_eq!(output, &[1.0, 4.0, 9.0, 16.0]);
+    // Should be [-0.1587,  0.0000,  0.8413,  5.0000]
+    println!("{output:?}");
 }
 
 ```
 
-The `cube` attributes generate the code that is needed to compile a kernel.
-In the case above, the function `pow2_expand` and `pow2_launch` are automatically generated.
-By generating the `expand` version as well, you can easily compose your functions together easily.
+The `cube` attribute generates the code that is needed to compile a kernel.
+In the case above, the function `pow2_expand` and `pow2_launch` are automatically and invisibly generated.
+This allows you to compose Cube functions easily:
 
 ```rust
 
 #[cube]
-fn pow2_scalar<F: Float>(x: F) -> F {
-   x * x
+fn gelu_scalar<F: Float>(x: F) -> F {
+   x * (1 + erf(x / sqrt(2))) / 2
 }
 
 #[cube(launch)]
-fn pow2<F: Float>(input: Tensor<F>, mut output: Tensor<F>) {
+fn gelu<F: Float>(input: Tensor<F>, mut output: Tensor<F>) {
     if ABSOLUTE_POS < input.shape(0) {
-        output[ABSOLUTE_POS] = pow2_scalar(input[ABSOLUTE_POS]);
+        output[ABSOLUTE_POS] = gelu_scalar(input[ABSOLUTE_POS]);
     }
 }
 ```
 
-Note that you don't have to specify `launch` in a function that is only used by another one.
+Note that you don't have to specify `launch` in a function that is only used by another Cube function.
 In addition, you can have return types without problem, which isn't the case when you are writing an entry point to a kernel using the `launch` attribute.
-The function `pow2_expand` will actually use `pow2_scalar_expand`, making it easy to combine your function.
+The function `gelu_expand` will actually use `gelu_scalar_expand`, making it easy to combine your functions.
 
-### Custom Type
+## Resources
 
-You can esily create custom types using the `CybeType` and `CubeLaunch` derives.
+Check out our matmul example, which autotunes between a simple vectorized version, a tiled algorithm and one based cooperative matrix.
+Clone the project and run the example locally to see how autotune fares and your own device.
 
-```rust
-/// To use when launching a kernel.
-#[derive(CubeLaunch)]
-struct LaunchArguments {
-    conv_stride: UInt,
-    dilation: UInt,
-    padding: UInt,
-    groups: UInt,
-}
+If you have any questions or want to contribute, don't hesitate to join the Discord.
 
-/// When only used in functions.
-#[derive(CubeType)]
-struct KernelState {
-    input: Tensor<F32>,
-    index: UInt,
-    accumulator: F32,
-}
-```
