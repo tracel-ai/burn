@@ -1,10 +1,6 @@
 use core::cmp::Ordering;
 
-use crate::{
-    cast::ToPrimitive,
-    identities::{One, Zero},
-    Distribution,
-};
+use crate::{cast::ToPrimitive, Distribution};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -12,8 +8,6 @@ use serde::{Deserialize, Serialize};
 /// Element trait for tensor.
 pub trait Element:
     ToPrimitive
-    + Zero
-    + One
     + ElementRandom
     + ElementConversion
     + ElementPrecision
