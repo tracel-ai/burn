@@ -1,4 +1,3 @@
-use core::marker::PhantomData;
 #[cfg(target_family = "wasm")]
 use web_time::Duration;
 
@@ -15,32 +14,37 @@ use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
+use super::AutotuneKey;
+
 #[derive(Debug)]
 /// Executes autotune benchmarking and caching
-pub struct Tuner<S: ComputeServer, C> {
-    tune_cache: TuneCache<S::AutotuneKey>,
-    _channel: PhantomData<C>,
+pub struct Tuner<K: AutotuneKey> {
+    tune_cache: TuneCache<K>,
 }
 
 #[allow(clippy::new_without_default)]
-impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
+impl<K: AutotuneKey> Tuner<K> {
     /// Returns a tuner with cache initialized from persistent cache
-    pub fn new(device_id: &str) -> Self {
+    pub fn new(name: &str, device_id: &str) -> Self {
         Self {
-            tune_cache: TuneCache::new(device_id),
-            _channel: PhantomData,
+            tune_cache: TuneCache::new(name, device_id),
         }
     }
 
-    pub(crate) fn autotune_fastest(&self, key: &S::AutotuneKey) -> Option<usize> {
+    /// Fetch the fastest autotune operation index for an autotune key.
+    pub fn autotune_fastest(&self, key: &K) -> Option<usize> {
         self.tune_cache.find_fastest(key)
     }
 
-    pub(crate) fn execute_autotune(
+    /// Execute the fastest autotune operation if known, otherwise perform some benchmarks before.
+    pub fn execute_autotune<S, C>(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
         client: &ComputeClient<S, C>,
-    ) {
+    ) where
+        S: ComputeServer,
+        C: ComputeChannel<S>,
+    {
         let operation = match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(set) => self.autotuning(set, client),
@@ -49,11 +53,15 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         AutotuneOperation::execute(operation);
     }
 
-    fn autotuning(
+    fn autotuning<S, C>(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
         client: &ComputeClient<S, C>,
-    ) -> Box<dyn AutotuneOperation> {
+    ) -> Box<dyn AutotuneOperation>
+    where
+        S: ComputeServer,
+        C: ComputeChannel<S>,
+    {
         let key = autotune_operation_set.key();
         let autotunables = autotune_operation_set.autotunables();
         let mut names = Vec::with_capacity(autotunables.len());
@@ -86,11 +94,15 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         }
     }
 
-    fn run_benchmark(
+    fn run_benchmark<S, C>(
         &mut self,
         operation: Box<dyn AutotuneOperation>,
         client: &ComputeClient<S, C>,
-    ) -> BenchmarkDurations {
+    ) -> BenchmarkDurations
+    where
+        S: ComputeServer,
+        C: ComputeChannel<S>,
+    {
         TuneBenchmark::new(operation, client.clone()).run()
     }
 

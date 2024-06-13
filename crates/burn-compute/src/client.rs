@@ -14,7 +14,7 @@ use burn_common::{reader::Reader, sync_type::SyncType};
 #[derive(Debug)]
 pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
-    tuner: Arc<RwLock<Tuner<Server, Channel>>>,
+    tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>,
 }
 
 impl<S, C> Clone for ComputeClient<S, C>
@@ -36,7 +36,7 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server, Channel>>>) -> Self {
+    pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>) -> Self {
         Self { channel, tuner }
     }
 
