@@ -24,7 +24,15 @@ pub struct GroupNormConfig {
     pub affine: bool,
 }
 
-/// Applies Group Normalization over a mini-batch of inputs. See the [group_norm](group_norm) function for more information.
+/// Applies Group Normalization over a mini-batch of inputs as described in the paper [Group Normalization](https://arxiv.org/abs/1803.08494).
+///
+/// `Y = groupnorm(X) * γ + β`
+///
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
 ///
 /// Should be created using [GroupNormConfig](GroupNormConfig).
 #[derive(Module, Debug)]
@@ -119,7 +127,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
     epsilon: f64,
     affine: bool,
 ) -> Tensor<B, D> {
-    if (affine && gamma.is_none()) || (affine && beta.is_none()) {
+    if (beta.is_none() || gamma.is_none()) && affine {
         panic!("Affine is set to true, but gamma or beta is None");
     }
 
