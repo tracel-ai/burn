@@ -20,7 +20,7 @@ Here is the directory structure of this crate:
 
 ## With rye
 
-You can use the `rye` tool to set up a Python environment with the necessary dependencies. To do so, cd into the `onnx-tests` directory and run `rye sync`. Assuming you are in the top-level `burn` directory, you can run the following command:
+You can use [`rye`](https://rye.astral.sh/) to set up a Python environment with the necessary dependencies. To do so, cd into the `onnx-tests` directory and run `rye sync`. Assuming you are in the top-level `burn` directory, you can run the following command:
 
 ```sh
 cd crates/burn-import/onnx-tests
