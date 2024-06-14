@@ -1,6 +1,7 @@
 mod base;
 mod simple;
 mod tiling2d;
+mod tiling2d_cube;
 mod tiling2d_shader;
 mod tune;
 
@@ -20,3 +21,4 @@ pub mod padding;
 mod padding;
 
 pub use tiling2d::*;
+pub use tiling2d_cube::*;

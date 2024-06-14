@@ -64,10 +64,10 @@ impl VariableTracker {
 
     /// During analysis, tracks a variable use
     pub(crate) fn analyze_reuse(&mut self, name: String, scope: u8, field: Option<String>) {
-        let scopes_declared = self
-            .scopes_declared
-            .get(&name)
-            .expect("Analysis: Variable should be declared.");
+        let scopes_declared = self.scopes_declared.get(&name).expect(&format!(
+            "Analysis: Variable {:?} should be declared.",
+            name
+        ));
         let scope = *scopes_declared
             .iter()
             .filter(|s| **s <= scope)

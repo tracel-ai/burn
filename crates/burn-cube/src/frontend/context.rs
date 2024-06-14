@@ -4,7 +4,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
-use super::{CubeElem, SharedMemoryExpand};
+use super::{ArrayExpand, CubeElem, SharedMemoryExpand};
 
 #[derive(Default, Clone)]
 pub struct VariablePool {
@@ -114,6 +114,12 @@ impl CubeContext {
     pub fn create_shared<T: CubeElem>(&mut self, item: Item, size: u32) -> SharedMemoryExpand<T> {
         SharedMemoryExpand {
             val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
+        }
+    }
+
+    pub fn create_local_array<T: CubeElem>(&mut self, item: Item, size: u32) -> ArrayExpand<T> {
+        ArrayExpand {
+            val: ExpandElement::Plain(self.root.borrow_mut().create_local_array(item, size)),
         }
     }
 

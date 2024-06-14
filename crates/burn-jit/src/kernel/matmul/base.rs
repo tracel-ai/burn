@@ -99,13 +99,15 @@ pub enum MatmulStrategy {
     #[cfg(feature = "autotune")]
     /// Using autotune to chose the best kernel based on runtime information.
     Autotune,
+    /// TMP
+    Tiling2dCube(Tiling2dConfig),
 }
 
 #[allow(clippy::derivable_impls)] // Necessary otherwise the feature flags dont' work.
 #[cfg(feature = "autotune")]
 impl Default for MatmulStrategy {
     fn default() -> Self {
-        MatmulStrategy::Autotune
+        MatmulStrategy::Tiling2dCube(Tiling2dConfig::default())
     }
 }
 
@@ -134,6 +136,10 @@ pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
         MatmulStrategy::Tiling2dPadded(config) => {
             let out = init_matmul_output(&lhs, &rhs);
             matmul_tiling_2d_padded(lhs, rhs, out, config)
+        }
+        MatmulStrategy::Tiling2dCube(config) => {
+            let out = init_matmul_output(&lhs, &rhs);
+            matmul_tiling_2d_cube(lhs, rhs, out, config)
         }
         #[cfg(feature = "autotune")]
         MatmulStrategy::Autotune => matmul_autotune(lhs, rhs),
