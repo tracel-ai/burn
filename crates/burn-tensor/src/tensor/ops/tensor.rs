@@ -2,13 +2,13 @@ use super::cat::cat_with_slice_assign;
 use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
+use crate::tensor::cast::ToElement;
 use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
-use num_traits::ToPrimitive;
 
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use crate::{argsort, sort, sort_with_indices};
@@ -1005,7 +1005,7 @@ pub trait FloatTensorOps<B: Backend> {
         lhs: FloatTensor<B, D>,
         rhs: IntElem<B>,
     ) -> FloatTensor<B, D> {
-        Self::float_powf_scalar(lhs, rhs.to_f32().unwrap())
+        Self::float_powf_scalar(lhs, rhs.to_f32())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.

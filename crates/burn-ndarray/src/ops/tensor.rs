@@ -406,7 +406,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).cos().elem())
+            .mapv_into(|a| (a.to_f64()).cos().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -415,7 +415,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).sin().elem())
+            .mapv_into(|a| (a.to_f64()).sin().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -424,7 +424,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).tanh().elem())
+            .mapv_into(|a| (a.to_f64()).tanh().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -433,7 +433,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| erf(a.to_f64()).elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -473,7 +473,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32()))
     }
 
     fn float_permute<const D: usize>(

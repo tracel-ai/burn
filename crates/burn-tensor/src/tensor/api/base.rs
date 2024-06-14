@@ -20,6 +20,7 @@ use serde::{Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
+use crate::Element;
 use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
@@ -1213,7 +1214,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
-    type Elem: 'static + Copy;
+    type Elem: Element;
 
     /// Creates an empty tensor with the given shape.
     ///

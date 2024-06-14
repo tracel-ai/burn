@@ -1,6 +1,5 @@
 use burn_tensor::Element;
 use ndarray::LinalgScalar;
-use num_traits::One;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -20,7 +19,6 @@ where
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
     Element
-    + One
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
     + ExpElement
