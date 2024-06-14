@@ -8,7 +8,7 @@ use burn_compute::{
 };
 use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
-use burn_tensor::Reader;
+use burn_tensor::{backend::SyncType, Reader};
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt, StagingBelt},
@@ -76,19 +76,6 @@ where
         queue.submit(Some(new_encoder.finish()));
         *tasks_count = 0;
         staging_belt.recall();
-    }
-
-    fn submit(&mut self) {
-        Self::submit_partial(
-            &mut self.encoder,
-            &self.queue,
-            &self.device,
-            &mut self.tasks_count,
-            &mut self.staging_belt,
-        );
-
-        // Cleanup allocations and deallocations.
-        self.memory_management.storage().perform_deallocations();
     }
 
     fn register_compute(
@@ -164,7 +151,7 @@ where
         );
         self.tasks_count += 1;
 
-        self.submit();
+        self.sync(SyncType::Flush);
 
         BufferReader::new(buffer_dest)
     }
@@ -337,12 +324,29 @@ where
         self.register_compute(pipeline, bind_group, work_group);
 
         if self.tasks_count >= self.tasks_max {
-            self.submit();
+            self.sync(SyncType::Flush);
         }
     }
 
-    fn sync(&mut self) {
-        self.submit();
-        self.device.poll(wgpu::Maintain::Wait);
+    fn sync(&mut self, sync_type: SyncType) {
+        // Flush commands to the queue.
+        self.staging_belt.finish();
+
+        let mut new_encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        core::mem::swap(&mut new_encoder, &mut self.encoder);
+
+        self.queue.submit(Some(new_encoder.finish()));
+        self.tasks_count = 0;
+
+        // Cleanup allocations and deallocations.
+        self.memory_management.storage().perform_deallocations();
+
+        self.staging_belt.recall();
+
+        if sync_type == SyncType::Wait {
+            self.device.poll(wgpu::Maintain::Wait);
+        }
     }
 }

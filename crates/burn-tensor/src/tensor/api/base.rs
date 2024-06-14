@@ -20,6 +20,7 @@ use serde::{Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
+use crate::Element;
 use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
@@ -169,6 +170,60 @@ where
         check!(TensorCheck::permute(transformed_axes));
 
         Tensor::new(K::permute(self.primitive, transformed_axes))
+    }
+
+    /// Moves the dimension(s) of input at the position(s) in source to the position(s) in destination.
+    ///
+    /// Other dimensions of input that are not explicitly moved remain in their original order and appear
+    /// at the positions not specified in destination.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
+    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// * `dst` - Destination positions for each of the original dims. These must also be unique.
+    ///
+    /// # Panics
+    ///
+    /// - If the source and destination dimensions are not of the same length.
+    /// - If the source and destination vectors contain duplicate values.
+    /// - If the source and destination vectors contain values that are out of bounds.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions moved.
+    // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
+    // for it
+    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
+        let source_dims = src.into_dim_vec::<D>();
+        let destination_dims = dst.into_dim_vec::<D>();
+
+        check!(TensorCheck::movedim_args_length(
+            &source_dims,
+            &destination_dims
+        ));
+
+        let mut m = [-1; D];
+        for (&d, &s) in destination_dims.iter().zip(source_dims.iter()) {
+            m[d] = s as isize;
+        }
+        let mut axes: [isize; D] = [0; D];
+        let mut source_i = 0;
+        for (dest_i, item) in axes.iter_mut().enumerate().take(D) {
+            *item = if m[dest_i] != -1 {
+                m[dest_i]
+            } else {
+                while source_dims.contains(&source_i) {
+                    source_i += 1;
+                }
+                let result = source_i as isize;
+                source_i += 1;
+                result
+            };
+        }
+
+        self.permute(axes)
     }
 
     /// Reverse the order of elements in the tensor along the given dimensions.
@@ -1159,7 +1214,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
-    type Elem: 'static + Copy;
+    type Elem: Element;
 
     /// Creates an empty tensor with the given shape.
     ///
@@ -1980,6 +2035,67 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
         B::bool_flip(tensor, axes)
+    }
+}
+
+/// Trait used for movedim arguments
+pub trait MovedimArgs {
+    /// Converts into a set of dimensions `Vec<usize>` for the `tensor.movedim()` function
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize>;
+}
+
+impl MovedimArgs for Vec<i32> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        let set = self
+            .iter()
+            .map(|&dim| {
+                if dim < 0 {
+                    (D as i32 + dim) as usize
+                } else {
+                    dim as usize
+                }
+            })
+            .collect::<Vec<usize>>();
+        check!(TensorCheck::movedim_args_vec::<D>(&set));
+
+        set
+    }
+}
+
+impl MovedimArgs for Vec<usize> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_vec::<D>(&self));
+        self
+    }
+}
+
+impl MovedimArgs for usize {
+    #[allow(clippy::vec_init_then_push)]
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_usize::<D>(self));
+
+        let mut set = Vec::with_capacity(1);
+        set.push(self);
+
+        set
+    }
+}
+
+impl MovedimArgs for i32 {
+    #[allow(clippy::vec_init_then_push)]
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_i32::<D>(self));
+
+        let dim = if self < 0 {
+            (D as i32 + self) as usize
+        } else {
+            self as usize
+        };
+
+        let mut set = Vec::with_capacity(1);
+        set.push(dim);
+
+        set
     }
 }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use burn_common::reader::Reader;
+use burn_common::{reader::Reader, sync_type::SyncType};
 use burn_compute::{
     memory_management::{simple::SimpleMemoryManagement, MemoryHandle, MemoryManagement},
     server::{Binding, ComputeServer, Handle},
@@ -62,7 +62,7 @@ where
         kernel.compute(&mut resources);
     }
 
-    fn sync(&mut self) {
+    fn sync(&mut self, _: SyncType) {
         // Nothing to do with dummy backend.
     }
 }

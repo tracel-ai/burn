@@ -25,6 +25,9 @@ pub mod benchmark;
 /// notation.
 pub mod reader;
 
+/// Synchronization type module, used both by ComputeServer and Backends.
+pub mod sync_type;
+
 extern crate alloc;
 
 /// Network utilities.

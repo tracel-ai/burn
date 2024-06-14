@@ -2,7 +2,7 @@ use crate::{
     client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
 };
 use burn_tensor::{
-    backend::{Backend, DeviceOps},
+    backend::{Backend, DeviceOps, SyncType},
     ops::FloatTensor,
     repr::{OperationDescription, ReprBackend},
     Device,
@@ -45,10 +45,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(seed);
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device, sync_type: SyncType) {
         let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
         client.drain();
-        B::sync(device)
+        B::sync(device, sync_type);
     }
 
     fn ad_enabled() -> bool {

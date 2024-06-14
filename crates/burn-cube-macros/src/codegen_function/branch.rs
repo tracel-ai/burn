@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 
-use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
+use crate::{codegen_function::base::codegen_expr, tracker::VariableTracker};
 
 use super::{
     base::codegen_block,
@@ -15,9 +15,14 @@ use super::{
 pub(crate) fn codegen_for_loop(
     for_loop: &syn::ExprForLoop,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let i = &for_loop.pat;
+
+    if let syn::Pat::Ident(pat_ident) = &*for_loop.pat {
+        let id = &pat_ident.ident;
+        variable_tracker.codegen_declare(id.to_string(), loop_level as u8 + 1);
+    }
 
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
@@ -35,20 +40,20 @@ pub(crate) fn codegen_for_loop(
                 let unroll = codegen_expr(
                     &args.pop().unwrap().into_value(),
                     loop_level,
-                    variable_analyses,
+                    variable_tracker,
                 );
                 let end = codegen_expr(
                     &args.pop().unwrap().into_value(),
                     loop_level,
-                    variable_analyses,
+                    variable_tracker,
                 );
                 let start = codegen_expr(
                     &args.pop().unwrap().into_value(),
                     loop_level,
-                    variable_analyses,
+                    variable_tracker,
                 );
 
-                let block = codegen_block(&for_loop.body, loop_level + 1, variable_analyses);
+                let block = codegen_block(&for_loop.body, loop_level + 1, variable_tracker);
 
                 quote::quote! {
                     {
@@ -70,13 +75,13 @@ pub(crate) fn codegen_for_loop(
 pub(crate) fn codegen_cond(
     cond: &syn::Expr,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> (TokenStream, bool) {
     match cond {
-        syn::Expr::Binary(expr) => (codegen_binary(expr, loop_level, variable_analyses), false),
+        syn::Expr::Binary(expr) => (codegen_binary(expr, loop_level, variable_tracker), false),
         syn::Expr::Lit(expr) => (codegen_lit(expr), false),
-        syn::Expr::Path(expr) => (codegen_path_rhs(expr, loop_level, variable_analyses), false),
-        syn::Expr::Call(expr) => codegen_call(expr, loop_level, variable_analyses),
+        syn::Expr::Path(expr) => (codegen_path_rhs(expr, loop_level, variable_tracker), false),
+        syn::Expr::Call(expr) => codegen_call(expr, loop_level, variable_tracker),
         _ => todo!("{cond:?} cond not supported"),
     }
 }
@@ -106,20 +111,20 @@ pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
 pub(crate) fn codegen_if(
     expr_if: &syn::ExprIf,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&expr_if.cond, loop_level, variable_analyses);
+    let (cond, comptime) = codegen_cond(&expr_if.cond, loop_level, variable_tracker);
     let comptime_bool = if comptime {
         quote::quote! { Some(#cond) }
     } else {
         quote::quote! { None }
     };
 
-    let then_block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_analyses);
+    let then_block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_tracker);
 
     if let Some((_, expr)) = &expr_if.else_branch {
         if let syn::Expr::Block(expr_block) = &**expr {
-            let else_block = codegen_block(&expr_block.block, loop_level + 1, variable_analyses);
+            let else_block = codegen_block(&expr_block.block, loop_level + 1, variable_tracker);
 
             quote::quote! {
                 let _cond = #cond;
@@ -140,9 +145,9 @@ pub(crate) fn codegen_if(
 pub(crate) fn codegen_loop(
     loop_expr: &syn::ExprLoop,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let block = codegen_block(&loop_expr.body, loop_level + 1, variable_analyses);
+    let block = codegen_block(&loop_expr.body, loop_level + 1, variable_tracker);
 
     quote::quote! {
         burn_cube::frontend::branch::loop_expand(context, |context| #block);
@@ -153,12 +158,12 @@ pub(crate) fn codegen_loop(
 pub(crate) fn codegen_while_loop(
     while_loop: &syn::ExprWhile,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&while_loop.cond, loop_level + 1, variable_analyses);
+    let (cond, comptime) = codegen_cond(&while_loop.cond, loop_level + 1, variable_tracker);
     assert!(!comptime, "Codegen: Comptime not supported for while");
 
-    let block = codegen_block(&while_loop.body, loop_level + 1, variable_analyses);
+    let block = codegen_block(&while_loop.body, loop_level + 1, variable_tracker);
 
     quote::quote! {
         burn_cube::frontend::branch::while_loop_expand(context, |context| #cond, |context| #block);

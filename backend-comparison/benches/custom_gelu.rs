@@ -2,6 +2,7 @@ use backend_comparison::persistence::save;
 use burn::backend::Autodiff;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::sync_type::SyncType;
 use core::f64::consts::SQRT_2;
 use derive_new::new;
 
@@ -68,7 +69,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 
     fn num_samples(&self) -> usize {

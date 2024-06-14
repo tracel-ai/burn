@@ -5,6 +5,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
+/// See also [gelu](burn::tensor::activation::gelu)
 #[derive(Module, Clone, Debug, Default)]
 pub struct Gelu {}
 

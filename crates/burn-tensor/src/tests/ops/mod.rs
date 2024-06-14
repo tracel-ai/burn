@@ -32,6 +32,7 @@ mod map_comparison;
 mod mask;
 mod matmul;
 mod maxmin;
+mod movedim;
 mod mul;
 mod narrow;
 mod neg;

@@ -7,7 +7,7 @@ use crate::tensor::{backend::Backend, Tensor};
 
 use super::Initializer;
 
-/// Configuration to create a [Linear](Linear) layer.
+/// Configuration to create a [Linear](Linear) layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
 pub struct LinearConfig {
     /// The size of the input features.
@@ -25,6 +25,8 @@ pub struct LinearConfig {
 }
 
 /// Applies a linear transformation to the input tensor:
+///
+/// Should be created with [LinearConfig]
 ///
 /// `O = IW + b`
 #[derive(Module, Debug)]
@@ -84,8 +86,8 @@ impl<B: Backend> Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Shape};
     use crate::TestBackend;
-    use burn_tensor::{Data, Shape};
 
     #[test]
     fn initializer_default() {

@@ -168,7 +168,10 @@ fn create_client(
     let channel = MutexComputeChannel::new(server);
     let tuner_device_id = tuner_device_id(adapter.get_info());
 
-    ComputeClient::new(channel, Arc::new(RwLock::new(Tuner::new(&tuner_device_id))))
+    ComputeClient::new(
+        channel,
+        Arc::new(RwLock::new(Tuner::new("wgpu", &tuner_device_id))),
+    )
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).

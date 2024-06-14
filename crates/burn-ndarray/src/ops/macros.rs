@@ -34,6 +34,7 @@ macro_rules! keepdim {
     }};
 }
 
+use burn_tensor::ElementConversion;
 pub(crate) use keepdim;
 use ndarray::Axis;
 
@@ -63,7 +64,7 @@ pub(crate) fn prod_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
 ) -> NdArrayTensor<E, D2> {
     let array = tensor
         .array
-        .fold_axis(Axis(dim), E::one(), |acc, &x| acc.mul(x.elem()))
+        .fold_axis(Axis(dim), 1.elem::<E>(), |acc, &x| acc.mul(x.elem()))
         .into_shared();
 
     NdArrayTensor { array }

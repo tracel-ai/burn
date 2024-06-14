@@ -18,7 +18,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmax {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
 
-        let max = Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
+        let max = Variable::ConstantScalar(E::minimum_value().to_f64(), input_item.elem());
         cpa!(scope, value_shared_memory[write_position] = max);
         (value_shared_memory, index_shared_memory)
     }

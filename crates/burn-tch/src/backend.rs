@@ -2,7 +2,7 @@ use crate::PrecisionBridge;
 
 use super::element::TchElement;
 use super::TchTensor;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncType};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
 
@@ -114,19 +114,20 @@ impl<E: TchElement> Backend for LibTorch<E> {
         "tch".to_string()
     }
 
-    fn sync(device: &Self::Device) {
-        match device {
-            LibTorchDevice::Cpu => (),
-            LibTorchDevice::Cuda(index) => {
-                tch::Cuda::synchronize(*index as i64);
-            }
-            _ => {
-                // When there is no explicit way to synchronize, we write and read one value to sync
-                Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
-                    [1].into(),
-                    device,
-                ))
-                .into_data();
+    fn sync(device: &Self::Device, sync_type: SyncType) {
+        if sync_type == SyncType::Wait {
+            match device {
+                LibTorchDevice::Cpu => (),
+                LibTorchDevice::Cuda(index) => {
+                    tch::Cuda::synchronize(*index as i64);
+                }
+                _ => {
+                    // When there is no explicit way to synchronize, we write and read one value to sync
+                    Tensor::<Self, 1, Int>::from_primitive(
+                        <Self as IntTensorOps<Self>>::int_zeros([1].into(), device),
+                    )
+                    .into_data();
+                }
             }
         }
     }
