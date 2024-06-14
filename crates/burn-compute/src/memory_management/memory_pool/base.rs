@@ -1,9 +1,9 @@
 use super::index::SearchIndex;
 use super::{
-    ChunkHandle, ChunkId, DroppedSlices, MemoryPoolBinding, MemoryPoolHandle, SliceHandle, SliceId,
+    ChunkHandle, ChunkId, MemoryChunk, MemoryPoolBinding, MemoryPoolHandle, MemorySlice,
+    RingBuffer, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
-use alloc::sync::Arc;
 use hashbrown::{HashMap, HashSet};
 
 pub struct MemoryPool {
@@ -12,20 +12,28 @@ pub struct MemoryPool {
     merging_strategy: ChunkDefragmentationStrategy,
     rounding: RoundingStrategy,
     chunk_index: SearchIndex<ChunkId>,
-    dropped: DroppedSlices,
     max_chunk_size: usize,
-    ring: RingBuffer,
+    ring: RingBuffer<Chunk, Slice>,
+    debug: bool,
 }
 
 #[derive(new, Debug)]
-struct Chunk {
-    storage: StorageHandle,
-    handle: ChunkHandle,
-    slices: Vec<SliceId>,
+pub struct Chunk {
+    pub storage: StorageHandle,
+    pub handle: ChunkHandle,
+    pub slices: Vec<SliceId>,
+}
+
+#[derive(new, Debug)]
+pub struct Slice {
+    pub storage: StorageHandle,
+    pub handle: SliceHandle,
+    pub chunk: ChunkHandle,
+    pub padding: usize,
 }
 
 impl Chunk {
-    fn generate_mergings(
+    pub fn generate_mergings(
         &self,
         merging_map: &mut HashMap<ChunkId, Vec<Merging>>,
         slices: &mut HashMap<SliceId, Slice>,
@@ -82,7 +90,7 @@ impl Chunk {
         }
     }
 
-    fn merge_contiguous_slices(
+    pub fn merge_contiguous_slices(
         &mut self,
         mergings: &Vec<Merging>,
         slices: &mut HashMap<SliceId, Slice>,
@@ -134,252 +142,6 @@ impl Chunk {
         Slice::new(storage, handle, self.handle.clone(), padding)
     }
 }
-
-#[derive(new, Debug)]
-struct Slice {
-    storage: StorageHandle,
-    handle: SliceHandle,
-    chunk: ChunkHandle,
-    padding: usize,
-}
-
-#[derive(Debug)]
-struct RingBuffer {
-    queue: Vec<ChunkId>,
-    chunk_positions: HashMap<ChunkId, usize>,
-    cursor_slice: usize,
-    cursor_chunk: usize,
-}
-
-impl RingBuffer {
-    fn new() -> Self {
-        Self {
-            queue: Vec::new(),
-            chunk_positions: HashMap::new(),
-            cursor_slice: 0,
-            cursor_chunk: 0,
-        }
-    }
-
-    fn push_chunk(&mut self, chunk_id: ChunkId) {
-        self.queue.push(chunk_id);
-        self.chunk_positions.insert(chunk_id, self.queue.len() - 1);
-    }
-
-    fn remove_chunk(&mut self, chunk_id: ChunkId) {
-        if let Some(position) = self.chunk_positions.remove(&chunk_id) {
-            self.queue.remove(position);
-        }
-
-        for (pos, id) in self.queue.iter().enumerate() {
-            self.chunk_positions.insert(*id, pos);
-        }
-    }
-
-    fn find_free_slice_in_chunk(
-        &mut self,
-        size: usize,
-        chunk: &mut Chunk,
-        slices: &mut HashMap<SliceId, Slice>,
-        mut slice_index: usize,
-    ) -> Option<(usize, SliceId)> {
-        let mut merged = false;
-
-        loop {
-            let slice_id = if let Some(slice_id) = chunk.slices.get(slice_index) {
-                slice_id
-            } else {
-                break;
-            };
-
-            let slice = slices.get(slice_id).unwrap();
-
-            let is_big_enough = slice.effective_size() >= size;
-            let is_free = slice.handle.is_free();
-
-            if is_big_enough && is_free {
-                return Some((slice_index, *slice_id));
-            }
-
-            if merged {
-                log::info!("Merged, but didn't find an available slice.");
-                break;
-            }
-
-            if is_free {
-                let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
-                chunk.generate_mergings(&mut chunk_to_merged_slice, slices, slice_index);
-
-                for (_, mergings) in chunk_to_merged_slice.into_iter() {
-                    chunk.merge_contiguous_slices(&mergings, slices);
-                }
-
-                merged = true;
-            } else {
-                slice_index += 1;
-            }
-        }
-        log::info!("Not found in chunk. {}", self.cursor_chunk);
-
-        None
-    }
-
-    fn find_free_slice(
-        &mut self,
-        size: usize,
-        chunks: &mut HashMap<ChunkId, Chunk>,
-        slices: &mut HashMap<SliceId, Slice>,
-        max_cursor_position: usize,
-    ) -> Option<SliceId> {
-        let start = self.cursor_chunk;
-        let end = usize::min(self.queue.len(), max_cursor_position);
-        let mut slice_index = self.cursor_slice;
-
-        for chunk_index in start..end {
-            if chunk_index > start {
-                slice_index = 0;
-            }
-
-            if let Some(id) = self.queue.get(chunk_index) {
-                let chunk = chunks.get_mut(id).unwrap();
-                log::info!(
-                    "Find {} find_free_slice_in_chunk chunk_cursor={}, slice_cursor={}",
-                    size,
-                    chunk_index,
-                    slice_index,
-                );
-                let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
-
-                if let Some((cursor_slice, slice)) = result {
-                    log::info!("Found chunk {} slice {}", chunk_index, slice_index);
-                    self.cursor_slice = cursor_slice + 1;
-                    self.cursor_chunk = chunk_index;
-                    return Some(slice);
-                }
-            }
-            self.cursor_chunk = chunk_index;
-            self.cursor_slice = 0;
-        }
-
-        None
-    }
-
-    fn find_free_slice_two_ways(
-        &mut self,
-        size: usize,
-        chunks: &mut HashMap<ChunkId, Chunk>,
-        slices: &mut HashMap<SliceId, Slice>,
-    ) -> Option<SliceId> {
-        let max_second = self.cursor_chunk;
-        let result = self.find_free_slice(size, chunks, slices, self.queue.len());
-
-        if result.is_some() {
-            return result;
-        }
-
-        self.find_free_slice(size, chunks, slices, max_second)
-    }
-}
-
-//impl ChunkRingBuffer {
-//    fn new() -> Self {
-//        Self {
-//            // needs to be updated if we change chunks in the memory pool
-//            last_chunk_position: None,
-//            last_slice_offset: None,
-//            chunks: Vec::new(),
-//        }
-//    }
-//
-//    fn get_next_fit(
-//        &mut self,
-//        chunks: &HashMap<ChunkId, Chunk>,
-//        slices: &HashMap<SliceId, Slice>,
-//        alloc_size: usize,
-//    ) -> Option<SliceId> {
-//        let last_chunk_id = match &self.last_chunk_position {
-//            Some(chunk_position) => Some(self.chunks.get(*chunk_position).unwrap()),
-//            None => {
-//                let chunk = self.chunks.get(0);
-//                if chunk.is_some() {
-//                    self.last_chunk_position = Some(0);
-//                    self.last_slice_offset = None;
-//                }
-//                chunk
-//            }
-//        };
-//        let last_chunk = chunks.get(last_chunk_id?);
-//        let mut last_chunk = match last_chunk {
-//            Some(chunk) => {
-//                let current_slice_id_offset_and_positon =
-//                    chunk.get_next_slice(self.last_slice_offset, slices);
-//                while current_slice_id_offset_and_positon.is_some() {
-//                    let current_slice_id = current_slice_id_offset_and_positon.unwrap().slice_id;
-//                    let current_slice = slices.get(&current_slice_id).unwrap();
-//                    let alloc_can_fit = current_slice.effective_size() >= alloc_size
-//                        && current_slice.handle.is_free();
-//                    if alloc_can_fit {
-//                        return Some(current_slice_id);
-//                    }
-//                    let current_slice_position =
-//                        current_slice_id_offset_and_positon.unwrap().position;
-//                    let current_slice_id_offset_and_positon =
-//                        chunk.get_specific_slice(current_slice_position + 1);
-//                }
-//            }
-//            // no chunks at all
-//            None => {
-//                return None;
-//            }
-//        };
-//    }
-//}
-//
-//#[derive(Debug, new)]
-//struct SliceIdOffsetPosition {
-//    slice_id: SliceId,
-//    offset: usize,
-//    position: usize,
-//}
-//
-//impl Chunk {
-//    fn get_next_slice(
-//        &self,
-//        last_offset: Option<usize>,
-//        slices: &HashMap<SliceId, Slice>,
-//    ) -> Option<SliceIdOffsetPosition> {
-//        match last_offset {
-//            Some(last_offset) => {
-//                let mut temp_offset = 0;
-//                for i in 0..(self.slices.len() - 1) {
-//                    let slice_id = self.slices.get(i).unwrap();
-//                    let slice = slices.get(slice_id).unwrap();
-//                    temp_offset += slice.effective_size();
-//                    if temp_offset > last_offset {
-//                        return Some(SliceIdOffsetPosition::new(
-//                            *self.slices.get(i + 1).unwrap(),
-//                            temp_offset,
-//                            i + 1,
-//                        ));
-//                    }
-//                }
-//                return None;
-//            }
-//            // assumes slices are stored contiguously in the chunk's vec
-//            None => {
-//                return Some(SliceIdOffsetPosition::new(
-//                    *self.slices.get(0).expect("chunk shouldn't have 0 slices"),
-//                    0,
-//                    0,
-//                ));
-//            }
-//        }
-//    }
-//
-//    fn get_specific_slice(&self, position: usize) -> Option<SliceId> {
-//        return self.slices.get(position).copied();
-//    }
-//}
 
 impl Slice {
     pub fn effective_size(&self) -> usize {
@@ -452,7 +214,7 @@ struct SliceUpdate {
 }
 
 #[derive(Debug)]
-struct Merging {
+pub struct Merging {
     start: usize,
     end: usize,
     offset: usize,
@@ -465,6 +227,7 @@ impl MemoryPool {
         merging_strategy: ChunkDefragmentationStrategy,
         alloc_strategy: RoundingStrategy,
         max_chunk_size: usize,
+        debug: bool,
     ) -> Self {
         Self {
             chunks: HashMap::new(),
@@ -473,8 +236,8 @@ impl MemoryPool {
             rounding: alloc_strategy,
             max_chunk_size,
             chunk_index: SearchIndex::new(),
-            dropped: Arc::new(spin::Mutex::new(Vec::new())),
             ring: RingBuffer::new(),
+            debug,
         }
     }
 
@@ -514,13 +277,10 @@ impl MemoryPool {
 
         if may_perform_full_defrag {
             sync();
-            self.chunk_defragmentation(storage);
+            self.extend_max_memory(storage, size);
 
             if let Some(handle) = self.get_free_slice(size) {
-                return MemoryPoolHandle {
-                    slice: handle,
-                    dropped: self.dropped.clone(),
-                };
+                return MemoryPoolHandle { slice: handle };
             }
         }
 
@@ -544,7 +304,6 @@ impl MemoryPool {
         let slice_id = *handle_slice.id();
         let returned = MemoryPoolHandle {
             slice: handle_slice,
-            dropped: self.dropped.clone(),
         };
 
         let extra_slice = if effective_size < alloc_size {
@@ -596,140 +355,42 @@ impl MemoryPool {
         match slice {
             Some(slice) => MemoryPoolHandle {
                 slice: slice.clone(),
-                dropped: self.dropped.clone(),
             },
-            None => {
-                let handle = self.alloc(storage, size, sync);
-                handle
-            }
+            None => self.alloc(storage, size, sync),
         }
-    }
-
-    /// Tries to split a slice in two with the first slice being of the specified size
-    /// If there is not enough space for 2 slice, only uses one slice
-    /// returns the handle of the first slice
-    fn split_slice_in_two(
-        &mut self,
-        slice_to_split_id: &SliceId,
-        first_slice_size: usize,
-    ) -> Option<SliceHandle> {
-        let slice_to_split = self.slices.get(slice_to_split_id).unwrap();
-        let slice_to_split_effective_size = slice_to_split.effective_size();
-        let chunk = if let Some(chunk) = self.chunks.get_mut(slice_to_split.chunk.id()) {
-            chunk
-        } else {
-            panic!("Can't use chunk {:?}", slice_to_split.chunk.id());
-        };
-        log::info!(
-            "Split {}/{}",
-            first_slice_size,
-            slice_to_split_effective_size
-        );
-        let current_slice_chunk_handle = chunk.handle.clone();
-
-        let mut slices = Vec::with_capacity(chunk.slices.len() + 1);
-        let mut offset = 0;
-
-        let mut slices_old = Vec::new();
-        core::mem::swap(&mut slices_old, &mut chunk.slices);
-
-        let mut handle = None;
-        for slice_id in slices_old.into_iter() {
-            // Assumes that all slices are contiguous in a chunk.
-            let slice = self.slices.get(&slice_id).unwrap();
-
-            if slice_id != *slice_to_split_id {
-                slices.push(slice_id);
-                offset += slice.effective_size();
-            } else {
-                let first_slice =
-                    self.create_slice(offset, first_slice_size, current_slice_chunk_handle.clone());
-                let first_slice_id = *first_slice.handle.id();
-                let first_slice_effective_size = first_slice.effective_size();
-                offset += first_slice_effective_size;
-
-                let second_slice_size = slice_to_split_effective_size - first_slice_effective_size;
-                let slice_end = self.create_slice(
-                    offset,
-                    second_slice_size,
-                    current_slice_chunk_handle.clone(),
-                );
-                let slice_end_id = *slice_end.handle.id();
-                let slice_end_effective_size = slice_end.effective_size();
-                offset += slice_end_effective_size;
-
-                let created_offset = first_slice_effective_size + slice_end_effective_size;
-                assert_eq!(created_offset, slice_to_split_effective_size);
-
-                handle = Some(first_slice.handle.clone());
-                self.slices.insert(first_slice_id, first_slice);
-                self.slices.insert(slice_end_id, slice_end);
-
-                slices.push(first_slice_id);
-                slices.push(slice_end_id);
-            }
-        }
-
-        self.slices.remove(slice_to_split_id);
-
-        let chunk = self
-            .chunks
-            .get_mut(current_slice_chunk_handle.id())
-            .unwrap();
-        chunk.slices = slices;
-        handle
     }
 
     /// Finds the smallest of the free and large enough chunks to fit `size`
     /// Returns the chunk's id and size.
     fn get_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
-        let padding = Self::calculate_padding(size);
-        let effective_size = size + padding;
-        let mut slice_id_size_pair: Option<(SliceId, usize)> = None;
-
-        let slice_id =
-            self.ring
-                .find_free_slice_two_ways(effective_size, &mut self.chunks, &mut self.slices);
-
-        if let Some(slice_id) = slice_id {
-            let slice = self.slices.get(&slice_id).unwrap();
-            slice_id_size_pair = Some((slice_id, slice.effective_size()));
-        }
-
-        if slice_id_size_pair.is_none() {
-            return None;
-        }
-        let slice_id = slice_id_size_pair.unwrap().0;
-        let slice_size = slice_id_size_pair.unwrap().1;
-
-        let size_diff = slice_size - effective_size;
-
-        // if same size reuse the slice
-        if size_diff == 0 {
-            let slice = self.slices.get_mut(&slice_id).unwrap();
-
-            let offset = match slice.storage.utilization {
-                StorageUtilization::Full(_) => 0,
-                StorageUtilization::Slice { offset, size: _ } => offset,
-            };
-            slice.storage.utilization = StorageUtilization::Slice { offset, size };
-            slice.padding = padding;
-
-            return Some(slice.handle.clone());
-        }
-
         if size < MIN_SIZE_NEEDED_TO_OFFSET {
             return None;
         }
 
-        assert_eq!(size_diff % BUFFER_ALIGNMENT, 0);
+        let padding = Self::calculate_padding(size);
+        let effective_size = size + padding;
 
-        // split into 2 if needed
-        let handle = self
-            .split_slice_in_two(&slice_id, size)
-            .expect("split should have returned a handle");
+        let slice_id = self.ring.find_free_slice(
+            effective_size,
+            &mut self.chunks,
+            &mut self.slices,
+        );
 
-        return Some(handle);
+        let slice_id = match slice_id {
+            Some(val) => val,
+            None => return None,
+        };
+
+        let slice = self.slices.get_mut(&slice_id).unwrap();
+
+        let offset = match slice.storage.utilization {
+            StorageUtilization::Full(_) => 0,
+            StorageUtilization::Slice { offset, size: _ } => offset,
+        };
+        slice.storage.utilization = StorageUtilization::Slice { offset, size };
+        slice.padding = padding;
+
+        Some(slice.handle.clone())
     }
 
     /// Creates a slice of size `size` upon the given chunk with the given offset.
@@ -778,11 +439,13 @@ impl MemoryPool {
         handle
     }
 
-    fn chunk_defragmentation<Storage: ComputeStorage>(&mut self, storage: &mut Storage) {
-        log::info!("Chunk defragmentation ...");
+    fn extend_max_memory<Storage: ComputeStorage>(&mut self, storage: &mut Storage, size: usize) {
+        if self.debug {
+            log::info!("Extend max memory ...");
+        }
 
         let mut slices = Vec::<SliceUpdate>::new();
-        let mut current_size = 0;
+        let mut current_size = size;
 
         let chunks_sorted = self
             .chunk_index
@@ -793,7 +456,6 @@ impl MemoryPool {
         let mut deallocations = HashSet::<ChunkId>::new();
 
         for chunk_id in chunks_sorted {
-            panic!("Nop");
             let chunk = self.chunks.get(&chunk_id).unwrap();
             let chunk_id = chunk.handle.id().clone();
             let slices_ids = chunk.slices.clone();
@@ -806,7 +468,8 @@ impl MemoryPool {
                 current_size += effective_size;
 
                 if current_size >= self.max_chunk_size {
-                    let alloc_size = current_size - effective_size;
+                    // let alloc_size = current_size - effective_size;
+                    let alloc_size = self.max_chunk_size;
                     self.move_to_new_chunk(alloc_size, storage, &mut slices, &mut deallocations);
                     current_size = effective_size;
                 }
@@ -899,5 +562,67 @@ fn calculate_padding(size: usize) -> usize {
         BUFFER_ALIGNMENT - rem
     } else {
         0
+    }
+}
+
+impl MemorySlice for Slice {
+    fn is_free(&self) -> bool {
+        self.handle.is_free()
+    }
+
+    fn size(&self) -> usize {
+        self.effective_size()
+    }
+
+    fn split(&mut self, offset_slice: usize) -> Self {
+        let size_new = self.effective_size() - offset_slice;
+        let offset_new = self.storage.offset() + offset_slice;
+
+        let storage_new = StorageHandle {
+            id: self.storage.id.clone(),
+            utilization: StorageUtilization::Slice {
+                offset: offset_new,
+                size: size_new,
+            },
+        };
+
+        self.storage.utilization = StorageUtilization::Slice {
+            offset: self.storage.offset(),
+            size: offset_slice,
+        };
+
+        if offset_new > 0 && size_new < MIN_SIZE_NEEDED_TO_OFFSET {
+            panic!("tried to create slice of size {size_new} with an offset while the size needs to atleast be of size {MIN_SIZE_NEEDED_TO_OFFSET} for offset support");
+        }
+        if offset_new % BUFFER_ALIGNMENT != 0 {
+            panic!("slice with offset {offset_new} needs to be a multiple of {BUFFER_ALIGNMENT}");
+        }
+        let handle = SliceHandle::new();
+
+        let padding = calculate_padding(size_new);
+
+        Slice::new(storage_new, handle, self.chunk.clone(), padding)
+    }
+
+    fn id(&self) -> SliceId {
+        *self.handle.id()
+    }
+}
+
+impl MemoryChunk<Slice> for Chunk {
+    fn merge_slices(&mut self, from_slice_index: usize, slices: &mut HashMap<SliceId, Slice>) {
+        let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
+        self.generate_mergings(&mut chunk_to_merged_slice, slices, from_slice_index);
+        for (_, mergings) in chunk_to_merged_slice.into_iter() {
+            self.merge_contiguous_slices(&mergings, slices);
+        }
+    }
+
+    fn slice(&self, index: usize) -> Option<SliceId> {
+        self.slices.get(index).map(Clone::clone)
+    }
+
+    fn insert_slice(&mut self, position: usize, slice_id: SliceId) {
+        self.slices.insert(position, slice_id);
     }
 }

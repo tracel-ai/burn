@@ -10,17 +10,13 @@ memory_id_type!(SliceId, SliceHandle, SliceBinding);
 #[derive(Debug, Clone)]
 pub struct MemoryPoolHandle {
     pub slice: SliceHandle,
-    pub dropped: DroppedSlices,
 }
 
 /// Binding of the [dynamic handle](DynamicHandle).
 #[derive(Debug, Clone)]
 pub struct MemoryPoolBinding {
     pub slice: SliceBinding,
-    pub dropped: DroppedSlices,
 }
-
-pub type DroppedSlices = std::sync::Arc<spin::Mutex<Vec<SliceId>>>;
 
 impl MemoryBinding for MemoryPoolBinding {}
 
@@ -32,15 +28,6 @@ impl MemoryHandle<MemoryPoolBinding> for MemoryPoolHandle {
     fn binding(self) -> MemoryPoolBinding {
         MemoryPoolBinding {
             slice: self.slice.binding(),
-            dropped: self.dropped,
-        }
-    }
-}
-impl Drop for MemoryPoolBinding {
-    fn drop(&mut self) {
-        if self.slice.value.can_mut() {
-            let id = *self.slice.id();
-            self.dropped.lock().push(id);
         }
     }
 }

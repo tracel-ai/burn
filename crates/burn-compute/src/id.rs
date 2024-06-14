@@ -111,7 +111,7 @@ macro_rules! memory_id_type {
         /// Memory ID.
         #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
         pub struct $id {
-            value: usize,
+            pub(crate) value: usize,
         }
 
         impl $handle {
