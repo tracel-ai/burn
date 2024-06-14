@@ -4,7 +4,6 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::Range;
-use hashbrown::HashSet;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -224,16 +223,20 @@ impl TensorCheck {
         }
 
         // Check there are no duplicates
-        let mut uniq = HashSet::new();
-        let duplicates = dims.iter().find(|&&x| !uniq.insert(x));
-        if let Some(duplicate) = duplicates {
-            check = check.register(
-                "Movedim",
-                TensorError::new("The given dimensions contain duplicates.").details(format!(
-                    "The dimension {} is duplicated in the given dimensions {:?}.",
-                    duplicate, dims
-                )),
-            );
+        for (i, &dim_i) in dims.iter().enumerate() {
+            for &dim_j in dims.iter().skip(i + 1) {
+                if dim_i == dim_j {
+                    check = check.register(
+                        "Movedim",
+                        TensorError::new("The given dimensions contain duplicates.").details(
+                            format!(
+                                "The dimension {} is duplicated in the given dimensions {:?}.",
+                                dim_i, dims
+                            ),
+                        ),
+                    );
+                }
+            }
         }
 
         check

@@ -9,8 +9,6 @@ use alloc::string::String;
 #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::vec;
 
-use hashbrown::HashMap;
-
 use burn_common::{reader::Reader, stub::Mutex};
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -204,17 +202,16 @@ where
             &source_dims,
             &destination_dims
         ));
-        let rank = self.dims().len();
 
-        let mut m = HashMap::new();
-        for (d, s) in destination_dims.iter().zip(source_dims.iter()) {
-            m.insert(*d, *s);
+        let mut m = [-1; D];
+        for (&d, &s) in destination_dims.iter().zip(source_dims.iter()) {
+            m[d] = s as isize;
         }
         let mut axes: [isize; D] = [0; D];
         let mut source_i = 0;
-        for (dest_i, item) in axes.iter_mut().enumerate().take(rank) {
-            *item = if let Some(&s) = m.get(&dest_i) {
-                s as isize
+        for (dest_i, item) in axes.iter_mut().enumerate().take(D) {
+            *item = if m[dest_i] != -1 {
+                m[dest_i]
             } else {
                 while source_dims.contains(&source_i) {
                     source_i += 1;
