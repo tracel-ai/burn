@@ -3,7 +3,6 @@ use super::{
     ChunkHandle, ChunkId, DroppedSlices, MemoryPoolBinding, MemoryPoolHandle, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
-use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use hashbrown::{HashMap, HashSet};
 
@@ -146,54 +145,35 @@ struct Slice {
 
 #[derive(Debug)]
 struct RingBuffer {
-    ordered_chunks: BTreeMap<usize, ChunkId>,
+    queue: Vec<ChunkId>,
     chunk_positions: HashMap<ChunkId, usize>,
     cursor_slice: usize,
     cursor_chunk: usize,
-    total: usize,
 }
 
 impl RingBuffer {
     fn new() -> Self {
         Self {
-            ordered_chunks: BTreeMap::new(),
+            queue: Vec::new(),
             chunk_positions: HashMap::new(),
             cursor_slice: 0,
             cursor_chunk: 0,
-            total: 0,
         }
     }
 
     fn push_chunk(&mut self, chunk_id: ChunkId) {
-        self.ordered_chunks.insert(self.total, chunk_id);
-        self.chunk_positions.insert(chunk_id, self.total);
-        self.total += 1;
+        self.queue.push(chunk_id);
+        self.chunk_positions.insert(chunk_id, self.queue.len() - 1);
     }
 
     fn remove_chunk(&mut self, chunk_id: ChunkId) {
-        let position = self
-            .chunk_positions
-            .get(&chunk_id)
-            .expect("chunk should be in the chunk position BTree")
-            .to_owned();
-
-        self.ordered_chunks.remove(&position);
-        self.chunk_positions.remove(&chunk_id);
-
-        let keys_to_update: Vec<_> = self
-            .ordered_chunks
-            .range(position..)
-            .map(|(&pos, _)| pos)
-            .collect();
-
-        for &old_pos in &keys_to_update {
-            let new_pos = old_pos - 1;
-            let id = self.ordered_chunks.remove(&old_pos).unwrap();
-            self.ordered_chunks.insert(new_pos, id);
-            self.chunk_positions.insert(id, new_pos);
+        if let Some(position) = self.chunk_positions.remove(&chunk_id) {
+            self.queue.remove(position);
         }
 
-        self.total -= 1;
+        for (pos, id) in self.queue.iter().enumerate() {
+            self.chunk_positions.insert(*id, pos);
+        }
     }
 
     fn find_free_slice_in_chunk(
@@ -201,8 +181,8 @@ impl RingBuffer {
         size: usize,
         chunk: &mut Chunk,
         slices: &mut HashMap<SliceId, Slice>,
-    ) -> Option<SliceId> {
-        let mut slice_index = self.cursor_slice;
+        mut slice_index: usize,
+    ) -> Option<(usize, SliceId)> {
         let mut merged = false;
 
         loop {
@@ -218,16 +198,11 @@ impl RingBuffer {
             let is_free = slice.handle.is_free();
 
             if is_big_enough && is_free {
-                self.cursor_slice = slice_index + 1;
-
-                if self.cursor_slice >= chunk.slices.len() {
-                    self.cursor_slice = 0;
-                }
-
-                return Some(*slice_id);
+                return Some((slice_index, *slice_id));
             }
 
             if merged {
+                log::info!("Merged, but didn't find an available slice.");
                 break;
             }
 
@@ -240,11 +215,12 @@ impl RingBuffer {
                 }
 
                 merged = true;
+            } else {
+                slice_index += 1;
             }
-            slice_index += 1;
         }
+        log::info!("Not found in chunk. {}", self.cursor_chunk);
 
-        self.cursor_slice = 0;
         None
     }
 
@@ -256,24 +232,34 @@ impl RingBuffer {
         max_cursor_position: usize,
     ) -> Option<SliceId> {
         let start = self.cursor_chunk;
-        let end = usize::min(self.total, max_cursor_position);
+        let end = usize::min(self.queue.len(), max_cursor_position);
+        let mut slice_index = self.cursor_slice;
 
         for chunk_index in start..end {
-            if let Some(id) = self.ordered_chunks.get(&chunk_index) {
+            if chunk_index > start {
+                slice_index = 0;
+            }
+
+            if let Some(id) = self.queue.get(chunk_index) {
                 let chunk = chunks.get_mut(id).unwrap();
+                log::info!(
+                    "Find {} find_free_slice_in_chunk chunk_cursor={}, slice_cursor={}",
+                    size,
+                    chunk_index,
+                    slice_index,
+                );
+                let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
 
-                let result = self.find_free_slice_in_chunk(size, chunk, slices);
-
-                if result.is_some() {
-                    log::info!("cursor_chunk {}", self.cursor_chunk);
+                if let Some((cursor_slice, slice)) = result {
+                    log::info!("Found chunk {} slice {}", chunk_index, slice_index);
+                    self.cursor_slice = cursor_slice + 1;
                     self.cursor_chunk = chunk_index;
-                    return result;
+                    return Some(slice);
                 }
             }
             self.cursor_chunk = chunk_index;
+            self.cursor_slice = 0;
         }
-
-        self.cursor_chunk = 0;
 
         None
     }
@@ -285,7 +271,7 @@ impl RingBuffer {
         slices: &mut HashMap<SliceId, Slice>,
     ) -> Option<SliceId> {
         let max_second = self.cursor_chunk;
-        let result = self.find_free_slice(size, chunks, slices, self.total);
+        let result = self.find_free_slice(size, chunks, slices, self.queue.len());
 
         if result.is_some() {
             return result;
@@ -595,7 +581,7 @@ impl MemoryPool {
             }
         }
         let ratio = 100.0 * effective_memory_usage / total_memory_usage;
-        log::info!("the memory usage is {ratio}");
+        // log::info!("the memory usage is {ratio}");
     }
 
     fn reserve_algorithm<Storage: ComputeStorage, Sync: FnOnce()>(
@@ -634,6 +620,11 @@ impl MemoryPool {
         } else {
             panic!("Can't use chunk {:?}", slice_to_split.chunk.id());
         };
+        log::info!(
+            "Split {}/{}",
+            first_slice_size,
+            slice_to_split_effective_size
+        );
         let current_slice_chunk_handle = chunk.handle.clone();
 
         let mut slices = Vec::with_capacity(chunk.slices.len() + 1);
@@ -699,6 +690,7 @@ impl MemoryPool {
         let slice_id =
             self.ring
                 .find_free_slice_two_ways(effective_size, &mut self.chunks, &mut self.slices);
+
         if let Some(slice_id) = slice_id {
             let slice = self.slices.get(&slice_id).unwrap();
             slice_id_size_pair = Some((slice_id, slice.effective_size()));
@@ -794,13 +786,14 @@ impl MemoryPool {
 
         let chunks_sorted = self
             .chunk_index
-            .find_by_size(0..self.max_chunk_size)
+            .find_by_size(0..self.max_chunk_size - 1)
             .map(Clone::clone)
             .collect::<Vec<_>>();
 
         let mut deallocations = HashSet::<ChunkId>::new();
 
         for chunk_id in chunks_sorted {
+            panic!("Nop");
             let chunk = self.chunks.get(&chunk_id).unwrap();
             let chunk_id = chunk.handle.id().clone();
             let slices_ids = chunk.slices.clone();

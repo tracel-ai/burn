@@ -14,18 +14,25 @@ pub struct DynamicMemoryManagement<Storage> {
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(storage: Storage) -> Self {
+    pub fn new(mut storage: Storage) -> Self {
+        let mut main_memory_pool = MemoryPool::new(
+            ChunkDefragmentationStrategy::new_period_tick(10),
+            RoundingStrategy::RoundUp,
+            1024 * 1024 * 1024 * 2,
+        );
+        let mut small_memory_pool = MemoryPool::new(
+            ChunkDefragmentationStrategy::new_period_tick(10),
+            RoundingStrategy::RoundUp,
+            1024 * 1024 * 10,
+        );
+
+        main_memory_pool.alloc(&mut storage, 1024 * 1024 * 1024 * 2, || {});
+        log::info!("Allocated");
+        // small_memory_pool.reserve(&mut storage, 1024 * 1024 * 10, || {});
+
         Self {
-            main_memory_pool: MemoryPool::new(
-                ChunkDefragmentationStrategy::new_period_tick(10),
-                RoundingStrategy::RoundUp,
-                1024 * 1024 * 1024,
-            ),
-            small_memory_pool: MemoryPool::new(
-                ChunkDefragmentationStrategy::Never,
-                RoundingStrategy::None,
-                1024 * 1024 * 10,
-            ),
+            main_memory_pool,
+            small_memory_pool,
             storage,
         }
     }
@@ -60,7 +67,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size < 1024 {
+        if size < 0 {
             self.small_memory_pool
                 .reserve(&mut self.storage, size, sync)
         } else {
@@ -69,7 +76,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size < 1024 {
+        if size < 0 {
             self.small_memory_pool.alloc(&mut self.storage, size, sync)
         } else {
             self.main_memory_pool.alloc(&mut self.storage, size, sync)
