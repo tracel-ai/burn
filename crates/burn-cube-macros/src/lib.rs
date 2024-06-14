@@ -112,9 +112,11 @@ fn codegen_cube(
 
     quote::quote! {
         #[allow(dead_code)]
+        #[allow(clippy::too_many_arguments)]
         #func
 
         #[allow(unused_mut)]
+        #[allow(clippy::too_many_arguments)]
         #signature {
             #body
         }
