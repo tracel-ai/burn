@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 
-use crate::analysis::CodeAnalysis;
+use crate::tracker::VariableTracker;
 
 use super::base::codegen_expr;
 
@@ -8,10 +8,10 @@ use super::base::codegen_expr;
 pub(crate) fn codegen_binary(
     binary: &syn::ExprBinary,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let lhs = codegen_expr(&binary.left, loop_level, variable_analyses);
-    let rhs = codegen_expr(&binary.right, loop_level, variable_analyses);
+    let lhs = codegen_expr(&binary.left, loop_level, variable_tracker);
+    let rhs = codegen_expr(&binary.right, loop_level, variable_tracker);
 
     match binary.op {
         syn::BinOp::Add(_) => quote::quote! {
@@ -171,9 +171,9 @@ pub(crate) fn codegen_binary(
 pub(crate) fn codegen_unary(
     unary: &syn::ExprUnary,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let inner = codegen_expr(&unary.expr, loop_level, variable_analyses);
+    let inner = codegen_expr(&unary.expr, loop_level, variable_tracker);
 
     match unary.op {
         syn::UnOp::Not(_) => quote::quote! {

@@ -5,21 +5,21 @@ use syn::{
     PathArguments, Token,
 };
 
-use crate::{analysis::CodeAnalysis, codegen_function::base::codegen_expr};
+use crate::{codegen_function::base::codegen_expr, tracker::VariableTracker};
 
 /// Codegen for method call
 /// Supports [expr].method(args)
 pub(crate) fn codegen_expr_method_call(
     call: &syn::ExprMethodCall,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let receiver = codegen_expr(&call.receiver, loop_level, variable_analyses);
+    let receiver = codegen_expr(&call.receiver, loop_level, variable_tracker);
     let method_expand = syn::Ident::new(
         format!("{}_expand", call.method).as_str(),
         proc_macro2::Span::call_site(),
     );
-    let (expansion, variables) = codegen_args(&call.args, loop_level, variable_analyses);
+    let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
     quote::quote!( {
         #expansion
@@ -31,7 +31,7 @@ pub(crate) fn codegen_expr_method_call(
 pub(crate) fn codegen_closure(
     closure: &syn::ExprClosure,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
     let mut inputs = quote::quote! {};
     for input in closure.inputs.iter() {
@@ -59,7 +59,7 @@ pub(crate) fn codegen_closure(
         }
     }
 
-    let body = codegen_expr(closure.body.as_ref(), loop_level, variable_analyses);
+    let body = codegen_expr(closure.body.as_ref(), loop_level, variable_tracker);
 
     quote::quote! {
         |context: &mut CubeContext, #inputs| #body
@@ -75,7 +75,7 @@ pub(crate) fn codegen_closure(
 pub(crate) fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> (TokenStream, bool) {
     // We start with parsing the function path
     let path: Vec<(&Ident, Option<&AngleBracketedGenericArguments>)> = match call.func.as_ref() {
@@ -144,8 +144,7 @@ pub(crate) fn codegen_call(
                 }
             }
             "unwrap_or_else" => {
-                let (expansion, variables) =
-                    codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
                 // Codegen
                 quote::quote! {{
@@ -158,8 +157,7 @@ pub(crate) fn codegen_call(
                 quote::quote! { #code.is_some() }
             }
             "vectorization" => {
-                let (expansion, variables) =
-                    codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
                 // Codegen
                 quote::quote! {{
@@ -168,8 +166,7 @@ pub(crate) fn codegen_call(
                 }}
             }
             "vectorize" => {
-                let (expansion, variables) =
-                    codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
                 // Codegen
                 quote::quote! {{
@@ -178,8 +175,7 @@ pub(crate) fn codegen_call(
                 }}
             }
             "runtime" => {
-                let (expansion, variables) =
-                    codegen_args(&call.args, loop_level, variable_analyses);
+                let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
                 // Codegen
                 quote::quote! {{
@@ -193,7 +189,7 @@ pub(crate) fn codegen_call(
 
         (tokens, true)
     } else {
-        let (expansion, variables) = codegen_args(&call.args, loop_level, variable_analyses);
+        let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
         // Codegen
         let tokens = quote::quote! {{
@@ -208,7 +204,7 @@ pub(crate) fn codegen_call(
 fn codegen_args(
     args: &Punctuated<Expr, Token![,]>,
     loop_level: usize,
-    variable_analyses: &mut CodeAnalysis,
+    variable_tracker: &mut VariableTracker,
 ) -> (TokenStream, TokenStream) {
     let mut expansion = quote::quote! {};
     let mut variables = quote::quote! {};
@@ -217,7 +213,7 @@ fn codegen_args(
 
     for (i, argument) in args.iter().enumerate() {
         let ident = Ident::new(format!("_var_{i}").as_str(), Span::call_site());
-        let arg_token = codegen_expr(argument, loop_level, variable_analyses);
+        let arg_token = codegen_expr(argument, loop_level, variable_tracker);
         expansion.extend(quote::quote! { let #ident = #arg_token; });
         variables.extend(quote::quote! { #ident, });
     }

@@ -151,8 +151,8 @@ mod tests {
         let z = scope.create_local(item);
 
         cpa!(scope, z = x + y);
-        cpa!(scope, y = y + z);
-        cpa!(scope, y = y + x);
+        cpa!(scope, z = y + z);
+        cpa!(scope, z = z + x);
 
         format!("{:?}", scope.operations)
     }

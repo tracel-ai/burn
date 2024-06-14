@@ -53,9 +53,9 @@ fn matmul_kernel<F: Float>(
 
     k /= Comptime::runtime(vectorization_factor);
 
-    for j in range(0u32, k, Comptime::new(false)) {
-        let lhs_index = row * k + j + offset_lhs;
-        let rhs_index = col * k + j + offset_rhs;
+    for i in range(0u32, k, Comptime::new(false)) {
+        let lhs_index = row * k + i + offset_lhs;
+        let rhs_index = col * k + i + offset_rhs;
 
         sum += lhs[lhs_index] * rhs[rhs_index];
     }
