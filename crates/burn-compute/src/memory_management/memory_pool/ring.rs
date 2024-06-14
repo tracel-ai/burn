@@ -14,7 +14,8 @@ pub struct RingBuffer<C: MemoryChunk<S>, S: MemorySlice> {
 }
 
 pub trait MemoryChunk<S: MemorySlice> {
-    fn merge_slices(&mut self, from_slice_index: usize, slices: &mut HashMap<SliceId, S>);
+    fn merge_next_slice(&mut self, slice_position: usize, slices: &mut HashMap<SliceId, S>)
+        -> bool;
     fn slice(&self, index: usize) -> Option<SliceId>;
     fn insert_slice(&mut self, position: usize, slice_id: SliceId);
 }
@@ -44,6 +45,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
     }
 
     pub fn remove_chunk(&mut self, chunk_id: ChunkId) {
+        panic!("Nop");
         if let Some(position) = self.chunk_positions.remove(&chunk_id) {
             self.queue.remove(position);
         }
@@ -80,8 +82,6 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         slices: &mut HashMap<SliceId, S>,
         mut slice_index: usize,
     ) -> Option<(usize, SliceId)> {
-        let mut merged = false;
-
         loop {
             let slice_id = if let Some(slice_id) = chunk.slice(slice_index) {
                 slice_id
@@ -103,12 +103,13 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
                 return Some((slice_index, slice_id));
             }
 
-            if is_free && !merged {
-                chunk.merge_slices(slice_index, slices);
-                merged = true;
-            } else {
-                slice_index += 1;
+            if is_free {
+                if chunk.merge_next_slice(slice_index, slices) {
+                    continue;
+                }
             }
+
+            slice_index += 1;
         }
 
         None
@@ -193,50 +194,51 @@ mod tests {
     }
 
     impl MemoryChunk<TestSlice> for TestChunk {
-        fn merge_slices(
+        fn merge_next_slice(
             &mut self,
             from_slice_index: usize,
             slices: &mut HashMap<SliceId, TestSlice>,
-        ) {
-            let mut slices_updated = Vec::with_capacity(self.slices.len());
+        ) -> bool {
+            false
+            // let mut slices_updated = Vec::with_capacity(self.slices.len());
 
-            let mut current: Option<TestSlice> = None;
+            // let mut current: Option<TestSlice> = None;
 
-            for (index, slice_id) in self.slices.drain(..).enumerate() {
-                if index < from_slice_index {
-                    slices_updated.push(slice_id);
-                    continue;
-                }
+            // for (index, slice_id) in self.slices.drain(..).enumerate() {
+            //     if index < from_slice_index {
+            //         slices_updated.push(slice_id);
+            //         continue;
+            //     }
 
-                let slice = slices.remove(&slice_id).unwrap();
+            //     let slice = slices.remove(&slice_id).unwrap();
 
-                if slice.is_free {
-                    match current.take() {
-                        Some(mut val) => {
-                            val.size += slice.size;
-                            current = Some(val);
-                        }
-                        None => {
-                            current = Some(slice);
-                        }
-                    };
-                } else {
-                    if let Some(s) = current.take() {
-                        slices_updated.push(s.id);
-                        slices.insert(s.id, s);
-                    }
+            //     if slice.is_free {
+            //         match current.take() {
+            //             Some(mut val) => {
+            //                 val.size += slice.size;
+            //                 current = Some(val);
+            //             }
+            //             None => {
+            //                 current = Some(slice);
+            //             }
+            //         };
+            //     } else {
+            //         if let Some(s) = current.take() {
+            //             slices_updated.push(s.id);
+            //             slices.insert(s.id, s);
+            //         }
 
-                    slices_updated.push(slice.id);
-                    slices.insert(slice.id, slice);
-                }
-            }
+            //         slices_updated.push(slice.id);
+            //         slices.insert(slice.id, slice);
+            //     }
+            // }
 
-            if let Some(s) = current.take() {
-                slices_updated.push(s.id);
-                slices.insert(s.id, s);
-            }
+            // if let Some(s) = current.take() {
+            //     slices_updated.push(s.id);
+            //     slices.insert(s.id, s);
+            // }
 
-            self.slices = slices_updated;
+            // self.slices = slices_updated;
         }
 
         fn slice(&self, index: usize) -> Option<SliceId> {
@@ -261,9 +263,7 @@ mod tests {
 
         ring.push_chunk(ChunkId { value: 0 });
 
-        let slice = ring
-            .find_free_slice(50, &mut chunks, &mut slices)
-            .unwrap();
+        let slice = ring.find_free_slice(50, &mut chunks, &mut slices).unwrap();
 
         assert_eq!(slice, SliceId { value: 0 });
         assert_eq!(slices.get(&slice).unwrap().size, 50);
@@ -284,9 +284,7 @@ mod tests {
 
         ring.push_chunk(ChunkId { value: 0 });
 
-        let slice = ring
-            .find_free_slice(150, &mut chunks, &mut slices)
-            .unwrap();
+        let slice = ring.find_free_slice(150, &mut chunks, &mut slices).unwrap();
 
         assert_eq!(slice, SliceId { value: 0 });
         assert_eq!(slices.get(&slice).unwrap().size, 150);
@@ -320,15 +318,11 @@ mod tests {
         slices.get_mut(&SliceId { value: 1 }).unwrap().is_free = false;
         slices.get_mut(&SliceId { value: 3 }).unwrap().is_free = false;
 
-        let slice = ring
-            .find_free_slice(200, &mut chunks, &mut slices)
-            .unwrap();
+        let slice = ring.find_free_slice(200, &mut chunks, &mut slices).unwrap();
 
         assert_eq!(slice, SliceId { value: 2 });
 
-        let slice = ring
-            .find_free_slice(100, &mut chunks, &mut slices)
-            .unwrap();
+        let slice = ring.find_free_slice(100, &mut chunks, &mut slices).unwrap();
 
         assert_eq!(slice, SliceId { value: 0 });
     }

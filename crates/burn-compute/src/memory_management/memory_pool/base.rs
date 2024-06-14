@@ -32,117 +32,6 @@ pub struct Slice {
     pub padding: usize,
 }
 
-impl Chunk {
-    pub fn generate_mergings(
-        &self,
-        merging_map: &mut HashMap<ChunkId, Vec<Merging>>,
-        slices: &mut HashMap<SliceId, Slice>,
-        slice_beginning: usize,
-    ) {
-        let mut to_merge: Vec<Merging> = Vec::new();
-
-        let mut start_index: usize = slice_beginning;
-        let mut num_merge = 0;
-        let mut offset_current = 0;
-        let mut offset = 0;
-        let mut slices_ids = Vec::new();
-
-        for (i, slice_id) in self.slices.iter().enumerate() {
-            if i < slice_beginning {
-                continue;
-            }
-
-            let slice = slices.get(slice_id).unwrap();
-
-            if slice.handle.is_free() {
-                let effective_size = slice.effective_size();
-                slices_ids.push(*slice_id);
-                num_merge += 1;
-                offset += effective_size;
-
-                if i < self.slices.len() - 1 {
-                    continue;
-                }
-            }
-
-            if num_merge > 1 {
-                let mut empty = Vec::new();
-                core::mem::swap(&mut slices_ids, &mut empty);
-                let merging = Merging {
-                    start: start_index,
-                    end: start_index + num_merge - 1,
-                    offset: offset_current,
-                    size: offset - offset_current,
-                    slice_ids: empty,
-                };
-                to_merge.push(merging);
-            }
-
-            offset += slice.effective_size();
-            start_index = i + 1;
-            num_merge = 0;
-            offset_current = offset;
-            slices_ids.clear();
-        }
-
-        if !to_merge.is_empty() {
-            merging_map.insert(*self.handle.id(), to_merge);
-        }
-    }
-
-    pub fn merge_contiguous_slices(
-        &mut self,
-        mergings: &Vec<Merging>,
-        slices: &mut HashMap<SliceId, Slice>,
-    ) {
-        let slice_ids = self.slices.clone();
-        let mut slices_updated = Vec::new();
-
-        let mut index = 0;
-
-        for merging in mergings {
-            let slice = self.create_slice(merging.offset, merging.size);
-            let slice_id = *slice.handle.id();
-
-            slices.insert(slice_id, slice);
-
-            for i in index..merging.start {
-                slices_updated.push(*slice_ids.get(i).unwrap());
-            }
-            index = merging.end + 1;
-            slices_updated.push(slice_id);
-
-            for slice_id_to_remove in merging.slice_ids.iter() {
-                slices.remove(slice_id_to_remove);
-            }
-        }
-
-        for i in index..slice_ids.len() {
-            slices_updated.push(*slice_ids.get(i).unwrap());
-        }
-        self.slices = slices_updated;
-    }
-
-    fn create_slice(&self, offset: usize, size: usize) -> Slice {
-        if offset > 0 && size < MIN_SIZE_NEEDED_TO_OFFSET {
-            panic!("tried to create slice of size {size} with an offset while the size needs to atleast be of size {MIN_SIZE_NEEDED_TO_OFFSET} for offset support");
-        }
-        if offset % BUFFER_ALIGNMENT != 0 {
-            panic!("slice with offset {offset} needs to be a multiple of {BUFFER_ALIGNMENT}");
-        }
-        let handle = SliceHandle::new();
-
-        let storage = StorageHandle {
-            id: self.storage.id.clone(),
-            utilization: StorageUtilization::Slice { offset, size },
-        };
-
-        let padding = calculate_padding(size);
-
-        Slice::new(storage, handle, self.handle.clone(), padding)
-    }
-}
-
 impl Slice {
     pub fn effective_size(&self) -> usize {
         self.storage.size() + self.padding
@@ -163,6 +52,10 @@ impl RoundingStrategy {
     fn alloc_size(&self, size: usize) -> usize {
         match self {
             RoundingStrategy::RoundUp => {
+                if size < 32 {
+                    return 32;
+                }
+
                 if size < MB {
                     return 2 * MB;
                 } else if size < 10 * MB {
@@ -370,11 +263,9 @@ impl MemoryPool {
         let padding = Self::calculate_padding(size);
         let effective_size = size + padding;
 
-        let slice_id = self.ring.find_free_slice(
-            effective_size,
-            &mut self.chunks,
-            &mut self.slices,
-        );
+        let slice_id =
+            self.ring
+                .find_free_slice(effective_size, &mut self.chunks, &mut self.slices);
 
         let slice_id = match slice_id {
             Some(val) => val,
@@ -468,8 +359,8 @@ impl MemoryPool {
                 current_size += effective_size;
 
                 if current_size >= self.max_chunk_size {
-                    // let alloc_size = current_size - effective_size;
-                    let alloc_size = self.max_chunk_size;
+                    let alloc_size = current_size - effective_size;
+                    // let alloc_size = self.max_chunk_size;
                     self.move_to_new_chunk(alloc_size, storage, &mut slices, &mut deallocations);
                     current_size = effective_size;
                 }
@@ -599,7 +490,8 @@ impl MemorySlice for Slice {
         }
         let handle = SliceHandle::new();
 
-        let padding = calculate_padding(size_new);
+        assert!(size_new >= 32, "Size new > 32");
+        let padding = calculate_padding(size_new - 32);
 
         Slice::new(storage_new, handle, self.chunk.clone(), padding)
     }
@@ -610,12 +502,81 @@ impl MemorySlice for Slice {
 }
 
 impl MemoryChunk<Slice> for Chunk {
-    fn merge_slices(&mut self, from_slice_index: usize, slices: &mut HashMap<SliceId, Slice>) {
-        let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
-        self.generate_mergings(&mut chunk_to_merged_slice, slices, from_slice_index);
-        for (_, mergings) in chunk_to_merged_slice.into_iter() {
-            self.merge_contiguous_slices(&mergings, slices);
+    fn merge_next_slice(
+        &mut self,
+        from_slice_index: usize,
+        slices: &mut HashMap<SliceId, Slice>,
+    ) -> bool {
+        // let mut chunk_to_merged_slice: HashMap<ChunkId, Vec<Merging>> = HashMap::new();
+        // self.generate_mergings(&mut chunk_to_merged_slice, slices, from_slice_index);
+        // for (_, mergings) in chunk_to_merged_slice.into_iter() {
+        //     self.merge_contiguous_slices(&mergings, slices);
+        // }
+        // log::info!("Num slices {}", self.slices.len());
+        let slice_id_current = self.slices.get(from_slice_index).unwrap();
+        let slice_id_next = self.slices.get(from_slice_index + 1);
+        let slice_id_next = match slice_id_next {
+            Some(val) => val,
+            None => return false,
+        };
+
+        let slice_next = slices.get(slice_id_next).unwrap();
+        let is_free = slice_next.is_free();
+        let size = slice_next.effective_size();
+
+        let slice_current = slices.get_mut(slice_id_current).unwrap();
+
+        if is_free {
+            slice_current.storage.utilization = StorageUtilization::Slice {
+                size: slice_current.effective_size() + size,
+                offset: slice_current.storage.offset(),
+            };
+            slices.remove(slice_id_next);
+            self.slices.remove(from_slice_index + 1);
+
+            return true;
         }
+
+        false
+
+        // for (index, slice_id) in self.slices.drain(..).enumerate() {
+        //     if index < from_slice_index {
+        //         slices_updated.push(slice_id);
+        //         continue;
+        //     }
+
+        //     let slice = slices.remove(&slice_id).unwrap();
+
+        //     if slice.is_free() {
+        //         match current.take() {
+        //             Some(mut val) => {
+        //                 val.storage.utilization = StorageUtilization::Slice {
+        //                     size: val.effective_size() + slice.effective_size(),
+        //                     offset: val.storage.offset(),
+        //                 };
+        //                 current = Some(val);
+        //             }
+        //             None => {
+        //                 current = Some(slice);
+        //             }
+        //         };
+        //     } else {
+        //         if let Some(s) = current.take() {
+        //             slices_updated.push(s.id());
+        //             slices.insert(s.id(), s);
+        //         }
+
+        //         slices_updated.push(slice.id());
+        //         slices.insert(slice.id(), slice);
+        //     }
+        // }
+
+        // if let Some(s) = current.take() {
+        //     slices_updated.push(s.id());
+        //     slices.insert(s.id(), s);
+        // }
+
+        // self.slices = slices_updated;
     }
 
     fn slice(&self, index: usize) -> Option<SliceId> {
