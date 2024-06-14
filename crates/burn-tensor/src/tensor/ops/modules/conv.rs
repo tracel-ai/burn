@@ -427,6 +427,20 @@ fn conv2d_weight_grad_groups<B: Backend>(
             ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
+        let [_, _, kernel_size_1_tmp, kernel_size_2_tmp] = B::float_shape(&weight_grad_tmp).dims;
+
+        if kernel_size_1_tmp != kernel_size_1 || kernel_size_2_tmp != kernel_size_2 {
+            weight_grad_tmp = B::float_slice(
+                weight_grad_tmp,
+                [
+                    0..increment_ci,
+                    0..increment_co,
+                    0..kernel_size_1,
+                    0..kernel_size_2,
+                ],
+            );
+        }
+
         weight_grad = B::float_slice_assign(
             weight_grad,
             [
