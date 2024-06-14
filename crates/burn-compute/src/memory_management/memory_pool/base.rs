@@ -30,18 +30,18 @@ impl Chunk {
         &self,
         merging_map: &mut HashMap<ChunkId, Vec<Merging>>,
         slices: &mut HashMap<SliceId, Slice>,
-        start_index: usize,
+        slice_beginning: usize,
     ) {
         let mut to_merge: Vec<Merging> = Vec::new();
 
-        let mut start_index: usize = 0;
+        let mut start_index: usize = slice_beginning;
         let mut num_merge = 0;
         let mut offset_current = 0;
         let mut offset = 0;
         let mut slices_ids = Vec::new();
 
         for (i, slice_id) in self.slices.iter().enumerate() {
-            if i < start_index {
+            if i < slice_beginning {
                 continue;
             }
 
@@ -148,7 +148,6 @@ struct Slice {
 struct RingBuffer {
     ordered_chunks: BTreeMap<usize, ChunkId>,
     chunk_positions: HashMap<ChunkId, usize>,
-    chunk_index: usize,
     cursor_slice: usize,
     cursor_chunk: usize,
     total: usize,
@@ -159,7 +158,6 @@ impl RingBuffer {
         Self {
             ordered_chunks: BTreeMap::new(),
             chunk_positions: HashMap::new(),
-            chunk_index: 0,
             cursor_slice: 0,
             cursor_chunk: 0,
             total: 0,
@@ -267,6 +265,7 @@ impl RingBuffer {
                 let result = self.find_free_slice_in_chunk(size, chunk, slices);
 
                 if result.is_some() {
+                    log::info!("cursor_chunk {}", self.cursor_chunk);
                     self.cursor_chunk = chunk_index;
                     return result;
                 }
