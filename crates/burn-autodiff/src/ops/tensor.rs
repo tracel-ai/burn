@@ -21,7 +21,6 @@ use burn_tensor::{
 };
 
 use super::maxmin::MaxMinDim;
-use super::sort::SortDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
@@ -2369,12 +2368,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         descending: bool,
     ) -> FloatTensor<Self, D> {
-        match SortDim
+        match super::sort::SortDim
             .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
@@ -2391,12 +2391,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         descending: bool,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
-        match SortDim
+        match super::sort::SortDim
             .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
@@ -2419,6 +2420,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_argsort<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
