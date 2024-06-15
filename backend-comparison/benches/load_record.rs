@@ -3,6 +3,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::Device;
 use burn::{config::Config, module::Module, nn};
 use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::sync_type::SyncType;
 use derive_new::new;
 
 #[derive(Module, Debug)]
@@ -53,7 +54,7 @@ struct LoadRecordBenchmark<B: Backend> {
 }
 
 impl<B: Backend> Benchmark for LoadRecordBenchmark<B> {
-    type Args = BenchmarkModuleRecord<B>;
+    type Args = BenchmarkModule<B>;
 
     fn name(&self) -> String {
         format!("load_record_{:?}", self.kind).to_lowercase()
@@ -67,7 +68,9 @@ impl<B: Backend> Benchmark for LoadRecordBenchmark<B> {
         10
     }
 
-    fn execute(&self, record: Self::Args) {
+    fn execute(&self, module: Self::Args) {
+        let record = module.into_record();
+
         let _ = match self.kind {
             Kind::Lazy => {
                 let module = self.config.init(&self.device);
@@ -86,13 +89,12 @@ impl<B: Backend> Benchmark for LoadRecordBenchmark<B> {
     fn prepare(&self) -> Self::Args {
         let module = self.config.init(&self.device);
         // Force sync.
-        let module_initialized = module.clone();
 
-        module_initialized.into_record()
+        module.clone()
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 

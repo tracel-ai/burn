@@ -2,11 +2,11 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
-use burn_jit::Runtime;
+use burn_cube::Runtime;
 use std::sync::Arc;
 
 use crate::{
@@ -18,7 +18,11 @@ use crate::{
 #[derive(Debug)]
 pub struct CudaRuntime;
 
-// static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
+impl burn_jit::JitRuntime for CudaRuntime {
+    type JitDevice = CudaDevice;
+    type JitServer = CudaServer<SimpleMemoryManagement<CudaStorage>>;
+}
+
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
     ComputeRuntime::new();
 
@@ -28,7 +32,6 @@ impl Runtime for CudaRuntime {
     type Compiler = CudaCompiler;
     type Server = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 
-    // type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Device = CudaDevice;
 
@@ -51,7 +54,7 @@ impl Runtime for CudaRuntime {
             let memory_management = SimpleMemoryManagement::new(
                 storage,
                 DeallocStrategy::new_period_tick(1),
-                SliceStrategy::Never,
+                SliceStrategy::Ratio(0.8),
             );
             CudaContext::new(memory_management, stream, ctx)
         }
@@ -62,7 +65,7 @@ impl Runtime for CudaRuntime {
             let tuner_device_id = tuner_device_id();
             ComputeClient::new(
                 MutexComputeChannel::new(server),
-                Arc::new(RwLock::new(Tuner::new(&tuner_device_id))),
+                Arc::new(RwLock::new(Tuner::new("cuda", &tuner_device_id))),
             )
         })
     }
@@ -72,6 +75,10 @@ impl Runtime for CudaRuntime {
     }
 
     fn require_array_lengths() -> bool {
+        true
+    }
+
+    fn subcube() -> bool {
         true
     }
 }

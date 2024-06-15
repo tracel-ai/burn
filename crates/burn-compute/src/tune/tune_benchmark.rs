@@ -1,4 +1,5 @@
 use burn_common::benchmark::Benchmark;
+use burn_common::sync_type::SyncType;
 
 use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
@@ -13,6 +14,12 @@ use alloc::string::{String, ToString};
 pub struct TuneBenchmark<S: ComputeServer, C> {
     operation: Box<dyn AutotuneOperation>,
     client: ComputeClient<S, C>,
+}
+
+impl Clone for Box<dyn AutotuneOperation> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone()
+    }
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
@@ -35,6 +42,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
     }
 
     fn sync(&self) {
-        self.client.sync();
+        // For benchmarks - we need to wait for all tasks to complete before returning.
+        self.client.sync(SyncType::Wait);
     }
 }

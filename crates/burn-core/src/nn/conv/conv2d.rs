@@ -6,13 +6,13 @@ use crate::module::Param;
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
+use crate::tensor::module::conv2d;
+use crate::tensor::ops::ConvOptions;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv2d;
-use burn_tensor::ops::ConvOptions;
 
-use super::checks;
+use crate::nn::conv::checks;
 
-/// Configuration to create an [2D convolution](Conv2d) layer.
+/// Configuration to create a [2D convolution](Conv2d) layer, using the [init function](Conv2dConfig::init).
 #[derive(Config, Debug)]
 pub struct Conv2dConfig {
     /// The number of channels.
@@ -43,11 +43,7 @@ pub struct Conv2dConfig {
 
 /// Applies a 2D convolution over input tensors.
 ///
-/// # Params
-///
-/// - weight: Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
-///
-/// - bias:   Tensor of shape `[channels_out]`
+/// Should be created with [Conv2dConfig].
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
@@ -106,10 +102,12 @@ impl Conv2dConfig {
 impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [conv2d](crate::tensor::module::conv2d) for more information.
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, height_in, width_in],
-    /// - output: [batch_size, channels_out, height_out, width_out],
+    /// - input: `[batch_size, channels_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
@@ -127,8 +125,8 @@ impl<B: Backend> Conv2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Data;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {

@@ -134,8 +134,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
 #[cfg(feature = "std")]
 fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     // delete the cache file
-    let file_path =
-        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_PREFIX);
     let _ = std::fs::remove_file(file_path);
 
     type Runtime = ComputeRuntime<DummyDevice, dummy::DummyServer, dummy::DummyChannel>;
@@ -176,8 +175,7 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
 #[cfg(feature = "std")]
 fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // delete the cache file
-    let file_path =
-        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_PREFIX);
     let parent_dir = file_path
         .parent()
         .expect("Cache file should have a parent directory");
@@ -246,6 +244,8 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
 #[serial]
 #[cfg(feature = "std")]
 fn autotune_cache_different_checksums_return_a_cache_miss() {
+    use burn_common::sync_type::SyncType;
+
     type Runtime = ComputeRuntime<DummyDevice, dummy::DummyServer, dummy::DummyChannel>;
     let runtime = Runtime::new();
     let client = runtime.client(&DummyDevice, dummy::init_client);
@@ -260,7 +260,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     let cache_test_autotune_kernel_1 =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
-    client.sync();
+    client.sync(SyncType::Wait);
 
     // we use a second compute client in order to have freshly initialized autotune cache
     // and test invalidation of the cache when the checksum of the operation set is
@@ -278,7 +278,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_2, handles_2);
     cache_test_autotune_kernel_2.generate_random_checksum = true;
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
-    client.sync();
+    client.sync(SyncType::Wait);
 
     let obtained_resource = client.read(out_2.binding());
 

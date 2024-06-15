@@ -11,7 +11,7 @@ represent the corresponding Burn Op.
 | [Acosh][3]                       |       ❌       |      ❌      |
 | [Add][4]                         |       ✅       |      ✅      |
 | [And][5]                         |       ❌       |      ❌      |
-| [ArgMax][6]                      |       ❌       |      ✅      |
+| [ArgMax][6]                      |       ✅       |      ✅      |
 | [ArgMin][7]                      |       ❌       |      ❌      |
 | [Asin][8]                        |       ❌       |      ❌      |
 | [Asinh][9]                       |       ❌       |      ❌      |
@@ -59,11 +59,11 @@ represent the corresponding Burn Op.
 | [Equal][51]                      |       ✅       |      ✅      |
 | [Erf][52]                        |       ✅       |      ✅      |
 | [Exp][53]                        |       ✅       |      ✅      |
-| [Expand][54]                     |       ❌       |      ✅      |
+| [Expand][54]                     |       ✅       |      ✅      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |
-| [Gather][58]                     |       ❌       |      ✅      |
+| [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ✅       |      ✅      |
 | [GatherND][60]                   |       ❌       |      ❌      |
 | [Gelu][61]                       |       ✅       |      ✅      |
@@ -130,11 +130,11 @@ represent the corresponding Burn Op.
 | [QLinearConv][123]               |       ❌       |      ❌      |
 | [QLinearMatMul][124]             |       ❌       |      ❌      |
 | [QuantizeLinear][125]            |       ❌       |      ❌      |
-| [RandomNormal][126]              |       ❌       |      ✅      |
+| [RandomNormal][126]              |       ✅       |      ✅      |
 | [RandomNormalLike][127]          |       ❌       |      ✅      |
-| [RandomUniform][128]             |       ❌       |      ✅      |
+| [RandomUniform][128]             |       ✅       |      ✅      |
 | [RandomUniformLike][129]         |       ❌       |      ✅      |
-| [Range][130]                     |       ❌       |      ✅      |
+| [Range][130]                     |       ✅       |      ✅      |
 | [Reciprocal][131]                |       ✅       |      ✅      |
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
@@ -147,7 +147,7 @@ represent the corresponding Burn Op.
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |
 | [Relu][141]                      |       ✅       |      ✅      |
 | [Reshape][142]                   |       ✅       |      ✅      |
-| [Resize][143]                    |       ❌       |      ✅      |
+| [Resize][143]                    |       ✅       |      ✅      |
 | [ReverseSequence][144]           |       ❌       |      ❌      |
 | [RNN][145]                       |       ❌       |      ✅      |
 | [RoiAlign][146]                  |       ❌       |      ❌      |
@@ -171,7 +171,7 @@ represent the corresponding Burn Op.
 | [Sin][164]                       |       ✅       |      ✅      |
 | [Sinh][165]                      |       ❌       |      ❌      |
 | [Size][166]                      |       ❌       |      ❌      |
-| [Slice][167]                     |       ❌       |      ✅      |
+| [Slice][167]                     |       ✅       |      ✅      |
 | [Softmax][168]                   |       ✅       |      ✅      |
 | [SoftmaxCrossEntropyLoss][169]   |       ❌       |      ❌      |
 | [Softplus][170]                  |       ❌       |      ❌      |
@@ -184,7 +184,7 @@ represent the corresponding Burn Op.
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
 | [Sub][179]                       |       ✅       |      ✅      |
-| [Sum][180]                       |       ❌       |      ✅      |
+| [Sum][180]                       |       ✅       |      ✅      |
 | [Tan][181]                       |       ❌       |      ❌      |
 | [Tanh][182]                      |       ✅       |      ✅      |
 | [TfIdfVectorizer][183]           |       ❌       |      ❌      |

@@ -1,10 +1,5 @@
-use std::marker::PhantomData;
+use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
 
-use burn_cube::{
-    branch::*,
-    dialect::{ComputeShader, Elem, Visibility},
-    *,
-};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
@@ -20,12 +15,8 @@ use crate::{
     FloatElement, JitRuntime,
 };
 
-#[cube]
-fn kernel<F: Float>(
-    input: Tensor<F>,
-    weight: Tensor<F>,
-    bias: Tensor<F>,
-    mut output: Tensor<F>,
+#[derive(CubeLaunch)]
+struct Conv2dArgs {
     conv_stride_0: UInt,
     conv_stride_1: UInt,
     dilation_0: UInt,
@@ -33,55 +24,68 @@ fn kernel<F: Float>(
     padding_0: UInt,
     padding_1: UInt,
     groups: UInt,
+}
+
+#[cube(launch)]
+fn conv2d_kernel<F: Float>(
+    input: Tensor<F>,
+    weight: Tensor<F>,
+    bias: Tensor<F>,
+    mut output: Tensor<F>,
+    args: Conv2dArgs,
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
-    let in_channels = shape::<F>(weight, 1u32);
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
 
-    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || shape::<F>(weight, 2u32));
+    let in_channels = weight.shape(1);
+
+    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || weight.shape(2));
     let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
-    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || shape::<F>(weight, 3u32));
+    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
     let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
 
-    let b = AbsoluteIndex::get() / stride::<F>(output, 0u32) % shape::<F>(output, 0u32);
-    let oc = AbsoluteIndex::get() / stride::<F>(output, 1u32) % shape::<F>(output, 1u32);
-    let oh = AbsoluteIndex::get() / stride::<F>(output, 2u32) % shape::<F>(output, 2u32);
-    let ow = AbsoluteIndex::get() / stride::<F>(output, 3u32) % shape::<F>(output, 3u32);
+    let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
+    let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
+    let oh = ABSOLUTE_POS / output.stride(2) % output.shape(2);
+    let ow = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
-    let g = (shape::<F>(weight, 0u32) + oc) % groups;
+    let g = (weight.shape(0) + oc) % args.groups;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
 
-    let ih_base = oh * conv_stride_0;
-    let iw_base = ow * conv_stride_1;
+    let ih_base = oh * args.conv_stride_0;
+    let iw_base = ow * args.conv_stride_1;
 
-    let weight_stride_1 = stride::<F>(weight, 1u32);
-    let weight_stride_2 = stride::<F>(weight, 2u32);
-    let weight_stride_3 = stride::<F>(weight, 3u32);
+    let weight_stride_1 = weight.stride(1);
+    let weight_stride_2 = weight.stride(2);
+    let weight_stride_3 = weight.stride(3);
 
-    let input_stride_1 = stride::<F>(input, 1u32);
-    let input_stride_2 = stride::<F>(input, 2u32);
-    let input_stride_3 = stride::<F>(input, 3u32);
-    let input_shape_2 = shape::<F>(input, 2u32);
-    let input_shape_3 = shape::<F>(input, 3u32);
+    let input_stride_1 = input.stride(1);
+    let input_stride_2 = input.stride(2);
+    let input_stride_3 = input.stride(3);
+    let input_shape_2 = input.shape(2);
+    let input_shape_3 = input.shape(3);
 
-    let border_top = padding_0;
-    let border_left = padding_1;
-    let border_bottom = input_shape_2 + padding_0;
-    let border_right = input_shape_3 + padding_1;
+    let border_top = args.padding_0;
+    let border_left = args.padding_1;
+    let border_bottom = input_shape_2 + args.padding_0;
+    let border_right = input_shape_3 + args.padding_1;
 
-    let index_input_0 = b * stride::<F>(input, 0u32);
-    let index_weight_0 = oc * stride::<F>(weight, 0u32);
+    let index_input_0 = b * input.stride(0);
+    let index_weight_0 = oc * weight.stride(0);
 
     for ic in range(ic_start, ic_end, Comptime::new(false)) {
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0u32, kernel_size_0, unroll_0) {
-            for kw in range(0u32, kernel_size_1, unroll_1) {
-                let ih = kh * dilation_0 + ih_base;
-                let iw = kw * dilation_1 + iw_base;
+        for kh in range(0, kernel_size_0, unroll_0) {
+            for kw in range(0, kernel_size_1, unroll_1) {
+                let ih = kh * args.dilation_0 + ih_base;
+                let iw = kw * args.dilation_1 + iw_base;
 
                 let within_padding = ih >= border_top
                     && ih < border_bottom
@@ -89,8 +93,8 @@ fn kernel<F: Float>(
                     && iw < border_right;
 
                 if within_padding {
-                    let ih_pad = ih - padding_0;
-                    let iw_pad = iw - padding_1;
+                    let ih_pad = ih - args.padding_0;
+                    let iw_pad = iw - args.padding_1;
 
                     let index_input = index_input_0
                         + index_input_1
@@ -108,128 +112,7 @@ fn kernel<F: Float>(
         }
     }
 
-    output[AbsoluteIndex::get()] = sum;
-}
-
-#[derive(new)]
-struct Conv2dEagerKernel<R: JitRuntime, E: FloatElement> {
-    kernel_size_0: Option<u32>,
-    kernel_size_1: Option<u32>,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
-
-struct Conv2dComputeShader<E: FloatElement> {
-    input: ExpandElement,
-    weight: ExpandElement,
-    bias: ExpandElement,
-    output: ExpandElement,
-    conv_stride_0: ExpandElement,
-    conv_stride_1: ExpandElement,
-    dilation_0: ExpandElement,
-    dilation_1: ExpandElement,
-    padding_0: ExpandElement,
-    padding_1: ExpandElement,
-    groups: ExpandElement,
-    kernel_size_0: Option<u32>,
-    kernel_size_1: Option<u32>,
-    _elem: PhantomData<E>,
-}
-
-impl<R: JitRuntime, E: FloatElement> GpuComputeShaderPhase for Conv2dEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
-        let mut context = CubeContext::root();
-        let item = E::cube_elem().into();
-
-        let input = context.input(0, item);
-        let weight = context.input(1, item);
-        let bias = context.input(2, item);
-        let output = context.output(0, item);
-        let conv_stride_0 = context.scalar(0, Elem::UInt);
-        let conv_stride_1 = context.scalar(1, Elem::UInt);
-        let dilation_0 = context.scalar(2, Elem::UInt);
-        let dilation_1 = context.scalar(3, Elem::UInt);
-        let padding_0 = context.scalar(4, Elem::UInt);
-        let padding_1 = context.scalar(5, Elem::UInt);
-        let groups = context.scalar(6, Elem::UInt);
-
-        Conv2dComputeShader {
-            input,
-            weight,
-            bias,
-            output,
-            conv_stride_0,
-            conv_stride_1,
-            dilation_0,
-            dilation_1,
-            padding_0,
-            padding_1,
-            groups,
-            kernel_size_0: self.kernel_size_0,
-            kernel_size_1: self.kernel_size_1,
-            _elem: PhantomData::<E>,
-        }
-        .expand(&mut context);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let weight = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let bias = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let scalars = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 7,
-        };
-
-        let output = OutputInfo::Array { item };
-
-        let scope = context.into_scope();
-        let info = CompilationInfo {
-            inputs: vec![input, weight, bias, scalars],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
-    }
-
-    fn id(&self) -> String {
-        format!(
-            "{:?}-{:?}-{:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size_0,
-            self.kernel_size_1
-        )
-    }
-}
-
-impl<E: FloatElement> Conv2dComputeShader<E> {
-    fn expand(self, context: &mut CubeContext) {
-        kernel_expand::<E::CubeElement>(
-            context,
-            self.input,
-            self.weight,
-            self.bias,
-            self.output,
-            self.conv_stride_0,
-            self.conv_stride_1,
-            self.dilation_0,
-            self.dilation_1,
-            self.padding_0,
-            self.padding_1,
-            self.groups,
-            self.kernel_size_0.map(UInt::new),
-            self.kernel_size_1.map(UInt::new),
-        )
-    }
+    output[ABSOLUTE_POS] = sum;
 }
 
 pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
@@ -277,21 +160,21 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         }
     };
 
-    let kernel = Conv2dEagerKernel::<R, E>::new(Some(kernel_0 as u32), Some(kernel_1 as u32));
-    // let kernel = Conv2dEagerKernel::<R, E>::new(None, None);
+    let num_elems_output = output.shape.num_elements();
+    let workgroup = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
+    let settings = KernelSettings::default()
+        .vectorize_input(0, 1)
+        .vectorize_output(0, 1);
 
-    Execution::start(kernel, input.client)
-        .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            EagerHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        ])
-        .outputs(&[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
-        .with_scalars(&[
+    conv2d_kernel_launch::<E::CubeElement, R>(
+        input.client,
+        workgroup,
+        settings,
+        TensorHandle::new(&input.handle, &input.strides, &input.shape.dims),
+        TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
+        TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
+        TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+        Conv2dArgsLaunch::new(
             options.stride[0] as u32,
             options.stride[1] as u32,
             options.dilation[0] as u32,
@@ -299,8 +182,10 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
             options.padding[0] as u32,
             options.padding[1] as u32,
             options.groups as u32,
-        ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        ),
+        Some(kernel_0.into()),
+        Some(kernel_1.into()),
+    );
 
     output
 }

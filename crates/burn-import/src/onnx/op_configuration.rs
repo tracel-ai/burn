@@ -6,6 +6,7 @@ use burn::nn::{
 };
 
 use super::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::resize::ResizeMode;
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -262,6 +263,21 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         .with_count_include_pad(count_include_pad == 1)
 }
 
+pub fn expand_config(node: &Node) -> Vec<i64> {
+    let input_value = &node.inputs[1].value;
+    match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
+                shape.clone()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    }
+}
+
 /// Create a FlattenConfig from the attributes of the node
 pub fn flatten_config(curr: &Node) -> (usize, usize) {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
@@ -468,6 +484,58 @@ pub fn softmax_config(node: &Node) -> usize {
     axis as usize
 }
 
+/// Create argmax config from the attributes of the node
+pub fn argmax_config(node: &Node) -> usize {
+    let mut axis: i64 = 0;
+
+    // check if the node has only one input
+    if node.inputs.len() != 1 {
+        panic!(
+            "Argmax: multiple inputs are not supported (got {:?})",
+            node.inputs.len()
+        );
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "select_last_index" => {
+                // not all params are supported in burn
+                if value.clone().into_i64() != 0 {
+                    log::warn!(
+                        "only select_last_index=0 is supported for argmax in burn. Ignoring supplied value (got {:?})",
+                        value
+                    );
+                }
+            }
+            "keepdims" => {
+                // not all params are supported in burn
+                if value.clone().into_i64() != 1 {
+                    panic!(
+                        "Only keepdims=1 is supported for argmax in burn (got {:?})",
+                        value
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    axis as usize
+}
+
 /// Create concat config from the attributes of the node
 pub fn concat_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
@@ -644,6 +712,28 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         }
         _ => panic!("Only tensor input is valid for shape"),
     }
+}
+
+pub fn resize_config(node: &Node) -> ResizeMode {
+    let mut mode: String = "".to_string();
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "coordinate_transformation_mode" => {}
+            "cubic_coeff_a" => {}
+            "mode" => mode = value.clone().into_string(),
+            "nearest_mode" => {}
+            _ => {}
+        }
+    }
+
+    let mode = match mode.as_str() {
+        "nearest" => ResizeMode::Nearest,
+        "linear" => ResizeMode::Linear,
+        "cubic" => ResizeMode::Cubic,
+        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
+    };
+
+    mode
 }
 
 //Note this function should only execute if the second input is a constant
@@ -946,6 +1036,67 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     }
 
     (start_dim as usize, end_dim as usize)
+}
+
+pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
+    let start_value = &node.inputs[1].value;
+    let end_value = &node.inputs[2].value;
+
+    let starts = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = start_value.as_ref() {
+                shape
+                    .iter()
+                    .map(|x| {
+                        assert!(*x >= 0, "Slice: start must be positive");
+                        *x as usize
+                    })
+                    .collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    let ends = match &node.inputs[2].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = end_value.as_ref() {
+                shape
+                    .iter()
+                    .map(|x| {
+                        assert!(*x >= 0, "Slice: end must be positive");
+                        *x as usize
+                    })
+                    .collect()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Only tensor input is valid for shape"),
+    };
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => {
+                let mut i = 0;
+                value.clone().into_i64s().iter().for_each(|x| {
+                    assert_eq!(*x, i, "Slice: axes must be consecutive");
+                    i += 1;
+                })
+            }
+            "steps" => value.clone().into_i64s().into_iter().for_each(|x| {
+                if x != 1 {
+                    panic!("Slice: steps other than 1 are not supported");
+                }
+            }),
+            _ => {}
+        }
+    }
+
+    (starts, ends)
 }
 
 pub fn transpose_config(curr: &Node) -> Vec<i64> {

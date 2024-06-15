@@ -1,6 +1,9 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 use derive_new::new;
 
 #[derive(new)]
@@ -37,7 +40,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 
@@ -49,10 +52,10 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     const D: usize = 3;
-    let batch_size = 3;
-    let m = 1024;
-    let k = 2048;
-    let n = 1024;
+    let batch_size = 4048;
+    let m = 320;
+    let k = 4;
+    let n = 324;
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 

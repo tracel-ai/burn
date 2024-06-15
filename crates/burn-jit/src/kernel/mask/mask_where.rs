@@ -1,4 +1,4 @@
-use burn_cube::{EagerHandle, Execution, WorkgroupLaunch};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
@@ -49,16 +49,16 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: u
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -75,11 +75,11 @@ fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
 
     Execution::start(kernel, client)
         .inputs(&[
-            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .execute(WorkgroupLaunch::Input { pos: 0 });
+        .execute(CubeCountSettings::Input { pos: 0 });
 
     input
 }

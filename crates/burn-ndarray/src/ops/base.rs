@@ -563,16 +563,18 @@ where
     where
         E: Signed,
     {
+        let zero = 0.elem();
+        let one = 1.elem::<E>();
         NdArrayTensor::new(
             tensor
                 .array
                 .mapv(|x| {
-                    if x > E::zero() {
-                        E::one()
-                    } else if x < E::zero() {
-                        -E::one()
+                    if x > zero {
+                        one
+                    } else if x < zero {
+                        -one
                     } else {
-                        E::zero()
+                        zero
                     }
                 })
                 .into_shared(),

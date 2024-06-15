@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Scope, Variable},
+    ir::{Elem, Scope, Variable},
 };
 
 use super::{MatmulTiling2dShader, Tiling2dState};

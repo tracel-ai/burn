@@ -1,0 +1,128 @@
+use super::{Node, NodeCodegen};
+use crate::burn::{Scope, TensorType, Type};
+use burn::record::PrecisionSettings;
+use proc_macro2::TokenStream;
+use quote::quote;
+
+#[derive(Debug, Clone)]
+pub struct RandomNormalNode {
+    pub mean: f64,
+    pub scale: f64,
+    pub output_ty: TensorType,
+}
+
+impl RandomNormalNode {
+    pub fn new(output_ty: TensorType, mean: f64, scale: f64) -> Self {
+        Self {
+            mean,
+            scale,
+            output_ty,
+        }
+    }
+
+    fn get_output_shape(&self) -> TokenStream {
+        let shape_it = self
+            .output_ty
+            .shape
+            .as_ref()
+            .expect("RandomNormal output has no shape!")
+            .iter();
+        quote! { Shape::new([#(#shape_it),*]) }
+    }
+
+    fn get_distribution(&self) -> TokenStream {
+        let std_deviation = self.scale; // ONNX spec defines `scale` == `standard deviation`
+        let mean = self.mean;
+        quote! { Distribution::Normal(#mean, #std_deviation) }
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalNode {
+    fn input_types(&self) -> Vec<Type> {
+        Vec::with_capacity(0)
+    }
+
+    fn output_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.output_ty.clone())]
+    }
+
+    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+        let output = &self.output_ty.name;
+        let shape = self.get_output_shape();
+        let dist = self.get_distribution();
+        quote! {
+            let #output = Tensor::random(#shape, #dist, &*self.device);
+        }
+    }
+
+    fn into_node(self) -> Node<PS> {
+        Node::RandomNormal(self)
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        imports.register("burn::tensor::Distribution");
+        imports.register("burn::prelude::Shape");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::record::FullPrecisionSettings;
+
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph,
+        node::{random_normal::RandomNormalNode, test::assert_tokens},
+        TensorKind, TensorType,
+    };
+
+    #[test]
+    fn test_codegen_nodes() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(RandomNormalNode::new(
+            TensorType::new("tensor1", 2, TensorKind::Float, Some(vec![2, 3])),
+            0.0f64,
+            1.0f64,
+        ));
+
+        graph.register_input_output(vec![], vec!["tensor1".to_string()]);
+
+        let expected = quote! {
+            use burn::prelude::Shape;
+            use burn::tensor::Distribution;
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> Tensor<B, 2> {
+                    let tensor1 = Tensor::random(
+                        Shape::new([2usize, 3usize]),
+                        Distribution::Normal(0f64, 1f64),
+                        &*self.device,
+                    );
+
+                    tensor1
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+}

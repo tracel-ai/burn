@@ -1,6 +1,9 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 
 pub struct BinaryBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
@@ -31,7 +34,7 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait);
     }
 }
 

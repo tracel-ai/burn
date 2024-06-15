@@ -160,6 +160,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`  |
 | `tensor.not_equal(other)`             | `x != y`                             |
 | `tensor.permute(axes)`                | `tensor.permute(axes)`               |
+| `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`           |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`           |
 | `tensor.reshape(shape)`               | `tensor.view(shape)`                 |
 | `tensor.shape()`                      | `tensor.shape`                       |
@@ -228,6 +229,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
 | `tensor.prod()`                                                 | `tensor.prod()`                                |
 | `tensor.prod_dim(dim)`                                          | `tensor.prod(dim, keepdim=True)`               |
+| `tensor.rem(other)` or `tensor % other`                         | `tensor % other`                               |
 | `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
 | `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
 | `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
@@ -288,6 +290,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
+| `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
 
 # Bool Operations
 

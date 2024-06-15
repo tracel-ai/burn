@@ -1,7 +1,7 @@
 use super::Scalars;
 use burn_cube::{
-    dialect::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
-    CompilationInfo, InputInfo, OutputInfo,
+    ir::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, OutputInfo,
 };
 use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ impl Trace {
     }
 
     /// Collect information related to compiling the trace.
-    pub fn compiling(&self) -> CompilationInfo {
+    pub fn compiling(&self) -> KernelExpansion {
         let mut inputs = self
             .inputs
             .iter()
@@ -85,7 +85,7 @@ impl Trace {
             })
         }
 
-        CompilationInfo {
+        KernelExpansion {
             inputs,
             outputs,
             scope: self.scope.clone(),

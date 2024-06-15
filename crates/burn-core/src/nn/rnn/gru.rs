@@ -4,13 +4,13 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
-/// The configuration for a [gru](Gru) module.
+/// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
 #[derive(Config)]
 pub struct GruConfig {
     /// The size of the input features.
@@ -24,7 +24,11 @@ pub struct GruConfig {
     pub initializer: Initializer,
 }
 
-/// The Gru module. This implementation is for a unidirectional, stateless, Gru.
+/// The Gru (Gated recurrent unit) module. This implementation is for a unidirectional, stateless, Gru.
+///
+/// Introduced in the paper: [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/abs/1406.1078).
+///
+/// Should be created with [GruConfig].
 #[derive(Module, Debug)]
 pub struct Gru<B: Backend> {
     update_gate: GateController<B>,
@@ -73,13 +77,11 @@ impl<B: Backend> Gru<B> {
     /// Applies the forward pass on the input tensor. This GRU implementation
     /// returns a single state tensor with dimensions [batch_size, sequence_length, hidden_size].
     ///
-    /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
-    ///     state: An optional tensor representing an initial cell state with the same dimensions
-    ///            as batched_input. If none is provided, one will be generated.
-    ///
-    /// Returns:
-    ///     The resulting state tensor, with shape [batch_size, sequence_length, hidden_size].
+    /// # Shapes
+    /// - batched_input: `[batch_size, sequence_length, input_size]`.
+    /// - state: An optional tensor representing an initial cell state with the same dimensions
+    ///          as batched_input. If none is provided, one will be generated.
+    /// - output: `[batch_size, sequence_length, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -177,8 +179,8 @@ impl<B: Backend> Gru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Data, Distribution};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///

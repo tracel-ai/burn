@@ -1,5 +1,6 @@
-use super::Instruction;
-use burn_jit::gpu::{self};
+use burn_cube::{ir as gpu, Compiler};
+
+use super::{Instruction, WarpInstruction};
 
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Clone, Debug, Default)]
@@ -14,17 +15,18 @@ pub struct CudaCompiler {
     rank: bool,
     invocation_index: bool,
     global_invocation_id: (bool, bool, bool),
+    wrap_size_checked: bool,
 }
 
-impl burn_jit::Compiler for CudaCompiler {
+impl Compiler for CudaCompiler {
     type Representation = super::ComputeShader;
 
-    fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
+    fn compile(shader: burn_cube::ir::KernelDefinition) -> Self::Representation {
         let compiler = Self::default();
         compiler.compile_shader(shader)
     }
 
-    fn elem_size(elem: burn_jit::gpu::Elem) -> usize {
+    fn elem_size(elem: gpu::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
 
@@ -35,7 +37,7 @@ impl burn_jit::Compiler for CudaCompiler {
 }
 
 impl CudaCompiler {
-    fn compile_shader(mut self, mut value: gpu::ComputeShader) -> super::ComputeShader {
+    fn compile_shader(mut self, mut value: gpu::KernelDefinition) -> super::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
@@ -50,6 +52,7 @@ impl CudaCompiler {
             id: self.id,
             invocation_index: self.invocation_index,
             global_invocation_id: self.global_invocation_id,
+            wrap_size_checked: self.wrap_size_checked,
         };
 
         super::ComputeShader {
@@ -68,51 +71,14 @@ impl CudaCompiler {
                 .into_iter()
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
-            workgroup_size: value.workgroup_size,
+            cube_dim: value.cube_dim,
             body,
         }
     }
 
     fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<Instruction> {
         let mut instructions = Vec::new();
-        let mut processing = value.process();
-
-        for operation in &mut processing.operations {
-            if let gpu::Operation::Operator(gpu::Operator::Index(operands)) = operation {
-                // Replace all Index operators for global arrays with CheckedIndexAssign procedures
-                match operands.lhs {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndex(
-                            gpu::CheckedIndex {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-            if let gpu::Operation::Operator(gpu::Operator::IndexAssign(operands)) = operation {
-                // Replace all IndexAssign operators of global arrays with CheckedIndexAssign procedures
-                match operands.out {
-                    gpu::Variable::GlobalInputArray(_, _)
-                    | gpu::Variable::GlobalOutputArray(_, _) => {
-                        *operation = gpu::Operation::Procedure(gpu::Procedure::CheckedIndexAssign(
-                            gpu::CheckedIndexAssign {
-                                lhs: operands.lhs,
-                                rhs: operands.rhs,
-                                out: operands.out,
-                            },
-                        ));
-                    }
-                    // Cannot perform bound check on non-global arrays, do nothing.
-                    _ => (),
-                }
-            }
-        }
+        let processing = value.process();
 
         for var in processing.variables {
             instructions.push(Instruction::DeclareVariable {
@@ -140,10 +106,40 @@ impl CudaCompiler {
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
             gpu::Operation::Synchronization(val) => match val {
-                gpu::Synchronization::WorkgroupBarrier => {
-                    instructions.push(Instruction::SyncThreads)
-                }
+                gpu::Synchronization::SyncUnits => instructions.push(Instruction::SyncThreads),
             },
+            gpu::Operation::Subcube(op) => {
+                self.wrap_size_checked = true;
+                match op {
+                    gpu::Subcube::Sum(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceSum {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+                    gpu::Subcube::Prod(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceProd {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+                    gpu::Subcube::Max(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceMax {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+
+                    gpu::Subcube::Min(op) => {
+                        instructions.push(Instruction::Wrap(WarpInstruction::ReduceMin {
+                            input: self.compile_variable(op.input),
+                            out: self.compile_variable(op.out),
+                        }))
+                    }
+
+                    _ => todo!(),
+                }
+            }
         }
     }
 
@@ -356,7 +352,7 @@ impl CudaCompiler {
                 }
                 super::Variable::SharedMemory(index, item, size)
             }
-            gpu::Variable::Id => {
+            gpu::Variable::AbsolutePos => {
                 self.id = true;
                 super::Variable::Id
             }
@@ -364,34 +360,34 @@ impl CudaCompiler {
                 self.rank = true;
                 super::Variable::Rank
             }
-            gpu::Variable::LocalInvocationIndex => {
+            gpu::Variable::UnitPos => {
                 self.invocation_index = true;
                 super::Variable::LocalInvocationIndex
             }
-            gpu::Variable::LocalInvocationIdX => super::Variable::LocalInvocationIdX,
-            gpu::Variable::LocalInvocationIdY => super::Variable::LocalInvocationIdY,
-            gpu::Variable::LocalInvocationIdZ => super::Variable::LocalInvocationIdZ,
-            gpu::Variable::WorkgroupIdX => super::Variable::WorkgroupIdX,
-            gpu::Variable::WorkgroupIdY => super::Variable::WorkgroupIdY,
-            gpu::Variable::WorkgroupIdZ => super::Variable::WorkgroupIdZ,
-            gpu::Variable::GlobalInvocationIdX => {
+            gpu::Variable::UnitPosX => super::Variable::LocalInvocationIdX,
+            gpu::Variable::UnitPosY => super::Variable::LocalInvocationIdY,
+            gpu::Variable::UnitPosZ => super::Variable::LocalInvocationIdZ,
+            gpu::Variable::CubePosX => super::Variable::WorkgroupIdX,
+            gpu::Variable::CubePosY => super::Variable::WorkgroupIdY,
+            gpu::Variable::CubePosZ => super::Variable::WorkgroupIdZ,
+            gpu::Variable::AbsolutePosX => {
                 self.global_invocation_id.0 = true;
                 super::Variable::GlobalInvocationIdX
             }
-            gpu::Variable::GlobalInvocationIdY => {
+            gpu::Variable::AbsolutePosY => {
                 self.global_invocation_id.1 = true;
                 super::Variable::GlobalInvocationIdY
             }
-            gpu::Variable::GlobalInvocationIdZ => {
+            gpu::Variable::AbsolutePosZ => {
                 self.global_invocation_id.2 = true;
                 super::Variable::GlobalInvocationIdZ
             }
-            gpu::Variable::WorkgroupSizeX => super::Variable::WorkgroupSizeX,
-            gpu::Variable::WorkgroupSizeY => super::Variable::WorkgroupSizeY,
-            gpu::Variable::WorkgroupSizeZ => super::Variable::WorkgroupSizeZ,
-            gpu::Variable::NumWorkgroupsX => super::Variable::NumWorkgroupsX,
-            gpu::Variable::NumWorkgroupsY => super::Variable::NumWorkgroupsY,
-            gpu::Variable::NumWorkgroupsZ => super::Variable::NumWorkgroupsZ,
+            gpu::Variable::CubeDimX => super::Variable::WorkgroupSizeX,
+            gpu::Variable::CubeDimY => super::Variable::WorkgroupSizeY,
+            gpu::Variable::CubeDimZ => super::Variable::WorkgroupSizeZ,
+            gpu::Variable::CubeCountX => super::Variable::NumWorkgroupsX,
+            gpu::Variable::CubeCountY => super::Variable::NumWorkgroupsY,
+            gpu::Variable::CubeCountZ => super::Variable::NumWorkgroupsZ,
             gpu::Variable::LocalArray(id, item, depth, size) => {
                 let item = Self::compile_item(item);
                 if !self
@@ -404,6 +400,10 @@ impl CudaCompiler {
                 }
                 super::Variable::LocalArray(id, item, depth, size)
             }
+            gpu::Variable::CubePos => todo!(),
+            gpu::Variable::CubeDim => todo!(),
+            gpu::Variable::CubeCount => todo!(),
+            gpu::Variable::SubcubeDim => todo!(),
         }
     }
 
@@ -415,11 +415,12 @@ impl CudaCompiler {
     }
 
     fn compile_item(item: gpu::Item) -> super::Item {
-        match item {
-            gpu::Item::Vec4(elem) => super::Item::Vec4(Self::compile_elem(elem)),
-            gpu::Item::Vec3(elem) => super::Item::Vec3(Self::compile_elem(elem)),
-            gpu::Item::Vec2(elem) => super::Item::Vec2(Self::compile_elem(elem)),
-            gpu::Item::Scalar(elem) => super::Item::Scalar(Self::compile_elem(elem)),
+        match item.vectorization {
+            4 => super::Item::Vec4(Self::compile_elem(item.elem)),
+            3 => super::Item::Vec3(Self::compile_elem(item.elem)),
+            2 => super::Item::Vec2(Self::compile_elem(item.elem)),
+            1 => super::Item::Scalar(Self::compile_elem(item.elem)),
+            _ => panic!("Vectorization factor unsupported {:?}", item.vectorization),
         }
     }
 

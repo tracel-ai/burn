@@ -5,6 +5,7 @@ use crate::{
     tensor::AutodiffTensor,
     AutodiffBridge,
 };
+use burn_common::sync_type::SyncType;
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 
@@ -43,8 +44,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::seed(seed)
     }
 
-    fn sync(device: &B::Device) {
-        B::sync(device);
+    fn sync(device: &B::Device, sync_type: SyncType) {
+        B::sync(device, sync_type)
     }
 }
 

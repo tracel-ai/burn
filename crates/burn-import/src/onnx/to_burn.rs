@@ -9,11 +9,13 @@ use burn::{
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{DataSerialize, Element},
 };
+use log::warn;
 
 use crate::{
     burn::{
         graph::BurnGraph,
         node::{
+            argmax::ArgMaxNode,
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
@@ -25,7 +27,9 @@ use crate::{
             conv2d::Conv2dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
+            expand::ExpandNode,
             gather::GatherNode,
+            gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -34,8 +38,14 @@ use crate::{
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
             prelu::PReluNode,
+            random_normal::RandomNormalNode,
+            random_uniform::RandomUniformNode,
+            range::RangeNode,
             reshape::ReshapeNode,
+            resize::{ResizeNode, ResizeOptions},
+            slice::SliceNode,
             squeeze::SqueezeNode,
+            sum::SumNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -55,7 +65,7 @@ use super::{
     ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
-        softmax_config,
+        resize_config, softmax_config,
     },
 };
 
@@ -232,12 +242,14 @@ impl OnnxGraph {
         for node in self.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
+                NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
+                NodeType::Expand => graph.register(Self::expand_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -265,7 +277,8 @@ impl OnnxGraph {
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
-                NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
+                NodeType::Gather => graph.register(Self::gather_conversion(node)),
+                NodeType::GatherElements => graph.register(Self::gather_elements_conversion(node)),
                 NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
@@ -274,14 +287,18 @@ impl OnnxGraph {
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
+                NodeType::Range => graph.register(Self::range_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Slice => graph.register(Self::slice_conversion(node)),
+                NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
                 NodeType::Cast => graph.register(Self::cast_conversion(node)),
@@ -297,6 +314,8 @@ impl OnnxGraph {
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
+                NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -372,6 +391,60 @@ impl OnnxGraph {
         };
 
         ConstantNode::new(node.name.clone(), const_value, output.to_type())
+    }
+
+    fn random_uniform_conversion(node: Node) -> RandomUniformNode {
+        let output = node.outputs.first().unwrap();
+        // cannot use output.to_tensor_type() here, since it drops the shape info...
+        let output_type = if let Type::Tensor(t) = output.to_type() {
+            t
+        } else {
+            panic!("RandomUniform output type is no Tensor.");
+        };
+
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomUniformNode::new(output_type, low, high)
+    }
+
+    fn random_normal_conversion(node: Node) -> RandomNormalNode {
+        let output = node.outputs.first().unwrap();
+        // cannot use output.to_tensor_type() here, since it drops the shape info...
+        let output_type = if let Type::Tensor(t) = output.to_type() {
+            t
+        } else {
+            panic!("RandomNormal output type is no Tensor.");
+        };
+
+        let mean = node
+            .attrs
+            .get("mean")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let scale = node
+            .attrs
+            .get("scale")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomNormalNode::new(output_type, mean, scale)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
@@ -483,6 +556,15 @@ impl OnnxGraph {
         GatherNode::new(input, index, output, dim)
     }
 
+    fn gather_elements_conversion(node: Node) -> GatherElementsNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let index = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dim = gather_config(&node);
+
+        GatherElementsNode::new(input, index, output, dim)
+    }
+
     fn transpose_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
@@ -506,12 +588,48 @@ impl OnnxGraph {
         ReshapeNode::new(input, output, shape)
     }
 
+    fn resize_conversion(node: Node) -> ResizeNode {
+        let name = &node.name;
+
+        let input = node.inputs[0].to_tensor_type();
+        let output_size = node.inputs[3].to_tensor_type();
+
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        let mode = resize_config(&node);
+
+        ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
+    }
+
     fn min_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
 
         BinaryNode::min_pair(lhs, rhs, output)
+    }
+
+    fn range_conversion(node: Node) -> RangeNode {
+        fn convert_arg_to_scalar(arg: &Argument) -> ScalarType {
+            match &arg.ty {
+                ArgType::Scalar(scalar) => {
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
+                }
+                ArgType::Tensor(tensor) => {
+                    if tensor.dim != 0 {
+                        panic!("Range node requires scalar inputs");
+                    }
+                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
+                }
+                _ => panic!("Range node requires scalar inputs"),
+            }
+        }
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
+        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
+        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+
+        RangeNode::new(start, end, step, output)
     }
 
     fn reduce_max_conversion(node: Node) -> UnaryNode {
@@ -585,6 +703,25 @@ impl OnnxGraph {
         UnaryNode::sin(input, output)
     }
 
+    fn slice_conversion(node: Node) -> SliceNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let (starts, ends) = slice_config(&node);
+
+        SliceNode::new(input, output, starts, ends)
+    }
+
+    fn sum_conversion(node: Node) -> SumNode {
+        let inputs = node
+            .inputs
+            .iter()
+            .map(|input| input.to_tensor_type())
+            .collect();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+
+        SumNode::new(inputs, output)
+    }
+
     fn reciprocal_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.first().unwrap().to_type();
         let output = node.outputs.first().unwrap().to_type();
@@ -620,6 +757,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::tanh(input, output)
+    }
+
+    fn argmax_conversion(node: Node) -> ArgMaxNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let axis = argmax_config(&node);
+
+        ArgMaxNode::new(input, output, axis)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
@@ -812,6 +957,14 @@ impl OnnxGraph {
         let output = node.outputs.first().unwrap().to_type();
 
         UnaryNode::exp(input, output)
+    }
+
+    fn expand_conversion(node: Node) -> ExpandNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let shape = expand_config(&node);
+
+        ExpandNode::new(input, output, shape)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {

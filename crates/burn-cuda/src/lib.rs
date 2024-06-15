@@ -4,7 +4,6 @@ extern crate alloc;
 
 mod compute;
 mod device;
-mod element;
 mod runtime;
 
 pub mod compiler;
@@ -26,4 +25,5 @@ mod tests {
     pub type TestRuntime = crate::CudaRuntime;
 
     burn_jit::testgen_all!();
+    burn_cube::testgen_all!();
 }

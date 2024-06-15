@@ -1,12 +1,12 @@
 use crate::{
-    element::JitElement, kernel::GpuComputeShaderPhase, ops::numeric::empty_device,
-    tensor::JitTensor, JitRuntime,
+    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-    OutputInfo, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -29,7 +29,7 @@ impl SelectComputeShader {
         let input = self.input;
         let indices = self.indices;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
         let offset_input = scope.zero(Elem::UInt);
 
         cpa!(
@@ -67,8 +67,8 @@ impl SelectComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
@@ -97,14 +97,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectEagerKernel<R
         };
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, indices],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -125,19 +125,19 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            EagerHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
+            TensorHandle::new(&indices.handle, &[1; D], &[1; D]),
         ])
-        .outputs(&[EagerHandle::new(
+        .outputs(&[TensorHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

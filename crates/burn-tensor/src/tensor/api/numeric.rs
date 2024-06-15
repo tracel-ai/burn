@@ -6,7 +6,6 @@ use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
     ElementConversion, Float, Int, Shape, Tensor, TensorKind,
 };
-use num_traits::Zero;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -656,7 +655,7 @@ where
     ///
     /// A boolean tensor with the same shape as the input tensor.
     pub fn bool(self) -> Tensor<B, D, Bool> {
-        K::not_equal_elem::<D>(self.primitive, K::Elem::zero())
+        K::not_equal_elem::<D>(self.primitive, 0.elem())
     }
 
     /// Create a random tensor of the given shape on the given device where each element is
@@ -2865,6 +2864,20 @@ where
 
     fn div(self, other: E) -> Self {
         Tensor::div_scalar(self, other)
+    }
+}
+
+impl<E, const D: usize, B, K> core::ops::Rem<E> for Tensor<B, D, K>
+where
+    E: ElementConversion,
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    type Output = Self;
+
+    fn rem(self, other: E) -> Self {
+        Tensor::remainder_scalar(self, other)
     }
 }
 

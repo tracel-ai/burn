@@ -1,4 +1,7 @@
-use burn_cube::{CubeElement, Float, BF16, F16, F32};
+use burn_cube::{
+    frontend::{Float, BF16, F16, F32},
+    CubeElement,
+};
 
 /// The base element trait for the jit backend.
 pub trait JitElement: burn_tensor::Element + CubeElement {}

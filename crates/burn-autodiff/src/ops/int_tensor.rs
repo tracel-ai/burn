@@ -383,6 +383,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_expand(tensor, shape)
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
@@ -391,6 +392,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_sort(tensor, dim, descending)
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort_with_indices<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
@@ -399,6 +401,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_sort_with_indices(tensor, dim, descending)
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_argsort<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
