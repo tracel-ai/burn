@@ -141,7 +141,7 @@ represent the corresponding Burn Op.
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
 | [ReduceMax][135]                 |       ✅       |      ✅      |
 | [ReduceMean][136]                |       ✅       |      ✅      |
-| [ReduceMin][137]                 |       ❌       |      ✅      |
+| [ReduceMin][137]                 |       ✅       |      ✅      |
 | [ReduceProd][138]                |       ❌       |      ✅      |
 | [ReduceSum][139]                 |       ✅       |      ✅      |
 | [ReduceSumSquare][140]           |       ❌       |      ❌      |

@@ -289,6 +289,7 @@ impl OnnxGraph {
                 NodeType::Min => graph.register(Self::min_conversion(node)),
                 NodeType::Range => graph.register(Self::range_conversion(node)),
                 NodeType::ReduceMax => graph.register(Self::reduce_max_conversion(node)),
+                NodeType::ReduceMin => graph.register(Self::reduce_min_conversion(node)),
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
@@ -638,6 +639,14 @@ impl OnnxGraph {
         let dim = reduce_max_config(&node);
 
         UnaryNode::reduce_max(input, output, dim)
+    }
+
+    fn reduce_min_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.first().unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        let dim = reduce_min_config(&node);
+
+        UnaryNode::reduce_min(input, output, dim)
     }
 
     fn reduce_mean_conversion(node: Node) -> UnaryNode {
