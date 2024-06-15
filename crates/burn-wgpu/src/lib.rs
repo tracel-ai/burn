@@ -43,7 +43,10 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 /// ```rust
 /// fn custom_init() {
 ///     let device = Default::default();
-///     WgpuRuntime::init_sync::<Vulkan>(&device, Default::default());
+///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///         &device,
+///         Default::default(),
+///     );
 /// }
 /// ```
 /// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
@@ -74,7 +77,10 @@ pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<WgpuRuntime, F,
 /// ```rust
 /// fn custom_init() {
 ///     let device = Default::default();
-///     WgpuRuntime::init_sync::<Vulkan>(&device, Default::default());
+///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///         &device,
+///         Default::default(),
+///     );
 /// }
 /// ```
 /// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
