@@ -37,6 +37,18 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
+/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
+/// you have to manually initialize the runtime. For example:
+///
+/// ```rust
+/// fn custom_init() {
+///     let device = Default::default();
+///     WgpuRuntime::init_sync::<Vulkan>(&device, Default::default());
+/// }
+/// ```
+/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
+///
 /// # Notes
 ///
 /// This version of the [wgpu] backend uses [burn_fusion] to compile and optimize streams of tensor
@@ -55,6 +67,18 @@ pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<WgpuRuntime, F,
 ///   - [DirectX 12](crate::Dx12) on Windows.
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
+///
+/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
+/// you have to manually initialize the runtime. For example:
+///
+/// ```rust
+/// fn custom_init() {
+///     let device = Default::default();
+///     WgpuRuntime::init_sync::<Vulkan>(&device, Default::default());
+/// }
+/// ```
+/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
 ///
 /// # Notes
 ///

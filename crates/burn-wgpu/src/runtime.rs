@@ -18,9 +18,9 @@ use burn_tensor::backend::{DeviceId, DeviceOps};
 use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
-/// Runtime that uses the [wgpu] crate with the wgsl compiler.
-///
-/// The [graphics api](GraphicsApi) type is passed as generic.
+/// Runtime that uses the [wgpu] crate with the wgsl compiler. This is used in the Wgpu backend.
+/// For advanced configuration, use [`init_sync`] to pass in runtime options or to select a
+/// specific graphics API.
 #[derive(Debug)]
 pub struct WgpuRuntime {}
 
@@ -121,14 +121,13 @@ pub fn init_existing_device(
     device_id
 }
 
-/// Init the client sync, useful to configure the runtime options.
+/// Initialize a client on the given device with the given options. This function is useful to configure the runtime options
+/// or to pick a different graphics API. On wasm, it is necessary to use [`init_async`] instead.
 pub fn init_sync<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
-    let (adapter, device_wgpu, queue) = pollster::block_on(create_wgpu_setup::<G>(device));
-    let client = create_client(adapter, device_wgpu, queue, options);
-    RUNTIME.register(device, client)
+    pollster::block_on(init_async::<G>(device, options));
 }
 
-/// Init the client async, necessary for wasm.
+/// Like [`init_sync`], but async, necessary for wasm.
 pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
     let (adapter, device_wgpu, queue) = create_wgpu_setup::<G>(device).await;
     let client = create_client(adapter, device_wgpu, queue, options);
