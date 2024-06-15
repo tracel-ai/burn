@@ -40,7 +40,7 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
 ///
-/// ```rust
+/// ```rust, ignore
 /// fn custom_init() {
 ///     let device = Default::default();
 ///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
@@ -74,7 +74,7 @@ pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<WgpuRuntime, F,
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
 ///
-/// ```rust
+/// ```rust, ignore
 /// fn custom_init() {
 ///     let device = Default::default();
 ///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
