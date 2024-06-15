@@ -62,6 +62,11 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
+/// # Generics
+/// - G: GraphicsApi
+/// - F: FloatElement
+/// - I: IntElement
+///
 /// # Notes
 ///
 /// This version of the [wgpu] backend doesn't use [burn_fusion] to compile and optimize streams of tensor
