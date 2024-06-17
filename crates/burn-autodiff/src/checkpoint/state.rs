@@ -60,16 +60,16 @@ impl State {
 }
 
 #[derive(new, Default, Debug)]
-/// Links [NodeID]s to their current [State]
+/// Links [NodeID]s to their current state
 pub struct BackwardStates {
     map: HashMap<NodeID, State>,
 }
 
 impl BackwardStates {
-    /// Returns the output in the [State] of the given [NodeID],
+    /// Returns the output in the state of the given [NodeID],
     /// and decrements the number of times this state is required.
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
-    pub(crate) fn get_state<T>(&mut self, node_id: &NodeID) -> T
+    pub fn get_state<T>(&mut self, node_id: &NodeID) -> T
     where
         T: Clone + Send + 'static,
     {
@@ -117,7 +117,8 @@ impl BackwardStates {
         self.map.insert(node_id, state);
     }
 
-    pub(crate) fn save<T>(&mut self, node_id: NodeID, saved_output: T)
+    /// Saves the output to the state of the given [NodeID].
+    pub fn save<T>(&mut self, node_id: NodeID, saved_output: T)
     where
         T: Clone + Send + 'static,
     {
