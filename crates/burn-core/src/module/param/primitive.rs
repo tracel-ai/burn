@@ -281,3 +281,28 @@ impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6][0, 1, 2, 3, 4, 5, 6]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8, L9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn dont_override_constant_module_when_loading_record() {
+        let module = Some(42);
+
+        let record = Module::<TestBackend>::into_record(module.clone());
+        let loaded = Module::<TestBackend>::load_record(module, record);
+
+        assert_eq!(loaded, module);
+    }
+    #[test]
+    fn dont_override_constant_module_when_loading_none_record() {
+        let module = Some(42);
+
+        let record = None;
+        let loaded = Module::<TestBackend>::load_record(module, record);
+
+        assert_eq!(loaded, module);
+    }
+}
