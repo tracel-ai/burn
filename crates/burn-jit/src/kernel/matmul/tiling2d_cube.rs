@@ -1,4 +1,4 @@
-use crate::{fusion::kernel, kernel::into_contiguous, tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{kernel::into_contiguous, tensor::JitTensor, FloatElement, JitRuntime};
 use burn_cube::prelude::*;
 
 use super::{tiling2d_launch_options, Tiling2dConfig};
@@ -158,7 +158,7 @@ fn gather_kernel_information<F: Float>(
         SharedMemory::<F>::vectorized(Comptime::get(sm_size_rhs), Comptime::get(tile_size));
 
     // Calculate exact number of loop iterations
-    let mut n_loops = UInt::new(0); // TODO support more syntax
+    let mut n_loops = UInt::new(0); // TODO support syntax let x = if ... else ...
     if Comptime::get(check_k_bounds) {
         n_loops = UInt::cast_from(F::ceil(
             F::cast_from(dim_k) / F::cast_from(Comptime::runtime(block_size_k)),
@@ -205,7 +205,7 @@ fn load_shared_memory<F: Float>(
     kernel_state: Tiling2dState<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    load_tensor_with_checks(
+    load_lhs_tensor(
         kernel_state.lhs,
         kernel_state.offset_lhs,
         kernel_state.shared_lhs,
@@ -218,9 +218,8 @@ fn load_shared_memory<F: Float>(
         kernel_state.k,
         kernel_state.dim_k,
         config,
-        Comptime::new(true),
     );
-    load_tensor_with_checks(
+    load_rhs_tensor(
         kernel_state.rhs,
         kernel_state.offset_rhs,
         kernel_state.shared_rhs,
@@ -233,68 +232,114 @@ fn load_shared_memory<F: Float>(
         kernel_state.k,
         kernel_state.dim_k,
         config,
-        Comptime::new(false),
     )
 }
 
 #[cube]
-fn load_tensor_with_checks<F: Float>(
-    input: Tensor<F>,
-    input_offset: UInt,
-    mut shared_memory: SharedMemory<F>,
-    unit_idx_1: UInt,
-    unit_idx_2: UInt,
-    stride_1: UInt,
-    stride_2: UInt,
-    dim: UInt,
-    pos_in_dim: UInt,
+/// Assumes vectorization is in the same orientation we need in shared memory
+fn load_lhs_tensor<F: Float>(
+    lhs: Tensor<F>,
+    offset_lhs: UInt,
+    mut shared_lhs: SharedMemory<F>,
+    unit_col: UInt,
+    unit_row: UInt,
+    lhs_stride_col: UInt,
+    lhs_stride_row: UInt,
+    dim_m: UInt,
+    row: UInt,
     k: UInt,
     dim_k: UInt,
     config: Comptime<CubeTiling2dConfig>,
-    is_lhs: Comptime<bool>, // TODO support match enum
 ) {
+    let block_size_k = Comptime::map(config, |c| c.block_size_k);
+    let unroll = Comptime::map(config, |c| c.unroll);
+    let tile_size = Comptime::vectorization(lhs);
+    let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
+    let check_k_bounds = Comptime::map(config, |c| c.check_k_bounds);
+
+    if Comptime::get(check_m_bounds) {
+        let n_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
+
+        for i in range(0u32, n_writes, Comptime::new(false)) {
+            let current_row = unit_row + i;
+
+            if Comptime::get(check_k_bounds) {
+                if k + unit_col >= dim_k {
+                    // Shouldn't be partial vec, or it would not have accepted this vectorization factor
+                    return;
+                }
+            }
+
+            // todo: is this runtime if mandatory?
+            if current_col < Comptime::runtime(block_size_k) {
+                // todo: runtime consts could be precomputed
+                let sm_position = current_row
+                    * (Comptime::runtime(block_size_k) / Comptime::runtime(tile_size))
+                    + (unit_col / Comptime::runtime(tile_size));
+
+                // lhs_stride_col should be 1
+                let position_in_lhs = (k + unit_col) * lhs_stride_col
+                    + current_row * (lhs_stride_row / Comptime::runtime(tile_size))
+                    + offset_lhs;
+
+                shared_lhs[sm_position] = lhs[position_in_lhs];
+            }
+        }
+    } else {
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            // TODO Same for loop inner as above
+        }
+    }
+}
+
+#[cube]
+fn load_rhs_tensor<F: Float>(
+    rhs: Tensor<F>,
+    offset_rhs: UInt,
+    mut shared_rhs: SharedMemory<F>,
+    unit_row: UInt,
+    unit_col: UInt,
+    rhs_stride_row: UInt,
+    rhs_stride_col: UInt,
+    dim_n: UInt,
+    col: UInt,
+    k: UInt,
+    dim_k: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    // TODO :
+    // read n element-wise with stride, then store as vectorized-n in sm
+
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let unroll = Comptime::map(config, |c| c.unroll);
-    let tile_size = Comptime::vectorization(input);
+    let tile_size = Comptime::vectorization(rhs);
     let check_k_bounds = Comptime::map(config, |c| c.check_k_bounds);
+    let check_n_bounds = Comptime::map(config, |c| c.check_n_bounds);
 
-    // TODO: direct assignation from Comptime::runtime gives a constant
-    let n_writes_tmp = Comptime::runtime(tile_size);
-    let mut n_writes = n_writes_tmp;
+    if Comptime::get(check_n_bounds) {
+        let n_writes_n = UInt::min(dim_n - col, Comptime::runtime(tile_size));
+        for j in range(0u32, n_writes, Comptime::new(false)) {
+            let n_writes_k = UInt::min(dim_k - row, Comptime::runtime(tile_size));
+            let mut array = Array::<F>::new(Comptime::get(tile_size));
+            let position_base_no_vec =
+                (k + current_row) * rhs_stride_row + unit_col * rhs_stride_col + offset_rhs;
 
-    if Comptime::get(check_k_bounds) {
-        n_writes = UInt::min(dim - pos_in_dim, Comptime::runtime(tile_size));
-    }
+            for i in range(0u32, n_writes_k, Comptime::new(false)) {
+                let current_row = unit_row + i;
+                let current_col = unit_col + j;
 
-    // TODO we should avoid that if in no_check_bound version
-    if n_writes >= UInt::new(1) {
-        for j in range(0u32, Comptime::get(tile_size), unroll) {
-            let current = unit_idx_1 + j;
+                // TODO is this necessary?
+                if current_row < Comptime::runtime(block_size_k) {
+                    // todo: runtime consts could be precomputed
+                    let sm_position = current_row
+                        * (Comptime::runtime(block_size_n) / Comptime::runtime(tile_size))
+                        + (unit_col / Comptime::runtime(tile_size));
 
-            if current + k < dim_k {
-                let mut sm_position = UInt::new(0); // TODO support let x = if... syntax
-                if current < Comptime::runtime(block_size_k) {
-                    if Comptime::get(is_lhs) {
-                        sm_position = current
-                            + unit_idx_2 / Comptime::runtime(tile_size)
-                                * Comptime::runtime(block_size_k);
-                    } else {
-                        sm_position = (current * Comptime::runtime(block_size_n) + unit_idx_2)
-                            / Comptime::runtime(tile_size)
-                    }
-                }
-
-                let position_base = (k + current) * stride_1 + unit_idx_2 * stride_2 + input_offset;
-
-                // TODO simplify when stride_2 is 1, so we can leverage already vectorized
-                let mut array = Array::<F>::new(Comptime::get(tile_size));
-
-                for i in range(0u32, n_writes, Comptime::new(false)) {
                     // Unvectorize
                     // TODO: Should increment second [] if stride_2 is 1
                     // Plus, other than 0s are unaccessible
-                    array[i] = input[position_base + i * stride_2][UInt::new(0)];
+                    array[i] = rhs[position_base + i * rhs_stride_col][j];
                 }
                 // Pad with zeros
                 if Comptime::get(check_k_bounds) {
@@ -305,7 +350,13 @@ fn load_tensor_with_checks<F: Float>(
 
                 // TODO could tile_size be fetched from array length?
                 // TODO make sure what we write works with what is now read in computation loop
-                shared_memory[sm_position] = array.to_vectorized(tile_size);
+                shared_rhs[sm_position] = array.to_vectorized(tile_size);
+            }
+        }
+    } else {
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            for j in range(0u32, Comptime::get(tile_size), unroll) {
+                // TODO Same for loop inner as above
             }
         }
     }
@@ -363,6 +414,7 @@ fn write_to_output<F: Float>(
     let col = kernel_state.col;
     let out_stride_row = kernel_state.out_stride_row;
     let out_stride_col = kernel_state.out_stride_col;
+    let offset_output = kernel_state.offset_output;
     let results = kernel_state.results;
     let unroll = Comptime::map(config, |c| c.unroll);
     let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
@@ -385,7 +437,7 @@ fn write_to_output<F: Float>(
                 kernel_state.out[row_index + col_index] = results[results_pos_m];
             }
         } else {
-            kernel_state.out[row_index + col_index] = results[results_pos_m];
+            kernel_state.out[row_index + col_index + offset_output] = results[results_pos_m];
         }
     }
 }
