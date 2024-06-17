@@ -18,6 +18,17 @@ Here is the directory structure of this crate:
 
 ## Setting up your python environment
 
+## With rye
+
+You can use [`rye`](https://rye.astral.sh/) to set up a Python environment with the necessary dependencies. To do so, cd into the `onnx-tests` directory and run `rye sync`. Assuming you are in the top-level `burn` directory, you can run the following command:
+
+```sh
+cd crates/burn-import/onnx-tests
+rye sync # or rye sync -f
+```
+
+This will create a .venv in the `onnx-tests` directory. 
+
 You need to install `onnx==1.15.0` and `torch==2.1.1` in your python environment to add a new test
 
 ## Adding new tests
