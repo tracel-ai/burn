@@ -78,7 +78,7 @@ impl<T: CubeElem + Clone> Array<T> {
         )
     }
 
-    pub fn to_vectorized(self, vectorization_factor: Comptime<UInt>) -> T {
+    pub fn to_vectorized(self, _vectorization_factor: Comptime<UInt>) -> T {
         unexpanded!()
     }
 }

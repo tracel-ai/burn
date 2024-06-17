@@ -199,7 +199,7 @@ fn load_shared_memory<F: Float>(
     kernel_state: Tiling2dState<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    load_tensor(
+    load_tensor_with_checks(
         kernel_state.lhs,
         kernel_state.offset_lhs,
         kernel_state.shared_lhs,
@@ -214,7 +214,7 @@ fn load_shared_memory<F: Float>(
         config,
         Comptime::new(true),
     );
-    load_tensor(
+    load_tensor_with_checks(
         kernel_state.rhs,
         kernel_state.offset_rhs,
         kernel_state.shared_rhs,
@@ -232,10 +232,10 @@ fn load_shared_memory<F: Float>(
 }
 
 #[cube]
-fn load_tensor<F: Float>(
+fn load_tensor_with_checks<F: Float>(
     input: Tensor<F>,
     input_offset: UInt,
-    shared_memory: SharedMemory<F>,
+    mut shared_memory: SharedMemory<F>,
     unit_idx_1: UInt,
     unit_idx_2: UInt,
     stride_1: UInt,
@@ -247,37 +247,54 @@ fn load_tensor<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
     is_lhs: Comptime<bool>, // TODO support match enum
 ) {
-    // No bound check version
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let unroll = Comptime::map(config, |c| c.unroll);
     let tile_size = Comptime::vectorization(input);
+    let check_k_bounds = Comptime::map(config, |c| c.check_k_bounds);
 
-    for j in range(0, Comptime::get(tile_size), unroll) {
-        let current = unit_idx_1 + j;
+    let mut n_writes = Comptime::runtime(tile_size);
+    if Comptime::get(check_k_bounds) {
+        n_writes = UInt::min(dim - pos_in_dim, Comptime::runtime(tile_size));
+    }
 
-        let mut sm_position = UInt::new(0); // TODO support more syntax
-        if current < Comptime::runtime(block_size_k) {
-            if Comptime::get(is_lhs) {
-                sm_position = current
-                    + unit_idx_2 / Comptime::runtime(tile_size) * Comptime::runtime(block_size_k);
-            } else {
-                sm_position = (current * Comptime::runtime(block_size_n) + unit_idx_2)
-                    / Comptime::runtime(tile_size)
+    // TODO we should avoid that if in no_check_bound version
+    if n_writes >= UInt::new(1) {
+        for j in range(0, Comptime::get(tile_size), unroll) {
+            let current = unit_idx_1 + j;
+
+            if current + k < dim_k {
+                let mut sm_position = UInt::new(0); // TODO support let x = if... syntax
+                if current < Comptime::runtime(block_size_k) {
+                    if Comptime::get(is_lhs) {
+                        sm_position = current
+                            + unit_idx_2 / Comptime::runtime(tile_size)
+                                * Comptime::runtime(block_size_k);
+                    } else {
+                        sm_position = (current * Comptime::runtime(block_size_n) + unit_idx_2)
+                            / Comptime::runtime(tile_size)
+                    }
+                }
+
+                let position_base = (k + current) * stride_1 + unit_idx_2 * stride_2 + input_offset;
+
+                // TODO simplify when stride_2 is 1, so we can leverage already vectorized
+                let mut array = Array::<F>::new(Comptime::get(tile_size));
+
+                for i in range(0, n_writes, Comptime::new(false)) {
+                    array[i] = input[position_base + i * stride_2];
+                }
+                // Pad with zeros
+                if Comptime::get(check_k_bounds) {
+                    for i in range(n_writes, Comptime::get(tile_size), Comptime::new(false)) {
+                        array[i] = F::new(0.);
+                    }
+                }
+
+                // TODO could tile_size be fetched from array length?
+                shared_memory[sm_position] = array.to_vectorized(tile_size);
             }
         }
-
-        let position_base = (k + current) * stride_1 + unit_idx_2 * stride_2 + input_offset;
-
-        let tile_size = Comptime::vectorization(input);
-        // TODO simplify when stride_2 is 1, so we can leverage already vectorized
-        let mut array = Array::<F>::new(Comptime::get(tile_size));
-        for i in range(0, Comptime::get(tile_size), unroll) {
-            array[i] = input[position_base + i * stride_2];
-        }
-
-        // TODO support syntax
-        shared_memory[sm_position] = array.to_vectorized(tile_size);
     }
 }
 
