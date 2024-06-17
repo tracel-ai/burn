@@ -1,6 +1,8 @@
 <div align="center">
-<img src="../burn-cube/assets/CubeCL.webp" width="150px"/>
-<span style="font-size:64px;font-weight:bold">CubeCL</span>
+<img src="../burn-cube/assets/logo.drawio.svg" width="400px"/>
+
+<br />
+<br />
 
 [![Rust Version](https://img.shields.io/badge/Rust-1.75.0+-blue)](https://releases.rs/docs/1.75.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
@@ -11,8 +13,6 @@
 <br/>
 
 </div>
-
-<div align="left">
 
 ## TL;DR
 
@@ -45,11 +45,33 @@ Hence, CubeCL was born!
 
 ## Design
 
-CubeCL is designed around -you guessed it- Cubes! Since all compute APIs need to map to the hardware, which are tiles that can be accessed using a 3D representation: the cube.
-Our topology can easily be mapped to concepts from other APIs.
+CubeCL is designed around - you guessed it - Cubes! More precisely, cuboids since not all axes are forced to be the same size.
+Since all compute APIs need to map to the hardware, which are tiles that can be accessed using a 3D representation, our topology can easily be mapped to concepts from other APIs.
+
+<div align="center">
+
+### CubeCL - Topology
+
+<img src="./assets/cubecl.drawio.svg" width="100%"/>
+<br />
+</div>
+<br />
+
+_A cube is composed of units, so a 3x3x3 cube has 27 units that can be accessed by their positions along the x, y, and z axes.
+Similarly, an hyper-cube is composed of cubes, just as a cube is composed of units.
+Each cube in the hyper-cube can be accessed by its position relative to the hyper-cube along the x, y, and z axes.
+Hence, an hyper-cube of 3x3x3 will have 27 cubes.
+In this example, the total number of working units would be 27 x 27 = 729._
 
 <details>
 <summary>Topology Equivalent 👇</summary>
+<br />
+
+Since all topology variables are constant within the kernel entry point, we chose to use the Rust constant syntax with capital letters.
+Often when creating kernels, we don't always care about the relative position of a unit within a cube along each axis, but often we only care about its position in general.
+Therefore, each kind of variable also has its own axis-independent variable, which is often not present in other languages, except WebGPU with `local_invocation_index`.
+
+<br />
 
 | CubeCL         | CUDA        | WebGPU                 |
 | -------------- | ----------- | ---------------------- |
@@ -77,43 +99,39 @@ Our topology can easily be mapped to concepts from other APIs.
 
 </details>
 
-<br />
-
-<img src="./assets/cubecl.drawio.svg" width="100%"/>
-
 ## Special Features
 
 #### Automatic Vectorization
 
 High-performance kernels should rely on SIMD instructions whenever possible, but doing so can quickly get pretty complicated!
-With CubeCL you can specify the vectorization factor of each input variable when launching a kernel.
+With CubeCL, you can specify the vectorization factor of each input variable when launching a kernel.
 Inside the kernel code, you still use only one type, which is dynamically vectorized and supports automatic broadcasting.
 The runtimes are able to compile kernels and have all the necessary information to use the best instruction!
-However, since the algorithmic behaviour may depend on the vectorization factor, CubeCL allows to actually access it directly in the kernel when needed, without any performance loss, using the comptime system!
+However, since the algorithmic behavior may depend on the vectorization factor, CubeCL allows you to access it directly in the kernel when needed, without any performance loss, using the comptime system!
 
 #### Comptime
 
-CubeCL isn't just a new compute language: though it feels like you are writing GPU kernels, you are in fact writing compiler plugins that you can fully customize!
-Comptime is a way to modify the compiler IR during Rust's runtime, when compiling a kernel for the first time.
+CubeCL isn't just a new compute language: though it feels like you are writing GPU kernels, you are, in fact, writing compiler plugins that you can fully customize!
+Comptime is a way to modify the compiler IR at runtime when compiling a kernel for the first time.
 
-This allows for lots of optimizations and flexibility without having to write many separate variants of the same kernels to ensure maximal performance.
+This enables lots of optimizations and flexibility without having to write many separate variants of the same kernels to ensure maximal performance.
 
-| Feature                        | Description                                                                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Instruction Specialization** | Not all instructions are available on all hardware, but when a specialized one exists, it should be enablable with a simple if statement.                                     |
-| **Automatic Vectorization**    | When you can use SIMD instructions, you should! But since not all hardware support the same vectorization factors, it can be injected at Rust's runtime!                      |
-| **Loop Unrolling**             | You may want multiple flavors of the same kernel, with loop unrolling for only a certain range of values. This can be configured easily with Comptime.                        |
-| **Shape Specialization**       | For Deep Learning kernels, it's often crucial to rely on different kernels for different input sizes; you can do it by passing the shape information as Comptime values.      |
-| **Compile Time Calculation**   | In general, you can calculate a constant using Rust runtime properties and inject them into a kernel during its compilation, to avoid recalculating it during each execution. |
+| Feature                        | Description                                                                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Instruction Specialization** | Not all instructions are available on all hardware, but when a specialized one exists, it should be enabled with a simple if statement.                                     |
+| **Automatic Vectorization**    | When you can use SIMD instructions, you should! But since not all hardware supports the same vectorization factors, it can be injected at runtime!                          |
+| **Loop Unrolling**             | You may want multiple flavors of the same kernel, with loop unrolling for only a certain range of values. This can be configured easily with Comptime.                      |
+| **Shape Specialization**       | For deep learning kernels, it's often crucial to rely on different kernels for different input sizes; you can do it by passing the shape information as Comptime values.    |
+| **Compile Time Calculation**   | In general, you can calculate a constant using Rust runtime properties and inject it into a kernel during its compilation, to avoid recalculating it during each execution. |
 
 #### Autotuning
 
 Autotuning drastically simplifies kernel selection by running small benchmarks at runtime to figure out the best kernels with the best configurations to run on the current hardware; an essential feature for portability.
 This feature combines gracefully with comptime to test the effect of different comptime values on performance; sometimes it can be surprising!
 
-Even if the benchmarks may add some overhead when first running the application, the information gets cached on the hardware.
-It is usually a no-brainer tradeoff for throughput-oriented programs such as Deep Learning models.
-You can ship the autotune cache with your program, reducing cold start when you have more control over the deployment platform.
+Even if the benchmarks may add some overhead when running the application for the first time, the information gets cached on the device and will be reused.
+It is usually a no-brainer trade-off for throughput-oriented programs such as deep learning models.
+You can even ship the autotune cache with your program, reducing cold start time when you have more control over the deployment target.
 
 ## Example
 
@@ -136,17 +154,14 @@ fn main() {
     let device = Default::default();
     let client = Runtime::client(&device);
 
-    let input: &[f32] = &[-1., 0., 1., 5.];
-    let (shape, strides) = ([4], [1]);
-
-    let input_handle = client.create(f32::as_bytes(input));
+    let input_handle = client.create(f32::as_bytes(&[-1., 0., 1., 5.]));
     let output_handle = client.empty(input.len() * core::mem::size_of::<f32>());
 
-    runs_on_the_gpu_launch::<F32, Runtime>(
+    gelu_launch::<F32, Runtime>(
         client,
         KernelSettings::default(),
-        TensorHandle::new(&input_handle, &strides, &shape),
-        TensorHandle::new(&output_handle, &strides, &shape),
+        &input_handle,
+        &output_handle,
     );
 
     let output = client.read(output_handle.binding()).read_sync().unwrap();
@@ -159,7 +174,7 @@ fn main() {
 ```
 
 The `cube` attribute generates the code that is needed to compile a kernel.
-In the case above, the function `pow2_expand` and `pow2_launch` are automatically and invisibly generated.
+In the case above, the function `gelu_expand` and `gelu_launch` are automatically generated.
 This allows you to compose Cube functions easily:
 
 ```rust
@@ -170,7 +185,7 @@ fn gelu_scalar<F: Float>(x: F) -> F {
 }
 
 #[cube(launch)]
-fn gelu<F: Float>(input: Tensor<F>, mut output: Tensor<F>) {
+fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
     if ABSOLUTE_POS < input.shape(0) {
         output[ABSOLUTE_POS] = gelu_scalar(input[ABSOLUTE_POS]);
     }
@@ -187,4 +202,3 @@ Check out our matmul example, which autotunes between a simple vectorized versio
 Clone the project and run the example locally to see how autotune fares and your own device.
 
 If you have any questions or want to contribute, don't hesitate to join the Discord.
-
