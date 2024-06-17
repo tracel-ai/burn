@@ -8,7 +8,7 @@ use burn::{
 use burn::backend::wgpu::{init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 
 #[cfg(feature = "wgpu")]
-pub type Backend = Wgpu<AutoGraphicsApi, f32, i32>;
+pub type Backend = Wgpu<f32, i32>;
 
 #[cfg(all(feature = "ndarray", not(feature = "wgpu")))]
 pub type Backend = burn::backend::ndarray::NdArray<f32>;

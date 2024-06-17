@@ -34,7 +34,7 @@ pub enum ModelType {
     WithNdArrayBackend(Model<NdArray<f32>>),
 
     /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
+    WithWgpuBackend(Model<Wgpu<f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)
