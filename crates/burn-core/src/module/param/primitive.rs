@@ -21,6 +21,12 @@ where
     }
 
     fn load_record(self, record: Self::Record) -> Self {
+        let is_constant = self.num_params() == 0;
+
+        if is_constant {
+            return self;
+        }
+
         self.zip(record)
             .map(|(module, record)| module.load_record(record))
     }
@@ -89,6 +95,14 @@ where
     }
 
     fn load_record(self, record: Self::Record) -> Self {
+        assert_eq!(
+            self.len(),
+            record.len(),
+            r#"[Load Record Error] The vec record does not the same length as the module.
+            Make sure you module initialization is compatible with the record being loaded.
+            "#,
+        );
+
         self.into_iter()
             .zip(record)
             .map(|(module, record)| module.load_record(record))
