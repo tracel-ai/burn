@@ -4,7 +4,8 @@ use burn_tensor::Shape;
 use std::cmp::{max, min};
 
 use super::{
-    init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_padded,
+    init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d, matmul_tiling_2d_cube,
+    matmul_tiling_2d_padded,
 };
 
 #[derive(Debug, Clone)]

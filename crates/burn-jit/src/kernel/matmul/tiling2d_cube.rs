@@ -1,7 +1,7 @@
-use crate::{kernel::into_contiguous, tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{fusion::kernel, kernel::into_contiguous, tensor::JitTensor, FloatElement, JitRuntime};
 use burn_cube::prelude::*;
 
-use super::{tiling2d_launch_options, tiling2d_shader::gather_shader_information, Tiling2dConfig};
+use super::{tiling2d_launch_options, tiling2d_shader::write_to_output, Tiling2dConfig};
 
 impl Init for CubeTiling2dConfig {
     fn init(self, _context: &mut CubeContext) -> Self {
@@ -20,42 +20,85 @@ pub struct CubeTiling2dConfig {
     pub block_size_n: UInt,
     /// Loop unrolling
     pub unroll: bool,
+    /// Bounds must be checked on common dimension
+    pub check_k_bounds: bool,
+    /// Shared memory size lhs: technically derivable from others, but needs comptime arithmetic
+    pub sm_size_lhs: UInt,
+    /// Shared memory size rhs: technically derivable from others, but needs comptime arithmetic
+    pub sm_size_rhs: UInt,
 }
 
-impl From<Tiling2dConfig> for CubeTiling2dConfig {
-    fn from(value: Tiling2dConfig) -> Self {
-        // We ignore grid: it's CUBE_DIM
-        // We ignore tile size -> they are the vectorization factor
+impl CubeTiling2dConfig {
+    fn new(config: Tiling2dConfig, k: usize) -> Self {
+        let tile_size = config.tile_size_m;
+        let sm_size_lhs = config.block_size_m * config.block_size_k * tile_size;
+        let sm_size_rhs = config.block_size_k * config.block_size_n * tile_size;
+
         CubeTiling2dConfig {
-            block_size_m: UInt::new(value.block_size_m as u32),
-            block_size_k: UInt::new(value.block_size_k as u32),
-            block_size_n: UInt::new(value.block_size_n as u32),
-            unroll: value.unroll,
+            block_size_m: UInt::new(config.block_size_m as u32),
+            block_size_k: UInt::new(config.block_size_k as u32),
+            block_size_n: UInt::new(config.block_size_n as u32),
+            unroll: config.unroll,
+            check_k_bounds: k % config.block_size_k != 0,
+            sm_size_lhs: UInt::new(sm_size_lhs as u32),
+            sm_size_rhs: UInt::new(sm_size_rhs as u32),
         }
     }
 }
 
 #[derive(CubeType)]
-struct Tiling2dState {}
+struct Tiling2dState<F: Float> {
+    pub n_loops: UInt,
+    pub k: UInt,
+    pub lhs: Tensor<F>,
+    pub rhs: Tensor<F>,
+    pub out: Tensor<F>,
+    pub offset_lhs: UInt,
+    pub offset_rhs: UInt,
+    pub offset_output: UInt,
+    pub row: UInt,
+    pub col: UInt,
+    pub dim_m: UInt,
+    pub dim_k: UInt,
+    pub dim_n: UInt,
+    pub unit_col: UInt,
+    pub unit_row: UInt,
+    pub shared_lhs: SharedMemory<F>,
+    pub shared_rhs: SharedMemory<F>,
+    pub register_m: F,
+    pub register_n: F,
+    pub results: Array<F>,
+    pub lhs_stride_col: UInt,
+    pub lhs_stride_row: UInt,
+    pub rhs_stride_col: UInt,
+    pub rhs_stride_row: UInt,
+    pub out_stride_row: UInt,
+    pub out_stride_col: UInt,
+}
 
 #[cube]
 fn gather_kernel_information<F: Float>(
     lhs: Tensor<F>,
     rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    out: Tensor<F>,
     config: Comptime<CubeTiling2dConfig>,
-) -> Tiling2dState {
+) -> Tiling2dState<F> {
     // Config variables
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
-    let tile_size_m = Comptime::vectorization(lhs);
-    let tile_size_n = Comptime::vectorization(rhs);
+    let unroll = Comptime::map(config, |c| c.unroll);
+    let sm_size_lhs = Comptime::map(config, |c| c.sm_size_lhs);
+    let sm_size_rhs = Comptime::map(config, |c| c.sm_size_rhs);
+    let check_k_bounds = Comptime::map(config, |c| c.check_k_bounds);
+
+    // Assumes lhs and rhs share vectorization factor
+    let tile_size = Comptime::vectorization(lhs);
 
     // Topology info
-    let n_threads_per_row =
-        ((Comptime::get(block_size_n) - UInt::new(1)) / Comptime::get(tile_size_n)) + UInt::new(1);
-    let results_size = Comptime::get(tile_size_m) * Comptime::get(tile_size_n);
+    let n_threads_per_row = ((Comptime::runtime(block_size_n) - UInt::new(1))
+        / Comptime::runtime(tile_size))
+        + UInt::new(1);
     let local_idx = UNIT_POS;
     let batch = ABSOLUTE_POS_Z;
 
@@ -74,12 +117,12 @@ fn gather_kernel_information<F: Float>(
     let out_stride_col = out.stride(rank - UInt::new(1));
 
     // Cube offset
-    let skip_row = CUBE_POS_X * Comptime::get(block_size_m);
-    let skip_col = CUBE_POS_Y * Comptime::get(block_size_n);
+    let skip_row = CUBE_POS_X * Comptime::runtime(block_size_m);
+    let skip_col = CUBE_POS_Y * Comptime::runtime(block_size_n);
 
     // Position of the first element of the unit, relative to the cube
-    let unit_row = (local_idx / n_threads_per_row) * Comptime::get(tile_size_m);
-    let unit_col = (local_idx % n_threads_per_row) * Comptime::get(tile_size_n);
+    let unit_row = (local_idx / n_threads_per_row) * Comptime::runtime(tile_size);
+    let unit_col = (local_idx % n_threads_per_row) * Comptime::runtime(tile_size);
 
     // Position of the first element of the unit, in absolute (in one batch)
     let row = skip_row + unit_row;
@@ -93,14 +136,173 @@ fn gather_kernel_information<F: Float>(
     let mut offset_rhs = skip_col * rhs_stride_col;
 
     // Batch offset for lhs, rhs
-    for b in range(0, rank - UInt::new(2)) {
+    for b in range(0, rank - UInt::new(2), unroll) {
         let tmp = offset_output / out.stride(b);
         offset_lhs += tmp % lhs.shape(b) * lhs.stride(b);
         offset_rhs += tmp % rhs.shape(b) * rhs.stride(b);
     }
 
-    // TODO
-    let results = Array::<F>::new(results_size);
+    let results = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+
+    let shared_lhs =
+        SharedMemory::<F>::vectorized(Comptime::get(sm_size_lhs), Comptime::get(tile_size));
+    let shared_rhs =
+        SharedMemory::<F>::vectorized(Comptime::get(sm_size_rhs), Comptime::get(tile_size));
+
+    // Calculate exact number of loop iterations
+    let mut n_loops = UInt::new(0); // TODO support more syntax
+    if Comptime::get(check_k_bounds) {
+        n_loops = UInt::cast_from(F::ceil(
+            F::cast_from(dim_k) / F::cast_from(Comptime::runtime(block_size_k)),
+        ));
+    } else {
+        n_loops = dim_k / Comptime::runtime(block_size_k);
+    }
+
+    // Dummy declarations
+    let k = UInt::new(0);
+    let register_m = F::new(0.);
+    let register_n = F::new(0.);
+
+    Tiling2dState {
+        n_loops,
+        k,
+        lhs,
+        rhs,
+        out,
+        offset_lhs,
+        offset_rhs,
+        offset_output,
+        row,
+        col,
+        dim_m,
+        dim_k,
+        dim_n,
+        unit_col,
+        unit_row,
+        shared_lhs,
+        shared_rhs,
+        register_m,
+        register_n,
+        results,
+        lhs_stride_col,
+        lhs_stride_row,
+        rhs_stride_col,
+        rhs_stride_row,
+        out_stride_row,
+        out_stride_col,
+    }
+}
+
+#[cube]
+fn load_shared_memory<F: Float>(
+    kernel_state: Tiling2dState<F>,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    load_tensor(
+        kernel_state.lhs,
+        kernel_state.offset_lhs,
+        kernel_state.shared_lhs,
+        kernel_state.unit_col,
+        kernel_state.unit_row,
+        kernel_state.lhs_stride_col,
+        kernel_state.lhs_stride_row,
+        kernel_state.dim_m,
+        kernel_state.row,
+        kernel_state.k,
+        kernel_state.dim_k,
+        config,
+        Comptime::new(true),
+    );
+    load_tensor(
+        kernel_state.rhs,
+        kernel_state.offset_rhs,
+        kernel_state.shared_rhs,
+        kernel_state.unit_row,
+        kernel_state.unit_col,
+        kernel_state.rhs_stride_row,
+        kernel_state.rhs_stride_col,
+        kernel_state.dim_n,
+        kernel_state.col,
+        kernel_state.k,
+        kernel_state.dim_k,
+        config,
+        Comptime::new(false),
+    )
+}
+
+#[cube]
+fn load_tensor<F: Float>(
+    input: Tensor<F>,
+    input_offset: UInt,
+    shared_memory: SharedMemory<F>,
+    unit_idx_1: UInt,
+    unit_idx_2: UInt,
+    stride_1: UInt,
+    stride_2: UInt,
+    dim: UInt,
+    pos_in_dim: UInt,
+    k: UInt,
+    dim_k: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+    is_lhs: Comptime<bool>, // TODO support match enum
+) {
+    // No bound check version
+    let block_size_k = Comptime::map(config, |c| c.block_size_k);
+    let block_size_n = Comptime::map(config, |c| c.block_size_n);
+    let unroll = Comptime::map(config, |c| c.unroll);
+    let tile_size = Comptime::vectorization(input);
+
+    for j in range(0, Comptime::get(tile_size), unroll) {
+        let current = unit_idx_1 + j;
+
+        let mut sm_position = UInt::new(0); // TODO support more syntax
+        if current < Comptime::runtime(block_size_k) {
+            if Comptime::get(is_lhs) {
+                sm_position = current
+                    + unit_idx_2 / Comptime::runtime(tile_size) * Comptime::runtime(block_size_k);
+            } else {
+                sm_position = (current * Comptime::runtime(block_size_n) + unit_idx_2)
+                    / Comptime::runtime(tile_size)
+            }
+        }
+
+        let position_base = (k + current) * stride_1 + unit_idx_2 * stride_2 + input_offset;
+
+        let tile_size = Comptime::vectorization(input);
+        // TODO simplify when stride_2 is 1, so we can leverage already vectorized
+        let mut array = Array::<F>::new(Comptime::get(tile_size));
+        for i in range(0, Comptime::get(tile_size), unroll) {
+            array[i] = input[position_base + i * stride_2];
+        }
+
+        // TODO support syntax
+        shared_memory[sm_position] = array.to_vectorized(tile_size);
+    }
+}
+
+#[cube]
+fn computation_loop<F: Float>(
+    kernel_state: Tiling2dState<F>,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    let unit_col = kernel_state.unit_col;
+    let unit_row = kernel_state.unit_row;
+    let shared_lhs = kernel_state.shared_lhs;
+    let shared_rhs = kernel_state.shared_rhs;
+    let mut register_m = kernel_state.register_m;
+    let register_n = kernel_state.register_n;
+    let results = kernel_state.results;
+    let block_size_k = Comptime::map(config, |c| c.block_size_k);
+    let block_size_n = Comptime::map(config, |c| c.block_size_n);
+    let unroll = Comptime::map(config, |c| c.unroll);
+    let vectorization = Comptime::vectorization(kernel_state.lhs);
+
+    for dot_index in range(0, Comptime::get(block_size_k), unroll) {
+        register_m = shared_lhs[unit_row / Comptime::runtime(vectorization)
+            * Comptime::runtime(block_size_k)
+            + dot_index];
+    }
 }
 
 #[cube(launch)]
@@ -110,33 +312,27 @@ pub fn tiling2d_matmul_kernel<F: Float>(
     mut out: Tensor<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    let kernel_state = gather_kernel_information(lhs, rhs, out, config);
-    // let shader_state = gather_shader_information(scope, &self);
+    let block_size_k = Comptime::map(config, |c| c.block_size_k);
+    let kernel_state = gather_kernel_information::<F>(lhs, rhs, out, config);
 
-    // let block_size_k: Variable = self.config.block_size_k.into();
-    // cpa!(
-    //     scope,
-    //     range(0u32, shader_state.n_loops).for_each(|i, scope| {
-    //         // From 0 to K with steps block_size_k
-    //         let k = shader_state.k;
-    //         cpa!(scope, k = i * block_size_k);
+    for i in range(0u32, kernel_state.n_loops, Comptime::new(false)) {
+        let k = i * Comptime::runtime(block_size_k);
 
-    //         load_shared_memory(scope, &self, &shader_state);
+        load_shared_memory(kernel_state, config);
 
-    //         scope.register(Synchronization::SyncUnits);
+        sync_units();
 
-    //         computation_loop(scope, &self, &shader_state);
+        computation_loop(kernel_state);
 
-    //         scope.register(Synchronization::SyncUnits);
-    //     })
-    // );
+        sync_units();
+    }
 
-    // write_to_output(scope, &self, &shader_state);
+    write_to_output(kernel_state);
 }
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// written in Cube
-pub fn matmul_tiling_2d<R: JitRuntime, E: FloatElement, const D: usize>(
+pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
@@ -144,6 +340,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: FloatElement, const D: usize>(
 ) -> JitTensor<R, E, D> {
     // Bound checks can be done comptime specifically for all dims
     // let bounds_check_required = check_bound_requirement(&lhs.shape, &rhs.shape, &config);
+    let k = lhs.shape.dims[D - 1];
 
     let client = lhs.client.clone();
 
@@ -170,7 +367,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        config.into(),
+        CubeTiling2dConfig::new(config, k),
     );
 
     out

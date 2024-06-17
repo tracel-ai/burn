@@ -7,6 +7,14 @@ fn array_read_write<T: Numeric>(array_size: Comptime<u32>) {
     let _ = array[0];
 }
 
+#[cube]
+fn array_to_vectorized_variable<T: Numeric>() -> T {
+    let mut array = Array::<T>::new(2);
+    array[0] = T::from_int(0);
+    array[1] = T::from_int(1);
+    array.to_vectorized(Comptime::new(UInt::new(2)))
+}
+
 mod tests {
     use super::*;
     use burn_cube::{
@@ -23,11 +31,22 @@ mod tests {
         array_read_write_expand::<ElemType>(&mut context, 512);
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
-            inline_macro_ref()
+            inline_macro_ref_read_write()
         );
     }
 
-    fn inline_macro_ref() -> String {
+    #[test]
+    fn cube_array_to_vectorized() {
+        let mut context = CubeContext::root();
+
+        array_to_vectorized_variable_expand::<ElemType>(&mut context);
+        assert_eq!(
+            format!("{:?}", context.into_scope().operations),
+            inline_macro_ref_to_vectorized()
+        );
+    }
+
+    fn inline_macro_ref_read_write() -> String {
         let context = CubeContext::root();
         let item = Item::new(ElemType::as_elem());
 
@@ -36,13 +55,35 @@ mod tests {
         let pos: Variable = 0u32.into();
 
         // Create
-        let shared = scope.create_local_array(item, 512);
+        let array = scope.create_local_array(item, 512);
 
         // Write
-        cpa!(scope, shared[pos] = 3.0_f32);
+        cpa!(scope, array[pos] = 3.0_f32);
 
         // Read
-        cpa!(scope, var = shared[pos]);
+        cpa!(scope, var = array[pos]);
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_to_vectorized() -> String {
+        let context = CubeContext::root();
+        let scalar_item = Item::new(ElemType::as_elem());
+        let vectorized_item = Item::vectorized(ElemType::as_elem(), 2);
+
+        let mut scope = context.into_scope();
+        let pos0: Variable = 0u32.into();
+        let pos1: Variable = 1u32.into();
+        let array = scope.create_local_array(scalar_item, 2);
+        cpa!(scope, array[pos0] = 0.0_f32);
+        cpa!(scope, array[pos1] = 1.0_f32);
+
+        let vectorized_var = scope.create_local(vectorized_item);
+        let tmp = scope.create_local(scalar_item);
+        cpa!(scope, tmp = array[pos0]);
+        cpa!(scope, vectorized_var[pos0] = tmp);
+        cpa!(scope, tmp = array[pos1]);
+        cpa!(scope, vectorized_var[pos1] = tmp);
 
         format!("{:?}", scope.operations)
     }
