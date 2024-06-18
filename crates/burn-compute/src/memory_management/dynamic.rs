@@ -1,5 +1,5 @@
 use super::memory_pool::{
-    ChunkDefragmentationStrategy, MemoryPool, MemoryPoolBinding, MemoryPoolHandle, RoundingStrategy,
+    MemoryExtensionStrategy, MemoryPool, MemoryPoolBinding, MemoryPoolHandle, RoundingStrategy,
 };
 use crate::storage::ComputeStorage;
 
@@ -16,14 +16,14 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
     pub fn new(storage: Storage) -> Self {
         let main_memory_pool = MemoryPool::new(
-            ChunkDefragmentationStrategy::new_period_tick(10),
+            MemoryExtensionStrategy::new_period_tick(10),
             RoundingStrategy::RoundUp,
             1024 * 1024 * 1024 * 2,
             true,
         );
         let small_memory_pool = MemoryPool::new(
-            ChunkDefragmentationStrategy::Never,
-            RoundingStrategy::RoundUp,
+            MemoryExtensionStrategy::Never,
+            RoundingStrategy::None,
             1024 * 1024 * 512,
             false,
         );

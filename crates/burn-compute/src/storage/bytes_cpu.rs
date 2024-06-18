@@ -94,8 +94,8 @@ impl ComputeStorage for BytesStorage {
     fn copy(&mut self, from: &StorageHandle, to: &StorageHandle) {
         assert_eq!(from.size(), to.size());
 
-        let input = self.get(&from);
-        let output = self.get(&to);
+        let input = self.get(from);
+        let output = self.get(to);
 
         for i in 0..from.size() {
             let offset = i + from.offset();

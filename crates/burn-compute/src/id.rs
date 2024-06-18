@@ -55,10 +55,6 @@ where
     pub(crate) fn id(&self) -> &Id {
         &self.id
     }
-
-    pub(crate) fn can_mut(&self) -> bool {
-        Arc::strong_count(&self._all) == 2
-    }
 }
 
 impl<Id> HandleRef<Id>

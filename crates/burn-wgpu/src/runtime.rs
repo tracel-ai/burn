@@ -8,8 +8,7 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    // memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
-    memory_management::dynamic::DynamicMemoryManagement,
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
@@ -32,22 +31,22 @@ pub struct WgpuRuntime<G: GraphicsApi> {
 
 impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
     type JitDevice = WgpuDevice;
-    type JitServer = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+    type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
 static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> =
     ComputeRuntime::new();
 
-type Server = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 static SUBGROUP: AtomicBool = AtomicBool::new(false);
 
 impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
     type Compiler = wgsl::WgslCompiler;
-    type Server = WgpuServer<DynamicMemoryManagement<WgpuStorage>>;
+    type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-    type Channel = MutexComputeChannel<WgpuServer<DynamicMemoryManagement<WgpuStorage>>>;
+    type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;
     type Device = WgpuDevice;
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
@@ -88,9 +87,9 @@ impl DeviceOps for WgpuDevice {
 /// The values that control how a WGPU Runtime will perform its calculations.
 pub struct RuntimeOptions {
     /// How the buffers are deallocated.
-    // pub dealloc_strategy: MergingStrategy,
+    pub dealloc_strategy: DeallocStrategy,
     /// Control the slicing strategy.
-    // pub slice_strategy: SliceStrategy,
+    pub slice_strategy: SliceStrategy,
     /// Control the amount of compute tasks to be aggregated into a single GPU command.
     pub tasks_max: usize,
 }
@@ -107,8 +106,8 @@ impl Default for RuntimeOptions {
         };
 
         Self {
-            // dealloc_strategy: MergingStrategy::new_period_tick(1),
-            // slice_strategy: SliceStrategy::Ratio(0.1),
+            dealloc_strategy: DeallocStrategy::new_period_tick(tasks_max * 2),
+            slice_strategy: SliceStrategy::Ratio(0.8),
             tasks_max,
         }
     }
@@ -159,11 +158,12 @@ fn create_client(
     queue: Arc<wgpu::Queue>,
     options: RuntimeOptions,
 ) -> ComputeClient<
-    WgpuServer<DynamicMemoryManagement<WgpuStorage>>,
-    MutexComputeChannel<WgpuServer<DynamicMemoryManagement<WgpuStorage>>>,
+    WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
+    MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
 > {
     let storage = WgpuStorage::new(device_wgpu.clone(), queue.clone());
-    let memory_management = DynamicMemoryManagement::new(storage);
+    let memory_management =
+        SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
     let server = WgpuServer::new(memory_management, device_wgpu, queue, options.tasks_max);
     let channel = MutexComputeChannel::new(server);
     let tuner_device_id = tuner_device_id(adapter.get_info());

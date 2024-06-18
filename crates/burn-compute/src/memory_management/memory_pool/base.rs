@@ -9,7 +9,7 @@ use hashbrown::{HashMap, HashSet};
 pub struct MemoryPool {
     chunks: HashMap<ChunkId, Chunk>,
     slices: HashMap<SliceId, Slice>,
-    merging_strategy: ChunkDefragmentationStrategy,
+    memory_extension_strategy: MemoryExtensionStrategy,
     rounding: RoundingStrategy,
     chunk_index: SearchIndex<ChunkId>,
     max_chunk_size: usize,
@@ -56,7 +56,7 @@ impl RoundingStrategy {
                 }
 
                 if size < MB {
-                    return 2 * MB;
+                    2 * MB
                 } else if size < 10 * MB {
                     return 20 * MB;
                 } else {
@@ -71,7 +71,7 @@ impl RoundingStrategy {
 
 /// The strategy defines the frequency at which merging of free slices (defragmentation) occurs
 #[derive(Debug)]
-pub enum ChunkDefragmentationStrategy {
+pub enum MemoryExtensionStrategy {
     /// Once every n calls to reserve.
     PeriodTick {
         /// Number of calls to be executed before triggering the defragmentation.
@@ -83,19 +83,19 @@ pub enum ChunkDefragmentationStrategy {
     Never,
 }
 
-impl ChunkDefragmentationStrategy {
+impl MemoryExtensionStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
-        ChunkDefragmentationStrategy::PeriodTick { period, state: 0 }
+        MemoryExtensionStrategy::PeriodTick { period, state: 0 }
     }
 
-    fn should_perform_defragmentation(&mut self) -> bool {
+    fn should_extend_max_memory(&mut self) -> bool {
         match self {
-            ChunkDefragmentationStrategy::PeriodTick { period, state } => {
+            MemoryExtensionStrategy::PeriodTick { period, state } => {
                 *state = (*state + 1) % *period;
                 *state == 0
             }
-            ChunkDefragmentationStrategy::Never => false,
+            MemoryExtensionStrategy::Never => false,
         }
     }
 }
@@ -105,18 +105,9 @@ struct SliceUpdate {
     size: usize,
 }
 
-#[derive(Debug)]
-pub struct Merging {
-    start: usize,
-    end: usize,
-    offset: usize,
-    size: usize,
-    slice_ids: Vec<SliceId>,
-}
-
 impl MemoryPool {
     pub fn new(
-        merging_strategy: ChunkDefragmentationStrategy,
+        merging_strategy: MemoryExtensionStrategy,
         alloc_strategy: RoundingStrategy,
         max_chunk_size: usize,
         debug: bool,
@@ -124,7 +115,7 @@ impl MemoryPool {
         Self {
             chunks: HashMap::new(),
             slices: HashMap::new(),
-            merging_strategy,
+            memory_extension_strategy: merging_strategy,
             rounding: alloc_strategy,
             max_chunk_size,
             chunk_index: SearchIndex::new(),
@@ -155,7 +146,15 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        self.reserve_algorithm(storage, size, sync)
+        // Looks for a large enough, existing but unused chunk of memory.
+        let slice = self.get_free_slice(size);
+
+        match slice {
+            Some(slice) => MemoryPoolHandle {
+                slice: slice.clone(),
+            },
+            None => self.alloc(storage, size, sync),
+        }
     }
 
     pub fn alloc<Storage: ComputeStorage, Sync: FnOnce()>(
@@ -164,7 +163,7 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        if self.merging_strategy.should_perform_defragmentation() {
+        if self.memory_extension_strategy.should_extend_max_memory() {
             sync();
             self.extend_max_memory(storage, size);
 
@@ -240,6 +239,7 @@ impl MemoryPool {
         }
     }
 
+    #[allow(unused)]
     fn display_memory_usage(&self) {
         let total_memory_usage: f64 = self
             .chunks
@@ -254,23 +254,6 @@ impl MemoryPool {
             .sum();
         let ratio = 100.0 * effective_memory_usage / total_memory_usage;
         log::info!("the memory usage is {ratio}");
-    }
-
-    fn reserve_algorithm<Storage: ComputeStorage, Sync: FnOnce()>(
-        &mut self,
-        storage: &mut Storage,
-        size: usize,
-        sync: Sync,
-    ) -> MemoryPoolHandle {
-        // Looks for a large enough, existing but unused chunk of memory.
-        let slice = self.get_free_slice(size);
-
-        match slice {
-            Some(slice) => MemoryPoolHandle {
-                slice: slice.clone(),
-            },
-            None => self.alloc(storage, size, sync),
-        }
     }
 
     /// Finds a free slice that can contain the given size
@@ -367,7 +350,7 @@ impl MemoryPool {
 
         for chunk_id in chunks_sorted {
             let chunk = self.chunks.get(&chunk_id).unwrap();
-            let chunk_id = chunk.handle.id().clone();
+            let chunk_id = *chunk.handle.id();
             let slices_ids = chunk.slices.clone();
 
             for slice_id in slices_ids {
@@ -548,7 +531,7 @@ impl MemoryChunk<Slice> for Chunk {
     }
 
     fn slice(&self, index: usize) -> Option<SliceId> {
-        self.slices.get(index).map(Clone::clone)
+        self.slices.get(index).copied()
     }
 
     fn insert_slice(&mut self, position: usize, slice_id: SliceId) {

@@ -60,24 +60,6 @@ where
         }
     }
 
-    fn submit_partial(
-        encoder: &mut CommandEncoder,
-        queue: &wgpu::Queue,
-        device: &wgpu::Device,
-        tasks_count: &mut usize,
-        staging_belt: &mut StagingBelt,
-    ) {
-        staging_belt.finish();
-
-        let mut new_encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, encoder);
-
-        queue.submit(Some(new_encoder.finish()));
-        *tasks_count = 0;
-        staging_belt.recall();
-    }
-
     fn register_compute(
         &mut self,
         pipeline: Arc<ComputePipeline>,
@@ -233,7 +215,7 @@ where
     /// fully utilize the GPU.
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let handle = server::Handle::new(self.memory_management.reserve(data.len(), || {
-            Self::submit_partial(
+            flush_tasks(
                 &mut self.encoder,
                 &self.queue,
                 &self.device,
@@ -285,7 +267,7 @@ where
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
         server::Handle::new(self.memory_management.reserve(size, || {
-            Self::submit_partial(
+            flush_tasks(
                 &mut self.encoder,
                 &self.queue,
                 &self.device,
@@ -329,24 +311,41 @@ where
     }
 
     fn sync(&mut self, sync_type: SyncType) {
-        // Flush commands to the queue.
-        self.staging_belt.finish();
-
-        let mut new_encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        core::mem::swap(&mut new_encoder, &mut self.encoder);
-
-        self.queue.submit(Some(new_encoder.finish()));
-        self.tasks_count = 0;
+        flush_tasks(
+            &mut self.encoder,
+            &self.queue,
+            &self.device,
+            &mut self.tasks_count,
+            &mut self.staging_belt,
+        );
 
         // Cleanup allocations and deallocations.
         self.memory_management.storage().perform_deallocations();
-
-        self.staging_belt.recall();
 
         if sync_type == SyncType::Wait {
             self.device.poll(wgpu::Maintain::Wait);
         }
     }
+}
+
+/// Flush tasks using the [command encoder](CommandEncoder).
+///
+/// This implementation is decoupled from both the [server](WgpuServer) and [memory management](MemoryManagement).
+/// This decoupling allows for safe usage within sync callbacks when allocating memory buffers.
+fn flush_tasks(
+    encoder: &mut CommandEncoder,
+    queue: &wgpu::Queue,
+    device: &wgpu::Device,
+    tasks_count: &mut usize,
+    staging_belt: &mut StagingBelt,
+) {
+    staging_belt.finish();
+
+    let mut new_encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    core::mem::swap(&mut new_encoder, encoder);
+
+    queue.submit(Some(new_encoder.finish()));
+    *tasks_count = 0;
+    staging_belt.recall();
 }

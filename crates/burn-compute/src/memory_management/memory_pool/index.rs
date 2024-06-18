@@ -34,13 +34,8 @@ impl<T: PartialEq + Eq + Hash + Clone> SearchIndex<T> {
         &self,
         range: core::ops::Range<usize>,
     ) -> impl DoubleEndedIterator<Item = &T> {
-        self.items_per_size.range(range).map(|a| a.1).flatten()
+        self.items_per_size.range(range).flat_map(|a| a.1)
     }
-
-    /// Find the item by size range.
-    // pub fn find_size(&self, item: &T) -> usize {
-    //     *self.sizes_per_item.get(item).unwrap()
-    // }
 
     /// Remove an item from the index.
     pub fn remove(&mut self, item: &T) {
