@@ -4,6 +4,7 @@ use super::{
     RingBuffer, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
+use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 pub struct MemoryPool {

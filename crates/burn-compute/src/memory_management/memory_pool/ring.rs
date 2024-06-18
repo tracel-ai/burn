@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
@@ -145,6 +146,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
 mod tests {
     use super::stub::*;
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn simple_1() {
@@ -331,6 +333,7 @@ mod tests {
 #[cfg(test)]
 mod stub {
     use super::*;
+    use burn_common::*;
 
     #[derive(Debug)]
     pub struct TestChunk {
@@ -360,7 +363,7 @@ mod stub {
 
             Self {
                 id: SliceId {
-                    value: rand::random(),
+                    value: rand::gen_random(),
                 },
                 is_free: true,
                 size: size_remained,
