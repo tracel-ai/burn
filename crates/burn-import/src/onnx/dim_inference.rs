@@ -55,6 +55,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
+        NodeType::ReduceMin => reduce_min_update_outputs(node),
         NodeType::ReduceMean => reduce_mean_update_outputs(node),
         NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
@@ -712,6 +713,30 @@ fn reduce_max_update_outputs(node: &mut Node) {
         // `.into_scalar()` on the result of `tensor.max()`
         // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
         // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
+        node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
+    }
+}
+
+fn reduce_min_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("ReduceMin: multiple inputs are not supported");
+    }
+    let node_input = &mut node.inputs[0];
+    let tensor = match node_input.clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+    if dim_only {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }

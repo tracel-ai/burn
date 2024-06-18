@@ -52,6 +52,7 @@ fn main() {
         .input("tests/leaky_relu/leaky_relu.onnx")
         .input("tests/prelu/prelu.onnx")
         .input("tests/reduce_max/reduce_max.onnx")
+        .input("tests/reduce_min/reduce_min.onnx")
         .input("tests/reduce_mean/reduce_mean.onnx")
         .input("tests/reduce_sum/reduce_sum_opset13.onnx")
         .input("tests/reduce_sum/reduce_sum_opset11.onnx")

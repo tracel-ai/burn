@@ -33,6 +33,7 @@ pub enum UnaryNodeKind {
     Neg,
     Not,
     ReduceMax,
+    ReduceMin,
     ReduceMean,
     ReduceSum,
     Reciprocal,
@@ -62,6 +63,7 @@ impl UnaryNodeKind {
             Self::Neg => "neg",
             Self::Not => "not",
             Self::ReduceMax => "reduce_max",
+            Self::ReduceMin => "reduce_min",
             Self::ReduceMean => "reduce_mean",
             Self::ReduceSum => "reduce_sum",
             Self::Reciprocal => "reciprocal",
@@ -328,6 +330,35 @@ impl UnaryNode {
             }
         } else {
             panic!("ReduceMax only supports tensor output");
+        }
+    }
+
+    pub(crate) fn reduce_min(input: Type, output: Type, dim: Option<usize>) -> Self {
+        if let Type::Tensor(ref tensor) = output {
+            if let Some(dim) = dim {
+                if tensor.kind == TensorKind::Bool {
+                    // Min is only implemented on numeric tensors
+                    panic!("ReduceMin is not supported for boolean");
+                }
+                // ReduceMin, keepdims=1, axes=[dim]
+                let dim = dim.to_tokens();
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMin,
+                    Rc::new(move |input| quote! { #input.min_dim(#dim) }),
+                )
+            } else {
+                // ReduceMin, keepdims=0, axes=None
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceMin,
+                    Rc::new(move |input| quote! { #input.min() }),
+                )
+            }
+        } else {
+            panic!("ReduceMin only supports tensor output");
         }
     }
 
@@ -620,6 +651,43 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
                     let tensor2 = tensor1.max();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_reduce_min() {
+        one_node_graph(
+            UnaryNode::reduce_min(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Some(1),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.min_dim(1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::reduce_min(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+                None,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.min();
 
                     tensor2
                 }
