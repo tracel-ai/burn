@@ -15,6 +15,7 @@ pub trait Numeric:
     + LaunchArg
     + CubeElem
     + std::ops::Add<Output = Self>
+    + std::ops::Add<f32, Output = Self>
     + std::ops::AddAssign
     + std::ops::SubAssign
     + std::ops::MulAssign
@@ -22,6 +23,7 @@ pub trait Numeric:
     + std::ops::Sub<Output = Self>
     + std::ops::Mul<Output = Self>
     + std::ops::Div<Output = Self>
+    + std::ops::Div<f32, Output = Self>
     + std::cmp::PartialOrd
     + Abs
     + Max

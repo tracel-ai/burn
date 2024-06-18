@@ -1,9 +1,11 @@
 use crate::compute::{CubeCount, KernelTask};
 use crate::ir::{Elem, FloatKind, IntKind};
+use crate::prelude::ArrayHandle;
 use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, Kernel, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;
+use num_traits::ToPrimitive;
 
 /// Prepare a kernel for [launch](KernelLauncher::launch).
 pub struct KernelLauncher<R: Runtime> {
@@ -22,6 +24,11 @@ impl<R: Runtime> KernelLauncher<R> {
     /// Register a tensor to be launched.
     pub fn register_tensor(&mut self, tensor: &TensorHandle<'_, R>) {
         self.tensors.push(tensor);
+    }
+
+    /// Register an array to be launched.
+    pub fn register_array(&mut self, array: &ArrayHandle<'_, R>) {
+        self.tensors.push(&array.as_tensor());
     }
 
     /// Register a u32 scalar to be launched.
@@ -133,6 +140,17 @@ pub enum TensorState<R: Runtime> {
     },
 }
 
+/// Handles the tensor state.
+pub enum ArrayState<R: Runtime> {
+    /// No array is registered yet.
+    Empty,
+    /// The registered arrays.
+    Some {
+        bindings: Vec<Binding<R::Server>>,
+        lengths: Vec<u32>,
+    },
+}
+
 /// Handles the scalar state of an element type
 ///
 /// The scalars are grouped to reduce the number of buffers needed to send data to the compute device.
@@ -165,21 +183,67 @@ impl<R: Runtime> TensorState<R> {
 
         bindings.push(tensor.handle.clone().binding());
 
-        if metadata.is_empty() {
-            metadata.push(tensor.strides.len() as u32);
-        }
+        let rank = if metadata.is_empty() {
+            let rank = tensor.strides.len() as u32;
+            metadata.push(rank);
+            rank
+        } else if tensor.strides.len() > metadata[0] as usize {
+            let rank = tensor.strides.len() as u32;
+            Self::adjust_rank(metadata, bindings.len(), rank);
+            rank
+        } else {
+            metadata[0]
+        };
 
-        for s in tensor.strides.iter() {
-            metadata.push(*s as u32);
-        }
-
-        for s in tensor.shape.iter() {
-            metadata.push(*s as u32);
-        }
+        Self::register_strides(&tensor.strides, rank, metadata);
+        Self::register_shape(&tensor.shape, rank, metadata);
 
         if R::require_array_lengths() {
             let len = calculate_num_elems_dyn_rank(tensor.shape);
             lengths.push(len as u32);
+        }
+    }
+
+    fn adjust_rank(metadata: &mut Vec<u32>, num_registered: usize, rank: u32) {
+        let old_rank = metadata[0] as usize;
+        let rank_diff = rank as usize - old_rank;
+        let mut updated_metadata = Vec::with_capacity(2 * rank_diff * num_registered);
+
+        for pos in 0..num_registered {
+            let stride_index = (pos * old_rank * 2) + 1;
+            let strides_old = &metadata[stride_index..stride_index + old_rank];
+            Self::register_strides(strides_old, rank, &mut updated_metadata);
+
+            let shape_index = stride_index + old_rank;
+            let shape_old = &metadata[shape_index..shape_index + old_rank];
+            Self::register_shape(shape_old, rank, &mut updated_metadata);
+        }
+
+        core::mem::swap(&mut updated_metadata, metadata);
+    }
+
+    fn register_strides<T: ToPrimitive>(strides: &[T], rank: u32, output: &mut Vec<u32>) {
+        let padded_strides = strides[0].to_u32().unwrap();
+        let rank_diff = rank as usize - strides.len();
+
+        for _ in 0..rank_diff {
+            output.push(padded_strides.to_u32().unwrap());
+        }
+
+        for i in 0..strides.len() {
+            output.push(strides[i].to_u32().unwrap());
+        }
+    }
+
+    fn register_shape<T: ToPrimitive>(shape: &[T], rank: u32, output: &mut Vec<u32>) {
+        let rank_diff = rank as usize - shape.len();
+
+        for _ in 0..rank_diff {
+            output.push(1);
+        }
+
+        for i in 0..shape.len() {
+            output.push(shape[i].to_u32().unwrap());
         }
     }
 
@@ -205,6 +269,7 @@ impl<R: Runtime> TensorState<R> {
         }
     }
 }
+
 impl<T: NoUninit> ScalarState<T> {
     /// Add a new scalar value to the state.
     pub fn push(&mut self, val: T) {

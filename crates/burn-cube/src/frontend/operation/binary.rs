@@ -23,6 +23,13 @@ pub mod add {
                     unexpanded!()
                 }
             }
+            impl core::ops::Add<f32> for $type {
+                type Output = Self;
+
+                fn add(self, _rhs: f32) -> Self::Output {
+                    unexpanded!()
+                }
+            }
         };
     }
 
@@ -116,6 +123,14 @@ pub mod div {
                 type Output = Self;
 
                 fn div(self, _rhs: Self) -> Self::Output {
+                    unexpanded!()
+                }
+            }
+
+            impl core::ops::Div<f32> for $type {
+                type Output = Self;
+
+                fn div(self, _rhs: f32) -> Self::Output {
                     unexpanded!()
                 }
             }
