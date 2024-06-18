@@ -4,9 +4,8 @@ use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Applies the rectified linear unit function element-wise
+/// Applies the tanh activation function element-wise
 /// See also [tanh](burn::tensor::activation::tanh)
-///
 #[derive(Module, Clone, Debug, Default)]
 pub struct Tanh {}
 
