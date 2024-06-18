@@ -291,7 +291,7 @@ mod tests {
     fn dont_override_constant_module_when_loading_record() {
         let module = Some(42);
 
-        let record = Module::<TestBackend>::into_record(module.clone());
+        let record = Module::<TestBackend>::into_record(module);
         let loaded = Module::<TestBackend>::load_record(module, record);
 
         assert_eq!(loaded, module);
