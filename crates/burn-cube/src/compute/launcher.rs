@@ -140,17 +140,6 @@ pub enum TensorState<R: Runtime> {
     },
 }
 
-/// Handles the tensor state.
-pub enum ArrayState<R: Runtime> {
-    /// No array is registered yet.
-    Empty,
-    /// The registered arrays.
-    Some {
-        bindings: Vec<Binding<R::Server>>,
-        lengths: Vec<u32>,
-    },
-}
-
 /// Handles the scalar state of an element type
 ///
 /// The scalars are grouped to reduce the number of buffers needed to send data to the compute device.
@@ -195,7 +184,7 @@ impl<R: Runtime> TensorState<R> {
             metadata[0]
         };
 
-        Self::register_strides(&tensor.strides, rank, metadata);
+        Self::register_strides(&tensor.strides, &tensor.shape, rank, metadata);
         Self::register_shape(&tensor.shape, rank, metadata);
 
         if R::require_array_lengths() {
@@ -211,20 +200,30 @@ impl<R: Runtime> TensorState<R> {
 
         for pos in 0..num_registered {
             let stride_index = (pos * old_rank * 2) + 1;
-            let strides_old = &metadata[stride_index..stride_index + old_rank];
-            Self::register_strides(strides_old, rank, &mut updated_metadata);
-
             let shape_index = stride_index + old_rank;
+
+            let strides_old = &metadata[stride_index..stride_index + old_rank];
             let shape_old = &metadata[shape_index..shape_index + old_rank];
+
+            Self::register_strides(strides_old, shape_old, rank, &mut updated_metadata);
             Self::register_shape(shape_old, rank, &mut updated_metadata);
         }
 
         core::mem::swap(&mut updated_metadata, metadata);
     }
 
-    fn register_strides<T: ToPrimitive>(strides: &[T], rank: u32, output: &mut Vec<u32>) {
-        let padded_strides = strides[0].to_u32().unwrap();
+    fn register_strides<T: ToPrimitive>(
+        strides: &[T],
+        shape: &[T],
+        rank: u32,
+        output: &mut Vec<u32>,
+    ) {
         let rank_diff = rank as usize - strides.len();
+        let padded_strides = if rank_diff > 0 {
+            shape.into_iter().map(|a| a.to_u32().unwrap()).sum::<u32>()
+        } else {
+            0
+        };
 
         for _ in 0..rank_diff {
             output.push(padded_strides.to_u32().unwrap());
