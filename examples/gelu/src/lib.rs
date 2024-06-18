@@ -14,7 +14,7 @@ fn gelu_scalar<F: Float>(x: F) -> F {
 
 pub fn launch<R: Runtime>(device: &R::Device) {
     let client = R::client(device);
-    println!("Executin gelu from runtime {}", R::name());
+    println!("Executing gelu with runtime {:?}", R::name());
 
     let input = &[-1., 0., 1., 5.];
     let input_handle = client.create(f32::as_bytes(input));
