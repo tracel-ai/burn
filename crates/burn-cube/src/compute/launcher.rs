@@ -184,8 +184,8 @@ impl<R: Runtime> TensorState<R> {
             metadata[0]
         };
 
-        Self::register_strides(&tensor.strides, &tensor.shape, rank, metadata);
-        Self::register_shape(&tensor.shape, rank, metadata);
+        Self::register_strides(tensor.strides, tensor.shape, rank, metadata);
+        Self::register_shape(tensor.shape, rank, metadata);
 
         if R::require_array_lengths() {
             let len = calculate_num_elems_dyn_rank(tensor.shape);
@@ -220,7 +220,7 @@ impl<R: Runtime> TensorState<R> {
     ) {
         let rank_diff = rank as usize - strides.len();
         let padded_strides = if rank_diff > 0 {
-            shape.into_iter().map(|a| a.to_u32().unwrap()).sum::<u32>()
+            shape.iter().map(|a| a.to_u32().unwrap()).sum::<u32>()
         } else {
             0
         };
@@ -229,8 +229,8 @@ impl<R: Runtime> TensorState<R> {
             output.push(padded_strides.to_u32().unwrap());
         }
 
-        for i in 0..strides.len() {
-            output.push(strides[i].to_u32().unwrap());
+        for stride in strides {
+            output.push(stride.to_u32().unwrap());
         }
     }
 
@@ -241,8 +241,8 @@ impl<R: Runtime> TensorState<R> {
             output.push(1);
         }
 
-        for i in 0..shape.len() {
-            output.push(shape[i].to_u32().unwrap());
+        for elem in shape {
+            output.push(elem.to_u32().unwrap());
         }
     }
 

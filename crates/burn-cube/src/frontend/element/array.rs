@@ -56,7 +56,7 @@ impl<'a, R: Runtime> ArrayHandle<'a, R> {
         }
     }
 
-    pub fn as_tensor<'b>(&'b self) -> TensorHandle<'b, R> {
+    pub fn as_tensor(&self) -> TensorHandle<'_, R> {
         let shape = &self.length;
 
         TensorHandle {
