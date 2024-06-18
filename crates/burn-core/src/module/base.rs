@@ -97,17 +97,18 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     ///
     /// # Notes
     ///
-    /// This is similar to [to_device](Module::to_device), but it ensures the module will
-    /// have its own autodiff graph.
+    /// This is similar to [to_device](Module::to_device), but it ensures the output module on the
+    /// new device will have its own autodiff graph.
     fn fork(self, device: &B::Device) -> Self;
 
     /// Move the module and all of its sub-modules to the given device.
     ///
     /// # Warnings
     ///
-    /// The device operations will be registered in the autodiff graph. Therefore, be sure to call
-    /// backward only one time even if you have the same module on multiple devices. If you want to
-    /// call backward multiple times, look into using [fork](Module::fork) instead.
+    /// The operation supports autodiff and it will be registered when activated. However, this may
+    /// not be what you want. The output model will be an intermediary model, meaning that you
+    /// can't optimize it with gradient descent. If you want to optimize the output network on the
+    /// target device, use [fork](Module::fork) instead.
     fn to_device(self, device: &B::Device) -> Self;
 
     /// Each tensor in the module tree will not require grad.
