@@ -200,7 +200,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, removing unused slices, and chunks if permitted by deallocation strategy.
-    fn reserve(&mut self, size: usize) -> Self::Handle {
+    fn reserve<Sync: FnOnce()>(&mut self, size: usize, _sync: Sync) -> Self::Handle {
         self.cleanup_slices();
 
         let handle = self.reserve_algorithm(size);
@@ -212,7 +212,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
         handle
     }
 
-    fn alloc(&mut self, size: usize) -> Self::Handle {
+    fn alloc<Sync: FnOnce()>(&mut self, size: usize, _sync: Sync) -> Self::Handle {
         self.create_chunk(size)
     }
 
@@ -387,6 +387,12 @@ mod tests {
         storage::BytesStorage,
     };
 
+    impl<Storage: ComputeStorage> SimpleMemoryManagement<Storage> {
+        fn reserve_no_sync(&mut self, size: usize) -> SimpleHandle {
+            self.reserve(size, || {})
+        }
+    }
+
     #[test]
     fn can_mut_with_single_tensor_reference() {
         let mut memory_management = SimpleMemoryManagement::new(
@@ -429,8 +435,8 @@ mod tests {
             SliceStrategy::Never,
         );
         let chunk_size = 4;
-        let _chunk_handle = memory_management.reserve(chunk_size);
-        let _new_handle = memory_management.reserve(chunk_size);
+        let _chunk_handle = memory_management.reserve_no_sync(chunk_size);
+        let _new_handle = memory_management.reserve_no_sync(chunk_size);
 
         assert_eq!(memory_management.chunks.len(), 2);
     }
@@ -443,7 +449,7 @@ mod tests {
             SliceStrategy::Never,
         );
         let chunk_size = 4;
-        let chunk_handle = memory_management.reserve(chunk_size);
+        let chunk_handle = memory_management.reserve_no_sync(chunk_size);
         drop(chunk_handle);
         memory_management.cleanup_chunks();
 
@@ -502,7 +508,7 @@ mod tests {
             DeallocStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
-        let handle = memory_management.reserve(10);
+        let handle = memory_management.reserve_no_sync(10);
 
         let other_ref = handle.clone();
 
@@ -518,7 +524,7 @@ mod tests {
             DeallocStrategy::Never,
             SliceStrategy::Ratio(0.5),
         );
-        let chunk = memory_management.reserve(10);
+        let chunk = memory_management.reserve_no_sync(10);
 
         if let super::SimpleHandle::Slice(_) = chunk {
             panic!("Should be a chunk.")
@@ -526,7 +532,7 @@ mod tests {
 
         drop(chunk);
 
-        let slice = memory_management.reserve(8);
+        let slice = memory_management.reserve_no_sync(8);
 
         if let super::SimpleHandle::Chunk(_) = &slice {
             panic!("Should be a slice.")

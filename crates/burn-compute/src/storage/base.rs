@@ -18,7 +18,7 @@ pub enum StorageUtilization {
 }
 
 /// Contains the [storage id](StorageId) of a resource and the way it is used.
-#[derive(new, Debug)]
+#[derive(new, Clone, Debug)]
 pub struct StorageHandle {
     /// Storage id.
     pub id: StorageId,
@@ -58,4 +58,7 @@ pub trait ComputeStorage: Send {
 
     /// Deallocates the memory pointed by the given storage id.
     fn dealloc(&mut self, id: StorageId);
+
+    /// Copy
+    fn copy(&mut self, from: &StorageHandle, to: &StorageHandle);
 }

@@ -156,7 +156,7 @@ fn create_client(
     WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
     MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
 > {
-    let storage = WgpuStorage::new(device_wgpu.clone());
+    let storage = WgpuStorage::new(device_wgpu.clone(), queue.clone());
     let memory_management =
         SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
     let server = WgpuServer::new(memory_management, device_wgpu, queue, options.tasks_max);

@@ -97,23 +97,17 @@ where
 #[macro_export(local_inner_macros)]
 /// Create new memory ID types.
 macro_rules! memory_id_type {
-    ($id:ident, $handle:ident, $binding:ident) => {
+    ($id:ident, $handle:ident) => {
         /// Memory Handle.
         #[derive(Clone, Debug)]
         pub struct $handle {
             value: $crate::id::HandleRef<$id>,
         }
 
-        /// Binding of a memory handle.
-        #[derive(Clone, Debug)]
-        pub struct $binding {
-            value: $crate::id::BindingRef<$id>,
-        }
-
         /// Memory ID.
         #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
         pub struct $id {
-            value: usize,
+            pub(crate) value: usize,
         }
 
         impl $handle {
@@ -122,12 +116,6 @@ macro_rules! memory_id_type {
                 let value = Self::gen_id();
                 Self {
                     value: $crate::id::HandleRef::new($id { value }),
-                }
-            }
-
-            pub(crate) fn binding(self) -> $binding {
-                $binding {
-                    value: self.value.binding(),
                 }
             }
 
@@ -152,17 +140,35 @@ macro_rules! memory_id_type {
             }
         }
 
+        impl Default for $handle {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+
+    ($id:ident, $handle:ident, $binding:ident) => {
+        memory_id_type!($id, $handle);
+
+        /// Binding of a memory handle.
+        #[derive(Clone, Debug)]
+        pub struct $binding {
+            value: $crate::id::BindingRef<$id>,
+        }
+
+        impl $handle {
+            pub(crate) fn binding(self) -> $binding {
+                $binding {
+                    value: self.value.binding(),
+                }
+            }
+        }
+
         impl core::ops::Deref for $binding {
             type Target = $crate::id::BindingRef<$id>;
 
             fn deref(&self) -> &Self::Target {
                 &self.value
-            }
-        }
-
-        impl Default for $handle {
-            fn default() -> Self {
-                Self::new()
             }
         }
     };
