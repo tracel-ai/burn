@@ -1,0 +1,26 @@
+[project]
+name = "onnx-tests"
+version = "0.1.0"
+description = "project for testing ONNX support"
+authors = []
+dependencies = [
+    "torch>=2.3.1",
+    "onnx>=1.16.1",
+    "onnxruntime>=1.18.0",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/onnx_tests"]
