@@ -12,7 +12,6 @@ pub trait Element:
     + ElementConversion
     + ElementPrecision
     + ElementComparison
-    // + bytemuck::Pod
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
     + core::fmt::Debug
