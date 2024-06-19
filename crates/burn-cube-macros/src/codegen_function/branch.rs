@@ -24,7 +24,7 @@ pub(crate) fn codegen_for_loop(
         variable_tracker.codegen_declare(id.to_string(), loop_level as u8 + 1);
     }
 
-    let invalid_foor_loop = || {
+    let invalid_for_loop = || {
         syn::Error::new_spanned(
             &for_loop.expr,
             "Invalid for loop: use [range](cubecl::prelude::range] instead.",
@@ -37,10 +37,10 @@ pub(crate) fn codegen_for_loop(
             let func_name = match call.func.as_ref() {
                 syn::Expr::Path(path) => match path.path.get_ident() {
                     Some(ident) => ident,
-                    None => return invalid_foor_loop(),
+                    None => return invalid_for_loop(),
                 },
                 _ => {
-                    return invalid_foor_loop();
+                    return invalid_for_loop();
                 }
             };
 
@@ -74,10 +74,10 @@ pub(crate) fn codegen_for_loop(
                     }
                 }
             } else {
-                invalid_foor_loop()
+                invalid_for_loop()
             }
         }
-        _ => invalid_foor_loop(),
+        _ => invalid_for_loop(),
     }
 }
 
