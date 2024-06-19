@@ -96,10 +96,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         let field = &self.field.name;
 
         quote! {
-            let output_size_raw = #output_size.to_data().value;
+            let output_size_data = #output_size.to_data();
             let mut output_size = [0usize; 2];
 
-            for (i, &x) in output_size_raw.iter().rev().take(2).rev().enumerate() {
+            for (i, &x) in output_size_data.as_slice::<B::IntElem>().unwrap().iter().rev().take(2).rev().enumerate() {
                 output_size[i] = x.elem::<i64>() as usize;
             }
 
@@ -188,10 +188,10 @@ mod tests {
                     tensor1: Tensor<B, 4>,
                     output_size: Tensor<B, 1, Int>
                 ) -> Tensor<B, 4> {
-                    let output_size_raw = output_size.to_data().value;
+                    let output_size_data = output_size.to_data();
                     let mut output_size = [0usize; 2];
 
-                    for (i, &x) in output_size_raw.iter().rev().take(2).rev().enumerate() {
+                    for (i, &x) in output_size_data.as_slice::<B::IntElem>().unwrap().iter().rev().take(2).rev().enumerate() {
                         output_size[i] = x.elem::<i64>() as usize;
                     }
 
