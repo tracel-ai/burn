@@ -1,15 +1,49 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Int, Tensor, TensorData};
+use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
-/// Data deserialization with backward compatibility.
+#[cfg(feature = "record-backward-compat")]
+use burn_tensor::DataSerialize;
+
+/// Versioned serde data deserialization to maintain backward compatibility between formats.
+#[cfg(feature = "record-backward-compat")]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
-enum DataDeserialize<const D: usize, E> {
+enum TensorDataSerde<const D: usize, E> {
     V1(DataSerialize<E>),
     V2(TensorData<D>),
+}
+
+/// Deserialize the value into [`TensorData`].
+fn deserialize_data<'de, const D: usize, E, De>(
+    deserializer: De,
+) -> Result<TensorData<D>, De::Error>
+where
+    E: Element + Deserialize<'de>,
+    De: serde::Deserializer<'de>,
+{
+    #[cfg(feature = "record-backward-compat")]
+    {
+        let data = match TensorDataSerde::<D, E>::deserialize(deserializer)? {
+            TensorDataSerde::V1(data) => data.into_tensor_data(),
+            // NOTE: loading f32 weights with f16 precision will deserialize the f32 weights (bytes) first and then convert to f16
+            TensorDataSerde::V2(data) => data.convert::<E>(),
+        };
+        Ok(data)
+    }
+
+    #[cfg(not(feature = "record-backward-compat"))]
+    {
+        let data = TensorData::deserialize(deserializer).map_err(|e| {
+            eprintln!(
+                "\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag. Once you have saved the record in the new format, you can disable the feature flag.\n"
+            );
+            e
+        })?;
+        Ok(data.convert::<E>())
+    }
 }
 
 /// This struct implements serde to lazily serialize and deserialize a float tensor
@@ -50,11 +84,7 @@ impl<'de, const D: usize, S: PrecisionSettings> Deserialize<'de> for FloatTensor
     where
         De: serde::Deserializer<'de>,
     {
-        let data = match DataDeserialize::<D, S::FloatElem>::deserialize(deserializer)? {
-            DataDeserialize::V1(data) => data.into_tensor_data(),
-            // NOTE: loading f32 weights with f16 precision will deserialize the f32 weights (bytes) first and then convert to f16
-            DataDeserialize::V2(data) => data.convert::<S::FloatElem>(),
-        };
+        let data = deserialize_data::<D, S::FloatElem, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -74,10 +104,7 @@ impl<'de, const D: usize, S: PrecisionSettings> Deserialize<'de> for IntTensorSe
     where
         De: serde::Deserializer<'de>,
     {
-        let data = match DataDeserialize::<D, S::IntElem>::deserialize(deserializer)? {
-            DataDeserialize::V1(data) => data.into_tensor_data(),
-            DataDeserialize::V2(data) => data,
-        };
+        let data = deserialize_data::<D, S::IntElem, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -97,10 +124,7 @@ impl<'de, const D: usize> Deserialize<'de> for BoolTensorSerde<D> {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = match DataDeserialize::<D, bool>::deserialize(deserializer)? {
-            DataDeserialize::V1(data) => data.into_tensor_data(),
-            DataDeserialize::V2(data) => data.convert::<bool>(),
-        };
+        let data = deserialize_data::<D, bool, De>(deserializer)?;
 
         Ok(Self::new(data))
     }

@@ -32,7 +32,6 @@ pub struct TensorData<const D: usize> {
     value: Vec<u8>,
 
     /// The shape of the tensor.
-    #[serde(flatten)]
     pub shape: Shape<D>,
 
     /// The data type of the tensor.

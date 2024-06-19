@@ -174,7 +174,6 @@ impl NestedValue {
     {
         let deserializer = Deserializer::<A>::new(self, false);
 
-        println!("try_into_record");
         let item = T::Item::deserialize(deserializer)?;
 
         // Convert the deserialized item into a Record instance
