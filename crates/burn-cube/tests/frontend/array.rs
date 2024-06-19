@@ -15,6 +15,13 @@ fn array_to_vectorized_variable<T: Numeric>() -> T {
     array.to_vectorized(Comptime::new(UInt::new(2)))
 }
 
+#[cube]
+fn array_of_one_to_vectorized_variable<T: Numeric>() -> T {
+    let mut array = Array::<T>::new(1);
+    array[0] = T::from_int(3);
+    array.to_vectorized(Comptime::new(UInt::new(1)))
+}
+
 mod tests {
     use super::*;
     use burn_cube::{
@@ -43,6 +50,17 @@ mod tests {
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref_to_vectorized()
+        );
+    }
+
+    #[test]
+    fn cube_array_of_one_to_vectorized() {
+        let mut context = CubeContext::root();
+
+        array_of_one_to_vectorized_variable_expand::<ElemType>(&mut context);
+        assert_eq!(
+            format!("{:?}", context.into_scope().operations),
+            inline_macro_ref_one_to_vectorized()
         );
     }
 
@@ -84,6 +102,24 @@ mod tests {
         cpa!(scope, vectorized_var[pos0] = tmp);
         cpa!(scope, tmp = array[pos1]);
         cpa!(scope, vectorized_var[pos1] = tmp);
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_one_to_vectorized() -> String {
+        let context = CubeContext::root();
+        let scalar_item = Item::new(ElemType::as_elem());
+        let unvectorized_item = Item::new(ElemType::as_elem());
+
+        let mut scope = context.into_scope();
+        let pos0: Variable = 0u32.into();
+        let array = scope.create_local_array(scalar_item, 1);
+        cpa!(scope, array[pos0] = 3.0_f32);
+
+        let unvectorized_var = scope.create_local(unvectorized_item);
+        let tmp = scope.create_local(scalar_item);
+        cpa!(scope, tmp = array[pos0]);
+        cpa!(scope, unvectorized_var = tmp);
 
         format!("{:?}", scope.operations)
     }

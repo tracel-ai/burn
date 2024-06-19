@@ -489,9 +489,9 @@ fn write_to_output<F: Float>(
         // TODO: it's a pain to put a debug value in output if it's vectorized
         let print_value = out_stride_row;
         let mut out = Array::<F>::new(Comptime::get(tile_size));
-        // for i in range(0u32, Comptime::get(tile_size), unroll) {
-        out[3] = F::cast_from(print_value) + F::new(10.);
-        // }
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            out[i] = F::cast_from(print_value) + F::new(10.);
+        }
 
         kernel_state.out[row_index + col_index + offset_output] = out.to_vectorized(tile_size);
         // kernel_state.out[res_idx_m] = out.to_vectorized(tile_size);
@@ -550,7 +550,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
-    let vectorization_factor = 4;
+    let vectorization_factor = 1;
     let settings = KernelSettings::default()
         .vectorize_input(0, vectorization_factor)
         .vectorize_input(1, vectorization_factor)

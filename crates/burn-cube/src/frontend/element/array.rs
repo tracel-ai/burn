@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     frontend::{indexation::Index, CubeContext, CubeElem, CubeType},
     ir::{Item, Variable},
-    prelude::{index, index_assign, Comptime},
+    prelude::{assign, index, index_assign, Comptime},
     unexpanded,
 };
 
@@ -94,9 +94,14 @@ impl<T: CubeElem> ArrayExpand<T> {
             T::as_elem(),
             vectorization_factor.val as u8,
         ));
-        for i in 0..factor {
-            let element = index::expand(context, self.val.clone(), i);
-            new_var = index_assign::expand(context, new_var, i, element);
+        if vectorization_factor.val == 1 {
+            let element = index::expand(context, self.val.clone(), 0);
+            assign::expand(context, element, new_var.clone());
+        } else {
+            for i in 0..factor {
+                let element = index::expand(context, self.val.clone(), i);
+                new_var = index_assign::expand(context, new_var, i, element);
+            }
         }
         new_var
     }
