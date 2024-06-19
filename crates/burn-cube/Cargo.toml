@@ -31,3 +31,6 @@ burn-cube-macros = { path = "../burn-cube-macros", version = "0.14.0" }
 derive-new = { workspace = true }
 
 log = { workspace = true }
+
+[dev-dependencies]
+trybuild = "1"

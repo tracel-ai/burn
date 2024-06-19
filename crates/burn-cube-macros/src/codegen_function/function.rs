@@ -41,11 +41,12 @@ pub(crate) fn codegen_closure(
                 if let syn::Pat::Ident(ident) = &*pat_type.pat {
                     &ident.ident
                 } else {
-                    panic!("Codegen: Unsupported {:?}", input);
+                    return syn::Error::new_spanned(pat_type, "Unsupported input")
+                        .into_compile_error();
                 },
                 Some(pat_type.ty.clone()),
             ),
-            _ => panic!("Codegen: Unsupported {:?}", input),
+            _ => return syn::Error::new_spanned(input, "Unsupported input").into_compile_error(),
         };
 
         if let Some(ty) = ty {

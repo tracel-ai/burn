@@ -1,0 +1,5 @@
+error: Range is not supported, use [range](cubecl::prelude::range) instead.
+ --> tests/error/range.rs:5:5
+  |
+5 |     0..10;
+  |     ^^^^^

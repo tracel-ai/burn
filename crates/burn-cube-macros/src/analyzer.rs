@@ -251,7 +251,12 @@ impl VariableAnalyzer {
                     self.find_occurrences_in_expr(&field.expr, depth)
                 }
             }
-            _ => todo!("Analysis: unsupported expr {expr:?}"),
+            syn::Expr::Range(_range) => {
+                // Error is handled during codegen.
+            }
+            _ => {
+                // Error is handled during codegen.
+            }
         }
     }
 }

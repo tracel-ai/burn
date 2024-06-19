@@ -49,7 +49,12 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 
     let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-    let cube = codegen_cube(&func, &mut variable_tracker);
+    let mut cube = codegen_cube(&func, &mut variable_tracker);
+
+    for err in variable_tracker.errors.drain(..) {
+        cube.extend(err.to_compile_error());
+    }
+
     let code: TokenStream = if launch {
         let launch = codegen_launch(&func.sig);
 
