@@ -24,14 +24,24 @@ pub(crate) fn codegen_for_loop(
         variable_tracker.codegen_declare(id.to_string(), loop_level as u8 + 1);
     }
 
+    let invalid_foor_loop = || {
+        syn::Error::new_spanned(
+            &for_loop.expr,
+            "Invalid for loop: use [range](cubecl::prelude::range] instead.",
+        )
+        .into_compile_error()
+    };
+
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {
-                syn::Expr::Path(path) => path
-                    .path
-                    .get_ident()
-                    .expect("Codegen: func in for loop should have ident"),
-                _ => todo!("Codegen: Only path call supported"),
+                syn::Expr::Path(path) => match path.path.get_ident() {
+                    Some(ident) => ident,
+                    None => return invalid_foor_loop(),
+                },
+                _ => {
+                    return invalid_foor_loop();
+                }
             };
 
             if &func_name.to_string() == "range" {
@@ -64,10 +74,10 @@ pub(crate) fn codegen_for_loop(
                     }
                 }
             } else {
-                todo!("Codegen: Only range is supported")
+                invalid_foor_loop()
             }
         }
-        _ => todo!("Codegen: Only call is supported {for_loop:?}"),
+        _ => invalid_foor_loop(),
     }
 }
 

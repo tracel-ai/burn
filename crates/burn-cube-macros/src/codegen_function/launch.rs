@@ -83,7 +83,7 @@ impl Codegen {
                         codegen.state_inputs.push((ident.clone(), *ty));
                     }
                 }
-                _ => todo!("Only Typed inputs are supported"),
+                _ => panic!("Only Typed inputs are supported"),
             };
         }
 

@@ -93,7 +93,12 @@ pub(crate) fn codegen_call(
             }
             path
         }
-        _ => todo!("Codegen: func call {:?} not supported", call.func),
+        _ => {
+            return (
+                syn::Error::new_spanned(&call.func, "Unsupported").into_compile_error(),
+                false,
+            )
+        }
     };
 
     // Path
