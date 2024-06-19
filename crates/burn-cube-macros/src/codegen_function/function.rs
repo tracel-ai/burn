@@ -143,6 +143,16 @@ pub(crate) fn codegen_call(
                     }
                 }
             }
+            "zip" => {
+                let args = &call.args;
+
+                // Codegen
+                quote::quote! {
+                    {
+                        Comptime::zip_expand(#args)
+                    }
+                }
+            }
             "unwrap_or_else" => {
                 let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
