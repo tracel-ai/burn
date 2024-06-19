@@ -534,6 +534,7 @@ dependencies = [
  "derive-new",
  "half",
  "log",
+ "num-traits",
  "serde",
 ]
 
@@ -1981,6 +1982,15 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "gelu"
+version = "0.14.0"
+dependencies = [
+ "burn-cube",
+ "burn-cuda",
+ "burn-wgpu",
 ]
 
 [[package]]
