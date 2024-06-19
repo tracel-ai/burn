@@ -128,7 +128,7 @@ impl VariableAnalyzer {
                     if let syn::Expr::Block(expr_block) = &**expr {
                         self.find_occurrences_in_stmts(&expr_block.block.stmts, depth);
                     } else {
-                        todo!("Analysis: Only block else expr is supported")
+                        // Unsupported: handled in codegen.
                     }
                 }
             }
@@ -190,17 +190,12 @@ impl VariableAnalyzer {
             syn::Expr::Break(_) => {}
             syn::Expr::Return(expr) => {
                 if expr.expr.is_some() {
-                    todo!("Analysis: only void return supported")
+                    // Unsupported: handled in codegen.
                 }
             }
             syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
-            syn::Expr::Array(expr) => {
-                for element in expr.elems.iter() {
-                    match element {
-                        syn::Expr::Lit(_) => {}
-                        _ => todo!("Analysis: only array of literals is supported"),
-                    }
-                }
+            syn::Expr::Array(_expr) => {
+                // No analysis since only literals are supported
             }
             syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Closure(expr) => {
@@ -251,7 +246,12 @@ impl VariableAnalyzer {
                     self.find_occurrences_in_expr(&field.expr, depth)
                 }
             }
-            _ => todo!("Analysis: unsupported expr {expr:?}"),
+            syn::Expr::Range(_range) => {
+                // Error is handled during codegen.
+            }
+            _ => {
+                // Error is handled during codegen.
+            }
         }
     }
 }

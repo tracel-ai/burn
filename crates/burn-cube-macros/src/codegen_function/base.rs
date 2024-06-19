@@ -125,7 +125,14 @@ pub(crate) fn codegen_expr_with_comptime(
                 syn::Expr::Unary(op) => codegen_unary(op, loop_level, variable_tracker),
                 syn::Expr::Field(field) => codegen_field(field, loop_level, variable_tracker),
                 syn::Expr::Struct(struct_) => codegen_struct(struct_, loop_level, variable_tracker),
-                _ => panic!("Codegen: Unsupported {:?}", expr),
+                syn::Expr::Range(range) => syn::Error::new_spanned(
+                    range,
+                    "Range is not supported, use [range](cubecl::prelude::range) instead.",
+                )
+                .to_compile_error(),
+                _ => {
+                    syn::Error::new_spanned(expr, "Expression is not supported").to_compile_error()
+                }
             };
 
             (tokens, false)
