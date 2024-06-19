@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::adaptive_avg_pool1d;
-    use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{backend::Backend, Shape, Tensor};
 
     #[test]
     fn test_adaptive_avg_pool1d_simple() {
@@ -61,7 +61,7 @@ mod tests {
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
                     .into_data()
-                    .convert::<f32>(),
+                    .convert::<<TestBackend as Backend>::FloatElem>(),
                 &device,
             );
             let output = adaptive_avg_pool1d(x, self.length_out);

@@ -300,10 +300,12 @@ mod tests {
                 0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993,
             ],
             [-0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.359580],
-        ]);
+        ])
+        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
         let bias_expected = TensorData::from([
             -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
-        ]);
+        ])
+        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),

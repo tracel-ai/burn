@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, TensorData};
+    use burn_tensor::{activation, backend::Backend, TensorData};
 
     #[test]
     fn should_diff_sigmoid() {
@@ -14,8 +14,9 @@ mod tests {
 
         let grad = tensor_1.grad(&grads).unwrap();
 
-        grad.to_data()
-            .assert_approx_eq(&TensorData::from([0.207549]), 4);
+        let expected =
+            TensorData::from([0.207549]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]
@@ -29,6 +30,8 @@ mod tests {
 
         let grad = tensor_1.grad(&grads).unwrap();
 
-        grad.to_data().assert_approx_eq(&TensorData::from([0.0]), 4);
+        let expected =
+            TensorData::from([0.0]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad.to_data().assert_approx_eq(&expected, 4);
     }
 }

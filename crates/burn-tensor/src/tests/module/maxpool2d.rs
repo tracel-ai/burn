@@ -253,7 +253,8 @@ mod tests {
             [4, 9, 9, 7, 7],
             [8, 9, 9, 14, 11],
             [12, 12, 14, 14, 15],
-        ]]]);
+        ]]])
+        .convert::<IntElem>();
         let y = TestTensor::from([[[
             [0.2479, 0.6386, 0.6386, 0.5742, 0.5742],
             [0.7065, 0.7065, 0.6386, 0.8959, 0.8959],
@@ -271,10 +272,7 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(
-            indices.as_slice::<i64>().unwrap(),
-            output_indices.into_data().as_slice::<i64>().unwrap()
-        );
+        output_indices.into_data().assert_eq(&indices, true);
     }
 
     #[test]
@@ -304,7 +302,8 @@ mod tests {
             [5, 16, 8],
             [15, 16, 24],
             [15, 16, 24],
-        ]]]);
+        ]]])
+        .convert::<IntElem>();
         let y = TestTensor::from([[[
             [0.9154, 0.9089, 0.8316],
             [0.9154, 0.9089, 0.8316],
@@ -322,9 +321,6 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        assert_eq!(
-            indices.as_slice::<i64>().unwrap(),
-            output_indices.into_data().as_slice::<i64>().unwrap()
-        );
+        output_indices.into_data().assert_eq(&indices, true);
     }
 }

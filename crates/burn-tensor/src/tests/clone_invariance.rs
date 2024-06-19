@@ -45,10 +45,7 @@ mod tests {
                     }
 
                     fn run(&self, args: &Self::Args, inplace: bool) -> TensorData<2> {
-                        let lhs = TestTensor::from_data(
-                            args.clone().convert::<f32>(),
-                            &Default::default(),
-                        );
+                        let lhs = TestTensor::from_data(args.clone(), &Default::default());
 
                         if inplace {
                             $ops(lhs).into_data().convert::<f32>()
@@ -88,8 +85,8 @@ mod tests {
 
                     fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData<2> {
                         let device = Default::default();
-                        let lhs = TestTensor::from_data(lhs_arg.clone().convert::<f32>(), &device);
-                        let rhs = TestTensor::from_data(rhs_arg.clone().convert::<f32>(), &device);
+                        let lhs = TestTensor::from_data(lhs_arg.clone(), &device);
+                        let rhs = TestTensor::from_data(rhs_arg.clone(), &device);
 
                         if inplace {
                             $ops(lhs, rhs).into_data().convert::<f32>()
@@ -128,16 +125,13 @@ mod tests {
                     }
 
                     fn run(&self, args: &Self::Args, inplace: bool) -> TensorData<2> {
-                        let lhs = TestTensorInt::from_data(
-                            args.clone().convert::<i32>(),
-                            &Default::default(),
-                        );
+                        let lhs = TestTensorInt::from_data(args.clone(), &Default::default());
 
                         if inplace {
                             $ops(lhs).into_data().convert::<f32>()
                         } else {
                             let out = $ops(lhs.clone()).into_data().convert::<f32>();
-                            lhs.into_data().convert::<f32>().assert_approx_eq(args, 4);
+                            lhs.into_data().convert::<i32>().assert_approx_eq(args, 4);
                             out
                         }
                     }
@@ -171,10 +165,8 @@ mod tests {
 
                     fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData<2> {
                         let device = Default::default();
-                        let lhs =
-                            TestTensorInt::from_data(lhs_arg.clone().convert::<i32>(), &device);
-                        let rhs =
-                            TestTensorInt::from_data(rhs_arg.clone().convert::<i32>(), &device);
+                        let lhs = TestTensorInt::from_data(lhs_arg.clone(), &device);
+                        let rhs = TestTensorInt::from_data(rhs_arg.clone(), &device);
 
                         if inplace {
                             $ops(lhs, rhs).into_data().convert::<f32>()
@@ -182,10 +174,10 @@ mod tests {
                             let out = $ops(lhs.clone(), rhs.clone()).into_data().convert::<f32>();
 
                             lhs.into_data()
-                                .convert::<f32>()
+                                .convert::<i32>()
                                 .assert_approx_eq(lhs_arg, 4);
                             rhs.into_data()
-                                .convert::<f32>()
+                                .convert::<i32>()
                                 .assert_approx_eq(rhs_arg, 4);
 
                             out

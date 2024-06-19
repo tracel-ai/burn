@@ -21,7 +21,8 @@ mod tests {
         let grads = output.backward();
 
         let grad = weights.grad(&grads).unwrap();
-        let expected = TensorData::from([[3., 9., 7.], [21., 35., 27.]]);
-        assert_eq!(grad.to_data(), expected);
+        let expected = TensorData::from([[3., 9., 7.], [21., 35., 27.]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad.to_data().assert_eq(&expected, true);
     }
 }

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_flip)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{backend::Backend, TensorData};
 
     #[test]
     fn should_diff_flip() {
@@ -19,13 +19,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.to_data(),
-            TensorData::from([[[7.2, 12.0], [7.2, 12.0]]])
-        ); // 1x2x2
-        assert_eq!(
-            grad_2.to_data(),
-            TensorData::from([[[10.0, 10.0, 10.0], [3.0, 3.0, 3.0]]]) // 1x2x3
-        );
+        let expected = TensorData::from([[[7.2, 12.0], [7.2, 12.0]]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.to_data().assert_eq(&expected, true); // 1x2x2
+
+        let expected = TensorData::from([[[10.0, 10.0, 10.0], [3.0, 3.0, 3.0]]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true); // 1x2x3
     }
 }

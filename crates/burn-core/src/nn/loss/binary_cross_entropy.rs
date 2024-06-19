@@ -172,7 +172,8 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = TensorData::from([0.7491]);
+        let loss_expected =
+            TensorData::from([0.7491]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -190,7 +191,8 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = TensorData::from([0.7491]);
+        let loss_expected =
+            TensorData::from([0.7491]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -218,7 +220,8 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = TensorData::from([3.1531]);
+        let loss_expected =
+            TensorData::from([3.1531]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -245,7 +248,8 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = TensorData::from([0.7490]);
+        let loss_expected =
+            TensorData::from([0.7490]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -275,7 +279,8 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = TensorData::from([0.7112]);
+        let loss_expected =
+            TensorData::from([0.7112]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -306,7 +311,8 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = TensorData::from([3.1708]);
+        let loss_expected =
+            TensorData::from([3.1708]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -337,7 +343,8 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = TensorData::from([0.7228]);
+        let loss_expected =
+            TensorData::from([0.7228]).convert::<<TestBackend as Backend>::FloatElem>();
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 

@@ -95,12 +95,11 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &TensorData::from([[
-                -0.4990, -1.9680, 1.6178, -0.7486, -0.6470, 0.8576, 0.0461, 1.1111, -0.2614, 0.4915,
-            ]]),
-            3,
-        );
+        let expected = TensorData::from([[
+            -0.4990, -1.9680, 1.6178, -0.7486, -0.6470, 0.8576, 0.0461, 1.1111, -0.2614, 0.4915,
+        ]])
+        .convert::<<TestBackend as Backend>::FloatElem>();
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[cfg(feature = "std")]
@@ -129,17 +128,20 @@ mod tests {
         let gamma_grad = module.gamma.grad(&grads).unwrap();
         let beta_grad = module.beta.grad(&grads).unwrap();
 
-        gamma_grad
-            .to_data()
-            .assert_approx_eq(&TensorData::from([-2.0, 2.0]), 3);
-        beta_grad
-            .to_data()
-            .assert_approx_eq(&TensorData::from([2.0, 2.0]), 3);
-        tensor_1_grad
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(tensor_1_grad.shape()), 3);
-        tensor_2_grad
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(tensor_2_grad.shape()), 3);
+        let expected =
+            TensorData::from([-2.0, 2.0]).convert::<<TestBackend as Backend>::FloatElem>();
+        gamma_grad.to_data().assert_approx_eq(&expected, 3);
+
+        let expected =
+            TensorData::from([2.0, 2.0]).convert::<<TestBackend as Backend>::FloatElem>();
+        beta_grad.to_data().assert_approx_eq(&expected, 3);
+
+        let expected = TensorData::zeros::<f32, _>(tensor_1_grad.shape())
+            .convert::<<TestBackend as Backend>::FloatElem>();
+        tensor_1_grad.to_data().assert_approx_eq(&expected, 3);
+
+        let expected = TensorData::zeros::<f32, _>(tensor_2_grad.shape())
+            .convert::<<TestBackend as Backend>::FloatElem>();
+        tensor_2_grad.to_data().assert_approx_eq(&expected, 3);
     }
 }

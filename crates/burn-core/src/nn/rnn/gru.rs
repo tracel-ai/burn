@@ -257,9 +257,8 @@ mod tests {
 
         let output = state.select(0, Tensor::arange(0..1, &device)).squeeze(0);
 
-        output
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[0.034]]), 3);
+        let expected = TensorData::from([[0.034]]).convert::<<TestBackend as Backend>::FloatElem>();
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]

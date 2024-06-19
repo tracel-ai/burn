@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
-    use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{backend::Backend, Shape, Tensor};
 
     #[test]
     fn test_upsample_interpolation() {
@@ -78,7 +78,7 @@ mod tests {
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &x_grad.device())
                     .reshape(shape_x)
                     .into_data()
-                    .convert::<f32>(),
+                    .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
                 &device,
             )
             .require_grad();

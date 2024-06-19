@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_complex)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{backend::Backend, TensorData};
 
     #[test]
     fn should_diff_full_complex_1() {
@@ -21,14 +21,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.to_data(),
-            TensorData::from([[593., 463.0], [487.0, 539.0]])
-        );
-        assert_eq!(
-            grad_2.to_data(),
-            TensorData::from([[734.0, 294.0], [1414.0, 242.0]])
-        );
+        let expected = TensorData::from([[593., 463.0], [487.0, 539.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.to_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([[734.0, 294.0], [1414.0, 242.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -49,14 +48,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.to_data(),
-            TensorData::from([[166.0, 110.0], [212.0, 156.0]])
-        );
-        assert_eq!(
-            grad_2.to_data(),
-            TensorData::from([[113.0, 141.0], [33.0, 41.0]])
-        );
+        let expected = TensorData::from([[166.0, 110.0], [212.0, 156.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.to_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([[113.0, 141.0], [33.0, 41.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -78,13 +76,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.to_data(),
-            TensorData::from([[332.0, 220.0], [424.0, 312.0]])
-        );
-        assert_eq!(
-            grad_2.to_data(),
-            TensorData::from([[223.0, 279.0], [63.0, 79.0]])
-        );
+        let expected = TensorData::from([[332.0, 220.0], [424.0, 312.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.to_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([[223.0, 279.0], [63.0, 79.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true);
     }
 }

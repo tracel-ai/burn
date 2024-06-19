@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv1d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv1d, ops::ConvOptions, Shape};
+    use burn_tensor::{backend::Backend, module::conv1d, ops::ConvOptions, Shape};
 
     #[test]
     fn test_conv1d_basic() {
@@ -233,14 +233,14 @@ mod tests {
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                     .reshape(shape_weight)
                     .into_data()
-                    .convert::<f32>(),
+                    .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
                 &device,
             )
             .require_grad();
             let bias = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..self.channels_out as i64, &device)
                     .into_data()
-                    .convert::<f32>(),
+                    .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
                 &device,
             )
             .require_grad();
@@ -248,7 +248,7 @@ mod tests {
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
                     .into_data()
-                    .convert::<f32>(),
+                    .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
                 &device,
             )
             .require_grad();

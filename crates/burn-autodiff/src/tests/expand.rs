@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_expand)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Tensor, TensorData};
 
     #[test]
     fn should_diff_expand() {
@@ -32,7 +32,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), TensorData::from([8., 18., 28., 12.]));
-        assert_eq!(grad_2.to_data(), TensorData::from([16., 28., 8., 12.]));
+        let expected = TensorData::from([8., 18., 28., 12.])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.to_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([16., 28., 8., 12.])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true);
     }
 }

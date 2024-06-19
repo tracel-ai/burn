@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(narrow)]
 mod tests {
     use super::*;
-    use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Shape, Tensor, TensorData};
 
     #[test]
     fn test_narrow() {
@@ -11,16 +11,17 @@ mod tests {
         );
 
         let output = tensor.clone().narrow(0, 0, 2);
+        let expected = TensorData::from([[1., 2., 3.], [4., 5., 6.]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
+
         assert_eq!(output.shape(), Shape::from([2, 3]));
-        output
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[1., 2., 3.], [4., 5., 6.]]), 3);
+        output.into_data().assert_approx_eq(&expected, 3);
 
         let output = tensor.clone().narrow(1, 1, 2);
+        let expected = TensorData::from([[2., 3.], [5., 6.], [8., 9.]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
         assert_eq!(output.shape(), Shape::from([3, 2]));
-        output
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[2., 3.], [5., 6.], [8., 9.]]), 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]

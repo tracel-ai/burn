@@ -1,13 +1,14 @@
 #[burn_tensor_testgen::testgen(full)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Int, Shape, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Bool, Int, Shape, Tensor, TensorData};
 
     #[test]
     fn test_data_full() {
-        let data_actual = TensorData::full([2, 3], 2.0);
-        let data_expected = TensorData::from([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]);
-        assert_eq!(data_expected, data_actual);
+        let tensor = TensorData::full([2, 3], 2.0);
+        let expected = TensorData::from([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]);
+
+        tensor.assert_eq(&expected, true);
     }
 
     #[test]
@@ -15,13 +16,17 @@ mod tests {
         let device = Default::default();
         // Test full with f32
         let tensor = Tensor::<TestBackend, 2>::full([2, 3], 2.1, &device);
-        let data_expected = TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]);
-        assert_eq!(data_expected, tensor.into_data());
+        let expected = TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         // Test full with Int
         let int_tensor = Tensor::<TestBackend, 2, Int>::full([2, 2], 2, &device);
-        let data_expected = TensorData::from([[2, 2], [2, 2]]);
-        assert_eq!(data_expected, int_tensor.into_data());
+        let expected =
+            TensorData::from([[2, 2], [2, 2]]).convert::<<TestBackend as Backend>::IntElem>();
+
+        int_tensor.into_data().assert_eq(&expected, true);
 
         // TODO enable after adding support for bool
         // // Test full with bool

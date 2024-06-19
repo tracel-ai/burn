@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(padding)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Numeric, Shape, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Int, Numeric, Shape, Tensor, TensorData};
 
     #[test]
     fn padding_2d_test() {
@@ -10,18 +10,16 @@ mod tests {
 
         let padded_tensor = tensor.pad((2, 2, 2, 2), 1.1);
 
-        let padded_primitive_data_expected = [
+        let expected = TensorData::from([
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 0.0, 1.0, 2.0, 1.1, 1.1],
             [1.1, 1.1, 3.0, 4.0, 5.0, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-        ];
-
-        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
-        let padded_data_actual = padded_tensor.into_data();
-        assert_eq!(padded_data_expected, padded_data_actual);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
+        padded_tensor.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -31,7 +29,7 @@ mod tests {
 
         let padded_tensor = tensor.pad((2, 2, 2, 2), 1.1);
 
-        let padded_primitive_data_expected = [[[
+        let expected = TensorData::from([[[
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 0.0, 1.0, 1.1, 1.1],
@@ -39,11 +37,9 @@ mod tests {
             [1.1, 1.1, 4.0, 5.0, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-        ]]];
-
-        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
-        let padded_data_actual = padded_tensor.into_data();
-        assert_eq!(padded_data_expected, padded_data_actual);
+        ]]])
+        .convert::<<TestBackend as Backend>::FloatElem>();
+        padded_tensor.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -53,7 +49,7 @@ mod tests {
 
         let padded_tensor = tensor.pad((2, 1, 4, 3), 1.1);
 
-        let padded_primitive_data_expected = [[[
+        let expected = TensorData::from([[[
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
@@ -64,7 +60,9 @@ mod tests {
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
-        ]]];
+        ]]])
+        .convert::<<TestBackend as Backend>::FloatElem>();
+        padded_tensor.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -86,9 +84,19 @@ mod tests {
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],
         ]]];
-
-        let padded_data_expected = TensorData::from(padded_primitive_data_expected);
-        let padded_data_actual = padded_tensor.into_data();
-        assert_eq!(padded_data_expected, padded_data_actual);
+        let expected = TensorData::from([[[
+            [6, 6, 6, 6, 6],
+            [6, 6, 6, 6, 6],
+            [6, 6, 6, 6, 6],
+            [6, 6, 6, 6, 6],
+            [6, 6, 0, 1, 6],
+            [6, 6, 2, 3, 6],
+            [6, 6, 4, 5, 6],
+            [6, 6, 6, 6, 6],
+            [6, 6, 6, 6, 6],
+            [6, 6, 6, 6, 6],
+        ]]])
+        .convert::<<TestBackend as Backend>::IntElem>();
+        padded_tensor.into_data().assert_eq(&expected, true);
     }
 }

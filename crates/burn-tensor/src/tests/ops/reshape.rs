@@ -1,16 +1,18 @@
 #[burn_tensor_testgen::testgen(reshape)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_reshape_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
 
-        let data_actual = tensor.clone().reshape([1, 3]).into_data();
-        let data_expected = TensorData::from([[0.0, 1.0, 2.0]]);
-        assert_eq!(data_expected, data_actual);
+        let output = tensor.clone().reshape([1, 3]);
+        let expected =
+            TensorData::from([[0.0, 1.0, 2.0]]).convert::<<TestBackend as Backend>::FloatElem>();
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -18,9 +20,10 @@ mod tests {
         let data = TensorData::from([0, 1, 2]);
         let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
 
-        let data_actual = tensor.clone().reshape([1, 3]).into_data();
-        let data_expected = TensorData::from([[0, 1, 2]]);
-        assert_eq!(data_expected, data_actual);
+        let output = tensor.clone().reshape([1, 3]);
+        let expected = TensorData::from([[0, 1, 2]]).convert::<<TestBackend as Backend>::IntElem>();
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -28,9 +31,10 @@ mod tests {
         let data = TensorData::from([false, true, false]);
         let tensor = Tensor::<TestBackend, 1, Bool>::from_data(data, &Default::default());
 
-        let data_actual = tensor.clone().reshape([1, 3]).into_data();
-        let data_expected = TensorData::from([[false, true, false]]);
-        assert_eq!(data_expected, data_actual);
+        let output = tensor.clone().reshape([1, 3]);
+        let expected = TensorData::from([[false, true, false]]);
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -38,9 +42,11 @@ mod tests {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
-        let data_actual = tensor.clone().reshape([6]).into_data();
-        let data_expected = TensorData::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
-        assert_eq!(data_expected, data_actual);
+        let output = tensor.clone().reshape([6]);
+        let expected = TensorData::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+            .convert::<<TestBackend as Backend>::FloatElem>();
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -76,9 +82,9 @@ mod tests {
         zeros.clone().slice([1..2]).reshape([1]).exp();
 
         // May lead to zeroes being equal to [0.0, 1.0]
-        assert_eq!(
-            zeros.to_data(),
-            Tensor::<TestBackend, 1>::zeros([2], &Default::default()).to_data()
+        zeros.into_data().assert_eq(
+            &Tensor::<TestBackend, 1>::zeros([2], &Default::default()).to_data(),
+            true,
         );
     }
 

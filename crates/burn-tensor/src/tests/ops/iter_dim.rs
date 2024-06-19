@@ -64,34 +64,40 @@ mod test {
             .reshape([4, 6, 3]);
         let mut iter = input.iter_dim(1);
 
-        let ele0 = TensorData::from([[[0, 1, 2]], [[18, 19, 20]], [[36, 37, 38]], [[54, 55, 56]]]);
-        let ele1 = TensorData::from([[[3, 4, 5]], [[21, 22, 23]], [[39, 40, 41]], [[57, 58, 59]]]);
-        let ele2 = TensorData::from([[[6, 7, 8]], [[24, 25, 26]], [[42, 43, 44]], [[60, 61, 62]]]);
+        let ele0 = TensorData::from([[[0, 1, 2]], [[18, 19, 20]], [[36, 37, 38]], [[54, 55, 56]]])
+            .convert::<<TestBackend as Backend>::IntElem>();
+        let ele1 = TensorData::from([[[3, 4, 5]], [[21, 22, 23]], [[39, 40, 41]], [[57, 58, 59]]])
+            .convert::<<TestBackend as Backend>::IntElem>();
+        let ele2 = TensorData::from([[[6, 7, 8]], [[24, 25, 26]], [[42, 43, 44]], [[60, 61, 62]]])
+            .convert::<<TestBackend as Backend>::IntElem>();
         let ele3 = TensorData::from([
             [[9, 10, 11]],
             [[27, 28, 29]],
             [[45, 46, 47]],
             [[63, 64, 65]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::IntElem>();
         let ele4 = TensorData::from([
             [[12, 13, 14]],
             [[30, 31, 32]],
             [[48, 49, 50]],
             [[66, 67, 68]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::IntElem>();
         let ele5 = TensorData::from([
             [[15, 16, 17]],
             [[33, 34, 35]],
             [[51, 52, 53]],
             [[69, 70, 71]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::IntElem>();
 
-        assert_eq!(iter.next().unwrap().into_data(), ele0);
-        assert_eq!(iter.next_back().unwrap().into_data(), ele5);
-        assert_eq!(iter.next_back().unwrap().into_data(), ele4);
-        assert_eq!(iter.next().unwrap().into_data(), ele1);
-        assert_eq!(iter.next().unwrap().into_data(), ele2);
-        assert_eq!(iter.next().unwrap().into_data(), ele3);
+        iter.next().unwrap().into_data().assert_eq(&ele0, true);
+        iter.next_back().unwrap().into_data().assert_eq(&ele5, true);
+        iter.next_back().unwrap().into_data().assert_eq(&ele4, true);
+        iter.next().unwrap().into_data().assert_eq(&ele1, true);
+        iter.next().unwrap().into_data().assert_eq(&ele2, true);
+        iter.next().unwrap().into_data().assert_eq(&ele3, true);
         assert!(iter.next().is_none());
         assert!(iter.next_back().is_none());
     }
@@ -102,15 +108,18 @@ mod test {
             .reshape([4, 1, 3]);
 
         let mut iter = input.clone().iter_dim(1);
-        assert_eq!(iter.next().unwrap().into_data(), input.clone().into_data());
+        iter.next()
+            .unwrap()
+            .into_data()
+            .assert_eq(&input.clone().into_data(), true);
         assert!(iter.next_back().is_none());
         assert!(iter.next().is_none());
 
         let mut iter = input.clone().iter_dim(1);
-        assert_eq!(
-            iter.next_back().unwrap().into_data(),
-            input.clone().into_data()
-        );
+        iter.next_back()
+            .unwrap()
+            .into_data()
+            .assert_eq(&input.clone().into_data(), true);
         assert!(iter.next().is_none());
         assert!(iter.next_back().is_none());
     }

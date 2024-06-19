@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Tensor, TensorData};
 
     #[test]
     fn should_gather_1d_dim0() {
@@ -10,11 +10,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([1, 1, 0, 1, 2], &device);
 
         let output = tensor.gather(0, indices);
+        let expected = TensorData::from([1.0, 1.0, 0.0, 1.0, 2.0])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([1.0, 1.0, 0.0, 1.0, 2.0])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -24,8 +23,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([1, 1, 0, 1, 2], &device);
 
         let output = tensor.gather(0, indices);
+        let expected =
+            TensorData::from([6, 6, 5, 6, 7]).convert::<<TestBackend as Backend>::IntElem>();
 
-        assert_eq!(output.into_data(), TensorData::from([6, 6, 5, 6, 7]));
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -35,11 +36,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[0, 1, 0], [1, 0, 1]], &device);
 
         let output = tensor.gather(0, indices);
+        let expected = TensorData::from([[0.0, 4.0, 2.0], [3.0, 1.0, 5.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([[0.0, 4.0, 2.0], [3.0, 1.0, 5.0]])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -49,11 +49,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[2, 1, 0, 0], [2, 0, 1, 2]], &device);
 
         let output = tensor.gather(1, indices);
+        let expected = TensorData::from([[2.0, 1.0, 0.0, 0.0], [5.0, 3.0, 4.0, 5.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([[2.0, 1.0, 0.0, 0.0], [5.0, 3.0, 4.0, 5.0]])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -70,14 +69,13 @@ mod tests {
             TestTensorInt::from_ints([[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [0, 1, 1]]], &device);
 
         let output = tensor.gather(1, indices);
+        let expected = TensorData::from([
+            [[3.0, 1.0, 2.0], [0.0, 4.0, 2.0]],
+            [[6.0, 7.0, 11.0], [6.0, 10.0, 11.0]],
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([
-                [[3.0, 1.0, 2.0], [0.0, 4.0, 2.0]],
-                [[6.0, 7.0, 11.0], [6.0, 10.0, 11.0]]
-            ])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -87,8 +85,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[1, 2]], &device).reshape([2, 1]);
 
         let output = tensor.gather(1, indices);
+        let expected =
+            TensorData::from([[1.0], [5.0]]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(output.into_data(), TensorData::from([[1.0], [5.0]]));
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -99,8 +99,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([1, 0, 2], &device);
 
         let output = tensor.scatter(0, indices, values);
+        let expected =
+            TensorData::from([4.0, 5.0, 3.0]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(output.into_data(), TensorData::from([4.0, 5.0, 3.0]));
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -111,8 +113,9 @@ mod tests {
         let indices = TestTensorInt::from_ints([1, 0, 2], &device);
 
         let output = tensor.scatter(0, indices, values);
+        let expected = TensorData::from([4, 5, 3]).convert::<<TestBackend as Backend>::IntElem>();
 
-        assert_eq!(output.into_data(), TensorData::from([4, 5, 3]));
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -123,11 +126,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[1, 0, 1], [1, 1, 0]], &device);
 
         let output = tensor.scatter(0, indices, values);
+        let expected = TensorData::from([[0.0, 2.0, 6.0], [5.0, 5.0, 3.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([[0.0, 2.0, 6.0], [5.0, 5.0, 3.0]])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -138,11 +140,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[1, 0, 2], [1, 2, 0]], &device);
 
         let output = tensor.scatter(1, indices, values);
+        let expected = TensorData::from([[2.0, 1.0, 3.0], [6.0, 4.0, 5.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([[2.0, 1.0, 3.0], [6.0, 4.0, 5.0]])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -166,14 +167,13 @@ mod tests {
             TestTensorInt::from_ints([[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [0, 1, 1]]], &device);
 
         let output = tensor.scatter(1, indices, values);
+        let expected = TensorData::from([
+            [[15.0, 14.0, 33.0], [15.0, 20.0, 5.0]],
+            [[45.0, 26.0, 8.0], [9.0, 32.0, 54.0]],
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([
-                [[15.0, 14.0, 33.0], [15.0, 20.0, 5.0]],
-                [[45.0, 26.0, 8.0], [9.0, 32.0, 54.0]]
-            ])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -184,11 +184,10 @@ mod tests {
         let indices = TestTensorInt::from_ints([[1], [2]], &device);
 
         let output = tensor.scatter(1, indices, values);
+        let expected = TensorData::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        assert_eq!(
-            output.into_data(),
-            TensorData::from([[0.0, 1.0, 0.0], [0.0, 0.0, 4.0]])
-        );
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]

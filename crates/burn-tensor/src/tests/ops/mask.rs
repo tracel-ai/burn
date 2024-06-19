@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(mask)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_mask_where_ops() {
@@ -16,10 +16,11 @@ mod tests {
             &device,
         );
 
-        let data_actual = tensor.mask_where(mask, value).into_data();
+        let output = tensor.mask_where(mask, value);
+        let expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]]);
-        assert_eq!(data_expected, data_actual);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -31,10 +32,11 @@ mod tests {
             &device,
         );
 
-        let data_actual = tensor.mask_fill(mask, 2.0).to_data();
+        let output = tensor.mask_fill(mask, 2.0);
+        let expected = TensorData::from([[2.0, 7.0], [2.0, 2.0]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected = TensorData::from([[2.0, 7.0], [2.0, 2.0]]);
-        assert_eq!(data_expected, data_actual);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -48,10 +50,11 @@ mod tests {
         let value =
             Tensor::<TestBackend, 2, Int>::from_data(TensorData::from([[8, 9], [10, 11]]), &device);
 
-        let data_actual = tensor.mask_where(mask, value).into_data();
+        let output = tensor.mask_where(mask, value);
+        let expected =
+            TensorData::from([[8, 7], [2, 11]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        let data_expected = TensorData::from([[8, 7], [2, 11]]);
-        assert_eq!(data_expected, data_actual);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -63,9 +66,10 @@ mod tests {
             &device,
         );
 
-        let data_actual = tensor.mask_fill(mask, 9).to_data();
+        let output = tensor.mask_fill(mask, 9);
+        let expected =
+            TensorData::from([[9, 7], [2, 9]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        let data_expected = TensorData::from([[9, 7], [2, 9]]);
-        assert_eq!(data_expected, data_actual);
+        output.into_data().assert_eq(&expected, true);
     }
 }

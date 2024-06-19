@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_stack_ops_2d_dim0() {
@@ -11,9 +11,10 @@ mod tests {
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]]);
-        output.into_data().assert_approx_eq(&data_expected, 3);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -23,9 +24,10 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]])
+            .convert::<<TestBackend as Backend>::IntElem>();
 
-        let data_expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]]);
-        assert_eq!(&output.into_data(), &data_expected);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -35,9 +37,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let expected = TensorData::from([[[false, true, true]], [[true, true, false]]]);
 
-        let data_expected = TensorData::from([[[false, true, true]], [[true, true, false]]]);
-        assert_eq!(&output.into_data(), &data_expected);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -47,9 +49,10 @@ mod tests {
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 1);
+        let expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]);
-        output.into_data().assert_approx_eq(&data_expected, 3);
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -61,12 +64,13 @@ mod tests {
             TestTensor::from_data([[[4.0, 5.0, 6.0]], [[4.1, 5.1, 6.1]]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
-
-        let data_expected = TensorData::from([
+        let expected = TensorData::from([
             [[[1.0000, 2.0000, 3.0000]], [[1.1000, 2.1000, 3.1000]]],
             [[[4.0000, 5.0000, 6.0000]], [[4.1000, 5.1000, 6.1000]]],
-        ]);
-        output.into_data().assert_approx_eq(&data_expected, 3);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -100,19 +104,20 @@ mod tests {
 
     #[test]
     fn should_generate_row_major_layout() {
-        let data_expected = TensorData::from([
-            [1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0],
-            [7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0],
-            [13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0],
-            [19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0],
-        ]);
-
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25, &device).reshape([4, 6]);
         let zeros: Tensor<TestBackend, 2, Int> = Tensor::zeros([4, 6], &device);
         let intersperse =
             Tensor::stack::<3>([tensor.clone(), zeros.clone()].to_vec(), 2).reshape([4, 12]);
 
-        assert_eq!(data_expected, intersperse.into_data());
+        let expected = TensorData::from([
+            [1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0],
+            [7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0],
+            [13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0],
+            [19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0],
+        ])
+        .convert::<<TestBackend as Backend>::IntElem>();
+
+        intersperse.into_data().assert_eq(&expected, true);
     }
 }

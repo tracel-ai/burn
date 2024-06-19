@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
 
     #[test]
     fn test_select_grad() {
@@ -22,10 +22,9 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.into_data(),
-            TensorData::from([[109., 148., 187.], [37., 58., 79.]])
-        );
+        let expected = TensorData::from([[109., 148., 187.], [37., 58., 79.]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -53,14 +52,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = values.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.into_data(),
-            TensorData::from([[127., 199., 271.], [172., 244., 316.]])
-        );
-        assert_eq!(
-            grad_2.into_data(),
-            TensorData::from([[64., 64., 64.], [19., 19., 19.]])
-        );
+        let expected = TensorData::from([[127., 199., 271.], [172., 244., 316.]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_1.into_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([[64., 64., 64.], [19., 19., 19.]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -78,7 +76,12 @@ mod tests {
         let x_grad = x.grad(&grads).unwrap();
         let y_grad = y.grad(&grads).unwrap();
 
-        assert_eq!(x_grad.into_data(), TensorData::from([[2.0]]));
-        assert_eq!(y_grad.into_data(), TensorData::from([[5.0], [5.0]]));
+        let expected =
+            TensorData::from([[2.0]]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        x_grad.into_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([[5.0], [5.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        y_grad.into_data().assert_eq(&expected, true);
     }
 }

@@ -208,13 +208,17 @@ mod tests {
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
         let actual_vars = actual_vars.to_data();
-        let actual_vars = actual_vars.as_slice::<f64>().unwrap();
+        let actual_vars = actual_vars
+            .as_slice::<<TB as Backend>::FloatElem>()
+            .unwrap();
         let actual_means = actual_means.to_data();
-        let actual_means = actual_means.as_slice::<f64>().unwrap();
+        let actual_means = actual_means
+            .as_slice::<<TB as Backend>::FloatElem>()
+            .unwrap();
 
         for i in 0..tensor.shape().dims[0] {
-            let actual_var = actual_vars[i];
-            let actual_mean = actual_means[i];
+            let actual_var = actual_vars[i] as f64;
+            let actual_mean = actual_means[i] as f64;
 
             assert!(
                 (expected_var - actual_var).abs() <= 0.1,
@@ -267,10 +271,10 @@ mod tests {
         let constants: Tensor<TB, 4> = Initializer::Constant { value }
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        constants
-            .sum()
-            .to_data()
-            .assert_approx_eq(&TensorData::from([value as f32 * 16.0]), 3);
+        constants.sum().to_data().assert_approx_eq(
+            &TensorData::from([value as f32 * 16.0]).convert::<<TB as Backend>::FloatElem>(),
+            3,
+        );
     }
 
     #[test]
@@ -278,10 +282,10 @@ mod tests {
         let zeros: Tensor<TB, 4> = Initializer::Zeros
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        zeros
-            .sum()
-            .to_data()
-            .assert_approx_eq(&TensorData::from([0.0]), 3);
+        zeros.sum().to_data().assert_approx_eq(
+            &TensorData::from([0.0]).convert::<<TB as Backend>::FloatElem>(),
+            3,
+        );
     }
 
     #[test]
@@ -289,9 +293,10 @@ mod tests {
         let ones: Tensor<TB, 4> = Initializer::Ones
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        ones.sum()
-            .to_data()
-            .assert_approx_eq(&TensorData::from([16.0]), 3);
+        ones.sum().to_data().assert_approx_eq(
+            &TensorData::from([16.0]).convert::<<TB as Backend>::FloatElem>(),
+            3,
+        );
     }
 
     #[test]

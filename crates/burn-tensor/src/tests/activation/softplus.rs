@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(softplus)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Tensor, TensorData};
+    use burn_tensor::{activation, backend::Backend, Tensor, TensorData};
 
     #[test]
     fn test_softplus_d2() {
@@ -10,14 +10,16 @@ mod tests {
             [-0.5767, 0.7218, -0.1620],
         ]);
 
-        let data_actual_beta1 = activation::softplus(tensor.clone(), 1.0).into_data();
-        let data_expected_beta1 =
-            TensorData::from([[0.5034, 0.3249, 0.5885], [0.4458, 1.1178, 0.6154]]);
-        data_actual_beta1.assert_approx_eq(&data_expected_beta1, 4);
+        let output = activation::softplus(tensor.clone(), 1.0);
+        let expected = TensorData::from([[0.5034, 0.3249, 0.5885], [0.4458, 1.1178, 0.6154]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual_beta2 = activation::softplus(tensor, 2.0).to_data();
-        let data_expected_beta2 =
-            TensorData::from([[0.1782, 0.0687, 0.2480], [0.1371, 0.8277, 0.2721]]);
-        data_actual_beta2.assert_approx_eq(&data_expected_beta2, 4);
+        output.into_data().assert_approx_eq(&expected, 4);
+
+        let output = activation::softplus(tensor, 2.0);
+        let expected = TensorData::from([[0.1782, 0.0687, 0.2480], [0.1371, 0.8277, 0.2721]])
+            .convert::<<TestBackend as Backend>::FloatElem>();
+
+        output.into_data().assert_approx_eq(&expected, 4);
     }
 }

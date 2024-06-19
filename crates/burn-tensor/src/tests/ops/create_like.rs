@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(create_like)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Distribution, Tensor, TensorData};
 
     #[test]
     fn should_support_zeros_like() {
@@ -13,12 +13,12 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.zeros_like().into_data();
+        let tensor = tensor.zeros_like();
+        let expected =
+            TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]])
+                .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected =
-            TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]]);
-
-        data_expected.assert_approx_eq(&data_actual, 3);
+        tensor.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -31,12 +31,12 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.ones_like().into_data();
+        let tensor = tensor.ones_like();
+        let expected =
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]])
+                .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected =
-            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
-
-        data_expected.assert_approx_eq(&data_actual, 3);
+        tensor.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -49,13 +49,11 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor
-            .random_like(Distribution::Uniform(0.99999, 1.))
-            .into_data();
+        let tensor = tensor.random_like(Distribution::Uniform(0.99999, 1.));
+        let expected =
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]])
+                .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_expected =
-            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
-
-        data_expected.assert_approx_eq(&data_actual, 3);
+        tensor.into_data().assert_approx_eq(&expected, 3);
     }
 }

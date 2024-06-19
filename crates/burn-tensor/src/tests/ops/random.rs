@@ -31,6 +31,6 @@ mod tests {
             &Default::default(),
         );
 
-        assert_eq!(tensor.into_data(), [1.; 20].into());
+        assert_eq!(tensor.into_data(), [1f32; 20].into());
     }
 }

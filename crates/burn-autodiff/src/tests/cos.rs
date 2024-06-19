@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cos)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{backend::Backend, TensorData};
 
     #[test]
     fn should_diff_cos() {
@@ -20,11 +20,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         grad_1.to_data().assert_approx_eq_diff(
-            &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
+            &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]])
+                .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
             2.0e-3,
         );
         grad_2.to_data().assert_approx_eq_diff(
-            &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
+            &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]])
+                .convert::<<TestAutodiffBackend as Backend>::FloatElem>(),
             2.0e-3,
         );
     }

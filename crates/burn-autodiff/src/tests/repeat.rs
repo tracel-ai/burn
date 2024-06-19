@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_repeat)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, TensorData};
+    use burn_tensor::{activation, backend::Backend, TensorData};
 
     #[test]
     fn should_diff_repeat() {
@@ -19,6 +19,8 @@ mod tests {
 
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_2.to_data(), TensorData::from([[-3.0], [12.0]]));
+        let expected = TensorData::from([[-3.0], [12.0]])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad_2.to_data().assert_eq(&expected, true);
     }
 }

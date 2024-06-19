@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(remainder)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
 
     /// From https://pytorch.org/docs/stable/generated/torch.remainder.html
     #[test]
@@ -11,10 +11,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(2.0);
+        let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     /// Also from https://pytorch.org/docs/stable/generated/torch.remainder.html
@@ -25,10 +25,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(-1.5);
+        let expected = TensorData::from([-0.5, -1.0, 0.0, -0.5, -1.0])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([-0.5, -1.0, 0.0, -0.5, -1.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -38,10 +38,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(3.5);
+        let expected =
+            TensorData::from([0.0, 0.0, 0.0]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([0.0, 0.0, 0.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -51,10 +51,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(4.0);
+        let expected =
+            TensorData::from([-0.0, 0.0]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([-0.0, 0.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -64,10 +64,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(-2.5);
+        let expected = TensorData::from([-2.0, -0.50, -0.50, -1.5])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([-2.0, -0.50, -0.50, -1.5]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -77,10 +77,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(3.0);
+        let expected =
+            TensorData::from([1.5, 0.5, 2.5, 1.5]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([1.5, 0.5, 2.5, 1.5]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -90,10 +90,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor.remainder_scalar(10.0);
+        let expected =
+            TensorData::from([9.0, 1.0]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([9.0, 1.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -103,9 +103,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
 
         let output = tensor % 2.0;
+        let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0])
+            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        let data_actual = output.into_data();
-        let data_expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 }

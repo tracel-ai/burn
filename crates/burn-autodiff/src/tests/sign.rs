@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_sign)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{backend::Backend, TensorData};
 
     /// Example using the sign function with PyTorch:
     // >>> import torch
@@ -37,7 +37,12 @@ mod tests {
         let grads = loss.backward();
         let grad = x.grad(&grads).unwrap();
 
-        assert_eq!(y.to_data(), TensorData::from([-1., -1., 0., 1., 1.]));
-        assert_eq!(grad.to_data(), TensorData::from([0., 0., 0., 0., 0.]));
+        let expected = TensorData::from([-1., -1., 0., 1., 1.])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        y.to_data().assert_eq(&expected, true);
+
+        let expected = TensorData::from([0., 0., 0., 0., 0.])
+            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        grad.to_data().assert_eq(&expected, true);
     }
 }

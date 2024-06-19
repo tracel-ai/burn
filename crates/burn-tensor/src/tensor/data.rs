@@ -226,6 +226,75 @@ impl<const D: usize> TensorData<D> {
         self.assert_approx_eq_diff(other, tolerance)
     }
 
+    /// Asserts the data is equal to another data.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other data.
+    /// * `strict` - If true, the data types must the be same.
+    ///              Otherwise, the comparison is done in the current data type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data is not equal.
+    #[track_caller]
+    pub fn assert_eq(&self, other: &Self, strict: bool) {
+        if strict {
+            assert_eq!(
+                self.dtype, other.dtype,
+                "Data types differ ({:?} != {:?})",
+                self.dtype, other.dtype
+            );
+        }
+
+        match self.dtype {
+            DType::F64 => self.assert_eq_elem::<f64>(other),
+            DType::F32 => self.assert_eq_elem::<f32>(other),
+            DType::F16 => self.assert_eq_elem::<f16>(other),
+            DType::BF16 => self.assert_eq_elem::<bf16>(other),
+            DType::I64 => self.assert_eq_elem::<i64>(other),
+            DType::I32 => self.assert_eq_elem::<i32>(other),
+            DType::I16 => self.assert_eq_elem::<i16>(other),
+            DType::I8 => self.assert_eq_elem::<i8>(other),
+            DType::U64 => self.assert_eq_elem::<u64>(other),
+            DType::U32 => self.assert_eq_elem::<u32>(other),
+            DType::U8 => self.assert_eq_elem::<u8>(other),
+            DType::Bool => self.assert_eq_elem::<bool>(other),
+        }
+    }
+
+    #[track_caller]
+    fn assert_eq_elem<E: Element>(&self, other: &Self) {
+        let mut message = String::new();
+        if self.shape != other.shape {
+            message += format!(
+                "\n  => Shape is different: {:?} != {:?}",
+                self.shape.dims, other.shape.dims
+            )
+            .as_str();
+        }
+
+        let mut num_diff = 0;
+        let max_num_diff = 5;
+        for (i, (a, b)) in self.iter::<E>().zip(other.iter::<E>()).enumerate() {
+            if a.cmp(&b).is_ne() {
+                // Only print the first 5 different values.
+                if num_diff < max_num_diff {
+                    message += format!("\n  => Position {i}: {a} != {b}").as_str();
+                }
+                num_diff += 1;
+            }
+        }
+
+        if num_diff >= max_num_diff {
+            message += format!("\n{} more errors...", num_diff - max_num_diff).as_str();
+        }
+
+        if !message.is_empty() {
+            panic!("Tensors are not eq:{}", message);
+        }
+    }
+
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
@@ -238,6 +307,12 @@ impl<const D: usize> TensorData<D> {
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq_diff(&self, other: &Self, tolerance: f64) {
+        assert_eq!(
+            self.dtype, other.dtype,
+            "Data types differ ({:?} != {:?})",
+            self.dtype, other.dtype
+        );
+
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -311,6 +386,23 @@ impl<const D: usize> TensorData<D> {
 impl<E: Element, const A: usize> From<[E; A]> for TensorData<1> {
     fn from(elems: [E; A]) -> Self {
         TensorData::new(elems.to_vec(), [A])
+    }
+}
+
+impl<const A: usize> From<[usize; A]> for TensorData<1> {
+    fn from(elems: [usize; A]) -> Self {
+        TensorData::new(elems.iter().map(|&e| e as i64).collect(), [A])
+    }
+}
+
+impl From<&[usize]> for TensorData<1> {
+    fn from(elems: &[usize]) -> Self {
+        let mut data = Vec::with_capacity(elems.len());
+        for elem in elems.iter() {
+            data.push(*elem as i64);
+        }
+
+        TensorData::new(data, [elems.len()])
     }
 }
 

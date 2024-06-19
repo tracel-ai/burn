@@ -10,25 +10,33 @@ mod tests {
 
         // Test correct sequence of numbers when the range is 0..9 and the step is 1
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..9, 1, &device);
-        assert_eq!(
-            tensor.into_data(),
-            TensorData::from([0, 1, 2, 3, 4, 5, 6, 7, 8])
-        );
+        let expected = TensorData::from([0, 1, 2, 3, 4, 5, 6, 7, 8])
+            .convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         // Test correct sequence of numbers when the range is 0..3 and the step is 2
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..3, 2, &device);
-        assert_eq!(tensor.into_data(), TensorData::from([0, 2]));
+        let expected = TensorData::from([0, 2]).convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         // Test correct sequence of numbers when the range is 0..2 and the step is 5
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..2, 5, &device);
-        assert_eq!(tensor.into_data(), TensorData::from([0]));
+        let expected = TensorData::from([0]).convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         // Test correct sequence of numbers when the range includes negative numbers
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-3..3, 2, &device);
-        assert_eq!(tensor.into_data(), TensorData::from([-3, -1, 1]));
+        let expected = TensorData::from([-3, -1, 1]).convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-5..1, 5, &device);
-        assert_eq!(tensor.clone().into_data(), TensorData::from([-5, 0]));
+        let expected = TensorData::from([-5, 0]).convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.clone().into_data().assert_eq(&expected, true);
         assert_eq!(tensor.device(), device);
     }
 

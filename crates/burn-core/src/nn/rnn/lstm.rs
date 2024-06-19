@@ -413,14 +413,13 @@ mod tests {
         let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let (output, state) = lstm.forward(input, None);
-        state
-            .cell
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[0.046]]), 3);
-        state
-            .hidden
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[0.024]]), 3);
+
+        let expected = TensorData::from([[0.046]]).convert::<<TestBackend as Backend>::FloatElem>();
+        state.cell.to_data().assert_approx_eq(&expected, 3);
+
+        let expected = TensorData::from([[0.024]]).convert::<<TestBackend as Backend>::FloatElem>();
+        state.hidden.to_data().assert_approx_eq(&expected, 3);
+
         output
             .select(0, Tensor::arange(0..1, &device))
             .squeeze(0)
@@ -643,29 +642,35 @@ mod tests {
             [0.00473, -0.02254, 0.02988, -0.16510, -0.00306, 0.08742],
             [0.06210, -0.06509, -0.05339, -0.01710, 0.02091, 0.16012],
             [-0.03420, 0.07774, -0.09774, -0.02604, 0.12584, 0.20872],
-        ]]);
+        ]])
+        .convert::<<TestBackend as Backend>::FloatElem>();
         let expected_output_without_init_state = TensorData::from([[
             [0.08679, -0.08776, -0.00528, -0.15969, -0.05322, -0.08863],
             [-0.02577, -0.05057, 0.00033, -0.17558, -0.03679, 0.03142],
             [0.02942, -0.07411, -0.06044, -0.03601, -0.09998, 0.04846],
             [-0.04026, 0.07178, -0.10189, -0.07349, -0.04576, 0.05550],
-        ]]);
+        ]])
+        .convert::<<TestBackend as Backend>::FloatElem>();
         let expected_hn_with_init_state = TensorData::from([
             [[-0.03420, 0.07774, -0.09774]],
             [[-0.15635, -0.03366, -0.05798]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
         let expected_cn_with_init_state = TensorData::from([
             [[-0.13593, 0.17125, -0.22395]],
             [[-0.45425, -0.11206, -0.12908]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
         let expected_hn_without_init_state = TensorData::from([
             [[-0.04026, 0.07178, -0.10189]],
             [[-0.15969, -0.05322, -0.08863]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
         let expected_cn_without_init_state = TensorData::from([
             [[-0.15839, 0.15923, -0.23569]],
             [[-0.47407, -0.17493, -0.19643]],
-        ]);
+        ])
+        .convert::<<TestBackend as Backend>::FloatElem>();
 
         let (output_with_init_state, state_with_init_state) =
             lstm.forward(input.clone(), Some(LstmState::new(c0, h0)));

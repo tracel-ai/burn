@@ -11,14 +11,16 @@ mod tests {
         // Test a single element tensor
         let tensor: Tensor<TestBackend, 2, Int> =
             Tensor::<TestBackend, 1, Int>::cartesian_grid([1], &device);
-        assert_eq!(tensor.into_data(), TensorData::from([[0]]));
+        let expected = TensorData::from([[0]]).convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
 
         // Test for a 2x2 tensor
         let tensor: Tensor<TestBackend, 3, Int> =
             Tensor::<TestBackend, 2, Int>::cartesian_grid([2, 2], &device);
-        assert_eq!(
-            tensor.into_data(),
-            TensorData::from([[[0, 0], [0, 1]], [[1, 0], [1, 1]]])
-        );
+        let expected = TensorData::from([[[0, 0], [0, 1]], [[1, 0], [1, 1]]])
+            .convert::<<TestBackend as Backend>::IntElem>();
+
+        tensor.into_data().assert_eq(&expected, true);
     }
 }
