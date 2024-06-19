@@ -19,6 +19,7 @@ pub trait MemoryChunk<S: MemorySlice> {
         -> bool;
     fn slice(&self, index: usize) -> Option<SliceId>;
     fn insert_slice(&mut self, position: usize, slice_id: SliceId);
+    fn next_slice_position(&self, slice_position: usize, slices: &HashMap<SliceId, S>) -> usize;
 }
 
 pub trait MemorySlice {
@@ -91,7 +92,10 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
             if is_big_enough && is_free {
                 if slice.size() > size {
                     let new_slice = slice.split(size);
-                    chunk.insert_slice(slice_index + 1, new_slice.id());
+                    chunk.insert_slice(
+                        chunk.next_slice_position(slice_index, slices),
+                        new_slice.id(),
+                    );
                     slices.insert(new_slice.id(), new_slice);
                 }
 
@@ -102,7 +106,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
                 continue;
             }
 
-            slice_index += 1;
+            slice_index = chunk.next_slice_position(slice_index, slices);
         }
 
         None
@@ -126,10 +130,11 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
 
             if let Some(id) = self.queue.get(chunk_index) {
                 let chunk = chunks.get_mut(id).unwrap();
+                println!("looking at chunk {} at address {}", id.value, slice_index);
                 let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
 
                 if let Some((cursor_slice, slice)) = result {
-                    self.cursor_slice = cursor_slice + 1;
+                    self.cursor_slice = chunk.next_slice_position(cursor_slice, slices);
                     self.cursor_chunk = chunk_index;
                     return Some(slice);
                 }
@@ -411,6 +416,13 @@ mod stub {
 
         fn insert_slice(&mut self, position: usize, slice_id: SliceId) {
             self.slices.insert(position, slice_id);
+        }
+        fn next_slice_position(
+            &self,
+            slice_position: usize,
+            slices: &HashMap<SliceId, TestSlice>,
+        ) -> usize {
+            slice_position + 1
         }
     }
 }
