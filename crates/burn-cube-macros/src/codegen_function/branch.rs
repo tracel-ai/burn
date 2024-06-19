@@ -106,8 +106,10 @@ pub(crate) fn codegen_break() -> TokenStream {
 /// Codegen for return statement
 pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
     if expr_return.expr.is_some() {
-        panic!("Codegen: Only void return is supported.")
+        return syn::Error::new_spanned(expr_return, "Codegen: Only void return is supported.")
+            .into_compile_error();
     }
+
     quote::quote! {
         burn_cube::frontend::branch::return_expand(context);
     }
@@ -141,7 +143,11 @@ pub(crate) fn codegen_if(
                 burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
             }
         } else {
-            todo!("Codegen: Only block else expr is supported")
+            syn::Error::new_spanned(
+                expr,
+                "Unsupported: only `else` block is allowed after an `if` statement.",
+            )
+            .into_compile_error()
         }
     } else {
         quote::quote! {
