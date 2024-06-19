@@ -246,7 +246,7 @@ impl<R: Runtime> TensorState<R> {
             output[0] as usize // same as current.
         };
 
-        for stride in strides.into_iter().take(old_rank) {
+        for stride in strides.iter().take(old_rank) {
             output.push(stride.to_u32().unwrap());
         }
     }
@@ -265,7 +265,7 @@ impl<R: Runtime> TensorState<R> {
             output[0] as usize // same as current
         };
 
-        for elem in shape.into_iter().take(old_rank) {
+        for elem in shape.iter().take(old_rank) {
             output.push(elem.to_u32().unwrap());
         }
     }
