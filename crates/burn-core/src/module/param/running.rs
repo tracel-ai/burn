@@ -55,15 +55,12 @@ pub struct RunningState<V> {
 
 impl<V> core::fmt::Display for RunningState<V> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        // TODO Make prettier and use format settings
         write!(f, "RunningState(id={})", self.id)
     }
 }
 
 impl<V> ModuleDisplayDefault for RunningState<V> {
     fn content(&self, content: Content) -> Option<Content> {
-        // TODO show param id if setting is enabled
-
         content
             .add_formatted(&"RunningState".to_string())
             .optional()
