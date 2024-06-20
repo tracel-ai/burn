@@ -22,6 +22,17 @@ pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
 }
 
 #[cube]
+pub fn comptime_if_expr<T: Numeric>(lhs: T, x: Comptime<UInt>, y: Comptime<UInt>) {
+    let y2 = x + y;
+
+    if x < y2 {
+        let _ = lhs + T::from_int(4);
+    } else {
+        let _ = lhs - T::from_int(5);
+    }
+}
+
+#[cube]
 pub fn comptime_with_map_bool<T: Numeric>(state: Comptime<State>) -> T {
     let cond = Comptime::map(state, |s: State| s.cond);
 
@@ -71,6 +82,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn cube_comptime_if_numeric_test() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::new(ElemType::as_elem()));
+
+        comptime_if_expr_expand::<ElemType>(&mut context, lhs, UInt::new(4), UInt::new(5));
+        let scope = context.into_scope();
+
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_ref_comptime(true)
+        );
+    }
     #[test]
     fn cube_comptime_else_test() {
         let mut context = CubeContext::root();

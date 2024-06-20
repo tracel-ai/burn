@@ -12,10 +12,10 @@ fn load_transposed<F: Float>(
     tensor_stride: UInt,
     sm_stride: UInt,
     sm_position_base: UInt,
-    dim_k: UInt,
-    dim_n: UInt,
-    check_bottom_bounds: Comptime<bool>,
-    check_right_bounds: Comptime<bool>,
+    dim_vertical: UInt,
+    dim_horizontal: UInt,
+    check_vertical_bounds: Comptime<bool>,
+    check_horizontal_bounds: Comptime<bool>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
@@ -29,25 +29,17 @@ fn load_transposed<F: Float>(
     let col = skip_col + unit_col;
 
     let tensor_position_base = unit_row * tensor_stride + unit_col + cube_offset;
+    let entries = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
-    // let lhs_sm_stride_row = Comptime::runtime(block_size_m) / Comptime::runtime(tile_size);
-    // let rhs_sm_stride_row = Comptime::runtime(block_size_n) / Comptime::runtime(tile_size);
-
-    // let lhs_sm_position_base = unit_col * lhs_sm_stride_row + unit_row;
-    // let rhs_sm_position_base = unit_col * rhs_sm_stride_row + unit_row;
-
-    // Read entries
-    let mut entries = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
-
-    if Comptime::get(check_bottom_bounds) {
-        if Comptime::get(check_right_bounds) {
+    if Comptime::get(check_vertical_bounds) {
+        if Comptime::get(check_horizontal_bounds) {
             // We assume whole vectorization is out of bound
-            if col >= dim_n {
+            if col >= dim_horizontal {
                 read_zeros(entries, config);
             } else {
                 read_partial(
                     tensor,
-                    dim_k,
+                    dim_vertical,
                     row,
                     tensor_position_base,
                     tensor_stride,
@@ -58,7 +50,7 @@ fn load_transposed<F: Float>(
         } else {
             read_partial(
                 tensor,
-                dim_k,
+                dim_vertical,
                 row,
                 tensor_position_base,
                 tensor_stride,
@@ -67,9 +59,9 @@ fn load_transposed<F: Float>(
             );
         }
     } else {
-        if Comptime::get(check_n_bounds) {
+        if Comptime::get(check_horizontal_bounds) {
             // We assume whole vectorization is out of bound
-            if col >= dim_n {
+            if col >= dim_horizontal {
                 read_zeros(entries, config);
             } else {
                 read_whole(tensor, tensor_position_base, tensor_stride, entries, config);
@@ -100,11 +92,12 @@ fn load_lhs_transposed<F: Float>(
     lhs: Tensor<F>,
     unit_row: UInt,
     unit_col: UInt,
+    k: UInt,
+    offset_lhs: UInt,
+    shared_lhs: SharedMemory<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
-    let block_size_k = Comptime::map(config, |c| c.block_size_k);
-    let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let rank = lhs.rank();
     let dim_m = lhs.shape(rank - UInt::new(2));
@@ -112,21 +105,24 @@ fn load_lhs_transposed<F: Float>(
 
     let tensor_stride = dim_m / Comptime::runtime(tile_size);
     let sm_stride = block_size_m / tile_size;
-    let sm_position_base = unit_col * sm_stride + unit_row;
+    let sm_position_base = unit_col * Comptime::runtime(sm_stride) + unit_row;
+
+    let cube_offset = offset_lhs + k * tensor_stride;
 
     load_transposed(
+        lhs,
+        cube_offset,
+        shared_lhs,
+        unit_row,
+        unit_col,
+        tensor_stride,
+        Comptime::runtime(sm_stride),
+        sm_position_base,
+        dim_m,
+        dim_k,
         Comptime::map(config, |c| c.check_m_bounds),
         Comptime::map(config, |c| c.check_k_bounds),
-    )
-}
-
-#[cube]
-fn load_rhs_transposed(config: Comptime<CubeTiling2dConfig>) {
-    // let rhs_sm_position_base = unit_col * rhs_sm_stride_row + unit_row;
-    // let rhs_sm_stride_row = Comptime::runtime(block_size_n) / Comptime::runtime(tile_size);
-    load_transposed(
-        Comptime::map(config, |c| c.check_m_bounds),
-        Comptime::map(config, |c| c.check_k_bounds),
+        config,
     )
 }
 

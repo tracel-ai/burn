@@ -18,18 +18,18 @@ pub(crate) fn dot_loop<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     // TODO Comptime arithmetic
-    let tile_size = Comptime::runtime(Comptime::map(config, |c| c.tile_size));
-    let block_size_m = Comptime::runtime(Comptime::map(config, |c| c.block_size_m));
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let block_size_k = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
-    let block_size_n = Comptime::runtime(Comptime::map(config, |c| c.block_size_n));
+    let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let unroll = Comptime::map(config, |c| c.unroll);
 
     let lhs_stride = block_size_m / tile_size;
     let rhs_stride = block_size_n / tile_size;
 
     for dot_index in range(0u32, block_size_k, unroll) {
-        let register_m = shared_lhs[(unit_col + dot_index) * lhs_stride];
-        let register_n = shared_rhs[(unit_row + dot_index) * rhs_stride];
+        let register_m = shared_lhs[(unit_col + dot_index) * Comptime::runtime(lhs_stride)];
+        let register_n = shared_rhs[(unit_row + dot_index) * Comptime::runtime(rhs_stride)];
 
         tile_outer_product(register_m, register_n, results, config);
     }

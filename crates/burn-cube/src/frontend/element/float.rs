@@ -150,6 +150,42 @@ impl_float!(BF16, bf16);
 impl_float!(F32, f32);
 impl_float!(F64, f64);
 
+impl From<f32> for F32 {
+    fn from(value: f32) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
+
+impl From<f32> for BF16 {
+    fn from(value: f32) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
+
+impl From<f32> for F16 {
+    fn from(value: f32) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
+
+impl From<f32> for F64 {
+    fn from(value: f32) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
+
 impl<R: Runtime> ArgSettings<R> for f16 {
     fn register(&self, settings: &mut KernelLauncher<R>) {
         settings.register_f16(*self);

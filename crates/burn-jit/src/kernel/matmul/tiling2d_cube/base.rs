@@ -235,7 +235,7 @@ fn load_lhs_tensor_plain<F: Float>(
         + offset_lhs;
     let sm_position_base =
         (unit_row * Comptime::runtime(block_size_k) + unit_col) / Comptime::runtime(tile_size);
-    let sm_stride = Comptime::runtime(block_size_k) / Comptime::runtime(tile_size);
+    let sm_stride = Comptime::runtime(block_size_k / tile_size);
 
     if Comptime::get(check_m_bounds) {
         if Comptime::get(check_k_bounds) {
@@ -322,7 +322,7 @@ fn load_rhs_tensor_transposed<F: Float>(
     let position_base = (k + unit_row) * rhs_stride_row + unit_col * rhs_stride_col + offset_rhs;
     let sm_position_base =
         (unit_col * Comptime::runtime(block_size_k) + unit_row) / Comptime::runtime(tile_size);
-    let sm_stride = Comptime::runtime(block_size_k) / Comptime::runtime(tile_size);
+    let sm_stride = Comptime::runtime(block_size_k / tile_size);
 
     // Read entries
     let mut entries = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
