@@ -32,7 +32,7 @@ pub struct LinearConfig {
 ///
 /// `O = IW + b`
 #[derive(Module, Debug)]
-#[custom_display]
+#[module(custom_display)]
 pub struct Linear<B: Backend> {
     /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`

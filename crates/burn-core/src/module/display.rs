@@ -24,7 +24,7 @@ pub trait ModuleDisplayDefault {
 /// Trait to implement custom display settings for a module.
 ///
 /// In order to implement custom display settings for a module,
-/// 1. Add #[custom_display] attribute to the module struct after #[derive(Module)]
+/// 1. Add #[module(custom_display)] attribute to the module struct after #[derive(Module)]
 /// 2. Implement ModuleDisplay trait for the module
 pub trait ModuleDisplay: ModuleDisplayDefault {
     /// Formats the module with provided display settings.

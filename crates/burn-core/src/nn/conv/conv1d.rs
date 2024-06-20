@@ -44,7 +44,7 @@ pub struct Conv1dConfig {
 ///
 /// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
-#[custom_display]
+#[module(custom_display)]
 pub struct Conv1d<B: Backend> {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,

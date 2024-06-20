@@ -2,7 +2,7 @@ use super::{display, record::ModuleRecordCodegen};
 use crate::shared::generics::GenericsHelper;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics};
+use syn::{parse_quote, Attribute, Generics};
 
 /// Basic trait to be implemented for Module generation.
 pub(crate) trait ModuleCodegen {
@@ -95,12 +95,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
         #record_type
     };
 
-    let custom_display = ast
-        .attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("custom_display"));
-
-    if !custom_display {
+    if !has_custom_display(&ast.attrs) {
         gen.extend(quote! {
             impl #generics_module burn::module::ModuleDisplay for #name #generics_ty_module #generics_where_module {
 
@@ -155,12 +150,7 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
 
     };
 
-    let custom_display = ast
-        .attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("custom_display"));
-
-    if !custom_display {
+    if !has_custom_display(&ast.attrs) {
         gen.extend(quote! {
             impl  #generics burn::module::ModuleDisplay for #name #generics_ty #generics_where {
 
@@ -274,4 +264,19 @@ impl GenericsParser {
             inner_module_ty: generics_names_except_backend,
         }
     }
+}
+
+fn has_custom_display(attrs: &Vec<Attribute>) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("module")
+            && attr
+                .parse_nested_meta(|meta| {
+                    if meta.path.is_ident("custom_display") {
+                        Ok(())
+                    } else {
+                        Err(meta.error("unsupported attribute"))
+                    }
+                })
+                .is_ok()
+    })
 }

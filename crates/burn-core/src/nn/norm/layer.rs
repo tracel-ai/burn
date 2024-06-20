@@ -30,7 +30,7 @@ pub struct LayerNormConfig {
 ///
 /// Should be created using [LayerNormConfig](LayerNormConfig).
 #[derive(Module, Debug)]
-#[custom_display]
+#[module(custom_display)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.
     gamma: Param<Tensor<B, 1>>,
