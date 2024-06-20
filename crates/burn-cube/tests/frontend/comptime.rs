@@ -22,7 +22,7 @@ pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
 }
 
 #[cube]
-pub fn comptime_if_number<T: Numeric>(lhs: T, x: Comptime<UInt>, y: Comptime<UInt>) {
+pub fn comptime_if_expr<T: Numeric>(lhs: T, x: Comptime<UInt>, y: Comptime<UInt>) {
     let y2 = x + y;
 
     if x < y2 {
@@ -88,7 +88,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
-        comptime_if_number_expand::<ElemType>(&mut context, lhs, UInt::new(4), UInt::new(5));
+        comptime_if_expr_expand::<ElemType>(&mut context, lhs, UInt::new(4), UInt::new(5));
         let scope = context.into_scope();
 
         assert_eq!(

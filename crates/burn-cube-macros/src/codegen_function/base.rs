@@ -14,11 +14,7 @@ pub fn codegen_statement(
     match statement {
         syn::Stmt::Local(local) => codegen_local(local, loop_level, variable_tracker),
         syn::Stmt::Expr(expr, semi) => {
-            let expr = codegen_expr(expr, loop_level, variable_tracker);
-            // if expr.is_comptime {
-            //     panic!("{statement:?}");
-            // }
-            let expr = expr.tokens;
+            let expr = codegen_expr(expr, loop_level, variable_tracker).tokens;
 
             match semi {
                 Some(_semi) => quote::quote!(
