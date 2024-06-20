@@ -220,7 +220,7 @@ pub fn array_assign_binary_op_expand<
     let index: ExpandElement = index.into();
     let value: ExpandElement = value.into();
 
-    let tmp = context.create_local(value.item());
+    let tmp = context.create_local(array.item());
 
     let read = Operator::Index(BinaryOperator {
         lhs: *array,
