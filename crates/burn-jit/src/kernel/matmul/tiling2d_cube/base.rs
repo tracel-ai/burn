@@ -1,4 +1,5 @@
 use crate::{
+    fusion::kernel,
     kernel::{
         into_contiguous,
         matmul::{tiling2d_launch_options, Tiling2dConfig},
@@ -9,8 +10,9 @@ use crate::{
 use burn_cube::prelude::*;
 
 use super::{
-    outer_product::{tile_outer_product, tile_outer_product_expand},
     config::CubeTiling2dConfig,
+    dot_loop::{dot_loop, dot_loop_expand},
+    outer_product::{tile_outer_product, tile_outer_product_expand},
 };
 
 #[derive(CubeType, Copy, Clone)]
@@ -385,40 +387,6 @@ fn load_rhs_tensor_transposed<F: Float>(
 }
 
 #[cube]
-pub(crate) fn computation_loop<F: Float>(
-    kernel_state: Tiling2dState<F>,
-    config: Comptime<CubeTiling2dConfig>,
-) {
-    let unit_col = kernel_state.unit_col;
-    let unit_row = kernel_state.unit_row;
-    let shared_lhs = kernel_state.shared_lhs;
-    let shared_rhs = kernel_state.shared_rhs;
-    let mut register_m = kernel_state.register_m;
-    let mut register_n = kernel_state.register_n;
-    let mut results = kernel_state.results;
-    let block_size_k = Comptime::map(config, |c| c.block_size_k);
-    let block_size_n = Comptime::map(config, |c| c.block_size_n);
-    let unroll = Comptime::map(config, |c| c.unroll);
-    let tile_size = Comptime::vectorization(kernel_state.lhs);
-
-    // TODO this would greatly beneficiate from comptime arithmetic so we could unroll
-    let num_compute = Comptime::runtime(block_size_k) / Comptime::runtime(tile_size);
-    let lhs_pos_base = unit_row / Comptime::runtime(tile_size) * Comptime::runtime(block_size_k);
-    let rhs_pos_base = unit_col / Comptime::runtime(tile_size) * Comptime::runtime(block_size_k);
-
-    for dot_index in range(0u32, num_compute, Comptime::new(false)) {
-        let dot_index = Comptime::runtime(tile_size) * dot_index;
-        let lhs_pos = lhs_pos_base + dot_index;
-        let rhs_pos = rhs_pos_base + dot_index;
-
-        register_m = shared_lhs[lhs_pos];
-        register_n = shared_rhs[rhs_pos];
-
-        tile_outer_product(register_m, register_n, results, config);
-    }
-}
-
-#[cube]
 fn write_to_output<F: Float>(
     mut kernel_state: Tiling2dState<F>,
     config: Comptime<CubeTiling2dConfig>,
@@ -500,7 +468,14 @@ pub fn tiling2d_matmul_kernel<F: Float>(
 
         sync_units();
 
-        computation_loop(kernel_state, config);
+        dot_loop(
+            kernel_state.unit_row,
+            kernel_state.unit_col,
+            kernel_state.shared_lhs,
+            kernel_state.shared_rhs,
+            kernel_state.results,
+            config,
+        );
 
         sync_units();
     }

@@ -41,7 +41,7 @@ pub fn dot_loop_test<F: Float>(
     rhs: Tensor<F>,
     unit_row: UInt,
     unit_col: UInt,
-    results: Array<F>,
+    mut results: Array<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -59,6 +59,10 @@ pub fn dot_loop_test<F: Float>(
         SharedMemory::<F>::vectorized(Comptime::get(sm_size_rhs), Comptime::get(tile_size));
     for i in range(0u32, rhs.len(), Comptime::new(false)) {
         shared_rhs[i] = rhs[i];
+    }
+
+    for i in range(0u32, 16u32, Comptime::new(false)) {
+        results[i] = F::new(0.);
     }
 
     dot_loop(unit_row, unit_col, shared_lhs, shared_rhs, results, config)
