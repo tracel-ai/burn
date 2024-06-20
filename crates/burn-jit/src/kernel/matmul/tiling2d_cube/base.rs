@@ -1,55 +1,17 @@
-use crate::{kernel::into_contiguous, tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{
+    kernel::{
+        into_contiguous,
+        matmul::{tiling2d_launch_options, Tiling2dConfig},
+    },
+    tensor::JitTensor,
+    FloatElement, JitRuntime,
+};
 use burn_cube::prelude::*;
 
-use super::{tiling2d_launch_options, Tiling2dConfig};
-
-impl Init for CubeTiling2dConfig {
-    fn init(self, _context: &mut CubeContext) -> Self {
-        self
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-/// Tiling 2D parameters
-pub struct CubeTiling2dConfig {
-    /// Block size along dimension of lhs
-    pub block_size_m: UInt,
-    /// Block size along common dimension
-    pub block_size_k: UInt,
-    /// Block size along dimension of rhs
-    pub block_size_n: UInt,
-    /// Loop unrolling
-    pub unroll: bool,
-    /// Bounds must be checked on lhs dimension
-    pub check_m_bounds: bool,
-    /// Bounds must be checked on common dimension
-    pub check_k_bounds: bool,
-    /// Bounds must be checked on rhs dimension
-    pub check_n_bounds: bool,
-    /// Shared memory size lhs: technically derivable from others, but needs comptime arithmetic
-    pub sm_size_lhs: UInt,
-    /// Shared memory size rhs: technically derivable from others, but needs comptime arithmetic
-    pub sm_size_rhs: UInt,
-}
-
-impl CubeTiling2dConfig {
-    fn new(config: Tiling2dConfig, m: usize, k: usize, n: usize, tile_size: usize) -> Self {
-        let sm_size_lhs = config.block_size_m * config.block_size_k * tile_size;
-        let sm_size_rhs = config.block_size_n * config.block_size_k * tile_size;
-
-        CubeTiling2dConfig {
-            block_size_m: UInt::new(config.block_size_m as u32),
-            block_size_k: UInt::new(config.block_size_k as u32),
-            block_size_n: UInt::new(config.block_size_n as u32),
-            unroll: config.unroll,
-            check_m_bounds: m % config.block_size_m != 0,
-            check_k_bounds: k % config.block_size_k != 0,
-            check_n_bounds: n % config.block_size_n != 0,
-            sm_size_lhs: UInt::new(sm_size_lhs as u32),
-            sm_size_rhs: UInt::new(sm_size_rhs as u32),
-        }
-    }
-}
+use super::{
+    outer_product::{tile_outer_product, tile_outer_product_expand},
+    config::CubeTiling2dConfig,
+};
 
 #[derive(CubeType, Copy, Clone)]
 struct Tiling2dState<F: Float> {
@@ -452,21 +414,7 @@ pub(crate) fn computation_loop<F: Float>(
         register_m = shared_lhs[lhs_pos];
         register_n = shared_rhs[rhs_pos];
 
-        let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
-        if Comptime::get(is_scalar) {
-            // TODO vec[i] += x does not work
-            results[0] = results[0] + register_m * register_n;
-        } else {
-            // Naive version that decomposes vectorization
-            for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-                let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
-                for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
-                    let mul = register_m[res_idx_m] * register_n[res_idx_n];
-                    // results[res_pos_base + res_idx_n] += mul;
-                    results[res_pos_base + res_idx_n] = results[res_pos_base + res_idx_n] + mul;
-                }
-            }
-        }
+        tile_outer_product(register_m, register_n, results, config);
     }
 }
 
