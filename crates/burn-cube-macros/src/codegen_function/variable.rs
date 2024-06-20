@@ -2,11 +2,9 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{punctuated::Punctuated, FieldValue, Lit, Member, PathArguments, Token};
 
-use crate::{
-    analyzer::KEYWORDS,
-    codegen_function::base::{codegen_expr, codegen_expr_with_comptime},
-    tracker::VariableTracker,
-};
+use crate::{analyzer::KEYWORDS, codegen_function::expr::codegen_expr, tracker::VariableTracker};
+
+use super::base::Codegen;
 
 /// Codegen for literals
 pub(crate) fn codegen_lit(lit: &syn::ExprLit) -> TokenStream {
@@ -67,7 +65,13 @@ pub(crate) fn codegen_local(
     match local.init.as_ref() {
         Some(init) => {
             let (init, is_comptime) =
-                codegen_expr_with_comptime(&init.expr, loop_level, variable_tracker);
+                codegen_expr(&init.expr, loop_level, variable_tracker).split();
+
+            if is_comptime {
+                variable_tracker
+                    .set_as_comptime(ident.to_string(), loop_level as u8, None)
+                    .unwrap();
+            }
 
             if is_comptime {
                 quote::quote! {
@@ -160,28 +164,30 @@ pub(crate) fn codegen_assign(
     }
 }
 
-/// Codegen for a variable used in rhs of a statement
-/// This function adds cloning when necessary
-pub(crate) fn codegen_path_rhs(
+pub(crate) fn codegen_path_var(
     path: &syn::ExprPath,
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
-) -> TokenStream {
+) -> Codegen {
     let ident = path
         .path
         .get_ident()
         .expect("Codegen: Only ident path are supported.");
 
     if KEYWORDS.contains(&ident.to_string().as_str()) {
-        quote::quote! {
-            #ident :: expand(context)
-        }
+        Codegen::new(
+            quote::quote! {
+                #ident :: expand(context)
+            },
+            false,
+        )
     } else {
-        let will_be_used_again = variable_tracker
-            .codegen_reuse(ident.to_string(), loop_level as u8, None)
-            .unwrap_or(true);
+        let name = ident.to_string();
+        let (will_be_used_again, is_comptime) = variable_tracker
+            .codegen_reuse(name, loop_level as u8, None)
+            .unwrap_or((true, false));
 
-        if will_be_used_again {
+        let output = if will_be_used_again {
             quote::quote! {
                 #ident.clone()
             }
@@ -189,7 +195,9 @@ pub(crate) fn codegen_path_rhs(
             quote::quote! {
                 #ident
             }
-        }
+        };
+
+        Codegen::new(output, is_comptime)
     }
 }
 
@@ -215,13 +223,12 @@ pub(crate) fn codegen_field(
         todo!("Codegen: unnamed attribute not supported.");
     };
 
-    let will_be_used_again = variable_tracker
+    let (will_be_used_again, _) = variable_tracker
         .codegen_reuse(
             struct_.to_string(),
             loop_level as u8,
             Some(field.to_string()),
         )
-        // .unwrap_or(true);
         .unwrap();
 
     if will_be_used_again {
