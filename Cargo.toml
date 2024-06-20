@@ -138,4 +138,4 @@ systemstat = "0.2.3"
 
 
 [profile.dev]
-debug = 0 # Speed up compilation time and not necessary.
+debug = 2 # Speed up compilation time and not necessary.

@@ -29,7 +29,7 @@ pub struct Chunk {
 // TODO: consider using generic trait and decouple from Slice
 #[derive(new, Debug)]
 struct MemoryPage {
-    pub slices: BTreeMap<usize, SliceId>,
+    pub slices: HashMap<usize, SliceId>,
 }
 
 impl MemoryPage {
@@ -52,16 +52,19 @@ impl MemoryPage {
         // Check if there is a next slice
         if let Some(next_slice_id) = self.find_slice(next_slice_address) {
             // Remove the next slice first to avoid borrowing slices mutably twice
-            let next_slice = slices.remove(&next_slice_id).unwrap();
 
-            if next_slice.is_free() {
+            let (next_slice_eff_size, next_slice_is_free) = {
+                let next_slice = slices.get(&next_slice_id).unwrap();
+                (next_slice.effective_size(), next_slice.is_free())
+            };
+            if next_slice_is_free {
                 // Get a mutable reference to the first slice
                 let first_slice = slices.get_mut(&first_slice_id).unwrap();
                 let first_slice_eff_size = first_slice.effective_size();
                 let first_slice_offset = first_slice.storage.offset();
 
                 // Update the first slice to reflect the merged size
-                let merged_size = first_slice_eff_size + next_slice.effective_size();
+                let merged_size = first_slice_eff_size + next_slice_eff_size;
                 first_slice.storage.utilization = StorageUtilization::Slice {
                     size: merged_size,
                     offset: first_slice_offset,
@@ -70,6 +73,7 @@ impl MemoryPage {
 
                 // Cleanup
                 self.slices.remove(&next_slice_address);
+                slices.remove(&next_slice_id);
                 return true;
             } else {
                 return false;
@@ -261,6 +265,15 @@ impl MemoryPool {
         //    sync();
         //    self.extend_max_memory(storage, size);
 
+        if self.debug {
+            self.display_memory_usage();
+        } else {
+            log::info!(
+                "the number of chunks is {} and the number of slices is {}",
+                self.chunks.len(),
+                self.slices.len()
+            );
+        }
         if let Some(handle) = self.get_free_slice(size) {
             return MemoryPoolHandle { slice: handle };
         }
@@ -384,7 +397,8 @@ impl MemoryPool {
         };
         slice.storage.utilization = StorageUtilization::Slice { offset, size };
         //this could be wrong hehe
-        slice.padding = padding;
+        let new_padding = old_slice_size - size;
+        slice.padding = new_padding;
         // FAILS HERE (THIS IS DEFINTELY THE PROBLEM, ILL FIX IT TOMORROW IM TIRED GOOD NIGHT)
         // EVERYONE !!!
         assert_eq!(
@@ -415,9 +429,6 @@ impl MemoryPool {
         };
 
         let padding = calculate_padding(size);
-        if chunk.handle.id().value == 10 {
-            println!("size {size} padding {padding}");
-        }
 
         Slice::new(storage, handle, chunk.handle.clone(), padding)
     }
@@ -439,7 +450,7 @@ impl MemoryPool {
 
         self.chunks.insert(
             id,
-            Chunk::new(storage, handle.clone(), MemoryPage::new(BTreeMap::new())),
+            Chunk::new(storage, handle.clone(), MemoryPage::new(HashMap::new())),
         );
         self.chunk_index.insert(id, size);
 
@@ -573,9 +584,10 @@ impl MemorySlice for Slice {
         self.effective_size()
     }
 
-    fn split(&mut self, offset_slice: usize) -> Self {
+    fn split(&mut self, offset_slice: usize) -> Option<Self> {
         let size_new = self.effective_size() - offset_slice;
         let offset_new = self.storage.offset() + offset_slice;
+        let old_size = self.effective_size();
 
         let storage_new = StorageHandle {
             id: self.storage.id.clone(),
@@ -597,18 +609,27 @@ impl MemorySlice for Slice {
             panic!("slice with offset {offset_new} needs to be a multiple of {BUFFER_ALIGNMENT}");
         }
         let handle = SliceHandle::new();
+        if size_new < BUFFER_ALIGNMENT {
+            self.padding = old_size - offset_slice;
+            assert_eq!(self.effective_size(), old_size);
+            return None;
+        }
 
         assert!(
             size_new >= BUFFER_ALIGNMENT,
             "Size new > {BUFFER_ALIGNMENT}"
         );
+        self.padding = 0;
         let padding = calculate_padding(size_new - BUFFER_ALIGNMENT);
-
-        Slice::new(storage_new, handle, self.chunk.clone(), padding)
+        Some(Slice::new(storage_new, handle, self.chunk.clone(), padding))
     }
 
     fn id(&self) -> SliceId {
         *self.handle.id()
+    }
+
+    fn next_slice_position(&self) -> usize {
+        self.storage.offset() + self.effective_size()
     }
 }
 
@@ -625,23 +646,13 @@ impl MemoryChunk<Slice> for Chunk {
         self.slices.slices.get(&index).copied()
     }
 
-    fn insert_slice(&mut self, position: usize, slice_id: SliceId) {
-        self.slices.slices.insert(position, slice_id);
-    }
-
-    fn next_slice_position(
-        &self,
-        slice_position: usize,
-        slices: &HashMap<SliceId, Slice>,
-    ) -> usize {
-        let slice_id = self.slices.find_slice(slice_position).unwrap();
-        let slice = slices.get(&slice_id).unwrap();
-
-        println!(
-            "slice position {slice_position} and slice eff size {} and slice padding {}",
-            slice.storage.size(),
-            slice.padding
-        );
-        slice_position + slice.effective_size()
+    fn insert_slice(
+        &mut self,
+        position: usize,
+        slice: Slice,
+        slices: &mut HashMap<SliceId, Slice>,
+    ) {
+        self.slices.slices.insert(position, slice.id());
+        slices.insert(slice.id(), slice);
     }
 }

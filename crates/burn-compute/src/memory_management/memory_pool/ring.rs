@@ -18,15 +18,15 @@ pub trait MemoryChunk<S: MemorySlice> {
     fn merge_next_slice(&mut self, slice_position: usize, slices: &mut HashMap<SliceId, S>)
         -> bool;
     fn slice(&self, index: usize) -> Option<SliceId>;
-    fn insert_slice(&mut self, position: usize, slice_id: SliceId);
-    fn next_slice_position(&self, slice_position: usize, slices: &HashMap<SliceId, S>) -> usize;
+    fn insert_slice(&mut self, position: usize, slice: S, slices: &mut HashMap<SliceId, S>);
 }
 
-pub trait MemorySlice {
+pub trait MemorySlice: Sized {
     fn is_free(&self) -> bool;
     fn size(&self) -> usize;
-    fn split(&mut self, offset: usize) -> Self;
+    fn split(&mut self, offset: usize) -> Option<Self>;
     fn id(&self) -> SliceId;
+    fn next_slice_position(&self) -> usize;
 }
 
 impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
@@ -84,29 +84,38 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         mut slice_index: usize,
     ) -> Option<(usize, SliceId)> {
         while let Some(slice_id) = chunk.slice(slice_index) {
-            let slice = slices.get_mut(&slice_id).unwrap();
+            //mutable borrow scope
+            {
+                let slice = slices.get_mut(&slice_id).unwrap();
 
-            let is_big_enough = slice.size() >= size;
-            let is_free = slice.is_free();
+                let is_big_enough = slice.size() >= size;
+                let is_free = slice.is_free();
 
-            if is_big_enough && is_free {
-                if slice.size() > size {
-                    let new_slice = slice.split(size);
-                    chunk.insert_slice(
-                        chunk.next_slice_position(slice_index, slices),
-                        new_slice.id(),
-                    );
-                    slices.insert(new_slice.id(), new_slice);
+                if is_big_enough && is_free {
+                    let slice_size = slice.size();
+                    if slice.size() > size {
+                        if let Some(new_slice) = slice.split(size) {
+                            let new_slice_id = new_slice.id();
+                            chunk.insert_slice(slice.next_slice_position(), new_slice, slices);
+                            slices.get(&new_slice_id).unwrap();
+                        }
+                    }
+                    return Some((slice_index, slice_id));
                 }
-
-                return Some((slice_index, slice_id));
+            }
+            {
+                let slice = slices.get_mut(&slice_id).unwrap();
+                let is_free = slice.is_free();
+                if is_free && chunk.merge_next_slice(slice_index, slices) {
+                    continue;
+                }
             }
 
-            if is_free && chunk.merge_next_slice(slice_index, slices) {
-                continue;
+            if let Some(slice) = slices.get(&slice_id) {
+                slice_index = slice.next_slice_position();
+            } else {
+                panic!("current slice_id should still be valid after potential merge");
             }
-
-            slice_index = chunk.next_slice_position(slice_index, slices);
         }
 
         None
@@ -130,13 +139,13 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
 
             if let Some(id) = self.queue.get(chunk_index) {
                 let chunk = chunks.get_mut(id).unwrap();
-                println!("looking at chunk {} at address {}", id.value, slice_index);
                 let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
 
                 if let Some((cursor_slice, slice)) = result {
-                    self.cursor_slice = chunk.next_slice_position(cursor_slice, slices);
+                    let slice = slices.get(&slice).unwrap();
+                    self.cursor_slice = slice.next_slice_position();
                     self.cursor_chunk = chunk_index;
-                    return Some(slice);
+                    return Some(slice.id());
                 }
             }
             self.cursor_chunk = chunk_index;
@@ -157,8 +166,8 @@ mod tests {
     fn simple_1() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 100);
-        let slice_2 = new_slice(1, 200);
+        let slice_1 = new_slice(0, 100, 0);
+        let slice_2 = new_slice(1, 200, 1);
         let chunk_1 = new_chunk(0, vec![0, 1]);
 
         let mut slices = HashMap::from([(slice_1.id, slice_1), (slice_2.id, slice_2)]);
@@ -178,8 +187,8 @@ mod tests {
     fn simple_2() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 100);
-        let slice_2 = new_slice(1, 200);
+        let slice_1 = new_slice(0, 100, 0);
+        let slice_2 = new_slice(1, 200, 1);
         let chunk_1 = new_chunk(0, vec![0, 1]);
 
         let mut slices = HashMap::from([(slice_1.id, slice_1), (slice_2.id, slice_2)]);
@@ -199,10 +208,10 @@ mod tests {
     fn multiple_chunks() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 100);
-        let slice_2 = new_slice(1, 200);
-        let slice_3 = new_slice(2, 200);
-        let slice_4 = new_slice(3, 200);
+        let slice_1 = new_slice(0, 100, 0);
+        let slice_2 = new_slice(1, 200, 1);
+        let slice_3 = new_slice(2, 200, 0);
+        let slice_4 = new_slice(3, 200, 1);
         let chunk_1 = new_chunk(0, vec![0, 1]);
         let chunk_2 = new_chunk(1, vec![2, 3]);
 
@@ -234,8 +243,8 @@ mod tests {
     fn find_free_slice_with_exact_fit() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 100);
-        let slice_2 = new_slice(1, 200);
+        let slice_1 = new_slice(0, 100, 0);
+        let slice_2 = new_slice(1, 200, 1);
         let chunk_1 = new_chunk(0, vec![0, 1]);
 
         let mut slices = HashMap::from([(slice_1.id, slice_1), (slice_2.id, slice_2)]);
@@ -258,9 +267,9 @@ mod tests {
     fn find_free_slice_with_merging() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 100);
-        let slice_2 = new_slice(1, 50);
-        let slice_3 = new_slice(2, 100);
+        let slice_1 = new_slice(0, 100, 0);
+        let slice_2 = new_slice(1, 50, 1);
+        let slice_3 = new_slice(2, 100, 2);
         let chunk_1 = new_chunk(0, vec![0, 1, 2]);
 
         let mut slices = HashMap::from([
@@ -288,12 +297,12 @@ mod tests {
     fn find_free_slice_with_multiple_chunks_and_merging() {
         let mut ring = RingBuffer::<TestChunk, TestSlice>::new();
 
-        let slice_1 = new_slice(0, 50);
-        let slice_2 = new_slice(1, 50);
+        let slice_1 = new_slice(0, 50, 0);
+        let slice_2 = new_slice(1, 50, 1);
         let chunk_1 = new_chunk(0, vec![0, 1]);
 
-        let slice_3 = new_slice(2, 100);
-        let slice_4 = new_slice(3, 50);
+        let slice_3 = new_slice(2, 100, 0);
+        let slice_4 = new_slice(3, 50, 1);
         let chunk_2 = new_chunk(1, vec![2, 3]);
 
         let mut slices = HashMap::from([
@@ -319,11 +328,12 @@ mod tests {
         assert_eq!(chunks.values().last().unwrap().slices.len(), 1);
     }
 
-    fn new_slice(id: usize, size: usize) -> TestSlice {
+    fn new_slice(id: usize, size: usize, position: usize) -> TestSlice {
         TestSlice {
             id: SliceId { value: id },
             is_free: true,
             size,
+            position,
         }
     }
 
@@ -351,6 +361,7 @@ mod stub {
         pub id: SliceId,
         pub is_free: bool,
         pub size: usize,
+        pub position: usize,
     }
 
     impl MemorySlice for TestSlice {
@@ -362,21 +373,26 @@ mod stub {
             self.size
         }
 
-        fn split(&mut self, offset: usize) -> Self {
+        fn split(&mut self, offset: usize) -> Option<Self> {
             let size_remained = self.size - offset;
             self.size = offset;
 
-            Self {
+            Some(Self {
                 id: SliceId {
                     value: rand::gen_random(),
                 },
                 is_free: true,
                 size: size_remained,
-            }
+                position: self.position + 1,
+            })
         }
 
         fn id(&self) -> SliceId {
             self.id
+        }
+
+        fn next_slice_position(&self) -> usize {
+            self.position + 1
         }
     }
 
@@ -404,6 +420,10 @@ mod stub {
                 slices.remove(slice_id_next);
                 self.slices.remove(from_slice_index + 1);
 
+                for (index, temp_slice_id) in self.slices.iter_mut().enumerate() {
+                    let slice = slices.get_mut(temp_slice_id).unwrap();
+                    slice.position = index;
+                }
                 return true;
             }
 
@@ -414,15 +434,18 @@ mod stub {
             self.slices.get(index).copied()
         }
 
-        fn insert_slice(&mut self, position: usize, slice_id: SliceId) {
-            self.slices.insert(position, slice_id);
-        }
-        fn next_slice_position(
-            &self,
-            slice_position: usize,
-            slices: &HashMap<SliceId, TestSlice>,
-        ) -> usize {
-            slice_position + 1
+        fn insert_slice(
+            &mut self,
+            position: usize,
+            slice: TestSlice,
+            slices: &mut HashMap<SliceId, TestSlice>,
+        ) {
+            self.slices.insert(position, slice.id());
+            slices.insert(slice.id(), slice);
+            for (index, temp_slice_id) in self.slices.iter_mut().enumerate() {
+                let temp_slice = slices.get_mut(temp_slice_id).unwrap();
+                temp_slice.position = index;
+            }
         }
     }
 }

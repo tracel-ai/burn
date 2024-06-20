@@ -14,25 +14,29 @@ pub struct DynamicMemoryManagement<Storage> {
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(storage: Storage) -> Self {
+    pub fn new(mut storage: Storage) -> Self {
         let main_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::new_period_tick(10),
             RoundingStrategy::RoundUp,
             1024 * 1024 * 1024 * 2,
             true,
         );
-        let small_memory_pool = MemoryPool::new(
+        let mut small_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
             RoundingStrategy::None,
             1024 * 1024 * 512,
             false,
         );
 
-        Self {
+        small_memory_pool.alloc(&mut storage, 1024 * 1024 * 1024, || {});
+
+        let mut allo = Self {
             main_memory_pool,
             small_memory_pool,
             storage,
-        }
+        };
+        allo.reserve(1024 * 1024 * 1024 * 2, || {});
+        allo
     }
 }
 
