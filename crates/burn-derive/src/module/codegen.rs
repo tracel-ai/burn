@@ -266,7 +266,7 @@ impl GenericsParser {
     }
 }
 
-fn has_custom_display(attrs: &Vec<Attribute>) -> bool {
+fn has_custom_display(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|attr| {
         attr.path().is_ident("module")
             && attr
