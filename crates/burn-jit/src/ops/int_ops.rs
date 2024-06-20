@@ -21,12 +21,12 @@ where
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData> {
         super::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         super::from_data(data, device)

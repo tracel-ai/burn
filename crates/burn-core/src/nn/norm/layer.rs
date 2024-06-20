@@ -86,7 +86,7 @@ mod tests {
     fn layer_norm_forward() {
         let device = Default::default();
         let module = LayerNormConfig::new(10).init::<TestBackend>(&device);
-        let input = Tensor::from_data(
+        let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([[
                 -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
             ]]),

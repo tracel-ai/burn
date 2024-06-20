@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_topk_1d() {
         // Int
-        let tensor = TestTensorInt::from([1, 2, 3, 4, 5]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let values = tensor.topk(3, /*dim*/ 0);
         let expected = TensorData::from([5, 4, 3]).convert::<<TestBackend as Backend>::IntElem>();
@@ -14,7 +14,7 @@ mod tests {
         values.into_data().assert_eq(&expected, true);
 
         // Float
-        let tensor = TestTensor::from([1., 2., 3., 4., 5.]);
+        let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
 
         let values = tensor.topk(3, /*dim*/ 0);
         let expected =
@@ -25,8 +25,8 @@ mod tests {
 
     #[test]
     fn test_topk() {
-        // 2D Int
-        let tensor = TestTensorInt::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
+        // 3D Int
+        let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
         let expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]])
@@ -34,8 +34,9 @@ mod tests {
 
         values.into_data().assert_eq(&expected, true);
 
-        // 2D Float
-        let tensor = TestTensor::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
+        // 3D Float
+        let tensor =
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
         let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]])
@@ -47,7 +48,7 @@ mod tests {
     #[test]
     fn test_topk_with_indices() {
         // 1D
-        let tensor = TestTensorInt::from([1, 2, 3, 4, 5]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0);
 
@@ -59,8 +60,9 @@ mod tests {
             TensorData::from([4, 3, 2]).convert::<<TestBackend as Backend>::IntElem>();
         indices.into_data().assert_eq(&indices_expected, true);
 
-        // 2D
-        let tensor = TestTensor::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+        // 3D
+        let tensor =
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 
         let (values, indices) = tensor.topk_with_indices(2, /*dim*/ 2);
 

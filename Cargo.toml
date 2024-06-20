@@ -62,7 +62,6 @@ rstest = "0.19.0"
 rusqlite = { version = "0.31.0" }
 rust-format = { version = "0.3.4" }
 sanitize-filename = "0.5.0"
-serde-big-array = "0.5.1"
 serde_rusqlite = "0.35.0"
 spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
 strum = "0.26.2"

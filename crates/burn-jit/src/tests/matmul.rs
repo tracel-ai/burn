@@ -215,7 +215,8 @@ mod tests {
         #[test]
         fn stable_test() {
             let ref_tensor_device = Default::default();
-            let x = ReferenceTensor::from_floats([[0., 1., 2.], [3., 4., 5.]], &ref_tensor_device);
+            let x =
+                ReferenceTensor::<2>::from_floats([[0., 1., 2.], [3., 4., 5.]], &ref_tensor_device);
             let y =
                 ReferenceTensor::from_floats([[0., 1.], [2., 3.], [4., 5.]], &ref_tensor_device);
 
@@ -236,8 +237,10 @@ mod tests {
         #[test]
         fn stable_test_2() {
             let ref_tensor_device = Default::default();
-            let x =
-                ReferenceTensor::from_floats([[0., 1.], [2., 3.], [4., 5.]], &ref_tensor_device);
+            let x = ReferenceTensor::<2>::from_floats(
+                [[0., 1.], [2., 3.], [4., 5.]],
+                &ref_tensor_device,
+            );
             let y = ReferenceTensor::from_floats([[0., 1., 2.], [3., 4., 5.]], &ref_tensor_device);
 
             let test_tensor_device = Default::default();

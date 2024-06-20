@@ -20,15 +20,15 @@ where
         tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<TensorData> {
         super::bool_into_data(tensor)
     }
 
     fn bool_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        let data: TensorData<D> = TensorData::new(data.iter::<u32>().collect(), data.shape);
+        let data: TensorData = TensorData::new(data.iter::<u32>().collect(), data.shape);
         super::from_data(data, device)
     }
 

@@ -9,7 +9,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -19,7 +19,7 @@ mod tests {
         let tensor_6 = tensor_4 * tensor_5;
 
         // Second tree
-        let tensor_7 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -44,7 +44,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -54,7 +54,7 @@ mod tests {
         let tensor_6 = tensor_4.clone() * tensor_5;
 
         // Second tree
-        let tensor_7 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
 
         let tensor_9 = tensor_7.clone() * tensor_8.clone();
@@ -70,7 +70,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -80,7 +80,7 @@ mod tests {
         let tensor_6 = tensor_4.clone() * tensor_5;
 
         // Second tree
-        let tensor_7 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
 
         let tensor_9 = tensor_7.clone() * tensor_8.clone();
@@ -96,7 +96,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -106,7 +106,7 @@ mod tests {
         let tensor_6 = tensor_4 * tensor_5.clone();
 
         // Third tree
-        let tensor_7 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -129,7 +129,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -139,7 +139,7 @@ mod tests {
         let tensor_6 = tensor_4 * tensor_5.clone();
 
         // Third tree
-        let tensor_7 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
@@ -161,7 +161,7 @@ mod tests {
         let device = Default::default();
 
         // First tree
-        let tensor_0 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
 

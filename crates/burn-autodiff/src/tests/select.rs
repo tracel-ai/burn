@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_select_grad() {
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(
             TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
             &device,
         )
@@ -30,7 +30,7 @@ mod tests {
     #[test]
     fn test_select_assign_grad() {
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(
             TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
             &device,
         )

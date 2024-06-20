@@ -10,7 +10,7 @@ mod tests {
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::<1>::from_data(data_2, &device).require_grad();
 
         let tensor_3 = tensor_2.clone().reshape([2, 2]);
         let tensor_4 = tensor_1.clone().matmul(tensor_3);

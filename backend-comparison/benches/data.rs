@@ -43,7 +43,7 @@ struct FromDataBenchmark<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
-    type Args = (TensorData<D>, B::Device);
+    type Args = (TensorData, B::Device);
 
     fn name(&self) -> String {
         "from_data".into()
@@ -59,7 +59,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 
     fn prepare(&self) -> Self::Args {
         (
-            TensorData::random::<B::FloatElem, _>(
+            TensorData::random::<B::FloatElem, _, _>(
                 self.shape.clone(),
                 Distribution::Default,
                 &mut rand::thread_rng(),

@@ -25,10 +25,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn float_from_data<const D: usize>(
-        data: TensorData<D>,
-        device: &Device<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> FloatTensor<B, D>;
 
     /// Creates a new tensor with random values.
     ///
@@ -114,7 +111,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_to_data<const D: usize>(tensor: &FloatTensor<B, D>) -> Reader<TensorData<D>> {
+    fn float_to_data<const D: usize>(tensor: &FloatTensor<B, D>) -> Reader<TensorData> {
         Self::float_into_data(tensor.clone())
     }
 
@@ -127,7 +124,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<TensorData<D>>;
+    fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<TensorData>;
 
     /// Gets the device of the tensor.
     ///

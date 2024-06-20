@@ -11,15 +11,13 @@ use burn_tensor::DataSerialize;
 #[cfg(feature = "record-backward-compat")]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
-enum TensorDataSerde<const D: usize, E> {
+enum TensorDataSerde<E> {
     V1(DataSerialize<E>),
-    V2(TensorData<D>),
+    V2(TensorData),
 }
 
 /// Deserialize the value into [`TensorData`].
-fn deserialize_data<'de, const D: usize, E, De>(
-    deserializer: De,
-) -> Result<TensorData<D>, De::Error>
+fn deserialize_data<'de, E, De>(deserializer: De) -> Result<TensorData, De::Error>
 where
     E: Element + Deserialize<'de>,
     De: serde::Deserializer<'de>,
@@ -49,28 +47,28 @@ where
 /// This struct implements serde to lazily serialize and deserialize a float tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
-pub struct FloatTensorSerde<const D: usize, S: PrecisionSettings> {
-    data: TensorData<D>,
+pub struct FloatTensorSerde<S: PrecisionSettings> {
+    data: TensorData,
     _e: PhantomData<S::FloatElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an int tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
-pub struct IntTensorSerde<const D: usize, S: PrecisionSettings> {
-    data: TensorData<D>,
+pub struct IntTensorSerde<S: PrecisionSettings> {
+    data: TensorData,
     _e: PhantomData<S::IntElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an bool tensor.
 #[derive(new, Clone, Debug)]
-pub struct BoolTensorSerde<const D: usize> {
-    data: TensorData<D>,
+pub struct BoolTensorSerde {
+    data: TensorData,
 }
 
 // --- SERDE IMPLEMENTATIONS --- //
 
-impl<const D: usize, S: PrecisionSettings> Serialize for FloatTensorSerde<D, S> {
+impl<S: PrecisionSettings> Serialize for FloatTensorSerde<S> {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
@@ -79,18 +77,18 @@ impl<const D: usize, S: PrecisionSettings> Serialize for FloatTensorSerde<D, S> 
     }
 }
 
-impl<'de, const D: usize, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<D, S> {
+impl<'de, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<S> {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
-        let data = deserialize_data::<D, S::FloatElem, De>(deserializer)?;
+        let data = deserialize_data::<S::FloatElem, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
 }
 
-impl<const D: usize, S: PrecisionSettings> Serialize for IntTensorSerde<D, S> {
+impl<S: PrecisionSettings> Serialize for IntTensorSerde<S> {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
@@ -99,18 +97,18 @@ impl<const D: usize, S: PrecisionSettings> Serialize for IntTensorSerde<D, S> {
     }
 }
 
-impl<'de, const D: usize, S: PrecisionSettings> Deserialize<'de> for IntTensorSerde<D, S> {
+impl<'de, S: PrecisionSettings> Deserialize<'de> for IntTensorSerde<S> {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
-        let data = deserialize_data::<D, S::IntElem, De>(deserializer)?;
+        let data = deserialize_data::<S::IntElem, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
 }
 
-impl<const D: usize> Serialize for BoolTensorSerde<D> {
+impl Serialize for BoolTensorSerde {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
         Se: serde::Serializer,
@@ -119,12 +117,12 @@ impl<const D: usize> Serialize for BoolTensorSerde<D> {
     }
 }
 
-impl<'de, const D: usize> Deserialize<'de> for BoolTensorSerde<D> {
+impl<'de> Deserialize<'de> for BoolTensorSerde {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
         De: serde::Deserializer<'de>,
     {
-        let data = deserialize_data::<D, bool, De>(deserializer)?;
+        let data = deserialize_data::<bool, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -133,7 +131,7 @@ impl<'de, const D: usize> Deserialize<'de> for BoolTensorSerde<D> {
 // --- RECORD IMPLEMENTATIONS --- //
 
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
-    type Item<S: PrecisionSettings> = FloatTensorSerde<D, S>;
+    type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
@@ -150,7 +148,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
 
 #[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
-    type Item<S: PrecisionSettings> = IntTensorSerde<D, S>;
+    type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
@@ -167,7 +165,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
 
 #[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
-    type Item<S: PrecisionSettings> = BoolTensorSerde<D>;
+    type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]

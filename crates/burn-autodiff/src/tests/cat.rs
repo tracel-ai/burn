@@ -6,7 +6,7 @@ mod tests {
     fn should_diff_cat() {
         let device = Default::default();
         let tensor_1 =
-            TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
+            TestAutodiffTensor::<2>::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
         let tensor_2 =
             TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0]], &device).require_grad();
 

@@ -10,8 +10,8 @@ mod tests {
         let mask = TensorData::from([[false, true], [true, false]]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::<1>::from_data(data_2, &device).require_grad();
 
         // Multi-dimensional tensor indexing isn't really supported yet so the easiest way to do
         // this is to flatten the mask and tensor to get proper indexing. Anyway the returned tensor would

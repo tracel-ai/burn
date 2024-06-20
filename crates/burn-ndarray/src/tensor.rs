@@ -24,7 +24,7 @@ mod utils {
     where
         E: Default + Clone,
     {
-        pub(crate) fn into_data(self) -> TensorData<D>
+        pub(crate) fn into_data(self) -> TensorData
         where
             E: FloatNdArrayElement,
         {
@@ -97,9 +97,9 @@ where
     E: Element,
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(data: TensorData<D>) -> NdArrayTensor<E, D> {
-        let shape = data.shape.clone();
-        let to_array = |data: TensorData<D>| Array::from_iter(data.iter()).into_shared();
+    pub fn from_data(data: TensorData) -> NdArrayTensor<E, D> {
+        let shape: Shape<D> = data.shape().into();
+        let to_array = |data: TensorData| Array::from_iter(data.iter()).into_shared();
         let array = to_array(data);
 
         reshape!(
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
             &mut get_seeded_rng(),
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
             &mut get_seeded_rng(),
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_3d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3, 4]),
             Distribution::Default,
             &mut get_seeded_rng(),
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_4d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3, 4, 2]),
             Distribution::Default,
             &mut get_seeded_rng(),

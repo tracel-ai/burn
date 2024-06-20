@@ -138,7 +138,7 @@ impl<B: Backend> RotaryEncoding<B> {
         // Create a dummy tensor with signed ones based on the 2D rotation matrix
         // [[cos, -sin], [sin, cos]]
         let sign_tensor =
-            Tensor::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
+            Tensor::<B, 2>::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
 
         // Rotate input using the frequency tensor. Slice the frequencies till input sequence length
         let out: Tensor<B, 4> = x
@@ -166,7 +166,7 @@ mod tests {
         let device = Default::default();
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
 
-        let input = Tensor::from_floats(
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -193,7 +193,7 @@ mod tests {
         );
 
         output
-            .squeeze(0)
+            .squeeze::<3>(0)
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
     }
@@ -222,7 +222,7 @@ mod tests {
         );
 
         output
-            .squeeze(0)
+            .squeeze::<3>(0)
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
     }

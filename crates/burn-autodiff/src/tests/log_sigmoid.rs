@@ -8,7 +8,7 @@ mod tests {
         let data = TensorData::from([[0.8762, -0.1423], [-300., 200.]]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data, &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(data, &device).require_grad();
         let tensor_2 = activation::log_sigmoid(tensor_1.clone());
         let grads = tensor_2.backward();
 

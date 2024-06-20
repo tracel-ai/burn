@@ -17,7 +17,7 @@ mod tests {
 
         fn args(&self) -> Self::Args;
 
-        fn run(&self, args: &Self::Args, inplace: bool) -> TensorData<D>;
+        fn run(&self, args: &Self::Args, inplace: bool) -> TensorData;
 
         fn check(&self) {
             let args = self.args();
@@ -36,7 +36,7 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = TensorData<2>;
+                    type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
                         TestTensor::random([32, 32], Distribution::Default, &Default::default())
@@ -44,7 +44,7 @@ mod tests {
                             .convert::<f32>()
                     }
 
-                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData<2> {
+                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData {
                         let lhs = TestTensor::from_data(args.clone(), &Default::default());
 
                         if inplace {
@@ -68,7 +68,7 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = (TensorData<2>, TensorData<2>);
+                    type Args = (TensorData, TensorData);
 
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
@@ -83,7 +83,7 @@ mod tests {
                         )
                     }
 
-                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData<2> {
+                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData {
                         let device = Default::default();
                         let lhs = TestTensor::from_data(lhs_arg.clone(), &device);
                         let rhs = TestTensor::from_data(rhs_arg.clone(), &device);
@@ -112,7 +112,7 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = TensorData<2>;
+                    type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
                         TestTensor::random(
@@ -124,7 +124,7 @@ mod tests {
                         .convert::<i32>()
                     }
 
-                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData<2> {
+                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData {
                         let lhs = TestTensorInt::from_data(args.clone(), &Default::default());
 
                         if inplace {
@@ -148,7 +148,7 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = (TensorData<2>, TensorData<2>);
+                    type Args = (TensorData, TensorData);
 
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
@@ -163,7 +163,7 @@ mod tests {
                         )
                     }
 
-                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData<2> {
+                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData {
                         let device = Default::default();
                         let lhs = TestTensorInt::from_data(lhs_arg.clone(), &device);
                         let rhs = TestTensorInt::from_data(rhs_arg.clone(), &device);
@@ -236,11 +236,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Sum,
-            ops_float: |tensor: TestTensor<2>| tensor.sum().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.sum().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Mean,
-            ops_float: |tensor: TestTensor<2>| tensor.mean().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.mean().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Clamp,
@@ -324,11 +324,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Max,
-            ops_float: |tensor: TestTensor<2>| tensor.max().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.max().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Min,
-            ops_float: |tensor: TestTensor<2>| tensor.min().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.min().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: MaxDim,
@@ -540,11 +540,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Sum,
-            ops_int: |tensor: TestTensorInt<2>| tensor.sum().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.sum().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Mean,
-            ops_int: |tensor: TestTensorInt<2>| tensor.mean().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.mean().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Clamp,
@@ -608,11 +608,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Max,
-            ops_int: |tensor: TestTensorInt<2>| tensor.max().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.max().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Min,
-            ops_int: |tensor: TestTensorInt<2>| tensor.min().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.min().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: MaxDim,

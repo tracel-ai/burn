@@ -24,7 +24,7 @@ use super::maxmin::MaxMinDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_from_data(data, device))
@@ -50,11 +50,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_shape(&tensor.primitive)
     }
 
-    fn float_to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn float_to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Reader<TensorData> {
         B::float_to_data(&tensor.primitive)
     }
 
-    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
         B::float_into_data(tensor.primitive)
     }
 

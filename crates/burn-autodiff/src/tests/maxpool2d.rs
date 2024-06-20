@@ -25,7 +25,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
             [[[
                 [0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 2.0],
@@ -73,7 +73,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
             [[[
                 [1., 3., 0., 2.],
                 [3., 0., 0., 4.],
@@ -121,7 +121,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
             [[[
                 [0., 0., 0., 0.],
                 [1., 1., 1., 2.],
@@ -170,7 +170,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
             [[[
                 [0., 0., 0., 3., 0.],
                 [4., 0., 2., 1., 0.],

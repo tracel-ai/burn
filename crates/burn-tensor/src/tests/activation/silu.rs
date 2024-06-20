@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_silu() {
-        let tensor = TestTensor::from([[1.0, 2.0], [3.0, 4.0]]);
+        let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
 
         let output = activation::silu(tensor);
         let expected = TensorData::from([[0.7311, 1.7616], [2.8577, 3.9281]])

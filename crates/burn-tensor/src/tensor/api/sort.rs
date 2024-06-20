@@ -78,7 +78,7 @@ where
 }
 
 pub fn sort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: TensorData<D>,
+    mut data: TensorData,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -86,7 +86,7 @@ pub fn sort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape.dims;
+    let dims = data.shape();
     let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
         // 1D sort
@@ -171,7 +171,7 @@ where
 }
 
 fn sort_data_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: TensorData<D>,
+    mut data: TensorData,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -179,7 +179,7 @@ fn sort_data_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOp
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape.dims;
+    let dims = data.shape();
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
     let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
@@ -304,7 +304,7 @@ where
 }
 
 fn argsort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    mut data: TensorData<D>,
+    mut data: TensorData,
     dim: usize,
     device: &Device<B>,
     descending: bool,
@@ -312,7 +312,7 @@ fn argsort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape.dims;
+    let dims = data.shape();
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
     if D == 1 {
         // 1D sort
@@ -347,7 +347,7 @@ where
 /// This sort is unstable (i.e., may reorder equal elements).
 fn sort_slice<B: Backend, const D: usize, K: BasicOps<B>>(
     data: &mut [<K as BasicOps<B>>::Elem],
-    dims: &[usize; D],
+    dims: &[usize],
     dim: usize,
     mut indices: Option<&mut [IntElem<B>]>,
     permute_both: bool,
@@ -355,11 +355,11 @@ fn sort_slice<B: Backend, const D: usize, K: BasicOps<B>>(
 ) where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let strides = compute_strides(dims);
+    let strides = compute_strides::<D>(dims);
     // Dimensions to access elements to sort
-    let mut sort_dims = *dims;
+    let mut sort_dims = dims.to_vec();
     sort_dims[dim] = 1;
-    let strides_out = compute_strides(&sort_dims);
+    let strides_out = compute_strides::<D>(&sort_dims);
 
     // Number of groups to sort
     let num_sorts: usize = dims
@@ -437,7 +437,8 @@ fn sort_slice<B: Backend, const D: usize, K: BasicOps<B>>(
 }
 
 /// Computes the steps for each dimension when traversing an array.
-fn compute_strides<const D: usize>(dims: &[usize; D]) -> [usize; D] {
+fn compute_strides<const D: usize>(dims: &[usize]) -> [usize; D] {
+    assert_eq!(dims.len(), D);
     let mut strides = [0; D];
     let mut current = 1;
 
@@ -450,7 +451,8 @@ fn compute_strides<const D: usize>(dims: &[usize; D]) -> [usize; D] {
 }
 
 /// Generates the indices for each element along the specified dimension.
-fn dim_indices<B: Backend, const D: usize>(dims: &[usize; D], dim: usize) -> Vec<IntElem<B>> {
+fn dim_indices<B: Backend, const D: usize>(dims: &[usize], dim: usize) -> Vec<IntElem<B>> {
+    assert_eq!(dims.len(), D);
     if D == 1 {
         (0..dims[dim])
             .map(|i| (i as i64).elem::<IntElem<B>>())

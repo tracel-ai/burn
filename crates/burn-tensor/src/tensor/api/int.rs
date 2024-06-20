@@ -48,7 +48,7 @@ where
     ///     let _y: Tensor<B, 2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
     /// }
     /// ```
-    pub fn from_ints<A: Into<TensorData<D>>>(ints: A, device: &B::Device) -> Self {
+    pub fn from_ints<A: Into<TensorData>>(ints: A, device: &B::Device) -> Self {
         Self::from_data(ints.into().convert::<i32>(), device)
     }
 

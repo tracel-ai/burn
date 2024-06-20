@@ -9,7 +9,7 @@ mod tests {
         let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().transpose());
@@ -31,7 +31,7 @@ mod tests {
     #[test]
     fn should_diff_swap_dims() {
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_floats(
+        let tensor_1 = TestAutodiffTensor::<3>::from_floats(
             [[[0.0, 1.0], [3.0, 4.0]], [[6.0, 7.0], [9.0, 10.0]]],
             &device,
         )

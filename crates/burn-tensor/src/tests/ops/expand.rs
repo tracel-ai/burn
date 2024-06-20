@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn expand_2d_bool() {
-        let tensor = TestTensorBool::from([false, true, false]);
+        let tensor = TestTensorBool::<1>::from([false, true, false]);
         let expanded_tensor = tensor.expand([3, 3]);
 
         let expected_data = TensorData::from([
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn expand_2d_int() {
-        let tensor = TestTensorInt::from([1, 2, 3]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3]);
         let output = tensor.expand([3, 3]);
         let expected = TensorData::from([[1, 2, 3], [1, 2, 3], [1, 2, 3]])
             .convert::<<TestBackend as Backend>::IntElem>();
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn should_all_negative_one() {
-        let tensor = TestTensorInt::from([1, 2, 3]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3]);
         let output = tensor.expand([2, -1]);
         let expected =
             TensorData::from([[1, 2, 3], [1, 2, 3]]).convert::<<TestBackend as Backend>::IntElem>();
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_negative_one_on_non_existing_dim() {
-        let tensor = TestTensorInt::from([1, 2, 3]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3]);
         let _expanded_tensor = tensor.expand([-1, 3]);
     }
 }

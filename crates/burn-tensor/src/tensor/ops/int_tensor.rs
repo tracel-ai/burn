@@ -47,7 +47,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData<D>>;
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData>;
 
     /// Gets the data from the tensor.
     ///
@@ -58,7 +58,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData<D>> {
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData> {
         Self::int_into_data(tensor.clone())
     }
 
@@ -72,7 +72,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn int_from_data<const D: usize>(data: TensorData<D>, device: &Device<B>) -> IntTensor<B, D>;
+    fn int_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> IntTensor<B, D>;
 
     /// Gets the device of the tensor.
     ///

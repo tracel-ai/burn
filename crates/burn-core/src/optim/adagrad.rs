@@ -204,7 +204,7 @@ mod tests {
             ]),
             TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats(
+        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -212,7 +212,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::from_floats(
+        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -266,10 +266,7 @@ mod tests {
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
-    fn given_linear_layer(
-        weight: TensorData<2>,
-        bias: TensorData<1>,
-    ) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = nn::LinearRecord {
             weight: Param::from_data(weight, &device),

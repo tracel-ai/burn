@@ -180,7 +180,7 @@ mod tests {
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::from_data(
+        let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
@@ -249,7 +249,7 @@ mod tests {
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
 
-        let input = Tensor::from_data(
+        let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],

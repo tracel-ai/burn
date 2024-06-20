@@ -9,7 +9,7 @@ mod tests {
 
     #[test]
     fn test_var() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn test_var_mean() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_var_bias() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_var_mean_bias() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );

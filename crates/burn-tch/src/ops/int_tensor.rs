@@ -8,7 +8,7 @@ use super::TchOps;
 
 impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
         TchTensor::from_data(data, (*device).into())
@@ -26,7 +26,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<TensorData> {
         let shape = Self::int_shape(&tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();

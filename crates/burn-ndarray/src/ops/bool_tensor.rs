@@ -18,7 +18,7 @@ use super::NdArrayOps;
 
 impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     fn bool_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
         NdArrayTensor::from_data(data)
@@ -32,7 +32,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
 
     fn bool_into_data<const D: usize>(
         tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Reader<TensorData<D>> {
+    ) -> Reader<TensorData> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 

@@ -1,5 +1,6 @@
 use core::any::{Any, TypeId};
 
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
@@ -27,20 +28,20 @@ pub enum DataError {
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct TensorData<const D: usize> {
+pub struct TensorData {
     /// The values of the tensor (as bytes).
     value: Vec<u8>,
 
     /// The shape of the tensor.
-    pub shape: Shape<D>,
+    pub shape: Vec<usize>,
 
     /// The data type of the tensor.
     pub dtype: DType,
 }
 
-impl<const D: usize> TensorData<D> {
+impl TensorData {
     /// Creates a new tensor data structure.
-    pub fn new<E: Element, S: Into<Shape<D>>>(value: Vec<E>, shape: S) -> Self {
+    pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
         Self {
             value: bytemuck::checked::cast_slice(&value).to_vec(),
             shape: shape.into(),
@@ -145,13 +146,28 @@ impl<const D: usize> TensorData<D> {
         }
     }
 
+    /// Returns the shape of the tensor data.
+    pub fn shape(&self) -> Vec<usize> {
+        self.shape.to_owned()
+    }
+
+    /// Returns the total number of elements of the tensor data.
+    pub fn num_elements(&self) -> usize {
+        Self::numel(&self.shape)
+    }
+
+    fn numel(shape: &[usize]) -> usize {
+        shape.iter().product()
+    }
+
     /// Populates the data with random values.
-    pub fn random<E: Element, R: RngCore>(
-        shape: Shape<D>,
+    pub fn random<E: Element, R: RngCore, S: Into<Vec<usize>>>(
+        shape: S,
         distribution: Distribution,
         rng: &mut R,
     ) -> Self {
-        let num_elements = shape.num_elements();
+        let shape = shape.into();
+        let num_elements = Self::numel(&shape);
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -162,9 +178,9 @@ impl<const D: usize> TensorData<D> {
     }
 
     /// Populates the data with zeros.
-    pub fn zeros<E: Element, S: Into<Shape<D>>>(shape: S) -> TensorData<D> {
+    pub fn zeros<E: Element, S: Into<Vec<usize>>>(shape: S) -> TensorData {
         let shape = shape.into();
-        let num_elements = shape.num_elements();
+        let num_elements = Self::numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -175,9 +191,9 @@ impl<const D: usize> TensorData<D> {
     }
 
     /// Populates the data with ones.
-    pub fn ones<E: Element, S: Into<Shape<D>>>(shape: S) -> TensorData<D> {
+    pub fn ones<E: Element, S: Into<Vec<usize>>>(shape: S) -> TensorData {
         let shape = shape.into();
-        let num_elements = shape.num_elements();
+        let num_elements = Self::numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
 
         for _ in 0..num_elements {
@@ -188,9 +204,9 @@ impl<const D: usize> TensorData<D> {
     }
 
     /// Populates the data with the given value
-    pub fn full<E: Element, S: Into<Shape<D>>>(shape: S, fill_value: E) -> TensorData<D> {
+    pub fn full<E: Element, S: Into<Vec<usize>>>(shape: S, fill_value: E) -> TensorData {
         let shape = shape.into();
-        let num_elements = shape.num_elements();
+        let num_elements = Self::numel(&shape);
         let mut data = Vec::<E>::with_capacity(num_elements);
         for _ in 0..num_elements {
             data.push(fill_value)
@@ -268,7 +284,7 @@ impl<const D: usize> TensorData<D> {
         if self.shape != other.shape {
             message += format!(
                 "\n  => Shape is different: {:?} != {:?}",
-                self.shape.dims, other.shape.dims
+                self.shape, other.shape
             )
             .as_str();
         }
@@ -316,7 +332,7 @@ impl<const D: usize> TensorData<D> {
         if self.shape != other.shape {
             message += format!(
                 "\n  => Shape is different: {:?} != {:?}",
-                self.shape.dims, other.shape.dims
+                self.shape, other.shape
             )
             .as_str();
         }
@@ -382,19 +398,19 @@ impl<const D: usize> TensorData<D> {
     }
 }
 
-impl<E: Element, const A: usize> From<[E; A]> for TensorData<1> {
+impl<E: Element, const A: usize> From<[E; A]> for TensorData {
     fn from(elems: [E; A]) -> Self {
         TensorData::new(elems.to_vec(), [A])
     }
 }
 
-impl<const A: usize> From<[usize; A]> for TensorData<1> {
+impl<const A: usize> From<[usize; A]> for TensorData {
     fn from(elems: [usize; A]) -> Self {
         TensorData::new(elems.iter().map(|&e| e as i64).collect(), [A])
     }
 }
 
-impl From<&[usize]> for TensorData<1> {
+impl From<&[usize]> for TensorData {
     fn from(elems: &[usize]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
         for elem in elems.iter() {
@@ -405,7 +421,7 @@ impl From<&[usize]> for TensorData<1> {
     }
 }
 
-impl<E: Element> From<&[E]> for TensorData<1> {
+impl<E: Element> From<&[E]> for TensorData {
     fn from(elems: &[E]) -> Self {
         let mut data = Vec::with_capacity(elems.len());
         for elem in elems.iter() {
@@ -416,7 +432,7 @@ impl<E: Element> From<&[E]> for TensorData<1> {
     }
 }
 
-impl<E: Element, const A: usize, const B: usize> From<[[E; B]; A]> for TensorData<2> {
+impl<E: Element, const A: usize, const B: usize> From<[[E; B]; A]> for TensorData {
     fn from(elems: [[E; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B);
         for elem in elems.into_iter().take(A) {
@@ -430,7 +446,7 @@ impl<E: Element, const A: usize, const B: usize> From<[[E; B]; A]> for TensorDat
 }
 
 impl<E: Element, const A: usize, const B: usize, const C: usize> From<[[[E; C]; B]; A]>
-    for TensorData<3>
+    for TensorData
 {
     fn from(elems: [[[E; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C);
@@ -448,7 +464,7 @@ impl<E: Element, const A: usize, const B: usize, const C: usize> From<[[[E; C]; 
 }
 
 impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
-    From<[[[[E; D]; C]; B]; A]> for TensorData<4>
+    From<[[[[E; D]; C]; B]; A]> for TensorData
 {
     fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D);
@@ -467,7 +483,7 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
     }
 }
 
-impl<const D: usize> core::fmt::Display for TensorData<D> {
+impl core::fmt::Display for TensorData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("{:?}", &self.value).as_str())
     }
@@ -555,17 +571,15 @@ impl<E: Element> DataSerialize<E> {
 
     /// Creates a new [DataSerialize] struct from [TensorData].
     /// Used for backward compatibility.
-    pub fn from_tensor_data<const D: usize>(data: TensorData<D>) -> Self {
+    pub fn from_tensor_data(data: TensorData) -> Self {
         Self {
             value: data.to_vec().unwrap(),
-            shape: data.shape.dims.to_vec(),
+            shape: data.shape,
         }
     }
 
     /// Converts the data to the new [TensorData] format.
-    pub fn into_tensor_data<const D: usize>(self) -> TensorData<D> {
-        assert_eq!(self.shape.len(), D);
-
+    pub fn into_tensor_data(self) -> TensorData {
         TensorData::new(self.value, self.shape)
     }
 }
@@ -872,22 +886,26 @@ mod tests {
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
         let num_elements = shape.num_elements();
-        let data =
-            TensorData::random::<f32, _>(shape, Distribution::Default, &mut StdRng::from_entropy());
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
 
-        assert_eq!(num_elements, data.value.len());
+        assert_eq!(num_elements, data.value.len() / 4); // f32 stored as u8s
+        assert_eq!(num_elements, data.as_slice::<f32>().unwrap().len());
     }
 
     #[test]
     fn should_have_right_shape() {
         let data = TensorData::from([[3.0, 5.0, 6.0]]);
-        assert_eq!(data.shape, Shape::new([1, 3]));
+        assert_eq!(data.shape, vec![1, 3]);
 
         let data = TensorData::from([[4.0, 5.0, 8.0], [3.0, 5.0, 6.0]]);
-        assert_eq!(data.shape, Shape::new([2, 3]));
+        assert_eq!(data.shape, vec![2, 3]);
 
         let data = TensorData::from([3.0, 5.0, 6.0]);
-        assert_eq!(data.shape, Shape::new([3]));
+        assert_eq!(data.shape, vec![3]);
     }
 
     #[test]

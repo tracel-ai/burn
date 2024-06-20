@@ -7,10 +7,7 @@ use burn_tensor::{
 };
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
-    fn int_from_data<const D: usize>(
-        data: TensorData<D>,
-        device: &Device<Self>,
-    ) -> IntTensor<B, D> {
+    fn int_from_data<const D: usize>(data: TensorData, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_from_data(data, device)
     }
 
@@ -18,11 +15,11 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_shape(tensor)
     }
 
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData<D>> {
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData> {
         B::int_to_data(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData> {
         B::int_into_data(tensor)
     }
 

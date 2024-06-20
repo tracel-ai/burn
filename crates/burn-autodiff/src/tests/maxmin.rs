@@ -6,8 +6,8 @@ mod tests {
     #[test]
     fn should_diff_max_dim() {
         let device = Default::default();
-        let tensor_1 =
-            TestAutodiffTensor::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device)
+            .require_grad();
         let tensor_2 =
             TestAutodiffTensor::from_floats([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
 
@@ -30,8 +30,8 @@ mod tests {
     #[test]
     fn should_diff_min_dim() {
         let device = Default::default();
-        let tensor_1 =
-            TestAutodiffTensor::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device)
+            .require_grad();
         let tensor_2 =
             TestAutodiffTensor::from_floats([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
 

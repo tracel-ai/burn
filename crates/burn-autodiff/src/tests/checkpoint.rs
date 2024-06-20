@@ -12,7 +12,7 @@ mod tests {
         let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
@@ -36,7 +36,7 @@ mod tests {
         let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device); // does not require_grad
 
         let tensor_2 = memory_bound_eager(tensor_0, tensor_1);
@@ -55,7 +55,7 @@ mod tests {
         let data_0 = TensorData::from([[4.0, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
 
         let tensor_1 = memory_bound_eager(tensor_0.clone(), tensor_0.clone());
         let tensor_2 = compute_bound_eager(tensor_0.clone(), tensor_0.clone());
@@ -83,7 +83,7 @@ mod tests {
         let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
@@ -108,7 +108,7 @@ mod tests {
         let data_5 = TensorData::from([[0.5, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device);
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device);
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device);
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
@@ -135,7 +135,7 @@ mod tests {
         let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+        let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();

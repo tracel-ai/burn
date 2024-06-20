@@ -108,7 +108,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) fn into_data<B, const D: usize>(self) -> Reader<TensorData<D>>
+    pub(crate) fn into_data<B, const D: usize>(self) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -118,7 +118,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             .read_tensor_float::<B, D>(self.into_description(), id)
     }
 
-    pub(crate) fn int_into_data<B, const D: usize>(self) -> Reader<TensorData<D>>
+    pub(crate) fn int_into_data<B, const D: usize>(self) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -128,7 +128,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             .read_tensor_int::<B, D>(self.into_description(), id)
     }
 
-    pub(crate) fn bool_into_data<B, const D: usize>(self) -> Reader<TensorData<D>>
+    pub(crate) fn bool_into_data<B, const D: usize>(self) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

@@ -422,7 +422,7 @@ mod tests {
 
         output
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze(0)
+            .squeeze::<2>(0)
             .to_data()
             .assert_approx_eq(&state.hidden.to_data(), 3);
     }

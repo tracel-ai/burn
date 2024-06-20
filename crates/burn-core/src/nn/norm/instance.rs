@@ -91,7 +91,7 @@ mod tests {
             .with_affine(false)
             .init::<TestBackend>(&device);
 
-        let input = Tensor::from_data(
+        let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
@@ -144,7 +144,7 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
-        let input = Tensor::from_data(
+        let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],

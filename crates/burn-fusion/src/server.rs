@@ -43,7 +43,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -59,7 +59,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -75,7 +75,7 @@ where
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData<D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

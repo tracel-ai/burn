@@ -35,7 +35,6 @@ hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
 serde = { workspace = true }
-serde-big-array = { workspace = true } # de/serialize generic sized arrays
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std

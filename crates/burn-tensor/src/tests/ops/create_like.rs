@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn should_support_zeros_like() {
-        let tensor = TestTensor::from_floats(
+        let tensor = TestTensor::<3>::from_floats(
             [
                 [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
                 [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
@@ -23,7 +23,7 @@ mod tests {
 
     #[test]
     fn should_support_ones_like() {
-        let tensor = TestTensor::from_floats(
+        let tensor = TestTensor::<3>::from_floats(
             [
                 [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
                 [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn should_support_randoms_like() {
-        let tensor = TestTensor::from_floats(
+        let tensor = TestTensor::<3>::from_floats(
             [
                 [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
                 [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],

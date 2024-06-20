@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_argwhere_1d() {
-        let tensor = TestTensorBool::from([false, true, false, true, true]);
+        let tensor = TestTensorBool::<1>::from([false, true, false, true, true]);
         let output = tensor.argwhere();
         let expected =
             TensorData::from([[1], [3], [4]]).convert::<<TestBackend as Backend>::IntElem>();
@@ -16,7 +16,7 @@ mod tests {
 
     #[test]
     fn test_argwhere_2d() {
-        let tensor = TestTensorBool::from([[false, false], [false, true], [true, true]]);
+        let tensor = TestTensorBool::<2>::from([[false, false], [false, true], [true, true]]);
         let output = tensor.argwhere();
         let expected = TensorData::from([[1, 1], [2, 0], [2, 1]])
             .convert::<<TestBackend as Backend>::IntElem>();
@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn test_argwhere_3d() {
-        let tensor = TestTensorBool::from([
+        let tensor = TestTensorBool::<3>::from([
             [[false, false, false], [false, true, false]],
             [[true, false, true], [true, true, false]],
         ]);
@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn test_nonzero_1d() {
-        let tensor = TestTensorBool::from([false, true, false, true, true]);
+        let tensor = TestTensorBool::<1>::from([false, true, false, true, true]);
         let data_actual = tensor
             .nonzero()
             .into_iter()
@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_nonzero_2d() {
         // 2-D tensor
-        let tensor = TestTensorBool::from([[false, false], [false, true], [true, true]]);
+        let tensor = TestTensorBool::<2>::from([[false, false], [false, true], [true, true]]);
         let data_actual = tensor
             .nonzero()
             .into_iter()
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn test_nonzero_3d() {
         // 3-D tensor
-        let tensor = TestTensorBool::from([
+        let tensor = TestTensorBool::<3>::from([
             [[false, false, false], [false, true, false]],
             [[true, false, true], [true, true, false]],
         ]);

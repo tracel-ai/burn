@@ -37,7 +37,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData<D>>
+    ) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
@@ -45,7 +45,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData<D>>
+    ) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
@@ -53,7 +53,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData<D>>
+    ) -> Reader<TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.

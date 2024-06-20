@@ -15,7 +15,7 @@ use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
@@ -59,7 +59,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::shape(tensor)
     }
 
-    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<TensorData<D>> {
+    fn float_into_data<const D: usize>(tensor: CandleTensor<F, D>) -> Reader<TensorData> {
         Reader::Concrete(super::base::into_data(tensor))
     }
 

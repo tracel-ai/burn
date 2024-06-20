@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn should_diff_log1p() {
-        let tensor_1 = TestAutodiffTensor::from([[0.0, 1.0], [3.0, 4.0]]).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from([[0.0, 1.0], [3.0, 4.0]]).require_grad();
         let tensor_2 = TestAutodiffTensor::from([[6.0, 7.0], [9.0, 10.0]]).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().log1p());

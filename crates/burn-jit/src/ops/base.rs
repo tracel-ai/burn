@@ -4,18 +4,18 @@ use burn_tensor::{Reader, Shape, TensorData};
 use std::marker::PhantomData;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
-    data: TensorData<D>,
+    data: TensorData,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
     let client = R::client(device);
     let buffer = client.create(E::as_bytes(data.as_slice().unwrap()));
 
-    JitTensor::new(client, device.clone(), data.shape, buffer)
+    JitTensor::new(client, device.clone(), data.shape.into(), buffer)
 }
 
 pub(crate) fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
-) -> Reader<TensorData<D>> {
+) -> Reader<TensorData> {
     let tensor = kernel::into_contiguous(tensor);
 
     tensor
@@ -26,7 +26,7 @@ pub(crate) fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
 
 pub(crate) fn bool_into_data<R: JitRuntime, const D: usize>(
     tensor: JitTensor<R, u32, D>,
-) -> Reader<TensorData<D>> {
+) -> Reader<TensorData> {
     let tensor = kernel::into_contiguous(tensor);
 
     tensor.client.read(tensor.handle.binding()).map(|bytes| {

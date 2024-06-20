@@ -22,7 +22,7 @@ use libm::erf;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
@@ -40,7 +40,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
             get_seeded_rng()
         };
         let tensor = Self::float_from_data(
-            TensorData::random::<E, _>(shape, distribution, &mut rng),
+            TensorData::random::<E, _, _>(shape, distribution, &mut rng),
             device,
         );
         *seed = Some(rng);
@@ -51,7 +51,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> Reader<TensorData<D>> {
+    fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> Reader<TensorData> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 

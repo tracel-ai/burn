@@ -102,7 +102,7 @@ where
     ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// }
     /// ```
-    pub fn from_floats<A: Into<TensorData<D>>>(floats: A, device: &B::Device) -> Self {
+    pub fn from_floats<A: Into<TensorData>>(floats: A, device: &B::Device) -> Self {
         Self::from_data(floats.into().convert::<f32>(), device)
     }
 

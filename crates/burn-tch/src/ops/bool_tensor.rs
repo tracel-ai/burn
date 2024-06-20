@@ -5,7 +5,7 @@ use std::ops::Range;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::from_data(data, (*device).into())
@@ -23,7 +23,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<TensorData<D>> {
+    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<TensorData> {
         let shape = Self::bool_shape(&tensor);
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();

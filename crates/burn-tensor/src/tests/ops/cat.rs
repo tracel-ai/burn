@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn should_support_cat_ops_2d_dim0() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_data([[1.0, 2.0, 3.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device);
         let tensor_2 = TestTensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
@@ -44,7 +44,7 @@ mod tests {
     #[test]
     fn should_support_cat_ops_2d_dim1() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_data([[1.0, 2.0, 3.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device);
         let tensor_2 = TestTensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn should_support_cat_ops_3d() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
+        let tensor_1 = TestTensor::<3>::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
         let tensor_2 = TestTensor::from_data([[[4.0, 5.0, 6.0]]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
@@ -71,7 +71,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_dimensions_are_not_the_same() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_data([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], &device);
         let tensor_2 = TestTensor::from_data([[4.0, 5.0]], &device);
 
         TestTensor::cat(vec![tensor_1, tensor_2], 0).into_data();
@@ -88,7 +88,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_cat_exceeds_dimension() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
+        let tensor_1 = TestTensor::<3>::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
         let tensor_2 = TestTensor::from_data([[[4.0, 5.0, 6.0]]], &device);
 
         TestTensor::cat(vec![tensor_1, tensor_2], 3).into_data();

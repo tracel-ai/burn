@@ -36,10 +36,10 @@ mod tests {
     #[test]
     fn test_mul_broadcast_2_dims() {
         let device = Default::default();
-        let tensor_1: Tensor<TestBackend, 2> =
-            Tensor::from_data([0.0, 1.0, 2.0], &device).reshape([3, 1]);
-        let tensor_2: Tensor<TestBackend, 2> =
-            Tensor::from_data([3.0, 4.0, 5.0], &device).reshape([1, 3]);
+        let tensor_1 =
+            Tensor::<TestBackend, 1>::from_data([0.0, 1.0, 2.0], &device).reshape([3, 1]);
+        let tensor_2 =
+            Tensor::<TestBackend, 1>::from_data([3.0, 4.0, 5.0], &device).reshape([1, 3]);
 
         let output = tensor_1 * tensor_2;
         let expected = TensorData::from([[0.0, 0.0, 0.0], [3.0, 4.0, 5.0], [6.0, 8.0, 10.0]])

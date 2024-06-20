@@ -29,7 +29,7 @@ mod tests {
         let data = TensorData::from([-2.0, -1.0, 0.0, 1.0, 2.0]);
 
         let device = Default::default();
-        let x = TestAutodiffTensor::from_data(data, &device).require_grad();
+        let x = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
 
         let y = x.clone().sign();
 

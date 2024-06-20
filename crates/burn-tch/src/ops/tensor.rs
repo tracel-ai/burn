@@ -8,7 +8,7 @@ use std::ops::Range;
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         TchTensor::from_data(data, (*device).into())
@@ -73,7 +73,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
 
     fn float_into_data<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
-    ) -> Reader<TensorData<D>> {
+    ) -> Reader<TensorData> {
         let shape = Self::float_shape(&tensor);
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();

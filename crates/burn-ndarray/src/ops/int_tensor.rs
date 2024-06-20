@@ -22,7 +22,7 @@ use super::{NdArrayMathOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
     fn int_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<i64, D> {
         NdArrayTensor::from_data(data)
@@ -32,7 +32,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<TensorData> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
@@ -417,7 +417,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         };
 
         let tensor = Self::int_from_data(
-            TensorData::random::<i64, _>(shape, effective_distribution, &mut rng),
+            TensorData::random::<i64, _, _>(shape, effective_distribution, &mut rng),
             device,
         );
         *seed = Some(rng);

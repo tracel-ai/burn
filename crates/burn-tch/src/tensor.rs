@@ -264,6 +264,16 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
+impl<const D: usize> From<Vec<usize>> for TchShape<D> {
+    fn from(shape: Vec<usize>) -> Self {
+        let mut dims = [0; D];
+        for (i, dim) in dims.iter_mut().enumerate().take(D) {
+            *dim = shape[i] as i64;
+        }
+        TchShape { dims }
+    }
+}
+
 impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> {
     /// Creates a new tensor from a shape and a device.
     ///
@@ -275,9 +285,9 @@ impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> 
     /// # Returns
     ///
     /// A new tensor.
-    pub fn from_data(data: TensorData<D>, device: tch::Device) -> Self {
+    pub fn from_data(data: TensorData, device: tch::Device) -> Self {
         let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let shape_tch = TchShape::from(data.shape);
+        let shape_tch = TchShape::<D>::from(data.shape);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
@@ -290,7 +300,7 @@ mod utils {
     use crate::{backend::LibTorch, element::TchElement};
 
     impl<P: TchElement, const D: usize> TchTensor<P, D> {
-        pub(crate) fn into_data(self) -> TensorData<D>
+        pub(crate) fn into_data(self) -> TensorData
         where
             P: tch::kind::Element,
         {
@@ -327,7 +337,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),
@@ -341,7 +351,7 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = TensorData::random::<f32, _>(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),

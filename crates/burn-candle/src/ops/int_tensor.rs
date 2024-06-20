@@ -19,12 +19,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::shape(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData> {
         Reader::Concrete(super::base::into_data(tensor))
     }
 
     fn int_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         super::base::from_data(data, device)

@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_matmul_d2() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]], &device);
         let tensor_2 = TestTensor::from_floats([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
@@ -20,7 +20,7 @@ mod tests {
     #[test]
     fn test_matmul_d3() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
+        let tensor_1 = TestTensor::<3>::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
         let tensor_2 = TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn test_matmul_broadcast_1() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
+        let tensor_1 = TestTensor::<3>::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
         let tensor_2 = TestTensor::from_floats(
             [[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]],
             &device,
@@ -51,7 +51,7 @@ mod tests {
     fn test_matmul_broadcast_4d() {
         let device = Default::default();
         // [2, 1, 2, 2]
-        let tensor_1 = TestTensor::from_floats(
+        let tensor_1 = TestTensor::<4>::from_floats(
             [[[[1.0, 7.0], [2.0, 3.0]]], [[[2.0, 5.0], [6.0, 3.0]]]],
             &device,
         );
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_matmul_simple_1() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[5.0, 14.0], [14.0, 50.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_floats([[5.0, 14.0], [14.0, 50.0]], &device);
         let tensor_2 = TestTensor::from_floats([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_matmul_tmp() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats(
+        let tensor_1 = TestTensor::<2>::from_floats(
             [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
             &device,
         );
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_matmul_simple_2() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[1.0, 2.0, 3.0, 4.0]], &device);
+        let tensor_1 = TestTensor::<2>::from_floats([[1.0, 2.0, 3.0, 4.0]], &device);
         let tensor_2 = TestTensor::from_floats([[3.0], [4.0], [5.0], [6.0]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn test_matmul_simple_3() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats(
+        let tensor_1 = TestTensor::<2>::from_floats(
             [[3., 3., 3.], [4., 4., 4.], [5., 5., 5.], [6., 6., 6.]],
             &device,
         );
@@ -144,7 +144,8 @@ mod tests {
     #[should_panic]
     fn should_panic_when_inner_dimensions_are_not_equal() {
         let device = Default::default();
-        let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]], &device);
+        let tensor_1 =
+            TestTensor::<2>::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]], &device);
         let tensor_2 = TestTensor::from_floats(
             [[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]],
             &device,

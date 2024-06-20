@@ -18,7 +18,7 @@ where
     I: IntElement,
 {
     fn float_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         super::from_data(data, device)
@@ -45,7 +45,7 @@ where
         tensor.shape.clone()
     }
 
-    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
         super::into_data(tensor)
     }
 

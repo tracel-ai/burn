@@ -72,7 +72,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// Create a new parameter from data.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
-        T: Into<TensorData<D>>,
+        T: Into<TensorData>,
     {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.

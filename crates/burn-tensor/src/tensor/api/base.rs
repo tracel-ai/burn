@@ -37,7 +37,7 @@ impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
 where
     B: Backend,
     K: BasicOps<B>,
-    T: Into<TensorData<D>>,
+    T: Into<TensorData>,
 {
     fn from(value: T) -> Self {
         Tensor::from_data(value.into(), &Default::default())
@@ -677,32 +677,32 @@ where
 
     #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
-    pub async fn into_data(self) -> TensorData<D> {
+    pub async fn into_data(self) -> TensorData {
         K::into_data(self.primitive).read().await
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Returns the data of the current tensor.
-    pub fn into_data(self) -> TensorData<D> {
+    pub fn into_data(self) -> TensorData {
         K::into_data(self.primitive).read()
     }
 
     #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
-    pub async fn to_data(&self) -> TensorData<D> {
+    pub async fn to_data(&self) -> TensorData {
         K::into_data(self.primitive.clone()).read().await
     }
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Returns the data of the current tensor without taking ownership.
-    pub fn to_data(&self) -> TensorData<D> {
+    pub fn to_data(&self) -> TensorData {
         Self::into_data(self.clone())
     }
 
     /// Create a tensor from the given data on the given device.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
-        T: Into<TensorData<D>>,
+        T: Into<TensorData>,
     {
         Self::new(K::from_data(data.into(), device))
     }
@@ -1452,7 +1452,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
     // #[deprecated(since="0.14.0", note="please use `into_tensor_data` instead")]
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData<D>>;
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData>;
 
     /// Creates a tensor from the given data.
     ///
@@ -1473,7 +1473,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
-    fn from_data<const D: usize>(data: TensorData<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1723,11 +1723,11 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData<D>> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
         B::float_into_data(tensor)
     }
 
-    fn from_data<const D: usize>(data: TensorData<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::float_from_data(data, device)
     }
 
@@ -1845,11 +1845,11 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData<D>> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
         B::int_into_data(tensor)
     }
 
-    fn from_data<const D: usize>(data: TensorData<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::int_from_data(data, device)
     }
 
@@ -1967,11 +1967,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData<D>> {
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
         B::bool_into_data(tensor)
     }
 
-    fn from_data<const D: usize>(data: TensorData<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::bool_from_data(data, device)
     }
 

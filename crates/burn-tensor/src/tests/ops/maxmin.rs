@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_max_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.max_dim(1);
         let expected =
@@ -18,7 +18,7 @@ mod tests {
     #[test]
     fn test_max_dim_with_indices_2d_with_dim_0th() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output, index) = tensor.max_dim_with_indices(0);
 
@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn test_max_dim_with_indices_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output, index) = tensor.max_dim_with_indices(1);
 
@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn test_min_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.min_dim(1);
 
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_min_dim_with_indices_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output, index) = tensor.min_dim_with_indices(1);
 
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_sum_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.clone().sum_dim(1);
         let expected =
@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test_mean_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.clone().mean_dim(1);
         let expected =
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_min_dim_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.min_dim(0);
         let expected =
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn test_max_dim_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output = tensor.max_dim(0);
         let expected =
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn test_min_dim_with_indices_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output, index) = tensor.min_dim_with_indices(0);
 
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_maximum_pair() {
-        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
         let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
 
         let output = a.max_pair(b);
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_minimum_pair() {
-        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
         let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
 
         let output = a.min_pair(b);

@@ -33,16 +33,16 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData<D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData> {
         tensor.int_into_data::<B, D>()
     }
 
     fn int_from_data<const D: usize>(
-        data: TensorData<D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone());
-        let tensor = B::int_from_data(data, device);
+        let tensor = B::int_from_data::<D>(data, device);
         let shape = B::int_shape(&tensor);
         let stream = StreamId::current();
 

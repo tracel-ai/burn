@@ -29,7 +29,6 @@ impl<'de> serde::Deserialize<'de> for ConstantRecord {
     where
         D: serde::Deserializer<'de>,
     {
-        println!("ConstantRecord deserialize");
         deserializer.deserialize_option(serde::de::IgnoredAny).ok();
         Ok(ConstantRecord::new())
     }

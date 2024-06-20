@@ -10,7 +10,8 @@ mod tests {
 
         let with_move = || {
             let device = Default::default();
-            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+            let tensor_1 =
+                TestAutodiffTensor::<2>::from_data(data_1.clone(), &device).require_grad();
             let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
             let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
@@ -53,7 +54,8 @@ mod tests {
         };
         let without_move = || {
             let device = Default::default();
-            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+            let tensor_1 =
+                TestAutodiffTensor::<2>::from_data(data_1.clone(), &device).require_grad();
             let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
             let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());

@@ -47,7 +47,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<TensorData<D>>;
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<TensorData>;
 
     /// Gets the data from the tensor.
     ///
@@ -59,7 +59,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<TensorData<D>> {
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<TensorData> {
         Self::bool_into_data(tensor.clone())
     }
 
@@ -73,7 +73,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn bool_from_data<const D: usize>(data: TensorData<D>, device: &Device<B>) -> BoolTensor<B, D>;
+    fn bool_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> BoolTensor<B, D>;
 
     /// Converts bool tensor to int tensor.
     ///

@@ -10,7 +10,7 @@ mod tests {
         let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]], &device);
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
-        let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]])
             .convert::<<TestBackend as Backend>::FloatElem>();
 
@@ -23,7 +23,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
 
-        let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]])
             .convert::<<TestBackend as Backend>::IntElem>();
 
@@ -36,7 +36,7 @@ mod tests {
         let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data([[false, true, true]], &device);
         let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
 
-        let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[false, true, true]], [[true, true, false]]]);
 
         output.into_data().assert_eq(&expected, true);
@@ -48,7 +48,7 @@ mod tests {
         let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]], &device);
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
-        let output = Tensor::stack(vec![tensor_1, tensor_2], 1);
+        let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 1);
         let expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]])
             .convert::<<TestBackend as Backend>::FloatElem>();
 
@@ -63,7 +63,7 @@ mod tests {
         let tensor_2: Tensor<TestBackend, 3> =
             TestTensor::from_data([[[4.0, 5.0, 6.0]], [[4.1, 5.1, 6.1]]], &device);
 
-        let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
+        let output = Tensor::stack::<4>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([
             [[[1.0000, 2.0000, 3.0000]], [[1.1000, 2.1000, 3.1000]]],
             [[[4.0000, 5.0000, 6.0000]], [[4.1000, 5.1000, 6.1000]]],
