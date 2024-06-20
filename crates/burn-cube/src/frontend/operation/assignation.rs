@@ -209,9 +209,7 @@ pub mod add_assign_op {
         lhs: L,
         rhs: R,
     ) -> ExpandElement {
-        let lhs = lhs.into();
-        let rhs = rhs.into();
-        assign_op_expand(context, lhs, rhs, Operator::Add)
+        assign_op_expand(context, lhs.into(), rhs.into(), Operator::Add)
     }
 
     macro_rules! impl_add_assign {

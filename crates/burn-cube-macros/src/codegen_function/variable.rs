@@ -112,7 +112,7 @@ pub(crate) fn codegen_index(
     };
 
     let mut codegen = Codegen::new(tokens, false);
-    codegen.array_indexing = Some(super::base::ArrayIndexRead {
+    codegen.array_indexing = Some(super::base::ArrayIndexing {
         array: array.tokens,
         index: index.tokens,
     });

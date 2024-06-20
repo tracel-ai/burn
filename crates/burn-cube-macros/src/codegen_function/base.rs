@@ -49,10 +49,10 @@ pub(crate) fn codegen_block(
 pub(crate) struct Codegen {
     pub tokens: proc_macro2::TokenStream,
     pub is_comptime: bool,
-    pub array_indexing: Option<ArrayIndexRead>,
+    pub array_indexing: Option<ArrayIndexing>,
 }
 
-pub(crate) struct ArrayIndexRead {
+pub(crate) struct ArrayIndexing {
     pub array: proc_macro2::TokenStream,
     pub index: proc_macro2::TokenStream,
 }
