@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream;
 
-use crate::{codegen_function::base::codegen_expr, tracker::VariableTracker};
+use crate::{codegen_function::expr::codegen_expr, tracker::VariableTracker};
 
 use super::{
-    base::codegen_block,
+    base::{codegen_block, Codegen},
     function::codegen_call,
     operation::codegen_binary,
-    variable::{codegen_lit, codegen_path_rhs},
+    variable::{codegen_lit, codegen_path_var},
 };
 
 /// Codegen of for loops
@@ -86,11 +86,11 @@ pub(crate) fn codegen_cond(
     cond: &syn::Expr,
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
-) -> (TokenStream, bool) {
+) -> Codegen {
     match cond {
-        syn::Expr::Binary(expr) => (codegen_binary(expr, loop_level, variable_tracker), false),
-        syn::Expr::Lit(expr) => (codegen_lit(expr), false),
-        syn::Expr::Path(expr) => (codegen_path_rhs(expr, loop_level, variable_tracker), false),
+        syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_tracker),
+        syn::Expr::Lit(expr) => Codegen::new(codegen_lit(expr), false),
+        syn::Expr::Path(expr) => codegen_path_var(expr, loop_level, variable_tracker),
         syn::Expr::Call(expr) => codegen_call(expr, loop_level, variable_tracker),
         _ => todo!("{cond:?} cond not supported"),
     }
@@ -125,8 +125,8 @@ pub(crate) fn codegen_if(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&expr_if.cond, loop_level, variable_tracker);
-    let comptime_bool = if comptime {
+    let (cond, is_comptime) = codegen_cond(&expr_if.cond, loop_level, variable_tracker).split();
+    let comptime_bool = if is_comptime {
         quote::quote! { Some(#cond) }
     } else {
         quote::quote! { None }
@@ -176,8 +176,13 @@ pub(crate) fn codegen_while_loop(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&while_loop.cond, loop_level + 1, variable_tracker);
-    assert!(!comptime, "Codegen: Comptime not supported for while");
+    let (cond, is_comptime) =
+        codegen_cond(&while_loop.cond, loop_level + 1, variable_tracker).split();
+
+    if is_comptime {
+        return syn::Error::new_spanned(while_loop.while_token, "Comptime not supported for while")
+            .into_compile_error();
+    }
 
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_tracker);
 

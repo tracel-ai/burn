@@ -92,3 +92,23 @@ impl<T: Into<ExpandElement>> Comptime<T> {
         inner.into()
     }
 }
+
+impl<T: core::ops::Add<T, Output = T>> core::ops::Add for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.add(rhs.inner))
+    }
+}
+
+impl<T: core::cmp::PartialOrd + core::cmp::PartialEq> core::cmp::PartialEq for Comptime<T> {
+    fn eq(&self, other: &Self) -> bool {
+        core::cmp::PartialEq::eq(&self.inner, &other.inner)
+    }
+}
+
+impl<T: core::cmp::PartialOrd + core::cmp::PartialEq> core::cmp::PartialOrd for Comptime<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        core::cmp::PartialOrd::partial_cmp(&self.inner, &other.inner)
+    }
+}

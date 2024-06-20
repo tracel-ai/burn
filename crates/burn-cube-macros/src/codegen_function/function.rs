@@ -5,7 +5,9 @@ use syn::{
     PathArguments, Token,
 };
 
-use crate::{codegen_function::base::codegen_expr, tracker::VariableTracker};
+use crate::{codegen_function::expr::codegen_expr, tracker::VariableTracker};
+
+use super::base::Codegen;
 
 /// Codegen for method call
 /// Supports [expr].method(args)
@@ -77,7 +79,7 @@ pub(crate) fn codegen_call(
     call: &syn::ExprCall,
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
-) -> (TokenStream, bool) {
+) -> Codegen {
     // We start with parsing the function path
     let path: Vec<(&Ident, Option<&AngleBracketedGenericArguments>)> = match call.func.as_ref() {
         syn::Expr::Path(expr_path) => {
@@ -94,7 +96,7 @@ pub(crate) fn codegen_call(
             path
         }
         _ => {
-            return (
+            return Codegen::new(
                 syn::Error::new_spanned(&call.func, "Unsupported").into_compile_error(),
                 false,
             )
@@ -193,7 +195,7 @@ pub(crate) fn codegen_call(
             _ => panic!("Codegen: Comptime function {:?} does not exist", func_name),
         };
 
-        (tokens, true)
+        Codegen::new(tokens, true)
     } else {
         let (expansion, variables) = codegen_args(&call.args, loop_level, variable_tracker);
 
@@ -203,7 +205,7 @@ pub(crate) fn codegen_call(
             #path_tokens (#variables)
         }};
 
-        (tokens, false)
+        Codegen::new(tokens, false)
     }
 }
 
