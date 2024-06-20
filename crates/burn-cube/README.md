@@ -187,7 +187,7 @@ fn gelu_scalar<F: Float>(x: F) -> F {
 #[cube(launch)]
 fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
     if ABSOLUTE_POS < input.shape(0) {
-        output[ABSOLUTE_POS] = gelu_scalar(input[ABSOLUTE_POS]);
+        output[ABSOLUTE_POS] = gelu_scalar::<F>(input[ABSOLUTE_POS]);
     }
 }
 ```
@@ -195,6 +195,15 @@ fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
 Note that you don't have to specify `launch` in a function that is only used by another Cube function.
 In addition, you can have return types without problem, which isn't the case when you are writing an entry point to a kernel using the `launch` attribute.
 The function `gelu_expand` will actually use `gelu_scalar_expand`, making it easy to combine your functions.
+
+## Limitations
+
+There are some limitations right now, some that could be addressed later on, but some that will stick around by design.
+
+* Using functions with generic requires the generics to be specify at all time.
+Since we don't have access to symbols during the procedure macro, we don't have the type information and aren't able to properly do type inference
+
+* Early returns in functions are not supported yet.
 
 ## Resources
 
