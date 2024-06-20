@@ -166,11 +166,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         visitor.visit_i64(self.value.unwrap().as_i64().unwrap().to_owned())
     }
 
-    fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_u8 is not implemented")
+        visitor.visit_u8(self.value.unwrap().as_u8().unwrap().to_owned())
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -631,7 +631,24 @@ where
     }
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        unimplemented!("unit variant is not implemented because it is not used in the burn module")
+        // Support tensor `DType` deserialization
+        match self.value {
+            NestedValue::Map(value) if value.contains_key("DType") => {
+                match value.get("DType") {
+                    Some(NestedValue::String(variant)) => {
+                        if *variant == self.current_variant {
+                            Ok(())
+                        } else {
+                            Err(Error::Other("Wrong variant".to_string())) // wrong match
+                        }
+                    }
+                    _ => panic!("expected DType variant as string"),
+                }
+            }
+            _ => unimplemented!(
+                "unit variant is not implemented because it is not used in the burn module"
+            ),
+        }
     }
 
     fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>

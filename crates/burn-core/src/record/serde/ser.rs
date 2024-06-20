@@ -124,8 +124,8 @@ impl SerializerTrait for Serializer {
         unimplemented!()
     }
 
-    fn serialize_u8(self, _v: u8) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
+        Ok(NestedValue::U8(v))
     }
 
     fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
@@ -149,7 +149,10 @@ impl SerializerTrait for Serializer {
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+        Ok(NestedValue::Map(HashMap::from([(
+            _name.to_string(),
+            NestedValue::String(_variant.to_string()),
+        )])))
     }
 
     fn serialize_newtype_variant<T>(
