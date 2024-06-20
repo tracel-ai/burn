@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::module::Ignored;
 
 use crate::config::Config;
 use crate::module::Module;
@@ -54,7 +55,7 @@ pub struct Conv2d<B: Backend> {
     kernel_size: [usize; 2],
     dilation: [usize; 2],
     groups: usize,
-    padding: PaddingConfig2d,
+    padding: Ignored<PaddingConfig2d>,
 }
 
 impl Conv2dConfig {
@@ -93,7 +94,7 @@ impl Conv2dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             groups: self.groups,
         }
     }

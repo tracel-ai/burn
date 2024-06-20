@@ -1,18 +1,21 @@
+use alloc::string::String;
+
 use crate::rand::gen_random;
-use alloc::string::{String, ToString};
-use uuid::{Builder, Bytes};
+
+use data_encoding::BASE32_DNSSEC;
 
 /// Simple ID generator.
 pub struct IdGenerator {}
 
 impl IdGenerator {
-    /// Generates a new ID in the form of a UUID.
+    /// Generates a new ID.
     pub fn generate() -> String {
-        let random_bytes: Bytes = gen_random();
+        // Generate 6 random bytes (281,474,976,710,656 combinations)
+        let random_bytes: [u8; 6] = gen_random();
 
-        let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
-
-        uuid.as_hyphenated().to_string()
+        // Encode the random bytes in base32 DNSSEC
+        // 6 bytes encodes to 10 lower case characters, e.g. "3uu5e6vv7c"
+        BASE32_DNSSEC.encode(&random_bytes)
     }
 }
 

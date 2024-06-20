@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Ignored, Module};
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -31,7 +31,7 @@ pub struct MaxPool2dConfig {
 pub struct MaxPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
-    padding: PaddingConfig2d,
+    padding: Ignored<PaddingConfig2d>,
     dilation: [usize; 2],
 }
 
@@ -41,7 +41,7 @@ impl MaxPool2dConfig {
         MaxPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             dilation: self.dilation,
         }
     }
