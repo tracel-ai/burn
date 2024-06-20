@@ -106,7 +106,7 @@ pub(crate) fn codegen_break() -> TokenStream {
 /// Codegen for return statement
 pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
     if expr_return.expr.is_some() {
-        return syn::Error::new_spanned(expr_return, "Codegen: Only void return is supported.")
+        return syn::Error::new_spanned(expr_return, "Only void return is supported.")
             .into_compile_error();
     }
 
