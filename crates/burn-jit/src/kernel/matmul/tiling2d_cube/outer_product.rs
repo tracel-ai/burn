@@ -15,8 +15,10 @@ pub(crate) fn tile_outer_product<F: Float>(
     let unroll = Comptime::map(config, |c| c.unroll);
     let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
     if Comptime::get(is_scalar) {
-        // TODO vec[i] += x does not work
+        // works
         results[0] = results[0] + register_m * register_n;
+        // doesnt work
+        results[0] += register_m * register_n;
     } else {
         for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
             let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
