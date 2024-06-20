@@ -33,8 +33,7 @@ pub struct CubeTiling2dConfig {
 }
 
 impl CubeTiling2dConfig {
-    fn new(config: Tiling2dConfig, m: usize, k: usize, n: usize) -> Self {
-        let tile_size = config.tile_size_m;
+    fn new(config: Tiling2dConfig, m: usize, k: usize, n: usize, tile_size: usize) -> Self {
         let sm_size_lhs = config.block_size_m * config.block_size_k * tile_size;
         let sm_size_rhs = config.block_size_n * config.block_size_k * tile_size;
 
@@ -152,7 +151,10 @@ fn gather_kernel_information<F: Float>(
     offset_rhs /= Comptime::runtime(tile_size);
 
     let tile_squared = Comptime::zip(tile_size, tile_size, |c1, c2| UInt::new(c1.val * c2.val));
-    let results = Array::<F>::new(Comptime::get(tile_squared));
+    let mut results = Array::<F>::new(Comptime::get(tile_squared));
+    for i in range(0u32, Comptime::get(tile_squared), unroll) {
+        results[i] = F::new(0.);
+    }
 
     let shared_lhs =
         SharedMemory::<F>::vectorized(Comptime::get(sm_size_lhs), Comptime::get(tile_size));
@@ -404,19 +406,24 @@ fn load_rhs_tensor_transposed<F: Float>(
         }
     }
 
-    // Decompose vectorization then recompose as transposed
-    for i in range(0u32, Comptime::get(tile_size), unroll) {
-        let mut transposed = Array::<F>::new(Comptime::get(tile_size));
-        for j in range(0u32, Comptime::get(tile_size), unroll) {
-            transposed[j] = entries[j][i];
+    let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
+    if Comptime::get(is_scalar) {
+        shared_rhs[sm_position_base] = entries[0];
+    } else {
+        // TODO: there's a bug if we reuse i inside else clause
+        for w in range(0u32, Comptime::get(tile_size), unroll) {
+            let mut transposed = Array::<F>::new(Comptime::get(tile_size));
+            for j in range(0u32, Comptime::get(tile_size), unroll) {
+                transposed[j] = entries[j][w];
+            }
+            let sm_position = sm_position_base + w * sm_stride;
+            shared_rhs[sm_position] = transposed.to_vectorized(tile_size);
         }
-        let sm_position = sm_position_base + i * sm_stride;
-        shared_rhs[sm_position] = transposed.to_vectorized(tile_size);
     }
 }
 
 #[cube]
-fn computation_loop<F: Float>(
+pub(crate) fn computation_loop<F: Float>(
     kernel_state: Tiling2dState<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
@@ -445,12 +452,19 @@ fn computation_loop<F: Float>(
         register_m = shared_lhs[lhs_pos];
         register_n = shared_rhs[rhs_pos];
 
-        // Naive version that decomposes vectorization
-        for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-            let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
-            for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
-                let mul = register_m[res_idx_m] * register_n[res_idx_n];
-                results[res_pos_base + res_idx_n] += mul;
+        let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
+        if Comptime::get(is_scalar) {
+            // TODO vec[i] += x does not work
+            results[0] = results[0] + register_m * register_n;
+        } else {
+            // Naive version that decomposes vectorization
+            for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
+                let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
+                for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
+                    let mul = register_m[res_idx_m] * register_n[res_idx_n];
+                    // results[res_pos_base + res_idx_n] += mul;
+                    results[res_pos_base + res_idx_n] = results[res_pos_base + res_idx_n] + mul;
+                }
             }
         }
     }
@@ -468,34 +482,55 @@ fn write_to_output<F: Float>(
     let out_stride_col = kernel_state.out_stride_col;
     let offset_output = kernel_state.offset_output;
     let results = kernel_state.results;
+    let dim_m = kernel_state.dim_m;
+    let dim_n = kernel_state.dim_n;
     let unroll = Comptime::map(config, |c| c.unroll);
     let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
     let check_n_bounds = Comptime::map(config, |c| c.check_n_bounds);
     let tile_size = Comptime::vectorization(kernel_state.lhs);
 
-    for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-        let results_pos_m = res_idx_m * Comptime::runtime(tile_size);
-
-        // TODO just reinterpret the array if possible
-        let mut array = Array::<F>::new(Comptime::get(tile_size));
-        for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
-            array[res_idx_n] = results[results_pos_m + res_idx_n];
+    // TODO checks for row should be adapted for vectorized version
+    // TODO No return
+    if Comptime::get(check_m_bounds) {
+        if row >= dim_m {
+            return;
         }
+    }
+    if Comptime::get(check_n_bounds) {
+        if col >= dim_n {
+            return;
+        }
+    }
 
-        let row_index = (row + res_idx_m) * out_stride_row;
+    let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
+    if Comptime::get(is_scalar) {
+        let row_index = row * out_stride_row;
         let col_index = col * out_stride_col;
+        kernel_state.out[row_index + col_index + offset_output] = results[0];
+    } else {
+        for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
+            let results_pos_m = res_idx_m * Comptime::runtime(tile_size);
 
-        // FOR DEBUGGING
-        // TODO: it's a pain to put a debug value in output if it's vectorized
-        let print_value = out_stride_row;
-        let mut out = Array::<F>::new(Comptime::get(tile_size));
-        for i in range(0u32, Comptime::get(tile_size), unroll) {
-            out[i] = F::cast_from(print_value) + F::new(10.);
+            // TODO just reinterpret the array if possible
+            let mut array = Array::<F>::new(Comptime::get(tile_size));
+            for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
+                array[res_idx_n] = results[results_pos_m + res_idx_n];
+            }
+
+            let row_index = (row + res_idx_m) * out_stride_row;
+            let col_index = col * out_stride_col;
+
+            // FOR DEBUGGING
+            // TODO: it's a pain to put a debug value in output if it's vectorized
+            let print_value = out_stride_row;
+            let mut out = Array::<F>::new(Comptime::get(tile_size));
+            for i in range(0u32, Comptime::get(tile_size), unroll) {
+                out[i] = F::cast_from(print_value) + F::new(10.);
+            }
+
+            kernel_state.out[row_index + col_index + offset_output] =
+                array.to_vectorized(tile_size);
         }
-
-        kernel_state.out[row_index + col_index + offset_output] = out.to_vectorized(tile_size);
-        // kernel_state.out[res_idx_m] = out.to_vectorized(tile_size);
-        // F::vectorized(2., Comptime::get(tile_size));
     }
 }
 
@@ -531,7 +566,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
-    config: Tiling2dConfig,
+    mut config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
     let m = lhs.shape.dims[D - 2];
     let k = lhs.shape.dims[D - 1];
@@ -548,13 +583,19 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         false => rhs,
     };
 
+    config.block_size_m = 16;
+    config.block_size_n = 16;
+    config.block_size_k = 16; // k must be <= both m and n
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
     let vectorization_factor = 1;
+    let x = (config.block_size_m / vectorization_factor) as u32;
+    let y = (config.block_size_n / vectorization_factor) as u32;
     let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization_factor)
-        .vectorize_input(1, vectorization_factor)
-        .vectorize_output(0, vectorization_factor);
+        .vectorize_input(0, vectorization_factor as u8)
+        .vectorize_input(1, vectorization_factor as u8)
+        .vectorize_output(0, vectorization_factor as u8)
+        .cube_dim(CubeDim { x, y, z: 1 });
 
     tiling2d_matmul_kernel_launch::<E::CubeElement, R>(
         client,
@@ -563,7 +604,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(config, m, k, n),
+        CubeTiling2dConfig::new(config, m, k, n, vectorization_factor as usize),
     );
 
     out

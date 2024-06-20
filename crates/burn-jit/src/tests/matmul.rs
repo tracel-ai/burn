@@ -403,6 +403,146 @@ mod tests {
         }
     }
 
+    mod tiling2d_cube {
+        use super::*;
+
+        #[test]
+        pub fn straightforward() {
+            test_with_params(5, 1, 1, 1, 1);
+        }
+
+        #[test]
+        pub fn shapes_smaller_than_blocks() {
+            test_with_params(8, 8, 8, 1, 1);
+        }
+
+        #[test]
+        pub fn shapes_equal_blocks() {
+            test_with_params(64, 32, 64, 2, 2);
+        }
+
+        #[test]
+        pub fn m_exceeds_block() {
+            test_with_params(75, 32, 64, 2, 2);
+        }
+
+        #[test]
+        pub fn k_exceeds_block() {
+            test_with_params(64, 33, 32, 1, 1);
+        }
+
+        #[test]
+        pub fn test_matmul_irregular_shape() {
+            test_with_params(123, 255, 72, 3, 5);
+        }
+
+        #[test]
+        pub fn test64_matmul_unpadded_n_exceeds_block() {
+            test_with_params(64, 32, 75, 2, 2);
+        }
+
+        #[test]
+        pub fn n_smaller_than_m() {
+            test_with_params(8, 8, 3, 1, 1);
+        }
+
+        #[test]
+        pub fn m_smaller_than_n() {
+            test_with_params(3, 8, 8, 1, 1);
+        }
+
+        #[test]
+        pub fn k_smaller_than_m_n() {
+            test_with_params(8, 3, 8, 1, 1);
+        }
+
+        #[test]
+        pub fn k_larger_than_m_n() {
+            test_with_params(8, 48, 8, 1, 1);
+        }
+
+        #[test]
+        pub fn multibatch_1_dim() {
+            test_with_params(8, 8, 8, 3, 1);
+        }
+
+        #[test]
+        pub fn multibatch_2_dims() {
+            test_with_params(8, 8, 8, 3, 4);
+        }
+
+        #[test]
+        pub fn blocks_divide_shapes_unevenly() {
+            test_with_params(7, 7, 7, 1, 1);
+        }
+
+        #[test]
+        pub fn medium() {
+            test_with_params(17, 16, 16, 1, 1);
+        }
+
+        #[test]
+        pub fn large() {
+            // Fails if k does not divide 16 AND n is larger or does not divide 16
+            // -> when in check_k_bounds, something about n
+            test_with_params(17, 239, 240, 1, 1);
+        }
+
+        #[test]
+        fn swapped_batches_no_padding() {
+            let swap = [0, 1];
+            let shape_lhs = [3, 2, 4, 4];
+            let shape_rhs = [3, 2, 4, 4];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube(Tiling2dConfig::default()),
+                swap,
+                swap,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        #[test]
+        fn swapped_row_col_no_padding() {
+            let swap_lhs = [0, 0];
+            let swap_rhs = [2, 3];
+            let shape_lhs = [3, 2, 4, 4];
+            let shape_rhs = [3, 2, 4, 4];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube((Tiling2dConfig::default())),
+                swap_lhs,
+                swap_rhs,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        #[test]
+        fn swapped_row_with_batch_no_padding() {
+            let swap_lhs = [0, 3];
+            let swap_rhs = [0, 2];
+            let shape_lhs = [4, 4, 4, 4];
+            let shape_rhs = [4, 4, 4, 4];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube(Tiling2dConfig::default()),
+                swap_lhs,
+                swap_rhs,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
+            let shape_lhs = [batch_1, batch_2, m, k];
+            let shape_rhs = [batch_1, batch_2, k, n];
+            same_as_reference(
+                MatmulStrategy::Tiling2dCube(Tiling2dConfig::default()),
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+    }
+
     mod padding {
         use super::*;
         use burn_jit::kernel::matmul::padding::{crop, pad_round};
