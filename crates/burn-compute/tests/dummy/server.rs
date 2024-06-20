@@ -37,7 +37,7 @@ where
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {
-        let handle = self.memory_management.reserve(data.len());
+        let handle = self.memory_management.reserve(data.len(), || {});
         let resource = self.memory_management.get(handle.clone().binding());
 
         let bytes = resource.write();
@@ -50,7 +50,7 @@ where
     }
 
     fn empty(&mut self, size: usize) -> Handle<Self> {
-        Handle::new(self.memory_management.reserve(size))
+        Handle::new(self.memory_management.reserve(size, || {}))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>) {

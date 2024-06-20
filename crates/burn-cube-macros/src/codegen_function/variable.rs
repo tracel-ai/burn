@@ -29,7 +29,10 @@ pub(crate) fn codegen_array_lit(array: &syn::ExprArray) -> TokenStream {
     for element in array.elems.iter() {
         let token = match element {
             syn::Expr::Lit(lit) => codegen_lit(lit),
-            _ => todo!("Codegen: Only arrays of literals are supported"),
+            _ => {
+                return syn::Error::new_spanned(array, "Only arrays of literals are supported")
+                    .into_compile_error()
+            }
         };
         tokens.extend(quote::quote! { #token, });
     }

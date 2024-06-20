@@ -23,6 +23,7 @@ pub(crate) struct VariableTracker {
     analysis_repeats: HashMap<VariableKey, u8>,
     codegen_repeats: HashMap<VariableKey, u8>,
     variable_uses: HashMap<VariableIdent, VariableUse>,
+    pub errors: Vec<syn::Error>,
 }
 
 #[derive(Debug, Default)]

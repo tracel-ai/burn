@@ -22,11 +22,11 @@ impl<C: CubeElem> LaunchArg for Tensor<C> {
     type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
 
     fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.input_array(Item::vectorized(C::as_elem(), vectorization))
+        builder.input_tensor(Item::vectorized(C::as_elem(), vectorization))
     }
 
     fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.output_array(Item::vectorized(C::as_elem(), vectorization))
+        builder.output_tensor(Item::vectorized(C::as_elem(), vectorization))
     }
 }
 

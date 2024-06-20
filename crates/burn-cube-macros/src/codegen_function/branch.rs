@@ -24,14 +24,24 @@ pub(crate) fn codegen_for_loop(
         variable_tracker.codegen_declare(id.to_string(), loop_level as u8 + 1);
     }
 
+    let invalid_for_loop = || {
+        syn::Error::new_spanned(
+            &for_loop.expr,
+            "Invalid for loop: use [range](cubecl::prelude::range] instead.",
+        )
+        .into_compile_error()
+    };
+
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {
-                syn::Expr::Path(path) => path
-                    .path
-                    .get_ident()
-                    .expect("Codegen: func in for loop should have ident"),
-                _ => todo!("Codegen: Only path call supported"),
+                syn::Expr::Path(path) => match path.path.get_ident() {
+                    Some(ident) => ident,
+                    None => return invalid_for_loop(),
+                },
+                _ => {
+                    return invalid_for_loop();
+                }
             };
 
             if &func_name.to_string() == "range" {
@@ -64,10 +74,10 @@ pub(crate) fn codegen_for_loop(
                     }
                 }
             } else {
-                todo!("Codegen: Only range is supported")
+                invalid_for_loop()
             }
         }
-        _ => todo!("Codegen: Only call is supported {for_loop:?}"),
+        _ => invalid_for_loop(),
     }
 }
 
@@ -96,8 +106,10 @@ pub(crate) fn codegen_break() -> TokenStream {
 /// Codegen for return statement
 pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
     if expr_return.expr.is_some() {
-        panic!("Codegen: Only void return is supported.")
+        return syn::Error::new_spanned(expr_return, "Codegen: Only void return is supported.")
+            .into_compile_error();
     }
+
     quote::quote! {
         burn_cube::frontend::branch::return_expand(context);
     }
@@ -131,7 +143,11 @@ pub(crate) fn codegen_if(
                 burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
             }
         } else {
-            todo!("Codegen: Only block else expr is supported")
+            syn::Error::new_spanned(
+                expr,
+                "Unsupported: only `else` block is allowed after an `if` statement.",
+            )
+            .into_compile_error()
         }
     } else {
         quote::quote! {

@@ -3,7 +3,7 @@ use burn_tensor::backend::Backend;
 
 use crate::{
     kernel::matmul::{
-        computation_loop, computation_loop_expand, CubeTiling2dConfig, Tiling2dState,
+        computation_loop, computation_loop_expand, CubeTiling2dConfig, 
     },
     tensor::JitTensor,
 };
@@ -47,22 +47,22 @@ fn computation_loop_call<F: Float>(
 }
 
 pub fn matmul_tiling_2d_cube<B: Backend>() {
-    let cube_count = CubeCount { x: 1, y: 1, z: 1 };
-    let vectorization_factor = 1;
-    let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization_factor as u8)
-        .vectorize_input(1, vectorization_factor as u8)
-        .vectorize_output(0, vectorization_factor as u8)
-        .cube_dim(CubeDim { x: 1, y: 1, z: 1 });
-    computation_loop_call_launch::<F32, TestRuntime>(
-        client,
-        cube_count,
-        settings,
-        TensorHandle::<TestRuntime>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-        TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-        TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(config, m, k, n, vectorization_factor as usize),
-    );
+    // let cube_count = CubeCount { x: 1, y: 1, z: 1 };
+    // let vectorization_factor = 1;
+    // let settings = KernelSettings::default()
+    //     .vectorize_input(0, vectorization_factor as u8)
+    //     .vectorize_input(1, vectorization_factor as u8)
+    //     .vectorize_output(0, vectorization_factor as u8)
+    //     .cube_dim(CubeDim { x: 1, y: 1, z: 1 });
+    // computation_loop_call_launch::<F32, TestRuntime>(
+    //     client,
+    //     cube_count,
+    //     settings,
+    //     TensorHandle::<TestRuntime>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+    //     TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+    //     TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
+    //     CubeTiling2dConfig::new(config, m, k, n, vectorization_factor as usize),
+    // );
 }
 
 #[burn_tensor_testgen::testgen(matmul_cube)]

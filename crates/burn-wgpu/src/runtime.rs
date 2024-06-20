@@ -1,7 +1,7 @@
 use crate::{
     compiler::wgsl,
     compute::{WgpuServer, WgpuStorage},
-    GraphicsApi, WgpuDevice,
+    AutoGraphicsApi, GraphicsApi, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -15,21 +15,16 @@ use burn_compute::{
 use burn_cube::Runtime;
 use burn_jit::JitRuntime;
 use burn_tensor::backend::{DeviceId, DeviceOps};
-use std::{
-    marker::PhantomData,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
-/// Runtime that uses the [wgpu] crate with the wgsl compiler.
-///
-/// The [graphics api](GraphicsApi) type is passed as generic.
+/// Runtime that uses the [wgpu] crate with the wgsl compiler. This is used in the Wgpu backend.
+/// For advanced configuration, use [`init_sync`] to pass in runtime options or to select a
+/// specific graphics API.
 #[derive(Debug)]
-pub struct WgpuRuntime<G: GraphicsApi> {
-    _g: PhantomData<G>,
-}
+pub struct WgpuRuntime {}
 
-impl<G: GraphicsApi> JitRuntime for WgpuRuntime<G> {
+impl JitRuntime for WgpuRuntime {
     type JitDevice = WgpuDevice;
     type JitServer = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 }
@@ -42,7 +37,7 @@ type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 static SUBGROUP: AtomicBool = AtomicBool::new(false);
 
-impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
+impl Runtime for WgpuRuntime {
     type Compiler = wgsl::WgslCompiler;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
@@ -51,7 +46,8 @@ impl<G: GraphicsApi> Runtime for WgpuRuntime<G> {
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
         RUNTIME.client(device, move || {
-            let (adapter, device_wgpu, queue) = pollster::block_on(create_wgpu_setup::<G>(device));
+            let (adapter, device_wgpu, queue) =
+                pollster::block_on(create_wgpu_setup::<AutoGraphicsApi>(device));
             create_client(adapter, device_wgpu, queue, RuntimeOptions::default())
         })
     }
@@ -125,14 +121,13 @@ pub fn init_existing_device(
     device_id
 }
 
-/// Init the client sync, useful to configure the runtime options.
+/// Initialize a client on the given device with the given options. This function is useful to configure the runtime options
+/// or to pick a different graphics API. On wasm, it is necessary to use [`init_async`] instead.
 pub fn init_sync<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
-    let (adapter, device_wgpu, queue) = pollster::block_on(create_wgpu_setup::<G>(device));
-    let client = create_client(adapter, device_wgpu, queue, options);
-    RUNTIME.register(device, client)
+    pollster::block_on(init_async::<G>(device, options));
 }
 
-/// Init the client async, necessary for wasm.
+/// Like [`init_sync`], but async, necessary for wasm.
 pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
     let (adapter, device_wgpu, queue) = create_wgpu_setup::<G>(device).await;
     let client = create_client(adapter, device_wgpu, queue, options);
@@ -161,7 +156,7 @@ fn create_client(
     WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
     MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
 > {
-    let storage = WgpuStorage::new(device_wgpu.clone());
+    let storage = WgpuStorage::new(device_wgpu.clone(), queue.clone());
     let memory_management =
         SimpleMemoryManagement::new(storage, options.dealloc_strategy, options.slice_strategy);
     let server = WgpuServer::new(memory_management, device_wgpu, queue, options.tasks_max);

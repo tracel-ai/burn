@@ -74,7 +74,9 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let ctx = self.get_context();
-        let handle = ctx.memory_management.reserve(data.len());
+        let handle = ctx.memory_management.reserve(data.len(), || unsafe {
+            cudarc::driver::result::stream::synchronize(ctx.stream).unwrap();
+        });
         let handle = server::Handle::new(handle);
         let binding = handle.clone().binding().memory;
         let resource = ctx.memory_management.get(binding);
@@ -88,7 +90,9 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
         let ctx = self.get_context();
-        let handle = ctx.memory_management.reserve(size);
+        let handle = ctx.memory_management.reserve(size, || unsafe {
+            cudarc::driver::result::stream::synchronize(ctx.stream).unwrap();
+        });
         server::Handle::new(handle)
     }
 

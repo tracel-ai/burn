@@ -10,7 +10,7 @@ pub mod compiler;
 pub use device::*;
 
 use burn_jit::JitBackend;
-use runtime::CudaRuntime;
+pub use runtime::CudaRuntime;
 
 #[cfg(not(feature = "fusion"))]
 pub type Cuda<F = f32, I = i32> = JitBackend<CudaRuntime, F, I>;

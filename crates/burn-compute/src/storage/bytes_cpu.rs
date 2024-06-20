@@ -90,6 +90,23 @@ impl ComputeStorage for BytesStorage {
             }
         }
     }
+
+    fn copy(&mut self, from: &StorageHandle, to: &StorageHandle) {
+        assert_eq!(from.size(), to.size());
+
+        let input = self.get(from);
+        let output = self.get(to);
+
+        for i in 0..from.size() {
+            let offset = i + from.offset();
+            let ptr_out = output.ptr.wrapping_add(offset);
+
+            let offset = i + to.offset();
+            let ptr_in = input.ptr.wrapping_add(offset);
+
+            unsafe { *ptr_in = *ptr_out }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,17 @@
+[package]
+authors = []
+name = "gelu"
+publish = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+default = ["wgpu"]
+cuda = ["burn-cuda"]
+wgpu = ["burn-wgpu"]
+
+[dependencies]
+burn-cube = { path = "../../crates/burn-cube", version = "0.14.0" }
+burn-cuda = { path = "../../crates/burn-cuda", version = "0.14.0", optional = true }
+burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", optional = true }

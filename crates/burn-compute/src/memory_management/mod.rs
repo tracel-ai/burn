@@ -1,4 +1,7 @@
+pub(crate) mod memory_pool;
+
 mod base;
+
 pub use base::*;
 
 /// Dynamic memory management strategy.

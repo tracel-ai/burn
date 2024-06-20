@@ -6,8 +6,9 @@ use super::state::{BackwardStates, State};
 
 /// Definition of the forward function of a node, called during retropropagation only.
 /// This is different from the normal forward function because it reads and writes from
-/// the [InnerStates] map instead of having a clear function signature.
+/// the [BackwardStates] map instead of having a clear function signature.
 pub trait RetroForward: Debug + Send + 'static {
+    /// Applies the forward pass for retropropagation.
     fn forward(&self, states: &mut BackwardStates, out_node: NodeID);
 }
 

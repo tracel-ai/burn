@@ -902,6 +902,48 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
     }
 }
 
+pub fn reduce_min_config(node: &Node) -> Option<usize> {
+    let mut axes = Vec::new();
+    let mut keepdims = 1;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // Extract the attributes
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axes" => axes = value.clone().into_i64s(),
+            "keepdims" => keepdims = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    if axes.len() > 1 {
+        panic!("ReduceMin: reducing on multiple dimensions is not supported")
+    }
+
+    if axes.is_empty() && keepdims == 1 {
+        panic!("ReduceMin: axes must be provided with keepdims")
+    }
+
+    if !axes.is_empty() && keepdims == 0 {
+        panic!("ReduceMin: the reduce operation must preserve the reduced dimension")
+    }
+
+    if axes.is_empty() {
+        None
+    } else {
+        let mut dim = axes[0];
+
+        if dim < 0 {
+            dim += tensor.dim as i64;
+        }
+        Some(dim as usize)
+    }
+}
+
 pub fn reduce_mean_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;

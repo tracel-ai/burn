@@ -19,7 +19,7 @@ std = ["burn-jit/std"]
 
 [dependencies]
 burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false }
-burn-compute = { path = "../burn-compute", version = "0.14.0" }
+burn-compute = { path = "../burn-compute", version = "0.14.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
 burn-common = { path = "../burn-common", version = "0.14.0" }
 burn-cube = { path = "../burn-cube", version = "0.14.0" }
@@ -27,7 +27,7 @@ burn-fusion = { path = "../burn-fusion", version = "0.14.0", optional = true }
 
 half = { workspace = true }
 bytemuck = { workspace = true }
-cudarc = { version = "0.11.4", features=["cuda-12030"] }
+cudarc = { version = "0.11.6", features = ["cuda-12030"] }
 
 log = { workspace = true }
 derive-new = { workspace = true }
