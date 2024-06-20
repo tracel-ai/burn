@@ -99,17 +99,25 @@ pub(crate) fn codegen_index(
     index: &syn::ExprIndex,
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
-) -> TokenStream {
+) -> Codegen {
     let array = codegen_expr(&index.expr, loop_level, variable_tracker);
     let index = codegen_expr(&index.index, loop_level, variable_tracker);
 
-    quote::quote! {
+    let tokens = quote::quote! {
         {
             let _array = #array;
             let _index = #index;
             burn_cube::frontend::index::expand(context, _array, _index)
         }
-    }
+    };
+
+    let mut codegen = Codegen::new(tokens, false);
+    codegen.array_indexing = Some(super::base::ArrayIndexRead {
+        array: array.tokens,
+        index: index.tokens,
+    });
+
+    codegen
 }
 
 /// Codegen for assignation

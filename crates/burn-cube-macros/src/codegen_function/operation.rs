@@ -8,7 +8,8 @@ pub(crate) fn codegen_binary(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> Codegen {
-    let (lhs, is_comptime_lhs) = codegen_expr(&binary.left, loop_level, variable_tracker).split();
+    let lhs = codegen_expr(&binary.left, loop_level, variable_tracker);
+    let (lhs, is_comptime_lhs, lhs_array) = (lhs.tokens, lhs.is_comptime, lhs.array_indexing);
     let (rhs, is_comptime_rhs) = codegen_expr(&binary.right, loop_level, variable_tracker).split();
 
     if is_comptime_lhs && is_comptime_rhs {
@@ -99,34 +100,94 @@ pub(crate) fn codegen_binary(
                     burn_cube::frontend::eq::expand(context, _lhs, _rhs)
                 }
             },
-            syn::BinOp::AddAssign(_) => quote::quote! {
-                {
-                    let _lhs = #lhs;
-                    let _rhs = #rhs;
-                    burn_cube::frontend::add_assign_op::expand(context, _lhs, _rhs)
+            syn::BinOp::AddAssign(_) => {
+                if let Some(array) = lhs_array {
+                    let (array, index) = (array.array, array.index);
+
+                    quote::quote! {
+                        {
+                            let _array = #array;
+                            let _index = #index;
+                            let _value = #rhs;
+                            burn_cube::frontend::add_assign_array_op::expand(context, _array, _index, _value)
+                        }
+                    }
+                } else {
+                    quote::quote! {
+                        {
+                            let _lhs = #lhs;
+                            let _rhs = #rhs;
+                            burn_cube::frontend::add_assign_op::expand(context, _lhs, _rhs)
+                        }
+                    }
                 }
-            },
-            syn::BinOp::SubAssign(_) => quote::quote! {
-                {
-                    let _lhs = #lhs;
-                    let _rhs = #rhs;
-                    burn_cube::frontend::sub_assign_op::expand(context, _lhs, _rhs)
+            }
+            syn::BinOp::SubAssign(_) => {
+                if let Some(array) = lhs_array {
+                    let (array, index) = (array.array, array.index);
+
+                    quote::quote! {
+                        {
+                            let _array = #array;
+                            let _index = #index;
+                            let _value = #rhs;
+                            burn_cube::frontend::sub_assign_array_op::expand(context, _array, _index, _value)
+                        }
+                    }
+                } else {
+                    quote::quote! {
+                        {
+                            let _lhs = #lhs;
+                            let _rhs = #rhs;
+                            burn_cube::frontend::sub_assign_op::expand(context, _lhs, _rhs)
+                        }
+                    }
                 }
-            },
-            syn::BinOp::MulAssign(_) => quote::quote! {
-                {
-                    let _lhs = #lhs;
-                    let _rhs = #rhs;
-                    burn_cube::frontend::mul_assign_op::expand(context, _lhs, _rhs)
+            }
+            syn::BinOp::MulAssign(_) => {
+                if let Some(array) = lhs_array {
+                    let (array, index) = (array.array, array.index);
+
+                    quote::quote! {
+                        {
+                            let _array = #array;
+                            let _index = #index;
+                            let _value = #rhs;
+                            burn_cube::frontend::mul_assign_array_op::expand(context, _array, _index, _value)
+                        }
+                    }
+                } else {
+                    quote::quote! {
+                        {
+                            let _lhs = #lhs;
+                            let _rhs = #rhs;
+                            burn_cube::frontend::mul_assign_op::expand(context, _lhs, _rhs)
+                        }
+                    }
                 }
-            },
-            syn::BinOp::DivAssign(_) => quote::quote! {
-                {
-                    let _lhs = #lhs;
-                    let _rhs = #rhs;
-                    burn_cube::frontend::div_assign_op::expand(context, _lhs, _rhs)
+            }
+            syn::BinOp::DivAssign(_) => {
+                if let Some(array) = lhs_array {
+                    let (array, index) = (array.array, array.index);
+
+                    quote::quote! {
+                        {
+                            let _array = #array;
+                            let _index = #index;
+                            let _value = #rhs;
+                            burn_cube::frontend::div_assign_array_op::expand(context, _array, _index, _value)
+                        }
+                    }
+                } else {
+                    quote::quote! {
+                        {
+                            let _lhs = #lhs;
+                            let _rhs = #rhs;
+                            burn_cube::frontend::div_assign_op::expand(context, _lhs, _rhs)
+                        }
+                    }
                 }
-            },
+            }
             syn::BinOp::And(_) => quote::quote! {
                 {
 
