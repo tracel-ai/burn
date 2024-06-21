@@ -264,8 +264,8 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
-impl<const D: usize> From<Vec<usize>> for TchShape<D> {
-    fn from(shape: Vec<usize>) -> Self {
+impl<const D: usize> From<&[usize]> for TchShape<D> {
+    fn from(shape: &[usize]) -> Self {
         let mut dims = [0; D];
         for (i, dim) in dims.iter_mut().enumerate().take(D) {
             *dim = shape[i] as i64;
@@ -286,8 +286,9 @@ impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> 
     ///
     /// A new tensor.
     pub fn from_data(data: TensorData, device: tch::Device) -> Self {
-        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let shape_tch = TchShape::<D>::from(data.shape);
+        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+        let tensor =
+            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
