@@ -32,7 +32,7 @@ pub struct MemoryPage {
 }
 
 impl MemoryPage {
-    /// merge slice at first_slice_adress with the next slice (if there is one and if it's free)
+    /// merge slice at first_slice_address with the next slice (if there is one and if it's free)
     /// return a boolean representing if a merge happened
     fn merge_with_next_slice(
         &mut self,
@@ -76,7 +76,7 @@ impl MemoryPage {
 
     fn find_slice(&self, address: usize) -> Option<SliceId> {
         let slice_id = self.slices.get(&address);
-        return slice_id.copied();
+        slice_id.copied()
     }
 
     fn insert_slice(&mut self, position: usize, slice: &Slice) {
