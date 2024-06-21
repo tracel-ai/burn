@@ -38,8 +38,6 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
             chunk_positions: HashMap::new(),
             cursor_slice: 0,
             cursor_chunk: 0,
-            lookup_total: 0,
-            lookup_miss: 0,
             _s: PhantomData,
             _c: PhantomData,
         }
@@ -91,7 +89,6 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         while let Some(slice_id) = chunk.slice(slice_index) {
             //mutable borrow scope
             {
-                self.lookup_miss += 1;
                 let slice = slices.get_mut(&slice_id).unwrap();
 
                 let is_big_enough = slice.size() >= size;

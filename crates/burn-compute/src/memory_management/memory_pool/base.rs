@@ -199,7 +199,6 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        // Looks for a large enough, existing but unused chunk of memory.
         let slice = self.get_free_slice(size);
 
         match slice {
@@ -336,11 +335,8 @@ impl MemoryPool {
             StorageUtilization::Slice { offset, size: _ } => offset,
         };
         slice.storage.utilization = StorageUtilization::Slice { offset, size };
-        //this could be wrong hehe
         let new_padding = old_slice_size - size;
         slice.padding = new_padding;
-        // FAILS HERE (THIS IS DEFINTELY THE PROBLEM, ILL FIX IT TOMORROW IM TIRED GOOD NIGHT)
-        // EVERYONE !!!
         assert_eq!(
             slice.effective_size(),
             old_slice_size,

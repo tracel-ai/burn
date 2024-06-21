@@ -20,14 +20,11 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             RoundingStrategy::RoundUp,
             1024 * 1024 * 1024 * 2,
         );
-        let mut small_memory_pool = MemoryPool::new(
+        let small_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
             RoundingStrategy::None,
             1024 * 1024 * 512,
         );
-
-        small_memory_pool.alloc(&mut storage, 1024 * 1024 * 1024, || {});
-
         Self {
             main_memory_pool,
             small_memory_pool,
