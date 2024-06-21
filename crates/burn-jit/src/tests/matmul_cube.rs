@@ -45,4 +45,88 @@ mod tests {
             TestRuntime,
         >(&Default::default())
     }
+
+    #[test]
+    pub fn tiling2d_matmul_load_tile_no_checks_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::load_tile_no_checks_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_load_tile_vertical_checks_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::load_tile_vertical_checks_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_load_tile_horizontal_checks_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::load_tile_horizontal_checks_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_tile_plain_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::write_tile_plain_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_tile_transposed_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::write_tile_transposed_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn load_lhs_transposed_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::load_lhs_transposed_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn load_rhs_plain_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::load_rhs_plain_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_results_inner_loop_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::write_output::write_results_inner_loop_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_results_to_output_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::write_output::write_results_to_output_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_results_to_output_partial_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::write_output::write_results_to_output_partial_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_to_output_over_height_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::write_output::write_to_output_over_height_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn write_to_output_over_width_unit_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::write_output::write_to_output_over_width_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
 }

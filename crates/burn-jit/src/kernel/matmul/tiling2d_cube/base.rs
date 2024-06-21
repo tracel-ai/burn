@@ -68,7 +68,6 @@ fn gather_kernel_information<F: Float>(
     let n_threads_per_row = ((Comptime::runtime(block_size_n) - UInt::new(1))
         / Comptime::runtime(tile_size))
         + UInt::new(1);
-    let local_idx = UNIT_POS;
     let batch = ABSOLUTE_POS_Z;
 
     // Shapes
@@ -90,6 +89,7 @@ fn gather_kernel_information<F: Float>(
     let skip_col = CUBE_POS_Y * Comptime::runtime(block_size_n);
 
     // Position of the first element of the unit, relative to the cube
+    let local_idx = UNIT_POS;
     let unit_row = (local_idx / n_threads_per_row) * Comptime::runtime(tile_size);
     let unit_col = (local_idx % n_threads_per_row) * Comptime::runtime(tile_size);
 

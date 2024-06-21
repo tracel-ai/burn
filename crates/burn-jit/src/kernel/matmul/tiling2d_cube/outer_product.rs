@@ -43,6 +43,14 @@ pub fn tile_outer_product_test<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let register_m = register_m.to_vectorized(tile_size);
     let register_n = register_n.to_vectorized(tile_size);
+
+    for i in range(
+        0u32,
+        Comptime::get(tile_size * tile_size),
+        Comptime::new(false),
+    ) {
+        results[i] = F::new(0.);
+    }
     tile_outer_product(register_m, register_n, results, config)
 }
 
