@@ -92,3 +92,55 @@ impl<T: Into<ExpandElement>> Comptime<T> {
         inner.into()
     }
 }
+
+impl<T: core::ops::Add<T, Output = T>> core::ops::Add for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.add(rhs.inner))
+    }
+}
+
+impl<T: core::ops::Sub<T, Output = T>> core::ops::Sub for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.sub(rhs.inner))
+    }
+}
+
+impl<T: core::ops::Div<T, Output = T>> core::ops::Div for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.div(rhs.inner))
+    }
+}
+
+impl<T: core::ops::Mul<T, Output = T>> core::ops::Mul for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.mul(rhs.inner))
+    }
+}
+
+impl<T: core::ops::Rem<T, Output = T>> core::ops::Rem for Comptime<T> {
+    type Output = Comptime<T>;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        Comptime::new(self.inner.rem(rhs.inner))
+    }
+}
+
+impl<T: core::cmp::PartialOrd + core::cmp::PartialEq> core::cmp::PartialEq for Comptime<T> {
+    fn eq(&self, other: &Self) -> bool {
+        core::cmp::PartialEq::eq(&self.inner, &other.inner)
+    }
+}
+
+impl<T: core::cmp::PartialOrd + core::cmp::PartialEq> core::cmp::PartialOrd for Comptime<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        core::cmp::PartialOrd::partial_cmp(&self.inner, &other.inner)
+    }
+}

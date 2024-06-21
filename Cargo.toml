@@ -26,18 +26,17 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-# candle-core = { version = "0.4.1" }
 async-trait = "0.1.80"
-data-encoding = { version = "2.6.0", default-features = false, features = [
-    "alloc",
-] }
 bytemuck = "1.16.0"
-candle-core = { git = "https://github.com/huggingface/candle.git", rev = "82b641f" }
+candle-core = { version = "0.5.1" }
 clap = { version = "4.5.7", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.0"
 dashmap = "5.5.3"
+data-encoding = { version = "2.6.0", default-features = false, features = [
+    "alloc",
+] }
 dirs = "5.0.1"
 fake = "2.9.2"
 flate2 = "1.0.30"
