@@ -7,10 +7,11 @@ pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
     data: TensorData,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
+    let shape: Shape<D> = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(E::as_bytes(data.as_slice().unwrap()));
+    let buffer = client.create(E::as_bytes(data.convert::<E>().as_slice().unwrap()));
 
-    JitTensor::new(client, device.clone(), data.shape.into(), buffer)
+    JitTensor::new(client, device.clone(), shape, buffer)
 }
 
 pub(crate) fn into_data<R: JitRuntime, E: JitElement, const D: usize>(

@@ -47,11 +47,11 @@ mod tests {
         pooled
             .into_data()
             .assert_approx_eq(&pooled_ref.into_data(), 3);
-        assert_eq!(
-            indices.into_data(),
-            indices_ref
+        indices.into_data().assert_eq(
+            &indices_ref
                 .into_data()
-                .convert::<<TestBackend as Backend>::FloatElem>()
+                .convert::<<TestBackend as Backend>::IntElem>(),
+            true,
         );
     }
 }
