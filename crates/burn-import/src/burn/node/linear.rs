@@ -4,29 +4,29 @@ use burn::{
     module::{Param, ParamId},
     nn::{LinearConfig, LinearRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct LinearNode<PS: PrecisionSettings> {
+pub struct LinearNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub data_weights: DataSerialize<PS::FloatElem>,
-    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
+    pub data_weights: TensorData,
+    pub data_bias: Option<TensorData>,
     pub config: LinearConfig,
 }
 
-impl<PS: PrecisionSettings> LinearNode<PS> {
+impl LinearNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        data_weights: DataSerialize<PS::FloatElem>,
-        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        data_weights: TensorData,
+        data_bias: Option<TensorData>,
         config: LinearConfig,
     ) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> LinearNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -77,20 +77,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
             weight: Param::initialized(
                 ParamId::new(),
                 Tensor::from_data(
-                    self.data_weights
-                        .clone()
-                        .convert::<PS::FloatElem>()
-                        .into_tensor_data(),
+                    self.data_weights.clone().convert::<PS::FloatElem>(),
                     &device,
                 ),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
-                    Tensor::from_data(
-                        bias.clone().convert::<PS::FloatElem>().into_tensor_data(),
-                        &device,
-                    ),
+                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
                 )
             }),
         };
@@ -123,7 +117,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::TensorData};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -133,7 +127,7 @@ mod tests {
             "linear",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            TensorData::from([2f32]),
             None,
             LinearConfig::new(128, 128),
         ));

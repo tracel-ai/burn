@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use super::{
     argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
@@ -81,22 +83,22 @@ pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
-    BatchNorm(BatchNormNode<PS>),
+    BatchNorm(BatchNormNode),
     Binary(BinaryNode),
     Clip(ClipNode),
     Concat(ConcatNode),
-    Constant(ConstantNode<PS>),
-    Conv1d(Conv1dNode<PS>),
-    Conv2d(Conv2dNode<PS>),
-    ConvTranspose2d(ConvTranspose2dNode<PS>),
-    PRelu(PReluNode<PS>),
+    Constant(ConstantNode),
+    Conv1d(Conv1dNode),
+    Conv2d(Conv2dNode),
+    ConvTranspose2d(ConvTranspose2dNode),
+    PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
     GlobalAvgPool(GlobalAvgPoolNode),
-    LayerNorm(LayerNormNode<PS>),
-    Linear(LinearNode<PS>),
+    LayerNorm(LayerNormNode),
+    Linear(LinearNode),
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
@@ -111,6 +113,9 @@ pub enum Node<PS: PrecisionSettings> {
     Where(WhereNode),
     RandomUniform(RandomUniformNode),
     RandomNormal(RandomNormalNode),
+    // For now, we have to keep the precision settings in order to correctly serialize the fields
+    // into the right data types.
+    _Unreachable(std::convert::Infallible, PhantomData<PS>),
 }
 
 macro_rules! match_all {
@@ -150,6 +155,7 @@ macro_rules! match_all {
             Node::Where(node) => $func(node),
             Node::RandomNormal(node) => $func(node),
             Node::RandomUniform(node) => $func(node),
+            _ => unimplemented!(),
         }
     }};
 }
@@ -199,6 +205,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Where(_) => "where",
             Node::RandomNormal(_) => "random_normal",
             Node::RandomUniform(_) => "random_uniform",
+            _ => unimplemented!(),
         }
     }
 }
@@ -315,7 +322,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor3", 4),
             TensorType::new_float("tensor4", 4),
-            burn::tensor::DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            TensorData::from([2f32]),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
@@ -388,7 +395,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor2", 4),
             TensorType::new_float("tensor4", 4),
-            burn::tensor::DataSerialize::from_tensor_data(TensorData::from([2f32])),
+            TensorData::from([2f32]),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));

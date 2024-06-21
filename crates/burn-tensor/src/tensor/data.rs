@@ -569,15 +569,6 @@ impl<E: Element> DataSerialize<E> {
         }
     }
 
-    /// Creates a new [DataSerialize] struct from [TensorData].
-    /// Used for backward compatibility.
-    pub fn from_tensor_data(data: TensorData) -> Self {
-        Self {
-            value: data.to_vec().unwrap(),
-            shape: data.shape,
-        }
-    }
-
     /// Converts the data to the new [TensorData] format.
     pub fn into_tensor_data(self) -> TensorData {
         TensorData::new(self.value, self.shape)
