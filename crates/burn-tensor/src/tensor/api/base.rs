@@ -1451,7 +1451,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    // #[deprecated(since="0.14.0", note="please use `into_tensor_data` instead")]
     fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData>;
 
     /// Creates a tensor from the given data.

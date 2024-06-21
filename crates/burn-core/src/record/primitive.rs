@@ -9,7 +9,9 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Element, Int, Tensor};
+#[allow(deprecated)]
+use burn_tensor::DataSerialize;
+use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor};
 
 use hashbrown::HashMap;
 use serde::{

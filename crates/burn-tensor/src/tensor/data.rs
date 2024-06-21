@@ -491,10 +491,10 @@ impl core::fmt::Display for TensorData {
 
 /// Data structure for serializing and deserializing tensor data.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
-// #[deprecated(
-//     since = "0.14.0",
-//     note = "the internal data format has changed, please use `TensorData` instead"
-// )]
+#[deprecated(
+    since = "0.14.0",
+    note = "the internal data format has changed, please use `TensorData` instead"
+)]
 pub struct DataSerialize<E> {
     /// The values of the tensor.
     pub value: Vec<E>,
@@ -504,10 +504,10 @@ pub struct DataSerialize<E> {
 
 /// Data structure for tensors.
 #[derive(new, Debug, Clone, PartialEq, Eq)]
-// #[deprecated(
-//     since = "0.14.0",
-//     note = "the internal data format has changed, please use `TensorData` instead"
-// )]
+#[deprecated(
+    since = "0.14.0",
+    note = "the internal data format has changed, please use `TensorData` instead"
+)]
 pub struct Data<E, const D: usize> {
     /// The values of the tensor.
     pub value: Vec<E>,
@@ -925,14 +925,4 @@ mod tests {
 
         data1.assert_approx_eq(&data2, 2);
     }
-
-    // #[test]
-    // fn tensor_data_should_have_right_num_elements() {
-    //     let shape = Shape::new([3, 5, 6]);
-    //     let num_elements = shape.num_elements();
-    //     let data =
-    //         TensorData::new(shape, Distribution::Default, &mut StdRng::from_entropy());
-
-    //     assert_eq!(num_elements, data.value.len());
-    // }
 }
