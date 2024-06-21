@@ -19,6 +19,11 @@ pub trait ModuleDisplayDefault {
     ///
     /// An optional content object containing the display attributes.
     fn content(&self, _content: Content) -> Option<Content>;
+
+    /// Gets the number of the parameters of the module.
+    fn num_params(&self) -> usize {
+        0
+    }
 }
 
 /// Trait to implement custom display settings for a module.
@@ -94,6 +99,14 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
                 write!(result, "{}: {}", attribute.name, attribute.value).unwrap();
             } else {
                 write!(result, ", {}: {}", attribute.name, attribute.value).unwrap();
+            }
+        }
+
+        if settings.show_num_parameters() {
+            if settings.new_line_after_attribute() {
+                writeln!(result, "{indent}params: {}", self.num_params()).unwrap();
+            } else {
+                write!(result, ", params: {}", self.num_params()).unwrap();
             }
         }
 
@@ -223,6 +236,20 @@ impl DisplaySettings {
     /// Updated `DisplaySettings` instance.
     pub fn with_new_line_after_attribute(mut self, flag: bool) -> Self {
         self.new_line_after_attribute = Some(flag);
+        self
+    }
+
+    /// Sets the indentation size.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the indentation.
+    ///
+    /// # Returns
+    ///
+    /// Updated `DisplaySettings` instance.
+    pub fn with_indentation_size(mut self, size: usize) -> Self {
+        self.indentation_size = Some(size);
         self
     }
 

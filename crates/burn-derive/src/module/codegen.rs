@@ -86,6 +86,10 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
         impl #generics_module burn::module::ModuleDisplayDefault for #name #generics_ty_module #generics_where_module {
             #attributes_fn
+
+            fn num_params(&self) -> usize {
+                burn::module::Module::num_params(self)
+            }
         }
 
         impl #generics_module Clone for #name #generics_ty_module #generics_where_module {
