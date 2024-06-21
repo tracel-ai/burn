@@ -1,5 +1,4 @@
 use burn_cube::prelude::*;
-use burn_tensor::backend::Backend;
 
 use crate::{kernel::matmul::Tiling2dConfig, JitBackend, JitRuntime};
 
@@ -17,7 +16,6 @@ pub(crate) fn dot_loop<F: Float>(
     results: Array<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    // TODO Comptime arithmetic
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let block_size_k = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));

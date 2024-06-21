@@ -24,4 +24,25 @@ mod tests {
             &Default::default(),
         )
     }
+
+    #[test]
+    pub fn tiling2d_matmul_read_whole_vectorized_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::read_whole_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_read_partial_vectorized_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::read_partial_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_read_zeros_vectorized_test() {
+        burn_jit::kernel::matmul::tiling2d_cube::load_shared_memory::read_zeros_unit_test::<
+            TestRuntime,
+        >(&Default::default())
+    }
 }
