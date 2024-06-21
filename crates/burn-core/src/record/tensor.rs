@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
+use alloc::format;
 use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
@@ -35,10 +36,10 @@ where
     #[cfg(not(feature = "record-backward-compat"))]
     {
         let data = TensorData::deserialize(deserializer).map_err(|e| {
-            eprintln!(
-                "\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag. Once you have saved the record in the new format, you can disable the feature flag.\n"
-            );
-            e
+            serde::de::Error::custom(format!(
+                "{:?}\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag. Once you have saved the record in the new format, you can disable the feature flag.\n",
+                e
+            ))
         })?;
         Ok(data.convert::<E>())
     }
