@@ -10,8 +10,6 @@ pub struct RingBuffer<C: MemoryChunk<S>, S: MemorySlice> {
     chunk_positions: HashMap<ChunkId, usize>,
     cursor_slice: usize,
     cursor_chunk: usize,
-    lookup_miss: usize,
-    lookup_total: usize,
     _s: PhantomData<S>,
     _c: PhantomData<C>,
 }
@@ -144,7 +142,6 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
                 let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
 
                 if let Some((_cursor_slice, slice)) = result {
-                    self.lookup_total += slices.len();
                     let slice = slices.get(&slice).unwrap();
                     self.cursor_slice = slice.next_slice_position();
                     self.cursor_chunk = chunk_index;
