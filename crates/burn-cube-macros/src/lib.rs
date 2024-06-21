@@ -49,22 +49,26 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 
     let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-    let cube = codegen_cube(&func, &mut variable_tracker);
-    let code: TokenStream = if launch {
-        let launch = codegen_launch(&func.sig);
+    let code: TokenStream = match codegen_cube(&func, &mut variable_tracker) {
+        Ok(code) => {
+            if launch {
+                let launch = codegen_launch(&func.sig);
 
-        quote::quote! {
-            #cube
-            #launch
+                quote::quote! {
+                    #code
+                    #launch
+                }
+                .into()
+            } else {
+                code.into()
+            }
         }
-        .into()
-    } else {
-        cube.into()
+        Err(err) => err.into(),
     };
 
     match mode {
         CubeMode::Default => code,
-        CubeMode::Debug => panic!("{code}"),
+        CubeMode::Debug => panic!("State\n:{variable_tracker:?}\nCode:\n{code}"),
     }
 }
 
@@ -101,7 +105,7 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
 fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
-) -> proc_macro2::TokenStream {
+) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
     let signature = expand_sig(&func.sig, variable_tracker);
     let mut body = quote::quote! {};
 
@@ -110,7 +114,26 @@ fn codegen_cube(
         body.extend(tokens);
     }
 
-    quote::quote! {
+    let is_in_error = !variable_tracker.errors.is_empty();
+
+    if is_in_error {
+        // When there is an error, we don't generate the expand method, since it's only going to
+        // create more errors that won't help fixing the issue.
+
+        let mut code = quote::quote! {
+            #[allow(dead_code)]
+            #[allow(clippy::too_many_arguments)]
+            #func
+        };
+
+        for err in variable_tracker.errors.drain(..) {
+            code.extend(err.into_compile_error());
+        }
+
+        return Err(code);
+    }
+
+    Ok(quote::quote! {
         #[allow(dead_code)]
         #[allow(clippy::too_many_arguments)]
         #func
@@ -120,7 +143,7 @@ fn codegen_cube(
         #signature {
             #body
         }
-    }
+    })
 }
 
 fn expand_sig(

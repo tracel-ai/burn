@@ -23,12 +23,14 @@ pub(crate) struct VariableTracker {
     analysis_repeats: HashMap<VariableKey, u8>,
     codegen_repeats: HashMap<VariableKey, u8>,
     variable_uses: HashMap<VariableIdent, VariableUse>,
+    pub errors: Vec<syn::Error>,
 }
 
 #[derive(Debug, Default)]
 /// Encapsulates number of uses and whether this implies cloning
 pub(crate) struct VariableUse {
     pub num_used: usize,
+    pub is_comptime: bool,
 }
 
 impl VariableUse {
@@ -39,7 +41,7 @@ impl VariableUse {
 
 impl VariableTracker {
     /// During analysis, tracks a variable declaration
-    pub(crate) fn analyze_declare(&mut self, name: String, scope: u8) {
+    pub(crate) fn analyze_declare(&mut self, name: String, scope: u8, is_comptime: bool) {
         if let Some(scopes) = self.scopes_declared.get_mut(&name) {
             if !scopes.contains(&scope) {
                 scopes.push(scope);
@@ -57,17 +59,26 @@ impl VariableTracker {
             0
         };
 
-        let analysis = VariableUse { num_used: 1 };
+        let analysis = VariableUse {
+            num_used: 1,
+            is_comptime,
+        };
         let variable_ident = VariableIdent::new(name, repeat, scope, None);
         self.variable_uses.insert(variable_ident, analysis);
     }
 
     /// During analysis, tracks a variable use
-    pub(crate) fn analyze_reuse(&mut self, name: String, scope: u8, field: Option<String>) {
-        let scopes_declared = self
-            .scopes_declared
-            .get(&name)
-            .expect("Analysis: Variable should be declared.");
+    pub(crate) fn analyze_reuse(&mut self, ident: &syn::Ident, scope: u8, field: Option<String>) {
+        let name = ident.to_string();
+        let scopes_declared = match self.scopes_declared.get(&name) {
+            Some(val) => val,
+            None => {
+                self.errors
+                    .push(syn::Error::new_spanned(ident, "Variable not declared"));
+                return;
+            }
+        };
+
         let scope = *scopes_declared
             .iter()
             .filter(|s| **s <= scope)
@@ -93,7 +104,14 @@ impl VariableTracker {
             None => {
                 // If variable was not inserted yet, it must be a field
                 if variable_ident.field.is_some() {
-                    let attr_analysis = VariableUse { num_used: 1 };
+                    let mut parent_ident = variable_ident.clone();
+                    parent_ident.field = None;
+                    let parent = self.variable_uses.get(&parent_ident).unwrap();
+
+                    let attr_analysis = VariableUse {
+                        num_used: 1,
+                        is_comptime: parent.is_comptime,
+                    };
                     self.variable_uses
                         .insert(variable_ident.clone(), attr_analysis);
                 } else {
@@ -131,7 +149,7 @@ impl VariableTracker {
         name: String,
         scope: u8,
         field: Option<String>,
-    ) -> Result<bool, VariableReuseError> {
+    ) -> Result<(bool, bool), VariableReuseError> {
         let scopes_declared = self
             .scopes_declared
             .get(&name)
@@ -165,7 +183,39 @@ impl VariableTracker {
             .ok_or_else(|| VariableNotFound::new(name, scope_declared, field))?;
 
         analysis.num_used -= 1;
-        Ok(analysis.should_clone() || should_clone_parent || scope_declared != scope)
+        let should_clone =
+            analysis.should_clone() || should_clone_parent || scope_declared != scope;
+        Ok((should_clone, analysis.is_comptime))
+    }
+
+    pub fn set_as_comptime(
+        &mut self,
+        name: String,
+        scope: u8,
+        field: Option<String>,
+    ) -> Result<(), VariableReuseError> {
+        let scopes_declared = self
+            .scopes_declared
+            .get(&name)
+            .ok_or_else(|| VariableNotFound::new(name.clone(), scope, field.clone()))?;
+        let scope_declared = *scopes_declared
+            .iter()
+            .filter(|s| **s <= scope)
+            .max()
+            .ok_or_else(|| VariableNotFound::new(name.clone(), scope, field.clone()))?;
+
+        let key = VariableKey::new(name.clone(), scope_declared);
+        let repeat = self.codegen_repeats.get(&key).unwrap_or(&0);
+        let ident = VariableIdent::new(name.clone(), *repeat, scope_declared, field.clone());
+
+        let analysis = self
+            .variable_uses
+            .get_mut(&ident)
+            .ok_or_else(|| VariableNotFound::new(name, scope_declared, field))?;
+
+        analysis.is_comptime = true;
+
+        Ok(())
     }
 }
 

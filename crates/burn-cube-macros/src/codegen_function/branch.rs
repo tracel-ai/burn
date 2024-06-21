@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream;
 
-use crate::{codegen_function::base::codegen_expr, tracker::VariableTracker};
+use crate::{codegen_function::expr::codegen_expr, tracker::VariableTracker};
 
 use super::{
-    base::codegen_block,
+    base::{codegen_block, Codegen},
     function::codegen_call,
     operation::codegen_binary,
-    variable::{codegen_lit, codegen_path_rhs},
+    variable::{codegen_lit, codegen_path_var},
 };
 
 /// Codegen of for loops
@@ -24,14 +24,24 @@ pub(crate) fn codegen_for_loop(
         variable_tracker.codegen_declare(id.to_string(), loop_level as u8 + 1);
     }
 
+    let invalid_for_loop = || {
+        syn::Error::new_spanned(
+            &for_loop.expr,
+            "Invalid for loop: use [range](cubecl::prelude::range] instead.",
+        )
+        .into_compile_error()
+    };
+
     match for_loop.expr.as_ref() {
         syn::Expr::Call(call) => {
             let func_name = match call.func.as_ref() {
-                syn::Expr::Path(path) => path
-                    .path
-                    .get_ident()
-                    .expect("Codegen: func in for loop should have ident"),
-                _ => todo!("Codegen: Only path call supported"),
+                syn::Expr::Path(path) => match path.path.get_ident() {
+                    Some(ident) => ident,
+                    None => return invalid_for_loop(),
+                },
+                _ => {
+                    return invalid_for_loop();
+                }
             };
 
             if &func_name.to_string() == "range" {
@@ -64,10 +74,10 @@ pub(crate) fn codegen_for_loop(
                     }
                 }
             } else {
-                todo!("Codegen: Only range is supported")
+                invalid_for_loop()
             }
         }
-        _ => todo!("Codegen: Only call is supported {for_loop:?}"),
+        _ => invalid_for_loop(),
     }
 }
 
@@ -76,11 +86,11 @@ pub(crate) fn codegen_cond(
     cond: &syn::Expr,
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
-) -> (TokenStream, bool) {
+) -> Codegen {
     match cond {
-        syn::Expr::Binary(expr) => (codegen_binary(expr, loop_level, variable_tracker), false),
-        syn::Expr::Lit(expr) => (codegen_lit(expr), false),
-        syn::Expr::Path(expr) => (codegen_path_rhs(expr, loop_level, variable_tracker), false),
+        syn::Expr::Binary(expr) => codegen_binary(expr, loop_level, variable_tracker),
+        syn::Expr::Lit(expr) => Codegen::new(codegen_lit(expr), false),
+        syn::Expr::Path(expr) => codegen_path_var(expr, loop_level, variable_tracker),
         syn::Expr::Call(expr) => codegen_call(expr, loop_level, variable_tracker),
         _ => todo!("{cond:?} cond not supported"),
     }
@@ -96,8 +106,10 @@ pub(crate) fn codegen_break() -> TokenStream {
 /// Codegen for return statement
 pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
     if expr_return.expr.is_some() {
-        panic!("Codegen: Only void return is supported.")
+        return syn::Error::new_spanned(expr_return, "Only void return is supported.")
+            .into_compile_error();
     }
+
     quote::quote! {
         burn_cube::frontend::branch::return_expand(context);
     }
@@ -113,8 +125,8 @@ pub(crate) fn codegen_if(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&expr_if.cond, loop_level, variable_tracker);
-    let comptime_bool = if comptime {
+    let (cond, is_comptime) = codegen_cond(&expr_if.cond, loop_level, variable_tracker).split();
+    let comptime_bool = if is_comptime {
         quote::quote! { Some(#cond) }
     } else {
         quote::quote! { None }
@@ -131,7 +143,11 @@ pub(crate) fn codegen_if(
                 burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
             }
         } else {
-            todo!("Codegen: Only block else expr is supported")
+            syn::Error::new_spanned(
+                expr,
+                "Unsupported: only `else` block is allowed after an `if` statement.",
+            )
+            .into_compile_error()
         }
     } else {
         quote::quote! {
@@ -160,8 +176,13 @@ pub(crate) fn codegen_while_loop(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
-    let (cond, comptime) = codegen_cond(&while_loop.cond, loop_level + 1, variable_tracker);
-    assert!(!comptime, "Codegen: Comptime not supported for while");
+    let (cond, is_comptime) =
+        codegen_cond(&while_loop.cond, loop_level + 1, variable_tracker).split();
+
+    if is_comptime {
+        return syn::Error::new_spanned(while_loop.while_token, "Comptime not supported for while")
+            .into_compile_error();
+    }
 
     let block = codegen_block(&while_loop.body, loop_level + 1, variable_tracker);
 

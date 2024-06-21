@@ -19,8 +19,8 @@ pub mod add {
             impl core::ops::Add for $type {
                 type Output = Self;
 
-                fn add(self, _rhs: Self) -> Self::Output {
-                    unexpanded!()
+                fn add(self, rhs: Self) -> Self::Output {
+                    (self.val + rhs.val).into()
                 }
             }
         };

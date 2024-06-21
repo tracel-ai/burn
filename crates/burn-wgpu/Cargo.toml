@@ -20,7 +20,7 @@ std = ["burn-jit/std"]
 
 [dependencies]
 burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false }
-burn-compute = { path = "../burn-compute", version = "0.14.0" }
+burn-compute = { path = "../burn-compute", version = "0.14.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
 burn-common = { path = "../burn-common", version = "0.14.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.14.0", optional = true }
@@ -41,4 +41,4 @@ burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false,
 ] }
 burn-cube = { path = "../burn-cube", version = "0.14.0", features = [
   "export_tests",
-]}
+] }

@@ -29,5 +29,9 @@ half = { workspace = true, features = ["bytemuck"] }
 serde = { workspace = true }
 burn-cube-macros = { path = "../burn-cube-macros", version = "0.14.0" }
 derive-new = { workspace = true }
+num-traits = { workspace = true }
 
 log = { workspace = true }
+
+[dev-dependencies]
+trybuild = "1"

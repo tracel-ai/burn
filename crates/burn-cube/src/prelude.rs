@@ -9,7 +9,9 @@ pub use crate::ir::{CubeDim, KernelDefinition};
 pub use crate::runtime::Runtime;
 
 /// Elements
-pub use crate::frontend::{Float, LaunchArg, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64};
+pub use crate::frontend::{
+    Array, ArrayHandle, Float, LaunchArg, Tensor, TensorHandle, UInt, F16, F32, F64, I32, I64,
+};
 pub use crate::pod::CubeElement;
 
 /// Topology

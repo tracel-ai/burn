@@ -53,10 +53,13 @@ impl VariableAnalyzer {
             match input {
                 syn::FnArg::Typed(pat) => {
                     let ident = &*pat.pat;
+                    let is_comptime = is_ty_comptime(&pat.ty);
+
                     match ident {
                         syn::Pat::Ident(pat_ident) => {
                             let id = &pat_ident.ident;
-                            self.variable_tracker.analyze_declare(id.to_string(), 0);
+                            self.variable_tracker
+                                .analyze_declare(id.to_string(), 0, is_comptime);
                         }
                         _ => todo!("Analysis: unsupported ident {ident:?}"),
                     }
@@ -71,17 +74,22 @@ impl VariableAnalyzer {
             match stmt {
                 // Declaration
                 syn::Stmt::Local(local) => {
+                    let mut is_comptime = false;
                     let id = match &local.pat {
                         syn::Pat::Ident(pat_ident) => Some(&pat_ident.ident),
-                        syn::Pat::Type(pat_type) => match &*pat_type.pat {
-                            syn::Pat::Ident(pat_ident) => Some(&pat_ident.ident),
-                            _ => todo!("Analysis: unsupported typed path {:?}", pat_type.pat),
-                        },
+                        syn::Pat::Type(pat_type) => {
+                            is_comptime = is_ty_comptime(&pat_type.ty);
+                            match &*pat_type.pat {
+                                syn::Pat::Ident(pat_ident) => Some(&pat_ident.ident),
+                                _ => todo!("Analysis: unsupported typed path {:?}", pat_type.pat),
+                            }
+                        }
                         syn::Pat::Wild(_) => None,
                         _ => todo!("Analysis: unsupported path {:?}", local.pat),
                     };
                     if let Some(id) = id {
-                        self.variable_tracker.analyze_declare(id.to_string(), depth);
+                        self.variable_tracker
+                            .analyze_declare(id.to_string(), depth, is_comptime);
                     }
                     if let Some(local_init) = &local.init {
                         self.find_occurrences_in_expr(&local_init.expr, depth)
@@ -100,10 +108,10 @@ impl VariableAnalyzer {
 
                 let depth = depth + 1;
 
-                // Declaration of iterator
                 if let syn::Pat::Ident(pat_ident) = &*expr.pat {
                     let id = &pat_ident.ident;
-                    self.variable_tracker.analyze_declare(id.to_string(), depth);
+                    self.variable_tracker
+                        .analyze_declare(id.to_string(), depth, false);
                 }
 
                 self.find_occurrences_in_stmts(&expr.body.stmts, depth);
@@ -128,7 +136,7 @@ impl VariableAnalyzer {
                     if let syn::Expr::Block(expr_block) = &**expr {
                         self.find_occurrences_in_stmts(&expr_block.block.stmts, depth);
                     } else {
-                        todo!("Analysis: Only block else expr is supported")
+                        // Unsupported: handled in codegen.
                     }
                 }
             }
@@ -147,8 +155,7 @@ impl VariableAnalyzer {
                     .expect("Analysis: only ident path are supported.");
 
                 if !KEYWORDS.contains(&ident.to_string().as_str()) {
-                    self.variable_tracker
-                        .analyze_reuse(ident.to_string(), depth, None);
+                    self.variable_tracker.analyze_reuse(ident, depth, None);
                 }
             }
             syn::Expr::Binary(expr) => {
@@ -190,26 +197,24 @@ impl VariableAnalyzer {
             syn::Expr::Break(_) => {}
             syn::Expr::Return(expr) => {
                 if expr.expr.is_some() {
-                    todo!("Analysis: only void return supported")
+                    // Unsupported: handled in codegen.
                 }
             }
             syn::Expr::Paren(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
-            syn::Expr::Array(expr) => {
-                for element in expr.elems.iter() {
-                    match element {
-                        syn::Expr::Lit(_) => {}
-                        _ => todo!("Analysis: only array of literals is supported"),
-                    }
-                }
+            syn::Expr::Array(_expr) => {
+                // No analysis since only literals are supported
             }
             syn::Expr::Reference(expr) => self.find_occurrences_in_expr(&expr.expr, depth),
             syn::Expr::Closure(expr) => {
                 let depth = depth + 1;
 
                 for path in expr.inputs.iter() {
+                    let mut is_comptime = false;
                     let ident = match path {
                         Pat::Ident(pat_ident) => &pat_ident.ident,
                         Pat::Type(pat_type) => {
+                            is_comptime = is_ty_comptime(&pat_type.ty);
+
                             if let Pat::Ident(pat_ident) = &*pat_type.pat {
                                 &pat_ident.ident
                             } else {
@@ -220,7 +225,7 @@ impl VariableAnalyzer {
                     };
 
                     self.variable_tracker
-                        .analyze_declare(ident.to_string(), depth);
+                        .analyze_declare(ident.to_string(), depth, is_comptime);
                 }
 
                 self.find_occurrences_in_expr(&expr.body, depth)
@@ -235,7 +240,7 @@ impl VariableAnalyzer {
                             .expect("Analysis: field access only supported on ident struct.");
 
                         self.variable_tracker.analyze_reuse(
-                            struct_ident.to_string(),
+                            struct_ident,
                             depth,
                             Some(attribute_ident.to_string()),
                         );
@@ -251,7 +256,24 @@ impl VariableAnalyzer {
                     self.find_occurrences_in_expr(&field.expr, depth)
                 }
             }
-            _ => todo!("Analysis: unsupported expr {expr:?}"),
+            syn::Expr::Range(_range) => {
+                // Error is handled during codegen.
+            }
+            _ => {
+                // Error is handled during codegen.
+            }
         }
     }
+}
+
+fn is_ty_comptime(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(path) = ty {
+        for segment in path.path.segments.iter() {
+            if segment.ident == "Comptime" {
+                return true;
+            }
+        }
+    }
+
+    false
 }

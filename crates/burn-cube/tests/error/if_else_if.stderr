@@ -1,0 +1,7 @@
+error: Unsupported: only `else` block is allowed after an `if` statement.
+ --> tests/error/if_else_if.rs:6:12
+  |
+6 |       } else if x != y {
+  |  ____________^
+7 | |     }
+  | |_____^

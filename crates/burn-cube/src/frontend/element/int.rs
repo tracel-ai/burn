@@ -22,7 +22,7 @@ macro_rules! impl_int {
     ($type:ident, $primitive:ty) => {
         #[derive(Clone, Copy)]
         pub struct $type {
-            pub val: i64,
+            pub val: $primitive,
             pub vectorization: u8,
         }
 
@@ -41,7 +41,7 @@ macro_rules! impl_int {
         impl Int for $type {
             fn new(val: i64) -> Self {
                 Self {
-                    val,
+                    val: val as $primitive,
                     vectorization: 1,
                 }
             }
@@ -56,7 +56,7 @@ macro_rules! impl_int {
                     Self::new(val)
                 } else {
                     Self {
-                        val,
+                        val: val as $primitive,
                         vectorization: vectorization.val as u8,
                     }
                 }
@@ -119,6 +119,24 @@ macro_rules! impl_int {
 
 impl_int!(I32, i32);
 impl_int!(I64, i64);
+
+impl From<i64> for I64 {
+    fn from(value: i64) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
+
+impl From<i32> for I32 {
+    fn from(value: i32) -> Self {
+        Self {
+            val: value,
+            vectorization: 1,
+        }
+    }
+}
 
 impl<R: Runtime> ArgSettings<R> for i32 {
     fn register(&self, settings: &mut KernelLauncher<R>) {
