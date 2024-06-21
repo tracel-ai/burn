@@ -109,8 +109,11 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
                 write!(result, ", params: {}", self.num_params()).unwrap();
             }
         }
-
-        write!(result, "{indent_close_braces}}}").unwrap();
+        if settings.new_line_after_attribute() {
+            write!(result, "{indent_close_braces}}}").unwrap();
+        } else {
+            write!(result, "}}").unwrap();
+        }
 
         result
     }
