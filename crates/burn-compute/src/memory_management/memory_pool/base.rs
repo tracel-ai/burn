@@ -4,19 +4,18 @@ use super::{
     RingBuffer, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
-use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
-use std::collections::BTreeMap;
 
 pub struct MemoryPool {
     chunks: HashMap<ChunkId, Chunk>,
     slices: HashMap<SliceId, Slice>,
+    #[allow(unused)] // will be used when we rewrite memory extension
     memory_extension_strategy: MemoryExtensionStrategy,
     rounding: RoundingStrategy,
     chunk_index: SearchIndex<ChunkId>,
+    #[allow(unused)] // will be used when we rewrite memory extension
     max_chunk_size: usize,
     ring: RingBuffer<Chunk, Slice>,
-    debug: bool,
 }
 
 #[derive(new, Debug)]
@@ -28,7 +27,7 @@ pub struct Chunk {
 
 // TODO: consider using generic trait and decouple from Slice
 #[derive(new, Debug)]
-struct MemoryPage {
+pub struct MemoryPage {
     pub slices: HashMap<usize, SliceId>,
 }
 
@@ -40,30 +39,23 @@ impl MemoryPage {
         first_slice_address: usize,
         slices: &mut HashMap<SliceId, Slice>,
     ) -> bool {
-        // Find the first slice ID and get a mutable reference to the first slice
         let first_slice_id = self.find_slice(first_slice_address).expect(
             "merge_with_next_slice shouldn't be called with a nonexistent first_slice address",
         );
 
-        // Calculate the address of the next slice
         let next_slice_address =
             first_slice_address + slices.get(&first_slice_id).unwrap().effective_size();
 
-        // Check if there is a next slice
         if let Some(next_slice_id) = self.find_slice(next_slice_address) {
-            // Remove the next slice first to avoid borrowing slices mutably twice
-
             let (next_slice_eff_size, next_slice_is_free) = {
                 let next_slice = slices.get(&next_slice_id).unwrap();
                 (next_slice.effective_size(), next_slice.is_free())
             };
             if next_slice_is_free {
-                // Get a mutable reference to the first slice
                 let first_slice = slices.get_mut(&first_slice_id).unwrap();
                 let first_slice_eff_size = first_slice.effective_size();
                 let first_slice_offset = first_slice.storage.offset();
 
-                // Update the first slice to reflect the merged size
                 let merged_size = first_slice_eff_size + next_slice_eff_size;
                 first_slice.storage.utilization = StorageUtilization::Slice {
                     size: merged_size,
@@ -71,7 +63,7 @@ impl MemoryPage {
                 };
                 first_slice.padding = 0;
 
-                // Cleanup
+                // Cleanup of the extra slice
                 self.slices.remove(&next_slice_address);
                 slices.remove(&next_slice_id);
                 return true;
@@ -81,44 +73,14 @@ impl MemoryPage {
         }
         false
     }
-    //fn merge_with_next_slice(
-    //    &mut self,
-    //    first_slice_address: usize,
-    //    slices: &mut HashMap<SliceId, Slice>,
-    //) -> bool {
-    //    let first_slice_id = self.find_slice(first_slice_address).expect(
-    //        "merge_with_next_slice shouldn't be called with a nonexistant first_slice address",
-    //    );
-    //    let first_slice = slices.get_mut(&first_slice_id).unwrap();
-    //    let first_slice_eff_size = first_slice.effective_size();
-    //    let first_slice_offset = first_slice.storage.offset();
-
-    //    let next_slice_address = first_slice_address + first_slice.effective_size();
-    //    if let Some(next_slice_id) = self.find_slice(next_slice_address) {
-    //        let next_slice = slices.remove(&next_slice_id).unwrap();
-
-    //        // update first_slice_size to the combined size
-    //        let merged_size = first_slice_eff_size + next_slice.effective_size();
-    //        first_slice.storage.utilization = StorageUtilization::Slice {
-    //            size: merged_size,
-    //            offset: first_slice_offset,
-    //        };
-
-    //        // cleanup
-    //        self.slices.remove(&next_slice_address);
-    //        return true;
-    //    }
-    //    return false;
-    //}
 
     fn find_slice(&self, address: usize) -> Option<SliceId> {
         let slice_id = self.slices.get(&address);
         return slice_id.copied();
     }
 
-    fn get_address(&self, slice_id: SliceId, slices: &HashMap<SliceId, Slice>) -> usize {
-        let slice = slices.get(&slice_id).unwrap();
-        return slice.storage.offset();
+    fn insert_slice(&mut self, position: usize, slice: &Slice) {
+        self.slices.insert(position, slice.id());
     }
 }
 
@@ -152,7 +114,6 @@ impl RoundingStrategy {
                 if size < BUFFER_ALIGNMENT {
                     return BUFFER_ALIGNMENT;
                 }
-
                 if size < MB {
                     2 * MB
                 } else if size < 10 * MB {
@@ -187,6 +148,7 @@ impl MemoryExtensionStrategy {
         MemoryExtensionStrategy::PeriodTick { period, state: 0 }
     }
 
+    #[allow(unused)]
     fn should_extend_max_memory(&mut self) -> bool {
         match self {
             MemoryExtensionStrategy::PeriodTick { period, state } => {
@@ -198,17 +160,11 @@ impl MemoryExtensionStrategy {
     }
 }
 
-struct SliceUpdate {
-    slice_id: SliceId,
-    size: usize,
-}
-
 impl MemoryPool {
     pub fn new(
         merging_strategy: MemoryExtensionStrategy,
         alloc_strategy: RoundingStrategy,
         max_chunk_size: usize,
-        debug: bool,
     ) -> Self {
         Self {
             chunks: HashMap::new(),
@@ -218,7 +174,6 @@ impl MemoryPool {
             max_chunk_size,
             chunk_index: SearchIndex::new(),
             ring: RingBuffer::new(),
-            debug,
         }
     }
 
@@ -259,25 +214,11 @@ impl MemoryPool {
         &mut self,
         storage: &mut Storage,
         size: usize,
-        sync: Sync,
+        _sync: Sync,
     ) -> MemoryPoolHandle {
-        //if self.memory_extension_strategy.should_extend_max_memory() {
-        //    sync();
-        //    self.extend_max_memory(storage, size);
-
-        if self.debug {
-            self.display_memory_usage();
-        } else {
-            log::info!(
-                "the number of chunks is {} and the number of slices is {}",
-                self.chunks.len(),
-                self.slices.len()
-            );
-        }
         if let Some(handle) = self.get_free_slice(size) {
             return MemoryPoolHandle { slice: handle };
         }
-        //}
 
         let alloc_size = self.rounding.alloc_size(size);
         self.alloc_slice(storage, alloc_size, size)
@@ -370,7 +311,6 @@ impl MemoryPool {
 
     /// Finds a free slice that can contain the given size
     /// Returns the chunk's id and size.
-    /// THIS IS PROBABLY THE PROBLEM
     fn get_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
         if size < MIN_SIZE_NEEDED_TO_OFFSET {
             return None;
@@ -456,115 +396,15 @@ impl MemoryPool {
 
         handle
     }
-
-    //fn extend_max_memory<Storage: ComputeStorage>(&mut self, storage: &mut Storage, size: usize) {
-    //    if self.debug {
-    //        log::info!("Extend max memory ...");
-    //    }
-
-    //    let mut slices = Vec::<SliceUpdate>::new();
-    //    let mut current_size = size;
-
-    //    let chunks_sorted = self
-    //        .chunk_index
-    //        .find_by_size(0..self.max_chunk_size - 1)
-    //        .map(Clone::clone)
-    //        .collect::<Vec<_>>();
-
-    //    let mut deallocations = HashSet::<ChunkId>::new();
-
-    //    for chunk_id in chunks_sorted {
-    //        let chunk = self.chunks.get(&chunk_id).unwrap();
-    //        let chunk_id = *chunk.handle.id();
-    //        let slices_ids = chunk.slices.clone();
-
-    //        for slice_id in slices_ids {
-    //            let slice = self.slices.get(&slice_id).unwrap();
-    //            let size = slice.storage.size();
-
-    //            let effective_size = slice.effective_size();
-    //            current_size += effective_size;
-
-    //            if current_size >= self.max_chunk_size {
-    //                let alloc_size = current_size - effective_size;
-    //                // let alloc_size = self.max_chunk_size;
-    //                self.move_to_new_chunk(alloc_size, storage, &mut slices, &mut deallocations);
-    //                current_size = effective_size;
-    //            }
-
-    //            slices.push(SliceUpdate { slice_id, size });
-    //        }
-
-    //        deallocations.insert(chunk_id);
-    //    }
-
-    //    if !slices.is_empty() {
-    //        //self.move_to_new_chunk(current_size, storage, &mut slices, &mut deallocations);
-    //    } else {
-    //        //self.deallocate(storage, &mut deallocations);
-    //    }
-    //}
-
+    #[allow(unused)]
     fn deallocate<Storage: ComputeStorage>(
         &mut self,
-        storage: &mut Storage,
-        deallocations: &mut HashSet<ChunkId>,
+        _storage: &mut Storage,
+        _deallocations: &mut HashSet<ChunkId>,
     ) {
-        //        for id in deallocations.drain() {
-        //            let mut chunk = self.chunks.remove(&id).unwrap();
-        //            self.ring.remove_chunk(id);
-        //
-        //            for slice in chunk.slices.drain(..) {
-        //                let slice = self.slices.get(&slice).unwrap();
-        //                let chunk_id = *slice.chunk.id();
-        //
-        //                assert_ne!(chunk_id, id, "Chunk id should be updated");
-        //            }
-        //
-        //            self.chunk_index.remove(&id);
-        //            storage.dealloc(chunk.storage.id);
         todo!()
     }
 }
-
-//    fn move_to_new_chunk<Storage: ComputeStorage>(
-//        &mut self,
-//        alloc_size: usize,
-//        storage: &mut Storage,
-//        slices: &mut Vec<SliceUpdate>,
-//        deallocations: &mut HashSet<ChunkId>,
-//    ) {
-//        let chunk = self.create_chunk(storage, alloc_size);
-//        let storage_id = self.chunks.get(chunk.id()).unwrap().storage.id.clone();
-//        let mut offset = 0;
-//        let mut slices_ids = Vec::new();
-//
-//        for update in slices.drain(..) {
-//            let slice_id = update.slice_id;
-//
-//            let slice = self.slices.get_mut(&slice_id).unwrap();
-//            let old_storage = slice.storage.clone();
-//
-//            slice.chunk = chunk.clone();
-//            slice.storage = StorageHandle {
-//                id: storage_id.clone(),
-//                utilization: StorageUtilization::Slice {
-//                    offset,
-//                    size: update.size,
-//                },
-//            };
-//            storage.copy(&old_storage, &slice.storage);
-//            slices_ids.push(slice_id);
-//
-//            offset += slice.effective_size();
-//        }
-//
-//        let chunk = self.chunks.get_mut(chunk.id()).unwrap();
-//        chunk.slices = slices_ids;
-//
-//        self.deallocate(storage, deallocations);
-//    }
-//}
 
 fn calculate_padding(size: usize) -> usize {
     let remainder = size % BUFFER_ALIGNMENT;
@@ -643,7 +483,7 @@ impl MemoryChunk<Slice> for Chunk {
     }
 
     fn slice(&self, index: usize) -> Option<SliceId> {
-        self.slices.slices.get(&index).copied()
+        self.slices.find_slice(index)
     }
 
     fn insert_slice(
@@ -652,7 +492,7 @@ impl MemoryChunk<Slice> for Chunk {
         slice: Slice,
         slices: &mut HashMap<SliceId, Slice>,
     ) {
-        self.slices.slices.insert(position, slice.id());
+        self.slices.insert_slice(position, &slice);
         slices.insert(slice.id(), slice);
     }
 }

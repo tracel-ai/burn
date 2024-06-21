@@ -10,6 +10,8 @@ pub struct RingBuffer<C: MemoryChunk<S>, S: MemorySlice> {
     chunk_positions: HashMap<ChunkId, usize>,
     cursor_slice: usize,
     cursor_chunk: usize,
+    lookup_miss: usize,
+    lookup_total: usize,
     _s: PhantomData<S>,
     _c: PhantomData<C>,
 }
@@ -36,6 +38,8 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
             chunk_positions: HashMap::new(),
             cursor_slice: 0,
             cursor_chunk: 0,
+            lookup_total: 0,
+            lookup_miss: 0,
             _s: PhantomData,
             _c: PhantomData,
         }
@@ -46,6 +50,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         self.chunk_positions.insert(chunk_id, self.queue.len() - 1);
     }
 
+    #[allow(unused)]
     pub fn remove_chunk(&mut self, chunk_id: ChunkId) {
         if let Some(position) = self.chunk_positions.remove(&chunk_id) {
             self.queue.remove(position);
@@ -86,13 +91,13 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         while let Some(slice_id) = chunk.slice(slice_index) {
             //mutable borrow scope
             {
+                self.lookup_miss += 1;
                 let slice = slices.get_mut(&slice_id).unwrap();
 
                 let is_big_enough = slice.size() >= size;
                 let is_free = slice.is_free();
 
                 if is_big_enough && is_free {
-                    let slice_size = slice.size();
                     if slice.size() > size {
                         if let Some(new_slice) = slice.split(size) {
                             let new_slice_id = new_slice.id();
@@ -141,7 +146,8 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
                 let chunk = chunks.get_mut(id).unwrap();
                 let result = self.find_free_slice_in_chunk(size, chunk, slices, slice_index);
 
-                if let Some((cursor_slice, slice)) = result {
+                if let Some((_cursor_slice, slice)) = result {
+                    self.lookup_total += slices.len();
                     let slice = slices.get(&slice).unwrap();
                     self.cursor_slice = slice.next_slice_position();
                     self.cursor_chunk = chunk_index;
