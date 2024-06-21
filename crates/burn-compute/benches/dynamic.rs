@@ -20,5 +20,4 @@ fn main() {
         handles.push_back(handle);
     }
     println!("{:?}", start.elapsed());
-    mm.debug_info();
 }
