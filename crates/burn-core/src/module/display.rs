@@ -285,6 +285,8 @@ impl DisplaySettings {
             updated.indentation_size = Some(indentation_size);
         }
 
+        updated.level = top.level;
+
         updated
     }
 
