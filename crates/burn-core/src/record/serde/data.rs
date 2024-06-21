@@ -58,6 +58,9 @@ pub enum NestedValue {
     /// A vector of nested values (typically used for vector of structs or numbers)
     Vec(Vec<NestedValue>),
 
+    /// A vector of 8-bit unsigned integer values.
+    U8s(Vec<u8>),
+
     /// A vector of 16-bit unsigned integer values.
     U16s(Vec<u16>),
 
@@ -354,6 +357,7 @@ impl fmt::Debug for NestedValue {
         match self {
             // Truncate values for vector
             NestedValue::Vec(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
+            NestedValue::U8s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::U16s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::F32s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             // Handle other variants as usual
@@ -370,6 +374,7 @@ impl fmt::Debug for NestedValue {
             NestedValue::U64(val) => f.debug_tuple("U64").field(val).finish(),
             NestedValue::Map(map) => f.debug_map().entries(map.iter()).finish(),
             NestedValue::Vec(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::U8s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::U16s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::F32s(vec) => f.debug_list().entries(vec.iter()).finish(),
         }

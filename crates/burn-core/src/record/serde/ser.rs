@@ -257,6 +257,13 @@ impl SerializeSeq for Serializer {
             Some(NestedValue::Vec(ref mut vec)) => {
                 vec.push(serialized_value); // Inserting into the state
             }
+            Some(NestedValue::U8s(ref mut vec)) => {
+                if let NestedValue::U8(val) = serialized_value {
+                    vec.push(val);
+                } else {
+                    panic!("Invalid value type encountered");
+                }
+            }
             Some(NestedValue::U16s(ref mut vec)) => {
                 if let NestedValue::U16(val) = serialized_value {
                     vec.push(val);
@@ -276,6 +283,7 @@ impl SerializeSeq for Serializer {
             }
             None => {
                 let val = match serialized_value {
+                    NestedValue::U8(val) => NestedValue::U8s(vec![val]),
                     NestedValue::U16(val) => NestedValue::U16s(vec![val]),
                     NestedValue::F32(val) => NestedValue::F32s(vec![val]),
                     _ => NestedValue::Vec(vec![serialized_value]),
@@ -373,6 +381,7 @@ mod tests {
 
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
-        assert_eq!(serialized_str.len(), 134);
+        // 1.0f32 is represented with 4 bytes [0, 0, 128, 63]
+        assert_eq!(serialized_str.len(), 166);
     }
 }

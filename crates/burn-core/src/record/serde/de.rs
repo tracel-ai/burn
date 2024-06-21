@@ -292,6 +292,10 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                     value,
                     self.default_for_missing_fields,
                 )),
+                NestedValue::U8s(_) => visitor.visit_seq(VecSeqAccess::<A, u8>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )),
                 NestedValue::U16s(_) => visitor.visit_seq(VecSeqAccess::<A, u16>::new(
                     value,
                     self.default_for_missing_fields,
@@ -419,6 +423,20 @@ impl<A: BurnModuleAdapter> VecSeqAccess<A, NestedValue> {
     }
 }
 
+// Concrete implementation for `Vec<u8>`
+impl<A: BurnModuleAdapter> VecSeqAccess<A, u8> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
+        match vec {
+            NestedValue::U8s(v) => VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            },
+            _ => panic!("Invalid vec sequence"),
+        }
+    }
+}
+
 // Concrete implementation for `Vec<u16>`
 impl<A: BurnModuleAdapter> VecSeqAccess<A, u16> {
     fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
@@ -466,6 +484,31 @@ where
 
         seed.deserialize(
             NestedValueWrapper::<A>::new(item, self.default_for_missing_fields).into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+// Concrete implementation for `Vec<u8>`
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, u8>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::U8(item), self.default_for_missing_fields)
+                .into_deserializer(),
         )
         .map(Some)
     }
