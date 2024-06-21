@@ -737,8 +737,8 @@ mod tests {
         // Run the models
         let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
         let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
-        let expected_scalar = Data::from([1.]);
-        let expected = Data::from([[[[1.]]]]);
+        let expected_scalar = TensorData::from([1f32]);
+        let expected = TensorData::from([[[[1f32]]]]);
 
         assert_eq!(output_scalar.to_data(), expected_scalar);
         assert_eq!(output_tensor.to_data(), input.to_data());
