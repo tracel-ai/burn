@@ -871,6 +871,7 @@ impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
 #[allow(deprecated)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
