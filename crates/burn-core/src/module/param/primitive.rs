@@ -61,10 +61,7 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
     fn content(&self, content: Content) -> Option<Content> {
         match self {
             Some(module) => content.add_single(module).optional(),
-            None => {
-                let none_string = "None".to_string();
-                content.add_single(&none_string).optional()
-            }
+            None => content.add_single("None").optional(),
         }
     }
 }

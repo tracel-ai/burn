@@ -436,7 +436,7 @@ impl Content {
     /// # Returns
     ///
     /// Updated `Content` instance with the single item added.
-    pub fn add_single<T: ModuleDisplay>(mut self, value: &T) -> Self {
+    pub fn add_single<T: ModuleDisplay + ?Sized>(mut self, value: &T) -> Self {
         if !self.attributes.is_empty() {
             panic!("Cannot add single item when attributes are set.");
         }
