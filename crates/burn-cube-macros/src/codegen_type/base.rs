@@ -21,7 +21,7 @@ impl TypeCodegen {
             let ty = &field.ty;
 
             fields.extend(quote! {
-                #ident: <#ty as CubeType>::ExpandType,
+                pub #ident: <#ty as CubeType>::ExpandType,
             });
         }
 
@@ -29,7 +29,7 @@ impl TypeCodegen {
 
         quote! {
             #[derive(Clone)]
-            struct #name #generics {
+            pub(crate) struct #name #generics {
                 #fields
             }
         }

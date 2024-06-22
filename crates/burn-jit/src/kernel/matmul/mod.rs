@@ -1,7 +1,7 @@
 mod base;
 mod simple;
 mod tiling2d;
-pub mod tiling2d_cube;
+mod tiling2d_cube;
 mod tiling2d_shader;
 mod tune;
 
