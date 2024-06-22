@@ -1,6 +1,10 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
 use crate::metric::{MetricEntry, NumericEntry};
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 const EPOCH_PREFIX: &str = "epoch-";
 
@@ -27,7 +31,7 @@ pub trait MetricLogger: Send {
 /// The file metric logger.
 pub struct FileMetricLogger {
     loggers: HashMap<String, AsyncLogger<String>>,
-    directory: String,
+    directory: PathBuf,
     epoch: usize,
 }
 
@@ -41,10 +45,10 @@ impl FileMetricLogger {
     /// # Returns
     ///
     /// The file metric logger.
-    pub fn new(directory: &str) -> Self {
+    pub fn new(directory: impl AsRef<Path>) -> Self {
         Self {
             loggers: HashMap::new(),
-            directory: directory.to_string(),
+            directory: directory.as_ref().to_path_buf(),
             epoch: 1,
         }
     }
@@ -76,15 +80,18 @@ impl FileMetricLogger {
         max_epoch
     }
 
-    fn epoch_directory(&self, epoch: usize) -> String {
-        format!("{}/{}{}", self.directory, EPOCH_PREFIX, epoch)
+    fn epoch_directory(&self, epoch: usize) -> PathBuf {
+        let name = format!("{}{}", EPOCH_PREFIX, epoch);
+        self.directory.join(name)
     }
-    fn file_path(&self, name: &str, epoch: usize) -> String {
+
+    fn file_path(&self, name: &str, epoch: usize) -> PathBuf {
         let directory = self.epoch_directory(epoch);
         let name = name.replace(' ', "_");
-
-        format!("{directory}/{name}.log")
+        let name = format!("{name}.log");
+        directory.join(name)
     }
+
     fn create_directory(&self, epoch: usize) {
         let directory = self.epoch_directory(epoch);
         std::fs::create_dir_all(directory).ok();

@@ -1,5 +1,5 @@
 use super::Logger;
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, path::Path};
 
 /// File logger.
 pub struct FileLogger {
@@ -16,14 +16,20 @@ impl FileLogger {
     /// # Returns
     ///
     /// The file logger.
-    pub fn new(path: &str) -> Self {
+    pub fn new(path: &Path) -> Self {
         let mut options = std::fs::File::options();
         let file = options
             .write(true)
             .truncate(true)
             .create(true)
             .open(path)
-            .unwrap_or_else(|err| panic!("Should be able to create the new file '{path}': {err}"));
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Should be able to create the new file '{}': {}",
+                    path.display(),
+                    err
+                )
+            });
 
         Self { file }
     }
