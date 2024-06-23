@@ -31,9 +31,8 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "axis" => start_dim = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            start_dim = value.clone().into_i64();
         }
     }
 

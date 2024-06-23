@@ -3650,24 +3650,16 @@ name = "onnx-ir"
 version = "0.14.0"
 dependencies = [
  "bytemuck",
- "derive-new",
  "half",
  "log",
  "pretty_assertions",
- "proc-macro2",
  "protobuf",
  "protobuf-codegen",
- "quote",
  "regex",
  "rstest",
- "rust-format",
  "serde",
- "serde_json",
  "strum",
  "strum_macros",
- "syn 2.0.66",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]

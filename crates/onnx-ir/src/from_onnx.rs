@@ -56,9 +56,9 @@ pub struct GraphData {
 
 impl GraphData {
     pub(crate) fn new(
-        inputs: &Vec<ValueInfoProto>,
-        outputs: &Vec<ValueInfoProto>,
-        initializers: &Vec<TensorProto>,
+        inputs: &[ValueInfoProto],
+        outputs: &[ValueInfoProto],
+        initializers: &[TensorProto],
     ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
@@ -375,35 +375,32 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// properly deleted if nothing else uses it
 /// Remap the unsqueeze node to a reshape node
 pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
-    match &out_arg.ty {
-        ArgType::Tensor(output_tensor) => {
-            let inner = output_tensor
-                .shape
-                .clone()
-                .unwrap()
-                .into_iter()
-                .map(|x| x as i64)
-                .collect::<Vec<i64>>();
-            let shape_len = inner.len();
-            let new_rhs_value = Some(Data::Int64s(inner));
-            //moving the remap to here
-            let rhs_arg = Argument {
-                name: format!("{}_generated_const", &node.name),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: super::ir::ElementType::Int64,
-                    dim: 1,
-                    shape: Some(vec![shape_len]),
-                }),
-                value: new_rhs_value,
-                passed: false,
-            };
-            // ? should this replace the old input (reuse the old key) or should it be a new key
-            // going with new key for now
-            node.inputs[1] = rhs_arg;
-            node.outputs[0] = out_arg.clone();
-            node.node_type = NodeType::Reshape;
-        }
-        _ => {}
+    if let ArgType::Tensor(output_tensor) = &out_arg.ty {
+        let inner = output_tensor
+            .shape
+            .clone()
+            .unwrap()
+            .into_iter()
+            .map(|x| x as i64)
+            .collect::<Vec<i64>>();
+        let shape_len = inner.len();
+        let new_rhs_value = Some(Data::Int64s(inner));
+        //moving the remap to here
+        let rhs_arg = Argument {
+            name: format!("{}_generated_const", &node.name),
+            ty: ArgType::Tensor(TensorType {
+                elem_type: super::ir::ElementType::Int64,
+                dim: 1,
+                shape: Some(vec![shape_len]),
+            }),
+            value: new_rhs_value,
+            passed: false,
+        };
+        // ? should this replace the old input (reuse the old key) or should it be a new key
+        // going with new key for now
+        node.inputs[1] = rhs_arg;
+        node.outputs[0] = out_arg.clone();
+        node.node_type = NodeType::Reshape;
     }
 }
 // Define a trait for topological sorting
