@@ -3,7 +3,7 @@ use crate::module::{
     ModuleVisitor,
 };
 
-use alloc::{format, string::ToString, vec::Vec};
+use alloc::{format, vec::Vec};
 
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::fmt::Debug;
