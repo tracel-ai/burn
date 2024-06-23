@@ -1,11 +1,9 @@
-use onnx_ir::ir::ElementType;
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::burn::ToTokens;
-use onnx_ir::ir::{ArgType, Argument as OnnxArgument, TensorType as OnnxTensorType};
 
 #[derive(Debug, Clone)]
 pub struct TensorType {

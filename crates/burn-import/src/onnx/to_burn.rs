@@ -66,7 +66,7 @@ use super::op_configuration::{
 use onnx_ir::{
     convert_constant_value,
     ir::{
-        self, ArgType, Argument as OnnxArgument, Data, ElementType, Node as OnnxNode, NodeType,
+        ArgType, Argument as OnnxArgument, Data, ElementType, Node as OnnxNode, NodeType,
         OnnxGraph, TensorType as OnnxTensorType,
     },
     parse_onnx,
@@ -728,11 +728,7 @@ impl ParsedOnnxGraph {
     }
 
     fn sum_conversion(node: OnnxNode) -> SumNode {
-        let inputs = node
-            .inputs
-            .iter()
-            .map(|input| TensorType::from(input))
-            .collect();
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
 
         SumNode::new(inputs, output)
@@ -784,11 +780,7 @@ impl ParsedOnnxGraph {
     }
 
     fn concat_conversion(node: OnnxNode) -> ConcatNode {
-        let inputs = node
-            .inputs
-            .iter()
-            .map(|input| TensorType::from(input))
-            .collect();
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
 
         let output = TensorType::from(node.outputs.first().unwrap());
         let dim = concat_config(&node);
