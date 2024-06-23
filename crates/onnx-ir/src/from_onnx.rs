@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::onnx::node_remap::remap_node_type;
+use crate::node_remap::remap_node_type;
 
 use super::{
     coalesce::coalesce,
@@ -444,7 +444,7 @@ impl TopologicalSortable for Vec<NodeProto> {
 }
 
 /// Get the value of a constant node from its attributes
-pub(crate) fn convert_constant_value(node: &Node) -> Argument {
+pub fn convert_constant_value(node: &Node) -> Argument {
     // A value can be stored in any of these attributes
     let keys = [
         "value",

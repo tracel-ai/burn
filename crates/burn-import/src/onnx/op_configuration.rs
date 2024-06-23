@@ -5,8 +5,8 @@ use burn::nn::{
     PaddingConfig2d,
 };
 
-use super::ir::{ArgType, AttributeValue, Data, Node};
 use crate::burn::node::resize::ResizeMode;
+use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {

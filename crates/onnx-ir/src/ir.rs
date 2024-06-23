@@ -3,7 +3,7 @@ use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
-use super::protos::TensorProto;
+use crate::protos::TensorProto;
 
 pub type Dim = usize;
 pub type Shape = Vec<Dim>;

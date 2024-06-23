@@ -53,20 +53,23 @@ use crate::{
     },
     format_tokens,
     logger::init_log,
-    onnx::{
-        from_onnx::convert_constant_value,
-        ir::{Node, NodeType},
-        op_configuration::*,
-    },
 };
 
-use super::{
-    from_onnx::parse_onnx,
-    ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
-    op_configuration::{
-        avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
-        resize_config, softmax_config,
+use super::op_configuration::{
+    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
+    concat_config, conv1d_config, conv2d_config, conv_transpose2d_config, dropout_config,
+    expand_config, flatten_config, gather_config, layer_norm_config, leaky_relu_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, reduce_max_config,
+    reduce_mean_config, reduce_min_config, reduce_sum_config, reshape_config, resize_config,
+    shape_config, slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
+};
+use onnx_ir::{
+    convert_constant_value,
+    ir::{
+        self, ArgType, Argument as OnnxArgument, Data, ElementType, Node as OnnxNode, NodeType,
+        OnnxGraph, TensorType as OnnxTensorType,
     },
+    parse_onnx,
 };
 
 pub use crate::burn::graph::RecordType;
@@ -197,6 +200,7 @@ impl ModelGen {
         log::debug!("Output file: {:?}", out_file);
 
         let graph = parse_onnx(input.as_ref());
+        let graph = ParsedOnnxGraph(graph);
 
         if self.development {
             // export the graph
@@ -231,15 +235,16 @@ impl ModelGen {
         log::info!("Model generated");
     }
 }
-
-impl OnnxGraph {
+#[derive(Debug)]
+struct ParsedOnnxGraph(OnnxGraph);
+impl ParsedOnnxGraph {
     /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
 
         let mut unsupported_ops = vec![];
 
-        for node in self.nodes {
+        for node in self.0.nodes {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
@@ -327,11 +332,13 @@ impl OnnxGraph {
 
         // Get input and output names
         let input_names = self
+            .0
             .inputs
             .iter()
             .map(|input| input.name.clone())
             .collect::<Vec<_>>();
         let output_names = self
+            .0
             .outputs
             .iter()
             .map(|output| output.name.clone())
@@ -343,7 +350,7 @@ impl OnnxGraph {
         graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: OnnxNode) -> ConstantNode<PS> {
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node);
@@ -391,13 +398,13 @@ impl OnnxGraph {
             ArgType::Shape(_) => panic!("Shape is not supported as constant value."),
         };
 
-        ConstantNode::new(node.name.clone(), const_value, output.to_type())
+        ConstantNode::new(node.name.clone(), const_value, Type::from(output))
     }
 
-    fn random_uniform_conversion(node: Node) -> RandomUniformNode {
+    fn random_uniform_conversion(node: OnnxNode) -> RandomUniformNode {
         let output = node.outputs.first().unwrap();
         // cannot use output.to_tensor_type() here, since it drops the shape info...
-        let output_type = if let Type::Tensor(t) = output.to_type() {
+        let output_type = if let Type::Tensor(t) = Type::from(output) {
             t
         } else {
             panic!("RandomUniform output type is no Tensor.");
@@ -421,10 +428,10 @@ impl OnnxGraph {
         RandomUniformNode::new(output_type, low, high)
     }
 
-    fn random_normal_conversion(node: Node) -> RandomNormalNode {
+    fn random_normal_conversion(node: OnnxNode) -> RandomNormalNode {
         let output = node.outputs.first().unwrap();
         // cannot use output.to_tensor_type() here, since it drops the shape info...
-        let output_type = if let Type::Tensor(t) = output.to_type() {
+        let output_type = if let Type::Tensor(t) = Type::from(output) {
             t
         } else {
             panic!("RandomNormal output type is no Tensor.");
@@ -448,170 +455,170 @@ impl OnnxGraph {
         RandomNormalNode::new(output_type, mean, scale)
     }
 
-    fn add_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn add_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::add(lhs, rhs, output)
     }
 
-    fn sub_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn sub_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::sub(lhs, rhs, output)
     }
 
-    fn mul_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn mul_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::mul(lhs, rhs, output)
     }
 
-    fn div_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn div_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::div(lhs, rhs, output)
     }
 
-    fn matmul_conversion(node: Node) -> MatmulNode {
-        let lhs = node.inputs.first().unwrap().to_tensor_type();
-        let rhs = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn matmul_conversion(node: OnnxNode) -> MatmulNode {
+        let lhs = TensorType::from(node.inputs.first().unwrap());
+        let rhs = TensorType::from(node.inputs.get(1).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         MatmulNode::new(lhs, rhs, output)
     }
 
-    fn equal_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn equal_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::equal(lhs, rhs, output)
     }
 
-    fn max_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn max_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::max_pair(lhs, rhs, output)
     }
 
-    fn erf_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn erf_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::erf(input, output)
     }
 
-    fn leaky_relu_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn leaky_relu_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let alpha = leaky_relu_config(&node);
 
         UnaryNode::leaky_relu(input, output, alpha)
     }
 
-    fn relu_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn relu_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::relu(input, output)
     }
 
-    fn gelu_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn gelu_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::gelu(input, output)
     }
 
-    fn log_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn log_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::log(input, output)
     }
 
-    fn flatten_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn flatten_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
     }
 
-    fn gather_conversion(node: Node) -> GatherNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let index = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn gather_conversion(node: OnnxNode) -> GatherNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let index = TensorType::from(node.inputs.get(1).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 
         GatherNode::new(input, index, output, dim)
     }
 
-    fn gather_elements_conversion(node: Node) -> GatherElementsNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let index = node.inputs.get(1).unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn gather_elements_conversion(node: OnnxNode) -> GatherElementsNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let index = TensorType::from(node.inputs.get(1).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 
         GatherElementsNode::new(input, index, output, dim)
     }
 
-    fn transpose_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn transpose_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let perm = transpose_config(&node);
 
         UnaryNode::transpose(input, output, perm)
     }
 
-    fn cast_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn cast_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::cast(input, output)
     }
 
-    fn reshape_conversion(node: Node) -> ReshapeNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn reshape_conversion(node: OnnxNode) -> ReshapeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
     }
 
-    fn resize_conversion(node: Node) -> ResizeNode {
+    fn resize_conversion(node: OnnxNode) -> ResizeNode {
         let name = &node.name;
 
-        let input = node.inputs[0].to_tensor_type();
-        let output_size = node.inputs[3].to_tensor_type();
+        let input = TensorType::from(&node.inputs[0]);
+        let output_size = TensorType::from(&node.inputs[3]);
 
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         let mode = resize_config(&node);
 
         ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
     }
 
-    fn min_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn min_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::min_pair(lhs, rhs, output)
     }
 
-    fn range_conversion(node: Node) -> RangeNode {
-        fn convert_arg_to_scalar(arg: &Argument) -> ScalarType {
+    fn range_conversion(node: OnnxNode) -> RangeNode {
+        fn convert_arg_to_scalar(arg: &OnnxArgument) -> ScalarType {
             match &arg.ty {
                 ArgType::Scalar(scalar) => {
                     ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
@@ -625,7 +632,7 @@ impl OnnxGraph {
                 _ => panic!("Range node requires scalar inputs"),
             }
         }
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let output = TensorType::from(node.outputs.first().unwrap());
         let start = convert_arg_to_scalar(node.inputs.first().unwrap());
         let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
         let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
@@ -633,166 +640,166 @@ impl OnnxGraph {
         RangeNode::new(start, end, step, output)
     }
 
-    fn reduce_max_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn reduce_max_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = reduce_max_config(&node);
 
         UnaryNode::reduce_max(input, output, dim)
     }
 
-    fn reduce_min_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn reduce_min_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = reduce_min_config(&node);
 
         UnaryNode::reduce_min(input, output, dim)
     }
 
-    fn reduce_mean_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn reduce_mean_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = reduce_mean_config(&node);
 
         UnaryNode::reduce_mean(input, output, dim)
     }
 
-    fn reduce_sum_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn reduce_sum_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = reduce_sum_config(&node);
 
         UnaryNode::reduce_sum(input, output, dim)
     }
 
-    fn shape_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn shape_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let (start_dim, end_dim) = shape_config(&node);
 
         UnaryNode::shape(input, output, start_dim, end_dim)
     }
 
-    fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn unsqueeze_conversion(node: OnnxNode) -> UnsqueezeNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let dims = unsqueeze_config(&node);
 
         UnsqueezeNode::new(input, output, dims)
     }
 
-    fn where_conversion(node: Node) -> WhereNode {
-        let condition = node.inputs.first().unwrap().to_tensor_type();
-        let x = node.inputs.get(1).unwrap().to_tensor_type();
-        let y = node.inputs.get(2).unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn where_conversion(node: OnnxNode) -> WhereNode {
+        let condition = TensorType::from(node.inputs.first().unwrap());
+        let x = TensorType::from(node.inputs.get(1).unwrap());
+        let y = TensorType::from(node.inputs.get(2).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         WhereNode::new(condition, x, y, output)
     }
 
-    fn clip_conversion(node: Node) -> ClipNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn clip_conversion(node: OnnxNode) -> ClipNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let (min, max) = clip_config(&node);
 
         ClipNode::new(input, output, min, max)
     }
 
-    fn sigmoid_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn sigmoid_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sigmoid(input, output)
     }
 
-    fn sin_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn sin_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sin(input, output)
     }
 
-    fn slice_conversion(node: Node) -> SliceNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn slice_conversion(node: OnnxNode) -> SliceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let (starts, ends) = slice_config(&node);
 
         SliceNode::new(input, output, starts, ends)
     }
 
-    fn sum_conversion(node: Node) -> SumNode {
+    fn sum_conversion(node: OnnxNode) -> SumNode {
         let inputs = node
             .inputs
             .iter()
-            .map(|input| input.to_tensor_type())
+            .map(|input| TensorType::from(input))
             .collect();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         SumNode::new(inputs, output)
     }
 
-    fn reciprocal_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn reciprocal_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::reciprocal(input, output)
     }
 
-    fn log_softmax_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn log_softmax_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = log_softmax_config(&node);
 
         UnaryNode::log_softmax(input, output, dim)
     }
 
-    fn softmax_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn softmax_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = softmax_config(&node);
 
         UnaryNode::softmax(input, output, dim)
     }
 
-    fn sqrt_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn sqrt_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sqrt(input, output)
     }
 
-    fn tanh_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn tanh_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::tanh(input, output)
     }
 
-    fn argmax_conversion(node: Node) -> ArgMaxNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn argmax_conversion(node: OnnxNode) -> ArgMaxNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let axis = argmax_config(&node);
 
         ArgMaxNode::new(input, output, axis)
     }
 
-    fn concat_conversion(node: Node) -> ConcatNode {
+    fn concat_conversion(node: OnnxNode) -> ConcatNode {
         let inputs = node
             .inputs
             .iter()
-            .map(|input| input.to_tensor_type())
+            .map(|input| TensorType::from(input))
             .collect();
 
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let output = TensorType::from(node.outputs.first().unwrap());
         let dim = concat_config(&node);
 
         ConcatNode::new(inputs, output, dim)
     }
 
-    fn linear_conversion<PS: PrecisionSettings>(node: Node) -> LinearNode<PS> {
+    fn linear_conversion<PS: PrecisionSettings>(node: OnnxNode) -> LinearNode<PS> {
         let name = &node.name;
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = linear_config(&node);
 
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Weight is required");
@@ -802,19 +809,19 @@ impl OnnxGraph {
         LinearNode::new(name, input, output, weight, bias, config)
     }
 
-    fn dropout_conversion(node: Node) -> DropoutNode {
+    fn dropout_conversion(node: OnnxNode) -> DropoutNode {
         let name = &node.name;
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = dropout_config(&node);
 
         DropoutNode::new(name, input, output, config)
     }
 
-    fn batch_norm_conversion<PS: PrecisionSettings>(node: Node) -> BatchNormNode<PS> {
+    fn batch_norm_conversion<PS: PrecisionSettings>(node: OnnxNode) -> BatchNormNode<PS> {
         let config = batch_norm_config(&node);
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let dim = input.dim - 2;
 
         let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
@@ -839,10 +846,10 @@ impl OnnxGraph {
         )
     }
 
-    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode<PS> {
+    fn layer_norm_conversion<PS: PrecisionSettings>(node: OnnxNode) -> LayerNormNode<PS> {
         let (config, full_precision) = layer_norm_config(&node);
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         // Scale tensor (aka gamma)
         let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
@@ -854,9 +861,9 @@ impl OnnxGraph {
         LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
     }
 
-    fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode<PS> {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn conv1d_conversion<PS: PrecisionSettings>(node: OnnxNode) -> Conv1dNode<PS> {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = conv1d_config(&node);
 
         let bias = node.inputs.len() == 3;
@@ -870,9 +877,9 @@ impl OnnxGraph {
         Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
     }
 
-    fn conv2d_conversion<PS: PrecisionSettings>(node: Node) -> Conv2dNode<PS> {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn conv2d_conversion<PS: PrecisionSettings>(node: OnnxNode) -> Conv2dNode<PS> {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = conv2d_config(&node);
 
         let bias = node.inputs.len() == 3;
@@ -886,35 +893,37 @@ impl OnnxGraph {
         Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
 
-    fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn max_pool1d_conversion(node: OnnxNode) -> MaxPool1dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = max_pool1d_config(&node);
 
         let name = &node.name;
         MaxPool1dNode::new(name, input, output, config)
     }
 
-    fn max_pool2d_conversion(node: Node) -> MaxPool2dNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn max_pool2d_conversion(node: OnnxNode) -> MaxPool2dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = max_pool2d_config(&node);
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
     }
 
-    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode<PS> {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn prelu_conversion<PS: PrecisionSettings>(node: OnnxNode) -> PReluNode<PS> {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let config = PReluConfig::new();
         let name = &node.name;
         PReluNode::<PS>::new(name, input, output, weight, config)
     }
-    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn conv_transpose2d_conversion<PS: PrecisionSettings>(
+        node: OnnxNode,
+    ) -> ConvTranspose2dNode<PS> {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = conv_transpose2d_config(&node);
 
         let bias = node.inputs.len() == 3;
@@ -927,99 +936,99 @@ impl OnnxGraph {
         let name = &node.name;
         ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
-    fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn avg_pool_1d_conversion(node: OnnxNode) -> AvgPool1dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = avg_pool1d_config(&node);
 
         let name = &node.name;
         AvgPool1dNode::new(name, input, output, config)
     }
 
-    fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn avg_pool_2d_conversion(node: OnnxNode) -> AvgPool2dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = avg_pool2d_config(&node);
 
         let name = &node.name;
         AvgPool2dNode::new(name, input, output, config)
     }
 
-    fn global_avg_pool_conversion(node: Node) -> GlobalAvgPoolNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn global_avg_pool_conversion(node: OnnxNode) -> GlobalAvgPoolNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
 
         let name = &node.name;
 
         GlobalAvgPoolNode::new(name, input, output)
     }
 
-    fn cos_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn cos_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::cos(input, output)
     }
 
-    fn exp_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn exp_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::exp(input, output)
     }
 
-    fn expand_conversion(node: Node) -> ExpandNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn expand_conversion(node: OnnxNode) -> ExpandNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
 
         ExpandNode::new(input, output, shape)
     }
 
-    fn neg_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn neg_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::neg(input, output)
     }
 
-    fn not_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn not_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::not(input, output)
     }
 
-    fn greater_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn greater_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::greater(lhs, rhs, output)
     }
 
-    fn less_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn less_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::lower(lhs, rhs, output)
     }
 
-    fn greater_or_equal_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn greater_or_equal_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::greater_equal(lhs, rhs, output)
     }
 
-    fn less_or_equal_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn less_or_equal_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::lower_equal(lhs, rhs, output)
     }
 
-    fn pow_conversion(node: Node) -> BinaryNode {
-        let lhs = node.inputs.first().unwrap().to_type();
-        let rhs = node.inputs.get(1).unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn pow_conversion(node: OnnxNode) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         match &rhs {
             Type::Tensor(x) => match x.kind {
                 TensorKind::Int => BinaryNode::powi(lhs, rhs, output),
@@ -1035,15 +1044,15 @@ impl OnnxGraph {
         }
     }
 
-    fn sign_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+    fn sign_conversion(node: OnnxNode) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::sign(input, output)
     }
 
-    fn squeeze_conversion(node: Node) -> SqueezeNode {
-        let input = node.inputs.first().unwrap().to_tensor_type();
-        let output = node.outputs.first().unwrap().to_tensor_type();
+    fn squeeze_conversion(node: OnnxNode) -> SqueezeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let axes = squeeze_config(&node);
 
         SqueezeNode::new(input, output, axes)
@@ -1057,7 +1066,10 @@ impl OnnxGraph {
 /// * `input_index` - The index of the input originally from input.
 /// * `node` - The node where value are stored.
 #[track_caller]
-fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DataSerialize<E>> {
+fn extract_data_serialize<E: Element>(
+    input_index: usize,
+    node: &OnnxNode,
+) -> Option<DataSerialize<E>> {
     if node.inputs.is_empty() {
         return None;
     }
@@ -1094,48 +1106,49 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DataSerialize<E>
     }
 }
 
-impl Argument {
-    pub fn to_tensor_type(&self) -> TensorType {
-        match &self.ty {
-            ArgType::Tensor(ir::TensorType {
+impl From<&OnnxArgument> for TensorType {
+    fn from(arg: &OnnxArgument) -> Self {
+        match &arg.ty {
+            ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
                 dim,
                 ..
-            }) => TensorType::new_float(self.name.clone(), *dim),
-            ArgType::Tensor(ir::TensorType {
+            }) => TensorType::new_float(arg.name.clone(), *dim),
+            ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Int32 | ElementType::Int64,
                 dim,
                 ..
-            }) => TensorType::new_int(self.name.clone(), *dim),
-            ArgType::Tensor(ir::TensorType {
+            }) => TensorType::new_int(arg.name.clone(), *dim),
+            ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Bool,
                 dim,
                 ..
-            }) => TensorType::new_bool(self.name.clone(), *dim),
-            _ => panic!("Can't transform to tensor."),
+            }) => TensorType::new_bool(arg.name.clone(), *dim),
+            _ => panic!("Can't transform scalar to tensor."),
         }
     }
-
-    pub fn to_type(&self) -> Type {
-        match &self.ty {
+}
+impl From<&OnnxArgument> for Type {
+    fn from(arg: &OnnxArgument) -> Self {
+        match &arg.ty {
             ArgType::Tensor(tensor) => {
                 // Treat tensor with dim 0 as scalar
                 if tensor.dim == 0 {
                     Type::Scalar(ScalarType::new(
-                        self.name.clone(),
+                        arg.name.clone(),
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let dim = tensor.dim;
-                    let name = self.name.clone();
+                    let name = arg.name.clone();
                     let shape = tensor.shape.clone();
                     Type::Tensor(TensorType::new(name, dim, kind, shape))
                 }
             }
 
             ArgType::Scalar(elem_type) => {
-                Type::Scalar(ScalarType::new(self.name.clone(), elem_type.into()))
+                Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
             }
             ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
         }
