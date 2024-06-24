@@ -103,12 +103,16 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
         }
 
         if settings.show_num_parameters() {
-            if settings.new_line_after_attribute() {
-                writeln!(result, "{indent}params: {}", self.num_params()).unwrap();
-            } else {
-                write!(result, ", params: {}", self.num_params()).unwrap();
+            let num_params = self.num_params();
+            if num_params > 0 {
+                if settings.new_line_after_attribute() {
+                    writeln!(result, "{indent}params: {}", num_params).unwrap();
+                } else {
+                    write!(result, ", params: {}", num_params).unwrap();
+                }
             }
         }
+
         if settings.new_line_after_attribute() {
             write!(result, "{indent_close_braces}}}").unwrap();
         } else {
@@ -334,7 +338,7 @@ impl DisplaySettings {
         self.show_all_attributes.unwrap_or(false)
     }
 
-    /// Gets `show_num_parameters`, substitutes false if not set.
+    /// Gets `show_num_parameters`, substitutes true if not set.
     ///
     /// This flag is used to print the number of module parameters.
     ///
@@ -342,7 +346,7 @@ impl DisplaySettings {
     ///
     /// A boolean value indicating whether to show the number of parameters.
     pub fn show_num_parameters(&self) -> bool {
-        self.show_num_parameters.unwrap_or(false)
+        self.show_num_parameters.unwrap_or(true)
     }
 
     /// Gets `new_line_after_attribute`, substitutes true if not set.

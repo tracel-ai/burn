@@ -151,7 +151,7 @@ impl Display for LearnerSummary {
         )?;
 
         if let Some(model) = &self.model {
-            writeln!(f, "Model: {model}")?;
+            writeln!(f, "Model:\n{model}")?;
         }
         writeln!(f, "Total Epochs: {epochs}\n\n", epochs = self.epochs)?;
 
