@@ -27,7 +27,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 async-trait = "0.1.80"
-bytemuck = "1.16.0"
+bytemuck = "1.16.1"
 candle-core = { version = "0.5.1" }
 clap = { version = "4.5.7", features = ["derive"] }
 colored = "2.1.0"
