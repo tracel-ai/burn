@@ -31,7 +31,7 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
     ///
     /// A new tensor.
     pub fn from_data(data: TensorData, device: CandleDevice) -> Self {
-        let candle_shape: candle_core::Shape = data.shape().into();
+        let candle_shape: candle_core::Shape = data.shape.clone().into();
         let tensor = candle_core::Tensor::from_slice(
             data.convert::<E>().as_slice::<E>().unwrap(),
             candle_shape,

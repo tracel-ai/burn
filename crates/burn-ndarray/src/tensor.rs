@@ -98,7 +98,7 @@ where
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
     pub fn from_data(data: TensorData) -> NdArrayTensor<E, D> {
-        let shape: Shape<D> = data.shape().into();
+        let shape: Shape<D> = data.shape.clone().into();
         let to_array = |data: TensorData| Array::from_iter(data.iter()).into_shared();
         let array = to_array(data);
 

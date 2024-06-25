@@ -86,7 +86,7 @@ pub fn sort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape();
+    let dims = data.shape.clone();
     let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
         // 1D sort
@@ -179,7 +179,7 @@ fn sort_data_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOp
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape();
+    let dims = data.shape.clone();
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
     let data_slice = data.as_mut_slice().unwrap();
     if D == 1 {
@@ -312,7 +312,7 @@ fn argsort_data<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
 where
     <K as BasicOps<B>>::Elem: Element,
 {
-    let dims = data.shape();
+    let dims = data.shape.clone();
     let mut indices_data = dim_indices::<B, D>(&dims, dim);
     if D == 1 {
         // 1D sort

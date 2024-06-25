@@ -1,6 +1,5 @@
 use core::any::{Any, TypeId};
 
-use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
@@ -144,11 +143,6 @@ impl TensorData {
                 DType::Bool => Box::new(self.value.iter().map(|e| e.elem::<E>())),
             }
         }
-    }
-
-    /// Returns the shape of the tensor data.
-    pub fn shape(&self) -> Vec<usize> {
-        self.shape.to_owned()
     }
 
     /// Returns the total number of elements of the tensor data.
