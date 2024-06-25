@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 use super::{
-    base::{Coordinates, Offsets, SharedMemories},
+    base::{BatchOffsets, Coordinates, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
     config::CubeTiling2dConfig,
     load_shared_memory::{
@@ -17,7 +17,7 @@ pub(crate) fn tiling2d_core<F: Float>(
     rhs: Tensor<F>,
     mut out: Tensor<F>,
     coordinates: Coordinates,
-    offsets: Offsets,
+    offsets: BatchOffsets,
     shared: SharedMemories<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {

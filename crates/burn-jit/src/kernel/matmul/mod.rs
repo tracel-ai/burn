@@ -1,6 +1,10 @@
 mod base;
 mod simple;
 mod tiling2d;
+#[cfg(feature = "export_tests")]
+/// Tiling 2d cube functions
+pub mod tiling2d_cube;
+#[cfg(not(feature = "export_tests"))]
 mod tiling2d_cube;
 mod tiling2d_shader;
 mod tune;

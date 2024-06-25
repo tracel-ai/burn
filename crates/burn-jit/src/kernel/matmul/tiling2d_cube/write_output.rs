@@ -120,7 +120,7 @@ fn write_results_to_output_partial<F: Float>(
     results: Array<F>,
     row: UInt,
     col: UInt,
-    offset_output: UInt,
+    batch_offset: UInt,
     out_stride_row: UInt,
     num_writes: UInt,
     config: Comptime<CubeTiling2dConfig>,
@@ -129,7 +129,7 @@ fn write_results_to_output_partial<F: Float>(
     let is_scalar = Comptime::map(tile_size, |t| t.val == 1);
 
     if Comptime::get(is_scalar) {
-        out[row * out_stride_row + col + offset_output] = results[0];
+        out[row * out_stride_row + col + batch_offset / Comptime::runtime(tile_size)] = results[0];
     } else {
         for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
             write_results_inner_loop(
@@ -138,7 +138,7 @@ fn write_results_to_output_partial<F: Float>(
                 res_idx_m,
                 row,
                 col,
-                offset_output,
+                batch_offset,
                 out_stride_row,
                 config,
             )
@@ -153,7 +153,7 @@ fn write_results_inner_loop<F: Float>(
     res_idx_m: UInt,
     row: UInt,
     col: UInt,
-    offset_output: UInt,
+    batch_offset: UInt,
     out_stride_row: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) {
@@ -162,7 +162,7 @@ fn write_results_inner_loop<F: Float>(
 
     let results_pos_m = res_idx_m * Comptime::runtime(tile_size);
     let out_position =
-        (row + res_idx_m) * out_stride_row + col / Comptime::runtime(tile_size) + offset_output;
+        (row + res_idx_m) * out_stride_row + col / Comptime::runtime(tile_size) + batch_offset;
 
     // Reinterpreting results as vectorized array
     let mut array = Array::<F>::new(Comptime::get(tile_size));

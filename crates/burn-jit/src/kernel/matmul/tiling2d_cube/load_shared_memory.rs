@@ -4,12 +4,16 @@ use crate::{kernel::matmul::Tiling2dConfig, JitBackend, JitRuntime};
 
 use super::{base::Coordinates, config::CubeTiling2dConfig};
 
+// Calculate offset for lhs and rhs, without regards to batches
+// let mut offset_lhs = coordinates.skip_row * lhs.stride(rank - UInt::new(2));
+// let mut offset_rhs = coordinates.skip_col;
+
 #[cube]
 pub(crate) fn load_lhs_transposed<F: Float>(
     lhs: Tensor<F>,
     coordinates: Coordinates,
     k: UInt,
-    offset_lhs: UInt,
+    batch_offset: UInt,
     shared_lhs: SharedMemory<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
@@ -21,17 +25,18 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     let skip_row = coordinates.skip_row;
     let skip_col = coordinates.skip_col;
 
-    let sm_stride = Comptime::runtime(block_size_m / tile_size);
+    let sm_stride = Comptime::runtime(block_size_m);
+    let sm_position_base = unit_col * sm_stride + unit_row;
 
-    let sm_position_base = unit_col * sm_stride + unit_row / Comptime::runtime(tile_size);
-    let cube_offset = offset_lhs + k / Comptime::runtime(tile_size);
+    let cube_offset = coordinates.skip_row * lhs.stride(lhs.rank() - UInt::new(2));
+    let offset = cube_offset + k + batch_offset;
 
     let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
     load_tile(
         lhs,
         tile,
-        cube_offset,
+        offset,
         unit_col,
         unit_row,
         skip_row,
@@ -56,7 +61,7 @@ pub(crate) fn load_rhs_plain<F: Float>(
     rhs: Tensor<F>,
     coordinates: Coordinates,
     k: UInt,
-    offset_rhs: UInt,
+    batch_offset: UInt,
     shared_rhs: SharedMemory<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
@@ -68,18 +73,20 @@ pub(crate) fn load_rhs_plain<F: Float>(
     let skip_row = coordinates.skip_row;
     let skip_col = coordinates.skip_col;
 
-    let sm_stride = Comptime::runtime(block_size_n / tile_size);
-    let tensor_stride = rhs.stride(rhs.rank() - UInt::new(2)) / Comptime::runtime(tile_size);
+    let sm_stride = Comptime::runtime(block_size_n);
+    let tensor_stride = rhs.stride(rhs.rank() - UInt::new(2));
 
-    let sm_position_base = unit_row * sm_stride + unit_col / Comptime::runtime(tile_size);
-    let cube_offset = offset_rhs + k * tensor_stride;
+    let sm_position_base = unit_row * sm_stride + unit_col;
+
+    let cube_offset = skip_col;
+    let offset = cube_offset + k * tensor_stride + batch_offset;
 
     let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
     load_tile(
         rhs,
         tile,
-        cube_offset,
+        offset,
         unit_row,
         unit_col,
         skip_row,
@@ -116,9 +123,8 @@ fn load_tile<F: Float>(
     let unroll = Comptime::map(config, |c| c.unroll);
 
     let rank = tensor.rank();
-    let tensor_stride = tensor.stride(rank - UInt::new(2)) / Comptime::runtime(tile_size);
-    let tensor_position_base =
-        load_row * tensor_stride + load_col / Comptime::runtime(tile_size) + cube_offset;
+    let tensor_stride = tensor.stride(rank - UInt::new(2));
+    let tensor_position_base = load_row * tensor_stride + load_col + cube_offset;
 
     if Comptime::get(check_vertical_bounds) {
         let row = skip_row + load_row;
@@ -192,8 +198,10 @@ fn write_tile_plain<F: Float>(
     unroll: Comptime<bool>,
     tile_size: Comptime<UInt>,
 ) {
+    let sm_vectorization = Comptime::runtime(tile_size);
+
     for i in range(0u32, Comptime::get(tile_size), unroll) {
-        shared_memory[sm_position_base + i * sm_stride] = tile[i];
+        shared_memory[(sm_position_base + i * sm_stride) / sm_vectorization] = tile[i];
     }
 }
 
@@ -207,6 +215,8 @@ fn write_tile_transposed<F: Float>(
     tile_size: Comptime<UInt>,
 ) {
     let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
+    let sm_vectorization = Comptime::runtime(tile_size);
+
     if Comptime::get(is_scalar) {
         shared_memory[sm_position_base] = tile[0];
     } else {
@@ -215,7 +225,7 @@ fn write_tile_transposed<F: Float>(
             for j in range(0u32, Comptime::get(tile_size), unroll) {
                 transposed[j] = tile[j][i];
             }
-            let sm_position = sm_position_base + i * sm_stride;
+            let sm_position = (sm_position_base + i * sm_stride) / sm_vectorization;
             shared_memory[sm_position] = transposed.to_vectorized(tile_size);
         }
     }
@@ -239,10 +249,14 @@ fn read_partial<F: Float>(
     mut tile: Array<F>,
     tile_size: Comptime<UInt>,
 ) {
-    let num_reads = UInt::min(dim_vertical - row, Comptime::runtime(tile_size));
+    let vectorization_factor = Comptime::runtime(Comptime::vectorization(tensor));
+    let tile_size_runtime = Comptime::runtime(tile_size);
+
+    let num_reads = UInt::min(dim_vertical - row, tile_size_runtime);
     for i in range(0u32, num_reads, Comptime::new(false)) {
-        tile[i] = tensor[position_base + i * stride];
+        tile[i] = tensor[(position_base + i * stride) / vectorization_factor];
     }
+
     let zeros = F::vectorized(0., Comptime::get(tile_size));
     for i in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
         tile[i] = zeros;
@@ -258,8 +272,9 @@ fn read_whole<F: Float>(
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
+    let vectorization_factor = Comptime::runtime(Comptime::vectorization(tensor));
     for i in range(0u32, Comptime::get(tile_size), unroll) {
-        tile[i] = tensor[position_base + i * stride];
+        tile[i] = tensor[(position_base + i * stride) / vectorization_factor];
     }
 }
 
@@ -274,7 +289,7 @@ pub mod tests {
         read_whole(
             tensor,
             UInt::new(0),
-            tensor.stride(1),
+            tensor.stride(0),
             tile,
             tile_size,
             Comptime::new(true),
@@ -292,8 +307,8 @@ pub mod tests {
             tensor,
             Comptime::runtime(tile_size),
             UInt::new(2),
-            UInt::new(2),
-            tensor.stride(1),
+            UInt::new(8),
+            tensor.stride(0),
             tile,
             tile_size,
         )
@@ -344,8 +359,8 @@ pub mod tests {
         let block_size_m = Comptime::map(config, |c| c.block_size_m);
         let block_size_k = Comptime::map(config, |c| c.block_size_k);
 
-        let sm_stride = block_size_m / tile_size;
-        let sm_size = Comptime::runtime(block_size_k * sm_stride);
+        let sm_stride = block_size_m;
+        let sm_size = Comptime::runtime(block_size_k * block_size_m);
         let shared_memory = SharedMemory::vectorized(sm_size, Comptime::get(tile_size));
 
         if Comptime::get(transposed) {
@@ -383,7 +398,7 @@ pub mod tests {
         let tile_size = Comptime::map(config, |c| c.tile_size);
         let block_size_k = Comptime::map(config, |c| c.block_size_k);
         let block_size_m = Comptime::map(config, |c| c.block_size_m);
-        let sm_size = block_size_k * block_size_m;
+        let sm_size = block_size_k * block_size_m / tile_size;
         let shared_memory =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size), Comptime::get(tile_size));
 
@@ -530,8 +545,8 @@ pub mod tests {
         let cube_count = CubeCount::new(1, 1, 1);
         let settings = KernelSettings::default()
             .cube_dim(CubeDim::new(1, 1, 1))
-            .vectorize_input(0, tile_size as u8)
-            .vectorize_output(0, tile_size as u8);
+            .vectorize_input(0, 4)
+            .vectorize_output(0, 4);
 
         let mut tiling2d_config = Tiling2dConfig::default();
         tiling2d_config.block_size_m = 8;

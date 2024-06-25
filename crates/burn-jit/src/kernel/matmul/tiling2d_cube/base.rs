@@ -20,8 +20,8 @@ fn tiling2d_cube<F: Float>(
     mut out: Tensor<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    let coordinates = calculate_coordinates(config);
-    let offsets = calculate_offsets::<F>(lhs, rhs, out, coordinates, config);
+    let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
+    let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, ABSOLUTE_POS_Z, config);
     let shared_memories = make_shared_memories::<F>(config);
     tiling2d_core(lhs, rhs, out, coordinates, offsets, shared_memories, config);
 }
@@ -33,7 +33,9 @@ pub(crate) struct SharedMemories<F: Float> {
 }
 
 #[derive(CubeType)]
-pub(crate) struct Offsets {
+/// Number of elements in previous batches
+/// Not divided by vectorization facto
+pub(crate) struct BatchOffsets {
     pub lhs: UInt,
     pub rhs: UInt,
     pub out: UInt,
@@ -48,23 +50,27 @@ pub(crate) struct Coordinates {
 }
 
 #[cube]
-fn calculate_coordinates(config: Comptime<CubeTiling2dConfig>) -> Coordinates {
+fn calculate_coordinates(
+    cube_pos_x: UInt,
+    cube_pos_y: UInt,
+    unit_pos: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) -> Coordinates {
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let tile_size = Comptime::map(config, |c| c.tile_size);
 
-    // Topology info
-    let n_threads_per_row = ((Comptime::runtime(block_size_n) - UInt::new(1))
+    let n_units_per_row = ((Comptime::runtime(block_size_n) - UInt::new(1))
         / Comptime::runtime(tile_size))
         + UInt::new(1);
 
     // Cube offset
-    let skip_row = CUBE_POS_X * Comptime::runtime(block_size_m);
-    let skip_col = CUBE_POS_Y * Comptime::runtime(block_size_n);
+    let skip_row = cube_pos_x * Comptime::runtime(block_size_m);
+    let skip_col = cube_pos_y * Comptime::runtime(block_size_n);
 
     // Position of the first element of the unit, relative to the cube
-    let unit_row = (UNIT_POS / n_threads_per_row) * Comptime::runtime(tile_size);
-    let unit_col = (UNIT_POS % n_threads_per_row) * Comptime::runtime(tile_size);
+    let unit_row = (unit_pos / n_units_per_row) * Comptime::runtime(tile_size);
+    let unit_col = (unit_pos % n_units_per_row) * Comptime::runtime(tile_size);
 
     Coordinates {
         unit_row,
@@ -76,42 +82,35 @@ fn calculate_coordinates(config: Comptime<CubeTiling2dConfig>) -> Coordinates {
 
 #[cube]
 #[allow(unused_mut)]
-fn calculate_offsets<F: Float>(
+fn calculate_batch_offsets<F: Float>(
     lhs: Tensor<F>,
     rhs: Tensor<F>,
     mut out: Tensor<F>,
-    coordinates: Coordinates,
+    batch_number: UInt,
     config: Comptime<CubeTiling2dConfig>,
-) -> Offsets {
+) -> BatchOffsets {
     let unroll = Comptime::map(config, |c| c.unroll);
-    let tile_size = Comptime::map(config, |c| c.tile_size);
     let rank = out.rank();
 
     let dim_m = lhs.shape(rank - UInt::new(2));
     let dim_n = rhs.shape(rank - UInt::new(1));
 
     // Batch offset for output
-    let batch = ABSOLUTE_POS_Z;
-    let offset_output = dim_m * dim_n * batch / Comptime::runtime(tile_size);
-
-    // Calculate offset for lhs and rhs, without regards to batches
-    let mut offset_lhs = coordinates.skip_row * lhs.stride(rank - UInt::new(2));
-    let mut offset_rhs = coordinates.skip_col;
+    let mut offset_out = dim_m * dim_n * batch_number;
+    let mut offset_lhs = UInt::new(0);
+    let mut offset_rhs = UInt::new(0);
 
     // Batch offset for lhs, rhs
     for b in range(0u32, rank - UInt::new(2), unroll) {
-        let tmp = offset_output / out.stride(b);
+        let tmp = offset_out / out.stride(b);
         offset_lhs += tmp % lhs.shape(b) * lhs.stride(b);
         offset_rhs += tmp % rhs.shape(b) * rhs.stride(b);
     }
 
-    offset_lhs /= Comptime::runtime(tile_size);
-    offset_rhs /= Comptime::runtime(tile_size);
-
-    Offsets {
+    BatchOffsets {
         lhs: offset_lhs,
         rhs: offset_rhs,
-        out: offset_output,
+        out: offset_out,
     }
 }
 
@@ -163,7 +162,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     config.block_size_k = 16; // k must be <= both m and n
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
-    let vectorization_factor = 1;
+    let vectorization_factor = 4;
     let x = (config.block_size_m / vectorization_factor) as u32;
     let y = (config.block_size_n / vectorization_factor) as u32;
     let settings = KernelSettings::default()
@@ -183,4 +182,80 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     );
 
     out
+}
+
+#[cfg(feature = "export_tests")]
+/// Exported tests for tiling2d
+pub mod tests {
+    use crate::JitBackend;
+
+    use super::*;
+
+    #[cube(launch)]
+    #[allow(unused_mut)]
+    fn calculate_offsets_test<F: Float>(
+        lhs: Tensor<F>,
+        rhs: Tensor<F>,
+        out: Tensor<F>,
+        num_batch: UInt,
+        mut offsets: Array<F>,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+        // So all bindings are read
+        let _x = lhs[0];
+        let _x = rhs[0];
+        let _x = out[0];
+
+        let calculated = calculate_batch_offsets::<F>(lhs, rhs, out, num_batch, config);
+
+        offsets[0] = F::cast_from(calculated.lhs);
+        offsets[1] = F::cast_from(calculated.rhs);
+        offsets[2] = F::cast_from(calculated.out);
+    }
+
+    /// Exported test
+    pub fn calculate_offsets_unit_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let b = 4;
+        let (m, k, n) = (3, 4, 5);
+        let lhs = burn_tensor::Tensor::<B<R>, 3>::zeros([b, m, k], device).into_primitive();
+        let rhs = burn_tensor::Tensor::<B<R>, 3>::zeros([b, k, n], device).into_primitive();
+        let out = burn_tensor::Tensor::<B<R>, 3>::zeros([b, m, n], device).into_primitive();
+
+        let client = R::client(device);
+        let offsets = client.empty(3 * core::mem::size_of::<f32>());
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(1, 1, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_input(1, tile_size as u8)
+            .vectorize_input(2, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config, 8, 8, 8, tile_size);
+
+        calculate_offsets_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
+            b as u32,
+            ArrayHandle::new(&offsets, 3),
+            config,
+        );
+
+        let actual = client.read(offsets.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[0.0, 0.0, 60.0];
+        assert_eq!(actual, expected);
+    }
 }
