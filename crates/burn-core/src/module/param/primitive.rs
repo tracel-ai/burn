@@ -1,5 +1,10 @@
-use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
-use alloc::vec::Vec;
+use crate::module::{
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
+};
+
+use alloc::{format, vec::Vec};
+
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::fmt::Debug;
 
@@ -51,6 +56,17 @@ where
         devices
     }
 }
+
+impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        match self {
+            Some(module) => content.add_single(module).optional(),
+            None => content.add_single("None").optional(),
+        }
+    }
+}
+
+impl<T: ModuleDisplay> ModuleDisplay for Option<T> {}
 
 impl<T, B> AutodiffModule<B> for Option<T>
 where
@@ -128,6 +144,21 @@ where
     }
 }
 
+impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        self.iter()
+            .enumerate()
+            .fold(content, |acc, (i, module)| {
+                let index = format!("{}", i);
+                acc.add(&index, module)
+            })
+            .set_top_level_type(format!("Vec<0..{}>", self.len()).as_str())
+            .optional()
+    }
+}
+
+impl<T: ModuleDisplay> ModuleDisplay for Vec<T> {}
+
 impl<T, B> AutodiffModule<B> for Vec<T>
 where
     T: AutodiffModule<B> + Debug + Send + Clone,
@@ -196,6 +227,21 @@ where
         self.map(|module| module.fork(device))
     }
 }
+
+impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
+    fn content(&self, content: Content) -> Option<Content> {
+        self.iter()
+            .enumerate()
+            .fold(content, |acc, (i, module)| {
+                let index = format!("{}", i);
+                acc.add(&index, module)
+            })
+            .set_top_level_type(format!("[0..{}]", self.len()).as_str())
+            .optional()
+    }
+}
+
+impl<const N: usize, T: ModuleDisplay> ModuleDisplay for [T; N] {}
 
 impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
 where
@@ -269,6 +315,21 @@ macro_rules! impl_module_tuple {
                 ($(self.$i.valid(),)*)
             }
         }
+
+        impl<$($l,)*> ModuleDisplayDefault for ($($l,)*)
+        where
+            $($l: ModuleDisplay,)*
+        {
+            fn content(&self, content: Content) -> Option<Content> {
+                let content = content
+                    $(.add(&format!("{}", $i), &self.$i))*
+                    .set_top_level_type(format!("({})", stringify!($($l),*)).as_str());
+                content.optional()
+            }
+        }
+
+        impl<$($l,)*> ModuleDisplay for ($($l,)*) where $($l: ModuleDisplay,)* {}
+
     };
 }
 

@@ -1,7 +1,13 @@
 use super::ParamId;
-use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
+use crate::module::{
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor, Param,
+};
+
+use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+
 use burn_common::stub::Mutex;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
@@ -44,6 +50,24 @@ pub struct RunningState<V> {
     values: Arc<Mutex<HashMap<ThreadId, V>>>,
     value: Arc<Mutex<V>>,
 }
+
+// Implement display for the module
+
+impl<V> core::fmt::Display for RunningState<V> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "RunningState(id={})", self.id)
+    }
+}
+
+impl<V> ModuleDisplayDefault for RunningState<V> {
+    fn content(&self, content: Content) -> Option<Content> {
+        content
+            .add_formatted(&"RunningState".to_string())
+            .optional()
+    }
+}
+
+impl<V> ModuleDisplay for RunningState<V> {}
 
 impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;

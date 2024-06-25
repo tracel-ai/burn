@@ -49,6 +49,12 @@ pub(crate) fn codegen_block(
 pub(crate) struct Codegen {
     pub tokens: proc_macro2::TokenStream,
     pub is_comptime: bool,
+    pub array_indexing: Option<ArrayIndexing>,
+}
+
+pub(crate) struct ArrayIndexing {
+    pub array: proc_macro2::TokenStream,
+    pub index: proc_macro2::TokenStream,
 }
 
 impl From<proc_macro2::TokenStream> for Codegen {
@@ -56,6 +62,7 @@ impl From<proc_macro2::TokenStream> for Codegen {
         Self {
             tokens,
             is_comptime: false,
+            array_indexing: None,
         }
     }
 }
@@ -65,6 +72,7 @@ impl Codegen {
         Self {
             tokens: tokens.into(),
             is_comptime,
+            array_indexing: None,
         }
     }
 

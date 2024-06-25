@@ -382,6 +382,6 @@ mod tests {
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
         // 1.0f32 is represented with 4 bytes [0, 0, 128, 63]
-        assert_eq!(serialized_str.len(), 166);
+        assert_eq!(serialized_str.len(), 140);
     }
 }

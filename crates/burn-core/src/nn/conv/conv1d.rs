@@ -1,14 +1,13 @@
+use alloc::format;
+
 use crate as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::nn::conv::checks;
-use crate::nn::{Initializer, PaddingConfig1d};
-use crate::tensor::backend::Backend;
-use crate::tensor::module::conv1d;
-use crate::tensor::ops::ConvOptions;
-use crate::tensor::Tensor;
+use crate::{
+    config::Config,
+    module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param},
+    nn::{conv::checks, Initializer, PaddingConfig1d},
+    tensor::{backend::Backend, module::conv1d, ops::ConvOptions, Tensor},
+};
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
@@ -45,6 +44,7 @@ pub struct Conv1dConfig {
 ///
 /// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Conv1d<B: Backend> {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,
@@ -54,7 +54,28 @@ pub struct Conv1d<B: Backend> {
     kernel_size: usize,
     dilation: usize,
     groups: usize,
-    padding: PaddingConfig1d,
+    padding: Ignored<PaddingConfig1d>,
+}
+
+impl<B: Backend> ModuleDisplay for Conv1d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        // Since padding does not implement ModuleDisplay, we need to format it manually.
+        let padding_formatted = format!("{}", &self.padding);
+
+        content
+            .add("stride", &self.stride)
+            .add("kernel_size", &self.kernel_size)
+            .add("dilation", &self.dilation)
+            .add("groups", &self.groups)
+            .add("padding", &padding_formatted)
+            .optional()
+    }
 }
 
 impl Conv1dConfig {
@@ -87,7 +108,7 @@ impl Conv1dConfig {
             bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             dilation: self.dilation,
             groups: self.groups,
         }

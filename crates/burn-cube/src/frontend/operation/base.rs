@@ -203,3 +203,43 @@ fn check_vectorization(lhs: Vectorization, rhs: Vectorization) -> Vectorization 
 
     output
 }
+
+pub fn array_assign_binary_op_expand<
+    Array: Into<ExpandElement>,
+    Index: Into<ExpandElement>,
+    Value: Into<ExpandElement>,
+    F: Fn(BinaryOperator) -> Operator,
+>(
+    context: &mut CubeContext,
+    array: Array,
+    index: Index,
+    value: Value,
+    func: F,
+) {
+    let array: ExpandElement = array.into();
+    let index: ExpandElement = index.into();
+    let value: ExpandElement = value.into();
+
+    let tmp = context.create_local(array.item());
+
+    let read = Operator::Index(BinaryOperator {
+        lhs: *array,
+        rhs: *index,
+        out: *tmp,
+    });
+    let calculate = func(BinaryOperator {
+        lhs: *tmp,
+        rhs: *value,
+        out: *tmp,
+    });
+
+    let write = Operator::IndexAssign(BinaryOperator {
+        lhs: *index,
+        rhs: *tmp,
+        out: *array,
+    });
+
+    context.register(read);
+    context.register(calculate);
+    context.register(write);
+}
