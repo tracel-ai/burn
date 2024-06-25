@@ -1,7 +1,8 @@
 use crate as burn;
-
 use crate::config::Config;
+use crate::module::DisplaySettings;
 use crate::module::Module;
+use crate::module::ModuleDisplay;
 use crate::module::Param;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
@@ -29,6 +30,7 @@ pub struct LayerNormConfig {
 ///
 /// Should be created using [LayerNormConfig](LayerNormConfig).
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.
     gamma: Param<Tensor<B, 1>>,
@@ -68,6 +70,22 @@ impl<B: Backend> LayerNorm<B> {
         input_normalized
             .mul(self.gamma.val().unsqueeze())
             .add(self.beta.val().unsqueeze())
+    }
+}
+
+impl<B: Backend> ModuleDisplay for LayerNorm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+        let [d_model] = self.gamma.shape().dims;
+        content
+            .add("d_model", &d_model)
+            .add("epsilon", &self.epsilon)
+            .optional()
     }
 }
 

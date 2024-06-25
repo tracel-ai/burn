@@ -463,6 +463,7 @@ version = "0.14.0"
 dependencies = [
  "async-trait",
  "dashmap",
+ "data-encoding",
  "derive-new",
  "getrandom",
  "indicatif",
@@ -471,7 +472,6 @@ dependencies = [
  "serde",
  "spin",
  "tokio",
- "uuid",
  "web-time",
 ]
 
@@ -1468,6 +1468,12 @@ dependencies = [
  "once_cell",
  "parking_lot_core 0.9.10",
 ]
+
+[[package]]
+name = "data-encoding"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 
 [[package]]
 name = "deflate64"
