@@ -1,7 +1,6 @@
 #[burn_tensor_testgen::testgen(flip)]
 mod tests {
     use super::*;
-    use burn_tensor::backend::Backend;
     use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
@@ -15,10 +14,9 @@ mod tests {
         let expected = TensorData::from([
             [[15, 14, 13, 12], [19, 18, 17, 16], [23, 22, 21, 20]],
             [[3, 2, 1, 0], [7, 6, 5, 4], [11, 10, 9, 8]],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        flipped.into_data().assert_eq(&expected, true);
+        flipped.into_data().assert_eq(&expected, false);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
@@ -42,14 +40,13 @@ mod tests {
                 [23., 22., 21., 20.],
             ],
             [[3., 2., 1., 0.], [7., 6., 5., 4.], [11., 10., 9., 8.]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        flipped.into_data().assert_eq(&expected, true);
+        flipped.into_data().assert_eq(&expected, false);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        assert_eq!(tensor.into_data(), flipped.into_data());
+        tensor.into_data().assert_eq(&flipped.into_data(), true);
     }
 
     #[test]
@@ -76,11 +73,11 @@ mod tests {
             ],
         ]);
 
-        assert_eq!(data_expected, flipped.into_data());
+        flipped.into_data().assert_eq(&data_expected, true);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        assert_eq!(tensor.into_data(), flipped.into_data());
+        tensor.into_data().assert_eq(&flipped.into_data(), true);
     }
 
     #[test]

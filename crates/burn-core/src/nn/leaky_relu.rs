@@ -56,9 +56,8 @@ mod tests {
         let input =
             Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
-        let expected = TensorData::from([[0.4410, -0.002507]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
-        out.to_data().assert_eq(&expected, true);
+        let expected = TensorData::from([[0.4410, -0.002507]]);
+        out.to_data().assert_eq(&expected, false);
     }
     #[test]
     fn test_leaky_relu_forward_multi_dim() {
@@ -85,8 +84,7 @@ mod tests {
                 [1.5615e+00, -1.057e-03, -4.886e-03, -1.5184e-02],
                 [-5.523e-03, -2.741e-03, -2.1e-04, -1.1352e-02],
             ],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
         let device = <TestBackend as Backend>::Device::default();
         let model: LeakyRelu = LeakyReluConfig::new().init();

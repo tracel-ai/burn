@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(erf)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_support_erf_ops() {
@@ -9,8 +9,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
         let output = tensor.erf();
-        let expected = TensorData::from([[0.0000, 0.8427, 0.9953], [1.0000, 1.0000, 1.0000]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0000, 0.8427, 0.9953], [1.0000, 1.0000, 1.0000]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }
@@ -24,8 +23,7 @@ mod tests {
         let expected = TensorData::from([
             [-0.06312324, -0.048490416, -0.10016122],
             [1.0000, 1.0000, 1.0000],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
-    use burn_tensor::{backend::Backend, Shape};
+    use burn_tensor::Shape;
 
     #[test]
     fn test_upsample_interpolation() {
@@ -100,8 +100,7 @@ mod tests {
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert::<<TestBackend as Backend>::FloatElem>(),
+                    .into_data(),
             );
             let output = interpolate(
                 x,

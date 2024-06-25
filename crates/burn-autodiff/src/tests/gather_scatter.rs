@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn test_gather_grad() {
@@ -24,9 +24,10 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[94., 150., 187.], [242., 305., 304.]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad_1.to_data().assert_eq(&expected, true);
+        grad_1.to_data().assert_eq(
+            &TensorData::from([[94., 150., 187.], [242., 305., 304.]]),
+            false,
+        );
     }
 
     #[test]
@@ -56,12 +57,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = values.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[127., 181., 235.], [226., 316., 406.]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad_1.to_data().assert_eq(&expected, true);
-
-        let expected = TensorData::from([[19., 19., 19.], [64., 64., 64.]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad_2.to_data().assert_eq(&expected, true);
+        grad_1.to_data().assert_eq(
+            &TensorData::from([[127., 181., 235.], [226., 316., 406.]]),
+            false,
+        );
+        grad_2
+            .to_data()
+            .assert_eq(&TensorData::from([[19., 19., 19.], [64., 64., 64.]]), false);
     }
 }

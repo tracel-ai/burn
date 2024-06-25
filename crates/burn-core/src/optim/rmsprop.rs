@@ -419,11 +419,9 @@ mod tests {
             [0.740366, 0.740366, 0.740366, 0.740366, 0.740366, 0.740366],
             [0.748005, 0.748005, 0.748005, 0.748005, 0.748005, 0.748005],
             [0.743710, 0.743710, 0.743710, 0.743710, 0.743710, 0.743710],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         let bias_expected =
-            TensorData::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199])
-                .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+            TensorData::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
 
         bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
@@ -496,12 +494,10 @@ mod tests {
             [
                 -0.271996, -0.268097, -0.130324, -0.064037, -0.226805, 0.127126,
             ],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         let bias_expected = TensorData::from([
             -0.651299, -0.172400, -0.357800, -0.143200, -0.124200, -0.247800,
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),

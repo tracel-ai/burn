@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_recip)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, TensorData};
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_recip() {
@@ -13,12 +13,10 @@ mod tests {
         let grads = tensor_out.backward();
         let grad = tensor.grad(&grads).unwrap();
 
-        let expected = TensorData::from([0.5, 0.2, 2.5])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        tensor_out.into_data().assert_eq(&expected, true);
-
-        let expected = TensorData::from([-0.25, -0.04, -6.25])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad.to_data().assert_approx_eq(&expected, 3);
+        tensor_out
+            .into_data()
+            .assert_eq(&TensorData::from([0.5, 0.2, 2.5]), false);
+        grad.to_data()
+            .assert_approx_eq(&TensorData::from([-0.25, -0.04, -6.25]), 3);
     }
 }

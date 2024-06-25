@@ -6,9 +6,8 @@ mod tests {
     #[test]
     fn test_data_full() {
         let tensor = TensorData::full([2, 3], 2.0);
-        let expected = TensorData::from([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]);
 
-        tensor.assert_eq(&expected, true);
+        tensor.assert_eq(&TensorData::from([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]), false);
     }
 
     #[test]
@@ -16,17 +15,17 @@ mod tests {
         let device = Default::default();
         // Test full with f32
         let tensor = Tensor::<TestBackend, 2>::full([2, 3], 2.1, &device);
-        let expected = TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]), false);
 
         // Test full with Int
         let int_tensor = Tensor::<TestBackend, 2, Int>::full([2, 2], 2, &device);
-        let expected =
-            TensorData::from([[2, 2], [2, 2]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        int_tensor.into_data().assert_eq(&expected, true);
+        int_tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[2, 2], [2, 2]]), false);
 
         // TODO enable after adding support for bool
         // // Test full with bool

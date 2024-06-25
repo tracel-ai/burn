@@ -271,10 +271,10 @@ mod tests {
         let constants: Tensor<TB, 4> = Initializer::Constant { value }
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        constants.sum().to_data().assert_approx_eq(
-            &TensorData::from([value as f32 * 16.0]).convert::<<TB as Backend>::FloatElem>(),
-            3,
-        );
+        constants
+            .sum()
+            .to_data()
+            .assert_approx_eq(&TensorData::from([value as f32 * 16.0]), 3);
     }
 
     #[test]
@@ -282,10 +282,10 @@ mod tests {
         let zeros: Tensor<TB, 4> = Initializer::Zeros
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        zeros.sum().to_data().assert_approx_eq(
-            &TensorData::from([0.0]).convert::<<TB as Backend>::FloatElem>(),
-            3,
-        );
+        zeros
+            .sum()
+            .to_data()
+            .assert_approx_eq(&TensorData::from([0.0]), 3);
     }
 
     #[test]
@@ -293,10 +293,9 @@ mod tests {
         let ones: Tensor<TB, 4> = Initializer::Ones
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        ones.sum().to_data().assert_approx_eq(
-            &TensorData::from([16.0]).convert::<<TB as Backend>::FloatElem>(),
-            3,
-        );
+        ones.sum()
+            .to_data()
+            .assert_approx_eq(&TensorData::from([16.0]), 3);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
     #[test]
     fn should_support_cat_ops_2d_dim0() {
         let device = Default::default();
@@ -10,8 +10,7 @@ mod tests {
         let tensor_2 = TestTensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
-        let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }
@@ -23,10 +22,10 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::cat(vec![tensor_1, tensor_2], 0);
-        let expected =
-            TensorData::from([[1, 2, 3], [4, 5, 6]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1, 2, 3], [4, 5, 6]]), false);
     }
 
     #[test]
@@ -36,9 +35,11 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
 
         let output = Tensor::cat(vec![tensor_1, tensor_2], 0);
-        let expected = TensorData::from([[false, true, true], [true, true, false]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(
+            &TensorData::from([[false, true, true], [true, true, false]]),
+            false,
+        );
     }
 
     #[test]
@@ -48,8 +49,7 @@ mod tests {
         let tensor_2 = TestTensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
-        let expected = TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }
@@ -61,8 +61,7 @@ mod tests {
         let tensor_2 = TestTensor::from_data([[[4.0, 5.0, 6.0]]], &device);
 
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
-        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

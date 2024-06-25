@@ -4,8 +4,6 @@ mod tests {
     use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};
     use burn_tensor::{backend::Backend, Tensor, TensorData};
 
-    type IntElem = <TestBackend as Backend>::IntElem;
-
     #[test]
     fn test_max_pool1d_simple() {
         let kernel_size = 3;
@@ -86,14 +84,14 @@ mod tests {
         let dilation = 1;
 
         let x = TestTensor::from([[[0.2479, 0.6386, 0.3166, 0.5742]]]);
-        let indices = TensorData::from([[[1, 1, 3]]]).convert::<IntElem>();
+        let indices = TensorData::from([[[1, 1, 3]]]);
         let y = TestTensor::<3>::from([[[0.6386, 0.6386, 0.5742]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        output_indices.into_data().assert_eq(&indices, true);
+        output_indices.into_data().assert_eq(&indices, false);
     }
 
     #[test]
@@ -104,13 +102,13 @@ mod tests {
         let dilation = 1;
 
         let x = TestTensor::from([[[0.5388, 0.0676, 0.7122, 0.8316, 0.0653]]]);
-        let indices = TensorData::from([[[0, 2, 3, 3, 3, 3]]]).convert::<IntElem>();
+        let indices = TensorData::from([[[0, 2, 3, 3, 3, 3]]]);
         let y = TestTensor::<3>::from([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        output_indices.into_data().assert_eq(&indices, true);
+        output_indices.into_data().assert_eq(&indices, false);
     }
 }

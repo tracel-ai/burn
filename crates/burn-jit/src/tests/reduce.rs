@@ -60,10 +60,7 @@ mod reduction {
             ));
         let val_ref = tensor_ref.argmin(reduce_dim);
 
-        val_ref
-            .into_data()
-            .convert::<<TestBackend as Backend>::IntElem>()
-            .assert_eq(&val.into_data(), true);
+        val_ref.into_data().assert_eq(&val.into_data(), false);
     }
 
     #[test]
@@ -82,10 +79,7 @@ mod reduction {
             ));
         let val_ref = tensor_ref.argmax(reduce_dim);
 
-        val_ref
-            .into_data()
-            .convert::<<TestBackend as Backend>::IntElem>()
-            .assert_eq(&val.into_data(), true);
+        val_ref.into_data().assert_eq(&val.into_data(), false);
     }
 
     #[test]
@@ -225,10 +219,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.argmin(reduce_dim);
 
-        val_ref
-            .into_data()
-            .convert::<<TestBackend as Backend>::FloatElem>()
-            .assert_eq(&val.into_data(), true);
+        val_ref.into_data().assert_eq(&val.into_data(), false);
     }
 
     #[test]
@@ -249,10 +240,7 @@ mod reduction {
         ));
         let val_ref = tensor_ref.argmax(reduce_dim);
 
-        val_ref
-            .into_data()
-            .convert::<<TestBackend as Backend>::FloatElem>()
-            .assert_eq(&val.into_data(), true);
+        val_ref.into_data().assert_eq(&val.into_data(), false);
     }
 
     #[test]

@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::conv_transpose1d;
     use burn_tensor::ops::ConvTransposeOptions;
-    use burn_tensor::{backend::Backend, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_conv_transpose1d_diff_channels() {
@@ -114,21 +114,17 @@ mod tests {
             let weights = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_weights.num_elements() as i64, &device)
                     .reshape(shape_weights)
-                    .into_data()
-                    .convert::<<TestBackend as Backend>::FloatElem>(),
+                    .into_data(),
                 &device,
             );
             let bias = TestTensor::from_data(
-                TestTensorInt::arange(0..self.channels_out as i64, &device)
-                    .into_data()
-                    .convert::<<TestBackend as Backend>::FloatElem>(),
+                TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
                 &device,
             );
             let x = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
-                    .into_data()
-                    .convert::<<TestBackend as Backend>::FloatElem>(),
+                    .into_data(),
                 &device,
             );
             let output = conv_transpose1d(

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(tanh)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_support_tanh_ops() {
@@ -9,8 +9,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
         let output = tensor.tanh();
-        let expected = TensorData::from([[0.0, 0.7615, 0.9640], [0.9950, 0.9993, 0.9999]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0, 0.7615, 0.9640], [0.9950, 0.9993, 0.9999]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

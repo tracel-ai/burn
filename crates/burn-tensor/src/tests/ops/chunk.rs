@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{backend::Backend, Int, Shape, Tensor, TensorData};
+    use burn_tensor::{Int, Shape, Tensor, TensorData};
 
     fn test_chunk_evenly_divisible() {
         let tensors: Vec<Tensor<TestBackend, 1, Int>> =
@@ -10,16 +10,16 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            TensorData::from([0, 1]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([2, 3]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([4, 5]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([6, 7]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([8, 9]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([10, 11]).convert::<<TestBackend as Backend>::IntElem>(),
+            TensorData::from([0, 1]),
+            TensorData::from([2, 3]),
+            TensorData::from([4, 5]),
+            TensorData::from([6, 7]),
+            TensorData::from([8, 9]),
+            TensorData::from([10, 11]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
-            tensor.to_data().assert_eq(&expected[index], true);
+            tensor.to_data().assert_eq(&expected[index], false);
         }
     }
 
@@ -30,16 +30,16 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            TensorData::from([0, 1]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([2, 3]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([4, 5]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([6, 7]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([8, 9]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([10]).convert::<<TestBackend as Backend>::IntElem>(),
+            TensorData::from([0, 1]),
+            TensorData::from([2, 3]),
+            TensorData::from([4, 5]),
+            TensorData::from([6, 7]),
+            TensorData::from([8, 9]),
+            TensorData::from([10]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
-            tensor.to_data().assert_eq(&expected[index], true);
+            tensor.to_data().assert_eq(&expected[index], false);
         }
     }
 
@@ -63,16 +63,16 @@ mod tests {
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
-            TensorData::from([0]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([1]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([2]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([3]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([4]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([5]).convert::<<TestBackend as Backend>::IntElem>(),
+            TensorData::from([0]),
+            TensorData::from([1]),
+            TensorData::from([2]),
+            TensorData::from([3]),
+            TensorData::from([4]),
+            TensorData::from([5]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
-            tensor.to_data().assert_eq(&expected[index], true);
+            tensor.to_data().assert_eq(&expected[index], false);
         }
     }
 
@@ -82,13 +82,10 @@ mod tests {
             Tensor::from_data(TensorData::from([[0, 1, 2, 3]]), &Default::default()).chunk(2, 1);
         assert_eq!(tensors.len(), 2);
 
-        let expected = vec![
-            TensorData::from([[0, 1]]).convert::<<TestBackend as Backend>::IntElem>(),
-            TensorData::from([[2, 3]]).convert::<<TestBackend as Backend>::IntElem>(),
-        ];
+        let expected = vec![TensorData::from([[0, 1]]), TensorData::from([[2, 3]])];
 
         for (index, tensor) in tensors.iter().enumerate() {
-            tensor.to_data().assert_eq(&expected[index], true);
+            tensor.to_data().assert_eq(&expected[index], false);
         }
     }
 

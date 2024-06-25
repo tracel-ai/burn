@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(clamp)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn clamp_min() {
@@ -11,19 +11,19 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
 
         let output = tensor.clamp_min(2.0);
-        let expected = TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]), false);
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let output = tensor.clamp_min(2);
-        let expected =
-            TensorData::from([[2, 2, 2], [3, 4, 5]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[2, 2, 2], [3, 4, 5]]), false);
     }
 
     #[test]
@@ -34,19 +34,19 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
 
         let output = tensor.clamp_max(2.0);
-        let expected = TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]), false);
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let output = tensor.clamp_max(4);
-        let expected =
-            TensorData::from([[0, 1, 2], [3, 4, 4]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 1, 2], [3, 4, 4]]), false);
     }
 
     #[test]
@@ -56,18 +56,18 @@ mod tests {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
         let output = tensor.clamp(1.0, 4.0);
-        let expected = TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]), false);
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
         let output = tensor.clamp(1, 4);
-        let expected =
-            TensorData::from([[1, 1, 2], [3, 4, 4]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1, 1, 2], [3, 4, 4]]), false);
     }
 }

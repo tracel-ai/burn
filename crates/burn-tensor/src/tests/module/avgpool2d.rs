@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::avg_pool2d;
-    use burn_tensor::{backend::Backend, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_avg_pool2d_simple() {
@@ -96,8 +96,7 @@ mod tests {
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert::<<TestBackend as Backend>::FloatElem>(),
+                    .into_data(),
             );
             let output = avg_pool2d(
                 x,

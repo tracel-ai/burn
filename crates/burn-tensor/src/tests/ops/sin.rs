@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(sin)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_support_sin_ops() {
@@ -9,8 +9,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
         let output = tensor.sin();
-        let expected = TensorData::from([[0.0, 0.8414, 0.9092], [0.1411, -0.7568, -0.9589]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0, 0.8414, 0.9092], [0.1411, -0.7568, -0.9589]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

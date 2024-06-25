@@ -221,8 +221,7 @@ mod tests {
                 [-1.5469, 0.3998, 0.9561],
                 [-0.3428, 0.7970, 1.1845],
             ],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 3);
     }
 
@@ -290,8 +289,7 @@ mod tests {
                 [0.4253, 1.5962, 0.4731],
                 [-1.0903, -0.0419, -1.3623],
             ],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 3);
     }
 }

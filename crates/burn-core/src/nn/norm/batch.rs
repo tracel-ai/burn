@@ -208,8 +208,7 @@ mod tests_1d {
                 [-1.6318e+00, 8.7949e-01],
                 [-5.3368e-01, -1.0416e+00],
             ],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 2);
     }
 
@@ -225,8 +224,7 @@ mod tests_1d {
         let expected = TensorData::from([
             [[0.9409, 0.6976], [0.5892, 0.8774], [0.9106, 0.6844]],
             [[0.6012, 0.0782], [-0.0394, 0.9270], [0.6181, 0.5492]],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 2);
     }
 
@@ -266,8 +264,7 @@ mod tests_2d {
                 [[-1.6752, 1.3822], [-0.5058, -0.9381]],
                 [[0.0200, -0.3097], [-0.5715, -0.9026]],
             ],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 2);
     }
 
@@ -291,8 +288,7 @@ mod tests_2d {
                 [[-0.0297, 0.9408], [0.3415, 0.2042]],
                 [[0.6250, 0.5561], [0.5013, 0.4323]],
             ],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         output.to_data().assert_approx_eq(&expected, 2);
     }
 
@@ -305,8 +301,7 @@ mod tests_2d {
 
         let running_mean = module.running_mean.value_sync();
 
-        let expected = TensorData::from([0.0499, 0.0532, 0.0656])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.0499, 0.0532, 0.0656]);
         running_mean
             .reshape([3])
             .into_data()
@@ -322,8 +317,7 @@ mod tests_2d {
 
         let running_var = module.running_var.value_sync();
 
-        let expected = TensorData::from([0.9106, 0.9105, 0.9045])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.9106, 0.9105, 0.9045]);
         running_var
             .reshape([3])
             .into_data()
@@ -356,8 +350,7 @@ mod tests_2d {
 
         let grads = output.backward();
 
-        let expected = TensorData::from([0.0000e+00, -5.9035e-07, -6.0011e-07])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.0000e+00, -5.9035e-07, -6.0011e-07]);
         module
             .gamma
             .grad(&grads)
@@ -366,8 +359,7 @@ mod tests_2d {
             .into_data()
             .assert_approx_eq(&expected, 3);
 
-        let expected =
-            TensorData::from([8., 8., 8.]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([8., 8., 8.]);
         module
             .beta
             .grad(&grads)
@@ -387,8 +379,7 @@ mod tests_2d {
                 [[-4.0807e-07, 3.3673e-07], [-1.2323e-07, -2.2854e-07]],
                 [[7.5642e-09, -1.1695e-07], [-2.1582e-07, -3.4078e-07]],
             ],
-        ])
-        .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        ]);
         input
             .grad(&grads)
             .unwrap()

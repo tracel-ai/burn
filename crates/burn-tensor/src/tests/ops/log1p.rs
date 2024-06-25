@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(log1p)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_support_exp_log1p() {
@@ -12,8 +12,7 @@ mod tests {
         let expected = TensorData::from([
             [0.0, core::f32::consts::LN_2, 1.0986],
             [1.3862, 1.6094, 1.7917],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

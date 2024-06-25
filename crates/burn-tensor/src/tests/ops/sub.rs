@@ -12,10 +12,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
 
         let output = tensor_1 - tensor_2;
-        let expected = TensorData::from([[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -27,10 +26,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
 
         let output = tensor_1 - tensor_2;
-        let expected = TensorData::from([[-3.0, -3.0, -3.0], [-6.0, -6.0, -6.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[-3.0, -3.0, -3.0], [-6.0, -6.0, -6.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -40,10 +38,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
         let output = tensor - scalar;
-        let expected = TensorData::from([[-2.0, -1.0, 0.0], [1.0, 2.0, 3.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[-2.0, -1.0, 0.0], [1.0, 2.0, 3.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -55,10 +52,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
 
         let output = tensor_1 - tensor_2;
-        let expected = TensorData::from([[-6, -6, -6], [-6, -6, -6]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[-6, -6, -6], [-6, -6, -6]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -70,10 +66,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
 
         let output = tensor_1 - tensor_2;
-        let expected = TensorData::from([[-3, -3, -3], [-6, -6, -6]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[-3, -3, -3], [-6, -6, -6]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -83,9 +78,8 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
 
         let output = tensor - scalar;
-        let expected = TensorData::from([[-2, -1, 0], [1, 2, 3]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[-2, -1, 0], [1, 2, 3]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

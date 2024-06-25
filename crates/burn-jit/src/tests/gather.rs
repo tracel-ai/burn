@@ -28,19 +28,14 @@ mod tests {
                 Distribution::Uniform(0., max as f64),
                 &Default::default(),
             )
-            .into_data()
-            .convert::<<TestBackend as Backend>::IntElem>(),
+            .into_data(),
             &Default::default(),
         )
         .reshape(shape);
         let tensor_ref =
             Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &Default::default());
-        let indices_ref = Tensor::<ReferenceBackend, D, Int>::from_data(
-            indices
-                .to_data()
-                .convert::<<ReferenceBackend as Backend>::IntElem>(),
-            &Default::default(),
-        );
+        let indices_ref =
+            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data(), &Default::default());
 
         let actual = tensor.gather(dim, indices);
         let expected = tensor_ref.gather(dim, indices_ref);

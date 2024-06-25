@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_nonzero)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_diff_nonzero() {
@@ -34,12 +34,11 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[0.0, -1.0], [1.0, 0.0]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad_1.to_data().assert_eq(&expected, true);
-
-        let expected =
-            TensorData::from([2.0, 3.0]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
-        grad_2.to_data().assert_eq(&expected, true);
+        grad_1
+            .to_data()
+            .assert_eq(&TensorData::from([[0.0, -1.0], [1.0, 0.0]]), false);
+        grad_2
+            .to_data()
+            .assert_eq(&TensorData::from([2.0, 3.0]), false);
     }
 }

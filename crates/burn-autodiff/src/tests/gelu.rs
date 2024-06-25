@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_gelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, backend::Backend, TensorData};
+    use burn_tensor::{activation, TensorData};
 
     #[test]
     fn should_diff_gelu() {
@@ -18,12 +18,10 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.4629, 1.4629], [48.2286, 153.4629]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[1.4629, 1.4629], [48.2286, 153.4629]]);
         grad_1.to_data().assert_approx_eq(&expected, 2);
 
-        let expected = TensorData::from([[-15.0000, -1.9895], [17.0000, 17.0000]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[-15.0000, -1.9895], [17.0000, 17.0000]]);
         grad_2.to_data().assert_approx_eq(&expected, 2);
     }
 }

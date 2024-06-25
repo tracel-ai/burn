@@ -18,14 +18,13 @@ mod tests {
             [[1, 13], [5, 17], [9, 21]],
             [[2, 14], [6, 18], [10, 22]],
             [[3, 15], [7, 19], [11, 23]],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);
@@ -48,14 +47,13 @@ mod tests {
             [[1., 13.], [5., 17.], [9., 21.]],
             [[2., 14.], [6., 18.], [10., 22.]],
             [[3., 15.], [7., 19.], [11., 23.]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);

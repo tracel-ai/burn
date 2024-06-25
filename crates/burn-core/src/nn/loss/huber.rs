@@ -144,14 +144,13 @@ mod tests {
         let loss = huber.forward(predict.clone(), targets.clone(), Reduction::Auto);
         let loss_no_reduction = huber.forward_no_reduction(predict, targets);
 
-        let expected = TensorData::from([0.875, 0.125, 0., 0.045, 0.375])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.875, 0.125, 0., 0.045, 0.375]);
         loss_no_reduction.into_data().assert_approx_eq(&expected, 7);
 
-        let expected = TensorData::from([0.284]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.284]);
         loss.into_data().assert_approx_eq(&expected, 7);
 
-        let expected = TensorData::from([1.42]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([1.42]);
         loss_sum.into_data().assert_approx_eq(&expected, 5);
     }
 
@@ -173,8 +172,7 @@ mod tests {
         let grads = loss.backward();
         let grads_predict = predict.grad(&grads).unwrap();
 
-        let expected = TensorData::from([-0.5, -0.5, 0., 0.3, 0.5])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([-0.5, -0.5, 0., 0.3, 0.5]);
         grads_predict.to_data().assert_approx_eq(&expected, 3);
     }
 }

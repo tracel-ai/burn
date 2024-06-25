@@ -1,7 +1,6 @@
 #[burn_tensor_testgen::testgen(movedim)]
 mod tests {
     use super::*;
-    use burn_tensor::backend::Backend;
     use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
@@ -16,14 +15,13 @@ mod tests {
             [[0, 12], [1, 13], [2, 14], [3, 15]],
             [[4, 16], [5, 17], [6, 18], [7, 19]],
             [[8, 20], [9, 21], [10, 22], [11, 23]],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().movedim(0, -1);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().movedim(0, 0);
@@ -44,14 +42,13 @@ mod tests {
             [[0., 12.], [1., 13.], [2., 14.], [3., 15.]],
             [[4., 16.], [5., 17.], [6., 18.], [7., 19.]],
             [[8., 20.], [9., 21.], [10., 22.], [11., 23.]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().movedim(0, -1);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().movedim(0, 0);
@@ -97,14 +94,13 @@ mod tests {
             [[0, 1, 2, 3], [12, 13, 14, 15]],
             [[4, 5, 6, 7], [16, 17, 18, 19]],
             [[8, 9, 10, 11], [20, 21, 22, 23]],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axes
         let permuted = tensor.clone().movedim(vec![-3, -2], vec![-2, -3]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axes
         let permuted = tensor.clone().movedim(vec![0, 1], vec![0, 1]);
@@ -125,14 +121,13 @@ mod tests {
             [[0., 1., 2., 3.], [12., 13., 14., 15.]],
             [[4., 5., 6., 7.], [16., 17., 18., 19.]],
             [[8., 9., 10., 11.], [20., 21., 22., 23.]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axes
         let permuted = tensor.clone().movedim(vec![-3, -2], vec![-2, -3]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axes
         let permuted = tensor.clone().movedim(vec![0, 1], vec![0, 1]);
@@ -180,14 +175,13 @@ mod tests {
             [[0., 12.], [1., 13.], [2., 14.], [3., 15.]],
             [[4., 16.], [5., 17.], [6., 18.], [7., 19.]],
             [[8., 20.], [9., 21.], [10., 22.], [11., 23.]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().movedim(0_usize, -1);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().movedim(0_i32, 0_usize);

@@ -4,8 +4,6 @@ mod tests {
     use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
     use burn_tensor::{backend::Backend, Tensor, TensorData};
 
-    type IntElem = <TestBackend as Backend>::IntElem;
-
     #[test]
     fn test_max_pool2d_simple() {
         let batch_size = 2;
@@ -253,8 +251,7 @@ mod tests {
             [4, 9, 9, 7, 7],
             [8, 9, 9, 14, 11],
             [12, 12, 14, 14, 15],
-        ]]])
-        .convert::<IntElem>();
+        ]]]);
         let y = TestTensor::<4>::from([[[
             [0.2479, 0.6386, 0.6386, 0.5742, 0.5742],
             [0.7065, 0.7065, 0.6386, 0.8959, 0.8959],
@@ -272,7 +269,7 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        output_indices.into_data().assert_eq(&indices, true);
+        output_indices.into_data().assert_eq(&indices, false);
     }
 
     #[test]
@@ -302,8 +299,7 @@ mod tests {
             [5, 16, 8],
             [15, 16, 24],
             [15, 16, 24],
-        ]]])
-        .convert::<IntElem>();
+        ]]]);
         let y = TestTensor::<4>::from([[[
             [0.9154, 0.9089, 0.8316],
             [0.9154, 0.9089, 0.8316],
@@ -321,6 +317,6 @@ mod tests {
         );
 
         y.to_data().assert_approx_eq(&output.into_data(), 3);
-        output_indices.into_data().assert_eq(&indices, true);
+        output_indices.into_data().assert_eq(&indices, false);
     }
 }

@@ -14,10 +14,9 @@ mod tests {
             [0.0, 1.0, 2.0],
             [0.0, 1.0, 2.0],
             [0.0, 1.0, 2.0],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -41,10 +40,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
 
         let output = tensor.repeat(0, 4);
-        let expected = TensorData::from([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -63,10 +61,9 @@ mod tests {
             [[5.0, 6.0, 5.0, 6.0], [7.0, 8.0, 7.0, 8.0]],
             [[9.0, 10.0, 9.0, 10.0], [11.0, 12.0, 11.0, 12.0]],
             [[13.0, 14.0, 13.0, 14.0], [15.0, 16.0, 15.0, 16.0]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -85,10 +82,9 @@ mod tests {
             [[5, 6, 5, 6, 5, 6], [7, 8, 7, 8, 7, 8]],
             [[9, 10, 9, 10, 9, 10], [11, 12, 11, 12, 11, 12]],
             [[13, 14, 13, 14, 13, 14], [15, 16, 15, 16, 15, 16]],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]

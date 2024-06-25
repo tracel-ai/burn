@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(cast)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn should_cast_int_to_float() {
@@ -30,9 +30,9 @@ mod tests {
             Tensor::<TestBackend, 2>::from_floats([[1., 0., 3.], [0., 0., 900.]], &device);
         let tensor_2: Tensor<TestBackend, 2, Int> = tensor_1.clone().greater_elem(0.0).int();
 
-        let expected =
-            TensorData::from([[1, 0, 1], [0, 0, 1]]).convert::<<TestBackend as Backend>::IntElem>();
-        tensor_2.to_data().assert_eq(&expected, true);
+        tensor_2
+            .to_data()
+            .assert_eq(&TensorData::from([[1, 0, 1], [0, 0, 1]]), false);
     }
 
     #[test]
@@ -43,8 +43,8 @@ mod tests {
             Tensor::<TestBackend, 2>::from_floats([[1., 0., 3.], [0., 0., 900.]], &device);
         let tensor_2: Tensor<TestBackend, 2> = tensor_1.clone().greater_elem(0.0).float();
 
-        let expected = TensorData::from([[1., 0., 1.], [0., 0., 1.]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
-        tensor_2.to_data().assert_eq(&expected, true);
+        tensor_2
+            .to_data()
+            .assert_eq(&TensorData::from([[1., 0., 1.], [0., 0., 1.]]), false);
     }
 }

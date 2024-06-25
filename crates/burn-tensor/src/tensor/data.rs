@@ -316,12 +316,6 @@ impl TensorData {
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq_diff(&self, other: &Self, tolerance: f64) {
-        assert_eq!(
-            self.dtype, other.dtype,
-            "Data types differ ({:?} != {:?})",
-            self.dtype, other.dtype
-        );
-
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(

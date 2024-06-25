@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(topk)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Shape, Tensor, TensorData};
+    use burn_tensor::{Shape, Tensor, TensorData};
 
     #[test]
     fn test_topk_1d() {
@@ -9,16 +9,15 @@ mod tests {
         let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let values = tensor.topk(3, /*dim*/ 0);
-        let expected = TensorData::from([5, 4, 3]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([5, 4, 3]);
 
-        values.into_data().assert_eq(&expected, true);
+        values.into_data().assert_eq(&expected, false);
 
         // Float
         let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
 
         let values = tensor.topk(3, /*dim*/ 0);
-        let expected =
-            TensorData::from([5., 4., 3.]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([5., 4., 3.]);
 
         values.into_data().assert_approx_eq(&expected, 5);
     }
@@ -29,18 +28,16 @@ mod tests {
         let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
-        let expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]]);
 
-        values.into_data().assert_eq(&expected, true);
+        values.into_data().assert_eq(&expected, false);
 
         // 3D Float
         let tensor =
             TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
-        let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]]);
 
         values.into_data().assert_approx_eq(&expected, 5);
     }
@@ -52,13 +49,11 @@ mod tests {
 
         let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0);
 
-        let values_expected =
-            TensorData::from([5, 4, 3]).convert::<<TestBackend as Backend>::IntElem>();
-        values.into_data().assert_eq(&values_expected, true);
+        let values_expected = TensorData::from([5, 4, 3]);
+        values.into_data().assert_eq(&values_expected, false);
 
-        let indices_expected =
-            TensorData::from([4, 3, 2]).convert::<<TestBackend as Backend>::IntElem>();
-        indices.into_data().assert_eq(&indices_expected, true);
+        let indices_expected = TensorData::from([4, 3, 2]);
+        indices.into_data().assert_eq(&indices_expected, false);
 
         // 3D
         let tensor =
@@ -66,14 +61,12 @@ mod tests {
 
         let (values, indices) = tensor.topk_with_indices(2, /*dim*/ 2);
 
-        let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
         values.into_data().assert_approx_eq(&values_expected, 5);
 
-        let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
 
-        indices.into_data().assert_eq(&indices_expected, true);
+        indices.into_data().assert_eq(&indices_expected, false);
     }
 }

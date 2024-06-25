@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(init)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_float_empty() {
@@ -22,10 +22,10 @@ mod tests {
         let shape = [2, 2];
         let tensor = Tensor::<TestBackend, 2>::zeros(shape, &Default::default());
         assert_eq!(tensor.shape(), shape.into());
-        let expected =
-            TensorData::from([[0., 0.], [0., 0.]]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[0., 0.], [0., 0.]]), false);
     }
 
     #[test]
@@ -33,10 +33,10 @@ mod tests {
         let shape = [2, 2];
         let tensor = Tensor::<TestBackend, 2, Int>::zeros(shape, &Default::default());
         assert_eq!(tensor.shape(), shape.into());
-        let expected =
-            TensorData::from([[0, 0], [0, 0]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 0], [0, 0]]), false);
     }
 
     #[test]
@@ -44,10 +44,10 @@ mod tests {
         let shape = [2, 2];
         let tensor = Tensor::<TestBackend, 2>::ones(shape, &Default::default());
         assert_eq!(tensor.shape(), shape.into());
-        let expected =
-            TensorData::from([[1., 1.], [1., 1.]]).convert::<<TestBackend as Backend>::FloatElem>();
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[1., 1.], [1., 1.]]), false);
     }
 
     #[test]
@@ -55,10 +55,10 @@ mod tests {
         let shape = [2, 2];
         let tensor = Tensor::<TestBackend, 2, Int>::ones(shape, &Default::default());
         assert_eq!(tensor.shape(), shape.into());
-        let expected =
-            TensorData::from([[1, 1], [1, 1]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([[1, 1], [1, 1]]), false);
     }
 
     #[test]

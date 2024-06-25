@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -10,9 +10,7 @@ mod tests {
 
         let output = tensor.slice([0..3]);
 
-        output
-            .into_data()
-            .assert_eq(&data.convert::<<TestBackend as Backend>::FloatElem>(), true);
+        output.into_data().assert_eq(&data, false);
     }
 
     #[test]
@@ -21,23 +19,21 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
 
         let output = tensor.slice([1..3]);
-        let expected =
-            TensorData::from([1.0, 2.0]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([1.0, 2.0]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn should_support_full_sliceing_2d() {
-        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
 
         let output = tensor.clone().slice([0..2]);
-        output.into_data().assert_eq(&data, true);
+        output.into_data().assert_eq(&data, false);
 
         let output = tensor.slice([0..2, 0..3]);
-        output.into_data().assert_eq(&data, true);
+        output.into_data().assert_eq(&data, false);
     }
 
     #[test]
@@ -46,10 +42,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
         let output = tensor.slice([0..2, 0..2]);
-        let expected = TensorData::from([[0.0, 1.0], [3.0, 4.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -63,10 +58,9 @@ mod tests {
         );
 
         let output = tensor.slice([1..2, 1..2, 0..2]);
-        let expected =
-            TensorData::from([[[9.0, 10.0]]]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[9.0, 10.0]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -80,10 +74,9 @@ mod tests {
         );
 
         let output = tensor.transpose().slice([1..2, 1..2, 0..2]);
-        let expected =
-            TensorData::from([[[7.0, 10.0]]]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[7.0, 10.0]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -96,10 +89,9 @@ mod tests {
         let tensor_assigned = Tensor::<TestBackend, 1>::from_data(data_assigned, &device);
 
         let output = tensor.slice_assign([0..2], tensor_assigned);
-        let expected =
-            TensorData::from([10.0, 5.0, 2.0]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([10.0, 5.0, 2.0]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -112,10 +104,9 @@ mod tests {
         let tensor_assigned = Tensor::<TestBackend, 2>::from_data(data_assigned, &device);
 
         let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
-        let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -123,9 +114,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1, Int>::from_data([1, 2, 3, 4, 5], &Default::default());
         let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
 
-        let expected = TensorData::from([4, 6, 8]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([4, 6, 8]);
 
-        tensor.into_data().assert_eq(&expected, true);
+        tensor.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -136,15 +127,13 @@ mod tests {
         let tensor_1 = tensor.clone().slice_assign([0..3], values);
         let tensor_2 = tensor + 2;
 
-        let expected =
-            TensorData::from([10, 20, 30, 4, 5]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([10, 20, 30, 4, 5]);
 
-        tensor_1.into_data().assert_eq(&expected, true);
+        tensor_1.into_data().assert_eq(&expected, false);
 
-        let expected =
-            TensorData::from([3, 4, 5, 6, 7]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([3, 4, 5, 6, 7]);
 
-        tensor_2.into_data().assert_eq(&expected, true);
+        tensor_2.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -155,9 +144,7 @@ mod tests {
 
         let output = tensor.slice([0..4]);
 
-        output
-            .into_data()
-            .assert_eq(&data.convert::<<TestBackend as Backend>::FloatElem>(), true);
+        output.into_data().assert_eq(&data, false);
     }
 
     #[test]
@@ -166,9 +153,9 @@ mod tests {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
 
-        let data_actual = tensor.slice([0..1, 0..1]).into_data();
+        let output = tensor.slice([0..1, 0..1]);
 
-        assert_eq!(data, data_actual);
+        output.into_data().assert_eq(&data, false);
     }
 
     #[test]
@@ -178,9 +165,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
 
         #[allow(clippy::reversed_empty_ranges)]
-        let data_actual = tensor.slice([2..1]).into_data();
+        let output = tensor.slice([2..1]);
 
-        assert_eq!(data, data_actual);
+        output.into_data().assert_eq(&data, false);
     }
 
     #[test]
@@ -189,8 +176,8 @@ mod tests {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
 
-        let data_actual = tensor.slice([1..1]).into_data();
+        let output = tensor.slice([1..1]);
 
-        assert_eq!(data, data_actual);
+        output.into_data().assert_eq(&data, false);
     }
 }

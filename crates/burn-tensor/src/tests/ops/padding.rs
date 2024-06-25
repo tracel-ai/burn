@@ -17,9 +17,8 @@ mod tests {
             [1.1, 1.1, 3.0, 4.0, 5.0, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
-        padded_tensor.into_data().assert_eq(&expected, true);
+        ]);
+        padded_tensor.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -37,9 +36,8 @@ mod tests {
             [1.1, 1.1, 4.0, 5.0, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-        ]]])
-        .convert::<<TestBackend as Backend>::FloatElem>();
-        padded_tensor.into_data().assert_eq(&expected, true);
+        ]]]);
+        padded_tensor.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -60,9 +58,8 @@ mod tests {
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
-        ]]])
-        .convert::<<TestBackend as Backend>::FloatElem>();
-        padded_tensor.into_data().assert_eq(&expected, true);
+        ]]]);
+        padded_tensor.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -95,8 +92,7 @@ mod tests {
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],
-        ]]])
-        .convert::<<TestBackend as Backend>::IntElem>();
-        padded_tensor.into_data().assert_eq(&expected, true);
+        ]]]);
+        padded_tensor.into_data().assert_eq(&expected, false);
     }
 }

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(div)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn should_support_div_ops() {
@@ -12,8 +12,7 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
-        let expected = TensorData::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }
@@ -27,10 +26,11 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
-        let expected = TensorData::from([[0.0, 1.0, 1.0], [0.0, 0.25, 0.4]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(
+            &TensorData::from([[0.0, 1.0, 1.0], [0.0, 0.25, 0.4]]),
+            false,
+        );
     }
 
     #[test]
@@ -41,10 +41,10 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
 
         let output = tensor / scalar;
-        let expected = TensorData::from([[0.0, 0.5, 1.0], [1.5, 2.0, 2.5]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0.0, 0.5, 1.0], [1.5, 2.0, 2.5]]), false);
     }
 
     #[test]
@@ -56,10 +56,10 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
-        let expected =
-            TensorData::from([[0, 1, 1], [3, 4, 2]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 1, 1], [3, 4, 2]]), false);
     }
 
     #[test]
@@ -71,10 +71,10 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
-        let expected =
-            TensorData::from([[0, 1, 1], [0, 0, 0]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 1, 1], [0, 0, 0]]), false);
     }
 
     #[test]
@@ -84,9 +84,9 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
 
         let output = tensor / scalar;
-        let expected =
-            TensorData::from([[0, 0, 1], [1, 2, 2]]).convert::<<TestBackend as Backend>::IntElem>();
 
-        output.into_data().assert_eq(&expected, true);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 0, 1], [1, 2, 2]]), false);
     }
 }

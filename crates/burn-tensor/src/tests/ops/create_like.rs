@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(create_like)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Distribution, Tensor, TensorData};
+    use burn_tensor::{Distribution, Tensor, TensorData};
 
     #[test]
     fn should_support_zeros_like() {
@@ -15,8 +15,7 @@ mod tests {
 
         let tensor = tensor.zeros_like();
         let expected =
-            TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]])
-                .convert::<<TestBackend as Backend>::FloatElem>();
+            TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]]);
 
         tensor.into_data().assert_approx_eq(&expected, 3);
     }
@@ -33,8 +32,7 @@ mod tests {
 
         let tensor = tensor.ones_like();
         let expected =
-            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]])
-                .convert::<<TestBackend as Backend>::FloatElem>();
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
         tensor.into_data().assert_approx_eq(&expected, 3);
     }
@@ -51,8 +49,7 @@ mod tests {
 
         let tensor = tensor.random_like(Distribution::Uniform(0.99999, 1.));
         let expected =
-            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]])
-                .convert::<<TestBackend as Backend>::FloatElem>();
+            TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
         tensor.into_data().assert_approx_eq(&expected, 3);
     }

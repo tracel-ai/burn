@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn test_matmul_d2() {
@@ -11,10 +11,9 @@ mod tests {
 
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected =
-            TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]])
-                .convert::<<TestBackend as Backend>::FloatElem>();
+            TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -24,10 +23,9 @@ mod tests {
         let tensor_2 = TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[[18.0, 28.0], [14.0, 23.0]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[18.0, 28.0], [14.0, 23.0]]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -41,10 +39,9 @@ mod tests {
 
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected =
-            TensorData::from([[[18.0, 28.0], [14.0, 23.0]], [[44.0, 26.0], [22.0, 19.0]]])
-                .convert::<<TestBackend as Backend>::FloatElem>();
+            TensorData::from([[[18.0, 28.0], [14.0, 23.0]], [[44.0, 26.0], [22.0, 19.0]]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -66,10 +63,9 @@ mod tests {
         let expected = TensorData::from([
             [[[16.0, 36.0], [21.0, 28.0]], [[23.0, 42.0], [13.0, 29.0]]],
             [[[23.0, 36.0], [57.0, 60.0]], [[19.0, 39.0], [21.0, 57.0]]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -79,10 +75,9 @@ mod tests {
         let tensor_2 = TestTensor::from_floats([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[15.0, 34.0, 53.0], [42.0, 106.0, 170.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[15.0, 34.0, 53.0], [42.0, 106.0, 170.0]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -98,10 +93,9 @@ mod tests {
         );
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[56., 62., 68.], [152., 174., 196.], [248., 286., 324.]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[56., 62., 68.], [152., 174., 196.], [248., 286., 324.]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -111,9 +105,9 @@ mod tests {
         let tensor_2 = TestTensor::from_floats([[3.0], [4.0], [5.0], [6.0]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[50.0]]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[50.0]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -134,10 +128,9 @@ mod tests {
             [12., 24., 36., 48.],
             [15., 30., 45., 60.],
             [18., 36., 54., 72.],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -157,9 +150,8 @@ mod tests {
             [12., 24., 36., 48.],
             [15., 30., 45., 60.],
             [18., 36., 54., 72.],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 }

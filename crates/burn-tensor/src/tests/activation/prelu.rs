@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(prelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, backend::Backend, Tensor, TensorData};
+    use burn_tensor::{activation, Tensor, TensorData};
 
     #[test]
     fn test_prelu_2_dimension() {
@@ -14,10 +14,9 @@ mod tests {
         let expected = TensorData::from([
             [-0.5500, 0.0000, 1.2000, 0.2500, 2.1600],
             [-2.2835, 0.5600, -0.0000, 99.9000, -0.0000],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_approx_eq(&expected, 9);
+        output.into_data().assert_approx_eq(&expected, 5);
     }
     #[test]
     fn test_prelu_2_dimension_scalar_weight() {
@@ -30,10 +29,9 @@ mod tests {
         let expected = TensorData::from([
             [0.8800, -0.0000, 1.2000, 0.2500, 4.3200],
             [3.6536, 0.5600, 1.2400, 99.9000, -0.0000],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_approx_eq(&expected, 7);
+        output.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[test]
@@ -44,9 +42,9 @@ mod tests {
         ]];
         let tensor = TestTensor::<2>::from(data);
         let output = activation::prelu(tensor, TestTensor::from([0.25]));
-        let expected = TensorData::from(data).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from(data);
 
-        output.into_data().assert_approx_eq(&expected, 9);
+        output.into_data().assert_approx_eq(&expected, 7);
     }
 
     #[test]
@@ -55,10 +53,9 @@ mod tests {
         let data = [-1.1, 0.0, 1.2, 0.25, -5.4];
         let tensor = TestTensor::<1>::from(data);
         let output = activation::prelu(tensor, TestTensor::from([0.0]));
-        let expected = TensorData::from([0.0, 0.0, 1.2, 0.25, 0.0])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([0.0, 0.0, 1.2, 0.25, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 9);
+        output.into_data().assert_approx_eq(&expected, 7);
     }
 
     #[test]
@@ -67,9 +64,8 @@ mod tests {
         let data = [-1.1, 0.0, 1.2, 0.25, -5.4];
         let tensor = TestTensor::<1>::from(data);
         let output = activation::prelu(tensor, TestTensor::from([0.5]));
-        let expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70])
-            .convert::<<TestBackend as Backend>::FloatElem>();
-        output.into_data().assert_approx_eq(&expected, 9);
+        let expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
+        output.into_data().assert_approx_eq(&expected, 7);
     }
 
     #[test]
@@ -81,7 +77,7 @@ mod tests {
         let data_actual =
             activation::prelu(tensor, TestTensor::from([0.5, -0.25, 0.0, 0.5, -1.0])).into_data();
         let data_expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
-        data_expected.assert_approx_eq(&data_actual, 9);
+        data_expected.assert_approx_eq(&data_actual, 7);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_select_1d() {
@@ -10,10 +10,9 @@ mod tests {
         let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(0, indices);
-        let expected = TensorData::from([1.0, 1.0, 0.0, 1.0, 2.0])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([1.0, 1.0, 0.0, 1.0, 2.0]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -23,10 +22,9 @@ mod tests {
         let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(0, indices);
-        let expected =
-            TensorData::from([6, 6, 5, 6, 7]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([6, 6, 5, 6, 7]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -36,10 +34,9 @@ mod tests {
         let indices = TestTensorInt::from_data(([1, 0]), &device);
 
         let output = tensor.select(0, indices);
-        let expected = TensorData::from([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -54,10 +51,9 @@ mod tests {
             [0.0, 1.0, 2.0],
             [3.0, 4.0, 5.0],
             [3.0, 4.0, 5.0],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -67,10 +63,9 @@ mod tests {
         let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(1, indices);
-        let expected = TensorData::from([[1.0, 1.0, 0.0, 1.0, 2.0], [4.0, 4.0, 3.0, 4.0, 5.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[1.0, 1.0, 0.0, 1.0, 2.0], [4.0, 4.0, 3.0, 4.0, 5.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -81,10 +76,9 @@ mod tests {
         let indices = TestTensorInt::from_data(TensorData::from([1, 1, 0, 1, 2]), &device);
 
         let output = tensor.select_assign(0, indices, values);
-        let expected =
-            TensorData::from([3.0, 12.0, 3.0]).convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([3.0, 12.0, 3.0]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -95,10 +89,9 @@ mod tests {
         let indices = TestTensorInt::from_data(TensorData::from([1, 1, 0, 1, 2]), &device);
 
         let output = tensor.select_assign(0, indices, values);
-        let expected =
-            TensorData::from([10, 19, 10]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([10, 19, 10]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -109,10 +102,9 @@ mod tests {
         let indices = TestTensorInt::from_data(TensorData::from([1, 0]), &device);
 
         let output = tensor.select_assign(0, indices, values);
-        let expected = TensorData::from([[4.0, 6.0, 8.0], [4.0, 6.0, 8.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[4.0, 6.0, 8.0], [4.0, 6.0, 8.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -123,10 +115,9 @@ mod tests {
         let indices = TestTensorInt::from_data(TensorData::from([1, 0, 2]), &device);
 
         let output = tensor.select_assign(1, indices, values);
-        let expected = TensorData::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]

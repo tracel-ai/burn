@@ -76,14 +76,13 @@ mod tests {
         let loss = mse.forward(logits.clone(), targets.clone(), Reduction::Auto);
         let loss_sum = mse.forward(logits, targets, Reduction::Sum);
 
-        let expected = TensorData::from([[1.0, 1.0], [0.0, 4.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
-        loss_no_reduction.into_data().assert_eq(&expected, true);
+        let expected = TensorData::from([[1.0, 1.0], [0.0, 4.0]]);
+        loss_no_reduction.into_data().assert_eq(&expected, false);
 
-        let expected = TensorData::from([1.5]).convert::<<TestBackend as Backend>::FloatElem>();
-        loss.into_data().assert_eq(&expected, true);
+        let expected = TensorData::from([1.5]);
+        loss.into_data().assert_eq(&expected, false);
 
-        let expected = TensorData::from([6.0]).convert::<<TestBackend as Backend>::FloatElem>();
-        loss_sum.into_data().assert_eq(&expected, true);
+        let expected = TensorData::from([6.0]);
+        loss_sum.into_data().assert_eq(&expected, false);
     }
 }

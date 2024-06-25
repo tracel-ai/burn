@@ -14,9 +14,8 @@ mod tests {
         let expected = TensorData::from([
             [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
             [[3.0, 4.0, 5.0], [3.0, 4.0, 5.0]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

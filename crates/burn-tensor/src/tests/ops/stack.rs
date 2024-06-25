@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_stack_ops_2d_dim0() {
@@ -11,10 +11,9 @@ mod tests {
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
-        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -24,10 +23,9 @@ mod tests {
         let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
-        let expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]])
-            .convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -49,10 +47,9 @@ mod tests {
         let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 1);
-        let expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -67,10 +64,9 @@ mod tests {
         let expected = TensorData::from([
             [[[1.0000, 2.0000, 3.0000]], [[1.1000, 2.1000, 3.1000]]],
             [[[4.0000, 5.0000, 6.0000]], [[4.1000, 5.1000, 6.1000]]],
-        ])
-        .convert::<<TestBackend as Backend>::FloatElem>();
+        ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -115,9 +111,8 @@ mod tests {
             [7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0],
             [13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0],
             [19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0],
-        ])
-        .convert::<<TestBackend as Backend>::IntElem>();
+        ]);
 
-        intersperse.into_data().assert_eq(&expected, true);
+        intersperse.into_data().assert_eq(&expected, false);
     }
 }

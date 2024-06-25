@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(mask)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_mask_where_ops() {
@@ -17,10 +17,9 @@ mod tests {
         );
 
         let output = tensor.mask_where(mask, value);
-        let expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -33,10 +32,9 @@ mod tests {
         );
 
         let output = tensor.mask_fill(mask, 2.0);
-        let expected = TensorData::from([[2.0, 7.0], [2.0, 2.0]])
-            .convert::<<TestBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[2.0, 7.0], [2.0, 2.0]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -51,10 +49,9 @@ mod tests {
             Tensor::<TestBackend, 2, Int>::from_data(TensorData::from([[8, 9], [10, 11]]), &device);
 
         let output = tensor.mask_where(mask, value);
-        let expected =
-            TensorData::from([[8, 7], [2, 11]]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[8, 7], [2, 11]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -67,9 +64,8 @@ mod tests {
         );
 
         let output = tensor.mask_fill(mask, 9);
-        let expected =
-            TensorData::from([[9, 7], [2, 9]]).convert::<<TestBackend as Backend>::IntElem>();
+        let expected = TensorData::from([[9, 7], [2, 9]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

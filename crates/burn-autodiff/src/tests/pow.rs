@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_powf)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, TensorData};
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_diff_powf_scalar() {
@@ -19,12 +19,10 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[68.0, 79.0328], [68.0, 79.0328]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[68.0, 79.0328], [68.0, 79.0328]]);
         grad_1.to_data().assert_approx_eq(&expected, 3);
 
-        let expected = TensorData::from([[23.5081, 25.2779], [26.0502, 28.6383]])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([[23.5081, 25.2779], [26.0502, 28.6383]]);
         grad_2.to_data().assert_approx_eq(&expected, 3);
     }
 
@@ -40,16 +38,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected =
-            TensorData::from([32.0, 14.0]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([32.0, 14.0]);
         grad_1.into_data().assert_approx_eq(&expected, 3);
 
-        let expected = TensorData::from([11.09, 95.349])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([11.09, 95.349]);
         grad_2.into_data().assert_approx_eq(&expected, 2);
 
-        let expected =
-            TensorData::from([16.0, 49.0]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([16.0, 49.0]);
         tensor_3.into_data().assert_approx_eq(&expected, 3);
     }
 
@@ -64,8 +59,7 @@ mod tests {
 
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([11.09, 95.349])
-            .convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([11.09, 95.349]);
         grad_2.to_data().assert_approx_eq(&expected, 3);
     }
 
@@ -80,8 +74,7 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
 
-        let expected =
-            TensorData::from([32.0, 14.0]).convert::<<TestAutodiffBackend as Backend>::FloatElem>();
+        let expected = TensorData::from([32.0, 14.0]);
         grad_1.into_data().assert_approx_eq(&expected, 3);
     }
 }
