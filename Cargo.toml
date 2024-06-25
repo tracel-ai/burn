@@ -27,7 +27,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 async-trait = "0.1.80"
-bytemuck = "1.16.0"
+bytemuck = "1.16.1"
 candle-core = { version = "0.5.1" }
 clap = { version = "4.5.7", features = ["derive"] }
 colored = "2.1.0"
@@ -54,7 +54,7 @@ log = { default-features = false, version = "0.4.21" }
 md5 = "0.7.0"
 percent-encoding = "2.3.1"
 pretty_assertions = "1.4.0"
-proc-macro2 = "1.0.85"
+proc-macro2 = "1.0.86"
 protobuf = "3.4.0"
 protobuf-codegen = "3.4.0"
 quote = "1.0.36"
@@ -71,9 +71,9 @@ sanitize-filename = "0.5.0"
 serde_rusqlite = "0.35.0"
 serial_test = "3.1.1"
 spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
-strum = "0.26.2"
+strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.66", features = ["full", "extra-traits"] }
+syn = { version = "2.0.68", features = ["full", "extra-traits"] }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 tokio = { version = "1.38.0", features = ["rt", "macros"] }
@@ -91,7 +91,7 @@ crossterm = "0.27.0"
 futures-intrusive = "0.5.0"
 text_placeholder = "0.5.0"
 pollster = "0.3.0"
-wgpu = "0.20.0"
+wgpu = "0.20.1"
 
 # Benchmarks and Burnbench
 arboard = "3.4.0"
