@@ -218,6 +218,11 @@ impl TensorData {
         }
     }
 
+    /// Returns the data as a slice of bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.value.as_slice()
+    }
+
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
