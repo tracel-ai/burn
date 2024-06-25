@@ -80,6 +80,20 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn from_data<const D: usize>(dims: &[usize]) -> Self {
+        let mut check = Self::Ok;
+
+        if dims.len() != D {
+            check = check.register(
+                "From Data",
+                TensorError::new("Given dimension differs from the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dims:?}'.")),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn narrow<B: Backend, const D: usize, K: BasicOps<B>>(
         tensor: &Tensor<B, D, K>,
         dim: usize,

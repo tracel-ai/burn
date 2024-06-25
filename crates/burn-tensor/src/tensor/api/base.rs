@@ -704,7 +704,9 @@ where
     where
         T: Into<TensorData>,
     {
-        Self::new(K::from_data(data.into(), device))
+        let data = data.into();
+        check!(TensorCheck::from_data::<D>(data.shape.as_slice()));
+        Self::new(K::from_data(data, device))
     }
 
     /// Repeat the tensor along the given dimension.
