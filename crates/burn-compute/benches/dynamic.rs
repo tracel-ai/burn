@@ -8,7 +8,6 @@ use burn_compute::{
 const MB: usize = 1024 * 1024;
 fn main() {
     let start = std::time::Instant::now();
-    println!("Hello world!");
     let storage = BytesStorage::default();
     let mut mm = DynamicMemoryManagement::new(storage);
     let mut handles = LinkedList::new();

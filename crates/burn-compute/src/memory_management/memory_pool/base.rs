@@ -67,9 +67,8 @@ impl MemoryPage {
                 self.slices.remove(&next_slice_address);
                 slices.remove(&next_slice_id);
                 return true;
-            } else {
-                return false;
             }
+            return false;
         }
         false
     }
@@ -79,8 +78,8 @@ impl MemoryPage {
         slice_id.copied()
     }
 
-    fn insert_slice(&mut self, position: usize, slice: &Slice) {
-        self.slices.insert(position, slice.id());
+    fn insert_slice(&mut self, address: usize, slice: &Slice) {
+        self.slices.insert(address, slice.id());
     }
 }
 
