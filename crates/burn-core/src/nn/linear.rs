@@ -1,4 +1,6 @@
 use crate as burn;
+use crate::module::DisplaySettings;
+use crate::module::ModuleDisplay;
 
 use crate::config::Config;
 use crate::module::Module;
@@ -30,6 +32,7 @@ pub struct LinearConfig {
 ///
 /// `O = IW + b`
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Linear<B: Backend> {
     /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
@@ -80,6 +83,23 @@ impl<B: Backend> Linear<B> {
             Some(bias) => output + bias.val().unsqueeze(),
             None => output,
         }
+    }
+}
+
+impl<B: Backend> ModuleDisplay for Linear<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+        let [d_input, d_output] = self.weight.shape().dims;
+        content
+            .add("d_input", &d_input)
+            .add("d_output", &d_output)
+            .add("bias", &self.bias.is_some())
+            .optional()
     }
 }
 

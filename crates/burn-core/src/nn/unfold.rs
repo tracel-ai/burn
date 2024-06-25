@@ -1,12 +1,11 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
-use crate::tensor::backend::Backend;
-use crate::tensor::ops::UnfoldOptions;
-use crate::tensor::Tensor;
-
-use crate::tensor::module::unfold4d;
+use crate::module::{Ignored, Module};
+use burn_tensor::backend::Backend;
+use burn_tensor::module::unfold4d;
+use burn_tensor::ops::UnfoldOptions;
+use burn_tensor::Tensor;
 
 /// Configuration to create an [unfold 4d](Unfold4d) layer using the [init function](Unfold4dConfig::init).
 #[derive(Config, Debug)]
@@ -29,14 +28,14 @@ pub struct Unfold4dConfig {
 /// Should be created with [Unfold4dConfig].
 #[derive(Module, Clone, Debug)]
 pub struct Unfold4d {
-    config: Unfold4dConfig,
+    config: Ignored<Unfold4dConfig>,
 }
 
 impl Unfold4dConfig {
     /// Initializes a new [Unfold4d] module.
     pub fn init(&self) -> Unfold4d {
         Unfold4d {
-            config: self.clone(),
+            config: Ignored(self.clone()),
         }
     }
 }
@@ -48,7 +47,7 @@ impl Unfold4d {
     ///
     /// # Shapes
     ///
-    /// input:   `[batch_size, channels_in, height, width]`  
+    /// input:   `[batch_size, channels_in, height, width]`
     /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 3> {
         unfold4d(

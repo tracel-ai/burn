@@ -1,8 +1,9 @@
+use alloc::format;
+
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
+use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
@@ -45,6 +46,7 @@ pub struct Conv2dConfig {
 ///
 /// Should be created with [Conv2dConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Conv2d<B: Backend> {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
     pub weight: Param<Tensor<B, 4>>,
@@ -54,7 +56,7 @@ pub struct Conv2d<B: Backend> {
     kernel_size: [usize; 2],
     dilation: [usize; 2],
     groups: usize,
-    padding: PaddingConfig2d,
+    padding: Ignored<PaddingConfig2d>,
 }
 
 impl Conv2dConfig {
@@ -93,9 +95,35 @@ impl Conv2dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             groups: self.groups,
         }
+    }
+}
+
+impl<B: Backend> ModuleDisplay for Conv2d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        // Since padding does not implement ModuleDisplay, we need to format it manually.
+        let padding_formatted = format!("{}", &self.padding);
+
+        // Format the stride, kernel_size and dilation as strings, formatted as arrays instead of indexed.
+        let stride = format!("{:?}", self.stride);
+        let kernel_size = format!("{:?}", self.kernel_size);
+        let dilation = format!("{:?}", self.dilation);
+
+        content
+            .add("stride", &stride)
+            .add("kernel_size", &kernel_size)
+            .add("dilation", &dilation)
+            .add("groups", &self.groups)
+            .add("padding", &padding_formatted)
+            .optional()
     }
 }
 
