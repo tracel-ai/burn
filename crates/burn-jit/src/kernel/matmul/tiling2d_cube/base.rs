@@ -21,7 +21,7 @@ fn tiling2d_cube<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
-    let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, ABSOLUTE_POS_Z, config);
+    let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, CUBE_POS_Z, config);
     let shared_memories = make_shared_memories::<F>(config);
     tiling2d_core(lhs, rhs, out, coordinates, offsets, shared_memories, config);
 }
