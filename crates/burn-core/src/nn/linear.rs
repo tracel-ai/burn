@@ -196,4 +196,15 @@ mod tests {
 
         assert_eq!(result_1d.into_data(), result_2d.into_data());
     }
+
+    #[test]
+    fn display() {
+        let config = LinearConfig::new(3, 5);
+        let linear = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", linear),
+            "Linear {d_input: 3, d_output: 5, bias: true, params: 20}"
+        );
+    }
 }
