@@ -378,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let config =
             BinaryCrossEntropyLossConfig::new().with_weights(Some(alloc::vec![3., 7., 0.9]));
         let loss = config.init::<TestBackend>(&Default::default());

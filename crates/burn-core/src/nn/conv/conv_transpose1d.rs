@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let config = ConvTranspose1dConfig::new([5, 2], 5);
         let conv = config.init::<TestBackend>(&Default::default());
 

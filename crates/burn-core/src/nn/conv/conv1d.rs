@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let config = Conv1dConfig::new(5, 5, 5);
         let conv = config.init::<TestBackend>(&Default::default());
 

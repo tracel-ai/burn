@@ -318,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let config = GroupNormConfig::new(3, 6);
         let group_norm = config.init::<TestBackend>(&Default::default());
 

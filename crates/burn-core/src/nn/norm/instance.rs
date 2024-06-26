@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let config = InstanceNormConfig::new(6);
         let instance_norm = config.init::<TestBackend>(&Default::default());
 

@@ -428,7 +428,7 @@ mod tests_2d {
     }
 
     #[test]
-    fn print() {
+    fn display() {
         let batch_norm =
             BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&Default::default());
 
