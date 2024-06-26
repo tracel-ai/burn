@@ -169,4 +169,15 @@ mod tests {
             .to_data()
             .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
     }
+
+    #[test]
+    fn print() {
+        let config = Conv1dConfig::new(5, 5, 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", conv),
+            "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
+        );
+    }
 }
