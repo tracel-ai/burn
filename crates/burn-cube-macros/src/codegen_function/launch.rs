@@ -153,8 +153,6 @@ impl Codegen {
             })
         }
 
-        let generics = self.generics.split_for_impl().1;
-
         let mut format_str = "{:?}-{}".to_string();
         for _ in 0..self.state_comptimes.len() {
             format_str.push_str("-{:?}");
@@ -166,6 +164,14 @@ impl Codegen {
             format_args.extend(quote::quote! { self.#ident, });
         }
 
+        let expand_func = match self.generics.params.is_empty() {
+            true => quote::quote! { #expand },
+            false => {
+                let generics = self.generics.split_for_impl().1;
+                quote::quote! { #expand::#generics }
+            }
+        };
+
         quote::quote! {
             impl #impl_gen Kernel for #ident #ty_gen #where_gen {
                 fn define(&self) -> KernelDefinition {
@@ -173,7 +179,7 @@ impl Codegen {
 
                     #variables
 
-                    #expand::#generics(#expand_args);
+                    #expand_func(#expand_args);
 
                     builder.build(self.settings.clone())
                 }
