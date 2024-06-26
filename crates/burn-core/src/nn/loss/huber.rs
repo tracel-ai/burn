@@ -3,7 +3,6 @@ use crate as burn;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::{config::Config, module::Module};
-use core::marker::PhantomData;
 
 use super::Reduction;
 
@@ -16,7 +15,7 @@ pub struct HuberLossConfig {
 
 impl HuberLossConfig {
     /// Initialize [Huber loss](HuberLoss).
-    pub fn init<B: Backend>(&self, device: &B::Device) -> HuberLoss<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> HuberLoss {
         // device is not needed as of now, but we might want to prepare some data on it
         // and its consistent with other loss functions
         let _ = device;
@@ -24,7 +23,6 @@ impl HuberLossConfig {
         HuberLoss {
             delta: self.delta,
             lin_bias: self.delta * self.delta * 0.5,
-            _backend: PhantomData,
         }
     }
 
@@ -52,14 +50,13 @@ impl HuberLossConfig {
 /// This loss function is less sensitive to outliers than the mean squared error loss.
 ///
 /// See also: <https://en.wikipedia.org/wiki/Huber_loss>
-#[derive(Module, Debug)]
-pub struct HuberLoss<B: Backend> {
+#[derive(Module, Debug, Clone)]
+pub struct HuberLoss {
     delta: f32,
     lin_bias: f32, // delta * delta * 0.5 precomputed
-    _backend: PhantomData<B>,
 }
 
-impl<B: Backend> HuberLoss<B> {
+impl HuberLoss {
     /// Compute the loss element-wise for the predictions and targets, then reduce
     /// to a single loss value.
     ///
@@ -70,7 +67,7 @@ impl<B: Backend> HuberLoss<B> {
     /// - predictions: \[...dims\]
     /// - targets: \[...dims\]
     /// - output: \[1\]
-    pub fn forward<const D: usize>(
+    pub fn forward<const D: usize, B: Backend>(
         &self,
         predictions: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -89,7 +86,7 @@ impl<B: Backend> HuberLoss<B> {
     /// - predictions: [...dims]
     /// - targets: [...dims]
     /// - output: [...dims]
-    pub fn forward_no_reduction<const D: usize>(
+    pub fn forward_no_reduction<const D: usize, B: Backend>(
         &self,
         predictions: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -103,7 +100,10 @@ impl<B: Backend> HuberLoss<B> {
     ///
     /// - residuals: [...dims]
     /// - output: [...dims]
-    pub fn forward_residuals<const D: usize>(&self, residuals: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward_residuals<const D: usize, B: Backend>(
+        &self,
+        residuals: Tensor<B, D>,
+    ) -> Tensor<B, D> {
         let is_large = residuals.clone().abs().greater_elem(self.delta);
         // We are interested in `sign(r)` when `abs(r) > self.delta`. Note that the
         // `sign()` function, in general, suffers from a jump at 0.
