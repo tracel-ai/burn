@@ -2,6 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
 use crate::tensor::activation;
@@ -30,11 +31,35 @@ pub struct GruConfig {
 ///
 /// Should be created with [GruConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Gru<B: Backend> {
-    update_gate: GateController<B>,
-    reset_gate: GateController<B>,
-    new_gate: GateController<B>,
-    d_hidden: usize,
+    /// The update gate controller.
+    pub update_gate: GateController<B>,
+    /// The reset gate controller.
+    pub reset_gate: GateController<B>,
+    /// The new gate controller.
+    pub new_gate: GateController<B>,
+    /// The size of the hidden state.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for Gru<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.update_gate.input_transform.weight.shape().dims;
+        let bias = self.update_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl GruConfig {
@@ -270,5 +295,17 @@ mod tests {
         let hidden_state = gru.forward(batched_input, None);
 
         assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+    }
+
+    #[test]
+    fn display() {
+        let config = GruConfig::new(2, 8, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "Gru {d_input: 2, d_hidden: 8, bias: true, params: 288}"
+        );
     }
 }
