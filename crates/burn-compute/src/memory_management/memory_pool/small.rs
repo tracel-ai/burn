@@ -21,7 +21,6 @@ pub struct SmallChunk {
 pub struct SmallSlice {
     pub storage: StorageHandle,
     pub handle: SliceHandle,
-    pub chunk: ChunkHandle,
     pub padding: usize,
 }
 
@@ -182,7 +181,7 @@ impl SmallMemoryPool {
 
         let padding = calculate_padding(size);
 
-        SmallSlice::new(storage, handle, chunk.handle.clone(), padding)
+        SmallSlice::new(storage, handle, padding)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
