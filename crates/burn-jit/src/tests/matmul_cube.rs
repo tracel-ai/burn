@@ -141,6 +141,18 @@ mod tests {
     }
 
     #[test]
+    pub fn write_to_output_vectorized_less_than_tile_unit_test() {
+        write_output_tests::write_to_output_vectorized_less_than_tile_unit_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
+    pub fn write_to_output_scalar_unit_test() {
+        write_output_tests::write_to_output_scalar_unit_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
     pub fn calculate_offsets_unit_test() {
         base_tests::calculate_offsets_unit_test::<TestRuntime>(&Default::default())
     }
