@@ -214,4 +214,15 @@ mod tests {
 
         assert_eq!(config.initializer, init);
     }
+
+    #[test]
+    fn print() {
+        let config = Conv2dConfig::new([5, 1], [5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", conv),
+            "Conv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
+        );
+    }
 }
