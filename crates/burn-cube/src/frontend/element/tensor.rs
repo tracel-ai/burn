@@ -8,7 +8,7 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-use super::LaunchDefinition;
+use super::LaunchArgExpand;
 
 #[derive(new)]
 pub struct Tensor<T: CubeType> {
@@ -28,14 +28,14 @@ impl<T: CubeType> CubeType for &mut Tensor<T> {
     type ExpandType = ExpandElement;
 }
 
-impl<C: CubeElem> LaunchDefinition for &Tensor<C> {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchArgExpand for &Tensor<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }
 
-impl<C: CubeElem> LaunchDefinition for &mut Tensor<C> {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchArgExpand for &mut Tensor<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }

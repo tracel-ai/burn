@@ -4,7 +4,7 @@ use crate::ir::{Elem, IntKind, Item, Variable, Vectorization};
 use crate::prelude::index_assign;
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg, LaunchDefinition, UInt, Vectorized};
+use super::{ArgSettings, LaunchArg, LaunchArgExpand, UInt, Vectorized};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -89,15 +89,15 @@ macro_rules! impl_int {
             }
         }
 
-        impl LaunchDefinition for &$type {
-            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+        impl LaunchArgExpand for &$type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())
             }
         }
 
-        impl LaunchDefinition for &mut $type {
-            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+        impl LaunchArgExpand for &mut $type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())
             }

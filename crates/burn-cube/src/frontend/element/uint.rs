@@ -6,7 +6,7 @@ use crate::{
     LaunchArg, Runtime,
 };
 
-use super::{LaunchDefinition, Vectorized};
+use super::{LaunchArgExpand, Vectorized};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -37,15 +37,16 @@ impl CubeElem for UInt {
 impl LaunchArg for UInt {
     type RuntimeArg<'a, R: Runtime> = u32;
 }
-impl LaunchDefinition for &UInt {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+
+impl LaunchArgExpand for &UInt {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(UInt::as_elem())
     }
 }
 
-impl LaunchDefinition for &mut UInt {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl LaunchArgExpand for &mut UInt {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(UInt::as_elem())
     }

@@ -7,7 +7,7 @@ use crate::{
     unexpanded, Runtime,
 };
 
-use super::{ArgSettings, CubeElem, LaunchArg, LaunchDefinition, TensorHandle, UInt};
+use super::{ArgSettings, CubeElem, LaunchArg, LaunchArgExpand, TensorHandle, UInt};
 
 #[derive(new)]
 pub struct Array<E> {
@@ -37,14 +37,14 @@ impl<C: CubeElem> LaunchArg for Array<C> {
     type RuntimeArg<'a, R: Runtime> = ArrayHandle<'a, R>;
 }
 
-impl<C: CubeElem> LaunchDefinition for &Array<C> {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchArgExpand for &Array<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }
 
-impl<C: CubeElem> LaunchDefinition for &mut Array<C> {
-    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchArgExpand for &mut Array<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }

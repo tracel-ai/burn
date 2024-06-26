@@ -8,7 +8,7 @@ use crate::compute::{KernelBuilder, KernelLauncher};
 use crate::prelude::index_assign;
 use crate::{unexpanded, Runtime};
 
-use super::{ArgSettings, LaunchArg, LaunchDefinition, UInt, Vectorized};
+use super::{ArgSettings, LaunchArg, LaunchArgExpand, UInt, Vectorized};
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float:
@@ -117,15 +117,15 @@ macro_rules! impl_float {
             }
         }
 
-        impl LaunchDefinition for &$type {
-            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+        impl LaunchArgExpand for &$type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())
             }
         }
 
-        impl LaunchDefinition for &mut $type {
-            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+        impl LaunchArgExpand for &mut $type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())
             }
