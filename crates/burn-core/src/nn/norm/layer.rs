@@ -1,5 +1,6 @@
 use crate as burn;
 use crate::config::Config;
+use crate::module::Content;
 use crate::module::DisplaySettings;
 use crate::module::Module;
 use crate::module::ModuleDisplay;
@@ -80,7 +81,7 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
             .optional()
     }
 
-    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+    fn custom_content(&self, content: Content) -> Option<Content> {
         let [d_model] = self.gamma.shape().dims;
         content
             .add("d_model", &d_model)
@@ -93,6 +94,7 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
 mod tests {
     use super::*;
     use crate::tensor::Data;
+    use alloc::format;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};
@@ -159,5 +161,16 @@ mod tests {
         tensor_2_grad
             .to_data()
             .assert_approx_eq(&Data::zeros(tensor_2_grad.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = LayerNormConfig::new(6);
+        let layer_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", layer_norm),
+            "LayerNorm {d_model: 6, epsilon: 0.00001, params: 12}"
+        );
     }
 }
