@@ -1,6 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Ignored, Module};
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
@@ -39,11 +40,29 @@ pub struct AvgPool2dConfig {
 /// TODO: Add support for `count_include_pad=False`, see
 /// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct AvgPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
     padding: Ignored<PaddingConfig2d>,
     count_include_pad: bool,
+}
+
+impl ModuleDisplay for AvgPool2d {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
+            .add("stride", &alloc::format!("{:?}", &self.stride))
+            .add("padding", &self.padding)
+            .add("count_include_pad", &self.count_include_pad)
+            .optional()
+    }
 }
 
 impl AvgPool2dConfig {
@@ -80,5 +99,22 @@ impl AvgPool2d {
             padding,
             self.count_include_pad,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let config = AvgPool2dConfig::new([3, 3]);
+
+        let layer = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "AvgPool2d {kernel_size: [3, 3], stride: [1, 1], padding: Valid, count_include_pad: true}"
+        );
     }
 }
