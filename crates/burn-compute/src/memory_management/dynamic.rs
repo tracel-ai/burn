@@ -19,15 +19,12 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             MemoryExtensionStrategy::new_period_tick(10),
             RoundingStrategy::RoundUp,
             1024 * 1024 * 1024 * 2,
-            true,
         );
         let small_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
             RoundingStrategy::None,
             1024 * 1024 * 512,
-            false,
         );
-
         Self {
             main_memory_pool,
             small_memory_pool,
