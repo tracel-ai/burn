@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 /// See also [relu](burn::tensor::activation::relu)
 ///
 #[derive(Module, Clone, Debug, Default)]
-pub struct Relu {}
+pub struct Relu;
 
 impl Relu {
     /// Create the module.
