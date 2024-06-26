@@ -478,7 +478,21 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
 
 impl core::fmt::Display for TensorData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("{:?}", &self.value).as_str())
+        let fmt = match self.dtype {
+            DType::F64 => format!("{:?}", self.as_slice::<f64>().unwrap()),
+            DType::F32 => format!("{:?}", self.as_slice::<f32>().unwrap()),
+            DType::F16 => format!("{:?}", self.as_slice::<f16>().unwrap()),
+            DType::BF16 => format!("{:?}", self.as_slice::<bf16>().unwrap()),
+            DType::I64 => format!("{:?}", self.as_slice::<i64>().unwrap()),
+            DType::I32 => format!("{:?}", self.as_slice::<i32>().unwrap()),
+            DType::I16 => format!("{:?}", self.as_slice::<i16>().unwrap()),
+            DType::I8 => format!("{:?}", self.as_slice::<i8>().unwrap()),
+            DType::U64 => format!("{:?}", self.as_slice::<u64>().unwrap()),
+            DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
+            DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
+        };
+        f.write_str(fmt.as_str())
     }
 }
 
