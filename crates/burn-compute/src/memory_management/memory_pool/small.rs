@@ -3,6 +3,16 @@ use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
 use alloc::vec::Vec;
 use hashbrown::HashMap;
 
+/// A memory pool that allocates fixed-size chunks (32 bytes each) and reuses them to minimize allocations.
+///
+/// - Only one slice is supported per chunk due to the limitations in WGPU where small allocations cannot be offset.
+/// - The pool uses a ring buffer to efficiently manage and reuse chunks.
+///
+/// Fields:
+/// - `chunks`: A hashmap storing the allocated chunks by their IDs.
+/// - `slices`: A hashmap storing the slices by their IDs.
+/// - `ring_buffer`: A vector used as a ring buffer to manage chunk reuse.
+/// - `index`: The current position in the ring buffer.
 pub struct SmallMemoryPool {
     chunks: HashMap<ChunkId, SmallChunk>,
     slices: HashMap<SliceId, SmallSlice>,
@@ -85,9 +95,6 @@ impl SmallMemoryPool {
         _sync: Sync,
     ) -> MemoryPoolHandle {
         assert!(size <= BUFFER_ALIGNMENT);
-        if let Some(handle) = self.get_free_slice(size) {
-            return MemoryPoolHandle { slice: handle };
-        }
 
         self.alloc_slice(storage, size)
     }
