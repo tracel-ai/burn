@@ -1,5 +1,6 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::{config::Config, module::Module};
@@ -15,10 +16,7 @@ pub struct HuberLossConfig {
 
 impl HuberLossConfig {
     /// Initialize [Huber loss](HuberLoss).
-    pub fn init<B: Backend>(&self, device: &B::Device) -> HuberLoss {
-        // device is not needed as of now, but we might want to prepare some data on it
-        // and its consistent with other loss functions
-        let _ = device;
+    pub fn init(&self) -> HuberLoss {
         self.assertions();
         HuberLoss {
             delta: self.delta,
@@ -51,9 +49,25 @@ impl HuberLossConfig {
 ///
 /// See also: <https://en.wikipedia.org/wiki/Huber_loss>
 #[derive(Module, Debug, Clone)]
+#[module(custom_display)]
 pub struct HuberLoss {
     delta: f32,
     lin_bias: f32, // delta * delta * 0.5 precomputed
+}
+
+impl ModuleDisplay for HuberLoss {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("delta", &self.delta)
+            .add("lin_bias", &self.lin_bias)
+            .optional()
+    }
 }
 
 impl HuberLoss {
@@ -138,7 +152,7 @@ mod tests {
         let predict = TestTensor::<1>::from_data(predict, &device);
         let targets = TestTensor::<1>::from_data(targets, &device);
 
-        let huber = HuberLossConfig::new(0.5).init(&device);
+        let huber = HuberLossConfig::new(0.5).init();
 
         let loss_sum = huber.forward(predict.clone(), targets.clone(), Reduction::Sum);
         let loss = huber.forward(predict.clone(), targets.clone(), Reduction::Auto);
@@ -165,7 +179,7 @@ mod tests {
         let predict = TestAutodiffTensor::from_data(predict, &device).require_grad();
         let targets = TestAutodiffTensor::from_data(targets, &device);
 
-        let loss = HuberLossConfig::new(0.5).init(&device);
+        let loss = HuberLossConfig::new(0.5).init();
         let loss = loss.forward_no_reduction(predict.clone(), targets);
 
         let grads = loss.backward();
@@ -174,5 +188,16 @@ mod tests {
         grads_predict
             .to_data()
             .assert_approx_eq(&Data::from([-0.5, -0.5, 0., 0.3, 0.5]), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = HuberLossConfig::new(0.5);
+        let loss = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "HuberLoss {delta: 0.5, lin_bias: 0.125}"
+        );
     }
 }
