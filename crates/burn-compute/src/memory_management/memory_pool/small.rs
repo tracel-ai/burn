@@ -1,7 +1,7 @@
 use super::{ChunkHandle, ChunkId, MemoryPoolBinding, MemoryPoolHandle, SliceHandle, SliceId};
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
+use alloc::vec::Vec;
 use hashbrown::HashMap;
-use std::vec::Vec;
 
 pub struct SmallMemoryPool {
     chunks: HashMap<ChunkId, SmallChunk>,
@@ -34,7 +34,6 @@ impl SmallSlice {
 const BUFFER_ALIGNMENT: usize = 32;
 
 impl SmallMemoryPool {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             chunks: HashMap::new(),
@@ -45,7 +44,6 @@ impl SmallMemoryPool {
     }
 
     /// Returns the resource from the storage, for the specified handle.
-    #[allow(dead_code)]
     pub fn get<Storage: ComputeStorage>(
         &mut self,
         storage: &mut Storage,
@@ -61,7 +59,6 @@ impl SmallMemoryPool {
     /// a handle to the reserved memory.
     ///
     /// Also clean ups, merging free slices together if permitted by the merging strategy
-    #[allow(dead_code)]
     pub fn reserve<Storage: ComputeStorage, Sync: FnOnce()>(
         &mut self,
         storage: &mut Storage,
@@ -79,7 +76,6 @@ impl SmallMemoryPool {
         }
     }
 
-    #[allow(dead_code)]
     pub fn alloc<Storage: ComputeStorage, Sync: FnOnce()>(
         &mut self,
         storage: &mut Storage,
@@ -128,7 +124,7 @@ impl SmallMemoryPool {
     }
 
     fn find_free_slice(&mut self) -> Option<SliceId> {
-        if self.ring_buffer.len() <= 0 {
+        if self.ring_buffer.is_empty() {
             return None;
         }
         for _ in 0..self.ring_buffer.len() {
