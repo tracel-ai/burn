@@ -65,21 +65,31 @@ impl Codegen {
                     }
 
                     if comptime {
+                        let ty = no_ref(&ty);
                         inputs.extend(quote::quote! {
                             #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                         });
                     } else {
+                        let ty = no_ref(&ty);
                         inputs.extend(quote::quote! {
                             #ident: RuntimeArg<'a, #ty, R>,
                         });
                     }
 
                     if is_output {
+                        let ty = match *ty {
+                            syn::Type::Reference(val) => val.elem,
+                            _ => ty,
+                        };
                         codegen.state_outputs.push((ident.clone(), *ty));
                     } else if comptime {
                         let ty = first_generic_ty(&ty);
                         codegen.state_comptimes.push((ty.clone(), ident.clone()));
                     } else {
+                        let ty = match *ty {
+                            syn::Type::Reference(val) => val.elem,
+                            _ => ty,
+                        };
                         codegen.state_inputs.push((ident.clone(), *ty));
                     }
                 }
@@ -135,13 +145,13 @@ impl Codegen {
 
         for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_input(&mut builder, self.settings.vectorization_input(#pos));
+                let #ident = <&#ty as LaunchDefinition>::define(&mut builder, self.settings.vectorization_input(#pos));
             });
         }
 
         for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_output(&mut builder, self.settings.vectorization_output(#pos));
+                let #ident = <&mut #ty as LaunchDefinition>::define(&mut builder, self.settings.vectorization_output(#pos));
             });
         }
 
@@ -321,5 +331,12 @@ fn first_generic_ty(ty: &syn::Type) -> syn::Type {
             _ => panic!("Comptime must have a generic"),
         },
         _ => todo!(),
+    }
+}
+
+fn no_ref(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Reference(val) => &val.elem,
+        _ => ty,
     }
 }

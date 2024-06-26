@@ -7,7 +7,7 @@ use crate::{
     unexpanded, Runtime,
 };
 
-use super::{ArgSettings, CubeElem, LaunchArg, TensorHandle, UInt};
+use super::{ArgSettings, CubeElem, LaunchArg, LaunchDefinition, TensorHandle, UInt};
 
 #[derive(new, Clone, Copy)]
 pub struct Array<E> {
@@ -15,6 +15,14 @@ pub struct Array<E> {
 }
 
 impl<C: CubeType> CubeType for Array<C> {
+    type ExpandType = ExpandElement;
+}
+
+impl<C: CubeType> CubeType for &Array<C> {
+    type ExpandType = ExpandElement;
+}
+
+impl<C: CubeType> CubeType for &mut Array<C> {
     type ExpandType = ExpandElement;
 }
 
@@ -27,12 +35,16 @@ impl<E: CubeType> Array<E> {
 
 impl<C: CubeElem> LaunchArg for Array<C> {
     type RuntimeArg<'a, R: Runtime> = ArrayHandle<'a, R>;
+}
 
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchDefinition for &Array<C> {
+    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
 
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchDefinition for &mut Array<C> {
+    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }

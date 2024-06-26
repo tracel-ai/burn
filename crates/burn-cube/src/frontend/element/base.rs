@@ -27,21 +27,28 @@ pub trait Init {
     fn init(self, context: &mut CubeContext) -> Self;
 }
 
+pub trait LaunchDefinition: CubeType {
+    /// Register an input variable during compilation that fill the [KernelBuilder].
+    fn define(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType;
+}
+
 /// Defines a type that can be used as argument to a kernel.
 pub trait LaunchArg: CubeType {
     /// The runtime argument for the kernel.
     type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
-
-    /// Register an input variable during compilation that fill the [KernelBuilder].
-    fn compile_input(
-        builder: &mut KernelBuilder,
-        vectorization: Vectorization,
-    ) -> <Self as CubeType>::ExpandType;
-    /// Register an output variable during compilation that fill the [KernelBuilder].
-    fn compile_output(
-        builder: &mut KernelBuilder,
-        vectorization: Vectorization,
-    ) -> <Self as CubeType>::ExpandType;
+    // /// Register an input variable during compilation that fill the [KernelBuilder].
+    // fn compile_input(
+    //     builder: &mut KernelBuilder,
+    //     vectorization: Vectorization,
+    // ) -> <Self as CubeType>::ExpandType;
+    // /// Register an output variable during compilation that fill the [KernelBuilder].
+    // fn compile_output(
+    //     builder: &mut KernelBuilder,
+    //     vectorization: Vectorization,
+    // ) -> <Self as CubeType>::ExpandType;
 }
 
 /// Defines the argument settings used to launch a kernel.

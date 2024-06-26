@@ -8,6 +8,8 @@ use crate::{
 };
 use std::marker::PhantomData;
 
+use super::LaunchDefinition;
+
 #[derive(new, Clone, Copy)]
 pub struct Tensor<T: CubeType> {
     pub(crate) factor: u8,
@@ -18,16 +20,28 @@ impl<T: CubeType> CubeType for Tensor<T> {
     type ExpandType = ExpandElement;
 }
 
-impl<C: CubeElem> LaunchArg for Tensor<C> {
-    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
+impl<T: CubeType> CubeType for &Tensor<T> {
+    type ExpandType = ExpandElement;
+}
 
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<T: CubeType> CubeType for &mut Tensor<T> {
+    type ExpandType = ExpandElement;
+}
+
+impl<C: CubeElem> LaunchDefinition for &Tensor<C> {
+    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
 
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubeElem> LaunchDefinition for &mut Tensor<C> {
+    fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
+
+impl<C: CubeElem> LaunchArg for Tensor<C> {
+    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
 }
 
 #[derive(new)]

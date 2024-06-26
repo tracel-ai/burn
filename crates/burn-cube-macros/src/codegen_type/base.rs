@@ -131,6 +131,12 @@ impl TypeCodegen {
             impl #generics_impl CubeType for #name #generics_use {
                 type ExpandType = #name_expand #generics_use;
             }
+            impl #generics_impl CubeType for &#name #generics_use {
+                type ExpandType = #name_expand #generics_use;
+            }
+            impl #generics_impl CubeType for &mut #name #generics_use {
+                type ExpandType = #name_expand #generics_use;
+            }
         }
     }
 
@@ -147,10 +153,10 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             body_input.extend(quote! {
-                #vis #ident: <#ty as LaunchArg>::compile_input(builder, vectorization),
+                #vis #ident: <&#ty as LaunchDefinition>::define(builder, vectorization),
             });
             body_output.extend(quote! {
-                #vis #ident: <#ty as LaunchArg>::compile_output(builder, vectorization),
+                #vis #ident: <&mut #ty as LaunchDefinition>::define(builder, vectorization),
             });
         }
 
@@ -162,8 +168,10 @@ impl TypeCodegen {
         quote! {
             impl #type_generics_impl LaunchArg for #name #type_generics_use {
                 type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
+            }
 
-                fn compile_input(
+            impl #type_generics_impl LaunchDefinition for &#name #type_generics_use {
+                fn define(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
                 ) -> <Self as CubeType>::ExpandType {
@@ -171,8 +179,10 @@ impl TypeCodegen {
                         #body_input
                     }
                 }
+            }
 
-                fn compile_output(
+            impl #type_generics_impl LaunchDefinition for &mut #name #type_generics_use {
+                fn define(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
                 ) -> <Self as CubeType>::ExpandType {
@@ -191,6 +201,11 @@ impl TypeCodegen {
 
         quote! {
             impl #type_generics_impl Init for #name_expand  #type_generics_use {
+                fn init(self, context: &mut CubeContext) -> Self {
+                    self
+                }
+            }
+            impl #type_generics_impl Init for &#name_expand  #type_generics_use {
                 fn init(self, context: &mut CubeContext) -> Self {
                     self
                 }

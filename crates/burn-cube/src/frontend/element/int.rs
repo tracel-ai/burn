@@ -4,7 +4,7 @@ use crate::ir::{Elem, IntKind, Item, Variable, Vectorization};
 use crate::prelude::index_assign;
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg, UInt, Vectorized};
+use super::{ArgSettings, LaunchArg, LaunchDefinition, UInt, Vectorized};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -27,6 +27,14 @@ macro_rules! impl_int {
         }
 
         impl CubeType for $type {
+            type ExpandType = ExpandElement;
+        }
+
+        impl CubeType for &$type {
+            type ExpandType = ExpandElement;
+        }
+
+        impl CubeType for &mut $type {
             type ExpandType = ExpandElement;
         }
 
@@ -81,24 +89,22 @@ macro_rules! impl_int {
             }
         }
 
+        impl LaunchDefinition for &$type {
+            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar($type::as_elem())
+            }
+        }
+
+        impl LaunchDefinition for &mut $type {
+            fn define(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar($type::as_elem())
+            }
+        }
+
         impl LaunchArg for $type {
             type RuntimeArg<'a, R: Runtime> = $primitive;
-
-            fn compile_input(
-                builder: &mut KernelBuilder,
-                vectorization: Vectorization,
-            ) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar(Self::as_elem())
-            }
-
-            fn compile_output(
-                builder: &mut KernelBuilder,
-                vectorization: Vectorization,
-            ) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar(Self::as_elem())
-            }
         }
 
         impl Vectorized for $type {

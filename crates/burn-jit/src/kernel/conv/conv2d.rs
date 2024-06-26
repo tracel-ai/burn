@@ -28,11 +28,11 @@ struct Conv2dArgs {
 
 #[cube(launch)]
 fn conv2d_kernel<F: Float>(
-    input: Tensor<F>,
-    weight: Tensor<F>,
-    bias: Tensor<F>,
-    mut output: Tensor<F>,
-    args: Conv2dArgs,
+    input: &Tensor<F>,
+    weight: &Tensor<F>,
+    bias: &Tensor<F>,
+    output: &mut Tensor<F>,
+    args: &Conv2dArgs,
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
