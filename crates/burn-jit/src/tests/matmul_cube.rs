@@ -113,6 +113,13 @@ mod tests {
     }
 
     #[test]
+    pub fn load_lhs_transposed_out_of_bounds_cube_test() {
+        load_shared_memory_tests::load_lhs_transposed_out_of_bounds_cube_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
     pub fn load_lhs_transposed_offset_cube_test() {
         load_shared_memory_tests::load_lhs_transposed_offset_cube_test::<TestRuntime>(
             &Default::default(),

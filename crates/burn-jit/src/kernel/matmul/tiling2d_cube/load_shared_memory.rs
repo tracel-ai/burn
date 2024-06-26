@@ -477,6 +477,9 @@ pub mod tests {
     fn load_tensor_test<F: Float>(
         tensor: Tensor<F>,
         mut sm_out: Array<F>,
+        unit_row: UInt,
+        unit_col: UInt,
+        k: UInt,
         config: Comptime<CubeTiling2dConfig>,
         is_lhs: Comptime<bool>,
     ) {
@@ -487,9 +490,6 @@ pub mod tests {
         let shared_memory =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size), Comptime::get(tile_size));
 
-        let unit_row = UInt::new(4);
-        let unit_col = UInt::new(4);
-        let k = UInt::new(8);
         let offset = UInt::new(0);
 
         let coordinates = Coordinates {
@@ -1037,6 +1037,9 @@ pub mod tests {
             settings,
             TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
             ArrayHandle::new(&sm_out, 64),
+            4,
+            4,
+            8,
             config,
             true,
         );
@@ -1048,6 +1051,59 @@ pub mod tests {
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 76.0, 92.0, 108.0, 124.0, 0.0, 0.0, 0.0, 0.0, 77.0, 93.0, 109.0, 125.0, 0.0,
             0.0, 0.0, 0.0, 78.0, 94.0, 110.0, 126.0, 0.0, 0.0, 0.0, 0.0, 79.0, 95.0, 111.0, 127.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn load_lhs_transposed_out_of_bounds_cube_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let vectorization_factor = 1;
+        let lhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..5, device)
+            .reshape([5, 1])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 2, 1))
+            .vectorize_input(0, vectorization_factor as u8)
+            .vectorize_output(0, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 5, 1, 1, tile_size);
+
+        let sm_out = client.empty(
+            tiling2d_config.block_size_k
+                * tiling2d_config.block_size_m
+                * core::mem::size_of::<f32>(),
+        );
+
+        load_tensor_multiple_tiles_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayHandle::new(&sm_out, 64),
+            0,
+            config,
+            true,
+        );
+
+        let actual = client.read(sm_out.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            0.0, 1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ];
         assert_eq!(actual, expected);
     }
@@ -1194,6 +1250,9 @@ pub mod tests {
             settings,
             TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ArrayHandle::new(&sm_out, 64),
+            4,
+            4,
+            8,
             config,
             false,
         );

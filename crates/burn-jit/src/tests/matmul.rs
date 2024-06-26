@@ -408,7 +408,8 @@ mod tests {
 
         #[test]
         pub fn straightforward() {
-            test_with_params(9, 9, 9, 1, 1);
+            let d = 5;
+            test_with_params(d, 1, 1, 1, 1);
         }
 
         #[test]
