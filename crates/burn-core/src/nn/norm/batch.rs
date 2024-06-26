@@ -426,4 +426,15 @@ mod tests_2d {
             device,
         )
     }
+
+    #[test]
+    fn print() {
+        let batch_norm =
+            BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&Default::default());
+
+        assert_eq!(
+            format!("{}", batch_norm),
+            "BatchNorm {num_features: 3, momentum: 0.1, epsilon: 0.00001, params: 12}"
+        );
+    }
 }
