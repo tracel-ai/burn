@@ -41,7 +41,8 @@ pub struct PositionalEncodingConfig {
 /// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
 pub struct PositionalEncoding<B: Backend> {
-    sinusoids: Tensor<B, 3>,
+    /// The sinusoids used to add positional information to the input embeddings.
+    pub sinusoids: Tensor<B, 3>,
 }
 
 impl PositionalEncodingConfig {
