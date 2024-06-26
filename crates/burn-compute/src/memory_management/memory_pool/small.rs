@@ -13,6 +13,7 @@ pub struct SmallMemoryPool {
 #[derive(new, Debug)]
 pub struct SmallChunk {
     pub storage: StorageHandle,
+    #[allow(dead_code)]
     pub handle: ChunkHandle,
     pub slice: Option<SliceId>,
 }
@@ -21,6 +22,8 @@ pub struct SmallChunk {
 pub struct SmallSlice {
     pub storage: StorageHandle,
     pub handle: SliceHandle,
+    #[allow(dead_code)]
+    pub chunk: ChunkHandle,
     pub padding: usize,
 }
 
@@ -181,7 +184,7 @@ impl SmallMemoryPool {
 
         let padding = calculate_padding(size);
 
-        SmallSlice::new(storage, handle, padding)
+        SmallSlice::new(storage, handle, chunk.handle.clone(), padding)
     }
 
     /// Creates a chunk of given size by allocating on the storage.
