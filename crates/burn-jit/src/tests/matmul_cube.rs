@@ -38,8 +38,29 @@ mod tests {
     }
 
     #[test]
-    pub fn tiling2d_matmul_read_whole_vectorized_test() {
-        load_shared_memory_tests::read_whole_unit_test::<TestRuntime>(&Default::default())
+    pub fn tiling2d_matmul_read_whole_vectorized_like_tile_test() {
+        load_shared_memory_tests::read_whole_vectorized_like_tile_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_read_whole_vectorized_less_than_tile_test() {
+        load_shared_memory_tests::read_whole_vectorized_less_than_tile_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
+    pub fn tiling2d_matmul_read_whole_scalar_test() {
+        load_shared_memory_tests::read_whole_scalar_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn read_whole_scalar_out_of_bound_test() {
+        load_shared_memory_tests::read_whole_scalar_out_of_bound_test::<TestRuntime>(
+            &Default::default(),
+        )
     }
 
     #[test]

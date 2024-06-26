@@ -150,23 +150,16 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
-    // let lhs = match lhs.batch_swapped_with_row_col() {
-    //     true => into_contiguous(lhs),
-    //     false => lhs,
-    // };
-    // let rhs = match rhs.batch_swapped_with_row_col() {
-    //     true => into_contiguous(rhs),
-    //     false => rhs,
-    // };
 
     config.block_size_m = 64;
     config.block_size_n = 64;
     config.block_size_k = 32; // k must be <= both m and n
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
-    let vectorization_factor = 4;
-    let x = (config.block_size_m / 4) as u32;
-    let y = (config.block_size_n / 4) as u32;
+    let vectorization_factor = 1;
+    let tile_size = 4;
+    let x = (config.block_size_m / tile_size) as u32;
+    let y = (config.block_size_n / tile_size) as u32;
     let settings = KernelSettings::default()
         .vectorize_input(0, vectorization_factor as u8)
         .vectorize_input(1, vectorization_factor as u8)
@@ -180,7 +173,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(config, m, k, n, vectorization_factor as usize),
+        CubeTiling2dConfig::new(config, m, k, n, tile_size as usize),
     );
 
     out

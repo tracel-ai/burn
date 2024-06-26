@@ -408,7 +408,7 @@ mod tests {
 
         #[test]
         pub fn straightforward() {
-            test_with_params(4, 4, 4, 1, 1);
+            test_with_params(9, 9, 9, 1, 1);
         }
 
         #[test]
@@ -483,12 +483,12 @@ mod tests {
 
         #[test]
         pub fn large_k_multiple() {
-            test_with_params(256, 288, 264, 1, 1);
+            test_with_params(256, 256, 256, 1, 1);
         }
 
         #[test]
         pub fn large_k_not_multiple() {
-            test_with_params(1000, 200, 1000, 5, 2);
+            test_with_params(257, 261, 254, 5, 2);
         }
 
         #[test]
