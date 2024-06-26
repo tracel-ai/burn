@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 
 use super::LaunchDefinition;
 
-#[derive(new, Clone, Copy)]
+#[derive(new)]
 pub struct Tensor<T: CubeType> {
     pub(crate) factor: u8,
     _val: PhantomData<T>,
@@ -59,17 +59,17 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
-    pub fn stride<C: Index>(self, _dim: C) -> UInt {
+    pub fn stride<C: Index>(&self, _dim: C) -> UInt {
         unexpanded!()
     }
 
     /// Obtain the shape of input at dimension dim
-    pub fn shape<C: Index>(self, _dim: C) -> UInt {
+    pub fn shape<C: Index>(&self, _dim: C) -> UInt {
         unexpanded!()
     }
 
     /// Obtain the array length of input
-    pub fn len(self) -> UInt {
+    pub fn len(&self) -> UInt {
         unexpanded!()
     }
 

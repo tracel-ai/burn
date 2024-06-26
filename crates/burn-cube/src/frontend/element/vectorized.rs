@@ -30,3 +30,18 @@ impl Vectorized for ExpandElement {
         todo!()
     }
 }
+
+impl Vectorized for &ExpandElement {
+    fn vectorization_factor(&self) -> UInt {
+        let var = match self {
+            ExpandElement::Managed(var) => var,
+            ExpandElement::Plain(var) => var,
+        };
+
+        UInt::new(var.item().vectorization as u32)
+    }
+
+    fn vectorize(self, _factor: UInt) -> Self {
+        todo!()
+    }
+}

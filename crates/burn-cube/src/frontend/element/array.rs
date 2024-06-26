@@ -9,7 +9,7 @@ use crate::{
 
 use super::{ArgSettings, CubeElem, LaunchArg, LaunchDefinition, TensorHandle, UInt};
 
-#[derive(new, Clone, Copy)]
+#[derive(new)]
 pub struct Array<E> {
     _val: PhantomData<E>,
 }
@@ -28,7 +28,7 @@ impl<C: CubeType> CubeType for &mut Array<C> {
 
 impl<E: CubeType> Array<E> {
     /// Obtain the array length of input
-    pub fn len(self) -> UInt {
+    pub fn len(&self) -> UInt {
         unexpanded!()
     }
 }

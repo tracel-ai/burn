@@ -12,9 +12,9 @@ use burn_cube::prelude::*;
 
 #[cube(launch)]
 fn matmul_kernel<F: Float>(
-    lhs: Tensor<F>,
-    rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &mut Tensor<F>,
     num_batches: Comptime<Option<UInt>>,
 ) {
     let rank = out.rank();
