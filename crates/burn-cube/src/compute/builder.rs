@@ -1,5 +1,5 @@
 use crate::ir::{Elem, Item, Visibility};
-use crate::prelude::{ArrayExpand, CubeElem, KernelDefinition};
+use crate::prelude::KernelDefinition;
 use crate::KernelSettings;
 use crate::{
     frontend::{CubeContext, ExpandElement},
@@ -60,21 +60,21 @@ impl KernelBuilder {
     }
 
     /// Register an output array and return the [element](ExpandElement) to be used for kernel expansion.
-    pub fn output_array<T: CubeElem>(&mut self, item: Item) -> ArrayExpand<T> {
+    pub fn output_array(&mut self, item: Item) -> ExpandElement {
         self.outputs.push(OutputInfo::Array { item });
-        let variable = self.context.output_array(self.num_output, item);
+        let variable = self.context.output(self.num_output, item);
         self.num_output += 1;
 
         variable
     }
 
     /// Register an input array and return the [element](ExpandElement) to be used for kernel expansion.
-    pub fn input_array<T: CubeElem>(&mut self, item: Item) -> ArrayExpand<T> {
+    pub fn input_array(&mut self, item: Item) -> ExpandElement {
         self.inputs.push(InputInfo::Array {
             item,
             visibility: Visibility::Read,
         });
-        let variable = self.context.input_array(self.num_input, item);
+        let variable = self.context.input(self.num_input, item);
         self.num_input += 1;
         variable
     }

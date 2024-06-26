@@ -1,6 +1,12 @@
+use alloc::{format, string::ToString};
+use core::{fmt::Display, marker::PhantomData};
+
 use crate::{
     self as burn,
-    module::{AutodiffModule, Devices, Module, ModuleMapper, ModuleVisitor},
+    module::{
+        AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault,
+        ModuleMapper, ModuleVisitor,
+    },
     record::Record,
 };
 use burn::record::PrecisionSettings;
@@ -8,7 +14,6 @@ use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     BasicAutodiffOps, BasicOps, Tensor,
 };
-use core::marker::PhantomData;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
 #[derive(Debug, Clone, Copy, new, Default)]
@@ -96,6 +101,15 @@ macro_rules! constant {
         impl<B: burn::tensor::backend::AutodiffBackend> burn::module::AutodiffModule<B> for $type {
             constant!(ad_module, $type);
         }
+
+        impl burn::module::ModuleDisplayDefault for $type {
+            fn content(&self, content: burn::module::Content) -> Option<burn::module::Content> {
+                let string = format!("{}", self);
+                content.add_formatted(&string).optional()
+            }
+        }
+
+        impl burn::module::ModuleDisplay for $type {}
     };
 }
 
@@ -121,6 +135,13 @@ constant!(i64);
 constant!(i32);
 constant!(i16);
 constant!(i8);
+
+impl burn::module::ModuleDisplay for str {}
+impl burn::module::ModuleDisplayDefault for str {
+    fn content(&self, content: burn::module::Content) -> Option<burn::module::Content> {
+        content.add_formatted(&self).optional()
+    }
+}
 
 impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
     type Record = ConstantRecord;
@@ -157,6 +178,15 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
         devices
     }
 }
+
+impl<const D: usize, B: Backend, K: BasicOps<B>> ModuleDisplayDefault for Tensor<B, D, K> {
+    fn content(&self, content: Content) -> Option<Content> {
+        let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape().dims);
+        content.add_single(&string).optional()
+    }
+}
+
+impl<const D: usize, B: Backend, K: BasicOps<B>> ModuleDisplay for Tensor<B, D, K> {}
 
 impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> AutodiffModule<B>
     for Tensor<B, D, K>
@@ -199,6 +229,14 @@ impl<B: Backend> Module<B> for PhantomData<B> {
         devices
     }
 }
+
+impl<B: Backend> ModuleDisplayDefault for PhantomData<B> {
+    fn content(&self, content: Content) -> Option<Content> {
+        content.add_single(&"PhantomData".to_string()).optional()
+    }
+}
+
+impl<B: Backend> ModuleDisplay for PhantomData<B> {}
 
 impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
     type InnerModule = PhantomData<B::InnerBackend>;
@@ -245,6 +283,27 @@ where
 
     fn collect_devices(&self, devices: Devices<B>) -> Devices<B> {
         devices
+    }
+}
+
+impl<T> ModuleDisplayDefault for Ignored<T>
+where
+    T: Sync + Send + core::fmt::Debug + Clone,
+{
+    fn content(&self, content: Content) -> Option<Content> {
+        // For now, just print the debug representation of the ignored value
+        content.add_single(&format!("{:?}", self.0)).optional()
+    }
+}
+
+impl<T> ModuleDisplay for Ignored<T> where T: Sync + Send + core::fmt::Debug + Clone {}
+
+impl<T> Display for Ignored<T>
+where
+    T: Sync + Send + core::fmt::Debug + Clone,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.0)
     }
 }
 

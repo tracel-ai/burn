@@ -25,19 +25,12 @@ pub struct CubeTiling2dConfig {
     pub check_k_bounds: bool,
     /// Bounds must be checked on rhs dimension
     pub check_n_bounds: bool,
-    /// Shared memory size lhs: technically derivable from others, but needs comptime arithmetic
-    pub sm_size_lhs: UInt,
-    /// Shared memory size rhs: technically derivable from others, but needs comptime arithmetic
-    pub sm_size_rhs: UInt,
     /// Tile size. Should correspond to vectorization of inputs/outputs/shared memory
     pub tile_size: UInt,
 }
 
 impl CubeTiling2dConfig {
     pub fn new(config: Tiling2dConfig, m: usize, k: usize, n: usize, tile_size: usize) -> Self {
-        let sm_size_lhs = (config.block_size_m / tile_size) * config.block_size_k;
-        let sm_size_rhs = (config.block_size_n / tile_size) * config.block_size_k;
-
         CubeTiling2dConfig {
             block_size_m: UInt::new(config.block_size_m as u32),
             block_size_k: UInt::new(config.block_size_k as u32),
@@ -46,8 +39,6 @@ impl CubeTiling2dConfig {
             check_m_bounds: m % config.block_size_m != 0,
             check_k_bounds: k % config.block_size_k != 0,
             check_n_bounds: n % config.block_size_n != 0,
-            sm_size_lhs: UInt::new(sm_size_lhs as u32),
-            sm_size_rhs: UInt::new(sm_size_rhs as u32),
             tile_size: UInt::new(tile_size as u32),
         }
     }

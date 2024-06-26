@@ -8,44 +8,18 @@ use crate::{
 };
 use crate::{
     frontend::{indexation::Index, CubeContext, CubeElem},
-    ir::Variable,
     prelude::{assign, index, index_assign, Comptime},
 };
 
 use super::{ArgSettings, LaunchArg, TensorHandle, UInt};
-
-use super::Init;
 
 #[derive(Clone, Copy)]
 pub struct Array<T: CubeType> {
     _val: PhantomData<T>,
 }
 
-#[derive(Clone)]
-pub struct ArrayExpand<T: CubeElem> {
-    pub val: <T as CubeType>::ExpandType,
-}
-
-impl<T: CubeElem> From<ArrayExpand<T>> for ExpandElement {
-    fn from(array_expand: ArrayExpand<T>) -> Self {
-        array_expand.val
-    }
-}
-
-impl<T: CubeElem> From<ArrayExpand<T>> for Variable {
-    fn from(array_expand: ArrayExpand<T>) -> Self {
-        *array_expand.val
-    }
-}
-
-impl<T: CubeElem> Init for ArrayExpand<T> {
-    fn init(self, _context: &mut CubeContext) -> Self {
-        self
-    }
-}
-
 impl<T: CubeElem> CubeType for Array<T> {
-    type ExpandType = ArrayExpand<T>;
+    type ExpandType = ExpandElement;
 }
 
 impl<T: CubeElem + Clone> Array<T> {
@@ -90,23 +64,24 @@ impl<T: CubeElem + Clone> Array<T> {
     }
 }
 
-impl<T: CubeElem> ArrayExpand<T> {
+impl ExpandElement {
     pub fn to_vectorized_expand(
         self,
         context: &mut CubeContext,
         vectorization_factor: UInt,
-    ) -> <T as CubeType>::ExpandType {
+    ) -> ExpandElement {
         let factor = vectorization_factor.val;
+        let var = *self;
         let mut new_var = context.create_local(Item::vectorized(
-            T::as_elem(),
-            vectorization_factor.val as u8,
+            var.item().elem(),
+            factor as u8,
         ));
         if vectorization_factor.val == 1 {
-            let element = index::expand(context, self.val.clone(), 0);
+            let element = index::expand(context, self.clone(), 0u32);
             assign::expand(context, element, new_var.clone());
         } else {
             for i in 0..factor {
-                let element = index::expand(context, self.val.clone(), i);
+                let element = index::expand(context, self.clone(), i);
                 new_var = index_assign::expand(context, new_var, i, element);
             }
         }
@@ -124,11 +99,11 @@ impl<E: CubeType> Array<E> {
 impl<C: CubeElem> LaunchArg for Array<C> {
     type RuntimeArg<'a, R: Runtime> = ArrayHandle<'a, R>;
 
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ArrayExpand<C> {
+    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
 
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ArrayExpand<C> {
+    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }

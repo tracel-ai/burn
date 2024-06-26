@@ -9,11 +9,12 @@ use super::{
 };
 
 #[cube]
+#[allow(unused_mut)]
 pub(crate) fn compute_loop<F: Float>(
     coordinates: Coordinates,
     shared_lhs: SharedMemory<F>,
     shared_rhs: SharedMemory<F>,
-    results: Array<F>,
+    mut results: Array<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -25,14 +26,13 @@ pub(crate) fn compute_loop<F: Float>(
     let unit_row = coordinates.unit_row;
     let unit_col = coordinates.unit_col;
 
-    let lhs_stride = block_size_m / tile_size;
-    let rhs_stride = block_size_n / tile_size;
-
     for dot_index in range(0u32, block_size_k, unroll) {
-        let register_m = shared_lhs[(unit_col + dot_index) * Comptime::runtime(lhs_stride)];
-        let register_n = shared_rhs[(unit_row + dot_index) * Comptime::runtime(rhs_stride)];
+        let register_m = shared_lhs[(unit_row + dot_index * Comptime::runtime(block_size_m))
+            / Comptime::runtime(tile_size)];
+        let register_n = shared_rhs[(unit_col + dot_index * Comptime::runtime(block_size_n))
+            / Comptime::runtime(tile_size)];
 
-        tile_outer_product(register_m, register_n, results, config);
+        tile_outer_product::<F>(register_m, register_n, results, config);
     }
 }
 
@@ -51,16 +51,19 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
+        let block_size_m = Comptime::map(config, |c| c.block_size_m);
+        let block_size_k = Comptime::map(config, |c| c.block_size_m);
+        let block_size_n = Comptime::map(config, |c| c.block_size_m);
+        let sm_size_lhs = block_size_m * block_size_k / tile_size;
+        let sm_size_rhs = block_size_n * block_size_k / tile_size;
 
         // Shared memories are not launchable, so we launch with tensor and convert to shared memory
-        let sm_size_lhs = Comptime::map(config, |c| c.sm_size_lhs);
         let mut shared_lhs =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size_lhs), Comptime::get(tile_size));
         for i in range(0u32, lhs.len(), Comptime::new(false)) {
             shared_lhs[i] = lhs[i];
         }
 
-        let sm_size_rhs = Comptime::map(config, |c| c.sm_size_rhs);
         let mut shared_rhs =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size_rhs), Comptime::get(tile_size));
         for i in range(0u32, rhs.len(), Comptime::new(false)) {
@@ -132,6 +135,64 @@ pub mod tests {
         let expected = &[
             8960.0, 9184.0, 9408.0, 9632.0, 9184.0, 9416.0, 9648.0, 9880.0, 9408.0, 9648.0, 9888.0,
             10128.0, 9632.0, 9880.0, 10128.0, 10376.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn compute_loop_unit_offset_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let lhs = burn_tensor::Tensor::<B<R>, 2>::from_data(
+            burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..32, device)
+                .reshape([8, 4])
+                .float()
+                .transpose()
+                .into_data(),
+            device,
+        )
+        .into_primitive();
+        let rhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..32, device)
+            .reshape([4, 8])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        let unit_row = 4;
+        let unit_col = 4;
+        let results = client.empty(tile_size * tile_size * core::mem::size_of::<f32>());
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(1, 1, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_input(1, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config, 4, 8, 4, tile_size);
+
+        compute_loop_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            unit_row,
+            unit_col,
+            ArrayHandle::new(&results, 1),
+            config,
+        );
+
+        let actual = client.read(results.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            1160.0, 1230.0, 1300.0, 1370.0, 1416.0, 1502.0, 1588.0, 1674.0, 1672.0, 1774.0, 1876.0,
+            1978.0, 1928.0, 2046.0, 2164.0, 2282.0,
         ];
         assert_eq!(actual, expected);
     }

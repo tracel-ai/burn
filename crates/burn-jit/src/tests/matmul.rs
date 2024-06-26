@@ -478,7 +478,7 @@ mod tests {
 
         #[test]
         pub fn medium() {
-            test_with_params(16, 16, 16, 1, 1);
+            test_with_params(17, 16, 16, 1, 1);
         }
 
         #[test]

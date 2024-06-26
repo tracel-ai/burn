@@ -26,6 +26,7 @@ pub trait Float:
     + Erf
     + Recip
     + core::ops::Index<UInt, Output = Self>
+    + core::ops::IndexMut<UInt, Output = Self>
 {
     fn new(val: f32) -> Self;
     fn new_expand(context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType;
@@ -105,6 +106,12 @@ macro_rules! impl_float {
             type Output = Self;
 
             fn index(&self, _index: UInt) -> &Self::Output {
+                unexpanded!()
+            }
+        }
+
+        impl core::ops::IndexMut<UInt> for $type {
+            fn index_mut(&mut self, _index: UInt) -> &mut Self::Output {
                 unexpanded!()
             }
         }

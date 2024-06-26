@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -21,6 +21,7 @@ pub struct DropoutConfig {
 ///
 /// Should be created with [DropoutConfig].
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct Dropout {
     prob: f64,
 }
@@ -51,6 +52,18 @@ impl Dropout {
         let x = input * random;
 
         x * (1.0 / prob_keep)
+    }
+}
+
+impl ModuleDisplay for Dropout {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+        content.add("prob", &self.prob).optional()
     }
 }
 

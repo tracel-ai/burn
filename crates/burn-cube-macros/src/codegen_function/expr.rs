@@ -25,6 +25,7 @@ pub(crate) fn codegen_expr(
         syn::Expr::Call(call) => codegen_call(call, loop_level, variable_tracker),
         syn::Expr::Paren(paren) => codegen_expr(&paren.expr, loop_level, variable_tracker),
         _ => {
+            let mut array_indexing = None;
             let tokens = match expr {
                 syn::Expr::Path(path) => {
                     return codegen_path_var(path, loop_level, variable_tracker)
@@ -50,7 +51,11 @@ pub(crate) fn codegen_expr(
                 syn::Expr::MethodCall(call) => {
                     codegen_expr_method_call(call, loop_level, variable_tracker)
                 }
-                syn::Expr::Index(index) => codegen_index(index, loop_level, variable_tracker),
+                syn::Expr::Index(index) => {
+                    let codegen = codegen_index(index, loop_level, variable_tracker);
+                    array_indexing = codegen.array_indexing;
+                    codegen.tokens
+                }
                 syn::Expr::Array(array) => codegen_array_lit(array),
                 syn::Expr::Reference(reference) => {
                     codegen_ref(reference, loop_level, variable_tracker)
@@ -67,7 +72,9 @@ pub(crate) fn codegen_expr(
                 }
             };
 
-            Codegen::new(tokens, false)
+            let mut codegen = Codegen::new(tokens, false);
+            codegen.array_indexing = array_indexing;
+            codegen
         }
     }
 }

@@ -20,7 +20,7 @@ pub(crate) fn write_to_output<F: Float>(
     let col = coordinates.skip_col + coordinates.unit_col;
 
     let rank = out.rank();
-    let out_stride_row = out.stride(rank - UInt::new(2)) / Comptime::runtime(tile_size);
+    let out_stride_row = out.stride(rank - UInt::new(2));
 
     if Comptime::get(check_m_bounds) {
         let dim_m = out.shape(rank - UInt::new(2));
@@ -28,7 +28,7 @@ pub(crate) fn write_to_output<F: Float>(
             let dim_n = out.shape(rank - UInt::new(1));
             if row < dim_m && col < dim_n {
                 let num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
-                write_results_to_output_partial(
+                write_results_to_output_partial::<F>(
                     out,
                     results,
                     row,
@@ -42,7 +42,7 @@ pub(crate) fn write_to_output<F: Float>(
         } else {
             if row < dim_m {
                 let num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
-                write_results_to_output_partial(
+                write_results_to_output_partial::<F>(
                     out,
                     results,
                     row,
@@ -58,7 +58,7 @@ pub(crate) fn write_to_output<F: Float>(
         if Comptime::get(check_n_bounds) {
             let dim_n = out.shape(rank - UInt::new(1));
             if col < dim_n {
-                write_results_to_output(
+                write_results_to_output::<F>(
                     out,
                     results,
                     row,
@@ -69,7 +69,7 @@ pub(crate) fn write_to_output<F: Float>(
                 );
             }
         } else {
-            write_results_to_output(
+            write_results_to_output::<F>(
                 out,
                 results,
                 row,
@@ -93,14 +93,15 @@ fn write_results_to_output<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let is_scalar = Comptime::map(tile_size, |t| t.val == 1);
+    let sm_is_scalar = Comptime::map(tile_size, |t| t.val == 1);
     let unroll = Comptime::map(config, |c| c.unroll);
 
-    if Comptime::get(is_scalar) {
-        out[row * out_stride_row + col + offset_output] = results[0];
+    let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
+    if Comptime::get(sm_is_scalar) {
+        out[(row * out_stride_row + col + offset_output) / vectorization_factor] = results[0];
     } else {
         for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-            write_results_inner_loop(
+            write_results_inner_loop::<F>(
                 out,
                 results,
                 res_idx_m,
@@ -126,13 +127,14 @@ fn write_results_to_output_partial<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let is_scalar = Comptime::map(tile_size, |t| t.val == 1);
+    let sm_is_scalar = Comptime::map(tile_size, |t| t.val == 1);
 
-    if Comptime::get(is_scalar) {
-        out[row * out_stride_row + col + batch_offset / Comptime::runtime(tile_size)] = results[0];
+    let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
+    if Comptime::get(sm_is_scalar) {
+        out[(row * out_stride_row + col + batch_offset) / vectorization_factor] = results[0];
     } else {
         for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
-            write_results_inner_loop(
+            write_results_inner_loop::<F>(
                 out,
                 results,
                 res_idx_m,
@@ -161,16 +163,16 @@ fn write_results_inner_loop<F: Float>(
     let unroll = Comptime::map(config, |c| c.unroll);
 
     let results_pos_m = res_idx_m * Comptime::runtime(tile_size);
-    let out_position =
-        (row + res_idx_m) * out_stride_row + col / Comptime::runtime(tile_size) + batch_offset;
+    let out_position = (row + res_idx_m) * out_stride_row + col + batch_offset;
 
     // Reinterpreting results as vectorized array
-    let mut array = Array::<F>::new(Comptime::get(tile_size));
+    let mut output = F::vectorized(0., Comptime::get(tile_size));
     for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
-        array[res_idx_n] = results[results_pos_m + res_idx_n];
+        output[res_idx_n] = results[results_pos_m + res_idx_n];
     }
 
-    out[out_position] = array.to_vectorized(tile_size);
+    let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
+    out[out_position / vectorization_factor] = output;
 }
 
 #[cfg(feature = "export_tests")]
@@ -184,9 +186,8 @@ pub mod tests {
         results: Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
-        let tile_size = Comptime::map(config, |c| c.tile_size);
-        let out_stride_row = out.stride(out.rank() - UInt::new(2)) / Comptime::runtime(tile_size);
-        write_results_inner_loop(
+        let out_stride_row = out.stride(out.rank() - UInt::new(2));
+        write_results_inner_loop::<F>(
             out,
             results,
             UInt::new(2),
@@ -204,9 +205,8 @@ pub mod tests {
         results: Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
-        let tile_size = Comptime::map(config, |c| c.tile_size);
-        let out_stride_row = out.stride(out.rank() - UInt::new(2)) / Comptime::runtime(tile_size);
-        write_results_to_output(
+        let out_stride_row = out.stride(out.rank() - UInt::new(2));
+        write_results_to_output::<F>(
             out,
             results,
             UInt::new(4),
@@ -223,9 +223,8 @@ pub mod tests {
         results: Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
-        let tile_size = Comptime::map(config, |c| c.tile_size);
-        let out_stride_row = out.stride(out.rank() - UInt::new(2)) / Comptime::runtime(tile_size);
-        write_results_to_output_partial(
+        let out_stride_row = out.stride(out.rank() - UInt::new(2));
+        write_results_to_output_partial::<F>(
             out,
             results,
             UInt::new(4),
@@ -249,7 +248,7 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
-        write_to_output(out, results, coordinates, UInt::new(0), config);
+        write_to_output::<F>(out, results, coordinates, UInt::new(0), config);
     }
 
     #[cube(launch)]
@@ -264,7 +263,7 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
-        write_to_output(out, results, coordinates, UInt::new(0), config);
+        write_to_output::<F>(out, results, coordinates, UInt::new(0), config);
     }
 
     /// Exported test

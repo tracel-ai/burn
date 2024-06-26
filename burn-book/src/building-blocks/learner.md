@@ -1,12 +1,12 @@
 # Learner
 
-The [burn-train](https://github.com/tracel-ai/burn/tree/main/burn-train) crate encapsulates multiple
-utilities for training deep learning models. The goal of the crate is to provide users with a
-well-crafted and flexible training loop, so that projects do not have to write such components from
-the ground up. Most of the interactions with `burn-train` will be with the `LearnerBuilder` struct,
-briefly presented in the previous [training section](../basic-workflow/training.md). This struct
-enables you to configure the training loop, offering support for registering metrics, enabling
-logging, checkpointing states, using multiple devices, and so on.
+The [burn-train](https://github.com/tracel-ai/burn/tree/main/crates/burn-train) crate encapsulates
+multiple utilities for training deep learning models. The goal of the crate is to provide users with
+a well-crafted and flexible training loop, so that projects do not have to write such components
+from the ground up. Most of the interactions with `burn-train` will be with the `LearnerBuilder`
+struct, briefly presented in the previous [training section](../basic-workflow/training.md). This
+struct enables you to configure the training loop, offering support for registering metrics,
+enabling logging, checkpointing states, using multiple devices, and so on.
 
 There are still some assumptions in the current provided APIs, which may make them inappropriate for
 your learning requirements. Indeed, they assume your model will learn from a training dataset and be

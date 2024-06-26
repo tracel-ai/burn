@@ -4,7 +4,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
-use super::{ArrayExpand, CubeElem, SharedMemoryExpand};
+use super::{CubeElem, SharedMemoryExpand};
 
 #[derive(Default, Clone)]
 pub struct VariablePool {
@@ -117,10 +117,8 @@ impl CubeContext {
         }
     }
 
-    pub fn create_local_array<T: CubeElem>(&mut self, item: Item, size: u32) -> ArrayExpand<T> {
-        ArrayExpand {
-            val: ExpandElement::Plain(self.root.borrow_mut().create_local_array(item, size)),
-        }
+    pub fn create_local_array(&mut self, item: Item, size: u32) -> ExpandElement {
+        ExpandElement::Plain(self.root.borrow_mut().create_local_array(item, size))
     }
 
     /// Obtain the index-th input
@@ -128,25 +126,11 @@ impl CubeContext {
         ExpandElement::Plain(crate::ir::Variable::GlobalInputArray(index, item))
     }
 
-    pub fn input_array<T: CubeElem>(&mut self, index: u16, item: Item) -> ArrayExpand<T> {
-        ArrayExpand {
-            val: ExpandElement::Plain(crate::ir::Variable::GlobalInputArray(index, item)),
-        }
-    }
-
     /// Obtain the index-th output
     pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
         let var = crate::ir::Variable::GlobalOutputArray(index, item);
         self.scope.borrow_mut().write_global_custom(var);
         ExpandElement::Plain(var)
-    }
-
-    pub fn output_array<T: CubeElem>(&mut self, index: u16, item: Item) -> ArrayExpand<T> {
-        let var = crate::ir::Variable::GlobalOutputArray(index, item);
-        self.scope.borrow_mut().write_global_custom(var);
-        ArrayExpand {
-            val: ExpandElement::Plain(var),
-        }
     }
 
     /// Obtain the index-th scalar

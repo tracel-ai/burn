@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 
 use crate::nn::Initializer;
 use crate::{
@@ -33,6 +34,7 @@ pub struct BatchNormConfig {
 ///
 /// Should be created using [BatchNormConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct BatchNorm<B: Backend, const D: usize> {
     /// The learnable weight gamma.
     pub gamma: Param<Tensor<B, 1>>,
@@ -180,6 +182,24 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let x = x.mul(self.gamma.val().reshape(shape));
 
         x.add(self.beta.val().reshape(shape))
+    }
+}
+
+impl<const D: usize, B: Backend> ModuleDisplay for BatchNorm<B, D> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [num_features] = self.beta.shape().dims;
+
+        content
+            .add("num_features", &num_features)
+            .add("momentum", &self.momentum)
+            .add("epsilon", &self.epsilon)
+            .optional()
     }
 }
 

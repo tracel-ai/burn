@@ -14,18 +14,15 @@ pub(crate) fn tile_outer_product<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let unroll = Comptime::map(config, |c| c.unroll);
     let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
+
     if Comptime::get(is_scalar) {
-        // works
-        results[0] = results[0] + register_m * register_n;
-        // doesnt work
         results[0] += register_m * register_n;
     } else {
         for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
             let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
             for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
                 let mul = register_m[res_idx_m] * register_n[res_idx_n];
-                // results[res_pos_base + res_idx_n] += mul;
-                results[res_pos_base + res_idx_n] = results[res_pos_base + res_idx_n] + mul;
+                results[res_pos_base + res_idx_n] += mul;
             }
         }
     }
@@ -57,7 +54,7 @@ pub mod tests {
         ) {
             results[i] = F::new(0.);
         }
-        tile_outer_product(register_m, register_n, results, config)
+        tile_outer_product::<F>(register_m, register_n, results, config)
     }
 
     fn test_case_config(tile_size: usize) -> CubeTiling2dConfig {
@@ -93,6 +90,38 @@ pub mod tests {
         let actual = f32::from_bytes(&actual);
         let expected = &[
             0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 2.0, 4.0, 6.0, 8.0, 3.0, 6.0, 9.0, 12.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn tile_outer_product_vectorized_unit_test_2<R: Runtime>(device: &R::Device) {
+        let client = R::client(device);
+
+        let register_m = client.create(f32::as_bytes(&[16., 20., 24., 28.]));
+        let register_n = client.create(f32::as_bytes(&[4., 5., 6., 7.]));
+        let results = client.empty(16 * core::mem::size_of::<f32>());
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(1, 1, 1));
+        let config = test_case_config(4);
+
+        tile_outer_product_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            ArrayHandle::new(&register_m, 4),
+            ArrayHandle::new(&register_n, 4),
+            ArrayHandle::new(&results, 16),
+            config,
+        );
+
+        let actual = client.read(results.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            64.0, 80.0, 96.0, 112.0, 80.0, 100.0, 120.0, 140.0, 96.0, 120.0, 144.0, 168.0, 112.0,
+            140.0, 168.0, 196.0,
         ];
         assert_eq!(actual, expected);
     }

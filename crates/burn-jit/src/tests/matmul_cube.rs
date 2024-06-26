@@ -16,6 +16,13 @@ mod tests {
     }
 
     #[test]
+    pub fn tiling2d_matmul_outer_product_vectorized_test_2() {
+        outer_product_tests::tile_outer_product_vectorized_unit_test_2::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
     pub fn tiling2d_matmul_outer_product_scalar_test() {
         outer_product_tests::tile_outer_product_scalar_unit_test::<TestRuntime>(&Default::default())
     }
@@ -23,6 +30,11 @@ mod tests {
     #[test]
     pub fn tiling2d_matmul_compute_loop_vectorized_test() {
         compute_loop_tests::compute_loop_unit_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn compute_loop_unit_offset_test() {
+        compute_loop_tests::compute_loop_unit_offset_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
@@ -75,8 +87,30 @@ mod tests {
     }
 
     #[test]
+    pub fn load_lhs_transposed_cube_test() {
+        load_shared_memory_tests::load_lhs_transposed_cube_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_lhs_transposed_offset_cube_test() {
+        load_shared_memory_tests::load_lhs_transposed_offset_cube_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
     pub fn load_rhs_plain_unit_test() {
         load_shared_memory_tests::load_rhs_plain_unit_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_rhs_plain_cube_test() {
+        load_shared_memory_tests::load_rhs_plain_cube_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_rhs_plain_cube_offset_test() {
+        load_shared_memory_tests::load_rhs_plain_cube_offset_test::<TestRuntime>(&Default::default())
     }
 
     #[test]

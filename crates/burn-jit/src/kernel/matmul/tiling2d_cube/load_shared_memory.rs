@@ -33,12 +33,12 @@ pub(crate) fn load_lhs_transposed<F: Float>(
 
     let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
-    load_tile(
+    load_tile::<F>(
         lhs,
         tile,
         offset,
-        unit_col,
         unit_row,
+        unit_col,
         skip_row,
         skip_col,
         Comptime::map(config, |c| c.check_m_bounds),
@@ -46,7 +46,7 @@ pub(crate) fn load_lhs_transposed<F: Float>(
         config,
     );
 
-    write_tile_transposed(
+    write_tile_transposed::<F>(
         tile,
         shared_lhs,
         sm_position_base,
@@ -83,7 +83,7 @@ pub(crate) fn load_rhs_plain<F: Float>(
 
     let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
-    load_tile(
+    load_tile::<F>(
         rhs,
         tile,
         offset,
@@ -96,7 +96,7 @@ pub(crate) fn load_rhs_plain<F: Float>(
         config,
     );
 
-    write_tile_plain(
+    write_tile_plain::<F>(
         tile,
         shared_rhs,
         sm_position_base,
@@ -128,16 +128,16 @@ fn load_tile<F: Float>(
 
     if Comptime::get(check_vertical_bounds) {
         let row = skip_row + load_row;
-        let dim_vertical = tensor.shape(tensor.rank() - UInt::new(2));
+        let dim_vertical = tensor.shape(rank - UInt::new(2));
 
         if Comptime::get(check_horizontal_bounds) {
             let col = skip_col + load_col;
-            let dim_horizontal = tensor.shape(tensor.rank() - UInt::new(1));
+            let dim_horizontal = tensor.shape(rank - UInt::new(1));
 
             if col >= dim_horizontal {
-                read_zeros(tile, tile_size, unroll);
+                read_zeros::<F>(tile, tile_size, unroll);
             } else {
-                read_partial(
+                read_partial::<F>(
                     tensor,
                     dim_vertical,
                     row,
@@ -148,7 +148,7 @@ fn load_tile<F: Float>(
                 );
             }
         } else {
-            read_partial(
+            read_partial::<F>(
                 tensor,
                 dim_vertical,
                 row,
@@ -161,11 +161,11 @@ fn load_tile<F: Float>(
     } else {
         if Comptime::get(check_horizontal_bounds) {
             let col = skip_col + load_col;
-            let dim_horizontal = tensor.shape(tensor.rank() - UInt::new(1));
+            let dim_horizontal = tensor.shape(rank - UInt::new(1));
             if col >= dim_horizontal {
-                read_zeros(tile, tile_size, unroll);
+                read_zeros::<F>(tile, tile_size, unroll);
             } else {
-                read_whole(
+                read_whole::<F>(
                     tensor,
                     tensor_position_base,
                     tensor_stride,
@@ -175,7 +175,7 @@ fn load_tile<F: Float>(
                 );
             }
         } else {
-            read_whole(
+            read_whole::<F>(
                 tensor,
                 tensor_position_base,
                 tensor_stride,
@@ -221,12 +221,16 @@ fn write_tile_transposed<F: Float>(
         shared_memory[sm_position_base] = tile[0];
     } else {
         for i in range(0u32, Comptime::get(tile_size), unroll) {
-            let mut transposed = Array::<F>::new(Comptime::get(tile_size));
+            let mut transposed = F::vectorized(0., Comptime::get(tile_size));
             for j in range(0u32, Comptime::get(tile_size), unroll) {
                 transposed[j] = tile[j][i];
             }
             let sm_position = (sm_position_base + i * sm_stride) / sm_vectorization;
-            shared_memory[sm_position] = transposed.to_vectorized(tile_size);
+            shared_memory[sm_position] = transposed;
+
+            // let mut x = F::vectorized(0., Comptime::get(tile_size));
+            // x[UInt::new(0)] = F::cast_from(UNIT_POS);
+            // shared_memory[UNIT_POS] = x;
         }
     }
 }
@@ -286,7 +290,7 @@ pub mod tests {
     #[cube(launch)]
     #[allow(unused_mut)]
     fn read_whole_test<F: Float>(tensor: Tensor<F>, mut tile: Array<F>, tile_size: Comptime<UInt>) {
-        read_whole(
+        read_whole::<F>(
             tensor,
             UInt::new(0),
             tensor.stride(0),
@@ -303,7 +307,7 @@ pub mod tests {
         mut tile: Array<F>,
         tile_size: Comptime<UInt>,
     ) {
-        read_partial(
+        read_partial::<F>(
             tensor,
             Comptime::runtime(tile_size),
             UInt::new(2),
@@ -317,7 +321,7 @@ pub mod tests {
     #[cube(launch)]
     #[allow(unused_mut)]
     fn read_zeros_test<F: Float>(mut tile: Array<F>, tile_size: Comptime<UInt>) {
-        read_zeros(tile, tile_size, Comptime::new(true))
+        read_zeros::<F>(tile, tile_size, Comptime::new(true))
     }
 
     #[cube(launch)]
@@ -361,7 +365,7 @@ pub mod tests {
 
         let sm_stride = block_size_m;
         let sm_size = Comptime::runtime(block_size_k * block_size_m);
-        let shared_memory = SharedMemory::vectorized(sm_size, Comptime::get(tile_size));
+        let shared_memory = SharedMemory::<F>::vectorized(sm_size, Comptime::get(tile_size));
 
         if Comptime::get(transposed) {
             write_tile_transposed(
@@ -405,6 +409,42 @@ pub mod tests {
         let unit_row = UInt::new(4);
         let unit_col = UInt::new(4);
         let k = UInt::new(8);
+        let offset = UInt::new(0);
+
+        let coordinates = Coordinates {
+            unit_row,
+            unit_col,
+            skip_row: UInt::new(0),
+            skip_col: UInt::new(0),
+        };
+        if Comptime::get(is_lhs) {
+            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config);
+        } else {
+            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config);
+        }
+
+        for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
+            sm_out[i] = shared_memory[i];
+        }
+    }
+
+    #[cube(launch)]
+    fn load_tensor_multiple_tiles_test<F: Float>(
+        tensor: Tensor<F>,
+        mut sm_out: Array<F>,
+        k: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+        is_lhs: Comptime<bool>,
+    ) {
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+        let block_size_k = Comptime::map(config, |c| c.block_size_k);
+        let block_size_m = Comptime::map(config, |c| c.block_size_m);
+        let sm_size = block_size_k * block_size_m / tile_size;
+        let shared_memory =
+            SharedMemory::<F>::vectorized(Comptime::get(sm_size), Comptime::get(tile_size));
+
+        let unit_row = UInt::new(4) * UNIT_POS_X;
+        let unit_col = UInt::new(4) * UNIT_POS_Y;
         let offset = UInt::new(0);
 
         let coordinates = Coordinates {
@@ -818,6 +858,112 @@ pub mod tests {
     }
 
     /// Exported test
+    pub fn load_lhs_transposed_cube_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let lhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..64, device)
+            .reshape([8, 8])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 2, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_output(0, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+
+        let sm_out = client.empty(
+            tiling2d_config.block_size_k
+                * tiling2d_config.block_size_m
+                * core::mem::size_of::<f32>(),
+        );
+
+        load_tensor_multiple_tiles_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayHandle::new(&sm_out, 64),
+            0,
+            config,
+            true,
+        );
+
+        let actual = client.read(sm_out.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 1.0, 9.0, 17.0, 25.0, 33.0, 41.0, 49.0,
+            57.0, 2.0, 10.0, 18.0, 26.0, 34.0, 42.0, 50.0, 58.0, 3.0, 11.0, 19.0, 27.0, 35.0, 43.0,
+            51.0, 59.0, 4.0, 12.0, 20.0, 28.0, 36.0, 44.0, 52.0, 60.0, 5.0, 13.0, 21.0, 29.0, 37.0,
+            45.0, 53.0, 61.0, 6.0, 14.0, 22.0, 30.0, 38.0, 46.0, 54.0, 62.0, 7.0, 15.0, 23.0, 31.0,
+            39.0, 47.0, 55.0, 63.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn load_lhs_transposed_offset_cube_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let lhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..128, device)
+            .reshape([8, 16])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 2, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_output(0, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 16, tile_size);
+
+        let sm_out = client.empty(
+            tiling2d_config.block_size_k
+                * tiling2d_config.block_size_m
+                * core::mem::size_of::<f32>(),
+        );
+
+        load_tensor_multiple_tiles_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayHandle::new(&sm_out, 64),
+            8,
+            config,
+            true,
+        );
+
+        let actual = client.read(sm_out.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            8.0, 24.0, 40.0, 56.0, 72.0, 88.0, 104.0, 120.0, 9.0, 25.0, 41.0, 57.0, 73.0, 89.0,
+            105.0, 121.0, 10.0, 26.0, 42.0, 58.0, 74.0, 90.0, 106.0, 122.0, 11.0, 27.0, 43.0, 59.0,
+            75.0, 91.0, 107.0, 123.0, 12.0, 28.0, 44.0, 60.0, 76.0, 92.0, 108.0, 124.0, 13.0, 29.0,
+            45.0, 61.0, 77.0, 93.0, 109.0, 125.0, 14.0, 30.0, 46.0, 62.0, 78.0, 94.0, 110.0, 126.0,
+            15.0, 31.0, 47.0, 63.0, 79.0, 95.0, 111.0, 127.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
     pub fn load_rhs_plain_unit_test<R: JitRuntime>(device: &R::Device) {
         pub type B<R> = JitBackend<R, f32, i32>;
 
@@ -865,6 +1011,112 @@ pub mod tests {
             0.0, 0.0, 196.0, 197.0, 198.0, 199.0, 0.0, 0.0, 0.0, 0.0, 212.0, 213.0, 214.0, 215.0,
             0.0, 0.0, 0.0, 0.0, 228.0, 229.0, 230.0, 231.0, 0.0, 0.0, 0.0, 0.0, 244.0, 245.0,
             246.0, 247.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn load_rhs_plain_cube_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let rhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..64, device)
+            .reshape([8, 8])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 2, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_output(0, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+
+        let sm_out = client.empty(
+            tiling2d_config.block_size_k
+                * tiling2d_config.block_size_m
+                * core::mem::size_of::<f32>(),
+        );
+
+        load_tensor_multiple_tiles_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            ArrayHandle::new(&sm_out, 64),
+            0,
+            config,
+            false,
+        );
+
+        let actual = client.read(sm_out.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+            16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 28.0, 29.0,
+            30.0, 31.0, 32.0, 33.0, 34.0, 35.0, 36.0, 37.0, 38.0, 39.0, 40.0, 41.0, 42.0, 43.0,
+            44.0, 45.0, 46.0, 47.0, 48.0, 49.0, 50.0, 51.0, 52.0, 53.0, 54.0, 55.0, 56.0, 57.0,
+            58.0, 59.0, 60.0, 61.0, 62.0, 63.0,
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn load_rhs_plain_cube_offset_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let rhs = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..128, device)
+            .reshape([16, 8])
+            .float()
+            .into_primitive();
+        let client = R::client(device);
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 2, 1))
+            .vectorize_input(0, tile_size as u8)
+            .vectorize_output(0, tile_size as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 16, 16, 8, tile_size);
+
+        let sm_out = client.empty(
+            tiling2d_config.block_size_k
+                * tiling2d_config.block_size_m
+                * core::mem::size_of::<f32>(),
+        );
+
+        load_tensor_multiple_tiles_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            ArrayHandle::new(&sm_out, 64),
+            8,
+            config,
+            false,
+        );
+
+        let actual = client.read(sm_out.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[
+            64.0, 65.0, 66.0, 67.0, 68.0, 69.0, 70.0, 71.0, 72.0, 73.0, 74.0, 75.0, 76.0, 77.0,
+            78.0, 79.0, 80.0, 81.0, 82.0, 83.0, 84.0, 85.0, 86.0, 87.0, 88.0, 89.0, 90.0, 91.0,
+            92.0, 93.0, 94.0, 95.0, 96.0, 97.0, 98.0, 99.0, 100.0, 101.0, 102.0, 103.0, 104.0,
+            105.0, 106.0, 107.0, 108.0, 109.0, 110.0, 111.0, 112.0, 113.0, 114.0, 115.0, 116.0,
+            117.0, 118.0, 119.0, 120.0, 121.0, 122.0, 123.0, 124.0, 125.0, 126.0, 127.0,
         ];
         assert_eq!(actual, expected);
     }

@@ -370,6 +370,6 @@ mod tests {
 
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
-        assert_eq!(serialized_str.len(), 134);
+        assert_eq!(serialized_str.len(), 108);
     }
 }

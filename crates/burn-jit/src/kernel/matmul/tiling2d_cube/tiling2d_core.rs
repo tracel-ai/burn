@@ -22,24 +22,24 @@ pub(crate) fn tiling2d_core<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
-    let results = init_results(config);
+    let results = init_results::<F>(config);
 
     let n_loops = calculate_n_loops::<F>(lhs.shape(lhs.rank() - UInt::new(1)), config);
 
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_lhs_transposed(lhs, coordinates, k, offsets.lhs, shared.lhs, config);
-        load_rhs_plain(rhs, coordinates, k, offsets.rhs, shared.rhs, config);
+        load_lhs_transposed::<F>(lhs, coordinates, k, offsets.lhs, shared.lhs, config);
+        load_rhs_plain::<F>(rhs, coordinates, k, offsets.rhs, shared.rhs, config);
 
         sync_units();
 
-        compute_loop(coordinates, shared.lhs, shared.rhs, results, config);
+        compute_loop::<F>(coordinates, shared.lhs, shared.rhs, results, config);
 
         sync_units();
     }
 
-    write_to_output(out, results, coordinates, offsets.out, config);
+    write_to_output::<F>(out, results, coordinates, offsets.out, config);
 }
 
 #[cube]

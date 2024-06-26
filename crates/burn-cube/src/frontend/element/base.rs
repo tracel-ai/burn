@@ -96,7 +96,10 @@ impl From<ExpandElement> for Variable {
 
 impl Init for ExpandElement {
     fn init(self, context: &mut CubeContext) -> Self {
-        init_expand(context, self, Operator::Assign)
+        match *self {
+            Variable::LocalArray(_, _, _, _) => self,
+            _ => init_expand(context, self, Operator::Assign),
+        }
     }
 }
 

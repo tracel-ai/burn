@@ -22,11 +22,21 @@ fn array_of_one_to_vectorized_variable<T: Numeric>() -> T {
     array.to_vectorized(Comptime::new(UInt::new(1)))
 }
 
+#[cube]
+fn array_add_assign_simple(mut array: Array<UInt>) {
+    array[UInt::new(1)] += UInt::new(1);
+}
+
+#[cube]
+fn array_add_assign_expr(mut array: Array<UInt>) {
+    array[UInt::new(1) + UInt::new(5)] += UInt::new(1);
+}
+
 mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        ir::{Item, Variable},
+        ir::{Elem, Item, Variable},
     };
 
     type ElemType = F32;
@@ -39,6 +49,20 @@ mod tests {
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref_read_write()
+        )
+    }
+
+    #[test]
+    fn array_add_assign() {
+        let mut context = CubeContext::root();
+        let array = context.input(0, Item::new(Elem::UInt));
+
+        array_add_assign_simple_expand(&mut context, array);
+        let scope = context.into_scope();
+
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_array_add_assign_simple()
         );
     }
 
@@ -84,6 +108,37 @@ mod tests {
         format!("{:?}", scope.operations)
     }
 
+    #[test]
+    fn array_add_assign_expr() {
+        let mut context = CubeContext::root();
+        let array = context.input(0, Item::new(Elem::UInt));
+
+        array_add_assign_expr_expand(&mut context, array);
+        let scope = context.into_scope();
+
+        assert_eq!(
+            format!("{:?}", scope.operations),
+            inline_macro_array_add_assign_expr()
+        );
+    }
+
+    fn inline_macro_array_add_assign_simple() -> String {
+        let context = CubeContext::root();
+
+        let mut scope = context.into_scope();
+        let local = scope.create_local(Item::new(Elem::UInt));
+
+        let array = Variable::GlobalInputArray(0, Item::new(Elem::UInt));
+        let index = Variable::ConstantScalar(1., Elem::UInt);
+        let value = Variable::ConstantScalar(1., Elem::UInt);
+
+        cpa!(scope, local = array[index]);
+        cpa!(scope, local += value);
+        cpa!(scope, array[index] = local);
+
+        format!("{:?}", scope.operations)
+    }
+
     fn inline_macro_ref_to_vectorized() -> String {
         let context = CubeContext::root();
         let scalar_item = Item::new(ElemType::as_elem());
@@ -120,6 +175,26 @@ mod tests {
         let tmp = scope.create_local(scalar_item);
         cpa!(scope, tmp = array[pos0]);
         cpa!(scope, unvectorized_var = tmp);
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_array_add_assign_expr() -> String {
+        let context = CubeContext::root();
+
+        let mut scope = context.into_scope();
+        let index = scope.create_local(Item::new(Elem::UInt));
+        let local = scope.create_local(Item::new(Elem::UInt));
+
+        let array = Variable::GlobalInputArray(0, Item::new(Elem::UInt));
+        let const1 = Variable::ConstantScalar(1., Elem::UInt);
+        let const2 = Variable::ConstantScalar(5., Elem::UInt);
+        let value = Variable::ConstantScalar(1., Elem::UInt);
+
+        cpa!(scope, index = const1 + const2);
+        cpa!(scope, local = array[index]);
+        cpa!(scope, local += value);
+        cpa!(scope, array[index] = local);
 
         format!("{:?}", scope.operations)
     }
