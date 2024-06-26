@@ -1,6 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Module, Param};
 use crate::nn::norm::group_norm;
 use crate::nn::Initializer;
@@ -25,6 +26,7 @@ pub struct InstanceNormConfig {
 ///
 /// Should be created using [InstanceNormConfig](InstanceNormConfig).
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct InstanceNorm<B: Backend> {
     /// The learnable weight
     pub gamma: Option<Param<Tensor<B, 1>>>,
@@ -34,6 +36,22 @@ pub struct InstanceNorm<B: Backend> {
     num_channels: usize,
     epsilon: f64,
     affine: bool,
+}
+
+impl<B: Backend> ModuleDisplay for InstanceNorm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("num_channels", &self.num_channels)
+            .add("epsilon", &self.epsilon)
+            .add("affine", &self.affine)
+            .optional()
+    }
 }
 
 impl InstanceNormConfig {
@@ -83,6 +101,7 @@ mod tests {
     use super::*;
     use crate::tensor::Data;
     use crate::TestBackend;
+    use alloc::format;
 
     #[test]
     fn instance_norm_forward_affine_false() {
@@ -189,6 +208,17 @@ mod tests {
                 ],
             ]),
             3,
+        );
+    }
+
+    #[test]
+    fn print() {
+        let config = InstanceNormConfig::new(6);
+        let instance_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", instance_norm),
+            "InstanceNorm {num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }
 }
