@@ -77,20 +77,17 @@ impl Codegen {
                     }
 
                     if is_output {
-                        let ty = match *ty {
-                            syn::Type::Reference(val) => val.elem,
-                            _ => ty,
-                        };
-                        codegen.state_outputs.push((ident.clone(), *ty));
+                        codegen
+                            .state_outputs
+                            .push((ident.clone(), no_ref(&ty).clone()));
                     } else if comptime {
-                        let ty = first_generic_ty(&ty);
-                        codegen.state_comptimes.push((ty.clone(), ident.clone()));
+                        codegen
+                            .state_comptimes
+                            .push((first_generic_ty(&ty).clone(), ident.clone()));
                     } else {
-                        let ty = match *ty {
-                            syn::Type::Reference(val) => val.elem,
-                            _ => ty,
-                        };
-                        codegen.state_inputs.push((ident.clone(), *ty));
+                        codegen
+                            .state_inputs
+                            .push((ident.clone(), no_ref(&ty).clone()));
                     }
                 }
                 _ => panic!("Only Typed inputs are supported"),
