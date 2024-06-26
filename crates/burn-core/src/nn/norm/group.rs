@@ -4,6 +4,7 @@ use crate::nn::Initializer;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -36,6 +37,7 @@ pub struct GroupNormConfig {
 ///
 /// Should be created using [GroupNormConfig](GroupNormConfig).
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct GroupNorm<B: Backend> {
     /// The learnable weight
     pub gamma: Option<Param<Tensor<B, 1>>>,
@@ -46,6 +48,23 @@ pub struct GroupNorm<B: Backend> {
     pub(crate) num_channels: usize,
     pub(crate) epsilon: f64,
     pub(crate) affine: bool,
+}
+
+impl<B: Backend> ModuleDisplay for GroupNorm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("num_groups", &self.num_groups)
+            .add("num_channels", &self.num_channels)
+            .add("epsilon", &self.epsilon)
+            .add("affine", &self.affine)
+            .optional()
+    }
 }
 
 impl GroupNormConfig {
@@ -169,6 +188,7 @@ mod tests {
     use super::*;
     use crate::tensor::Data;
     use crate::TestBackend;
+    use alloc::format;
 
     #[test]
     fn group_norm_forward_affine_false() {
@@ -294,6 +314,17 @@ mod tests {
                 ],
             ]),
             3,
+        );
+    }
+
+    #[test]
+    fn print() {
+        let config = GroupNormConfig::new(3, 6);
+        let group_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", group_norm),
+            "GroupNorm {num_groups: 3, num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }
 }
