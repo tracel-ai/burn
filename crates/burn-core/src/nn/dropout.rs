@@ -23,7 +23,8 @@ pub struct DropoutConfig {
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct Dropout {
-    prob: f64,
+    /// The probability of randomly zeroes some elements of the input tensor during training.
+    pub prob: f64,
 }
 
 impl DropoutConfig {
