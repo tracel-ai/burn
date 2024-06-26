@@ -87,7 +87,7 @@ impl TensorCheck {
             check = check.register(
                 "From Data",
                 TensorError::new("Given dimensions differ from the tensor rank.")
-                    .details(format!("Tensor rank: '{D}', given dimension: '{dims:?}'.")),
+                    .details(format!("Tensor rank: '{D}', given dimensions: '{dims:?}'.")),
             );
         }
 
