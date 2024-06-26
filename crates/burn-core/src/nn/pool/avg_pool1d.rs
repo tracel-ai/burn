@@ -41,10 +41,14 @@ pub struct AvgPool1dConfig {
 
 #[derive(Module, Clone, Debug)]
 pub struct AvgPool1d {
-    stride: usize,
-    kernel_size: usize,
-    padding: Ignored<PaddingConfig1d>,
-    count_include_pad: bool,
+    /// The stride.
+    pub stride: usize,
+    /// The size of the kernel.
+    pub kernel_size: usize,
+    /// The padding configuration.
+    pub padding: Ignored<PaddingConfig1d>,
+    /// If the padding is counted in the denominator when computing the average.
+    pub count_include_pad: bool,
 }
 
 impl AvgPool1dConfig {
