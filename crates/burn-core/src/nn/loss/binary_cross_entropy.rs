@@ -64,8 +64,10 @@ impl BinaryCrossEntropyLossConfig {
 pub struct BinaryCrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
-    smoothing: Option<f32>,
-    logits: bool,
+    /// Label smoothing alpha.
+    pub smoothing: Option<f32>,
+    /// Treat the inputs as logits
+    pub logits: bool,
 }
 
 impl<B: Backend> ModuleDisplay for BinaryCrossEntropyLoss<B> {
