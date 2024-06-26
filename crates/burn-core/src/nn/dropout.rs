@@ -99,4 +99,12 @@ mod tests {
 
         assert_eq!(tensor.to_data(), output.to_data());
     }
+
+    #[test]
+    fn display() {
+        let config = DropoutConfig::new(0.5);
+        let layer = config.init();
+
+        assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
+    }
 }
