@@ -1,6 +1,7 @@
 use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -10,6 +11,7 @@ use crate::tensor::activation::leaky_relu;
 ///
 /// Should be created with [LeakyReluConfig](LeakyReluConfig).
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct LeakyRelu {
     /// The negative slope.
     pub negative_slope: f64,
@@ -27,6 +29,20 @@ impl LeakyReluConfig {
         LeakyRelu {
             negative_slope: self.negative_slope,
         }
+    }
+}
+
+impl ModuleDisplay for LeakyRelu {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("negative_slope", &self.negative_slope)
+            .optional()
     }
 }
 
@@ -91,5 +107,14 @@ mod tests {
         actual_output
             .to_data()
             .assert_approx_eq(&Data::from(expected_output), 4)
+    }
+
+    #[test]
+    fn display() {
+        let config = LeakyReluConfig::new().init();
+        assert_eq!(
+            alloc::format!("{}", config),
+            "LeakyRelu {negative_slope: 0.01}"
+        );
     }
 }
