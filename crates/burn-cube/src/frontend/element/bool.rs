@@ -1,4 +1,4 @@
-use crate::frontend::{CubeElem, CubeType, ExpandElement};
+use crate::frontend::{CubePrimitive, CubeType, ExpandElement};
 use crate::ir::Elem;
 
 use super::Vectorized;
@@ -7,7 +7,7 @@ impl CubeType for bool {
     type ExpandType = ExpandElement;
 }
 
-impl CubeElem for bool {
+impl CubePrimitive for bool {
     fn as_elem() -> Elem {
         Elem::Bool
     }

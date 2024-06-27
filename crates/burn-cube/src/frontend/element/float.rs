@@ -1,7 +1,7 @@
 use half::{bf16, f16};
 
 use crate::frontend::{Ceil, Cos, Erf, Exp, Floor, Log, Log1p, Powf, Recip, Sin, Sqrt, Tanh};
-use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, FloatKind, Item, Variable, Vectorization};
 
 use crate::compute::{KernelBuilder, KernelLauncher};
@@ -57,7 +57,7 @@ macro_rules! impl_float {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeElem for $type {
+        impl CubePrimitive for $type {
             /// Return the element type to use on GPU
             fn as_elem() -> Elem {
                 Elem::Float(FloatKind::$type)

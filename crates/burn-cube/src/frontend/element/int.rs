@@ -1,5 +1,5 @@
 use crate::compute::{KernelBuilder, KernelLauncher};
-use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, IntKind, Item, Variable, Vectorization};
 use crate::prelude::index_assign;
 use crate::Runtime;
@@ -38,7 +38,7 @@ macro_rules! impl_int {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeElem for $type {
+        impl CubePrimitive for $type {
             fn as_elem() -> Elem {
                 Elem::Int(IntKind::$type)
             }

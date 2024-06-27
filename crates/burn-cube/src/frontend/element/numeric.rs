@@ -1,4 +1,4 @@
-use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement};
+use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement};
 use crate::ir::{Item, Variable};
 use crate::{
     frontend::{index_assign, Abs, Max, Min, Remainder},
@@ -9,7 +9,7 @@ use crate::{
 /// Used in kernels that should work for both.
 pub trait Numeric:
     Copy
-    + CubeElem
+    + CubePrimitive
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
     + std::ops::SubAssign

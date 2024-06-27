@@ -6,7 +6,7 @@ use super::Vectorized;
 
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
-pub trait CubeElem:
+pub trait CubePrimitive:
     CubeType<ExpandType = ExpandElement>
     + Vectorized
     + core::cmp::Eq

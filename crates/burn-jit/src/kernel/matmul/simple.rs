@@ -120,7 +120,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         .vectorize_input(1, vectorization_factor)
         .vectorize_output(0, 1);
 
-    matmul_kernel_launch::<<E as FloatElement>::CubeElement, R>(
+    matmul_kernel_launch::<E::FloatPrimitive, R>(
         lhs.client,
         workgroup,
         settings,

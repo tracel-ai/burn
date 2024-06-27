@@ -1,4 +1,4 @@
-use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, Item, Variable, Vectorization};
 use crate::prelude::{index_assign, KernelBuilder, KernelLauncher};
 use crate::{
@@ -28,7 +28,7 @@ impl CubeType for &mut UInt {
     type ExpandType = ExpandElement;
 }
 
-impl CubeElem for UInt {
+impl CubePrimitive for UInt {
     fn as_elem() -> Elem {
         Elem::UInt
     }

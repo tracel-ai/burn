@@ -4,7 +4,7 @@ use burn_cube::{calculate_cube_count_elemwise, prelude::*};
 use burn_cube::{frontend::TensorHandle, KernelSettings, SUBCUBE_DIM_APPROX};
 
 #[cube]
-fn index_offset_global_with_layout<N: CubeElem>(
+fn index_offset_with_layout<N: CubePrimitive>(
     tensor: &Tensor<N>,
     layout: &Tensor<N>,
     offset_layout: UInt,
@@ -27,20 +27,24 @@ fn index_offset_global_with_layout<N: CubeElem>(
 }
 
 #[cube(launch)]
-fn into_contiguous_kernel<N: CubeElem>(input: &Tensor<N>, output: &mut Tensor<N>) {
+fn into_contiguous_kernel<N: CubePrimitive>(
+    input: &Tensor<N>,
+    output: &mut Tensor<N>,
+    rank: Comptime<Option<UInt>>,
+) {
     let offset_output = ABSOLUTE_POS;
 
     if offset_output >= output.len() {
         return;
     }
 
-    let offset_input = index_offset_global_with_layout::<N>(
-        &input,
-        &output,
+    let offset_input = index_offset_with_layout::<N>(
+        input,
+        output,
         offset_output,
         UInt::new(0),
-        input.rank(),
-        Comptime::new(false),
+        Comptime::unwrap_or_else(rank, || output.rank()),
+        Comptime::is_some(rank),
     );
 
     output[offset_output] = input[offset_input];
@@ -85,12 +89,13 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         SUBCUBE_DIM_APPROX,
     );
 
-    into_contiguous_kernel_launch::<E::CubeElement, R>(
+    into_contiguous_kernel_launch::<E::Primitive, R>(
         client,
         cube_count,
         settings,
         TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
         TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+        Some(UInt::new(D as u32)),
     );
 
     output
