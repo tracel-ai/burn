@@ -22,41 +22,11 @@ use alloc::vec::Vec;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-pub fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
-    // Size of each output tensor is variable (= number of nonzero elements in the tensor).
-    // Reading the data to count the number of truth values might cause sync but is required.
-    // let dims = B::bool_shape(&tensor).dims;
-    let device = B::bool_device(&tensor);
-    let data = B::bool_into_data(tensor).read();
-
-    argwhere_data::<B, D>(data, &device)
-}
-
-/// Compute the indices of the elements that are non-zero, grouped by element.
-///
-/// # Arguments
-///
-/// * `tensor` - The input tensor.
-///
-/// # Returns
-///
-/// A vector of tensors, one for each dimension of the given tensor, containing the indices of
-/// the non-zero elements in that dimension.
-///
-/// # Remarks
-///
-/// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
-/// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
-/// by static dispatch. It is not designed for direct usage by users, and not recommended to import
-/// or use this function directly.
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
 pub async fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
     // Size of each output tensor is variable (= number of nonzero elements in the tensor).
     // Reading the data to count the number of truth values might cause sync but is required.
     let device = B::bool_device(&tensor);
-    let data = B::bool_into_data(tensor).read().await;
-
+    let data = B::bool_into_data(tensor).await;
     argwhere_data::<B, D>(data, &device)
 }
 

@@ -3,7 +3,7 @@ use std::{
     thread,
 };
 
-use burn_common::{reader::Reader, sync_type::SyncType};
+use burn_common::sync_type::SyncType;
 
 use super::ComputeChannel;
 use crate::{
@@ -36,7 +36,7 @@ enum Message<Server>
 where
     Server: ComputeServer,
 {
-    Read(Binding<Server>, Callback<Reader<Vec<u8>>>),
+    Read(Binding<Server>, Callback<Vec<u8>>),
     GetResource(
         Binding<Server>,
         Callback<<Server::Storage as ComputeStorage>::Resource>,
@@ -59,7 +59,13 @@ where
             while let Ok(message) = receiver.recv() {
                 match message {
                     Message::Read(binding, callback) => {
-                        let data = server.read(binding);
+                        // It's quite weird to synchronize here as it means the read function isn't _really_ async
+                        // anymore, but then again, this doesn't work on wasm anyway so blocking on a thread
+                        // is close enough.
+                        //
+                        // It IS possible to return a future here, but that means servers can only return Boxed + static
+                        // futures, which is not ideal.
+                        let data = burn_common::reader::read_sync(server.read(binding));
                         callback.send(data).unwrap();
                     }
                     Message::GetResource(binding, callback) => {
@@ -103,7 +109,7 @@ impl<Server> ComputeChannel<Server> for MpscComputeChannel<Server>
 where
     Server: ComputeServer + 'static,
 {
-    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
+    async fn read(&self, binding: Binding<Server>) -> Vec<u8> {
         let (callback, response) = mpsc::channel();
 
         self.state

@@ -1,10 +1,12 @@
+use std::future::Future;
+
 use crate::{
     stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
 use burn_tensor::{
     repr::{OperationDescription, TensorDescription, TensorId},
-    DType, Reader, TensorData,
+    DType, TensorData,
 };
 
 /// Define how to interact with the fusion server.
@@ -37,7 +39,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData>
+    ) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
@@ -45,7 +47,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData>
+    ) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
@@ -53,7 +55,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> Reader<TensorData>
+    ) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.

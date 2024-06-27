@@ -58,18 +58,18 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, binding: server::Binding<Self>) -> burn_tensor::Reader<Vec<u8>> {
+    async fn read(&mut self, binding: server::Binding<Self>) -> Vec<u8> {
         let ctx = self.get_context();
         let resource = ctx.memory_management.get(binding.memory);
+
         // TODO: Check if it is possible to make this faster
+        // TODO: Ideally this would actually be async.
         let mut data = vec![0; resource.size() as usize];
         unsafe {
             cudarc::driver::result::memcpy_dtoh_async(&mut data, resource.ptr, ctx.stream).unwrap();
         };
-
         ctx.sync();
-
-        burn_tensor::Reader::Concrete(data)
+        data
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {

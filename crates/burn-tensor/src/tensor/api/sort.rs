@@ -6,6 +6,7 @@ use crate::{
     BasicOps, Device, Element, ElementComparison, ElementConversion, TensorData, TensorKind,
 };
 use alloc::vec::Vec;
+use burn_common::reader::try_read_sync;
 
 /// Sort the elements of the input `tensor` by value along a given dimension.
 ///
@@ -27,7 +28,6 @@ use alloc::vec::Vec;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 pub fn sort<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     tensor: K::Primitive<D>,
     dim: usize,
@@ -37,43 +37,7 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = K::into_data(tensor).read();
-
-    sort_data::<B, D, K>(data, dim, &device, descending)
-}
-
-/// Sort the elements of the input `tensor` by value along a given dimension.
-///
-/// This sort is unstable (i.e., may reorder equal elements).
-///
-/// # Arguments
-///
-/// * `tensor` - The input tensor.
-/// * `dim` - The axis along which to sort.
-/// * `descending` - The sorting order.
-///
-/// # Returns
-///
-/// A tensor with the same shape as the input tensor, where the elements are sorted by value.
-///
-/// # Remarks
-///
-/// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
-/// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
-/// by static dispatch. It is not designed for direct usage by users, and not recommended to import
-/// or use this function directly.
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-pub async fn sort<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive<D>,
-    dim: usize,
-    descending: bool,
-) -> K::Primitive<D>
-where
-    <K as BasicOps<B>>::Elem: Element,
-{
-    let device = K::device(&tensor);
-    let data = K::into_data(tensor).read().await;
-
+    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to read tensor data. This is necesarry until this backend has a GPU sorting implementation.");
     sort_data::<B, D, K>(data, dim, &device, descending)
 }
 
@@ -119,7 +83,6 @@ where
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 pub fn sort_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     tensor: K::Primitive<D>,
     dim: usize,
@@ -129,43 +92,7 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = K::into_data(tensor).read();
-
-    sort_data_with_indices::<B, D, K>(data, dim, &device, descending)
-}
-
-/// Sort the elements of the input `tensor` by value along a given dimension.
-///
-/// This sort is unstable (i.e., may reorder equal elements).
-///
-/// # Arguments
-///
-/// * `tensor` - The input tensor.
-/// * `dim` - The axis along which to sort.
-/// * `descending` - The sorting order.
-///
-/// # Returns
-///
-/// A tensor with the same shape as the input tensor and corresponding indices, where
-/// the elements are sorted by value and the indices map back to the original input tensor.
-///
-/// # Remarks
-///
-/// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
-/// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
-/// by static dispatch. It is not designed for direct usage by users, and not recommended to import
-/// or use this function directly.
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-pub async fn sort_with_indices<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive<D>,
-    dim: usize,
-    descending: bool,
-) -> (K::Primitive<D>, IntTensor<B, D>)
-where
-    <K as BasicOps<B>>::Elem: Element,
-{
-    let device = K::device(&tensor);
-    let data = K::into_data(tensor).read().await;
+    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to read tensor data. This is necesarry until this backend has a GPU sorting implementation.");
 
     sort_data_with_indices::<B, D, K>(data, dim, &device, descending)
 }
@@ -253,7 +180,6 @@ where
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 pub fn argsort<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     tensor: K::Primitive<D>,
     dim: usize,
@@ -263,42 +189,7 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = K::into_data(tensor).read();
-
-    argsort_data::<B, D, K>(data, dim, &device, descending)
-}
-
-/// Returns the indices that sort the elements of the input `tensor` along a given dimension.
-///
-/// This sort is unstable (i.e., may reorder equal elements).
-///
-/// # Arguments
-///
-/// * `tensor` - The input tensor.
-/// * `dim` - The axis along which to sort.
-/// * `descending` - The sorting order.
-///
-/// # Returns
-///
-/// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-///
-/// # Remarks
-///
-/// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
-/// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
-/// by static dispatch. It is not designed for direct usage by users, and not recommended to import
-/// or use this function directly.
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-pub async fn argsort<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive<D>,
-    dim: usize,
-    descending: bool,
-) -> IntTensor<B, D>
-where
-    <K as BasicOps<B>>::Elem: Element,
-{
-    let device = K::device(&tensor);
-    let data = K::into_data(tensor).read().await;
+    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to read tensor data. This is necesarry until this backend has a GPU sorting implementation.");
 
     argsort_data::<B, D, K>(data, dim, &device, descending)
 }

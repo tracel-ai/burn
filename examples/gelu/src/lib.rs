@@ -28,7 +28,7 @@ pub fn launch<R: Runtime>(device: &R::Device) {
         ArrayHandle::new(&output_handle, input.len()),
     );
 
-    let output = client.read(output_handle.binding()).read_sync().unwrap();
+    let output = burn_common::reader::read_sync(client.read(output_handle.binding()));
     let output = f32::from_bytes(&output);
 
     // Should be [-0.1587,  0.0000,  0.8413,  5.0000]

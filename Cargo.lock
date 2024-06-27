@@ -190,17 +190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-trait"
-version = "0.1.80"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6fa2087f2753a7da8cc1c0dbfcf89579dd57458e36769de5ac750b4671737ca"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.68",
-]
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,10 +450,10 @@ dependencies = [
 name = "burn-common"
 version = "0.14.0"
 dependencies = [
- "async-trait",
  "dashmap",
  "data-encoding",
  "derive-new",
+ "futures",
  "getrandom",
  "indicatif",
  "rand",
@@ -527,6 +516,7 @@ dependencies = [
 name = "burn-cube"
 version = "0.14.0"
 dependencies = [
+ "burn-common",
  "burn-compute",
  "burn-cube-macros",
  "burn-tensor",
@@ -1999,6 +1989,7 @@ dependencies = [
 name = "gelu"
 version = "0.14.0"
 dependencies = [
+ "burn-common",
  "burn-cube",
  "burn-cuda",
  "burn-wgpu",

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use burn_common::{reader::Reader, sync_type::SyncType};
+use burn_common::sync_type::SyncType;
 use burn_compute::{
     memory_management::{simple::SimpleMemoryManagement, MemoryHandle, MemoryManagement},
     server::{Binding, ComputeServer, Handle},
@@ -26,10 +26,9 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = String;
 
-    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>> {
+    async fn read(&mut self, binding: Binding<Self>) -> Vec<u8> {
         let bytes = self.memory_management.get(binding.memory);
-
-        Reader::Concrete(bytes.read().to_vec())
+        bytes.read().to_vec()
     }
 
     fn get_resource(&mut self, binding: Binding<Self>) -> BytesResource {

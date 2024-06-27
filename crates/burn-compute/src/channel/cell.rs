@@ -1,9 +1,10 @@
+use core::future::Future;
+
 use super::ComputeChannel;
 use crate::server::{Binding, ComputeServer, Handle};
 use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use burn_common::reader::Reader;
 use burn_common::sync_type::SyncType;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
@@ -44,8 +45,11 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
-        self.server.borrow_mut().read(binding)
+    fn read(&self, binding: Binding<Server>) -> impl Future<Output = Vec<u8>> {
+        let mut server = self.server.borrow_mut();
+        // Need to keep the server alive until the future is done, which
+        // means doing this slightly annoying pinning dance.
+        Box::pin(async move { server.read(binding).await })
     }
 
     fn get_resource(

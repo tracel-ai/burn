@@ -1,4 +1,5 @@
 use crate as burn_cube;
+use burn_common::reader::read_sync;
 use burn_cube::prelude::*;
 
 #[cube(launch)]
@@ -25,7 +26,7 @@ pub fn test_kernel_with_generics<R: Runtime>(client: ComputeClient<R::Server, R:
         ArrayHandle::new(&handle, 2),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = read_sync(client.read(handle.binding()));
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual[0], 5.0);
@@ -41,7 +42,7 @@ pub fn test_kernel_without_generics<R: Runtime>(client: ComputeClient<R::Server,
         ArrayHandle::new(&handle, 2),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = read_sync(client.read(handle.binding()));
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual[0], 5.0);

@@ -7,7 +7,7 @@ use crate::{
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
 use burn_common::stub::RwLock;
-use burn_common::{reader::Reader, sync_type::SyncType};
+use burn_common::sync_type::SyncType;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
@@ -41,8 +41,8 @@ where
     }
 
     /// Given a binding, returns owned resource as bytes.
-    pub fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
-        self.channel.read(binding)
+    pub async fn read(&self, binding: Binding<Server>) -> Vec<u8> {
+        self.channel.read(binding).await
     }
 
     /// Given a resource handle, returns the storage resource.
