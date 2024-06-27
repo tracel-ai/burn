@@ -117,7 +117,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        frontend::{CubeContext, CubeElem},
+        frontend::{CubeContext, CubePrimitive},
         ir::{Elem, Item, Variable},
     };
 

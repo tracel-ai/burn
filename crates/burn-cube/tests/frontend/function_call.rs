@@ -51,7 +51,7 @@ pub fn no_call_with_generics<T: Numeric>(x: T) {
 mod tests {
     use super::*;
     use burn_cube::{
-        frontend::{CubeContext, CubeElem, I64},
+        frontend::{CubeContext, CubePrimitive, I64},
         ir::{Elem, Item},
     };
 

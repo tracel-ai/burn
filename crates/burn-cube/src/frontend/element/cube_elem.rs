@@ -2,16 +2,20 @@ use crate::frontend::UInt;
 use crate::frontend::{CubeType, ExpandElement};
 use crate::ir::{Elem, Variable};
 
+use super::Vectorized;
+
 /// Form of CubeType that encapsulates all primitive types:
 /// Numeric, UInt, Bool
-pub trait CubeElem:
+pub trait CubePrimitive:
     CubeType<ExpandType = ExpandElement>
+    + Vectorized
     + core::cmp::Eq
     + core::cmp::PartialEq
     + Send
     + Sync
     + 'static
     + Clone
+    + Copy
 {
     /// Return the element type to use on GPU
     fn as_elem() -> Elem;
