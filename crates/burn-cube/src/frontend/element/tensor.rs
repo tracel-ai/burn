@@ -68,7 +68,12 @@ impl<T: CubeType> Tensor<T> {
         unexpanded!()
     }
 
-    /// Obtain the array length of input
+    /// The length of the buffer representing the tensor.
+    ///
+    /// # Warning
+    ///
+    /// The length will be affected by the vectorization factor. To obtain the number of elements,
+    /// you should multiply the length by the vectorization factor.
     pub fn len(&self) -> UInt {
         unexpanded!()
     }

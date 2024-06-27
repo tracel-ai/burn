@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[cube(launch)]
-fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
+fn gelu<F: Float>(input: &Array<F>, output: &mut Array<F>) {
     if ABSOLUTE_POS < input.len() {
         output[ABSOLUTE_POS] = gelu_scalar::<F>(input[ABSOLUTE_POS]);
     }

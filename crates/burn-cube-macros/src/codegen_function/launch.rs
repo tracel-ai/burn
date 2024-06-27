@@ -39,6 +39,12 @@ impl Codegen {
                                 is_output = true;
                             }
 
+                            if let syn::Type::Reference(ty) = pat.ty.as_ref() {
+                                if ty.mutability.is_some() {
+                                    is_output = true;
+                                }
+                            };
+
                             if let syn::Type::Path(pat) = pat.ty.as_ref() {
                                 if let Some(name) = pat.path.segments.first() {
                                     let name = name.ident.to_string();

@@ -12,24 +12,25 @@ fn index_offset_global_with_layout<N: CubeElem>(
     dim_end: UInt,
     unroll: Comptime<bool>,
 ) -> UInt {
+    let vectorization_factor = Comptime::vectorization(tensor);
+    let vectorization_factor_runtime = Comptime::runtime(vectorization_factor);
+
+    let offset_ref = offset_layout * vectorization_factor_runtime;
     let mut offset = UInt::new(0);
 
     for i in range(dim_start, dim_end, unroll) {
-        let ogwl = offset_layout / layout.stride(i);
+        let ogwl = offset_ref / layout.stride(i);
         offset += ogwl % tensor.shape(i) * tensor.stride(i);
     }
 
-    let vectorization_factor = Comptime::vectorization(tensor);
-    offset /= Comptime::runtime(vectorization_factor);
-
-    offset
+    offset / vectorization_factor_runtime
 }
 
 #[cube(launch)]
 fn into_contiguous_kernel<N: CubeElem>(input: &Tensor<N>, output: &mut Tensor<N>) {
     let offset_output = ABSOLUTE_POS;
 
-    if offset_output > output.len() {
+    if offset_output >= output.len() {
         return;
     }
 
@@ -66,6 +67,7 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     } else {
         1
     };
+
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
