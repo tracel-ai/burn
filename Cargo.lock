@@ -720,6 +720,7 @@ version = "0.14.0"
 dependencies = [
  "burn-common",
  "burn-tensor-testgen",
+ "bytemuck",
  "derive-new",
  "half",
  "hashbrown 0.14.5",

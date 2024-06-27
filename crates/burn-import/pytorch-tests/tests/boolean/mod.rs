@@ -27,7 +27,7 @@ mod tests {
 
     use burn::{
         record::{FullPrecisionSettings, Recorder},
-        tensor::Data,
+        tensor::TensorData,
     };
     use burn_import::pytorch::PyTorchFileRecorder;
 
@@ -51,7 +51,7 @@ mod tests {
         let output = model.forward(input);
 
         let expected =
-            Tensor::<Backend, 1, Bool>::from_bool(Data::from([true, false, true]), &device);
+            Tensor::<Backend, 1, Bool>::from_bool(TensorData::from([true, false, true]), &device);
 
         assert_eq!(output.to_data(), expected.to_data());
     }

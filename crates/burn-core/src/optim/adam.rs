@@ -192,7 +192,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-    use crate::tensor::{Data, Distribution, Tensor};
+    use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{nn, TestAutodiffBackend, TestBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -227,7 +227,7 @@ mod tests {
     fn test_adam_optimizer_with_numbers() {
         let device = Default::default();
         let linear = given_linear_layer(
-            Data::from([
+            TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
                 [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
@@ -235,9 +235,9 @@ mod tests {
                 [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
-            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats(
+        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -245,7 +245,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::from_floats(
+        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -270,7 +270,7 @@ mod tests {
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
-        let weights_expected = Data::from([
+        let weights_expected = TensorData::from([
             [-0.340528, 0.118929, 0.384336, 0.300010, 0.066034, 0.047154],
             [
                 0.057757, -0.036690, -0.386649, 0.235010, 0.175624, -0.312133,
@@ -286,7 +286,7 @@ mod tests {
             ],
             [-0.035840, -0.030203, 0.105840, 0.172110, 0.009440, 0.363346],
         ]);
-        let bias_expected = Data::from([
+        let bias_expected = TensorData::from([
             -0.410499, 0.068401, -0.116999, 0.097601, 0.116601, -0.006999,
         ]);
 
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_adam_optimizer_no_nan() {
         let linear = given_linear_layer(
-            Data::from([
+            TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
                 [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
@@ -310,10 +310,10 @@ mod tests {
                 [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
-            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
 
-        let x = Tensor::from_floats(
+        let x = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -338,13 +338,10 @@ mod tests {
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
-        assert!(!state_updated.weight.to_data().value[0].is_nan());
+        assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
-    fn given_linear_layer(
-        weight: Data<f32, 2>,
-        bias: Data<f32, 1>,
-    ) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = nn::LinearRecord {
             weight: Param::from_data(weight, &device),

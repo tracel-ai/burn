@@ -10,7 +10,9 @@ struct TypeCodegen {
     name_expand: syn::Ident,
     fields: Vec<syn::Field>,
     generics: GenericsCodegen,
+    vis: syn::Visibility,
 }
+
 impl TypeCodegen {
     pub fn expand_ty(&self) -> proc_macro2::TokenStream {
         let mut fields = quote::quote! {};
@@ -19,17 +21,19 @@ impl TypeCodegen {
         for field in self.fields.iter() {
             let ident = &field.ident;
             let ty = &field.ty;
+            let vis = &field.vis;
 
             fields.extend(quote! {
-                pub #ident: <#ty as CubeType>::ExpandType,
+                #vis #ident: <#ty as CubeType>::ExpandType,
             });
         }
 
         let generics = self.generics.type_definitions();
+        let vis = &self.vis;
 
         quote! {
             #[derive(Clone)]
-            pub(crate) struct #name #generics {
+            #vis struct #name #generics {
                 #fields
             }
         }
@@ -42,9 +46,10 @@ impl TypeCodegen {
         for field in self.fields.iter() {
             let ident = &field.ident;
             let ty = &field.ty;
+            let vis = &field.vis;
 
             fields.extend(quote! {
-                #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
+                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
             });
         }
 
@@ -65,9 +70,10 @@ impl TypeCodegen {
         for field in self.fields.iter() {
             let ident = &field.ident;
             let ty = &field.ty;
+            let vis = &field.vis;
 
             args.extend(quote! {
-                #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
+                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
             });
             fields.extend(quote! {
                 #ident,
@@ -76,11 +82,12 @@ impl TypeCodegen {
 
         let generics_impl = self.generics.all_definitions();
         let generics_use = self.generics.all_in_use();
+        let vis = &self.vis;
 
         quote! {
             impl #generics_impl #name #generics_use {
                 /// New kernel
-                pub fn new(#args) -> Self {
+                #vis fn new(#args) -> Self {
                     Self {
                         #fields
                     }
@@ -137,12 +144,13 @@ impl TypeCodegen {
         for field in self.fields.iter() {
             let ident = &field.ident;
             let ty = &field.ty;
+            let vis = &field.vis;
 
             body_input.extend(quote! {
-                #ident: <#ty as LaunchArg>::compile_input(builder, vectorization),
+                #vis #ident: <#ty as LaunchArg>::compile_input(builder, vectorization),
             });
             body_output.extend(quote! {
-                #ident: <#ty as LaunchArg>::compile_output(builder, vectorization),
+                #vis #ident: <#ty as LaunchArg>::compile_output(builder, vectorization),
             });
         }
 
@@ -194,9 +202,12 @@ impl TypeCodegen {
 pub(crate) fn generate_cube_type(ast: &syn::DeriveInput, with_launch: bool) -> TokenStream {
     let name = ast.ident.clone();
     let generics = ast.generics.clone();
+    let visibility = ast.vis.clone();
+
     let name_string = name.to_string();
     let name_expand = Ident::new(format!("{}Expand", name_string).as_str(), name.span());
     let name_launch = Ident::new(format!("{}Launch", name_string).as_str(), name.span());
+
     let mut fields = Vec::new();
 
     match &ast.data {
@@ -215,6 +226,7 @@ pub(crate) fn generate_cube_type(ast: &syn::DeriveInput, with_launch: bool) -> T
         name_expand,
         fields,
         generics: GenericsCodegen::new(generics),
+        vis: visibility,
     };
 
     let expand_ty = codegen.expand_ty();

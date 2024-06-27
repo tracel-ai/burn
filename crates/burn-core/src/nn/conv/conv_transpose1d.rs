@@ -123,7 +123,7 @@ impl<B: Backend> ConvTranspose1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
@@ -148,6 +148,6 @@ mod tests {
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
     }
 }

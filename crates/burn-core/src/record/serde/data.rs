@@ -43,6 +43,9 @@ pub enum NestedValue {
     /// Signed 64-bit integer value.
     I64(i64),
 
+    /// Unsigned 8-bit integer value.
+    U8(u8),
+
     /// Unsigned 16-bit integer value used for bf16 and f16 serialization
     U16(u16),
 
@@ -54,6 +57,9 @@ pub enum NestedValue {
 
     /// A vector of nested values (typically used for vector of structs or numbers)
     Vec(Vec<NestedValue>),
+
+    /// A vector of 8-bit unsigned integer values.
+    U8s(Vec<u8>),
 
     /// A vector of 16-bit unsigned integer values.
     U16s(Vec<u16>),
@@ -136,6 +142,19 @@ impl NestedValue {
             NestedValue::I32(i) => i.to_i64(),
             NestedValue::U16(u) => u.to_i64(),
             NestedValue::U64(u) => u.to_i64(),
+            _ => None,
+        }
+    }
+
+    /// Get the nested value as a u8.
+    pub fn as_u8(self) -> Option<u8> {
+        match self {
+            NestedValue::U8(u8) => Some(u8),
+            NestedValue::I16(i) => i.to_u8(),
+            NestedValue::I32(i) => i.to_u8(),
+            NestedValue::I64(i) => i.to_u8(),
+            NestedValue::U16(u) => u.to_u8(),
+            NestedValue::U64(u) => u.to_u8(),
             _ => None,
         }
     }
@@ -338,6 +357,7 @@ impl fmt::Debug for NestedValue {
         match self {
             // Truncate values for vector
             NestedValue::Vec(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
+            NestedValue::U8s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::U16s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::F32s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             // Handle other variants as usual
@@ -349,10 +369,12 @@ impl fmt::Debug for NestedValue {
             NestedValue::I16(val) => f.debug_tuple("I16").field(val).finish(),
             NestedValue::I32(val) => f.debug_tuple("I32").field(val).finish(),
             NestedValue::I64(val) => f.debug_tuple("I64").field(val).finish(),
+            NestedValue::U8(val) => f.debug_tuple("U8").field(val).finish(),
             NestedValue::U16(val) => f.debug_tuple("U16").field(val).finish(),
             NestedValue::U64(val) => f.debug_tuple("U64").field(val).finish(),
             NestedValue::Map(map) => f.debug_map().entries(map.iter()).finish(),
             NestedValue::Vec(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::U8s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::U16s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::F32s(vec) => f.debug_list().entries(vec.iter()).finish(),
         }

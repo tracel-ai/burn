@@ -48,8 +48,7 @@ mod tests {
                 Distribution::Uniform(0., shape2[dim] as f64),
                 &test_device,
             )
-            .into_data()
-            .convert(),
+            .into_data(),
             &test_device,
         )
         .reshape(shape2);
@@ -57,7 +56,7 @@ mod tests {
         let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &ref_device);
         let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data(), &ref_device);
         let indices_ref =
-            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
+            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data(), &ref_device);
 
         let actual = tensor.scatter(dim, indices, value);
         let expected = tensor_ref.scatter(dim, indices_ref, value_ref);

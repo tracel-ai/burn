@@ -106,7 +106,7 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Data, Shape};
+    use crate::tensor::{Shape, TensorData};
     use crate::TestBackend;
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
         linear
             .weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(linear.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
     }
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
         let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([2]), &device);
         let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
 
-        let result_1d = linear.forward(input_1d).unsqueeze();
+        let result_1d = linear.forward(input_1d).unsqueeze::<2>();
         let result_2d = linear.forward(input_2d);
 
         assert_eq!(result_1d.into_data(), result_2d.into_data());

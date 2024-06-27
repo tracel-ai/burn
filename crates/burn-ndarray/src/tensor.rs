@@ -1,4 +1,4 @@
-use burn_tensor::{Data, Shape};
+use burn_tensor::{Element, Shape, TensorData};
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
@@ -24,14 +24,14 @@ mod utils {
     where
         E: Default + Clone,
     {
-        pub(crate) fn into_data(self) -> Data<E, D>
+        pub(crate) fn into_data(self) -> TensorData
         where
             E: FloatNdArrayElement,
         {
             let shape = self.shape();
             let values = self.array.into_iter().collect();
 
-            Data::new(values, shape)
+            TensorData::new(values, shape)
         }
     }
 }
@@ -94,12 +94,12 @@ macro_rules! reshape {
 
 impl<E, const D: usize> NdArrayTensor<E, D>
 where
-    E: Default + Clone,
+    E: Element,
 {
-    /// Create a new [ndarray tensor](NdArrayTensor) from [data](Data).
-    pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
-        let shape = data.shape.clone();
-        let to_array = |data: Data<E, D>| Array::from_iter(data.value).into_shared();
+    /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
+    pub fn from_data(data: TensorData) -> NdArrayTensor<E, D> {
+        let shape: Shape<D> = data.shape.clone().into();
+        let to_array = |data: TensorData| Array::from_iter(data.iter()).into_shared();
         let array = to_array(data);
 
         reshape!(
@@ -119,12 +119,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32, 1>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -133,12 +133,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32, 2>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -147,12 +147,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_3d() {
-        let data_expected = Data::<f32, 3>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3, 4]),
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32, 3>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -161,12 +161,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_4d() {
-        let data_expected = Data::<f32, 4>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3, 4, 2]),
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32, 4>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 

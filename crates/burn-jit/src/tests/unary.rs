@@ -10,7 +10,8 @@ mod tests {
             let output = tensor.tanh().into_primitive();
             Tensor::<TestBackend, 1>::from_primitive(output)
                 .into_data()
-                .value[0]
+                .as_slice()
+                .unwrap()[0]
         }
 
         let ok = tanh_one_value(43.0); // metal tanh gives 1.0 which is the right answer

@@ -1,16 +1,18 @@
 #[burn_tensor_testgen::testgen(ad_gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Int, Tensor};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn test_gather_grad() {
         let device = Default::default();
-        let tensor_1 =
-            TestAutodiffTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]), &device)
-                .require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(
+            TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            &device,
+        )
+        .require_grad();
         let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(
-            Data::from([[2, 1, 0, 1, 2], [1, 0, 2, 1, 0]]),
+            TensorData::from([[2, 1, 0, 1, 2], [1, 0, 2, 1, 0]]),
             &device,
         );
 
@@ -22,23 +24,27 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.into_data(),
-            Data::from([[94., 150., 187.], [242., 305., 304.]])
+        grad_1.to_data().assert_eq(
+            &TensorData::from([[94., 150., 187.], [242., 305., 304.]]),
+            false,
         );
     }
 
     #[test]
     fn test_scatter_grad() {
         let device = Default::default();
-        let tensor_1 =
-            TestAutodiffTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]), &device)
-                .require_grad();
-        let values =
-            TestAutodiffTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), &device)
-                .require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(
+            TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            &device,
+        )
+        .require_grad();
+        let values = TestAutodiffTensor::from_data(
+            TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+            &device,
+        )
+        .require_grad();
         let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(
-            Data::from([[2, 1, 0], [2, 0, 1]]),
+            TensorData::from([[2, 1, 0], [2, 0, 1]]),
             &device,
         );
 
@@ -51,13 +57,12 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = values.grad(&grads).unwrap();
 
-        assert_eq!(
-            grad_1.into_data(),
-            Data::from([[127., 181., 235.], [226., 316., 406.]])
+        grad_1.to_data().assert_eq(
+            &TensorData::from([[127., 181., 235.], [226., 316., 406.]]),
+            false,
         );
-        assert_eq!(
-            grad_2.into_data(),
-            Data::from([[19., 19., 19.], [64., 64., 64.]])
-        );
+        grad_2
+            .to_data()
+            .assert_eq(&TensorData::from([[19., 19., 19.], [64., 64., 64.]]), false);
     }
 }

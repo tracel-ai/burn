@@ -159,7 +159,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-    use crate::tensor::{Data, Distribution, Tensor};
+    use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{nn, nn::Linear, TestAutodiffBackend, TestBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -194,7 +194,7 @@ mod tests {
     fn test_adagrad_optimizer_with_numbers() {
         let device = Default::default();
         let linear = given_linear_layer(
-            Data::from([
+            TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
                 [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
                 [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
@@ -202,9 +202,9 @@ mod tests {
                 [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
-            Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats(
+        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -212,7 +212,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::from_floats(
+        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -235,7 +235,7 @@ mod tests {
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear.into_record();
-        let weights_expected = Data::from([
+        let weights_expected = TensorData::from([
             [-0.334989, 0.123011, 0.389911, 0.305611, 0.071511, 0.052711],
             [
                 0.066144, -0.030056, -0.378256, 0.243444, 0.183944, -0.303756,
@@ -251,7 +251,7 @@ mod tests {
             ],
             [-0.030305, -0.026405, 0.111395, 0.177695, 0.014895, 0.368895],
         ]);
-        let bias_expected = Data::from([
+        let bias_expected = TensorData::from([
             -0.405214, 0.073686, -0.111714, 0.102886, 0.121886, -0.001714,
         ]);
 
@@ -264,10 +264,7 @@ mod tests {
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
-    fn given_linear_layer(
-        weight: Data<f32, 2>,
-        bias: Data<f32, 1>,
-    ) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
         let device = Default::default();
         let record = nn::LinearRecord {
             weight: Param::from_data(weight, &device),

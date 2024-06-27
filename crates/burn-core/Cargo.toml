@@ -92,6 +92,9 @@ record-item-custom-serde = ["thiserror", "regex"]
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 
+# Backwards compatibility with previous serialized data format.
+record-backward-compat = []
+
 test-tch = ["tch"]   # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
 

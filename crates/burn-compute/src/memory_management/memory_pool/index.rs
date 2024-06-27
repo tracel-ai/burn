@@ -32,6 +32,7 @@ impl<T: PartialEq + Eq + Hash + Clone> SearchIndex<T> {
     }
 
     /// Find the item by size range.
+    #[allow(unused)]
     pub fn find_by_size(
         &self,
         range: core::ops::Range<usize>,

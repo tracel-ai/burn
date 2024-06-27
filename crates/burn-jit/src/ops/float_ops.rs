@@ -7,7 +7,7 @@ use crate::{FloatElement, IntElement, JitRuntime};
 use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
+use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
@@ -18,7 +18,7 @@ where
     I: IntElement,
 {
     fn float_from_data<const D: usize>(
-        data: Data<FloatElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         super::from_data(data, device)
@@ -45,9 +45,7 @@ where
         tensor.shape.clone()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<Self>, D>> {
+    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
         super::into_data(tensor)
     }
 

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::adaptive_avg_pool2d;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_adaptive_avg_pool2d_simple() {
@@ -92,8 +92,7 @@ mod tests {
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
             );
             let output = adaptive_avg_pool2d(x, [self.height_out, self.width_out]);
 

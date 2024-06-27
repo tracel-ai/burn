@@ -4,30 +4,30 @@ use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::{LayerNormConfig, LayerNormRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct LayerNormNode<PS: PrecisionSettings> {
+pub struct LayerNormNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub gamma: DataSerialize<PS::FloatElem>,        // Scale
-    pub beta: Option<DataSerialize<PS::FloatElem>>, // Bias (B)
+    pub gamma: TensorData,        // Scale
+    pub beta: Option<TensorData>, // Bias (B)
     pub config: LayerNormConfig,
     pub full_precision: bool,
 }
 
-impl<PS: PrecisionSettings> LayerNormNode<PS> {
+impl LayerNormNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        gamma: DataSerialize<PS::FloatElem>,
-        beta: Option<DataSerialize<PS::FloatElem>>,
+        gamma: TensorData,
+        beta: Option<TensorData>,
         config: LayerNormConfig,
         full_precision: bool,
     ) -> Self {
@@ -48,7 +48,7 @@ impl<PS: PrecisionSettings> LayerNormNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -78,12 +78,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode<PS> {
         let record = LayerNormRecord::<SerializationBackend> {
             gamma: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.gamma.clone().convert(), &device),
+                Tensor::from_data(self.gamma.clone().convert::<PS::FloatElem>(), &device),
             ),
             beta: Param::initialized(
                 ParamId::new(),
                 if let Some(beta) = self.beta.clone() {
-                    Tensor::from_data(beta.convert(), &device)
+                    Tensor::from_data(beta.convert::<PS::FloatElem>(), &device)
                 } else {
                     Tensor::zeros([self.config.d_model], &device)
                 },
@@ -119,7 +119,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -129,8 +129,8 @@ mod tests {
             "norm",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
-            Some(Data::from([2.]).serialize()),
+            TensorData::from([2f32]),
+            Some(TensorData::from([2f32])),
             LayerNormConfig::new(128),
             true, // full_precision isn't taken into account
         ));
