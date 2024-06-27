@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::unfold4d;
     use burn_tensor::ops::UnfoldOptions;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_unfold4d_shape() {
@@ -93,7 +93,7 @@ mod tests {
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
                     .reshape(shape_x)
                     .into_data()
-                    .convert(),
+                    .convert::<f32>(),
             );
 
             let output = unfold4d(
@@ -114,8 +114,7 @@ mod tests {
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
             );
 
             let output = unfold4d(

@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Bool, Data, Int, Shape, Tensor};
+use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData};
 use alloc::vec::Vec;
 
 #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
@@ -21,7 +21,7 @@ where
     B: Backend,
 {
     /// Create a boolean tensor from data on the given device.
-    pub fn from_bool(data: Data<bool, D>, device: &B::Device) -> Self {
+    pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
         Self::new(B::bool_from_data(data, device))
     }
 

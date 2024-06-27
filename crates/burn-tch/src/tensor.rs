@@ -1,5 +1,5 @@
 use crate::{element::TchElement, LibTorch, LibTorchDevice};
-use burn_tensor::{ops::FloatTensorOps, Data, Shape};
+use burn_tensor::{ops::FloatTensorOps, Element, Shape, TensorData};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -264,7 +264,17 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
-impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
+impl<const D: usize> From<&[usize]> for TchShape<D> {
+    fn from(shape: &[usize]) -> Self {
+        let mut dims = [0; D];
+        for (i, dim) in dims.iter_mut().enumerate().take(D) {
+            *dim = shape[i] as i64;
+        }
+        TchShape { dims }
+    }
+}
+
+impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> {
     /// Creates a new tensor from a shape and a device.
     ///
     /// # Arguments
@@ -275,9 +285,10 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
     /// # Returns
     ///
     /// A new tensor.
-    pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
-        let tensor = tch::Tensor::from_slice(data.value.as_slice()).to(device);
-        let shape_tch = TchShape::from(data.shape);
+    pub fn from_data(data: TensorData, device: tch::Device) -> Self {
+        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+        let tensor =
+            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
@@ -290,7 +301,7 @@ mod utils {
     use crate::{backend::LibTorch, element::TchElement};
 
     impl<P: TchElement, const D: usize> TchTensor<P, D> {
-        pub(crate) fn into_data(self) -> Data<P, D>
+        pub(crate) fn into_data(self) -> TensorData
         where
             P: tch::kind::Element,
         {
@@ -327,12 +338,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32, 1>::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual = tensor.into_data();
 
@@ -341,12 +352,12 @@ mod tests {
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32, 2>::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual = tensor.into_data();
 
@@ -360,7 +371,10 @@ mod tests {
 
         let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
 
-        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
+        assert_ne!(
+            tensor_3.to_data().as_slice::<f32>().unwrap(),
+            tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
     }
 
     #[test]
@@ -370,6 +384,9 @@ mod tests {
 
         let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
 
-        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
+        assert_ne!(
+            tensor_3.to_data().as_slice::<f32>().unwrap(),
+            tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
     }
 }

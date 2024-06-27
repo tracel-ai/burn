@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Int, Tensor};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn test_arange_step() {
@@ -10,22 +10,31 @@ mod tests {
 
         // Test correct sequence of numbers when the range is 0..9 and the step is 1
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..9, 1, &device);
-        assert_eq!(tensor.into_data(), Data::from([0, 1, 2, 3, 4, 5, 6, 7, 8]));
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([0, 1, 2, 3, 4, 5, 6, 7, 8]), false);
 
         // Test correct sequence of numbers when the range is 0..3 and the step is 2
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..3, 2, &device);
-        assert_eq!(tensor.into_data(), Data::from([0, 2]));
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([0, 2]), false);
 
         // Test correct sequence of numbers when the range is 0..2 and the step is 5
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..2, 5, &device);
-        assert_eq!(tensor.into_data(), Data::from([0]));
+        tensor.into_data().assert_eq(&TensorData::from([0]), false);
 
         // Test correct sequence of numbers when the range includes negative numbers
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-3..3, 2, &device);
-        assert_eq!(tensor.into_data(), Data::from([-3, -1, 1]));
+        tensor
+            .into_data()
+            .assert_eq(&TensorData::from([-3, -1, 1]), false);
 
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-5..1, 5, &device);
-        assert_eq!(tensor.clone().into_data(), Data::from([-5, 0]));
+        tensor
+            .clone()
+            .into_data()
+            .assert_eq(&TensorData::from([-5, 0]), false);
         assert_eq!(tensor.device(), device);
     }
 

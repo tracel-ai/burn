@@ -574,6 +574,48 @@ leads to more reliable, bug-free solutions built faster (after some practice �
 
 <br />
 
+> **Deprecation Note**<br />Since `0.14.0`, the internal structure for tensor data has changed. The
+> previous `Data` struct is being deprecated in favor of the new `TensorData` struct, which allows
+> for more flexibility by storing the underlying data as bytes and keeping the data type as a field.
+> If you are using `Data` in your code, make sure to switch to `TensorData`.
+
+<!-- >
+> In the event that you are trying to load a model record saved in a previous version, make sure to
+> enable the `record-backward-compat` feature. Otherwise, the record won't be deserialized correctly
+> and you will get an error message (which will also point you to the backward compatible feature
+> flag). The backward compatibility is maintained for deserialization (loading), so as soon as you
+> have saved the record again it will be saved according to the new structure and you won't need the
+> backward compatible feature flag anymore. Please note that binary formats are not backward
+> compatible. Thus, you will need to load your record in a previous version and save it to another
+> of the self-describing record formats before using the new version with the
+> `record-backward-compat` feature flag. -->
+
+<details id="deprecation">
+<summary>
+Loading Model Records From Previous Versions ⚠️
+</summary>
+<br />
+
+In the event that you are trying to load a model record saved in a previous version, make sure to
+enable the `record-backward-compat` feature flag.
+
+```
+features = [..., "record-backward-compat"]
+```
+
+Otherwise, the record won't be deserialized correctly and you will get an error message. This error
+will also point you to the backward compatible feature flag.
+
+The backward compatibility is maintained for deserialization when loading records. Therefore, as
+soon as you have saved the record again it will be saved according to the new structure and you
+won't need the backward compatible feature flag anymore.
+
+Please note that binary formats are not backward compatible. Thus, you will need to load your record
+in a previous version and save it any of the other self-describing record format (e.g., using the
+`NamedMpkFileRecorder`) before using the new version with the `record-backward-compat` feature flag.
+
+</details>
+
 ## Community
 
 <div align="left">
@@ -592,9 +634,9 @@ any background. You can ask your questions and share what you built with the com
 Before contributing, please take a moment to review our
 [code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md). It's also highly
 recommended to read the
-[architecture overview](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture), which explains
-some of our architectural decisions. Refer to our [contributing guide](/CONTRIBUTING.md) for more
-details.
+[architecture overview](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture),
+which explains some of our architectural decisions. Refer to our
+[contributing guide](/CONTRIBUTING.md) for more details.
 
 ## Status
 

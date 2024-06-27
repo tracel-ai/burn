@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_expand)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn should_diff_expand() {
@@ -17,11 +17,11 @@ mod tests {
 
         let device = Default::default();
 
-        let data_1: Data<f32, 1> = Data::from([4.0, 7.0, 2.0, 3.0]);
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let data_1 = TensorData::from([4.0, 7.0, 2.0, 3.0]);
+        let tensor_1 = TestAutodiffTensor::<1>::from_data(data_1, &device).require_grad();
 
-        let data_2: Data<f32, 1> = Data::from([2.0, 4.5, 7.0, 3.0]);
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let data_2 = TensorData::from([2.0, 4.5, 7.0, 3.0]);
+        let tensor_2 = TestAutodiffTensor::<1>::from_data(data_2, &device).require_grad();
 
         let tensor_3 = tensor_1.clone().expand([4, 4]);
 
@@ -32,7 +32,11 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        assert_eq!(grad_1.to_data(), Data::from([8., 18., 28., 12.]));
-        assert_eq!(grad_2.to_data(), Data::from([16., 28., 8., 12.]));
+        grad_1
+            .to_data()
+            .assert_eq(&TensorData::from([8., 18., 28., 12.]), false);
+        grad_2
+            .to_data()
+            .assert_eq(&TensorData::from([16., 28., 8., 12.]), false);
     }
 }

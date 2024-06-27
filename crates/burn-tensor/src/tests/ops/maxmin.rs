@@ -1,162 +1,160 @@
 #[burn_tensor_testgen::testgen(maxmin)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     #[test]
     fn test_max_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_actual = tensor.max_dim(1);
+        let output = tensor.max_dim(1);
+        let expected = TensorData::from([[2.], [5.]]);
 
-        let output_expected = Data::from([[2.], [5.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn test_max_dim_with_indices_2d_with_dim_0th() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output_actual, index_actual) = tensor.max_dim_with_indices(0);
+        let (output, index) = tensor.max_dim_with_indices(0);
 
-        let output_expected = Data::from([[3., 4., 5.]]);
-        let index_expected = Data::from([[1, 1, 1]]);
+        let output_expected = TensorData::from([[3., 4., 5.]]);
+        let index_expected = TensorData::from([[1, 1, 1]]);
 
-        assert_eq!(output_expected, output_actual.into_data());
-        assert_eq!(index_expected, index_actual.into_data());
+        output.into_data().assert_eq(&output_expected, false);
+        index.into_data().assert_eq(&index_expected, false);
     }
 
     #[test]
     fn test_max_dim_with_indices_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output_actual, index_actual) = tensor.max_dim_with_indices(1);
+        let (output, index) = tensor.max_dim_with_indices(1);
 
-        let output_expected = Data::from([[2.], [5.]]);
-        let index_expected = Data::from([[2], [2]]);
+        let output_expected = TensorData::from([[2.], [5.]]);
+        let index_expected = TensorData::from([[2], [2]]);
 
-        assert_eq!(output_expected, output_actual.into_data());
-        assert_eq!(index_expected, index_actual.into_data());
+        output.into_data().assert_eq(&output_expected, false);
+        index.into_data().assert_eq(&index_expected, false);
     }
 
     #[test]
     fn test_min_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_actual = tensor.min_dim(1);
+        let output = tensor.min_dim(1);
 
-        let output_expected = Data::from([[0.], [3.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        let expected = TensorData::from([[0.], [3.]]);
+
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn test_min_dim_with_indices_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output_actual, index_actual) = tensor.min_dim_with_indices(1);
+        let (output, index) = tensor.min_dim_with_indices(1);
 
-        let output_expected = Data::from([[0.], [3.]]);
-        let index_expected = Data::from([[0], [0]]);
+        let output_expected = TensorData::from([[0.], [3.]]);
+        let index_expected = TensorData::from([[0], [0]]);
 
-        assert_eq!(output_expected, output_actual.into_data());
-        assert_eq!(index_expected, index_actual.into_data());
+        output.into_data().assert_eq(&output_expected, false);
+        index.into_data().assert_eq(&index_expected, false);
     }
 
     #[test]
     fn test_sum_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_actual = tensor.clone().sum_dim(1);
+        let output = tensor.clone().sum_dim(1);
+        let expected = TensorData::from([[3.], [12.]]);
 
-        let output_expected = Data::from([[3.], [12.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output.into_data().assert_eq(&expected, false);
 
-        let output_actual = tensor.sum_dim(0);
+        let output = tensor.sum_dim(0);
+        let expected = TensorData::from([[3., 5., 7.]]);
 
-        let output_expected = Data::from([[3., 5., 7.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn test_mean_dim_2d() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_actual = tensor.clone().mean_dim(1);
+        let output = tensor.clone().mean_dim(1);
+        let expected = TensorData::from([[1.], [4.]]);
 
-        let output_expected = Data::from([[1.], [4.]]);
-        output_actual
-            .into_data()
-            .assert_approx_eq(&output_expected, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
 
-        let output_actual = tensor.mean_dim(0);
+        let output = tensor.mean_dim(0);
+        let expected = TensorData::from([[1.5, 2.5, 3.5]]);
 
-        let output_expected = Data::from([[1.5, 2.5, 3.5]]);
-        output_actual
-            .into_data()
-            .assert_approx_eq(&output_expected, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
     fn test_min_dim_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
-        let output_actual = tensor.min_dim(0);
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_expected = Data::from([[0., 1., 2.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        let output = tensor.min_dim(0);
+        let expected = TensorData::from([[0., 1., 2.]]);
+
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn test_max_dim_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output_actual = tensor.max_dim(0);
+        let output = tensor.max_dim(0);
+        let expected = TensorData::from([[3., 4., 5.]]);
 
-        let output_expected = Data::from([[3., 4., 5.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     fn test_min_dim_with_indices_2d_with_0th_dim() {
         let tensor =
-            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output_actual, index_actual) = tensor.min_dim_with_indices(0);
+        let (output, index) = tensor.min_dim_with_indices(0);
 
-        let output_expected = Data::from([[0., 1., 2.]]);
-        let index_expected = Data::from([[0, 0, 0]]);
+        let output_expected = TensorData::from([[0., 1., 2.]]);
+        let index_expected = TensorData::from([[0, 0, 0]]);
 
-        assert_eq!(output_expected, output_actual.into_data());
-        assert_eq!(index_expected, index_actual.into_data());
+        output.into_data().assert_eq(&output_expected, false);
+        index.into_data().assert_eq(&index_expected, false);
     }
 
     #[test]
     fn test_maximum_pair() {
-        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
         let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
 
-        let c = a.max_pair(b);
+        let output = a.max_pair(b);
+        let expected = TensorData::from([2.0, 2.0, 4.0, 5.0]);
 
-        let expect = Data::from([2.0, 2.0, 4.0, 5.0]);
-        c.to_data().assert_approx_eq(&expect, 1);
+        output.into_data().assert_approx_eq(&expected, 1);
     }
 
     #[test]
     fn test_minimum_pair() {
-        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
         let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
 
-        let c = a.min_pair(b);
+        let output = a.min_pair(b);
+        let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
 
-        let expect = Data::from([1.0, 1.0, 3.0, 4.0]);
-        c.to_data().assert_approx_eq(&expect, 1);
+        output.into_data().assert_approx_eq(&expected, 1);
     }
 }

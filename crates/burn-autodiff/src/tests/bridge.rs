@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(bridge)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module::embedding, Data, Distribution, Int, Tensor};
+    use burn_tensor::{backend::Backend, Distribution, Tensor};
 
     #[test]
     fn test_full_precision() {

@@ -72,10 +72,6 @@ byte file is the model's parameters. The rest of 356,744 bytes contain all the c
 
 There are several planned enhancements in place:
 
-- [#202](https://github.com/tracel-ai/burn/issues/202) - Saving model's params in half-precision and
-  loading back in full. This can be half the size of the wasm file.
-- [#243](https://github.com/tracel-ai/burn/issues/243) - New WebGPU backend would allow computation
-  using GPU in the browser.
 - [#1271](https://github.com/rust-ndarray/ndarray/issues/1271) -
   [WASM SIMD](https://github.com/WebAssembly/simd/blob/master/proposals/simd/SIMD.md) support in
   NDArray that can speed up computation on CPU.

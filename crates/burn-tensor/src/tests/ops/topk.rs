@@ -1,76 +1,72 @@
 #[burn_tensor_testgen::testgen(topk)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, TensorData};
 
     #[test]
     fn test_topk_1d() {
         // Int
-        let tensor = TestTensorInt::from([1, 2, 3, 4, 5]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let values = tensor.topk(3, /*dim*/ 0);
-        let values_actual = values.into_data();
+        let expected = TensorData::from([5, 4, 3]);
 
-        let values_expected = Data::from([5, 4, 3]);
-        assert_eq!(values_expected, values_actual);
+        values.into_data().assert_eq(&expected, false);
 
         // Float
-        let tensor = TestTensor::from([1., 2., 3., 4., 5.]);
+        let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
 
         let values = tensor.topk(3, /*dim*/ 0);
-        let values_actual = values.into_data();
+        let expected = TensorData::from([5., 4., 3.]);
 
-        let values_expected = Data::from([5., 4., 3.]);
-        values_expected.assert_approx_eq(&values_actual, 5);
+        values.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[test]
     fn test_topk() {
-        // 2D Int
-        let tensor = TestTensorInt::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
+        // 3D Int
+        let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
-        let values_actual = values.into_data();
+        let expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]]);
 
-        let values_expected = Data::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]]);
-        assert_eq!(values_expected, values_actual);
+        values.into_data().assert_eq(&expected, false);
 
-        // 2D Float
-        let tensor = TestTensor::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
+        // 3D Float
+        let tensor =
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
 
         let values = tensor.topk(2, /*dim*/ 2);
-        let values_actual = values.into_data();
+        let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]]);
 
-        let values_expected = Data::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]]);
-        values_expected.assert_approx_eq(&values_actual, 5);
+        values.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[test]
     fn test_topk_with_indices() {
         // 1D
-        let tensor = TestTensorInt::from([1, 2, 3, 4, 5]);
+        let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0);
-        let values_actual = values.into_data();
-        let indices_actual = indices.into_data();
 
-        let values_expected = Data::from([5, 4, 3]);
-        assert_eq!(values_expected, values_actual);
+        let values_expected = TensorData::from([5, 4, 3]);
+        values.into_data().assert_eq(&values_expected, false);
 
-        let indices_expected = Data::from([4, 3, 2]);
-        assert_eq!(indices_expected, indices_actual);
+        let indices_expected = TensorData::from([4, 3, 2]);
+        indices.into_data().assert_eq(&indices_expected, false);
 
-        // 2D
-        let tensor = TestTensor::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+        // 3D
+        let tensor =
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 
         let (values, indices) = tensor.topk_with_indices(2, /*dim*/ 2);
-        let values_actual = values.into_data();
-        let indices_actual = indices.into_data();
 
-        let values_expected = Data::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
-        values_expected.assert_approx_eq(&values_actual, 5);
+        let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
-        let indices_expected = Data::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
-        assert_eq!(indices_expected, indices_actual);
+        values.into_data().assert_approx_eq(&values_expected, 5);
+
+        let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+
+        indices.into_data().assert_eq(&indices_expected, false);
     }
 }

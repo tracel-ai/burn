@@ -3,7 +3,7 @@ use super::{
     IntTensor,
 };
 use crate::{
-    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
+    backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor, TensorData,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -47,7 +47,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>>;
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<TensorData>;
 
     /// Gets the data from the tensor.
     ///
@@ -59,7 +59,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<TensorData> {
         Self::bool_into_data(tensor.clone())
     }
 
@@ -73,7 +73,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D>;
+    fn bool_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> BoolTensor<B, D>;
 
     /// Converts bool tensor to int tensor.
     ///

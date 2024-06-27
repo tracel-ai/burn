@@ -35,7 +35,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
             Type::Scalar(scalar) => {
                 let input = &scalar.name;
                 quote! {
-                    let #output = Tensor::<B, #new_dims>::from_data([#input.elem()], &self.device).unsqueeze();
+                    let #output = Tensor::<B, #new_dims>::from_data([#input.elem::<B::FloatElem>()], &self.device).unsqueeze();
                 }
             }
             _ => panic!("Unsupported input type"),

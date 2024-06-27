@@ -138,8 +138,8 @@ impl<B: Backend> Model<B> {
     /// Normalizes input and runs inference on the image
     pub async fn forward(&self, input: &[f32]) -> Vec<f32> {
         // Reshape from the 1D array to 3d tensor [ width, height, channels]
-        let input: Tensor<B, 4> =
-            Tensor::from_floats(input, &B::Device::default()).reshape([1, CHANNELS, HEIGHT, WIDTH]);
+        let input = Tensor::<B, 1>::from_floats(input, &B::Device::default())
+            .reshape([1, CHANNELS, HEIGHT, WIDTH]);
 
         // Normalize input: make between [-1,1] and make the mean=0 and std=1
         let input = self.normalizer.normalize(input);
@@ -151,11 +151,16 @@ impl<B: Backend> Model<B> {
         let probabilities = softmax(output, 1);
 
         #[cfg(not(target_family = "wasm"))]
-        let result = probabilities.into_data().convert::<f32>().value;
+        let result = probabilities.into_data().convert::<f32>().to_vec().unwrap();
 
         // Forces the result to be computed
         #[cfg(target_family = "wasm")]
-        let result = probabilities.into_data().await.convert::<f32>().value;
+        let result = probabilities
+            .into_data()
+            .await
+            .convert::<f32>()
+            .to_vec()
+            .unwrap();
 
         result
     }

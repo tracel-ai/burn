@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Data, Reader, Shape};
+use burn_tensor::{backend::Backend, Reader, Shape, TensorData};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -18,14 +18,14 @@ pub fn cat<E: CandleElement, const D: usize>(
 }
 
 pub fn from_data<E: CandleElement, const D: usize>(
-    data: Data<E, D>,
+    data: TensorData,
     device: &CandleDevice,
 ) -> CandleTensor<E, D> {
     CandleTensor::from_data(data, *device)
 }
-pub fn into_data<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> Data<E, D> {
-    Data::new(
-        tensor.tensor.flatten_all().unwrap().to_vec1().unwrap(),
+pub fn into_data<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> TensorData {
+    TensorData::new(
+        tensor.tensor.flatten_all().unwrap().to_vec1::<E>().unwrap(),
         tensor.shape(),
     )
 }

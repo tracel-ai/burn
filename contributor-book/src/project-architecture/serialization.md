@@ -57,7 +57,7 @@ Then, a `Recorder` instance can be used to serialize any record. The `Recorder` 
 provided at the creation of the `Recorder` instance. Note that tensors implement record, and their
 item is just a wrapper struct that contains information about the precision in which the tensor
 should be saved or loaded. No actual copy of the tensor is made until this point. The tensor is
-converted to the `Data` struct and then converted into the specified precision only when
+converted to the `TensorData` struct and then converted into the specified precision only when
 `serialize()` or `deserialize()` are called, which makes the whole process lazy.
 
 To recapitulate, the `Module` trait has an associated type that implements `Record`, which only

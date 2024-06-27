@@ -65,6 +65,12 @@ impl<const D: usize> From<&Vec<usize>> for Shape<D> {
     }
 }
 
+impl<const D: usize> From<Shape<D>> for Vec<usize> {
+    fn from(shape: Shape<D>) -> Self {
+        shape.dims.to_vec()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
