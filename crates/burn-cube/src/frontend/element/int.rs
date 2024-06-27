@@ -1,10 +1,10 @@
 use crate::compute::{KernelBuilder, KernelLauncher};
-use crate::frontend::{CubeContext, CubeElem, CubeType, ExpandElement, Numeric};
+use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, IntKind, Item, Variable, Vectorization};
 use crate::prelude::index_assign;
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg, UInt, Vectorized};
+use super::{ArgSettings, LaunchArg, LaunchArgExpand, UInt, Vectorized};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -30,7 +30,15 @@ macro_rules! impl_int {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeElem for $type {
+        impl CubeType for &$type {
+            type ExpandType = ExpandElement;
+        }
+
+        impl CubeType for &mut $type {
+            type ExpandType = ExpandElement;
+        }
+
+        impl CubePrimitive for $type {
             fn as_elem() -> Elem {
                 Elem::Int(IntKind::$type)
             }
@@ -81,24 +89,22 @@ macro_rules! impl_int {
             }
         }
 
+        impl LaunchArgExpand for &$type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar($type::as_elem())
+            }
+        }
+
+        impl LaunchArgExpand for &mut $type {
+            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
+                builder.scalar($type::as_elem())
+            }
+        }
+
         impl LaunchArg for $type {
             type RuntimeArg<'a, R: Runtime> = $primitive;
-
-            fn compile_input(
-                builder: &mut KernelBuilder,
-                vectorization: Vectorization,
-            ) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar(Self::as_elem())
-            }
-
-            fn compile_output(
-                builder: &mut KernelBuilder,
-                vectorization: Vectorization,
-            ) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar(Self::as_elem())
-            }
         }
 
         impl Vectorized for $type {

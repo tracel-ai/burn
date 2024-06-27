@@ -18,9 +18,9 @@ pub(crate) const TILE_SIZE: usize = 4;
 #[cube(launch)]
 #[allow(unused_mut)]
 fn tiling2d_cube<F: Float>(
-    lhs: Tensor<F>,
-    rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &mut Tensor<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
@@ -86,9 +86,9 @@ fn calculate_coordinates(
 #[cube]
 #[allow(unused_mut)]
 fn calculate_batch_offsets<F: Float>(
-    lhs: Tensor<F>,
-    rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &Tensor<F>,
     batch_number: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) -> BatchOffsets {
@@ -175,7 +175,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         .vectorize_output(0, vectorization(n))
         .cube_dim(CubeDim { x, y, z: 1 });
 
-    tiling2d_cube_launch::<E::CubeElement, R>(
+    tiling2d_cube_launch::<E::FloatPrimitive, R>(
         client,
         cube_count,
         settings,

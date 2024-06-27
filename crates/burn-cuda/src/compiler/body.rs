@@ -37,7 +37,7 @@ impl Display for Body {
         if self.id {
             f.write_str(
                 "
-    uint id = globalInvocationId.y * (blockDim.x * gridDim.x) + globalInvocationId.x;
+    uint id = (globalInvocationId.z * gridDim.x * blockDim.x * gridDim.y * blockDim.y) + (globalInvocationId.y * gridDim.x * blockDim.x) + globalInvocationId.x;
 ",
             )?;
         }

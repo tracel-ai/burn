@@ -27,21 +27,24 @@ pub trait Init {
     fn init(self, context: &mut CubeContext) -> Self;
 }
 
+/// Defines how a [launch argument](LaunchArg) can be expanded.
+///
+/// Normally this type should be implemented two times for an argument.
+/// Once for the reference and the other for the mutable reference. Often time, the reference
+/// should expand the argument as an input while the mutable reference should expand the argument
+/// as an output.
+pub trait LaunchArgExpand: CubeType {
+    /// Register an input variable during compilation that fill the [KernelBuilder].
+    fn expand(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType;
+}
+
 /// Defines a type that can be used as argument to a kernel.
 pub trait LaunchArg: CubeType {
     /// The runtime argument for the kernel.
     type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
-
-    /// Register an input variable during compilation that fill the [KernelBuilder].
-    fn compile_input(
-        builder: &mut KernelBuilder,
-        vectorization: Vectorization,
-    ) -> <Self as CubeType>::ExpandType;
-    /// Register an output variable during compilation that fill the [KernelBuilder].
-    fn compile_output(
-        builder: &mut KernelBuilder,
-        vectorization: Vectorization,
-    ) -> <Self as CubeType>::ExpandType;
 }
 
 /// Defines the argument settings used to launch a kernel.
@@ -121,5 +124,19 @@ impl_init_for!(u32, bool, UInt);
 impl<T> Init for Option<T> {
     fn init(self, _context: &mut CubeContext) -> Self {
         self
+    }
+}
+
+impl<T: CubeType> CubeType for Vec<T> {
+    type ExpandType = Vec<T::ExpandType>;
+}
+
+impl<T: CubeType> CubeType for &mut Vec<T> {
+    type ExpandType = Vec<T::ExpandType>;
+}
+
+impl<T: Init> Init for Vec<T> {
+    fn init(self, context: &mut CubeContext) -> Self {
+        self.into_iter().map(|e| e.init(context)).collect()
     }
 }

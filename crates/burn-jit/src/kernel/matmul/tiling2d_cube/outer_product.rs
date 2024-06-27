@@ -6,7 +6,7 @@ use super::config::CubeTiling2dConfig;
 pub(crate) fn tile_outer_product<F: Float>(
     register_m: F,
     register_n: F,
-    mut results: Array<F>,
+    results: &mut Array<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -41,7 +41,7 @@ pub mod tests {
     fn tile_outer_product_test<F: Float>(
         register_m: Array<F>,
         register_n: Array<F>,
-        mut results: Array<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         // We launch with array then convert to vectorized float,

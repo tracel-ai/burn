@@ -13,16 +13,16 @@ use super::{
 #[cube]
 #[allow(unused_mut)]
 pub(crate) fn tiling2d_core<F: Float>(
-    lhs: Tensor<F>,
-    rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &mut Tensor<F>,
     coordinates: Coordinates,
     offsets: BatchOffsets,
     shared: SharedMemories<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
-    let results = init_results::<F>(config);
+    let mut results = init_results::<F>(config);
 
     let n_loops = calculate_n_loops::<F>(lhs.shape(lhs.rank() - UInt::new(1)), config);
 
@@ -34,12 +34,12 @@ pub(crate) fn tiling2d_core<F: Float>(
 
         sync_units();
 
-        compute_loop::<F>(coordinates, shared.lhs, shared.rhs, results, config);
+        compute_loop::<F>(coordinates, shared.lhs, shared.rhs, &mut results, config);
 
         sync_units();
     }
 
-    write_to_output::<F>(out, results, coordinates, offsets.out, config);
+    write_to_output::<F>(out, &results, coordinates, offsets.out, config);
 }
 
 #[cube]

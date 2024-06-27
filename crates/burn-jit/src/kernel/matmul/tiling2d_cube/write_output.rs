@@ -4,8 +4,8 @@ use super::{base::Coordinates, config::CubeTiling2dConfig};
 
 #[cube]
 pub(crate) fn write_to_output<F: Float>(
-    out: Tensor<F>,
-    results: Array<F>,
+    out: &mut Tensor<F>,
+    results: &Array<F>,
     coordinates: Coordinates,
     offset_output: UInt,
     config: Comptime<CubeTiling2dConfig>,
@@ -28,8 +28,8 @@ pub(crate) fn write_to_output<F: Float>(
 
 #[cube]
 fn write_results<F: Float>(
-    mut out: Tensor<F>,
-    results: Array<F>,
+    out: &mut Tensor<F>,
+    results: &Array<F>,
     row: UInt,
     col: UInt,
     offset_output: UInt,
@@ -84,8 +84,8 @@ fn write_results<F: Float>(
 
 #[cube]
 fn write_results_inner_loop<F: Float>(
-    out: Tensor<F>,
-    results: Array<F>,
+    out: &mut Tensor<F>,
+    results: &Array<F>,
     res_idx_m: UInt,
     row: UInt,
     col: UInt,
@@ -127,10 +127,10 @@ fn write_results_inner_loop<F: Float>(
 
 #[cube]
 fn write_within_vector<F: Float>(
-    mut out: Tensor<F>,
+    out: &mut Tensor<F>,
     i: UInt,
     out_position: UInt,
-    results: Array<F>,
+    results: &Array<F>,
     results_pos_m: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) {
@@ -169,8 +169,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_results_inner_loop_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
@@ -188,8 +188,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_results_to_output_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
@@ -206,8 +206,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_results_to_output_partial_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
@@ -224,8 +224,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_to_output_over_height_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let coordinates = Coordinates {
@@ -239,8 +239,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_to_output_over_width_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let coordinates = Coordinates {
@@ -254,8 +254,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_results_to_output_out_of_bounds_test<F: Float>(
-        out: Tensor<F>,
-        results: Array<F>,
+        out: &mut Tensor<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));

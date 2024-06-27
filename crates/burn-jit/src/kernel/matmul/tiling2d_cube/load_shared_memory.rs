@@ -4,7 +4,7 @@ use super::{base::Coordinates, config::CubeTiling2dConfig};
 
 #[cube]
 pub(crate) fn load_lhs_transposed<F: Float>(
-    lhs: Tensor<F>,
+    lhs: &Tensor<F>,
     coordinates: Coordinates,
     k: UInt,
     batch_offset: UInt,
@@ -20,11 +20,11 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     let cube_offset = coordinates.skip_row * lhs.stride(lhs.rank() - UInt::new(2));
     let offset = cube_offset + k + batch_offset;
 
-    let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
     load_tile::<F>(
         lhs,
-        tile,
+        &mut tile,
         offset,
         coordinates.unit_row,
         coordinates.unit_col,
@@ -36,7 +36,7 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     );
 
     write_tile_transposed::<F>(
-        tile,
+        &tile,
         shared_lhs,
         sm_position_base,
         sm_stride,
@@ -47,7 +47,7 @@ pub(crate) fn load_lhs_transposed<F: Float>(
 
 #[cube]
 pub(crate) fn load_rhs_plain<F: Float>(
-    rhs: Tensor<F>,
+    rhs: &Tensor<F>,
     coordinates: Coordinates,
     k: UInt,
     batch_offset: UInt,
@@ -64,11 +64,11 @@ pub(crate) fn load_rhs_plain<F: Float>(
 
     let offset = coordinates.skip_col + k * tensor_stride + batch_offset;
 
-    let tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
     load_tile::<F>(
         rhs,
-        tile,
+        &mut tile,
         offset,
         coordinates.unit_row,
         coordinates.unit_col,
@@ -80,7 +80,7 @@ pub(crate) fn load_rhs_plain<F: Float>(
     );
 
     write_tile_plain::<F>(
-        tile,
+        &tile,
         shared_rhs,
         sm_position_base,
         sm_stride,
@@ -91,8 +91,8 @@ pub(crate) fn load_rhs_plain<F: Float>(
 
 #[cube]
 fn load_tile<F: Float>(
-    tensor: Tensor<F>,
-    tile: Array<F>,
+    tensor: &Tensor<F>,
+    tile: &mut Array<F>,
     cube_offset: UInt,
     load_row: UInt,
     load_col: UInt,
@@ -101,7 +101,7 @@ fn load_tile<F: Float>(
     check_vertical_bounds: Comptime<bool>,
     check_horizontal_bounds: Comptime<bool>,
     config: Comptime<CubeTiling2dConfig>,
-) -> Array<F> {
+) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let unroll = Comptime::map(config, |c| c.unroll);
 
@@ -158,13 +158,11 @@ fn load_tile<F: Float>(
             );
         }
     }
-
-    tile
 }
 
 #[cube]
 fn write_tile_plain<F: Float>(
-    tile: Array<F>,
+    tile: &Array<F>,
     mut shared_memory: SharedMemory<F>,
     sm_position_base: UInt,
     sm_stride: UInt,
@@ -180,7 +178,7 @@ fn write_tile_plain<F: Float>(
 
 #[cube]
 fn write_tile_transposed<F: Float>(
-    tile: Array<F>,
+    tile: &Array<F>,
     mut shared_memory: SharedMemory<F>,
     sm_position_base: UInt,
     sm_stride: UInt,
@@ -207,12 +205,12 @@ fn write_tile_transposed<F: Float>(
 
 #[cube]
 fn read_with_both_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     row: UInt,
     col: UInt,
     position_base: UInt,
     stride: UInt,
-    mut tile: Array<F>,
+    tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
@@ -245,11 +243,11 @@ fn read_with_both_checks<F: Float>(
 
 #[cube]
 fn read_with_vertical_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     row: UInt,
     position_base: UInt,
     stride: UInt,
-    mut tile: Array<F>,
+    tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
@@ -281,10 +279,10 @@ fn read_with_vertical_checks<F: Float>(
 
 #[cube]
 fn read_without_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     position_base: UInt,
     stride: UInt,
-    tile: Array<F>,
+    tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
@@ -303,11 +301,11 @@ fn read_without_checks<F: Float>(
 
 #[cube]
 fn read_with_horizontal_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     col: UInt,
     position_base: UInt,
     stride: UInt,
-    tile: Array<F>,
+    tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
@@ -327,11 +325,11 @@ fn read_with_horizontal_checks<F: Float>(
 
 #[cube]
 fn read_tile_line_with_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     col: UInt,
     position_base: UInt,
     stride: UInt,
-    mut tile: Array<F>,
+    tile: &mut Array<F>,
     i: UInt,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
@@ -375,10 +373,10 @@ fn read_tile_line_with_checks<F: Float>(
 
 #[cube]
 fn read_tile_line_without_checks<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     position_base: UInt,
     stride: UInt,
-    mut tile: Array<F>,
+    tile: &mut Array<F>,
     i: UInt,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
@@ -415,7 +413,7 @@ fn read_tile_line_without_checks<F: Float>(
 #[cube]
 /// Necessary when vectorization_factor < tile_size
 fn read_within_vector<F: Float>(
-    tensor: Tensor<F>,
+    tensor: &Tensor<F>,
     mut tile_entry: F,
     position: UInt,
     i: UInt,
@@ -450,8 +448,8 @@ pub mod tests {
     #[cube(launch)]
     #[allow(unused_mut)]
     fn read_whole_test<F: Float>(
-        tensor: Tensor<F>,
-        mut tile: Array<F>,
+        tensor: &Tensor<F>,
+        tile: &mut Array<F>,
         tile_size: Comptime<UInt>,
         bound_check_horizontal: Comptime<bool>,
     ) {
@@ -480,8 +478,8 @@ pub mod tests {
     #[cube(launch)]
     #[allow(unused_mut)]
     fn read_partial_test<F: Float>(
-        tensor: Tensor<F>,
-        mut tile: Array<F>,
+        tensor: &Tensor<F>,
+        tile: &mut Array<F>,
         tile_size: Comptime<UInt>,
         bound_check_horizontal: Comptime<bool>,
     ) {
@@ -512,8 +510,8 @@ pub mod tests {
     #[cube(launch)]
     #[allow(unused_mut)]
     fn load_tile_test<F: Float>(
-        lhs: Tensor<F>,
-        mut tile: Array<F>,
+        lhs: &Tensor<F>,
+        tile: &mut Array<F>,
         unit_row: UInt,
         unit_col: UInt,
         config: Comptime<CubeTiling2dConfig>,
@@ -538,8 +536,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn write_tile_test<F: Float>(
-        tile: Array<F>,
-        mut sm_out: Array<F>,
+        tile: &Array<F>,
+        sm_out: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
         transposed: Comptime<bool>,
     ) {
@@ -579,8 +577,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn load_tensor_test<F: Float>(
-        tensor: Tensor<F>,
-        mut sm_out: Array<F>,
+        tensor: &Tensor<F>,
+        sm_out: &mut Array<F>,
         unit_row: UInt,
         unit_col: UInt,
         k: UInt,
@@ -615,8 +613,8 @@ pub mod tests {
 
     #[cube(launch)]
     fn load_tensor_multiple_tiles_test<F: Float>(
-        tensor: Tensor<F>,
-        mut sm_out: Array<F>,
+        tensor: &Tensor<F>,
+        sm_out: &mut Array<F>,
         k: UInt,
         config: Comptime<CubeTiling2dConfig>,
         is_lhs: Comptime<bool>,

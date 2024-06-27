@@ -2,7 +2,7 @@ use crate as burn_cube;
 use burn_cube::prelude::*;
 
 #[cube(launch)]
-pub fn kernel_sum<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_sum<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_sum::<F>(val);
 
@@ -12,7 +12,7 @@ pub fn kernel_sum<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_prod<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_prod::<F>(val);
 
@@ -22,7 +22,7 @@ pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_max<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_max::<F>(val);
 
@@ -32,7 +32,7 @@ pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_min<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_min<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_min::<F>(val);
 

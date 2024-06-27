@@ -12,7 +12,7 @@ pub(crate) fn compute_loop<F: Float>(
     coordinates: Coordinates,
     shared_lhs: SharedMemory<F>,
     shared_rhs: SharedMemory<F>,
-    mut results: Array<F>,
+    results: &mut Array<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -55,7 +55,7 @@ pub mod tests {
         rhs: Tensor<F>,
         unit_row: UInt,
         unit_col: UInt,
-        mut results: Array<F>,
+        results: &mut Array<F>,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);

@@ -1,7 +1,7 @@
 use burn_cube::{
     cube,
     frontend::branch::range,
-    frontend::{Array, Comptime, CubeContext, CubeElem, Float, UInt, F32},
+    frontend::{Array, Comptime, CubeContext, CubePrimitive, Float, UInt, F32},
 };
 
 type ElemType = F32;
