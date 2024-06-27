@@ -53,6 +53,7 @@ impl PReluConfig {
         PRelu {
             // alpha is a tensor of length num_parameters
             alpha: Initializer::Constant { value: self.alpha }.init([self.num_parameters], device),
+            alpha_value: self.alpha,
         }
     }
 }
@@ -74,11 +75,15 @@ impl<B: Backend> PRelu<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TestBackend;
 
     #[test]
     fn display() {
-        let layer = Relu::new();
+        let layer = PReluConfig::new().init::<TestBackend>(&Default::default());
 
-        assert_eq!(alloc::format!("{}", layer), "Relu");
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "PRelu {num_parameters: 1, alpha_value: 0.25, params: 1}"
+        );
     }
 }
