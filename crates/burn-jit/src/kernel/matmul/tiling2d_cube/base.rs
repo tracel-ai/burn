@@ -13,7 +13,7 @@ use super::{
 use crate::kernel::matmul::tiling2d_launch_options;
 
 // Other tile sizes are not supported
-const TILE_SIZE: usize = 4;
+pub(crate) const TILE_SIZE: usize = 4;
 
 #[cube(launch)]
 #[allow(unused_mut)]
@@ -143,7 +143,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
-    mut config: Tiling2dConfig,
+    config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
     let m = lhs.shape.dims[D - 2];
     let k = lhs.shape.dims[D - 1];
@@ -163,13 +163,11 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .unwrap()
     };
 
-    config.block_size_m = 64;
-    config.block_size_n = 64;
-    config.block_size_k = 32; // k must be <= both m and n
-    let cube_count = tiling2d_launch_options(&out.shape, config.clone());
+    let cube_config = CubeTiling2dConfig::new(&config, m, k, n, TILE_SIZE as usize);
+    let cube_count = tiling2d_launch_options(&out.shape, &config);
 
-    let x = (config.block_size_m / TILE_SIZE) as u32;
-    let y = (config.block_size_n / TILE_SIZE) as u32;
+    let x = config.grid_x as u32;
+    let y = config.grid_y as u32;
 
     let settings = KernelSettings::default()
         .vectorize_input(0, vectorization(m))
@@ -184,7 +182,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(config, m, k, n, TILE_SIZE as usize),
+        cube_config,
     );
 
     out
@@ -245,7 +243,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config, 8, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 8, tile_size);
 
         calculate_offsets_test_launch::<F32, R>(
             client.clone(),

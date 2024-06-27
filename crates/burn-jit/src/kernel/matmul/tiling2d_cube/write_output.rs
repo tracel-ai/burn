@@ -285,7 +285,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 8, tile_size);
 
         write_results_inner_loop_test_launch::<F32, R>(
             client.clone(),
@@ -330,7 +330,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 8, tile_size);
 
         write_results_to_output_test_launch::<F32, R>(
             client.clone(),
@@ -375,7 +375,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 6, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 6, 8, 8, tile_size);
 
         write_results_to_output_partial_test_launch::<F32, R>(
             client.clone(),
@@ -419,7 +419,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 6, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 6, 8, 8, tile_size);
 
         write_to_output_over_height_test_launch::<F32, R>(
             client.clone(),
@@ -463,7 +463,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 4, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 4, tile_size);
 
         write_to_output_over_width_test_launch::<F32, R>(
             client.clone(),
@@ -507,7 +507,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 8, tile_size);
 
         write_results_to_output_test_launch::<F32, R>(
             client.clone(),
@@ -553,7 +553,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 8, 8, 8, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 8, 8, 8, tile_size);
 
         write_results_to_output_test_launch::<F32, R>(
             client.clone(),
@@ -604,7 +604,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 5, 8, 1, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 5, 8, 1, tile_size);
 
         write_results_to_output_out_of_bounds_test_launch::<F32, R>(
             client.clone(),

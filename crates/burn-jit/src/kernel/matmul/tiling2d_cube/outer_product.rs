@@ -60,7 +60,7 @@ pub mod tests {
     fn test_case_config(tile_size: usize) -> CubeTiling2dConfig {
         const SOME_DIM: usize = 12;
         let tiling2d_config = Tiling2dConfig::default();
-        CubeTiling2dConfig::new(tiling2d_config, SOME_DIM, SOME_DIM, SOME_DIM, tile_size)
+        CubeTiling2dConfig::new(&tiling2d_config, SOME_DIM, SOME_DIM, SOME_DIM, tile_size)
     }
 
     /// Exported test

@@ -119,7 +119,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
             &out.shape.dims,
         )])
         .execute(CubeCountSettings::Custom(tiling2d_launch_options(
-            &out.shape, config,
+            &out.shape, &config,
         )));
 
     out
@@ -177,7 +177,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
         )])
         .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &rounded_output.shape,
-            config,
+            &config,
         )));
 
     crop(rounded_output, out)

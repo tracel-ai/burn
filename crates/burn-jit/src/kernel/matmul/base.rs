@@ -170,7 +170,7 @@ pub(crate) fn simple_launch_options<const D: usize>(
 
 pub(crate) fn tiling2d_launch_options<const D: usize>(
     output_shape: &Shape<D>,
-    config: Tiling2dConfig,
+    config: &Tiling2dConfig,
 ) -> CubeCount {
     let num_rows = output_shape.dims[D - 2];
     let num_cols = output_shape.dims[D - 1];

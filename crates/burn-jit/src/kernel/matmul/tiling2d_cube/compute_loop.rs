@@ -116,7 +116,7 @@ pub mod tests {
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
         let config =
-            CubeTiling2dConfig::new(tiling2d_config, SOME_DIM, SOME_DIM, SOME_DIM, tile_size);
+            CubeTiling2dConfig::new(&tiling2d_config, SOME_DIM, SOME_DIM, SOME_DIM, tile_size);
 
         compute_loop_test_launch::<F32, R>(
             client.clone(),
@@ -174,7 +174,7 @@ pub mod tests {
         tiling2d_config.block_size_m = 8;
         tiling2d_config.block_size_k = 8;
         tiling2d_config.block_size_n = 8;
-        let config = CubeTiling2dConfig::new(tiling2d_config, 4, 8, 4, tile_size);
+        let config = CubeTiling2dConfig::new(&tiling2d_config, 4, 8, 4, tile_size);
 
         compute_loop_test_launch::<F32, R>(
             client.clone(),

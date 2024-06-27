@@ -30,12 +30,14 @@ pub struct CubeTiling2dConfig {
 }
 
 impl CubeTiling2dConfig {
-    pub fn new(config: Tiling2dConfig, m: usize, k: usize, n: usize, tile_size: usize) -> Self {
+    pub fn new(config: &Tiling2dConfig, m: usize, k: usize, n: usize, tile_size: usize) -> Self {
         assert!(config.block_size_k <= config.block_size_m);
         assert!(config.block_size_k <= config.block_size_n);
         assert!(config.block_size_m % tile_size == 0);
         assert!(config.block_size_k % tile_size == 0);
         assert!(config.block_size_n % tile_size == 0);
+        // assert!(config.grid_x == config.block_size_m / tile_size);
+        // assert!(config.grid_y == config.block_size_n / tile_size);
 
         CubeTiling2dConfig {
             block_size_m: UInt::new(config.block_size_m as u32),
