@@ -186,7 +186,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
     use alloc::format;
 
@@ -200,8 +200,8 @@ mod tests {
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
                     [-1.1845, -1.3236, 0.0172],
@@ -224,27 +224,25 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [-0.1653, 0.3748, -0.7866],
-                    [-0.9916, -1.1220, 0.1353],
-                    [1.9485, 1.2965, -0.6896],
-                    [1.2769, 0.3628, 0.4120],
-                    [-0.7427, -0.6786, -1.3578],
-                    [1.8547, -0.3022, -0.8252],
-                ],
-                [
-                    [-1.9342, 0.0211, -0.5793],
-                    [1.2223, 0.4945, 0.4365],
-                    [-0.8163, 1.4887, -0.3333],
-                    [-1.7960, -0.0392, 0.3875],
-                    [-1.5469, 0.3998, 0.9561],
-                    [-0.3428, 0.7970, 1.1845],
-                ],
-            ]),
-            3,
-        );
+        let expected = TensorData::from([
+            [
+                [-0.1653, 0.3748, -0.7866],
+                [-0.9916, -1.1220, 0.1353],
+                [1.9485, 1.2965, -0.6896],
+                [1.2769, 0.3628, 0.4120],
+                [-0.7427, -0.6786, -1.3578],
+                [1.8547, -0.3022, -0.8252],
+            ],
+            [
+                [-1.9342, 0.0211, -0.5793],
+                [1.2223, 0.4945, 0.4365],
+                [-0.8163, 1.4887, -0.3333],
+                [-1.7960, -0.0392, 0.3875],
+                [-1.5469, 0.3998, 0.9561],
+                [-0.3428, 0.7970, 1.1845],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -260,7 +258,7 @@ mod tests {
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::ones([6].into()), 3);
+            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 3);
 
         module
             .beta
@@ -268,10 +266,10 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::zeros([6]), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
                     [0.5041, 0.4175, 0.8437],
@@ -294,27 +292,25 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [-1.1694, -0.5353, 0.7572],
-                    [-0.1775, -0.6838, 1.8087],
-                    [0.5205, -1.3107, -1.0723],
-                    [-0.0459, 0.2351, 1.6734],
-                    [-0.5796, 1.3218, -1.6544],
-                    [-0.2744, 1.0406, 0.1459],
-                ],
-                [
-                    [0.2665, -0.3320, -0.8205],
-                    [-0.2667, 2.0612, -0.9085],
-                    [0.6681, 0.9102, 1.1345],
-                    [-0.1453, -1.5287, -1.0389],
-                    [0.4253, 1.5962, 0.4731],
-                    [-1.0903, -0.0419, -1.3623],
-                ],
-            ]),
-            3,
-        );
+        let expected = TensorData::from([
+            [
+                [-1.1694, -0.5353, 0.7572],
+                [-0.1775, -0.6838, 1.8087],
+                [0.5205, -1.3107, -1.0723],
+                [-0.0459, 0.2351, 1.6734],
+                [-0.5796, 1.3218, -1.6544],
+                [-0.2744, 1.0406, 0.1459],
+            ],
+            [
+                [0.2665, -0.3320, -0.8205],
+                [-0.2667, 2.0612, -0.9085],
+                [0.6681, 0.9102, 1.1345],
+                [-0.1453, -1.5287, -1.0389],
+                [0.4253, 1.5962, 0.4731],
+                [-1.0903, -0.0419, -1.3623],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]

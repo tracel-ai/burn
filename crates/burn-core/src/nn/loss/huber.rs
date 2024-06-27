@@ -138,14 +138,14 @@ impl HuberLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     #[test]
     fn test_huber_loss() {
-        let predict = Data::from([-2., -0.5, 0., 0.3, 1.]);
-        let targets = Data::from([0., 0., 0., 0., 0.]);
+        let predict = TensorData::from([-2., -0.5, 0., 0.3, 1.]);
+        let targets = TensorData::from([0., 0., 0., 0., 0.]);
 
         let device = Default::default();
 
@@ -158,13 +158,14 @@ mod tests {
         let loss = huber.forward(predict.clone(), targets.clone(), Reduction::Auto);
         let loss_no_reduction = huber.forward_no_reduction(predict, targets);
 
-        loss_no_reduction
-            .into_data()
-            .assert_approx_eq(&Data::from([0.875, 0.125, 0., 0.045, 0.375]), 7);
-        loss.into_data().assert_approx_eq(&Data::from([0.284]), 7);
-        loss_sum
-            .into_data()
-            .assert_approx_eq(&Data::from([1.42]), 5);
+        let expected = TensorData::from([0.875, 0.125, 0., 0.045, 0.375]);
+        loss_no_reduction.into_data().assert_approx_eq(&expected, 7);
+
+        let expected = TensorData::from([0.284]);
+        loss.into_data().assert_approx_eq(&expected, 7);
+
+        let expected = TensorData::from([1.42]);
+        loss_sum.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[cfg(feature = "std")]
@@ -172,8 +173,8 @@ mod tests {
     fn test_huber_ad_loss() {
         type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 1>;
 
-        let predict = Data::from([-2., -0.5, 0., 0.3, 1.]);
-        let targets = Data::from([0., 0., 0., 0., 0.]);
+        let predict = TensorData::from([-2., -0.5, 0., 0.3, 1.]);
+        let targets = TensorData::from([0., 0., 0., 0., 0.]);
 
         let device = Default::default();
         let predict = TestAutodiffTensor::from_data(predict, &device).require_grad();
@@ -185,9 +186,8 @@ mod tests {
         let grads = loss.backward();
         let grads_predict = predict.grad(&grads).unwrap();
 
-        grads_predict
-            .to_data()
-            .assert_approx_eq(&Data::from([-0.5, -0.5, 0., 0.3, 0.5]), 3);
+        let expected = TensorData::from([-0.5, -0.5, 0., 0.3, 0.5]);
+        grads_predict.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]

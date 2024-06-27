@@ -75,7 +75,7 @@ mod tests {
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
                     .into_data()
-                    .convert(),
+                    .convert::<f32>(),
             );
             let output = interpolate(
                 x,

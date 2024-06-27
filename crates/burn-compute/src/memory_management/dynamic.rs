@@ -1,5 +1,6 @@
 use super::memory_pool::{
     MemoryExtensionStrategy, MemoryPool, MemoryPoolBinding, MemoryPoolHandle, RoundingStrategy,
+    SmallMemoryPool,
 };
 use crate::storage::ComputeStorage;
 
@@ -7,7 +8,8 @@ use super::MemoryManagement;
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
-    small_memory_pool: MemoryPool,
+    small_memory_pool: SmallMemoryPool,
+    medium_memory_pool: MemoryPool,
     main_memory_pool: MemoryPool,
     storage: Storage,
 }
@@ -20,14 +22,16 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             RoundingStrategy::RoundUp,
             1024 * 1024 * 1024 * 2,
         );
-        let small_memory_pool = MemoryPool::new(
+        let medium_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
             RoundingStrategy::None,
             1024 * 1024 * 512,
         );
+        let small_memory_pool = SmallMemoryPool::new();
         Self {
-            main_memory_pool,
             small_memory_pool,
+            main_memory_pool,
+            medium_memory_pool,
             storage,
         }
     }
@@ -54,6 +58,10 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
             return handle;
         }
 
+        if let Some(handle) = self.medium_memory_pool.get(&mut self.storage, &binding) {
+            return handle;
+        }
+
         if let Some(handle) = self.main_memory_pool.get(&mut self.storage, &binding) {
             return handle;
         }
@@ -62,8 +70,11 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size < 512 {
+        if size <= 32 {
             self.small_memory_pool
+                .reserve(&mut self.storage, size, sync)
+        } else if size < 512 {
+            self.medium_memory_pool
                 .reserve(&mut self.storage, size, sync)
         } else {
             self.main_memory_pool.reserve(&mut self.storage, size, sync)
@@ -71,8 +82,10 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size < 512 {
+        if size <= 32 {
             self.small_memory_pool.alloc(&mut self.storage, size, sync)
+        } else if size < 512 {
+            self.medium_memory_pool.alloc(&mut self.storage, size, sync)
         } else {
             self.main_memory_pool.alloc(&mut self.storage, size, sync)
         }

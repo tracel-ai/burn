@@ -27,7 +27,7 @@ mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
-        tensor::Data,
+        tensor::TensorData,
     };
     use burn_import::pytorch::PyTorchFileRecorder;
 
@@ -42,7 +42,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 1, Int>::from_data(Data::from([1, 2, 3]), &device);
+        let expected = Tensor::<Backend, 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
 
         assert_eq!(output.to_data(), expected.to_data());
     }

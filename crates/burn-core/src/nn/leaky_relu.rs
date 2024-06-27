@@ -62,16 +62,18 @@ impl LeakyRelu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Data;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
 
     #[test]
     fn test_leaky_relu_forward() {
         let device = <TestBackend as Backend>::Device::default();
-        let model = LeakyReluConfig::new().init();
-        let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.4410, -0.2507]]), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
-        assert_eq!(out.to_data(), Data::from([[0.4410, -0.002507]]));
+        let expected = TensorData::from([[0.4410, -0.002507]]);
+        out.to_data().assert_eq(&expected, false);
     }
     #[test]
     fn test_leaky_relu_forward_multi_dim() {
@@ -87,7 +89,7 @@ mod tests {
                 [-0.5523, -0.2741, -0.0210, -1.1352],
             ],
         ];
-        let expected_output = [
+        let expected = TensorData::from([
             [
                 [-1.0222e-02, 1.5810e+00, 3.457e-01, -1.3530e-02],
                 [2.31e-02, 8.681e-01, 2.473e-01, -3.77e-04],
@@ -98,15 +100,13 @@ mod tests {
                 [1.5615e+00, -1.057e-03, -4.886e-03, -1.5184e-02],
                 [-5.523e-03, -2.741e-03, -2.1e-04, -1.1352e-02],
             ],
-        ];
+        ]);
 
         let device = <TestBackend as Backend>::Device::default();
-        let model = LeakyReluConfig::new().init();
-        let input_data = Tensor::<TestBackend, 3>::from_data(Data::from(input), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);
-        actual_output
-            .to_data()
-            .assert_approx_eq(&Data::from(expected_output), 4)
+        actual_output.to_data().assert_approx_eq(&expected, 4)
     }
 
     #[test]

@@ -7,7 +7,7 @@ use super::{adapter::PyTorchAdapter, error::Error};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
-    tensor::{DataSerialize, Element, ElementConversion},
+    tensor::{Element, ElementConversion, TensorData},
 };
 use burn::{
     record::serde::{
@@ -85,7 +85,7 @@ where
 
 /// Serializes a candle tensor.
 ///
-/// Tensors are wrapped in a `Param` struct (learnable parameters) and serialized as a `DataSerialize` struct.
+/// Tensors are wrapped in a `Param` struct (learnable parameters) and serialized as a `TensorData` struct.
 ///
 /// Values are serialized as `FloatElem` or `IntElem` depending on the precision settings.
 impl Serializable for CandleTensor {
@@ -141,7 +141,7 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    ParamSerde::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
+    ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
 }
 
 /// New type struct for Candle tensors because we need to implement the `Serializable` trait for it.

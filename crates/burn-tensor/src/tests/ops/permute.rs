@@ -2,10 +2,10 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Device, Int, Shape, Tensor};
+    use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
-    fn normal_int() {
+    fn permute_int() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
 
@@ -13,26 +13,26 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0)
-        let data_expected = Data::from([
+        let expected = TensorData::from([
             [[0, 12], [4, 16], [8, 20]],
             [[1, 13], [5, 17], [9, 21]],
             [[2, 14], [6, 18], [10, 22]],
             [[3, 15], [7, 19], [11, 23]],
         ]);
 
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);
-        assert_eq!(tensor.into_data(), permuted.into_data());
+        permuted.into_data().assert_eq(&tensor.into_data(), true);
     }
 
     #[test]
-    fn normal_float() {
+    fn permute_float() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
             .reshape([2, 3, 4])
@@ -42,26 +42,26 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0).float()
-        let data_expected = Data::from([
+        let expected = TensorData::from([
             [[0., 12.], [4., 16.], [8., 20.]],
             [[1., 13.], [5., 17.], [9., 21.]],
             [[2., 14.], [6., 18.], [10., 22.]],
             [[3., 15.], [7., 19.], [11., 23.]],
         ]);
 
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);
-        assert_eq!(tensor.into_data(), permuted.into_data());
+        permuted.into_data().assert_eq(&tensor.into_data(), true);
     }
 
     #[test]
-    fn normal_bool() {
+    fn permute_bool() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
             .reshape([2, 3, 4])
@@ -71,22 +71,22 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).permute(2, 1, 0).gt(10)
-        let data_expected = Data::from([
+        let expected = TensorData::from([
             [[false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true]],
             [[false, true], [false, true], [false, true]],
             [[false, true], [false, true], [true, true]],
         ]);
 
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, true);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        assert_eq!(data_expected, permuted.into_data());
+        permuted.into_data().assert_eq(&expected, true);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);
-        assert_eq!(tensor.into_data(), permuted.into_data());
+        permuted.into_data().assert_eq(&tensor.into_data(), true);
     }
 
     #[test]

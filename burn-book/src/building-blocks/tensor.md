@@ -32,11 +32,13 @@ let tensor_1 = Tensor::<Backend, 1>::from_floats(floats, &device);
 
 ### Initialization
 
-Burn Tensors are primarily initialized using the `from_data()` method which takes the `Data` struct
-as input. The `Data` struct has two fields: value & shape. To retrieve the data from a tensor, the
-method `.to_data()` should be employed when intending to reuse the tensor afterward. Alternatively,
-`.into_data()` is recommended for one-time use. Let's look at a couple of examples for initializing
-a tensor from different inputs.
+Burn Tensors are primarily initialized using the `from_data()` method which takes the `TensorData`
+struct as input. The `TensorData` struct has two public fields: `shape` and `dtype`. The `value`,
+now stored as bytes, is private but can be accessed via any of the following methods: `as_slice`,
+`as_mut_slice`, `to_vec` and `iter`. To retrieve the data from a tensor, the method `.to_data()`
+should be employed when intending to reuse the tensor afterward. Alternatively, `.into_data()` is
+recommended for one-time use. Let's look at a couple of examples for initializing a tensor from
+different inputs.
 
 ```rust, ignore
 
@@ -44,16 +46,15 @@ a tensor from different inputs.
 let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0], &device);
 
 // Initialization from a generic Backend
-let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).convert(), &device);
+let tensor_2 = Tensor::<Backend, 1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
 
 // Initialization using from_floats (Recommended for f32 ElementType)
-// Will be converted to Data internally.
-// `.convert()` not needed as from_floats() defined for fixed ElementType
+// Will be converted to TensorData internally.
 let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0], &device);
 
 // Initialization of Int Tensor from array slices
 let arr: [i32; 6] = [1, 2, 3, 4, 5, 6];
-let tensor_4 = Tensor::<Backend, 1, Int>::from_data(Data::from(&arr[0..3]).convert(), &device);
+let tensor_4 = Tensor::<Backend, 1, Int>::from_data(TensorData::from(&arr[0..3]), &device);
 
 // Initialization from a custom type
 
@@ -68,17 +69,10 @@ let bmi = BodyMetrics{
         height: 180,
         weight: 80.0
     };
-let data  = Data::from([bmi.age as f32, bmi.height as f32, bmi.weight]).convert();
+let data  = TensorData::from([bmi.age as f32, bmi.height as f32, bmi.weight]);
 let tensor_5 = Tensor::<Backend, 1>::from_data(data, &device);
 
 ```
-
-The `.convert()` method for Data struct is called to ensure that the data's primitive type is
-consistent across all backends. With `.from_floats()` method the ElementType is fixed as f32 and
-therefore no convert operation is required across backends. This operation can also be done at
-element wise level as:
-`let tensor_6 = Tensor::<B, 1, Int>::from_data(Data::from([(item.age as i64).elem()])`. The
-`ElementConversion` trait however needs to be imported for the element wise operation.
 
 ## Ownership and Cloning
 
@@ -105,7 +99,7 @@ let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 let min = input.clone().min();
 let max = input.clone().max();
 let input = (input.clone() - min.clone()).div(max - min);
-println!("{:?}", input.to_data());// Success: [0.0, 0.33333334, 0.6666667, 1.0]
+println!("{}", input.to_data());// Success: [0.0, 0.33333334, 0.6666667, 1.0]
 
 // Notice that max, min have been moved in last operation so
 // the below print will give an error.
@@ -285,7 +279,7 @@ Those operations are only available for `Int` tensors.
 
 | Burn API                                         | PyTorch Equivalent                                      |
 | ------------------------------------------------ | ------------------------------------------------------- |
-| `tensor.arange(5..10, device)       `            | `tensor.arange(start=5, end=10, device=device)`         |
+| `tensor.arange(5..10, device)`                   | `tensor.arange(start=5, end=10, device=device)`         |
 | `tensor.arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
@@ -296,16 +290,16 @@ Those operations are only available for `Int` tensors.
 
 Those operations are only available for `Bool` tensors.
 
-| Burn API                            | PyTorch Equivalent              |
-| ----------------------------------- | ------------------------------- |
-| `Tensor::diag_mask(shape, diagonal)`| N/A                             |
-| `Tensor::tril_mask(shape, diagonal)`| N/A                             |
-| `Tensor::triu_mask(shape, diagonal)`| N/A                             |
-| `tensor.argwhere()`                 | `tensor.argwhere()`             |
-| `tensor.float()`                    | `tensor.to(torch.float)`        |
-| `tensor.int()`                      | `tensor.to(torch.long)`         |
-| `tensor.nonzero()`                  | `tensor.nonzero(as_tuple=True)` |
-| `tensor.not()`                      | `tensor.logical_not()`          |
+| Burn API                             | PyTorch Equivalent              |
+| ------------------------------------ | ------------------------------- |
+| `Tensor::diag_mask(shape, diagonal)` | N/A                             |
+| `Tensor::tril_mask(shape, diagonal)` | N/A                             |
+| `Tensor::triu_mask(shape, diagonal)` | N/A                             |
+| `tensor.argwhere()`                  | `tensor.argwhere()`             |
+| `tensor.float()`                     | `tensor.to(torch.float)`        |
+| `tensor.int()`                       | `tensor.to(torch.long)`         |
+| `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
+| `tensor.not()`                       | `tensor.logical_not()`          |
 
 ## Activation Functions
 

@@ -245,7 +245,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{loss::cross_entropy_with_logits, Data, Distribution};
+    use crate::tensor::{loss::cross_entropy_with_logits, ops::IntElem, Distribution, TensorData};
     use crate::TestBackend;
 
     macro_rules! setup {
@@ -258,9 +258,9 @@ mod tests {
                 &device,
             );
             let targets =
-                Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1]), &device);
+                Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
             let targets_logits = Tensor::<TestBackend, 2>::from_data(
-                Data::from([
+                TensorData::from([
                     [0.0, 0.0, 1.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -282,11 +282,11 @@ mod tests {
                 &device,
             );
             let targets = Tensor::<TestBackend, 1, Int>::from_data(
-                Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
+                TensorData::from([2, 0, 4, pad_index as i64]).convert::<IntElem<TestBackend>>(),
                 &device,
             );
             let targets_logits = Tensor::<TestBackend, 2>::from_data(
-                Data::from([
+                TensorData::from([
                     [0.0, 0.0, 0.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -399,7 +399,7 @@ mod tests {
         let smoothed_targets =
             CrossEntropyLoss::compute_smoothed_targets(logits.dims(), targets, 0.05);
         let targets_logits = Tensor::<TestBackend, 2>::from_data(
-            Data::from([
+            TensorData::from([
                 [0.01, 0.01, 0.96, 0.01, 0.01],
                 [0.96, 0.01, 0.01, 0.01, 0.01],
                 [0.01, 0.01, 0.01, 0.01, 0.96],
@@ -421,7 +421,7 @@ mod tests {
             .init(&device)
             .forward(logits.clone(), targets);
         let targets_logits = Tensor::<TestBackend, 2>::from_data(
-            Data::from([
+            TensorData::from([
                 [0.01, 0.01, 0.96, 0.01, 0.01],
                 [0.96, 0.01, 0.01, 0.01, 0.01],
                 [0.01, 0.01, 0.01, 0.01, 0.96],

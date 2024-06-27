@@ -10,14 +10,14 @@ mod tests {
     use burn_tensor::activation::{
         gelu, log_sigmoid, log_softmax, mish, relu, sigmoid, silu, softmax, softplus, tanh,
     };
-    use burn_tensor::{Data, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, TensorData};
 
     pub trait CloneInvarianceTest<const D: usize> {
         type Args;
 
         fn args(&self) -> Self::Args;
 
-        fn run(&self, args: &Self::Args, inplace: bool) -> Data<f32, D>;
+        fn run(&self, args: &Self::Args, inplace: bool) -> TensorData;
 
         fn check(&self) {
             let args = self.args();
@@ -36,22 +36,21 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = Data<f32, 2>;
+                    type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
                         TestTensor::random([32, 32], Distribution::Default, &Default::default())
                             .into_data()
-                            .convert()
+                            .convert::<f32>()
                     }
 
-                    fn run(&self, args: &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs =
-                            TestTensor::from_data(args.clone().convert(), &Default::default());
+                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData {
+                        let lhs = TestTensor::from_data(args.clone(), &Default::default());
 
                         if inplace {
-                            $ops(lhs).into_data().convert()
+                            $ops(lhs).into_data().convert::<f32>()
                         } else {
-                            let out = $ops(lhs.clone()).into_data().convert();
+                            let out = $ops(lhs.clone()).into_data().convert::<f32>();
                             lhs.into_data().assert_approx_eq(args, 4);
                             out
                         }
@@ -69,26 +68,30 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = (Data<f32, 2>, Data<f32, 2>);
+                    type Args = (TensorData, TensorData);
 
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
                         (
-                            TestTensor::ones([32, 32], &device).into_data().convert(),
+                            TestTensor::ones([32, 32], &device)
+                                .into_data()
+                                .convert::<f32>(),
                             // Avoid div by zero.
-                            TestTensor::ones([32, 32], &device).into_data().convert(),
+                            TestTensor::ones([32, 32], &device)
+                                .into_data()
+                                .convert::<f32>(),
                         )
                     }
 
-                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> Data<f32, 2> {
+                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData {
                         let device = Default::default();
-                        let lhs = TestTensor::from_data(lhs_arg.clone().convert(), &device);
-                        let rhs = TestTensor::from_data(rhs_arg.clone().convert(), &device);
+                        let lhs = TestTensor::from_data(lhs_arg.clone(), &device);
+                        let rhs = TestTensor::from_data(rhs_arg.clone(), &device);
 
                         if inplace {
-                            $ops(lhs, rhs).into_data().convert()
+                            $ops(lhs, rhs).into_data().convert::<f32>()
                         } else {
-                            let out = $ops(lhs.clone(), rhs.clone()).into_data().convert();
+                            let out = $ops(lhs.clone(), rhs.clone()).into_data().convert::<f32>();
 
                             lhs.into_data().assert_approx_eq(lhs_arg, 4);
                             rhs.into_data().assert_approx_eq(rhs_arg, 4);
@@ -109,7 +112,7 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = Data<i32, 2>;
+                    type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
                         TestTensor::random(
@@ -118,18 +121,17 @@ mod tests {
                             &Default::default(),
                         )
                         .into_data()
-                        .convert()
+                        .convert::<i32>()
                     }
 
-                    fn run(&self, args: &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs =
-                            TestTensorInt::from_data(args.clone().convert(), &Default::default());
+                    fn run(&self, args: &Self::Args, inplace: bool) -> TensorData {
+                        let lhs = TestTensorInt::from_data(args.clone(), &Default::default());
 
                         if inplace {
-                            $ops(lhs).into_data().convert()
+                            $ops(lhs).into_data().convert::<f32>()
                         } else {
-                            let out = $ops(lhs.clone()).into_data().convert();
-                            lhs.into_data().convert().assert_approx_eq(args, 4);
+                            let out = $ops(lhs.clone()).into_data().convert::<f32>();
+                            lhs.into_data().convert::<i32>().assert_approx_eq(args, 4);
                             out
                         }
                     }
@@ -146,33 +148,37 @@ mod tests {
                 struct $name;
 
                 impl CloneInvarianceTest<2> for $name {
-                    type Args = (Data<i32, 2>, Data<i32, 2>);
+                    type Args = (TensorData, TensorData);
 
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
                         (
                             TestTensor::random([32, 32], Distribution::Uniform(0., 50.), &device)
                                 .into_data()
-                                .convert(),
+                                .convert::<i32>(),
                             // Avoid div by zero.
                             TestTensor::random([32, 32], Distribution::Uniform(1., 51.), &device)
                                 .into_data()
-                                .convert(),
+                                .convert::<i32>(),
                         )
                     }
 
-                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> Data<f32, 2> {
+                    fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> TensorData {
                         let device = Default::default();
-                        let lhs = TestTensorInt::from_data(lhs_arg.clone().convert(), &device);
-                        let rhs = TestTensorInt::from_data(rhs_arg.clone().convert(), &device);
+                        let lhs = TestTensorInt::from_data(lhs_arg.clone(), &device);
+                        let rhs = TestTensorInt::from_data(rhs_arg.clone(), &device);
 
                         if inplace {
-                            $ops(lhs, rhs).into_data().convert()
+                            $ops(lhs, rhs).into_data().convert::<f32>()
                         } else {
-                            let out = $ops(lhs.clone(), rhs.clone()).into_data().convert();
+                            let out = $ops(lhs.clone(), rhs.clone()).into_data().convert::<f32>();
 
-                            lhs.into_data().convert().assert_approx_eq(lhs_arg, 4);
-                            rhs.into_data().convert().assert_approx_eq(rhs_arg, 4);
+                            lhs.into_data()
+                                .convert::<i32>()
+                                .assert_approx_eq(lhs_arg, 4);
+                            rhs.into_data()
+                                .convert::<i32>()
+                                .assert_approx_eq(rhs_arg, 4);
 
                             out
                         }
@@ -230,11 +236,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Sum,
-            ops_float: |tensor: TestTensor<2>| tensor.sum().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.sum().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Mean,
-            ops_float: |tensor: TestTensor<2>| tensor.mean().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.mean().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Clamp,
@@ -318,11 +324,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Max,
-            ops_float: |tensor: TestTensor<2>| tensor.max().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.max().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Min,
-            ops_float: |tensor: TestTensor<2>| tensor.min().unsqueeze()
+            ops_float: |tensor: TestTensor<2>| tensor.min().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: MaxDim,
@@ -534,11 +540,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Sum,
-            ops_int: |tensor: TestTensorInt<2>| tensor.sum().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.sum().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Mean,
-            ops_int: |tensor: TestTensorInt<2>| tensor.mean().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.mean().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Clamp,
@@ -602,11 +608,11 @@ mod tests {
         );
         clone_invariance_test!(
             unary: Max,
-            ops_int: |tensor: TestTensorInt<2>| tensor.max().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.max().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: Min,
-            ops_int: |tensor: TestTensorInt<2>| tensor.min().unsqueeze()
+            ops_int: |tensor: TestTensorInt<2>| tensor.min().unsqueeze::<2>()
         );
         clone_invariance_test!(
             unary: MaxDim,
