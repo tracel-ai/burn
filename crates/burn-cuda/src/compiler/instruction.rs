@@ -1,4 +1,4 @@
-use super::{binary::*, unary::*, Component, Variable, WarpInstruction};
+use super::{binary::*, unary::*, Component, Variable, WarpInstruction, WmmaInstruction};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -99,6 +99,7 @@ pub enum Instruction {
     Ceil(UnaryInstruction),
     Floor(UnaryInstruction),
     Wrap(WarpInstruction),
+    Wmma(WmmaInstruction),
 }
 
 impl Display for Instruction {
@@ -106,10 +107,15 @@ impl Display for Instruction {
         match self {
             Instruction::Return => f.write_str("return;"),
             Instruction::Break => f.write_str("break;"),
-            Instruction::DeclareVariable { var } => {
-                let item = var.item();
-                f.write_fmt(format_args!("{item} {var};\n"))
-            }
+            Instruction::DeclareVariable { var } => match var {
+                Variable::WmmaFragment { index: _, frag } => {
+                    f.write_fmt(format_args!("{frag} {var};\n"))
+                }
+                _ => {
+                    let item = var.item();
+                    f.write_fmt(format_args!("{item} {var};\n"))
+                }
+            },
             Instruction::Add(it) => Add::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Mul(it) => Mul::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Div(it) => Div::format(f, &it.lhs, &it.rhs, &it.out),
@@ -230,6 +236,7 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                 ))
             }
             Instruction::Wrap(it) => f.write_fmt(format_args!("{it}")),
+            Instruction::Wmma(it) => f.write_fmt(format_args!("{it}")),
         }
     }
 }

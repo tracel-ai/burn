@@ -177,10 +177,17 @@ pub(crate) fn codegen_path_var(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> Codegen {
-    let ident = path
-        .path
-        .get_ident()
-        .expect("Codegen: Only ident path are supported.");
+    let ident = match path.path.get_ident() {
+        Some(ident) => ident,
+        None => {
+            return Codegen::new(
+                quote::quote! {
+                    #path
+                },
+                false,
+            );
+        }
+    };
 
     if KEYWORDS.contains(&ident.to_string().as_str()) {
         Codegen::new(

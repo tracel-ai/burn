@@ -20,6 +20,9 @@ impl Operation {
                 "Synchronization instructions can't be vectorized, they should only be generated after vectorization."
             ),
             Operation::Subcube(op) => Operation::Subcube(op.vectorize(vectorization)),
+            Operation::CoopMma(_) => panic!(
+                "Cooperative matrix-multiply and accumulate doesn't support vectorization."
+            ),
         }
     }
 }
@@ -185,6 +188,7 @@ impl Variable {
             Variable::CubeCount => *self,
             Variable::CubeDim => *self,
             Variable::SubcubeDim => *self,
+            Variable::Matrix(_, _) => *self,
         }
     }
 }
