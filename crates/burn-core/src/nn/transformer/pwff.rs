@@ -1,9 +1,9 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::nn::Initializer;
 use crate::{
     config::Config,
-    module::Module,
     nn::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig},
     tensor::{backend::Backend, Tensor},
 };
@@ -36,11 +36,30 @@ pub struct PositionWiseFeedForwardConfig {
 ///
 /// Should be created using [PositionWiseFeedForwardConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: Linear<B>,
     linear_outer: Linear<B>,
     dropout: Dropout,
     gelu: Gelu,
+}
+
+impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_model, dff] = self.linear_inner.weight.shape().dims;
+
+        content
+            .add("d_model", &d_model)
+            .add("d_ff", &dff)
+            .add("prob", &self.dropout.prob)
+            .optional()
+    }
 }
 
 impl PositionWiseFeedForwardConfig {
@@ -72,5 +91,22 @@ impl<B: Backend> PositionWiseFeedForward<B> {
         let x = self.dropout.forward(x);
 
         self.linear_outer.forward(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn display() {
+        let config = PositionWiseFeedForwardConfig::new(2, 4);
+        let pwff = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pwff),
+            "PositionWiseFeedForward {d_model: 2, d_ff: 4, prob: 0.1, params: 22}"
+        );
     }
 }
