@@ -25,3 +25,15 @@ impl Relu {
         crate::tensor::activation::relu(input)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let layer = Relu::new();
+
+        assert_eq!(alloc::format!("{}", layer), "Relu");
+    }
+}
