@@ -46,7 +46,6 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         self.chunk_positions.insert(chunk_id, self.queue.len() - 1);
     }
 
-    #[allow(unused)]
     pub fn remove_chunk(&mut self, chunk_id: ChunkId) {
         if let Some(position) = self.chunk_positions.remove(&chunk_id) {
             self.queue.remove(position);
