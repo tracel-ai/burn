@@ -172,16 +172,20 @@ fn write_results_inner_loop<F: Float>(
         Comptime::get(tile_size / vectorization_factor),
         unroll,
     ) {
-        if Comptime::get(is_scalar) {
-            out[i + out_position] = results[results_pos_m + i];
-        } else {
-            let mut output_elem = F::vectorized(0., Comptime::get(vectorization_factor));
-            for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
-                let index = i * Comptime::runtime(vectorization_factor) + j;
-                output_elem[j] = results[results_pos_m + index];
-            }
+        // TODO this if can be conditional on comptime
+        if i * Comptime::runtime(vectorization_factor) + col < out.shape(out.rank() - UInt::new(1))
+        {
+            if Comptime::get(is_scalar) {
+                out[i + out_position] = results[results_pos_m + i];
+            } else {
+                let mut output_elem = F::vectorized(0., Comptime::get(vectorization_factor));
+                for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
+                    let index = i * Comptime::runtime(vectorization_factor) + j;
+                    output_elem[j] = results[results_pos_m + index];
+                }
 
-            out[i + out_position / Comptime::runtime(vectorization_factor)] = output_elem;
+                out[i + out_position / Comptime::runtime(vectorization_factor)] = output_elem;
+            }
         }
     }
 }
@@ -275,6 +279,24 @@ pub mod tests {
             skip_col: UInt::new(0),
         };
         write_to_output::<F>(out, results, coordinates, UInt::new(0), config);
+    }
+
+    #[cube(launch)]
+    fn write_results_to_output_out_of_bounds_test<F: Float>(
+        out: Tensor<F>,
+        results: Array<F>,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+        let out_stride_row = out.stride(out.rank() - UInt::new(2));
+        write_results_to_output::<F>(
+            out,
+            results,
+            UNIT_POS_X * UInt::new(4),
+            UNIT_POS_Y * UInt::new(4),
+            UInt::new(0),
+            out_stride_row,
+            config,
+        );
     }
 
     /// Exported test
@@ -587,6 +609,52 @@ pub mod tests {
             0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 5.0, 6.0, 7.0, 0.0, 0.0, 0.0,
             0.0, 8.0, 9.0, 10.0, 11.0, 0.0, 0.0, 0.0, 0.0, 12.0, 13.0, 14.0, 15.0,
         ];
+        assert_eq!(actual, expected);
+    }
+
+    /// Exported test
+    pub fn write_to_output_scalar_out_of_bounds_cube_test<R: JitRuntime>(device: &R::Device) {
+        pub type B<R> = JitBackend<R, f32, i32>;
+
+        let tile_size = 4;
+        let vectorization = 1;
+        let out = burn_tensor::Tensor::<B<R>, 2>::zeros([5, 1], device).into_primitive();
+        let client = R::client(device);
+
+        let results = burn_tensor::Tensor::<B<R>, 2>::from_data(
+            burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(1..17, device)
+                .reshape([4, 4])
+                .float()
+                .transpose()
+                .into_data(),
+            device,
+        )
+        .into_primitive();
+
+        // Unit test
+        let cube_count = CubeCount::new(1, 1, 1);
+        let settings = KernelSettings::default()
+            .cube_dim(CubeDim::new(2, 1, 1))
+            .vectorize_input(0, vectorization as u8);
+
+        let mut tiling2d_config = Tiling2dConfig::default();
+        tiling2d_config.block_size_m = 8;
+        tiling2d_config.block_size_k = 8;
+        tiling2d_config.block_size_n = 8;
+        let config = CubeTiling2dConfig::new(tiling2d_config.clone(), 5, 8, 1, tile_size);
+
+        write_results_to_output_out_of_bounds_test_launch::<F32, R>(
+            client.clone(),
+            cube_count,
+            settings,
+            TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
+            ArrayHandle::new(&results.handle, 16),
+            config,
+        );
+
+        let actual = client.read(out.handle.binding()).read_sync().unwrap();
+        let actual = f32::from_bytes(&actual);
+        let expected = &[1.0, 2.0, 3.0, 4.0, 1.0];
         assert_eq!(actual, expected);
     }
 }

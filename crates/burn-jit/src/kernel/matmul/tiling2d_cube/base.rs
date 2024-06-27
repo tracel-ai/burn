@@ -151,19 +151,28 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
+    let vectorization = |shape: usize| {
+        [4, 2, 1]
+            .into_iter()
+            .filter(|v| shape % v == 0)
+            .map(|v| v as u8)
+            .next()
+            .unwrap()
+    };
+
     config.block_size_m = 64;
     config.block_size_n = 64;
     config.block_size_k = 32; // k must be <= both m and n
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
-    let vectorization_factor = 1;
     let tile_size = 4;
     let x = (config.block_size_m / tile_size) as u32;
     let y = (config.block_size_n / tile_size) as u32;
+
     let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization_factor as u8)
-        .vectorize_input(1, vectorization_factor as u8)
-        .vectorize_output(0, vectorization_factor as u8)
+        .vectorize_input(0, vectorization(m))
+        .vectorize_input(1, vectorization(k))
+        .vectorize_output(0, vectorization(n))
         .cube_dim(CubeDim { x, y, z: 1 });
 
     tiling2d_cube_launch::<E::CubeElement, R>(
