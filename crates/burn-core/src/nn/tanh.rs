@@ -24,3 +24,15 @@ impl Tanh {
         crate::tensor::activation::tanh(input)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let layer = Tanh::new();
+
+        assert_eq!(alloc::format!("{}", layer), "Tanh");
+    }
+}
