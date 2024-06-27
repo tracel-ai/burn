@@ -4,8 +4,6 @@ use crate::{kernel::matmul::Tiling2dConfig, JitBackend, JitRuntime};
 
 use super::{base::Coordinates, config::CubeTiling2dConfig};
 
-// Calculate offset for lhs and rhs, without regards to batches
-
 #[cube]
 pub(crate) fn load_lhs_transposed<F: Float>(
     lhs: Tensor<F>,

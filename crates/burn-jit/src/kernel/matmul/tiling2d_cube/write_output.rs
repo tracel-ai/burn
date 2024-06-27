@@ -12,78 +12,24 @@ pub(crate) fn write_to_output<F: Float>(
     offset_output: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) {
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-    let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
-    let check_n_bounds = Comptime::map(config, |c| c.check_n_bounds);
-
     let row = coordinates.skip_row + coordinates.unit_row;
     let col = coordinates.skip_col + coordinates.unit_col;
 
-    let rank = out.rank();
-    let out_stride_row = out.stride(rank - UInt::new(2));
+    let out_stride_row = out.stride(out.rank() - UInt::new(2));
 
-    if Comptime::get(check_m_bounds) {
-        let dim_m = out.shape(rank - UInt::new(2));
-        if Comptime::get(check_n_bounds) {
-            let dim_n = out.shape(rank - UInt::new(1));
-            if row < dim_m && col < dim_n {
-                let num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
-                write_results_to_output_partial::<F>(
-                    out,
-                    results,
-                    row,
-                    col,
-                    offset_output,
-                    out_stride_row,
-                    num_writes,
-                    config,
-                );
-            }
-        } else {
-            if row < dim_m {
-                let num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
-                write_results_to_output_partial::<F>(
-                    out,
-                    results,
-                    row,
-                    col,
-                    offset_output,
-                    out_stride_row,
-                    num_writes,
-                    config,
-                );
-            }
-        }
-    } else {
-        if Comptime::get(check_n_bounds) {
-            let dim_n = out.shape(rank - UInt::new(1));
-            if col < dim_n {
-                write_results_to_output::<F>(
-                    out,
-                    results,
-                    row,
-                    col,
-                    offset_output,
-                    out_stride_row,
-                    config,
-                );
-            }
-        } else {
-            write_results_to_output::<F>(
-                out,
-                results,
-                row,
-                col,
-                offset_output,
-                out_stride_row,
-                config,
-            );
-        }
-    }
+    write_results::<F>(
+        out,
+        results,
+        row,
+        col,
+        offset_output,
+        out_stride_row,
+        config,
+    );
 }
 
 #[cube]
-fn write_results_to_output<F: Float>(
+fn write_results<F: Float>(
     mut out: Tensor<F>,
     results: Array<F>,
     row: UInt,
@@ -95,98 +41,116 @@ fn write_results_to_output<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let sm_is_scalar = Comptime::map(tile_size, |t| t.val == 1);
     let unroll = Comptime::map(config, |c| c.unroll);
+    let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
 
     let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
     if Comptime::get(sm_is_scalar) {
         out[(row * out_stride_row + col + offset_output) / vectorization_factor] = results[0];
     } else {
-        for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-            write_results_inner_loop::<F>(
-                out,
-                results,
-                res_idx_m,
-                row,
-                col,
-                offset_output,
-                out_stride_row,
-                config,
-            )
-        }
-    }
-}
+        if Comptime::get(check_m_bounds) {
+            let dim_m = out.shape(out.rank() - UInt::new(2));
 
-#[cube]
-fn write_results_to_output_partial<F: Float>(
-    mut out: Tensor<F>,
-    results: Array<F>,
-    row: UInt,
-    col: UInt,
-    batch_offset: UInt,
-    out_stride_row: UInt,
-    num_writes: UInt,
-    config: Comptime<CubeTiling2dConfig>,
-) {
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-    let sm_is_scalar = Comptime::map(tile_size, |t| t.val == 1);
+            let mut num_writes = UInt::new(0);
+            if dim_m > row {
+                num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
+            }
 
-    let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
-    if Comptime::get(sm_is_scalar) {
-        out[(row * out_stride_row + col + batch_offset) / vectorization_factor] = results[0];
-    } else {
-        for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
-            write_results_inner_loop::<F>(
-                out,
-                results,
-                res_idx_m,
-                row,
-                col,
-                batch_offset,
-                out_stride_row,
-                config,
-            )
+            for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
+                write_results_inner_loop::<F>(
+                    out,
+                    results,
+                    res_idx_m,
+                    row,
+                    col,
+                    offset_output,
+                    out_stride_row,
+                    config,
+                )
+            }
+        } else {
+            for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
+                write_results_inner_loop::<F>(
+                    out,
+                    results,
+                    res_idx_m,
+                    row,
+                    col,
+                    offset_output,
+                    out_stride_row,
+                    config,
+                )
+            }
         }
     }
 }
 
 #[cube]
 fn write_results_inner_loop<F: Float>(
-    mut out: Tensor<F>,
+    out: Tensor<F>,
     results: Array<F>,
     res_idx_m: UInt,
     row: UInt,
     col: UInt,
-    batch_offset: UInt,
+    offset_output: UInt,
     out_stride_row: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let unroll = Comptime::map(config, |c| c.unroll);
+    let check_n_bounds = Comptime::map(config, |c| c.check_n_bounds);
     let vectorization_factor = Comptime::vectorization(out);
-    let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
+    let runtime_vectorization = Comptime::runtime(vectorization_factor);
 
     let results_pos_m = res_idx_m * Comptime::runtime(tile_size);
-    let out_position = (row + res_idx_m) * out_stride_row + col + batch_offset;
+    let out_position = (row + res_idx_m) * out_stride_row + col + offset_output;
 
-    for i in range(
-        0u32,
-        Comptime::get(tile_size / vectorization_factor),
-        unroll,
-    ) {
-        // TODO this if can be conditional on comptime
-        if i * Comptime::runtime(vectorization_factor) + col < out.shape(out.rank() - UInt::new(1))
-        {
-            if Comptime::get(is_scalar) {
-                out[i + out_position] = results[results_pos_m + i];
-            } else {
-                let mut output_elem = F::vectorized(0., Comptime::get(vectorization_factor));
-                for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
-                    let index = i * Comptime::runtime(vectorization_factor) + j;
-                    output_elem[j] = results[results_pos_m + index];
-                }
+    if Comptime::get(check_n_bounds) {
+        let dim_n = out.shape(out.rank() - UInt::new(1));
 
-                out[i + out_position / Comptime::runtime(vectorization_factor)] = output_elem;
-            }
+        let mut num_loops = UInt::new(0);
+        if dim_n > col {
+            let num_reads = UInt::min(dim_n - col, Comptime::runtime(tile_size));
+            num_loops = num_reads / runtime_vectorization;
         }
+
+        for i in range(0u32, num_loops, Comptime::new(false)) {
+            write_within_vector::<F>(out, i, out_position, results, results_pos_m, config);
+        }
+    } else {
+        for i in range(
+            0u32,
+            Comptime::get(tile_size / vectorization_factor),
+            unroll,
+        ) {
+            write_within_vector::<F>(out, i, out_position, results, results_pos_m, config);
+        }
+    }
+}
+
+#[cube]
+fn write_within_vector<F: Float>(
+    mut out: Tensor<F>,
+    i: UInt,
+    out_position: UInt,
+    results: Array<F>,
+    results_pos_m: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    let vectorization_factor = Comptime::vectorization(out);
+    let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
+    let unroll = Comptime::map(config, |c| c.unroll);
+
+    if Comptime::get(is_scalar) {
+        out[i + out_position] = results[results_pos_m + i];
+    } else {
+        let mut output_elem = F::vectorized(0., Comptime::get(vectorization_factor));
+
+        for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
+            let index = i * Comptime::runtime(vectorization_factor) + j;
+            output_elem[j] = results[results_pos_m + index];
+        }
+
+        out[i + out_position / Comptime::runtime(vectorization_factor)] = output_elem;
     }
 }
 
@@ -221,7 +185,7 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
-        write_results_to_output::<F>(
+        write_results::<F>(
             out,
             results,
             UInt::new(4),
@@ -239,14 +203,13 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
-        write_results_to_output_partial::<F>(
+        write_results::<F>(
             out,
             results,
             UInt::new(4),
             UInt::new(4),
             UInt::new(0),
             out_stride_row,
-            UInt::new(2),
             config,
         );
     }
@@ -288,7 +251,7 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
-        write_results_to_output::<F>(
+        write_results::<F>(
             out,
             results,
             UNIT_POS_X * UInt::new(4),

@@ -424,7 +424,7 @@ mod tests {
 
         #[test]
         pub fn m_exceeds_block() {
-            test_with_params(75, 32, 64, 2, 2);
+            test_with_params(76, 32, 64, 2, 2);
         }
 
         #[test]
