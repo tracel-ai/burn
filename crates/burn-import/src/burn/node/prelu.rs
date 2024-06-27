@@ -1,7 +1,7 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 use burn::{
-    module::{Param, ParamId},
+    module::{ConstantRecord, Param, ParamId},
     nn::{PReluConfig, PReluRecord},
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
@@ -70,6 +70,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
                 ParamId::new(),
                 Tensor::from_data(self.alpha.clone().convert::<PS::FloatElem>(), &device),
             ),
+            alpha_value: ConstantRecord,
         };
 
         let item = Record::into_item::<PS>(record);
