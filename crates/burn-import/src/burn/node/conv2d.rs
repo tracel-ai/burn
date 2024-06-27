@@ -4,29 +4,29 @@ use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::conv::{Conv2dConfig, Conv2dRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct Conv2dNode<PS: PrecisionSettings> {
+pub struct Conv2dNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub data_weights: DataSerialize<PS::FloatElem>,
-    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
+    pub data_weights: TensorData,
+    pub data_bias: Option<TensorData>,
     pub config: Conv2dConfig,
 }
 
-impl<PS: PrecisionSettings> Conv2dNode<PS> {
+impl Conv2dNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        data_weights: DataSerialize<PS::FloatElem>,
-        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        data_weights: TensorData,
+        data_bias: Option<TensorData>,
         config: Conv2dConfig,
     ) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> Conv2dNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -84,12 +84,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
         let record = Conv2dRecord::<SerializationBackend> {
             weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert(), &device),
+                Tensor::from_data(
+                    self.data_weights.clone().convert::<PS::FloatElem>(),
+                    &device,
+                ),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
                 Param::initialized(
                     ParamId::new(),
-                    Tensor::from_data(bias.clone().convert(), &device),
+                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
                 )
             }),
             stride: [ConstantRecord::new(); 2],
@@ -131,9 +134,7 @@ mod tests {
         node::{conv2d::Conv2dNode, test::assert_tokens},
         TensorType,
     };
-    use burn::{
-        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
-    };
+    use burn::{nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings};
 
     #[test]
     fn test_codegen() {
@@ -143,7 +144,7 @@ mod tests {
             "conv2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));

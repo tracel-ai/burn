@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::prng::tests_utils::calculate_bin_stats;
-    use burn_tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
+    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor, TensorData};
     use serial_test::serial;
 
     #[test]
@@ -15,7 +15,7 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(mean, 2.), &device);
         let empirical_mean = tensor.mean().into_data();
-        empirical_mean.assert_approx_eq(&Data::from([mean as f32]), 1);
+        empirical_mean.assert_approx_eq(&TensorData::from([mean as f32]), 1);
     }
 
     #[test]
@@ -27,10 +27,13 @@ mod tests {
         let mu = 0.;
         let s = 1.;
         let tensor =
-            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Normal(mu, s), &device);
+            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Normal(mu, s), &device)
+                .into_data();
 
         let stats = calculate_bin_stats(
-            tensor.into_data().value,
+            tensor
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap(),
             6,
             (mu - 3. * s) as f32,
             (mu + 3. * s) as f32,

@@ -188,7 +188,8 @@ use burn::{
     module::Module,
     nn,
     tensor::{
-        backend::Backend, Bool, Data, Device, ElementConversion, Float, Int, Shape, Tensor,
+        backend::Backend, Bool, Device, ElementConversion, Float, Int, Shape, Tensor,
+        TensorData,
     },
 };
 ```

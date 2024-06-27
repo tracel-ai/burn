@@ -7,7 +7,7 @@ use std::{
 use burn::{
     nn::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
-    tensor::{DataSerialize, Element},
+    tensor::{Element, TensorData},
 };
 use log::warn;
 
@@ -22,7 +22,7 @@ use crate::{
             binary::BinaryNode,
             clip::ClipNode,
             concat::ConcatNode,
-            constant::{ConstantNode, ConstantValue, TensorValue},
+            constant::{ConstantNode, ConstantValue},
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv_transpose_2d::ConvTranspose2dNode,
@@ -308,7 +308,7 @@ impl OnnxGraph {
                     graph.register(Self::global_avg_pool_conversion(node))
                 }
                 NodeType::ConvTranspose2d => {
-                    graph.register(Self::conv_transpose2d_conversion(node))
+                    graph.register(Self::conv_transpose2d_conversion::<PS>(node))
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
@@ -343,7 +343,7 @@ impl OnnxGraph {
         graph
     }
 
-    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode<PS> {
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node);
@@ -359,25 +359,23 @@ impl OnnxGraph {
                     let name = node.name.clone();
                     let shape = tensor.shape.clone();
 
-                    let tensor_value = match tensor.elem_type {
+                    let tensor_data = match tensor.elem_type {
                         // TODO Review how double precision should be supported
                         ElementType::Float32 | ElementType::Float64 => {
-                            TensorValue::Float(serialize_data::<PS::FloatElem>(
+                            serialize_data::<PS::FloatElem>(
                                 attr.value.unwrap(),
                                 tensor.shape.unwrap(),
-                            ))
+                            )
                         }
-                        ElementType::Int32 | ElementType::Int64 => {
-                            TensorValue::Int(serialize_data::<PS::IntElem>(
-                                attr.value.unwrap(),
-                                tensor.shape.unwrap(),
-                            ))
-                        }
+                        ElementType::Int32 | ElementType::Int64 => serialize_data::<PS::IntElem>(
+                            attr.value.unwrap(),
+                            tensor.shape.unwrap(),
+                        ),
                         // TODO support Bool tensor when it is supported by Burn
                         _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, dim, kind, shape), tensor_value)
+                    ConstantValue::Tensor(TensorType::new(name, dim, kind, shape), tensor_data)
                 }
             }
             ArgType::Scalar(elem_type) => match elem_type {
@@ -789,7 +787,7 @@ impl OnnxGraph {
         ConcatNode::new(inputs, output, dim)
     }
 
-    fn linear_conversion<PS: PrecisionSettings>(node: Node) -> LinearNode<PS> {
+    fn linear_conversion<PS: PrecisionSettings>(node: Node) -> LinearNode {
         let name = &node.name;
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -811,7 +809,7 @@ impl OnnxGraph {
         DropoutNode::new(name, input, output, config)
     }
 
-    fn batch_norm_conversion<PS: PrecisionSettings>(node: Node) -> BatchNormNode<PS> {
+    fn batch_norm_conversion<PS: PrecisionSettings>(node: Node) -> BatchNormNode {
         let config = batch_norm_config(&node);
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -839,7 +837,7 @@ impl OnnxGraph {
         )
     }
 
-    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode<PS> {
+    fn layer_norm_conversion<PS: PrecisionSettings>(node: Node) -> LayerNormNode {
         let (config, full_precision) = layer_norm_config(&node);
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
@@ -854,7 +852,7 @@ impl OnnxGraph {
         LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
     }
 
-    fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode<PS> {
+    fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let config = conv1d_config(&node);
@@ -867,10 +865,10 @@ impl OnnxGraph {
         };
 
         let name = &node.name;
-        Conv1dNode::<PS>::new(name, input, output, weight, bias, config)
+        Conv1dNode::new(name, input, output, weight, bias, config)
     }
 
-    fn conv2d_conversion<PS: PrecisionSettings>(node: Node) -> Conv2dNode<PS> {
+    fn conv2d_conversion<PS: PrecisionSettings>(node: Node) -> Conv2dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let config = conv2d_config(&node);
@@ -883,7 +881,7 @@ impl OnnxGraph {
         };
 
         let name = &node.name;
-        Conv2dNode::<PS>::new(name, input, output, weight, bias, config)
+        Conv2dNode::new(name, input, output, weight, bias, config)
     }
 
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
@@ -904,15 +902,15 @@ impl OnnxGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
-    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode<PS> {
+    fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let config = PReluConfig::new();
         let name = &node.name;
-        PReluNode::<PS>::new(name, input, output, weight, config)
+        PReluNode::new(name, input, output, weight, config)
     }
-    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
+    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
         let output = node.outputs.first().unwrap().to_tensor_type();
         let config = conv_transpose2d_config(&node);
@@ -925,7 +923,7 @@ impl OnnxGraph {
         };
 
         let name = &node.name;
-        ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
+        ConvTranspose2dNode::new(name, input, output, weight, bias, config)
     }
     fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
         let input = node.inputs.first().unwrap().to_tensor_type();
@@ -1050,14 +1048,14 @@ impl OnnxGraph {
     }
 }
 
-/// Extract data from node states and convert it to `DataSerialize`.
+/// Extract data from node states and convert it to `TensorData`.
 ///
 /// # Arguments
 ///
 /// * `input_index` - The index of the input originally from input.
 /// * `node` - The node where value are stored.
 #[track_caller]
-fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DataSerialize<E>> {
+fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<TensorData> {
     if node.inputs.is_empty() {
         return None;
     }
@@ -1072,7 +1070,7 @@ fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option
         ArgType::Tensor(tensor_type) => {
             let value = input.value.as_ref().expect("Value to be provided.").clone();
 
-            Some(serialize_data(
+            Some(serialize_data::<E>(
                 value.clone(),
                 tensor_type.shape.unwrap().clone(),
             ))
@@ -1081,14 +1079,14 @@ fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option
     }
 }
 
-/// Convert data to `DataSerialize`.
-fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DataSerialize<E> {
+/// Convert data to `TensorData`.
+fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
     match data {
-        Data::Float16s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Float32s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Float64s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Int32s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Int64s(val) => DataSerialize::new(val, shape).convert(),
+        Data::Float16s(val) => TensorData::new(val, shape).convert::<E>(),
+        Data::Float32s(val) => TensorData::new(val, shape).convert::<E>(),
+        Data::Float64s(val) => TensorData::new(val, shape).convert::<E>(),
+        Data::Int32s(val) => TensorData::new(val, shape).convert::<E>(),
+        Data::Int64s(val) => TensorData::new(val, shape).convert::<E>(),
         // TODO support Bool tensor when it is supported by Burn
         _ => panic!("Unsupported tensor element type"),
     }

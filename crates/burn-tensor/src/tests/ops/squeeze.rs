@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(squeeze)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, TensorData};
 
     /// Test if the function can successfully squeeze the size 1 dimension of a 3D tensor.
     #[test]

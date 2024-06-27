@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_sign)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::TensorData;
 
     /// Example using the sign function with PyTorch:
     // >>> import torch
@@ -26,10 +26,10 @@ mod tests {
 
     #[test]
     fn should_diff_sign() {
-        let data = Data::<f32, 1>::from([-2.0, -1.0, 0.0, 1.0, 2.0]);
+        let data = TensorData::from([-2.0, -1.0, 0.0, 1.0, 2.0]);
 
         let device = Default::default();
-        let x = TestAutodiffTensor::from_data(data, &device).require_grad();
+        let x = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
 
         let y = x.clone().sign();
 
@@ -37,7 +37,9 @@ mod tests {
         let grads = loss.backward();
         let grad = x.grad(&grads).unwrap();
 
-        assert_eq!(y.to_data(), Data::from([-1., -1., 0., 1., 1.]));
-        assert_eq!(grad.to_data(), Data::from([0., 0., 0., 0., 0.]));
+        y.to_data()
+            .assert_eq(&TensorData::from([-1., -1., 0., 1., 1.]), false);
+        grad.to_data()
+            .assert_eq(&TensorData::from([0., 0., 0., 0., 0.]), false);
     }
 }

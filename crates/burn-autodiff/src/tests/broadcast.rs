@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_broadcast)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Distribution, Int, Shape, Tensor};
+    use burn_tensor::{Distribution, Int, Shape, Tensor};
 
     #[test]
     fn mul_broadcast() {

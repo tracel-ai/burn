@@ -40,18 +40,15 @@ mod tests {
                 Distribution::Uniform(0., shape[dim] as f64),
                 &Default::default(),
             )
-            .into_data()
-            .convert(),
+            .into_data(),
             &Default::default(),
         );
         let tensor_ref =
             Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &Default::default());
         let value_ref =
             Tensor::<ReferenceBackend, D>::from_data(value.to_data(), &Default::default());
-        let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
-            &Default::default(),
-        );
+        let indices_ref =
+            Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data(), &Default::default());
 
         let actual = tensor.select_assign(dim, indices, value);
         let expected = tensor_ref.select_assign(dim, indices_ref, value_ref);

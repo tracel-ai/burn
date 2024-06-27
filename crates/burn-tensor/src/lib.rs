@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+// Allow deprecated `Data` and `DataSerialize`
+#![allow(deprecated)]
 
 //! This library provides multiple tensor implementations hidden behind an easy to use API
 //! that supports reverse mode automatic differentiation.

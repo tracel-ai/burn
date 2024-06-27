@@ -3,14 +3,11 @@ use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Au
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
-    Data, Device, Distribution, Reader, Shape,
+    Device, Distribution, Reader, Shape, TensorData,
 };
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
-    fn int_from_data<const D: usize>(
-        data: Data<B::IntElem, D>,
-        device: &Device<Self>,
-    ) -> IntTensor<B, D> {
+    fn int_from_data<const D: usize>(data: TensorData, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_from_data(data, device)
     }
 
@@ -18,11 +15,11 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_shape(tensor)
     }
 
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
+    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData> {
         B::int_to_data(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData> {
         B::int_into_data(tensor)
     }
 
