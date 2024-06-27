@@ -1,6 +1,6 @@
 use crate as burn;
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
@@ -74,7 +74,11 @@ impl RotaryEncodingConfig {
             .repeat(2, 2)
             .reshape([self.max_sequence_length, self.d_model, 2]);
 
-        RotaryEncoding { freq_complex }
+        RotaryEncoding {
+            freq_complex,
+            max_sequence_length: self.max_sequence_length,
+            theta: self.theta,
+        }
     }
 }
 
@@ -87,9 +91,31 @@ impl RotaryEncodingConfig {
 ///
 /// Should be created using [RotaryEncodingConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct RotaryEncoding<B: Backend> {
     /// Frequency Tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
-    freq_complex: Tensor<B, 3>,
+    pub freq_complex: Tensor<B, 3>,
+    /// Maximum sequence length of input
+    pub max_sequence_length: usize,
+    /// Scaling factor for frequency computation.
+    pub theta: f32,
+}
+
+impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [_, _, d_model] = self.freq_complex.shape().dims;
+        content
+            .add("d_model", &d_model)
+            .add("max_sequence_length", &self.max_sequence_length)
+            .add("theta", &self.theta)
+            .optional()
+    }
 }
 
 #[allow(clippy::single_range_in_vec_init)]
@@ -237,5 +263,16 @@ mod tests {
         let pe = RotaryEncodingConfig::new(10, d_model).init::<TestBackend>(&device);
         let input = Tensor::zeros([1, 5, d_model], &device);
         let _output = pe.forward(input);
+    }
+
+    #[test]
+    fn display() {
+        let config = RotaryEncodingConfig::new(10, 4);
+        let pe = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pe),
+            "RotaryEncoding {d_model: 2, max_sequence_length: 10, theta: 10000}"
+        );
     }
 }
