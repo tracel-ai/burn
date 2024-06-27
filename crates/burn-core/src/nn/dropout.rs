@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::{DisplaySettings, Module, ModuleDisplay};
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -63,7 +63,7 @@ impl ModuleDisplay for Dropout {
             .optional()
     }
 
-    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+    fn custom_content(&self, content: Content) -> Option<Content> {
         content.add("prob", &self.prob).optional()
     }
 }
