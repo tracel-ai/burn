@@ -64,13 +64,8 @@ mod tests {
     }
 
     #[test]
-    pub fn tiling2d_matmul_read_partial_vectorized_test() {
+    pub fn tiling2d_matmul_read_partial_unit_test() {
         load_shared_memory_tests::read_partial_unit_test::<TestRuntime>(&Default::default())
-    }
-
-    #[test]
-    pub fn tiling2d_matmul_read_zeros_vectorized_test() {
-        load_shared_memory_tests::read_zeros_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]

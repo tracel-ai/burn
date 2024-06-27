@@ -122,67 +122,50 @@ fn load_tile<F: Float>(
     let tensor_stride = tensor.stride(rank - UInt::new(2));
     let tensor_position_base = load_row * tensor_stride + load_col + cube_offset;
 
-    // TODO should be needed only in some checks
-    let col = skip_col + load_col;
-
     if Comptime::get(check_vertical_bounds) {
         let row = skip_row + load_row;
-        let dim_vertical = tensor.shape(rank - UInt::new(2));
 
         if Comptime::get(check_horizontal_bounds) {
-            let dim_horizontal = tensor.shape(rank - UInt::new(1));
-
-            if col >= dim_horizontal {
-                read_zeros::<F>(tile, tile_size, unroll);
-            } else {
-                read_partial::<F>(
-                    tensor,
-                    dim_vertical,
-                    row,
-                    tensor_position_base,
-                    tensor_stride,
-                    tile,
-                    col,
-                    tile_size,
-                    unroll,
-                );
-            }
-        } else {
-            read_partial::<F>(
+            let col = skip_col + load_col;
+            read_with_both_checks::<F>(
                 tensor,
-                dim_vertical,
+                row,
+                col,
+                tensor_position_base,
+                tensor_stride,
+                tile,
+                tile_size,
+                unroll,
+            );
+        } else {
+            read_with_vertical_checks::<F>(
+                tensor,
                 row,
                 tensor_position_base,
                 tensor_stride,
                 tile,
-                col,
                 tile_size,
                 unroll,
             );
         }
     } else {
         if Comptime::get(check_horizontal_bounds) {
-            let dim_horizontal = tensor.shape(rank - UInt::new(1));
-            if col >= dim_horizontal {
-                read_zeros::<F>(tile, tile_size, unroll);
-            } else {
-                read_whole::<F>(
-                    tensor,
-                    tensor_position_base,
-                    tensor_stride,
-                    tile,
-                    col,
-                    tile_size,
-                    unroll,
-                );
-            }
+            let col = skip_col + load_col;
+            read_with_horizontal_checks::<F>(
+                tensor,
+                col,
+                tensor_position_base,
+                tensor_stride,
+                tile,
+                tile_size,
+                unroll,
+            );
         } else {
-            read_whole::<F>(
+            read_without_checks::<F>(
                 tensor,
                 tensor_position_base,
                 tensor_stride,
                 tile,
-                col,
                 tile_size,
                 unroll,
             );
@@ -236,40 +219,32 @@ fn write_tile_transposed<F: Float>(
 }
 
 #[cube]
-fn read_zeros<F: Float>(mut tile: Array<F>, tile_size: Comptime<UInt>, unroll: Comptime<bool>) {
-    let zeros = F::vectorized(0., Comptime::get(tile_size));
-    for i in range(0u32, Comptime::get(tile_size), unroll) {
-        tile[i] = zeros;
-    }
-}
-
-#[cube]
-fn read_partial<F: Float>(
+fn read_with_both_checks<F: Float>(
     tensor: Tensor<F>,
-    dim_vertical: UInt,
     row: UInt,
+    col: UInt,
     position_base: UInt,
     stride: UInt,
     mut tile: Array<F>,
-    col: UInt,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
     let tile_size_runtime = Comptime::runtime(tile_size);
 
     let mut num_reads = UInt::new(0);
+    let dim_vertical = tensor.shape(tensor.rank() - UInt::new(2));
     if dim_vertical > row {
         num_reads = UInt::min(dim_vertical - row, tile_size_runtime);
     }
 
     for i in range(0u32, num_reads, Comptime::new(false)) {
-        read_inner::<F>(
+        read_tile_line_with_checks::<F>(
             tensor,
+            col,
             position_base,
             stride,
             tile,
             i,
-            col,
             tile_size,
             unroll,
         );
@@ -282,23 +257,57 @@ fn read_partial<F: Float>(
 }
 
 #[cube]
-fn read_whole<F: Float>(
+fn read_with_vertical_checks<F: Float>(
     tensor: Tensor<F>,
+    row: UInt,
     position_base: UInt,
     stride: UInt,
-    tile: Array<F>,
-    col: UInt,
+    mut tile: Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
-    for i in range(0u32, Comptime::get(tile_size), unroll) {
-        read_inner::<F>(
+    let tile_size_runtime = Comptime::runtime(tile_size);
+
+    let mut num_reads = UInt::new(0);
+    let dim_vertical = tensor.shape(tensor.rank() - UInt::new(2));
+    if dim_vertical > row {
+        num_reads = UInt::min(dim_vertical - row, tile_size_runtime);
+    }
+
+    for i in range(0u32, num_reads, Comptime::new(false)) {
+        read_tile_line_without_checks::<F>(
             tensor,
             position_base,
             stride,
             tile,
             i,
-            col,
+            tile_size,
+            unroll,
+        );
+    }
+
+    let zeros = F::vectorized(0., Comptime::get(tile_size));
+    for i in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
+        tile[i] = zeros;
+    }
+}
+
+#[cube]
+fn read_without_checks<F: Float>(
+    tensor: Tensor<F>,
+    position_base: UInt,
+    stride: UInt,
+    tile: Array<F>,
+    tile_size: Comptime<UInt>,
+    unroll: Comptime<bool>,
+) {
+    for i in range(0u32, Comptime::get(tile_size), unroll) {
+        read_tile_line_without_checks::<F>(
+            tensor,
+            position_base,
+            stride,
+            tile,
+            i,
             tile_size,
             unroll,
         );
@@ -306,57 +315,137 @@ fn read_whole<F: Float>(
 }
 
 #[cube]
-fn read_inner<F: Float>(
+fn read_with_horizontal_checks<F: Float>(
+    tensor: Tensor<F>,
+    col: UInt,
+    position_base: UInt,
+    stride: UInt,
+    tile: Array<F>,
+    tile_size: Comptime<UInt>,
+    unroll: Comptime<bool>,
+) {
+    for i in range(0u32, Comptime::get(tile_size), unroll) {
+        read_tile_line_with_checks::<F>(
+            tensor,
+            col,
+            position_base,
+            stride,
+            tile,
+            i,
+            tile_size,
+            unroll,
+        );
+    }
+}
+
+#[cube]
+fn read_tile_line_with_checks<F: Float>(
+    tensor: Tensor<F>,
+    col: UInt,
+    position_base: UInt,
+    stride: UInt,
+    mut tile: Array<F>,
+    i: UInt,
+    tile_size: Comptime<UInt>,
+    unroll: Comptime<bool>,
+) {
+    let vectorization_factor = Comptime::vectorization(tensor);
+    let runtime_vectorization = Comptime::runtime(vectorization_factor);
+
+    let position = position_base + i * stride;
+
+    let dim_horizontal = tensor.shape(tensor.rank() - UInt::new(1));
+
+    if tile_size == vectorization_factor {
+        if col >= dim_horizontal {
+            tile[i] = F::vectorized(0., Comptime::get(tile_size));
+        } else {
+            tile[i] = tensor[position / runtime_vectorization];
+        }
+    } else {
+        let tile_entry = F::vectorized(0., Comptime::get(tile_size));
+
+        let mut num_loops = UInt::new(0);
+        if dim_horizontal > col {
+            let num_reads = UInt::min(dim_horizontal - col, Comptime::runtime(tile_size));
+            num_loops = num_reads / runtime_vectorization;
+        }
+
+        for x in range(0u32, num_loops, Comptime::new(false)) {
+            read_within_vector::<F>(
+                tensor,
+                tile_entry,
+                position,
+                x,
+                vectorization_factor,
+                unroll,
+            );
+        }
+
+        tile[i] = tile_entry;
+    }
+}
+
+#[cube]
+fn read_tile_line_without_checks<F: Float>(
     tensor: Tensor<F>,
     position_base: UInt,
     stride: UInt,
     mut tile: Array<F>,
     i: UInt,
-    col: UInt,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
 ) {
     let vectorization_factor = Comptime::vectorization(tensor);
+    let runtime_vectorization = Comptime::runtime(vectorization_factor);
+
     let position = position_base + i * stride;
 
     if tile_size == vectorization_factor {
-        tile[i] = tensor[position / Comptime::runtime(vectorization_factor)];
+        tile[i] = tensor[position / runtime_vectorization];
     } else {
-        let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
-        let mut tile_entry = F::vectorized(0., Comptime::get(tile_size));
-        let dim_horizontal = tensor.shape(tensor.rank() - UInt::new(1));
+        let tile_entry = F::vectorized(0., Comptime::get(tile_size));
 
-        let mut num_reads = UInt::new(0);
-        if dim_horizontal > col {
-            num_reads = UInt::min(dim_horizontal - col, Comptime::runtime(tile_size));
-        }
-
-        for x in range(
+        for j in range(
             0u32,
             Comptime::get(tile_size / vectorization_factor),
             unroll,
         ) {
-            // TODO refactor
-            if Comptime::get(is_scalar) {
-                // TODO this happens even if no checks needed !!!
-                if x * Comptime::runtime(vectorization_factor) < num_reads {
-                    tile_entry[x] = tensor[position + x];
-                }
-            } else {
-                // TODO this happens even if no checks needed !!!
-                if x * Comptime::runtime(vectorization_factor) < num_reads {
-                    let intermediate =
-                        tensor[position / Comptime::runtime(vectorization_factor) + x];
-
-                    for y in range(0u32, Comptime::get(vectorization_factor), unroll) {
-                        tile_entry[x * Comptime::runtime(vectorization_factor) + y] =
-                            intermediate[y];
-                    }
-                }
-            }
+            read_within_vector::<F>(
+                tensor,
+                tile_entry,
+                position,
+                j,
+                vectorization_factor,
+                unroll,
+            );
         }
 
         tile[i] = tile_entry;
+    }
+}
+
+#[cube]
+/// Necessary when vectorization_factor < tile_size
+fn read_within_vector<F: Float>(
+    tensor: Tensor<F>,
+    mut tile_entry: F,
+    position: UInt,
+    i: UInt,
+    vectorization_factor: Comptime<UInt>,
+    unroll: Comptime<bool>,
+) {
+    let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
+    let runtime_vectorization = Comptime::runtime(vectorization_factor);
+
+    if Comptime::get(is_scalar) {
+        tile_entry[i] = tensor[position + i];
+    } else {
+        let intermediate = tensor[position / runtime_vectorization + i];
+
+        for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
+            tile_entry[i * runtime_vectorization + j] = intermediate[j];
+        }
     }
 }
 
@@ -367,16 +456,32 @@ pub mod tests {
 
     #[cube(launch)]
     #[allow(unused_mut)]
-    fn read_whole_test<F: Float>(tensor: Tensor<F>, mut tile: Array<F>, tile_size: Comptime<UInt>) {
-        read_whole::<F>(
-            tensor,
-            UInt::new(0),
-            tensor.stride(0),
-            tile,
-            UInt::new(0),
-            tile_size,
-            Comptime::new(true),
-        )
+    fn read_whole_test<F: Float>(
+        tensor: Tensor<F>,
+        mut tile: Array<F>,
+        tile_size: Comptime<UInt>,
+        bound_check_horizontal: Comptime<bool>,
+    ) {
+        if Comptime::get(bound_check_horizontal) {
+            read_with_horizontal_checks::<F>(
+                tensor,
+                UInt::new(0),
+                UInt::new(0),
+                tensor.stride(0),
+                tile,
+                tile_size,
+                Comptime::new(true),
+            );
+        } else {
+            read_without_checks::<F>(
+                tensor,
+                UInt::new(0),
+                tensor.stride(0),
+                tile,
+                tile_size,
+                Comptime::new(true),
+            );
+        }
     }
 
     #[cube(launch)]
@@ -385,24 +490,30 @@ pub mod tests {
         tensor: Tensor<F>,
         mut tile: Array<F>,
         tile_size: Comptime<UInt>,
+        bound_check_horizontal: Comptime<bool>,
     ) {
-        read_partial::<F>(
-            tensor,
-            Comptime::runtime(tile_size),
-            UInt::new(2),
-            UInt::new(8),
-            tensor.stride(0),
-            tile,
-            UInt::new(0),
-            tile_size,
-            Comptime::new(true),
-        )
-    }
-
-    #[cube(launch)]
-    #[allow(unused_mut)]
-    fn read_zeros_test<F: Float>(mut tile: Array<F>, tile_size: Comptime<UInt>) {
-        read_zeros::<F>(tile, tile_size, Comptime::new(true))
+        if Comptime::get(bound_check_horizontal) {
+            read_with_both_checks::<F>(
+                tensor,
+                UInt::new(2),
+                UInt::new(8),
+                UInt::new(0),
+                tensor.stride(0),
+                tile,
+                tile_size,
+                Comptime::new(true),
+            );
+        } else {
+            read_with_vertical_checks::<F>(
+                tensor,
+                UInt::new(2),
+                UInt::new(8),
+                tensor.stride(0),
+                tile,
+                tile_size,
+                Comptime::new(true),
+            );
+        }
     }
 
     #[cube(launch)]
@@ -572,6 +683,7 @@ pub mod tests {
             TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             ArrayHandle::new(&tile, 4),
             tile_size.into(),
+            false,
         );
 
         let actual = client.read(tile.binding()).read_sync().unwrap();
@@ -610,6 +722,7 @@ pub mod tests {
             TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             ArrayHandle::new(&tile, 4),
             tile_size.into(),
+            false,
         );
 
         let actual = client.read(tile.binding()).read_sync().unwrap();
@@ -648,6 +761,7 @@ pub mod tests {
             TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             ArrayHandle::new(&tile, 4),
             tile_size.into(),
+            false,
         );
 
         let actual = client.read(tile.binding()).read_sync().unwrap();
@@ -686,6 +800,7 @@ pub mod tests {
             TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             ArrayHandle::new(&tile, 4),
             tile_size.into(),
+            true,
         );
 
         let actual = client.read(tile.binding()).read_sync().unwrap();
@@ -723,42 +838,13 @@ pub mod tests {
             TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             ArrayHandle::new(&tile, 4),
             tile_size.into(),
+            false,
         );
 
         let actual = client.read(tile.binding()).read_sync().unwrap();
         let actual = f32::from_bytes(&actual);
         let expected = &[
             8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        ];
-        assert_eq!(actual, expected);
-    }
-
-    /// Exported test
-    pub fn read_zeros_unit_test<R: JitRuntime>(device: &R::Device) {
-        let tile_size = 4;
-        let client = R::client(device);
-
-        let tile = client.empty(tile_size * tile_size * core::mem::size_of::<f32>());
-
-        // Unit test
-        let cube_count = CubeCount::new(1, 1, 1);
-        let settings = KernelSettings::default()
-            .cube_dim(CubeDim::new(1, 1, 1))
-            .vectorize_input(0, tile_size as u8)
-            .vectorize_output(0, tile_size as u8);
-
-        read_zeros_test_launch::<F32, R>(
-            client.clone(),
-            cube_count,
-            settings,
-            ArrayHandle::new(&tile, 4),
-            tile_size.into(),
-        );
-
-        let actual = client.read(tile.binding()).read_sync().unwrap();
-        let actual = f32::from_bytes(&actual);
-        let expected = &[
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ];
         assert_eq!(actual, expected);
     }
