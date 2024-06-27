@@ -11,6 +11,7 @@ mod int;
 mod kind;
 mod narrow;
 mod numeric;
+mod qtensor;
 mod sort;
 
 pub use argwhere::argwhere_data;
@@ -21,4 +22,5 @@ pub use chunk::chunk;
 pub use kind::*;
 pub use narrow::narrow;
 pub use numeric::*;
+pub use qtensor::*;
 pub use sort::{argsort, sort, sort_with_indices};
