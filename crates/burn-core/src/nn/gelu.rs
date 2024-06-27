@@ -25,3 +25,15 @@ impl Gelu {
         crate::tensor::activation::gelu(input)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let layer = Gelu::new();
+
+        assert_eq!(alloc::format!("{}", layer), "Gelu");
+    }
+}
