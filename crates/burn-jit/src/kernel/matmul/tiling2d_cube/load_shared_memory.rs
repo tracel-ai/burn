@@ -1,7 +1,5 @@
 use burn_cube::prelude::*;
 
-use crate::{kernel::matmul::Tiling2dConfig, JitBackend, JitRuntime};
-
 use super::{base::Coordinates, config::CubeTiling2dConfig};
 
 #[cube]
@@ -445,6 +443,7 @@ pub mod tests {
         base::TILE_SIZE,
         test_utils::{assert_equals, create_empty, make_config, range_tensor},
     };
+    use crate::JitRuntime;
 
     use super::{super::base::CoordinatesExpand, *};
 

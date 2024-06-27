@@ -2,8 +2,7 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::matmul::tiling2d_cube::{
-        base_tests, compute_loop_tests, load_shared_memory_tests, outer_product_tests,
-        write_output_tests,
+        compute_loop_tests, load_shared_memory_tests, outer_product_tests, write_output_tests,
     };
     use burn_jit::kernel::matmul::{matmul, MatmulStrategy, Tiling2dConfig};
     use burn_tensor::{Shape, Tensor};
@@ -180,10 +179,5 @@ mod tests {
         write_output_tests::write_to_output_scalar_out_of_bounds_cube_test::<TestRuntime>(
             &Default::default(),
         )
-    }
-
-    #[test]
-    pub fn calculate_offsets_unit_test() {
-        base_tests::calculate_offsets_unit_test::<TestRuntime>(&Default::default())
     }
 }

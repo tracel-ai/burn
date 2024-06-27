@@ -42,6 +42,15 @@ pub(crate) fn range_tensor_transposed<R: JitRuntime>(
     tensor
 }
 
+pub(crate) fn zeros_tensor<R: JitRuntime>(
+    x: usize,
+    y: usize,
+    device: &R::Device,
+) -> JitTensor<R, f32, 2> {
+    type B<R> = JitBackend<R, f32, i32>;
+    burn_tensor::Tensor::<B<R>, 2>::zeros([x, y], device).into_primitive()
+}
+
 pub(crate) fn create_empty<R: JitRuntime>(
     x: usize,
     y: usize,
