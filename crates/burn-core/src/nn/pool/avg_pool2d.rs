@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Ignored, Module};
 use crate::nn::PaddingConfig2d;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
@@ -42,7 +42,7 @@ pub struct AvgPool2dConfig {
 pub struct AvgPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],
-    padding: PaddingConfig2d,
+    padding: Ignored<PaddingConfig2d>,
     count_include_pad: bool,
 }
 
@@ -52,7 +52,7 @@ impl AvgPool2dConfig {
         AvgPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             count_include_pad: self.count_include_pad,
         }
     }

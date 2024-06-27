@@ -19,19 +19,12 @@ default = [
     "storage-bytes",
     "autotune-persistent-cache",
 ]
-std = [
-    "burn-common/std",
-]
+std = ["burn-common/std"]
 channel-mutex = []
 channel-cell = []
 channel-mpsc = [] # Assume std
 storage-bytes = []
-autotune-persistent-cache = [
-    "dirs",
-    "md5",
-    "serde",
-    "serde_json",
-] # Assume std
+autotune-persistent-cache = ["dirs", "md5", "serde", "serde_json"] # Assume std
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.14.0", default-features = false }
@@ -39,9 +32,9 @@ derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 hashbrown = { workspace = true }
-dirs = { workspace = true , optional = true}
-serde = { workspace = true, optional = true}
-serde_json = { workspace = true, features=["std"], optional = true}
+dirs = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ["std"], optional = true }
 md5 = { workspace = true, optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -50,3 +43,7 @@ web-time = { workspace = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 rand = { workspace = true }
+
+[[bench]]
+name = "dynamic"
+harness = false

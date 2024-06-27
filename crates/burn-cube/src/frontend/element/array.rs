@@ -7,9 +7,9 @@ use crate::{
     unexpanded, Runtime,
 };
 
-use super::{ArgSettings, CubeElem, LaunchArg, TensorHandle, UInt};
+use super::{ArgSettings, CubePrimitive, LaunchArg, LaunchArgExpand, TensorHandle, UInt};
 
-#[derive(new, Clone, Copy)]
+#[derive(new)]
 pub struct Array<E> {
     _val: PhantomData<E>,
 }
@@ -18,21 +18,33 @@ impl<C: CubeType> CubeType for Array<C> {
     type ExpandType = ExpandElement;
 }
 
+impl<C: CubeType> CubeType for &Array<C> {
+    type ExpandType = ExpandElement;
+}
+
+impl<C: CubeType> CubeType for &mut Array<C> {
+    type ExpandType = ExpandElement;
+}
+
 impl<E: CubeType> Array<E> {
     /// Obtain the array length of input
-    pub fn len(self) -> UInt {
+    pub fn len(&self) -> UInt {
         unexpanded!()
     }
 }
 
-impl<C: CubeElem> LaunchArg for Array<C> {
+impl<C: CubePrimitive> LaunchArg for Array<C> {
     type RuntimeArg<'a, R: Runtime> = ArrayHandle<'a, R>;
+}
 
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubePrimitive> LaunchArgExpand for &Array<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
 
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubePrimitive> LaunchArgExpand for &mut Array<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
 }

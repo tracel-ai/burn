@@ -39,8 +39,11 @@ mod tests {
         let device = Default::default();
 
         let tensor =
-            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device);
-        let numbers = tensor.into_data().value;
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device)
+                .into_data();
+        let numbers = tensor
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 3, -5., 10.);
         assert!(stats[0].count >= 1);
         assert!(stats[1].count >= 1);
@@ -53,9 +56,12 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
+        let tensor =
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device).into_data();
 
-        let numbers = tensor.into_data().value;
+        let numbers = tensor
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 2, 0., 1.);
         let n_0 = stats[0].count as f32;
         let n_1 = stats[1].count as f32;
@@ -97,7 +103,9 @@ mod tests {
 
         let data_float = tensor.float().into_data();
 
-        let numbers = data_float.value;
+        let numbers = data_float
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 10, -10., 10.);
         assert!(stats[0].count >= 1);
         assert!(stats[1].count >= 1);

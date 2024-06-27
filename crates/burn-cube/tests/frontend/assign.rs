@@ -22,7 +22,7 @@ fn assign_mut_input(mut y: UInt) -> UInt {
 
 #[cube]
 fn assign_vectorized(y: UInt) -> UInt {
-    let vectorization_factor = Comptime::vectorization(y);
+    let vectorization_factor = Comptime::vectorization(&y);
     let x = UInt::vectorized(1, Comptime::get(vectorization_factor));
     x + y
 }

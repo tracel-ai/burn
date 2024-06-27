@@ -11,7 +11,7 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
+use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
 use burn_tensor::{Distribution, Reader};
 
 #[cfg(not(feature = "std"))]
@@ -22,7 +22,7 @@ use libm::erf;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_from_data<const D: usize>(
-        data: Data<E, D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
@@ -39,7 +39,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         } else {
             get_seeded_rng()
         };
-        let tensor = Self::float_from_data(Data::random(shape, distribution, &mut rng), device);
+        let tensor = Self::float_from_data(
+            TensorData::random::<E, _, _>(shape, distribution, &mut rng),
+            device,
+        );
         *seed = Some(rng);
         tensor
     }
@@ -48,13 +51,11 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
+    fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> Reader<TensorData> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
-        Reader::Concrete(Data::new(values, shape))
+        Reader::Concrete(TensorData::new(values, shape))
     }
 
     fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {

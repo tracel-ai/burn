@@ -1,11 +1,11 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Reader, Shape, TensorData};
 use std::ops::Range;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::from_data(data, (*device).into())
@@ -23,12 +23,12 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<Data<bool, D>> {
+    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<TensorData> {
         let shape = Self::bool_shape(&tensor);
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
-        Reader::Concrete(Data::new(values.unwrap(), shape))
+        Reader::Concrete(TensorData::new(values.unwrap(), shape))
     }
 
     fn bool_to_device<const D: usize>(

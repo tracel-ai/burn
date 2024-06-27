@@ -13,7 +13,7 @@ use serde::{
     ser::{SerializeMap, SerializeTuple},
     Serialize,
 };
-use std::{any::type_name, collections::HashMap, path::PathBuf};
+use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
 
 /// Type of the record to be saved.
 #[derive(Debug, Clone, Default, Copy)]
@@ -46,6 +46,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     blank_spaces: bool,
     graph_input_types: Vec<Type>,
     graph_output_types: Vec<Type>,
+    _ps: PhantomData<PS>,
 }
 
 // The backend used for recording.

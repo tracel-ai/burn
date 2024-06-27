@@ -298,7 +298,7 @@ pub mod tests_utils {
 
     #[allow(unused)]
     pub fn calculate_bin_stats<E: Element>(
-        numbers: Vec<E>,
+        numbers: &[E],
         number_of_bins: usize,
         low: f32,
         high: f32,

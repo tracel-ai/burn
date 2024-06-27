@@ -4,8 +4,8 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::tensor::backend::Backend;
-use crate::tensor::Data;
 use crate::tensor::Tensor;
+use crate::tensor::TensorData;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
@@ -148,12 +148,12 @@ pub fn generate_sinusoids<B: Backend>(
     }
 
     // Convert the sinusoids to a tensor and return it
-    let data = Data::new(
+    let data = TensorData::new(
         scaled_time_sin_cos.into_iter().flatten().collect(),
-        [length, d_model].into(),
+        [length, d_model],
     );
 
-    Tensor::<B, 2>::from_data(data.convert(), device)
+    Tensor::<B, 2>::from_data(data, device)
 }
 
 #[cfg(test)]

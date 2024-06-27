@@ -125,7 +125,7 @@ mod tests {
         let clipped_gradient = GradientClipping::Value(0.5).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
-        for value in clipped_gradient_data.value {
+        for value in clipped_gradient_data.iter::<f32>() {
             assert!(value <= 0.5);
         }
     }
@@ -143,7 +143,7 @@ mod tests {
         let clipped_gradient = GradientClipping::Norm(2.2).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
-        for value in clipped_gradient_data.value {
+        for value in clipped_gradient_data.iter::<f32>() {
             assert!(value <= 0.88);
         }
     }

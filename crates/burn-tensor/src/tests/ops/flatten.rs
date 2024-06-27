@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(flatten)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, TensorData};
 
     /// Test if the function can successfully flatten a 4D tensor to a 1D tensor.
     #[test]

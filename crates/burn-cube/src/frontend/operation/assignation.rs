@@ -113,6 +113,90 @@ pub mod index {
     impl_index!(SharedMemory);
 }
 
+pub mod add_assign_array_op {
+    use crate::prelude::array_assign_binary_op_expand;
+
+    use self::ir::Operator;
+
+    use super::*;
+
+    pub fn expand<
+        Array: Into<ExpandElement>,
+        Index: Into<ExpandElement>,
+        Value: Into<ExpandElement>,
+    >(
+        context: &mut CubeContext,
+        array: Array,
+        index: Index,
+        value: Value,
+    ) {
+        array_assign_binary_op_expand(context, array, index, value, Operator::Add);
+    }
+}
+
+pub mod sub_assign_array_op {
+    use crate::prelude::array_assign_binary_op_expand;
+
+    use self::ir::Operator;
+
+    use super::*;
+
+    pub fn expand<
+        Array: Into<ExpandElement>,
+        Index: Into<ExpandElement>,
+        Value: Into<ExpandElement>,
+    >(
+        context: &mut CubeContext,
+        array: Array,
+        index: Index,
+        value: Value,
+    ) {
+        array_assign_binary_op_expand(context, array, index, value, Operator::Sub);
+    }
+}
+
+pub mod mul_assign_array_op {
+    use crate::prelude::array_assign_binary_op_expand;
+
+    use self::ir::Operator;
+
+    use super::*;
+
+    pub fn expand<
+        Array: Into<ExpandElement>,
+        Index: Into<ExpandElement>,
+        Value: Into<ExpandElement>,
+    >(
+        context: &mut CubeContext,
+        array: Array,
+        index: Index,
+        value: Value,
+    ) {
+        array_assign_binary_op_expand(context, array, index, value, Operator::Mul);
+    }
+}
+
+pub mod div_assign_array_op {
+    use crate::prelude::array_assign_binary_op_expand;
+
+    use self::ir::Operator;
+
+    use super::*;
+
+    pub fn expand<
+        Array: Into<ExpandElement>,
+        Index: Into<ExpandElement>,
+        Value: Into<ExpandElement>,
+    >(
+        context: &mut CubeContext,
+        array: Array,
+        index: Index,
+        value: Value,
+    ) {
+        array_assign_binary_op_expand(context, array, index, value, Operator::Div);
+    }
+}
+
 pub mod add_assign_op {
     use crate::frontend::{operation::base::assign_op_expand, BF16, F16, F32, F64, I32, I64};
 

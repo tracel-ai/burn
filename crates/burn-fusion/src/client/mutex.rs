@@ -4,7 +4,6 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
 };
 use burn_tensor::{
-    ops::FloatElem,
     repr::{OperationDescription, TensorDescription, TensorId},
     DType,
 };
@@ -83,7 +82,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -94,7 +93,7 @@ where
         &self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<B>, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -105,7 +104,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>>
+    ) -> burn_tensor::Reader<burn_tensor::TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {

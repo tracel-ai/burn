@@ -106,7 +106,7 @@ fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
-    let signature = expand_sig(&func.sig, variable_tracker);
+    let signature = expand_sig(&func.sig, &func.vis, variable_tracker);
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
@@ -148,6 +148,7 @@ fn codegen_cube(
 
 fn expand_sig(
     sig: &syn::Signature,
+    visibility: &syn::Visibility,
     variable_tracker: &mut VariableTracker,
 ) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
@@ -156,6 +157,7 @@ fn expand_sig(
         match input {
             syn::FnArg::Typed(pat) => {
                 let ty = &pat.ty;
+
                 let ident = pat.pat.clone();
 
                 if let syn::Pat::Ident(ident) = ident.as_ref() {
@@ -188,6 +190,6 @@ fn expand_sig(
 
     quote::quote! {
         /// Expanded Cube function
-        pub fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
+        #visibility fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
     }
 }

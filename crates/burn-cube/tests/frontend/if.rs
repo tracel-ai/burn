@@ -27,7 +27,7 @@ pub fn if_then_else<F: Float>(lhs: F) {
 mod tests {
     use burn_cube::{
         cpa,
-        frontend::{CubeContext, CubeElem, F32},
+        frontend::{CubeContext, CubePrimitive, F32},
         ir::{Elem, Item, Variable},
     };
 
