@@ -12,6 +12,9 @@ use super::{
 };
 use crate::kernel::matmul::tiling2d_launch_options;
 
+// Other tile sizes are not supported
+const TILE_SIZE: usize = 4;
+
 #[cube(launch)]
 #[allow(unused_mut)]
 fn tiling2d_cube<F: Float>(
@@ -165,9 +168,8 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     config.block_size_k = 32; // k must be <= both m and n
     let cube_count = tiling2d_launch_options(&out.shape, config.clone());
 
-    let tile_size = 4;
-    let x = (config.block_size_m / tile_size) as u32;
-    let y = (config.block_size_n / tile_size) as u32;
+    let x = (config.block_size_m / TILE_SIZE) as u32;
+    let y = (config.block_size_n / TILE_SIZE) as u32;
 
     let settings = KernelSettings::default()
         .vectorize_input(0, vectorization(m))
@@ -182,7 +184,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(config, m, k, n, tile_size as usize),
+        CubeTiling2dConfig::new(config, m, k, n, TILE_SIZE as usize),
     );
 
     out
