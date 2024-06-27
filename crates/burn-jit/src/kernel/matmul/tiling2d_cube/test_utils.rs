@@ -78,5 +78,7 @@ pub(crate) fn make_config(m: usize, k: usize, n: usize) -> CubeTiling2dConfig {
     tiling2d_config.block_size_m = 8;
     tiling2d_config.block_size_k = 8;
     tiling2d_config.block_size_n = 8;
+    tiling2d_config.grid_x = 2;
+    tiling2d_config.grid_y = 2;
     CubeTiling2dConfig::new(&tiling2d_config, m, k, n, TILE_SIZE)
 }

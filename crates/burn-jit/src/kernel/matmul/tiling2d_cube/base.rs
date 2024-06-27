@@ -155,12 +155,12 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     let rhs = into_contiguous(rhs);
 
     let vectorization = |shape: usize| {
-        [4, 2, 1]
+        [4, 2]
             .into_iter()
             .filter(|v| shape % v == 0)
             .map(|v| v as u8)
             .next()
-            .unwrap()
+            .unwrap_or(1)
     };
 
     let cube_config = CubeTiling2dConfig::new(&config, m, k, n, TILE_SIZE as usize);
@@ -170,8 +170,8 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     let y = config.grid_y as u32;
 
     let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization(m))
-        .vectorize_input(1, vectorization(k))
+        .vectorize_input(0, vectorization(k))
+        .vectorize_input(1, vectorization(n))
         .vectorize_output(0, vectorization(n))
         .cube_dim(CubeDim { x, y, z: 1 });
 

@@ -36,8 +36,8 @@ impl CubeTiling2dConfig {
         assert!(config.block_size_m % tile_size == 0);
         assert!(config.block_size_k % tile_size == 0);
         assert!(config.block_size_n % tile_size == 0);
-        // assert!(config.grid_x == config.block_size_m / tile_size);
-        // assert!(config.grid_y == config.block_size_n / tile_size);
+        assert!(config.grid_x == config.block_size_m / tile_size);
+        assert!(config.grid_y == config.block_size_n / tile_size);
 
         CubeTiling2dConfig {
             block_size_m: UInt::new(config.block_size_m as u32),

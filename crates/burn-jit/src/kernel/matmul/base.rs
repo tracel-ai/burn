@@ -100,7 +100,7 @@ pub enum MatmulStrategy {
     #[cfg(feature = "autotune")]
     /// Using autotune to chose the best kernel based on runtime information.
     Autotune,
-    /// TMP
+    /// A tiling 2d kernel with everything vectorized, and comptime bound checks
     Tiling2dCube(Tiling2dConfig),
 }
 
