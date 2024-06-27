@@ -123,3 +123,17 @@ impl<T> Init for Option<T> {
         self
     }
 }
+
+impl<T: CubeType> CubeType for Vec<T> {
+    type ExpandType = Vec<T::ExpandType>;
+}
+
+impl<T: CubeType> CubeType for &mut Vec<T> {
+    type ExpandType = Vec<T::ExpandType>;
+}
+
+impl<T: Init> Init for Vec<T> {
+    fn init(self, context: &mut CubeContext) -> Self {
+        self.into_iter().map(|e| e.init(context)).collect()
+    }
+}

@@ -166,7 +166,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         .vectorize_input(0, 1)
         .vectorize_output(0, 1);
 
-    conv2d_kernel_launch::<E::CubeElement, R>(
+    conv2d_kernel_launch::<<E as FloatElement>::CubeElement, R>(
         input.client,
         workgroup,
         settings,

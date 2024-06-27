@@ -93,6 +93,7 @@ pub(crate) fn codegen_ref(
     loop_level: usize,
     variable_tracker: &mut VariableTracker,
 ) -> TokenStream {
+    // We ignore reference for the expansion.
     let inner = codegen_expr(&reference.expr, loop_level, variable_tracker);
-    quote::quote! { & #inner }
+    quote::quote! { #inner }
 }
