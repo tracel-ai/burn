@@ -39,6 +39,12 @@ impl Codegen {
                                 is_output = true;
                             }
 
+                            if let syn::Type::Reference(ty) = pat.ty.as_ref() {
+                                if ty.mutability.is_some() {
+                                    is_output = true;
+                                }
+                            };
+
                             if let syn::Type::Path(pat) = pat.ty.as_ref() {
                                 if let Some(name) = pat.path.segments.first() {
                                     let name = name.ident.to_string();
@@ -65,22 +71,29 @@ impl Codegen {
                     }
 
                     if comptime {
+                        let ty = no_ref(&ty);
                         inputs.extend(quote::quote! {
                             #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                         });
                     } else {
+                        let ty = no_ref(&ty);
                         inputs.extend(quote::quote! {
                             #ident: RuntimeArg<'a, #ty, R>,
                         });
                     }
 
                     if is_output {
-                        codegen.state_outputs.push((ident.clone(), *ty));
+                        codegen
+                            .state_outputs
+                            .push((ident.clone(), no_ref(&ty).clone()));
                     } else if comptime {
-                        let ty = first_generic_ty(&ty);
-                        codegen.state_comptimes.push((ty.clone(), ident.clone()));
+                        codegen
+                            .state_comptimes
+                            .push((first_generic_ty(&ty).clone(), ident.clone()));
                     } else {
-                        codegen.state_inputs.push((ident.clone(), *ty));
+                        codegen
+                            .state_inputs
+                            .push((ident.clone(), no_ref(&ty).clone()));
                     }
                 }
                 _ => panic!("Only Typed inputs are supported"),
@@ -135,13 +148,13 @@ impl Codegen {
 
         for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_input(&mut builder, self.settings.vectorization_input(#pos));
+                let #ident = <&#ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_input(#pos));
             });
         }
 
         for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <#ty as LaunchArg>::compile_output(&mut builder, self.settings.vectorization_output(#pos));
+                let #ident = <&mut #ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_output(#pos));
             });
         }
 
@@ -321,5 +334,12 @@ fn first_generic_ty(ty: &syn::Type) -> syn::Type {
             _ => panic!("Comptime must have a generic"),
         },
         _ => todo!(),
+    }
+}
+
+fn no_ref(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Reference(val) => &val.elem,
+        _ => ty,
     }
 }

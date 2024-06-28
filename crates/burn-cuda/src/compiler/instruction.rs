@@ -231,8 +231,18 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                     Variable::GlobalOutputArray(index, _) => *index as usize + num_inputs,
                     _ => panic!("Can only know the len of a global array."),
                 } + 1;
+                let factor = match input.item() {
+                    super::Item::Vec4(_) => 4,
+                    super::Item::Vec3(_) => 3,
+                    super::Item::Vec2(_) => 2,
+                    super::Item::Scalar(_) => {
+                        return f.write_fmt(format_args!(
+                            "{out} = info[({offset} * 2 * info[0]) + {index}];\n"
+                        ))
+                    }
+                };
                 f.write_fmt(format_args!(
-                    "{out} = info[({offset} * 2 * info[0]) + {index}];\n"
+                    "{out} = info[({offset} * 2 * info[0]) + {index}] / {factor};\n"
                 ))
             }
             Instruction::Wrap(it) => f.write_fmt(format_args!("{it}")),

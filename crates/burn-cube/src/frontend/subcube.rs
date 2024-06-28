@@ -1,4 +1,4 @@
-use super::{CubeContext, CubeElem, ExpandElement};
+use super::{CubeContext, CubePrimitive, ExpandElement};
 use crate::{
     ir::{Elem, InitOperator, Item, Operation, Subcube, UnaryOperator},
     unexpanded,
@@ -9,7 +9,7 @@ pub fn subcube_elect() -> bool {
     unexpanded!()
 }
 
-pub fn subcube_elect_expand<E: CubeElem>(context: &mut CubeContext) -> ExpandElement {
+pub fn subcube_elect_expand<E: CubePrimitive>(context: &mut CubeContext) -> ExpandElement {
     let output = context.create_local(Item::new(Elem::Bool));
 
     let out = *output;
@@ -19,11 +19,11 @@ pub fn subcube_elect_expand<E: CubeElem>(context: &mut CubeContext) -> ExpandEle
     output
 }
 
-pub fn subcube_sum<E: CubeElem>(_elem: E) -> E {
+pub fn subcube_sum<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_sum_expand<E: CubeElem>(
+pub fn subcube_sum_expand<E: CubePrimitive>(
     context: &mut CubeContext,
     elem: ExpandElement,
 ) -> ExpandElement {
@@ -40,11 +40,11 @@ pub fn subcube_sum_expand<E: CubeElem>(
     output
 }
 
-pub fn subcube_prod<E: CubeElem>(_elem: E) -> E {
+pub fn subcube_prod<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_prod_expand<E: CubeElem>(
+pub fn subcube_prod_expand<E: CubePrimitive>(
     context: &mut CubeContext,
     elem: ExpandElement,
 ) -> ExpandElement {
@@ -61,11 +61,11 @@ pub fn subcube_prod_expand<E: CubeElem>(
     output
 }
 
-pub fn subcube_max<E: CubeElem>(_elem: E) -> E {
+pub fn subcube_max<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_max_expand<E: CubeElem>(
+pub fn subcube_max_expand<E: CubePrimitive>(
     context: &mut CubeContext,
     elem: ExpandElement,
 ) -> ExpandElement {
@@ -82,11 +82,11 @@ pub fn subcube_max_expand<E: CubeElem>(
     output
 }
 
-pub fn subcube_min<E: CubeElem>(_elem: E) -> E {
+pub fn subcube_min<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_min_expand<E: CubeElem>(
+pub fn subcube_min_expand<E: CubePrimitive>(
     context: &mut CubeContext,
     elem: ExpandElement,
 ) -> ExpandElement {
@@ -103,11 +103,11 @@ pub fn subcube_min_expand<E: CubeElem>(
     output
 }
 
-pub fn subcube_all<E: CubeElem>(_elem: E) -> E {
+pub fn subcube_all<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_all_expand<E: CubeElem>(
+pub fn subcube_all_expand<E: CubePrimitive>(
     context: &mut CubeContext,
     elem: ExpandElement,
 ) -> ExpandElement {

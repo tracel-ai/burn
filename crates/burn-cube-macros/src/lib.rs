@@ -157,6 +157,7 @@ fn expand_sig(
         match input {
             syn::FnArg::Typed(pat) => {
                 let ty = &pat.ty;
+
                 let ident = pat.pat.clone();
 
                 if let syn::Pat::Ident(ident) = ident.as_ref() {

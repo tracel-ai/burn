@@ -8,7 +8,7 @@ use crate::tensor::Tensor;
 /// See also [relu](burn::tensor::activation::relu)
 ///
 #[derive(Module, Clone, Debug, Default)]
-pub struct Relu {}
+pub struct Relu;
 
 impl Relu {
     /// Create the module.
@@ -23,5 +23,17 @@ impl Relu {
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         crate::tensor::activation::relu(input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let layer = Relu::new();
+
+        assert_eq!(alloc::format!("{}", layer), "Relu");
     }
 }

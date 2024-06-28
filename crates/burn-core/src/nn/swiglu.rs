@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::activation::silu;
 use crate::tensor::{backend::Backend, Tensor};
 
@@ -31,6 +31,7 @@ pub struct SwiGluConfig {
 ///
 /// Should be created with [SwiGluConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct SwiGlu<B: Backend> {
     /// The inner linear layer for Swish activation function
     /// with `d_input` input features and `d_output` output features.
@@ -38,6 +39,23 @@ pub struct SwiGlu<B: Backend> {
     /// The outer linear layer for element wise multiplication
     /// with `d_input` input features and `d_output` output features.
     pub linear_outer: Linear<B>,
+}
+
+impl<B: Backend> ModuleDisplay for SwiGlu<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, d_output] = self.linear_inner.weight.shape().dims;
+        content
+            .add("d_input", &d_input)
+            .add("d_output", &d_output)
+            .add("bias", &self.linear_inner.bias.is_some())
+            .optional()
+    }
 }
 
 impl SwiGluConfig {
@@ -61,7 +79,7 @@ impl<B: Backend> SwiGlu<B> {
     ///
     /// # Shapes
     ///
-    /// - input: `[batch_size, seq_length, d_input]`  
+    /// - input: `[batch_size, seq_length, d_input]`
     /// - output: `[batch_size, seq_length, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input.clone());
@@ -111,5 +129,16 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
+    }
+
+    #[test]
+    fn display() {
+        let config = SwiGluConfig::new(3, 5);
+        let swiglu = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", swiglu),
+            "SwiGlu {d_input: 3, d_output: 5, bias: false, params: 30}"
+        );
     }
 }

@@ -8,7 +8,7 @@ pub fn generic_kernel<T: Numeric>(lhs: T) {
 mod tests {
     use burn_cube::{
         cpa,
-        frontend::{CubeContext, CubeElem, F32, I32},
+        frontend::{CubeContext, CubePrimitive, F32, I32},
         ir::{Item, Variable},
     };
 

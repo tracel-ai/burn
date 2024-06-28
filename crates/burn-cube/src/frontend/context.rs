@@ -5,6 +5,8 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
+use super::{CubePrimitive, SharedMemoryExpand};
+
 #[derive(Default, Clone)]
 pub struct VariablePool {
     map: Rc<RefCell<HashMap<Item, Vec<ExpandElement>>>>,
@@ -111,6 +113,7 @@ impl CubeContext {
         new
     }
 
+<<<<<<< HEAD
     /// When a new variable is required, we check if we can reuse an old one
     /// Otherwise we create a new one.
     pub fn create_matrix(&mut self, matrix: ir::Matrix) -> ExpandElement {
@@ -122,6 +125,13 @@ impl CubeContext {
     }
 
     pub fn create_shared<T: CubeElem>(&mut self, item: Item, size: u32) -> SharedMemoryExpand<T> {
+=======
+    pub fn create_shared<T: CubePrimitive>(
+        &mut self,
+        item: Item,
+        size: u32,
+    ) -> SharedMemoryExpand<T> {
+>>>>>>> main
         SharedMemoryExpand {
             val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
         }

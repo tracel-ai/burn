@@ -7,7 +7,7 @@ use crate::tensor::Tensor;
 /// Applies the Gaussian Error Linear Units function element-wise.
 /// See also [gelu](burn::tensor::activation::gelu)
 #[derive(Module, Clone, Debug, Default)]
-pub struct Gelu {}
+pub struct Gelu;
 
 impl Gelu {
     /// Create the module.
@@ -23,5 +23,17 @@ impl Gelu {
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         crate::tensor::activation::gelu(input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let layer = Gelu::new();
+
+        assert_eq!(alloc::format!("{}", layer), "Gelu");
     }
 }

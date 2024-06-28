@@ -122,7 +122,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        log::info!("Fitting {}", self.model.to_string());
+        log::info!("Fitting the model:\n {}", self.model.to_string());
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
