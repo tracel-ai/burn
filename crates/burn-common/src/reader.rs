@@ -1,11 +1,11 @@
-use alloc::{sync::Arc, task::Wake};
+use alloc::{boxed::Box, sync::Arc, task::Wake, vec::Vec};
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll, Waker},
 };
 
-/// A future that is used to read resoures from a compute server.
+/// A future that is used to read resources from a compute server.
 pub type Reader = Pin<Box<dyn Future<Output = Vec<u8>> + Send>>;
 
 /// Create a reader from a concrete value.
@@ -38,7 +38,7 @@ pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
     let waker = Waker::from(Arc::new(DummyWaker));
     let mut context = Context::from_waker(&waker);
 
-    // Pin & poll the future. A bunch of backends don't do async readbacks, and instead immediatly get
+    // Pin & poll the future. Some backends don't do async readbacks, and instead immediately get
     // the data. This let's us detect when a future is synchronous and doesn't require any waiting.
     let mut pinned = core::pin::pin!(f);
 
