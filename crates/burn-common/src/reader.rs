@@ -1,8 +1,17 @@
 use alloc::{sync::Arc, task::Wake};
 use core::{
     future::Future,
+    pin::Pin,
     task::{Context, Poll, Waker},
 };
+
+/// A future that is used to read resoures from a compute server.
+pub type Reader = Pin<Box<dyn Future<Output = Vec<u8>> + Send>>;
+
+/// Create a reader from a concrete value.
+pub fn reader_from_concrete(val: Vec<u8>) -> Reader {
+    Box::pin(async move { val })
+}
 
 struct DummyWaker;
 

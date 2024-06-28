@@ -39,7 +39,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData>
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
@@ -47,7 +47,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData>
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
@@ -55,7 +55,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData>
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.

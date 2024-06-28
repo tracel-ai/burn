@@ -8,7 +8,7 @@ use burn_compute::{
 };
 use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
-use burn_tensor::backend::SyncType;
+use burn_tensor::{backend::SyncType, Reader};
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt, StagingBelt},
@@ -147,30 +147,38 @@ where
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    async fn read(&mut self, binding: server::Binding<Self>) -> Vec<u8> {
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+        let device = self.device.clone();
         let buffer = self.create_read_buffer(binding);
-        let buffer_slice = buffer.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
 
-        self.device.poll(wgpu::Maintain::Wait);
+        Box::pin(async move {
+            let buffer_slice = buffer.slice(..);
+            let (sender, receiver) = async_channel::bounded(1);
 
-        let result = receiver.receive().await;
+            buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+                sender
+                    .try_send(v)
+                    .expect("Unable to send buffer slice result to async channel.")
+            });
 
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
+            device.poll(wgpu::Maintain::Wait);
 
-            drop(data);
-            buffer.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer {:?}", result)
-        }
+            let result = receiver
+                .recv()
+                .await
+                .expect("Unable to receive buffer slice result.");
+
+            if let Ok(()) = result {
+                let data = buffer_slice.get_mapped_range();
+                let result = bytemuck::cast_slice(&data).to_vec();
+
+                drop(data);
+                buffer.unmap();
+                result
+            } else {
+                panic!("Unable to read buffer {:?}", result)
+            }
+        })
     }
 
     fn get_resource(

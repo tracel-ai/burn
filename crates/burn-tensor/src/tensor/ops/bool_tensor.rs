@@ -44,8 +44,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>)
-        -> impl Future<Output = TensorData>;
+    fn bool_into_data<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -406,7 +407,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// the non-zero elements in that dimension.
     fn bool_argwhere<const D: usize>(
         tensor: BoolTensor<B, D>,
-    ) -> impl Future<Output = IntTensor<B, 2>> {
+    ) -> impl Future<Output = IntTensor<B, 2>> + Send {
         async {
             // Size of each output tensor is variable (= number of nonzero elements in the tensor).
             // Reading the data to count the number of truth values might cause sync but is required.
@@ -428,7 +429,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// the non-zero elements in that dimension.
     fn bool_nonzero<const D: usize>(
         tensor: BoolTensor<B, D>,
-    ) -> impl Future<Output = Vec<IntTensor<B, 1>>> {
+    ) -> impl Future<Output = Vec<IntTensor<B, 1>>> + Send {
         async {
             let indices = B::bool_argwhere(tensor).await;
             let dims = B::int_shape(&indices).dims;

@@ -4,8 +4,8 @@ use crate::{
     tune::AutotuneKey,
 };
 use alloc::vec::Vec;
-use burn_common::sync_type::SyncType;
-use core::{fmt::Debug, future::Future};
+use burn_common::{reader::Reader, sync_type::SyncType};
+use core::fmt::Debug;
 
 /// The compute server is responsible for handling resources and computations over resources.
 ///
@@ -25,7 +25,7 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, binding: Binding<Self>) -> impl Future<Output = Vec<u8>>;
+    fn read(&mut self, binding: Binding<Self>) -> Reader;
 
     /// Given a resource handle, returns the storage resource.
     fn get_resource(

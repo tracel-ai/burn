@@ -3,6 +3,7 @@ use crate::server::{Binding, ComputeServer, Handle};
 use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use burn_common::sync_type::SyncType;
 use spin::Mutex;
 
@@ -36,8 +37,8 @@ impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    async fn read(&self, handle: Binding<Server>) -> Vec<u8> {
-        self.server.lock().read(handle).await
+    fn read(&self, handle: Binding<Server>) -> Reader {
+        self.server.lock().read(handle)
     }
 
     fn get_resource(

@@ -764,6 +764,7 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.14.0"
 dependencies = [
+ "async-channel",
  "burn-common",
  "burn-compute",
  "burn-cube",
@@ -772,7 +773,6 @@ dependencies = [
  "burn-tensor",
  "bytemuck",
  "derive-new",
- "futures-intrusive",
  "hashbrown 0.14.5",
  "log",
  "pollster",
@@ -1962,17 +1962,6 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
-]
-
-[[package]]
-name = "futures-intrusive"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d930c203dd0b6ff06e0201a4a2fe9149b43c684fd4420555b26d21b1a02956f"
-dependencies = [
- "futures-core",
- "lock_api",
- "parking_lot 0.12.2",
 ]
 
 [[package]]

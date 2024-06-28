@@ -112,7 +112,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn float_into_data<const D: usize>(
         tensor: FloatTensor<B, D>,
-    ) -> impl Future<Output = TensorData>;
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Gets the device of the tensor.
     ///

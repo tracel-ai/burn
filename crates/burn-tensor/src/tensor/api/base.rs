@@ -1448,7 +1448,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn into_data_async<const D: usize>(
         tensor: Self::Primitive<D>,
-    ) -> impl Future<Output = TensorData>;
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the given data.
     ///

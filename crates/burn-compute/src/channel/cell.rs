@@ -3,6 +3,7 @@ use crate::server::{Binding, ComputeServer, Handle};
 use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use burn_common::sync_type::SyncType;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
@@ -43,15 +44,8 @@ impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
     Server: ComputeServer + Send,
 {
-    // Given we're single threaded, these futures are usually synchronous, and no other futures hold the server
-    // this is likely safe to do. I *think* if you manage to push enough reads to the server and timeslice them
-    // this might panic.
-    //
-    // Nb: This code has always been problematic, but used to only secretly be async
-    // hiding this from clippy.
-    #[allow(clippy::await_holding_refcell_ref)]
-    async fn read(&self, binding: Binding<Server>) -> Vec<u8> {
-        self.server.borrow_mut().read(binding).await
+    fn read(&self, binding: Binding<Server>) -> Reader {
+        self.server.borrow_mut().read(binding)
     }
 
     fn get_resource(

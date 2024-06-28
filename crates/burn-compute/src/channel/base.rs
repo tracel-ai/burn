@@ -1,17 +1,15 @@
-use core::future::Future;
-
 use crate::{
     server::{Binding, ComputeServer, Handle},
     storage::ComputeStorage,
 };
 use alloc::vec::Vec;
-use burn_common::sync_type::SyncType;
+use burn_common::{reader::Reader, sync_type::SyncType};
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
 pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send + Sync {
     /// Given a binding, returns owned resource as bytes
-    fn read(&self, binding: Binding<Server>) -> impl Future<Output = Vec<u8>>;
+    fn read(&self, binding: Binding<Server>) -> Reader;
 
     /// Given a resource handle, return the storage resource.
     fn get_resource(
