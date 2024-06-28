@@ -1,5 +1,4 @@
 use crate as burn_cube;
-use burn_common::reader::read_sync;
 use burn_cube::prelude::*;
 
 #[cube(launch)]
@@ -110,7 +109,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
         TensorHandle::new(&handle, &strides, &shape),
     );
 
-    let actual = read_sync(client.read(handle.binding()));
+    let actual = client.read(handle.binding());
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual, expected);

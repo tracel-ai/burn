@@ -25,7 +25,7 @@ where
     type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, binding: Binding<Self>) -> impl Future<Output = Vec<u8>> + Send;
+    fn read(&mut self, binding: Binding<Self>) -> impl Future<Output = Vec<u8>>;
 
     /// Given a resource handle, returns the storage resource.
     fn get_resource(

@@ -3,7 +3,6 @@ mod dummy;
 use std::sync::Arc;
 
 use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
-use burn_common::reader::read_sync;
 use burn_compute::ComputeRuntime;
 
 #[allow(unused)]
@@ -15,7 +14,7 @@ fn created_resource_is_the_same_when_read() {
     let resource = Vec::from([0, 1, 2]);
     let resource_description = client.create(&resource);
 
-    let obtained_resource = read_sync(client.read(resource_description.binding()));
+    let obtained_resource = client.read(resource_description.binding());
 
     assert_eq!(resource, obtained_resource)
 }
@@ -25,7 +24,7 @@ fn empty_allocates_memory() {
     let client = client(&DummyDevice);
     let size = 4;
     let resource_description = client.empty(size);
-    let empty_resource = read_sync(client.read(resource_description.binding()));
+    let empty_resource = client.read(resource_description.binding());
 
     assert_eq!(empty_resource.len(), 4);
 }
@@ -42,7 +41,7 @@ fn execute_elementwise_addition() {
         vec![lhs.binding(), rhs.binding(), out.clone().binding()],
     );
 
-    let obtained_resource = read_sync(client.read(out.binding()));
+    let obtained_resource = client.read(out.binding());
 
     assert_eq!(obtained_resource, Vec::from([4, 5, 6]))
 }
@@ -63,7 +62,7 @@ fn autotune_basic_addition_execution() {
         dummy::AdditionAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(addition_autotune_kernel));
 
-    let obtained_resource = read_sync(client.read(out.binding()));
+    let obtained_resource = client.read(out.binding());
 
     // If slow kernel was selected it would output [0, 1, 2]
     assert_eq!(obtained_resource, Vec::from([4, 5, 6]));
@@ -85,7 +84,7 @@ fn autotune_basic_multiplication_execution() {
         dummy::MultiplicationAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(multiplication_autotune_kernel));
 
-    let obtained_resource = read_sync(client.read(out.binding()));
+    let obtained_resource = client.read(out.binding());
 
     // If slow kernel was selected it would output [0, 1, 2]
     assert_eq!(obtained_resource, Vec::from([0, 4, 8]));
@@ -124,7 +123,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
-    let obtained_resource = read_sync(client.read(out_2.binding()));
+    let obtained_resource = client.read(out_2.binding());
 
     // Cache should be hit, so CacheTestFastOn3 should be used, returning lhs
     assert_eq!(obtained_resource, Vec::from([0, 1, 2, 3]));
@@ -165,7 +164,7 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
     // read the resource which should update the cache on disk
-    let obtained_resource = read_sync(client.read(out_2.binding()));
+    let obtained_resource = client.read(out_2.binding());
 
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
     assert_eq!(obtained_resource, Vec::from([5, 6, 7, 8, 9]));
@@ -176,6 +175,8 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
 #[cfg(feature = "std")]
 fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // delete the cache file
+
+    use burn_common::sync_type::SyncType;
     let file_path = burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_PREFIX);
     let parent_dir = file_path
         .parent()
@@ -199,7 +200,7 @@ fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.autotune_execute(Box::new(cache_test_autotune_kernel));
     // ensure that the autotune operations are run and cached
-    let _obtained_resource = client.read(out.binding());
+    client.sync(SyncType::Wait);
 
     assert!(
         parent_dir.exists(),
@@ -235,7 +236,7 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_1));
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
 
-    let obtained_resource = read_sync(client.read(out_2.binding()));
+    let obtained_resource = client.read(out_2.binding());
 
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
     assert_eq!(obtained_resource, Vec::from([5, 6, 7, 8, 9]));
@@ -281,7 +282,7 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     client.autotune_execute(Box::new(cache_test_autotune_kernel_2));
     client.sync(SyncType::Wait);
 
-    let obtained_resource = read_sync(client.read(out_2.binding()));
+    let obtained_resource = client.read(out_2.binding());
 
     // Cache should be missed because the checksum on 4 is generated randomly
     // and thus is always different,

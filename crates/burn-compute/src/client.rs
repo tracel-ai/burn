@@ -41,8 +41,16 @@ where
     }
 
     /// Given a binding, returns owned resource as bytes.
-    pub async fn read(&self, binding: Binding<Server>) -> Vec<u8> {
+    pub async fn read_async(&self, binding: Binding<Server>) -> Vec<u8> {
         self.channel.read(binding).await
+    }
+
+    /// Given a binding, returns owned resource as bytes.
+    ///
+    /// # Remarks
+    /// Panics if the read operation fails.
+    pub fn read(&self, binding: Binding<Server>) -> Vec<u8> {
+        burn_common::reader::read_sync(self.channel.read(binding))
     }
 
     /// Given a resource handle, returns the storage resource.

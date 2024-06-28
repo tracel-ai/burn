@@ -190,6 +190,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-channel"
+version = "2.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89b47800b0be77592da0afd425cc03468052844aff33b84e33cc696f64e77b6a"
+dependencies = [
+ "concurrent-queue",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -469,9 +481,11 @@ dependencies = [
 name = "burn-compute"
 version = "0.14.0"
 dependencies = [
+ "async-channel",
  "burn-common",
  "derive-new",
  "dirs 5.0.1",
+ "futures-lite",
  "hashbrown 0.14.5",
  "log",
  "md5",
@@ -517,7 +531,6 @@ dependencies = [
 name = "burn-cube"
 version = "0.14.0"
 dependencies = [
- "burn-common",
  "burn-compute",
  "burn-cube-macros",
  "burn-tensor",
@@ -761,9 +774,9 @@ dependencies = [
  "bytemuck",
  "derive-new",
  "futures-intrusive",
+ "futures-lite",
  "hashbrown 0.14.5",
  "log",
- "pollster",
  "wgpu",
 ]
 
@@ -1132,6 +1145,15 @@ dependencies = [
  "itoa",
  "ryu",
  "static_assertions",
+]
+
+[[package]]
+name = "concurrent-queue"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -1723,6 +1745,27 @@ name = "esaxx-rs"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
+
+[[package]]
+name = "event-listener"
+version = "5.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6032be9bd27023a771701cc49f9f053c751055f71efb2e0ae5c15809093675ba"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "event-listener-strategy"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f214dc438f977e6d4e3500aaa277f5ad94ca83fbbd9b1a15713ce2344ccc5a1"
+dependencies = [
+ "event-listener",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "exr"
@@ -3262,7 +3305,6 @@ dependencies = [
  "burn",
  "console_error_panic_hook",
  "js-sys",
- "pollster",
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -3915,12 +3957,6 @@ dependencies = [
  "flate2",
  "miniz_oxide",
 ]
-
-[[package]]
-name = "pollster"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "portable-atomic"

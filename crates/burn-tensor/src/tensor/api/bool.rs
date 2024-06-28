@@ -1,7 +1,7 @@
 use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData};
 use alloc::vec::Vec;
 
-use crate::argwhere;
+use crate::try_read_sync;
 
 /// The part of the tensor to keep when creating a triangular mask.
 enum TriPart {
@@ -46,7 +46,8 @@ where
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
     pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
-        burn_common::reader::read_sync(self.nonzero_async())
+        try_read_sync(self.nonzero_async())
+            .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
     }
 
     /// Compute the indices of the elements that are non-zero.
@@ -70,7 +71,8 @@ where
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
     pub fn argwhere(self) -> Tensor<B, 2, Int> {
-        burn_common::reader::read_sync(self.argwhere_async())
+        try_read_sync(self.argwhere_async())
+            .expect("Failed to read tensor data synchronously. Try using argwhere_async instead.")
     }
 
     /// Compute the indices of the elements that are true, grouped by element.
@@ -80,7 +82,7 @@ where
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
-        Tensor::new(argwhere::<B, D>(self.primitive).await)
+        Tensor::new(B::bool_argwhere(self.primitive).await)
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to

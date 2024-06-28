@@ -28,7 +28,7 @@ burn-cube = { path = "../burn-cube", version = "0.14.0" }
 
 bytemuck = { workspace = true }
 wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
-pollster = { workspace = true }
+futures-lite = { workspace = true }
 
 log = { workspace = true }
 futures-intrusive = { workspace = true }

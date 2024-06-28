@@ -19,7 +19,7 @@ pub(crate) async fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
 ) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
-    let bytes = tensor.client.read(tensor.handle.binding()).await;
+    let bytes = tensor.client.read_async(tensor.handle.binding()).await;
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
@@ -27,7 +27,7 @@ pub(crate) async fn bool_into_data<R: JitRuntime, const D: usize>(
     tensor: JitTensor<R, u32, D>,
 ) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read(tensor.handle.binding()).await;
+    let bytes = tensor.client.read_async(tensor.handle.binding()).await;
     TensorData::new(
         u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
         tensor.shape,

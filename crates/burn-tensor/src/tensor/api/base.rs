@@ -6,7 +6,6 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::reader::try_read_sync;
 use burn_common::stub::Mutex;
 use core::future::Future;
 use core::iter::repeat;
@@ -675,7 +674,7 @@ where
 
     /// Converts the data of the current tensor.
     pub fn into_data(self) -> TensorData {
-        burn_common::reader::try_read_sync(self.into_data_async()).expect(
+        crate::try_read_sync(self.into_data_async()).expect(
             "Failed to read tensor data synchronously. 
         This can happen on platforms that don't support blocking futures like WASM. 
         If possible, try using into_data_async instead.",
@@ -875,7 +874,7 @@ where
     /// If the tensor doesn't have one element.
     /// If the backend fails to read the tensor data synchronously.
     pub fn into_scalar(self) -> K::Elem {
-        try_read_sync(self.into_scalar_async()).expect(
+        crate::try_read_sync(self.into_scalar_async()).expect(
             "Failed to read tensor data synchronously. This can happen on platforms 
             that don't support blocking futures like WASM. Try into_scalar_async instead..",
         )
@@ -1011,14 +1010,15 @@ where
             let range: [core::ops::Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let elem = &self
-                .clone()
-                .slice(range)
-                .to_data()
-                .iter::<<K as BasicOps<B>>::Elem>()
-                .next()
-                .unwrap();
-            acc.push_str(&format!("{elem:?}"));
+            let data =
+                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+
+            if let Some(data) = data {
+                let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
+                acc.push_str(&format!("{elem:?}"));
+            } else {
+                acc.push_str("<Tensor data not available>");
+            }
         }
     }
 
@@ -2232,7 +2232,7 @@ where
     K::Elem: Debug + Copy + Serialize,
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let data = self.clone().to_data();
+        let data = self.to_data();
         data.serialize(serializer)
     }
 }

@@ -22,7 +22,6 @@ export_tests = []
 
 [dependencies]
 burn-compute = { path = "../burn-compute", version = "0.14.0", default-features = false }
-burn-common = { path = "../burn-common", version = "0.14.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false, optional = true }
 
 bytemuck = { workspace = true }

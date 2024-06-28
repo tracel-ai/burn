@@ -27,7 +27,7 @@ where
     Server: ComputeServer,
 {
     _handle: thread::JoinHandle<()>,
-    sender: mpsc::Sender<Message<Server>>,
+    sender: async_channel::Sender<Message<Server>>,
 }
 
 type Callback<Response> = mpsc::Sender<Response>;
@@ -53,42 +53,40 @@ where
 {
     /// Create a new mpsc compute channel.
     pub fn new(mut server: Server) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = async_channel::unbounded();
 
         let _handle = thread::spawn(move || {
-            while let Ok(message) = receiver.recv() {
-                match message {
-                    Message::Read(binding, callback) => {
-                        // It's quite weird to synchronize here as it means the read function isn't _really_ async
-                        // anymore, but then again, this doesn't work on wasm anyway so blocking on a thread
-                        // is close enough.
-                        //
-                        // It IS possible to return a future here, but that means servers can only return Boxed + static
-                        // futures, which is not ideal.
-                        let data = burn_common::reader::read_sync(server.read(binding));
-                        callback.send(data).unwrap();
-                    }
-                    Message::GetResource(binding, callback) => {
-                        let data = server.get_resource(binding);
-                        callback.send(data).unwrap();
-                    }
-                    Message::Create(data, callback) => {
-                        let handle = server.create(&data);
-                        callback.send(handle).unwrap();
-                    }
-                    Message::Empty(size, callback) => {
-                        let handle = server.empty(size);
-                        callback.send(handle).unwrap();
-                    }
-                    Message::ExecuteKernel(kernel, bindings) => {
-                        server.execute(kernel, bindings);
-                    }
-                    Message::Sync(sync_type, callback) => {
-                        server.sync(sync_type);
-                        callback.send(()).unwrap();
-                    }
-                };
-            }
+            // Run the whole procedure as one blocking future. This is much simpler than trying to use some multithreaded
+            // executor.
+            futures_lite::future::block_on(async {
+                while let Ok(message) = receiver.recv().await {
+                    match message {
+                        Message::Read(binding, callback) => {
+                            let data = server.read(binding).await;
+                            callback.send(data).unwrap();
+                        }
+                        Message::GetResource(binding, callback) => {
+                            let data = server.get_resource(binding);
+                            callback.send(data).unwrap();
+                        }
+                        Message::Create(data, callback) => {
+                            let handle = server.create(&data);
+                            callback.send(handle).unwrap();
+                        }
+                        Message::Empty(size, callback) => {
+                            let handle = server.empty(size);
+                            callback.send(handle).unwrap();
+                        }
+                        Message::ExecuteKernel(kernel, bindings) => {
+                            server.execute(kernel, bindings);
+                        }
+                        Message::Sync(sync_type, callback) => {
+                            server.sync(sync_type);
+                            callback.send(()).unwrap();
+                        }
+                    };
+                }
+            });
         });
 
         let state = Arc::new(MpscComputeChannelState { sender, _handle });
@@ -115,6 +113,7 @@ where
         self.state
             .sender
             .send(Message::Read(binding, callback))
+            .await
             .unwrap();
 
         self.response(response)
@@ -128,7 +127,7 @@ where
 
         self.state
             .sender
-            .send(Message::GetResource(binding, callback))
+            .send_blocking(Message::GetResource(binding, callback))
             .unwrap();
 
         self.response(response)
@@ -139,7 +138,7 @@ where
 
         self.state
             .sender
-            .send(Message::Create(data.to_vec(), callback))
+            .send_blocking(Message::Create(data.to_vec(), callback))
             .unwrap();
 
         self.response(response)
@@ -150,7 +149,7 @@ where
 
         self.state
             .sender
-            .send(Message::Empty(size, callback))
+            .send_blocking(Message::Empty(size, callback))
             .unwrap();
 
         self.response(response)
@@ -159,7 +158,7 @@ where
     fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
         self.state
             .sender
-            .send(Message::ExecuteKernel(kernel, bindings))
+            .send_blocking(Message::ExecuteKernel(kernel, bindings))
             .unwrap()
     }
 
@@ -167,7 +166,7 @@ where
         let (callback, response) = mpsc::channel();
         self.state
             .sender
-            .send(Message::Sync(sync_type, callback))
+            .send_blocking(Message::Sync(sync_type, callback))
             .unwrap();
         self.response(response)
     }

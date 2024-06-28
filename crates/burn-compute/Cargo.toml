@@ -36,6 +36,8 @@ dirs = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 md5 = { workspace = true, optional = true }
+futures-lite = { workspace = true }
+async-channel = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 web-time = { workspace = true }

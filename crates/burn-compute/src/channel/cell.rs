@@ -1,5 +1,3 @@
-use core::future::Future;
-
 use super::ComputeChannel;
 use crate::server::{Binding, ComputeServer, Handle};
 use crate::storage::ComputeStorage;
@@ -43,13 +41,17 @@ where
 
 impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
-    Server: ComputeServer,
+    Server: ComputeServer + Send,
 {
-    fn read(&self, binding: Binding<Server>) -> impl Future<Output = Vec<u8>> {
-        let mut server = self.server.borrow_mut();
-        // Need to keep the server alive until the future is done, which
-        // means doing this slightly annoying pinning dance.
-        Box::pin(async move { server.read(binding).await })
+    // Given we're single threaded, these futures are usually synchronous, and no other futures hold the server
+    // this is likely safe to do. I *think* if you manage to push enough reads to the server and timeslice them
+    // this might panic.
+    //
+    // Nb: This code has always been problematic, but used to only secretly be async
+    // hiding this from clippy.
+    #[allow(clippy::await_holding_refcell_ref)]
+    async fn read(&self, binding: Binding<Server>) -> Vec<u8> {
+        self.server.borrow_mut().read(binding).await
     }
 
     fn get_resource(
