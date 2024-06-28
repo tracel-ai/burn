@@ -1,32 +1,59 @@
 use crate as burn_cube;
 use burn_cube::prelude::*;
+use burn_tensor::ElementConversion;
+use half::f16;
 
 #[cube(launch)]
-pub fn kernel_cmma(output: &mut Array<F32>, input: &Array<F32>) {
-    if UNIT_POS == UInt::new(0) {
-        let matrix = cmma::Matrix::<F32>::new(cmma::MatrixIdent::A, 16, 16, 16, None);
-        cmma::fill::<F32>(matrix, F32::new(0.0));
+pub fn kernel_cmma(output: &mut Array<F32>, input: &Array<F16>) {
+    let mut lhs = cmma::Matrix::<F16>::new(
+        cmma::MatrixIdent::A,
+        16,
+        16,
+        16,
+        cmma::MatrixLayout::ColMajor,
+    );
+    let mut rhs = cmma::Matrix::<F16>::new(
+        cmma::MatrixIdent::B,
+        16,
+        16,
+        16,
+        cmma::MatrixLayout::ColMajor,
+    );
+    let mut out = cmma::Matrix::<F32>::new(
+        cmma::MatrixIdent::Accumulator,
+        16,
+        16,
+        16,
+        cmma::MatrixLayout::Undefined,
+    );
+    cmma::fill::<F32>(&mut out, F32::new(0.0));
+    cmma::load::<F16>(&mut lhs, input, UInt::new(16));
+    cmma::load::<F16>(&mut rhs, input, UInt::new(16));
 
-        output[0] = input[0];
-    }
+    cmma::execute::<F16, F16, F32, F32>(&lhs, &rhs, &out, &out);
+
+    cmma::store::<F32>(output, &out, UInt::new(16), cmma::MatrixLayout::RowMajor);
 }
 
 pub fn test_kernel_with_generics<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
-    let output = client.create(f32::as_bytes(&[0.0, 1.0]));
-    let input = client.create(f32::as_bytes(&[0.0, 1.0]));
+    let input: Vec<f16> = (0..256).map(|i| i.elem()).collect();
+
+    let input = client.create(f16::as_bytes(&input));
+    let output = client.empty(core::mem::size_of::<f32>() * 256);
 
     kernel_cmma_launch::<R>(
         client.clone(),
         CubeCount::new(1, 1, 1),
-        KernelSettings::default(),
-        ArrayHandle::new(&input, 2),
-        ArrayHandle::new(&output, 2),
+        KernelSettings::default().cube_dim(CubeDim::new(16, 16, 1)),
+        ArrayHandle::new(&output, 256),
+        ArrayHandle::new(&input, 256),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = client.read(output.binding()).read_sync().unwrap();
     let actual = f32::from_bytes(&actual);
+    println!("{:?}", actual);
 
-    assert_eq!(actual[0], 5.0);
+    panic!("Testing");
 }
 
 #[allow(missing_docs)]

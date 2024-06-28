@@ -92,14 +92,14 @@ impl Display for WmmaInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             WmmaInstruction::Fill { frag, value } => {
-                f.write_fmt(format_args!("wmma::fill_fragment({frag}, {value});"))
+                f.write_fmt(format_args!("wmma::fill_fragment({frag}, {value});\n"))
             }
             WmmaInstruction::Load {
                 frag,
                 value,
                 stride,
             } => f.write_fmt(format_args!(
-                "wmma::load_matrix_sync({frag}, {value}, {stride});"
+                "wmma::load_matrix_sync({frag}, {value}, {stride});\n"
             )),
             WmmaInstruction::Execute {
                 frag_a,
@@ -107,16 +107,23 @@ impl Display for WmmaInstruction {
                 frag_c,
                 frag_d,
             } => f.write_fmt(format_args!(
-                "wmma::wmma_sync({frag_d}, {frag_a}, {frag_b}, {frag_c});"
+                "wmma::mma_sync({frag_d}, {frag_a}, {frag_b}, {frag_c});\n"
             )),
             WmmaInstruction::Store {
                 output,
                 frag,
                 stride,
                 layout,
-            } => f.write_fmt(format_args!(
-                "wmma::store_matrix_sync({output}, {frag}, {stride}, {layout});"
-            )),
+            } => {
+                let layout = match layout {
+                    FragmentLayout::ColMajor => "wmma::mem_col_major",
+                    FragmentLayout::RowMajor => "wmma::mem_row_major",
+                };
+
+                f.write_fmt(format_args!(
+                    "wmma::store_matrix_sync({output}, {frag}, {stride}, {layout});\n"
+                ))
+            }
         }
     }
 }

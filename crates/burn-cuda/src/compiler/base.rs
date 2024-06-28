@@ -74,6 +74,7 @@ impl CudaCompiler {
                 .collect(),
             cube_dim: value.cube_dim,
             body,
+            wmma_activated: self.wmma,
         }
     }
 
@@ -180,7 +181,8 @@ impl CudaCompiler {
                 output: self.compile_variable(output),
                 frag: self.compile_variable(mat),
                 stride: self.compile_variable(stride),
-                layout: Self::compile_matrix_layout(layout),
+                layout: Self::compile_matrix_layout(layout)
+                    .expect("Layout required for store instruction"),
             }),
         }
     }
@@ -463,9 +465,7 @@ impl CudaCompiler {
             n: matrix.n,
             k: matrix.k,
             elem: Self::compile_elem(matrix.elem),
-            layout: matrix
-                .layout
-                .map(|layout| Self::compile_matrix_layout(layout)),
+            layout: Self::compile_matrix_layout(matrix.layout),
         }
     }
 
@@ -477,10 +477,11 @@ impl CudaCompiler {
         }
     }
 
-    fn compile_matrix_layout(layout: gpu::MatrixLayout) -> super::FragmentLayout {
+    fn compile_matrix_layout(layout: gpu::MatrixLayout) -> Option<super::FragmentLayout> {
         match layout {
-            gpu::MatrixLayout::ColMajor => super::FragmentLayout::ColMajor,
-            gpu::MatrixLayout::RowMajor => super::FragmentLayout::RowMajor,
+            gpu::MatrixLayout::ColMajor => Some(super::FragmentLayout::ColMajor),
+            gpu::MatrixLayout::RowMajor => Some(super::FragmentLayout::RowMajor),
+            gpu::MatrixLayout::Undefined => None,
         }
     }
 

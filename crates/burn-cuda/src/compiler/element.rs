@@ -25,7 +25,7 @@ pub enum Item {
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Elem::F16 => f.write_str("f16"),
+            Elem::F16 => f.write_str("half"),
             Elem::F32 => f.write_str("float"),
             Elem::BF16 => f.write_str("bf16"),
             Elem::I32 => f.write_str("int"),

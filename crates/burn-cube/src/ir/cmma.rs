@@ -15,6 +15,7 @@ pub enum MatrixIdent {
 pub enum MatrixLayout {
     ColMajor,
     RowMajor,
+    Undefined,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -25,7 +26,7 @@ pub struct Matrix {
     pub n: u8,
     pub k: u8,
     pub elem: Elem,
-    pub layout: Option<MatrixLayout>,
+    pub layout: MatrixLayout,
 }
 
 /// Cooperative Matrix-Multiply and Accumulate Instruction.

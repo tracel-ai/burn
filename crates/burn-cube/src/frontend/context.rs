@@ -1,4 +1,3 @@
-use super::{CubeElem, SharedMemoryExpand};
 use crate::frontend::ExpandElement;
 use crate::ir::{self, Elem, Item, Operation, Scope};
 use alloc::rc::Rc;
@@ -10,7 +9,6 @@ use super::{CubePrimitive, SharedMemoryExpand};
 #[derive(Default, Clone)]
 pub struct VariablePool {
     map: Rc<RefCell<HashMap<Item, Vec<ExpandElement>>>>,
-    matrix_counter: u16,
 }
 
 impl VariablePool {
@@ -113,25 +111,18 @@ impl CubeContext {
         new
     }
 
-<<<<<<< HEAD
     /// When a new variable is required, we check if we can reuse an old one
     /// Otherwise we create a new one.
     pub fn create_matrix(&mut self, matrix: ir::Matrix) -> ExpandElement {
-        let index = self.pool.matrix_counter;
-
-        self.pool.matrix_counter += 1;
-
-        ExpandElement::Plain(crate::ir::Variable::Matrix(index, matrix))
+        let variable = self.scope.borrow_mut().create_matrix(matrix);
+        ExpandElement::Plain(variable)
     }
 
-    pub fn create_shared<T: CubeElem>(&mut self, item: Item, size: u32) -> SharedMemoryExpand<T> {
-=======
     pub fn create_shared<T: CubePrimitive>(
         &mut self,
         item: Item,
         size: u32,
     ) -> SharedMemoryExpand<T> {
->>>>>>> main
         SharedMemoryExpand {
             val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
         }

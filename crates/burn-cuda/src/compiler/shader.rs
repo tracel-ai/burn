@@ -62,6 +62,7 @@ pub struct ComputeShader {
     pub named: Vec<(String, Binding)>,
     pub cube_dim: CubeDim,
     pub body: Body,
+    pub wmma_activated: bool,
 }
 
 impl CompilerRepresentation for ComputeShader {
@@ -86,6 +87,10 @@ impl CompilerRepresentation for ComputeShader {
 
 impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.wmma_activated {
+            f.write_str("#include <mma.h>\nusing namespace nvcuda;\n")?;
+        }
+
         f.write_fmt(format_args!(
             "
 typedef unsigned int uint;

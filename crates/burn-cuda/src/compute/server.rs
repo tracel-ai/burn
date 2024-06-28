@@ -158,12 +158,24 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
 
     fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>) {
         let kernel_compiled = kernel.compile();
+        println!("{}", kernel_compiled.source);
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
         let cube_dim = kernel_compiled.cube_dim;
 
         let ptx = unsafe {
             let program = cudarc::nvrtc::result::create_program(kernel_compiled.source).unwrap();
-            if cudarc::nvrtc::result::compile_program::<Vec<_>>(program, &[]).is_err() {
+            // let program = create_program(kernel_compiled.source, &["<mma.h>"]).unwrap();
+
+            if cudarc::nvrtc::result::compile_program(
+                program,
+                &[
+                    "--gpu-architecture=sm_70",
+                    "--include-path=/usr/include",
+                    "--include-path=/usr/include/cuda",
+                ],
+            )
+            .is_err()
+            {
                 let log_raw = cudarc::nvrtc::result::get_program_log(program).unwrap();
                 let log_ptr = log_raw.as_ptr();
                 let log = CStr::from_ptr(log_ptr).to_str().unwrap();
