@@ -56,13 +56,20 @@ pub struct ConvTranspose2d<B: Backend> {
     pub weight: Param<Tensor<B, 4>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: [usize; 2],
-    kernel_size: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
-    padding: [usize; 2],
-    padding_out: [usize; 2],
-    channels: [usize; 2],
+    /// Stride of the convolution.
+    pub stride: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// Spacing between kernel elements.
+    pub dilation: [usize; 2],
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// Padding configuration.
+    pub padding: [usize; 2],
+    /// Padding output configuration.
+    pub padding_out: [usize; 2],
+    /// Number of channels.
+    pub channels: [usize; 2],
 }
 
 impl<B: Backend> ModuleDisplay for ConvTranspose2d<B> {

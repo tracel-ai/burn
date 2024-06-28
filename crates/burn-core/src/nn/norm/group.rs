@@ -43,11 +43,14 @@ pub struct GroupNorm<B: Backend> {
     pub gamma: Option<Param<Tensor<B, 1>>>,
     /// The learnable bias
     pub beta: Option<Param<Tensor<B, 1>>>,
-
-    pub(crate) num_groups: usize,
-    pub(crate) num_channels: usize,
-    pub(crate) epsilon: f64,
-    pub(crate) affine: bool,
+    /// The number of groups to separate the channels into
+    pub num_groups: usize,
+    /// The number of channels expected in the input
+    pub num_channels: usize,
+    /// A value required for numerical stability
+    pub epsilon: f64,
+    /// A boolean value that when set to `true`, this module has learnable
+    pub affine: bool,
 }
 
 impl<B: Backend> ModuleDisplay for GroupNorm<B> {

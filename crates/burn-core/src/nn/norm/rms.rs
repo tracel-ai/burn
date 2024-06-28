@@ -54,7 +54,7 @@ pub struct RmsNorm<B: Backend> {
     /// The learnable parameter to scale the normalized tensor
     pub gamma: Param<Tensor<B, 1>>,
     /// A value required for numerical stability
-    epsilon: f64,
+    pub epsilon: f64,
 }
 
 impl<B: Backend> RmsNorm<B> {

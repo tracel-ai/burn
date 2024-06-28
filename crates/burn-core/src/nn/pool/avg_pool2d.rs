@@ -42,10 +42,14 @@ pub struct AvgPool2dConfig {
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct AvgPool2d {
-    stride: [usize; 2],
-    kernel_size: [usize; 2],
-    padding: Ignored<PaddingConfig2d>,
-    count_include_pad: bool,
+    /// Stride of the pooling.
+    pub stride: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// Padding configuration.
+    pub padding: Ignored<PaddingConfig2d>,
+    /// If the padding is counted in the denominator when computing the average.
+    pub count_include_pad: bool,
 }
 
 impl ModuleDisplay for AvgPool2d {

@@ -51,8 +51,10 @@ impl HuberLossConfig {
 #[derive(Module, Debug, Clone)]
 #[module(custom_display)]
 pub struct HuberLoss {
-    delta: f32,
-    lin_bias: f32, // delta * delta * 0.5 precomputed
+    /// The bound where the Huber loss function changes from quadratic to linear behaviour.
+    pub delta: f32,
+    /// Precomputed value for the linear bias.
+    pub lin_bias: f32, // delta * delta * 0.5 precomputed
 }
 
 impl ModuleDisplay for HuberLoss {

@@ -38,10 +38,14 @@ pub struct PositionWiseFeedForwardConfig {
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
-    dropout: Dropout,
-    gelu: Gelu,
+    /// Linear layer with `d_model` input features and `d_ff` output features.
+    pub linear_inner: Linear<B>,
+    /// Linear layer with `d_ff` input features and `d_model` output features.
+    pub linear_outer: Linear<B>,
+    /// Dropout layer.
+    pub dropout: Dropout,
+    /// GELU activation function.
+    pub gelu: Gelu,
 }
 
 impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {

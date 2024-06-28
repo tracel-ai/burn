@@ -34,9 +34,10 @@ pub struct LayerNormConfig {
 #[module(custom_display)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.
-    gamma: Param<Tensor<B, 1>>,
+    pub gamma: Param<Tensor<B, 1>>,
     /// The learnable bias.
-    beta: Param<Tensor<B, 1>>,
+    pub beta: Param<Tensor<B, 1>>,
+    /// A value required for numerical stability.
     epsilon: f64,
 }
 

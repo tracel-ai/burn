@@ -32,10 +32,12 @@ pub struct InstanceNorm<B: Backend> {
     pub gamma: Option<Param<Tensor<B, 1>>>,
     /// The learnable bias
     pub beta: Option<Param<Tensor<B, 1>>>,
-
-    num_channels: usize,
-    epsilon: f64,
-    affine: bool,
+    /// The number of channels expected in the input
+    pub num_channels: usize,
+    /// A value required for numerical stability
+    pub epsilon: f64,
+    /// A boolean value that when set to `true`, this module has learnable
+    pub affine: bool,
 }
 
 impl<B: Backend> ModuleDisplay for InstanceNorm<B> {

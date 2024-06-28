@@ -44,8 +44,10 @@ pub struct BatchNorm<B: Backend, const D: usize> {
     pub running_mean: RunningState<Tensor<B, 1>>,
     /// The running variance.
     pub running_var: RunningState<Tensor<B, 1>>,
-    momentum: f64,
-    epsilon: f64,
+    /// Momentum used to update the metrics.
+    pub momentum: f64,
+    /// A value required for numerical stability.
+    pub epsilon: f64,
 }
 
 impl BatchNormConfig {

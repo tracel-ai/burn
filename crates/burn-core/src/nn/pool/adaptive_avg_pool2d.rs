@@ -21,7 +21,8 @@ pub struct AdaptiveAvgPool2dConfig {
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct AdaptiveAvgPool2d {
-    output_size: [usize; 2],
+    /// The size of the output.
+    pub output_size: [usize; 2],
 }
 
 impl ModuleDisplay for AdaptiveAvgPool2d {
