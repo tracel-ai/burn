@@ -473,7 +473,6 @@ dependencies = [
  "serde",
  "spin",
  "tokio",
- "waker-fn",
  "web-time",
 ]
 
@@ -2046,7 +2045,6 @@ dependencies = [
 name = "gelu"
 version = "0.14.0"
 dependencies = [
- "burn-common",
  "burn-cube",
  "burn-cuda",
  "burn-wgpu",
@@ -5859,12 +5857,6 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
-
-[[package]]
-name = "waker-fn"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "317211a0dc0ceedd78fb2ca9a44aed3d7b9b26f81870d485c07122b4350673b7"
 
 [[package]]
 name = "walkdir"

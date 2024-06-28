@@ -1,5 +1,15 @@
-use core::task::{Context, Poll};
-use std::future::Future;
+use alloc::{sync::Arc, task::Wake};
+use core::{
+    future::Future,
+    task::{Context, Poll, Waker},
+};
+
+struct DummyWaker;
+
+impl Wake for DummyWaker {
+    fn wake(self: Arc<Self>) {}
+    fn wake_by_ref(self: &Arc<Self>) {}
+}
 
 /// Read a future synchronously.
 ///
@@ -16,7 +26,7 @@ pub fn read_sync<F: Future<Output = T>, T>(f: F) -> T {
 /// otherwise this returns None.
 pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
     // Create a dummy context.
-    let waker = waker_fn::waker_fn(|| {});
+    let waker = Waker::from(Arc::new(DummyWaker));
     let mut context = Context::from_waker(&waker);
 
     // Pin & poll the future. A bunch of backends don't do async readbacks, and instead immediatly get

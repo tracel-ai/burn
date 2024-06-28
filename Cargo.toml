@@ -85,7 +85,6 @@ zip = "2.1.3"
 # Async handling
 futures-lite = "2.3"
 async-channel = "2.3"
-waker-fn = "1.2.0"
 
 # Terminal UI
 ratatui = "0.26.3"

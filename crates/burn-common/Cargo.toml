@@ -29,7 +29,6 @@ derive-new = { workspace = true }
 serde = { workspace = true }
 data-encoding = { workspace = true }
 futures-lite = { workspace = true }
-waker-fn = { workspace = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }
