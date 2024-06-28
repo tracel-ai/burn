@@ -1,6 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Ignored, Module};
 use crate::nn::PaddingConfig1d;
 use crate::tensor::backend::Backend;
@@ -40,11 +41,33 @@ pub struct AvgPool1dConfig {
 /// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
 
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct AvgPool1d {
-    stride: usize,
-    kernel_size: usize,
-    padding: Ignored<PaddingConfig1d>,
-    count_include_pad: bool,
+    /// The stride.
+    pub stride: usize,
+    /// The size of the kernel.
+    pub kernel_size: usize,
+    /// The padding configuration.
+    pub padding: Ignored<PaddingConfig1d>,
+    /// If the padding is counted in the denominator when computing the average.
+    pub count_include_pad: bool,
+}
+
+impl ModuleDisplay for AvgPool1d {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("kernel_size", &self.kernel_size)
+            .add("stride", &self.stride)
+            .add("padding", &self.padding)
+            .add("count_include_pad", &self.count_include_pad)
+            .optional()
+    }
 }
 
 impl AvgPool1dConfig {
@@ -81,5 +104,21 @@ impl AvgPool1d {
             padding,
             self.count_include_pad,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let config = AvgPool1dConfig::new(3);
+        let layer = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "AvgPool1d {kernel_size: 3, stride: 1, padding: Valid, count_include_pad: true}"
+        );
     }
 }

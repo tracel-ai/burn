@@ -1,5 +1,6 @@
 use crate as burn;
 use crate::config::Config;
+use crate::module::Content;
 use crate::module::DisplaySettings;
 use crate::module::Module;
 use crate::module::ModuleDisplay;
@@ -33,9 +34,10 @@ pub struct LayerNormConfig {
 #[module(custom_display)]
 pub struct LayerNorm<B: Backend> {
     /// The learnable weight.
-    gamma: Param<Tensor<B, 1>>,
+    pub gamma: Param<Tensor<B, 1>>,
     /// The learnable bias.
-    beta: Param<Tensor<B, 1>>,
+    pub beta: Param<Tensor<B, 1>>,
+    /// A value required for numerical stability.
     epsilon: f64,
 }
 
@@ -80,7 +82,7 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
             .optional()
     }
 
-    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+    fn custom_content(&self, content: Content) -> Option<Content> {
         let [d_model] = self.gamma.shape().dims;
         content
             .add("d_model", &d_model)
@@ -93,6 +95,7 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
 mod tests {
     use super::*;
     use crate::tensor::TensorData;
+    use alloc::format;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};
@@ -156,5 +159,16 @@ mod tests {
 
         let expected = TensorData::zeros::<f32, _>(tensor_2_grad.shape());
         tensor_2_grad.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = LayerNormConfig::new(6);
+        let layer_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", layer_norm),
+            "LayerNorm {d_model: 6, epsilon: 0.00001, params: 12}"
+        );
     }
 }

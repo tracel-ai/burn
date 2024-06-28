@@ -2,6 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
 use crate::tensor::activation;
@@ -43,6 +44,7 @@ pub struct LstmConfig {
 ///
 /// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Lstm<B: Backend> {
     /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController<B>,
@@ -52,7 +54,27 @@ pub struct Lstm<B: Backend> {
     pub output_gate: GateController<B>,
     /// The cell gate is used to compute the cell state that stores and carries information through time.
     pub cell_gate: GateController<B>,
-    d_hidden: usize,
+    /// The hidden state of the LSTM.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for Lstm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims;
+        let bias = self.input_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl LstmConfig {
@@ -195,12 +217,33 @@ pub struct BiLstmConfig {
 ///
 /// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct BiLstm<B: Backend> {
     /// LSTM for the forward direction.
     pub forward: Lstm<B>,
     /// LSTM for the reverse direction.
     pub reverse: Lstm<B>,
-    d_hidden: usize,
+    /// The size of the hidden state.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for BiLstm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.forward.input_gate.input_transform.weight.shape().dims;
+        let bias = self.forward.input_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl BiLstmConfig {
@@ -692,5 +735,29 @@ mod tests {
             .cell
             .to_data()
             .assert_approx_eq(&expected_cn_without_init_state, 3);
+    }
+
+    #[test]
+    fn display_lstm() {
+        let config = LstmConfig::new(2, 3, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "Lstm {d_input: 2, d_hidden: 3, bias: true, params: 84}"
+        );
+    }
+
+    #[test]
+    fn display_bilstm() {
+        let config = BiLstmConfig::new(2, 3, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "BiLstm {d_input: 2, d_hidden: 3, bias: true, params: 168}"
+        );
     }
 }
