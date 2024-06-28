@@ -476,6 +476,34 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
     }
 }
 
+impl<
+        Elem: Element,
+        const A: usize,
+        const B: usize,
+        const C: usize,
+        const D: usize,
+        const E: usize,
+    > From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
+{
+    fn from(elems: [[[[[Elem; E]; D]; C]; B]; A]) -> Self {
+        let mut data = Vec::with_capacity(A * B * C * D * E);
+
+        for elem in elems.into_iter().take(A) {
+            for elem in elem.into_iter().take(B) {
+                for elem in elem.into_iter().take(C) {
+                    for elem in elem.into_iter().take(D) {
+                        for elem in elem.into_iter().take(E) {
+                            data.push(elem);
+                        }
+                    }
+                }
+            }
+        }
+
+        TensorData::new(data, [A, B, C, D, E])
+    }
+}
+
 impl core::fmt::Display for TensorData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let fmt = match self.dtype {

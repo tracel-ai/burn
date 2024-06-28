@@ -72,10 +72,14 @@ pub enum ModuleOperationDescription {
     Conv1d(Conv1dDescription),
     /// Operation corresponding to [conv2d](crate::ops::ModuleOps::conv2d).
     Conv2d(Conv2dDescription),
+    /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
+    Conv3d(Conv3dDescription),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
     ConvTranspose2d(ConvTranspose2dDescription),
+    /// Operation corresponding to [conv transpose 3d](crate::ops::ModuleOps::conv_transpose3d).
+    ConvTranspose3d(ConvTranspose3dDescription),
     /// Operation corresponding to [avg pool 1d](crate::ops::ModuleOps::avg_pool1d).
     AvgPool1d(AvgPool1dDescription),
     /// Operation corresponding to [avg pool 2d](crate::ops::ModuleOps::avg_pool2d).
@@ -686,6 +690,16 @@ pub struct Conv2dDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct Conv3dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: Conv3dOptionsDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -701,6 +715,16 @@ pub struct ConvTranspose2dDescription {
     pub weight: TensorDescription,
     pub bias: Option<TensorDescription>,
     pub options: ConvTranspose2dOptionsDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ConvTranspose3dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: ConvTranspose3dOptionsDescription,
     pub out: TensorDescription,
 }
 
@@ -724,6 +748,15 @@ pub struct Conv2dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct Conv3dOptionsDescription {
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub dilation: [usize; 3],
+    pub groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ConvTranspose1dOptionsDescription {
     pub stride: [usize; 1],
     pub padding: [usize; 1],
@@ -742,6 +775,16 @@ pub struct ConvTranspose2dOptionsDescription {
     pub groups: usize,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ConvTranspose3dOptionsDescription {
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub padding_out: [usize; 3],
+    pub dilation: [usize; 3],
+    pub groups: usize,
+}
+
 impl From<ConvOptions<1>> for Conv1dOptionsDescription {
     fn from(value: ConvOptions<1>) -> Self {
         Self {
@@ -755,6 +798,17 @@ impl From<ConvOptions<1>> for Conv1dOptionsDescription {
 
 impl From<ConvOptions<2>> for Conv2dOptionsDescription {
     fn from(value: ConvOptions<2>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
+impl From<ConvOptions<3>> for Conv3dOptionsDescription {
+    fn from(value: ConvOptions<3>) -> Self {
         Self {
             stride: value.stride,
             padding: value.padding,
@@ -788,6 +842,18 @@ impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
     }
 }
 
+impl From<ConvTransposeOptions<3>> for ConvTranspose3dOptionsDescription {
+    fn from(value: ConvTransposeOptions<3>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            padding_out: value.padding_out,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
 impl From<Conv1dOptionsDescription> for ConvOptions<1> {
     fn from(val: Conv1dOptionsDescription) -> Self {
         ConvOptions {
@@ -801,6 +867,17 @@ impl From<Conv1dOptionsDescription> for ConvOptions<1> {
 
 impl From<Conv2dOptionsDescription> for ConvOptions<2> {
     fn from(val: Conv2dOptionsDescription) -> Self {
+        ConvOptions {
+            stride: val.stride,
+            padding: val.padding,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+impl From<Conv3dOptionsDescription> for ConvOptions<3> {
+    fn from(val: Conv3dOptionsDescription) -> Self {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
@@ -824,6 +901,18 @@ impl From<ConvTranspose1dOptionsDescription> for ConvTransposeOptions<1> {
 
 impl From<ConvTranspose2dOptionsDescription> for ConvTransposeOptions<2> {
     fn from(val: ConvTranspose2dOptionsDescription) -> Self {
+        ConvTransposeOptions {
+            stride: val.stride,
+            padding: val.padding,
+            padding_out: val.padding_out,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+impl From<ConvTranspose3dOptionsDescription> for ConvTransposeOptions<3> {
+    fn from(val: ConvTranspose3dOptionsDescription) -> Self {
         ConvTransposeOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1308,6 +1397,13 @@ impl ModuleOperationDescription {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
+            ModuleOperationDescription::Conv3d(desc) => {
+                if let Some(bias) = &desc.bias {
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
+                }
+            }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
@@ -1316,6 +1412,13 @@ impl ModuleOperationDescription {
                 }
             }
             ModuleOperationDescription::ConvTranspose2d(desc) => {
+                if let Some(bias) = &desc.bias {
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
+                }
+            }
+            ModuleOperationDescription::ConvTranspose3d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {

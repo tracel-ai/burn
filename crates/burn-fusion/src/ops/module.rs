@@ -153,6 +153,78 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
+    fn conv3d(
+        x: FloatTensor<Self, 5>,
+        weight: FloatTensor<Self, 5>,
+        bias: Option<FloatTensor<Self, 1>>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Self, 5> {
+        make_ops!(
+            Conv3dOps,
+            Conv3dDescription,
+            |args: Conv3dDescription, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B, 5>(&args.x);
+                let weight = handles.get_float_tensor::<B, 5>(&args.weight);
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+
+                let output = B::conv3d(x, weight, bias, args.options.clone().into());
+
+                handles.register_float_tensor::<B, 5>(&args.out.id, output);
+            }
+        );
+
+        let size_0 = calculate_conv_output_size(
+            weight.shape[2],
+            options.stride[0],
+            options.padding[0],
+            options.dilation[0],
+            x.shape[2],
+        );
+        let size_1 = calculate_conv_output_size(
+            weight.shape[3],
+            options.stride[1],
+            options.padding[1],
+            options.dilation[1],
+            x.shape[3],
+        );
+        let size_2 = calculate_conv_output_size(
+            weight.shape[4],
+            options.stride[2],
+            options.padding[2],
+            options.dilation[2],
+            x.shape[4],
+        );
+
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
+        let shape = vec![x.shape[0], weight.shape[0], size_0, size_1, size_2];
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+
+        let desc = Conv3dDescription {
+            x: x.into_description(),
+            weight: weight.into_description(),
+            bias: bias.map(|bias| bias.into_description()),
+            options: options.into(),
+            out: out.to_description_out(),
+        };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
+        out.client.register(
+            streams,
+            OperationDescription::Module(ModuleOperationDescription::Conv3d(desc.clone())),
+            Conv3dOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn conv_transpose1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
@@ -274,6 +346,87 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             streams,
             OperationDescription::Module(ModuleOperationDescription::ConvTranspose2d(desc.clone())),
             ConvTranspose2dOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn conv_transpose3d(
+        x: FloatTensor<Self, 5>,
+        weight: FloatTensor<Self, 5>,
+        bias: Option<FloatTensor<Self, 1>>,
+        options: ConvTransposeOptions<3>,
+    ) -> FloatTensor<Self, 5> {
+        make_ops!(
+            ConvTranspose3dOps,
+            ConvTranspose3dDescription,
+            |args: ConvTranspose3dDescription, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B, 5>(&args.x);
+                let weight = handles.get_float_tensor::<B, 5>(&args.weight);
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+
+                let output = B::conv_transpose3d(x, weight, bias, args.options.clone().into());
+
+                handles.register_float_tensor::<B, 5>(&args.out.id, output);
+            }
+        );
+
+        let size_0 = calculate_conv_transpose_output_size(
+            weight.shape[2],
+            options.stride[0],
+            options.padding[0],
+            options.padding_out[0],
+            options.dilation[0],
+            x.shape[2],
+        );
+        let size_1 = calculate_conv_transpose_output_size(
+            weight.shape[3],
+            options.stride[1],
+            options.padding[1],
+            options.padding_out[1],
+            options.dilation[1],
+            x.shape[3],
+        );
+        let size_2 = calculate_conv_transpose_output_size(
+            weight.shape[4],
+            options.stride[2],
+            options.padding[2],
+            options.padding_out[2],
+            options.dilation[2],
+            x.shape[4],
+        );
+
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
+        let shape = vec![
+            x.shape[0],
+            weight.shape[1] * options.groups,
+            size_0,
+            size_1,
+            size_2,
+        ];
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+
+        let desc = ConvTranspose3dDescription {
+            x: x.into_description(),
+            weight: weight.into_description(),
+            bias: bias.map(|bias| bias.into_description()),
+            options: options.into(),
+            out: out.to_description_out(),
+        };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
+        out.client.register(
+            streams,
+            OperationDescription::Module(ModuleOperationDescription::ConvTranspose3d(desc.clone())),
+            ConvTranspose3dOps::<B>::new(desc),
         );
 
         out

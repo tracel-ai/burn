@@ -67,6 +67,45 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
+    fn conv3d(
+        x: TchTensor<E, 5>,
+        weight: TchTensor<E, 5>,
+        bias: Option<TchTensor<E, 1>>,
+        options: ConvOptions<3>,
+    ) -> TchTensor<E, 5> {
+        let tensor = tch::Tensor::conv3d(
+            &x.tensor,
+            &weight.tensor,
+            bias.map(|t| t.tensor),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
+            options.groups as i64,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn conv_transpose1d(
+        x: TchTensor<E, 3>,
+        weight: TchTensor<E, 3>,
+        bias: Option<TchTensor<E, 1>>,
+        options: ConvTransposeOptions<1>,
+    ) -> TchTensor<E, 3> {
+        let tensor = tch::Tensor::conv_transpose1d(
+            &x.tensor,
+            &weight.tensor,
+            bias.map(|t| t.tensor),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.padding_out.map(|i| i as i64),
+            options.groups as i64,
+            options.dilation.map(|i| i as i64),
+        );
+
+        TchTensor::new(tensor)
+    }
+
     fn conv_transpose2d(
         x: TchTensor<E, 4>,
         weight: TchTensor<E, 4>,
@@ -87,13 +126,13 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn conv_transpose1d(
-        x: TchTensor<E, 3>,
-        weight: TchTensor<E, 3>,
+    fn conv_transpose3d(
+        x: TchTensor<E, 5>,
+        weight: TchTensor<E, 5>,
         bias: Option<TchTensor<E, 1>>,
-        options: ConvTransposeOptions<1>,
-    ) -> TchTensor<E, 3> {
-        let tensor = tch::Tensor::conv_transpose1d(
+        options: ConvTransposeOptions<3>,
+    ) -> TchTensor<E, 5> {
+        let tensor = tch::Tensor::conv_transpose3d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
