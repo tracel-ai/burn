@@ -37,7 +37,7 @@ pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
         Poll::Ready(output) => Some(output),
         // On platforms that support it, now just block on the future and drive it to completion.
         #[cfg(all(not(target_family = "wasm"), feature = "std"))]
-        Poll::Pending => Some(futures_lite::future::block_on(pinned)),
+        Poll::Pending => Some(pollster::block_on(pinned)),
         // Otherwise, just bail and return None - this futures will have to be read back asynchronously.
         #[cfg(any(target_family = "wasm", not(feature = "std")))]
         Poll::Pending => None,

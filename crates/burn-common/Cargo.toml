@@ -28,7 +28,7 @@ spin = { workspace = true }          # using in place of use std::sync::Mutex;
 derive-new = { workspace = true }
 serde = { workspace = true }
 data-encoding = { workspace = true }
-futures-lite = { workspace = true }
+pollster = { workspace = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }

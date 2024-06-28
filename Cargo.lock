@@ -465,9 +465,9 @@ dependencies = [
  "dashmap",
  "data-encoding",
  "derive-new",
- "futures-lite",
  "getrandom",
  "indicatif",
+ "pollster",
  "rand",
  "reqwest 0.12.4",
  "serde",
@@ -484,10 +484,10 @@ dependencies = [
  "burn-common",
  "derive-new",
  "dirs 5.0.1",
- "futures-lite",
  "hashbrown 0.14.5",
  "log",
  "md5",
+ "pollster",
  "rand",
  "serde",
  "serde_json",
@@ -773,9 +773,9 @@ dependencies = [
  "bytemuck",
  "derive-new",
  "futures-intrusive",
- "futures-lite",
  "hashbrown 0.14.5",
  "log",
+ "pollster",
  "wgpu",
 ]
 
@@ -1980,19 +1980,6 @@ name = "futures-io"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44623e20b9681a318efdd71c299b6b222ed6f231972bfe2f224ebad6311f0c1"
-
-[[package]]
-name = "futures-lite"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52527eb5074e35e9339c6b4e8d12600c7128b68fb25dcb9fa9dec18f7c25f3a5"
-dependencies = [
- "fastrand",
- "futures-core",
- "futures-io",
- "parking",
- "pin-project-lite",
-]
 
 [[package]]
 name = "futures-macro"
@@ -3955,6 +3942,12 @@ dependencies = [
  "flate2",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "pollster"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "portable-atomic"

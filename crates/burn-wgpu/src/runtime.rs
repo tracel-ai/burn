@@ -47,7 +47,7 @@ impl Runtime for WgpuRuntime {
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
         RUNTIME.client(device, move || {
             let (adapter, device_wgpu, queue) =
-                futures_lite::future::block_on(create_wgpu_setup::<AutoGraphicsApi>(device));
+                pollster::block_on(create_wgpu_setup::<AutoGraphicsApi>(device));
             create_client(adapter, device_wgpu, queue, RuntimeOptions::default())
         })
     }
@@ -124,7 +124,7 @@ pub fn init_existing_device(
 /// Initialize a client on the given device with the given options. This function is useful to configure the runtime options
 /// or to pick a different graphics API. On wasm, it is necessary to use [`init_async`] instead.
 pub fn init_sync<G: GraphicsApi>(device: &WgpuDevice, options: RuntimeOptions) {
-    futures_lite::future::block_on(init_async::<G>(device, options));
+    pollster::block_on(init_async::<G>(device, options));
 }
 
 /// Like [`init_sync`], but async, necessary for wasm.
