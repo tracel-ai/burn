@@ -1,5 +1,5 @@
-use futures::future::Future;
-use futures::task::{Context, Poll};
+use core::task::{Context, Poll};
+use std::future::Future;
 
 /// Read a future synchronously.
 ///
@@ -16,7 +16,7 @@ pub fn read_sync<F: Future<Output = T>, T>(f: F) -> T {
 /// otherwise this returns None.
 pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
     // Create a dummy context.
-    let waker = futures::task::noop_waker();
+    let waker = waker_fn::waker_fn(|| {});
     let mut context = Context::from_waker(&waker);
 
     // Pin & poll the future. A bunch of backends don't do async readbacks, and instead immediatly get
@@ -27,7 +27,7 @@ pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
         Poll::Ready(output) => Some(output),
         // On platforms that support it, now just block on the future and drive it to compltion.
         #[cfg(not(target_family = "wasm"))]
-        Poll::Pending => Some(futures::executor::block_on(pinned)),
+        Poll::Pending => Some(futures_lite::future::block_on(pinned)),
         #[cfg(target_family = "wasm")]
         Poll::Pending => None,
     }
