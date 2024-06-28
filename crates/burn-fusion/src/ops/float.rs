@@ -218,7 +218,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let stream = tensor.stream;
         let out = tensor
             .client
-            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
+            .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),
