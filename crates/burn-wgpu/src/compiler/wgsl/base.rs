@@ -1,6 +1,30 @@
 use burn_cube::ir as cube;
 use std::fmt::Display;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+pub struct ConstantShape {
+    pub position: usize,
+    pub dim: usize,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+pub struct ConstantStride {
+    pub position: usize,
+    pub dim: usize,
+}
+
+impl Display for ConstantStride {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("stride_{}_{}", self.position, self.dim))
+    }
+}
+
+impl Display for ConstantShape {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("shape_{}_{}", self.position, self.dim))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Variable {
     SubgroupSize,
@@ -41,6 +65,8 @@ pub enum Variable {
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
+    ConsttantShape(ConstantShape),
+    ConsttantStride(ConstantStride),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -106,6 +132,8 @@ impl Variable {
             Variable::WorkgroupSize => true,
             Variable::NumWorkgroups => true,
             Variable::SubgroupSize => true,
+            Variable::ConsttantShape(_) => true,
+            Variable::ConsttantStride(_) => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -155,6 +183,8 @@ impl Variable {
             Self::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsZ => Item::Scalar(Elem::U32),
             Self::SubgroupSize => Item::Scalar(Elem::U32),
+            Self::ConsttantShape(_) => Item::Scalar(Elem::U32),
+            Self::ConsttantStride(_) => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -262,6 +292,8 @@ impl Display for Variable {
             Variable::WorkgroupSize => f.write_str("workgroup_size_no_axis"),
             Variable::NumWorkgroups => f.write_str("num_workgroups_no_axis"),
             Variable::SubgroupSize => f.write_str("subgroup_size"),
+            Variable::ConsttantShape(val) => f.write_fmt(format_args!("{val}")),
+            Variable::ConsttantStride(val) => f.write_fmt(format_args!("{val}")),
         }
     }
 }
