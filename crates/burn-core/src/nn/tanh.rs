@@ -7,7 +7,7 @@ use crate::tensor::Tensor;
 /// Applies the tanh activation function element-wise
 /// See also [tanh](burn::tensor::activation::tanh)
 #[derive(Module, Clone, Debug, Default)]
-pub struct Tanh {}
+pub struct Tanh;
 
 impl Tanh {
     /// Create the module.
