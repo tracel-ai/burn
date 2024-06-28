@@ -28,11 +28,11 @@ struct Conv2dArgs {
 
 #[cube(launch)]
 fn conv2d_kernel<F: Float>(
-    input: Tensor<F>,
-    weight: Tensor<F>,
-    bias: Tensor<F>,
-    mut output: Tensor<F>,
-    args: Conv2dArgs,
+    input: &Tensor<F>,
+    weight: &Tensor<F>,
+    bias: &Tensor<F>,
+    output: &mut Tensor<F>,
+    args: &Conv2dArgs,
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
@@ -166,7 +166,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
         .vectorize_input(0, 1)
         .vectorize_output(0, 1);
 
-    conv2d_kernel_launch::<E::CubeElement, R>(
+    conv2d_kernel_launch::<E::FloatPrimitive, R>(
         input.client,
         workgroup,
         settings,

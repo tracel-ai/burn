@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[cube]
-fn kernel<T: Numeric>(input: Tensor<T>) {
+fn kernel<T: Numeric>(input: &Tensor<T>) {
     let _shape = input.shape(1);
     let _stride = input.stride(1);
     let _length = input.len();

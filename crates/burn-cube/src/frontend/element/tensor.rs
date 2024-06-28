@@ -1,6 +1,6 @@
 use crate::{
     frontend::{
-        indexation::Index, ArgSettings, CubeContext, CubeElem, CubeType, ExpandElement, UInt,
+        indexation::Index, ArgSettings, CubeContext, CubePrimitive, CubeType, ExpandElement, UInt,
     },
     ir::{Elem, Item, Metadata, Variable, Vectorization},
     prelude::{KernelBuilder, KernelLauncher},
@@ -8,7 +8,9 @@ use crate::{
 };
 use std::marker::PhantomData;
 
-#[derive(new, Clone, Copy)]
+use super::LaunchArgExpand;
+
+#[derive(new)]
 pub struct Tensor<T: CubeType> {
     pub(crate) factor: u8,
     _val: PhantomData<T>,
@@ -18,16 +20,28 @@ impl<T: CubeType> CubeType for Tensor<T> {
     type ExpandType = ExpandElement;
 }
 
-impl<C: CubeElem> LaunchArg for Tensor<C> {
-    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
+impl<T: CubeType> CubeType for &Tensor<T> {
+    type ExpandType = ExpandElement;
+}
 
-    fn compile_input(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<T: CubeType> CubeType for &mut Tensor<T> {
+    type ExpandType = ExpandElement;
+}
+
+impl<C: CubePrimitive> LaunchArgExpand for &Tensor<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.input_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
 
-    fn compile_output(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
+impl<C: CubePrimitive> LaunchArgExpand for &mut Tensor<C> {
+    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         builder.output_array(Item::vectorized(C::as_elem(), vectorization))
     }
+}
+
+impl<C: CubePrimitive> LaunchArg for Tensor<C> {
+    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
 }
 
 #[derive(new)]
@@ -45,17 +59,22 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
-    pub fn stride<C: Index>(self, _dim: C) -> UInt {
+    pub fn stride<C: Index>(&self, _dim: C) -> UInt {
         unexpanded!()
     }
 
     /// Obtain the shape of input at dimension dim
-    pub fn shape<C: Index>(self, _dim: C) -> UInt {
+    pub fn shape<C: Index>(&self, _dim: C) -> UInt {
         unexpanded!()
     }
 
-    /// Obtain the array length of input
-    pub fn len(self) -> UInt {
+    /// The length of the buffer representing the tensor.
+    ///
+    /// # Warning
+    ///
+    /// The length will be affected by the vectorization factor. To obtain the number of elements,
+    /// you should multiply the length by the vectorization factor.
+    pub fn len(&self) -> UInt {
         unexpanded!()
     }
 

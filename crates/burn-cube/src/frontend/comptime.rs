@@ -74,7 +74,7 @@ impl<T: Clone + Init> CubeType for Comptime<T> {
 }
 
 impl<T: Vectorized> Comptime<T> {
-    pub fn vectorization(_state: T) -> Comptime<UInt> {
+    pub fn vectorization(_state: &T) -> Comptime<UInt> {
         unexpanded!()
     }
 
