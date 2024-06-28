@@ -7,7 +7,7 @@ use crate::{
     storage::ComputeStorage,
 };
 
-/// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
+/// Create a channel using a [multi-producer, single-consumer channel to communicate with
 /// the compute server spawn on its own thread.
 #[derive(Debug)]
 pub struct MpscComputeChannel<Server>
