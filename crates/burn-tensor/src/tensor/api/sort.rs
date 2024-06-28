@@ -188,7 +188,7 @@ where
     <K as BasicOps<B>>::Elem: Element,
 {
     let device = K::device(&tensor);
-    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to read tensor data. This is necesarry until this backend has a GPU sorting implementation.");
+    let data = try_read_sync(K::into_data_async(tensor)).expect("Failed to read tensor data. This is necessary until this backend has a GPU sorting implementation.");
 
     argsort_data::<B, D, K>(data, dim, &device, descending)
 }
