@@ -442,34 +442,24 @@ impl WgslCompiler {
                 let dim = self.compile_variable(dim);
                 let out = self.compile_variable(out);
 
-                let constant = match dim {
-                    wgsl::Variable::ConstantScalar(val, _) => Some(ConstantStride {
-                        position,
-                        dim: val as usize,
-                    }),
-                    _ => None,
-                };
-
-                let instruction = wgsl::Instruction::Stride {
-                    dim,
-                    position,
-                    out: out.clone(),
-                };
-
-                match constant {
-                    Some(val) => {
-                        self.constant_strides.insert(val);
+                match dim {
+                    wgsl::Variable::ConstantScalar(val, _) => {
+                        let var = ConstantStride {
+                            position,
+                            dim: val as usize,
+                        };
+                        self.constant_strides.insert(var);
 
                         wgsl::Instruction::Assign {
-                            input: wgsl::Variable::ConsttantStride(val),
+                            input: wgsl::Variable::ConsttantStride(var),
                             out,
                         }
                     }
-                    None => instruction,
+                    _ => wgsl::Instruction::Stride { dim, position, out },
                 }
             }
             cube::Metadata::Shape { dim, var, out } => {
-                self.stride = true;
+                self.shape = true;
 
                 let position = match var {
                     cube::Variable::GlobalInputArray(idx, _) => idx as usize,
@@ -480,30 +470,20 @@ impl WgslCompiler {
                 let dim = self.compile_variable(dim);
                 let out = self.compile_variable(out);
 
-                let constant = match dim {
-                    wgsl::Variable::ConstantScalar(val, _) => Some(ConstantShape {
-                        position,
-                        dim: val as usize,
-                    }),
-                    _ => None,
-                };
-
-                let instruction = wgsl::Instruction::Shape {
-                    dim,
-                    position,
-                    out: out.clone(),
-                };
-
-                match constant {
-                    Some(val) => {
-                        self.constant_shapes.insert(val);
+                match dim {
+                    wgsl::Variable::ConstantScalar(val, _) => {
+                        let var = ConstantShape {
+                            position,
+                            dim: val as usize,
+                        };
+                        self.constant_shapes.insert(var);
 
                         wgsl::Instruction::Assign {
-                            input: wgsl::Variable::ConsttantShape(val),
+                            input: wgsl::Variable::ConsttantShape(var),
                             out,
                         }
                     }
-                    None => instruction,
+                    _ => wgsl::Instruction::Shape { dim, position, out },
                 }
             }
             cube::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
