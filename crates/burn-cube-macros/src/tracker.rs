@@ -70,6 +70,11 @@ impl VariableTracker {
     /// During analysis, tracks a variable use
     pub(crate) fn analyze_reuse(&mut self, ident: &syn::Ident, scope: u8, field: Option<String>) {
         let name = ident.to_string();
+
+        if name == "None" {
+            return;
+        }
+
         let scopes_declared = match self.scopes_declared.get(&name) {
             Some(val) => val,
             None => {

@@ -189,7 +189,13 @@ pub(crate) fn codegen_path_var(
         }
     };
 
-    if KEYWORDS.contains(&ident.to_string().as_str()) {
+    let name = ident.to_string();
+
+    if name == "None" {
+        return Codegen::new(quote::quote! { None }, true);
+    }
+
+    if KEYWORDS.contains(&name.as_str()) {
         Codegen::new(
             quote::quote! {
                 #ident :: expand(context)
@@ -197,7 +203,6 @@ pub(crate) fn codegen_path_var(
             false,
         )
     } else {
-        let name = ident.to_string();
         let (will_be_used_again, is_comptime) = variable_tracker
             .codegen_reuse(name, loop_level as u8, None)
             .unwrap_or((true, false));

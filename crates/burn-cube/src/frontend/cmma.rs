@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
 
-use crate::{ir, unexpanded};
+use crate::{
+    ir::{self, Operation},
+    unexpanded,
+};
 
-use super::{CubeContext, CubeElem, CubeType, ExpandElement};
+use super::{Array, CubeContext, CubeElem, CubeType, ExpandElement, UInt};
 
 pub use ir::{MatrixIdent, MatrixLayout};
 
@@ -39,7 +42,41 @@ impl<C: CubeElem> Matrix<C> {
     }
 }
 
-/// Fill the matric with the provided value.
-pub fn fill<C: CubeType>(_mat: Matrix<C>, _value: C) {
+/// Fill the matrix with the provided value.
+#[allow(unused_variables)]
+pub fn fill<C: CubeType>(mat: Matrix<C>, value: C) {
     unexpanded!()
+}
+
+/// Expand method of [fill].
+pub fn fill_expand<C: CubeType>(
+    context: &mut CubeContext,
+    mat: ExpandElement,
+    value: ExpandElement,
+) {
+    context.register(Operation::CoopMma(ir::CoopMma::Fill {
+        mat: *mat,
+        value: *value,
+    }));
+}
+
+/// Load the matrix with the provided array using the stride.
+#[allow(unused_variables)]
+pub fn load<C: CubeType>(mat: Matrix<C>, value: &Array<C>, stride: UInt) {
+    unexpanded!()
+}
+
+/// Expand method of [load].
+#[allow(unused_variables)]
+pub fn load_expand<C: CubeType>(
+    context: &mut CubeContext,
+    mat: ExpandElement,
+    value: ExpandElement,
+    stride: ExpandElement,
+) {
+    context.register(Operation::CoopMma(ir::CoopMma::Load {
+        mat: *mat,
+        value: *value,
+        stride: *value,
+    }));
 }
