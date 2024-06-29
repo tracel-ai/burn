@@ -6,7 +6,7 @@ use super::{adapter::PyTorchAdapter, error::Error};
 
 use burn::{
     module::ParamId,
-    record::{ParamSerde, PrecisionSettings},
+    record::PrecisionSettings,
     tensor::{Element, ElementConversion, TensorData},
 };
 use burn::{
@@ -141,7 +141,26 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
+    let TensorData {
+        value,
+        shape,
+        dtype,
+    } = TensorData::new(data, shape);
+
+    // Manually serialize the tensor instead of using the `ParamSerde` struct, such as:
+    // ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
+    // Because serializer copies individual elements of TensorData `value` into a new Vec<u8>,
+    // which is not necessary and inefficient.
+    let mut tensor_data: HashMap<String, NestedValue> = HashMap::new();
+    tensor_data.insert("value".into(), NestedValue::U8s(value));
+    tensor_data.insert("shape".into(), shape.serialize(serializer.clone())?);
+    tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
+
+    let mut param: HashMap<String, NestedValue> = HashMap::new();
+    param.insert("id".into(), NestedValue::String(param_id));
+    param.insert("param".into(), NestedValue::Map(tensor_data));
+
+    Ok(NestedValue::Map(param))
 }
 
 /// New type struct for Candle tensors because we need to implement the `Serializable` trait for it.
