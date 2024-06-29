@@ -109,7 +109,7 @@ impl MetricLogger for FileMetricLogger {
                 self.create_directory(self.epoch);
 
                 let file_path = self.file_path(key, self.epoch);
-                let logger = FileLogger::new(&file_path);
+                let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
                 self.loggers.insert(key.clone(), logger);
