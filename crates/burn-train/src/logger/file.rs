@@ -16,7 +16,8 @@ impl FileLogger {
     /// # Returns
     ///
     /// The file logger.
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        let path = path.as_ref();
         let mut options = std::fs::File::options();
         let file = options
             .write(true)
