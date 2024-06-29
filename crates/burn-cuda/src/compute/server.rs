@@ -6,6 +6,7 @@ use burn_compute::{
 };
 use burn_cube::ir::CubeDim;
 use burn_cube::prelude::*;
+use burn_cube::FeatureSet;
 use burn_jit::JitAutotuneKey;
 use burn_tensor::backend::SyncType;
 use cudarc::driver::sys::CUctx_st;
@@ -17,6 +18,8 @@ use std::ffi::CString;
 #[derive(Debug)]
 pub struct CudaServer<MM: MemoryManagement<CudaStorage>> {
     state: CudaServerState<MM>,
+    pub(crate) archs: Vec<i32>,
+    pub(crate) minimum_arch_version: i32,
 }
 
 pub(crate) enum CudaServerState<MM: MemoryManagement<CudaStorage>> {
@@ -57,6 +60,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
 
     fn read(&mut self, binding: server::Binding<Self>) -> burn_tensor::Reader<Vec<u8>> {
         let ctx = self.get_context();
@@ -97,12 +101,14 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
+        let arch = self.minimum_arch_version;
+
         let ctx = self.get_context();
         let kernel_id = kernel.id();
         let settings = kernel.launch_settings();
 
         if !ctx.module_names.contains_key(&kernel_id) {
-            ctx.compile_kernel(&kernel_id, kernel);
+            ctx.compile_kernel(&kernel_id, kernel, arch);
         }
 
         let bindings = bindings
@@ -156,20 +162,18 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>) {
+    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>, arch: i32) {
         let kernel_compiled = kernel.compile();
-        println!("{}", kernel_compiled.source);
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
         let cube_dim = kernel_compiled.cube_dim;
+        let arch = format!("--gpu-architecture=sm_{}", arch);
 
         let ptx = unsafe {
             let program = cudarc::nvrtc::result::create_program(kernel_compiled.source).unwrap();
-            // let program = create_program(kernel_compiled.source, &["<mma.h>"]).unwrap();
-
             if cudarc::nvrtc::result::compile_program(
                 program,
                 &[
-                    "--gpu-architecture=sm_70",
+                    arch.as_str(),
                     "--include-path=/usr/include",
                     "--include-path=/usr/include/cuda",
                 ],
@@ -234,11 +238,25 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
 impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
     /// Create a new cuda server.
     pub(crate) fn new(index: usize, init: Box<dyn Fn(usize) -> CudaContext<MM>>) -> Self {
+        let archs = unsafe {
+            let mut num_supported_arg: core::ffi::c_int = 0;
+            cudarc::nvrtc::sys::lib()
+                .nvrtcGetNumSupportedArchs(core::ptr::from_mut(&mut num_supported_arg));
+
+            let mut archs: Vec<core::ffi::c_int> = vec![0; num_supported_arg as usize];
+            cudarc::nvrtc::sys::lib().nvrtcGetSupportedArchs(core::ptr::from_mut(&mut archs[0]));
+            archs
+        };
+
+        let minimum_arch_version = archs[0];
+
         Self {
             state: CudaServerState::Uninitialized {
                 device_index: index,
                 init,
             },
+            archs,
+            minimum_arch_version,
         }
     }
 

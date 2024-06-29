@@ -1,3 +1,46 @@
+//! This module exposes cooperative matrix-multiply and accumulate operations.
+//!
+//! Most of the functions are actually unsafe, since they mutate their input, even if they are
+//! passed as reference.
+//!
+//! # Example
+//!
+//! This is a basic 16x16x16 matrix multiplication example.
+//!
+//! ```rust, ignore
+//! #[cube(launch)]
+//! pub fn example(lhs: &Array<F16>, rhs: &Array<F16>, out: &mut Array<F32>) {
+//!     let a = cmma::Matrix::<F16>::new(
+//!         cmma::MatrixIdent::A,
+//!         16,
+//!         16,
+//!         16,
+//!         cmma::MatrixLayout::ColMajor,
+//!     );
+//!     let b = cmma::Matrix::<F16>::new(
+//!         cmma::MatrixIdent::B,
+//!         16,
+//!         16,
+//!         16,
+//!         cmma::MatrixLayout::RowMajor,
+//!     );
+//!     let c = cmma::Matrix::<F32>::new(
+//!         cmma::MatrixIdent::Accumulator,
+//!         16,
+//!         16,
+//!         16,
+//!         cmma::MatrixLayout::Undefined,
+//!     );
+//!     cmma::fill::<F32>(&c, F32::new(0.0));
+//!     cmma::load::<F16>(&a, lhs, UInt::new(16));
+//!     cmma::load::<F16>(&b, rhs, UInt::new(16));
+//!
+//!     cmma::execute::<F16, F16, F32, F32>(&a, &b, &c, &c);
+//!
+//!     cmma::store::<F32>(out, &c, UInt::new(16), cmma::MatrixLayout::RowMajor);
+//! }
+//! ```
+
 use std::marker::PhantomData;
 
 use crate::{
@@ -9,10 +52,15 @@ use super::{Array, CubeContext, CubePrimitive, CubeType, ExpandElement, Init, UI
 
 pub use ir::{MatrixIdent, MatrixLayout};
 
+/// A matrix represent a 2D grid of numbers.
+///
+/// They can either be in a [row major](MatrixLayout::RowMajor) or a
+/// [colum major](MatrixLayout::ColMajor) format.
 pub struct Matrix<C: CubeType> {
     _c: PhantomData<C>,
 }
 
+/// Expand type of [Matrix].
 #[derive(Clone)]
 pub struct MatrixExpand {
     elem: ExpandElement,
@@ -29,6 +77,19 @@ impl Init for MatrixExpand {
 }
 
 impl<C: CubePrimitive> Matrix<C> {
+    /// Create a new matrix that is going to be use in the
+    /// [matrix-multiply and accumulate](execute) function.
+    ///
+    /// You have to declare the shape used for the execution.
+    /// The shape of the current matrix is determine using the [MatrixIdent].
+    ///
+    /// * [MatrixIdent::A] Shape => (M, K)
+    /// * [MatrixIdent::B] Shape => (K, N)
+    /// * [MatrixIdent::Accumulator] Shape => (M, N)
+    ///
+    /// Not all shapes are supported, and the permitted shapes depend of the element type.
+    ///
+    /// Refer to [nvidia documentation](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#element-types-and-matrix-sizes).
     #[allow(unused_variables)]
     pub fn new(ident: MatrixIdent, m: u8, n: u8, k: u8, layout: MatrixLayout) -> Self {
         Matrix { _c: PhantomData }
@@ -56,7 +117,7 @@ impl<C: CubePrimitive> Matrix<C> {
 
 /// Fill the matrix with the provided value.
 #[allow(unused_variables)]
-pub fn fill<C: CubeType>(mat: &mut Matrix<C>, value: C) {
+pub fn fill<C: CubeType>(mat: &Matrix<C>, value: C) {
     unexpanded!()
 }
 
@@ -74,7 +135,7 @@ pub fn fill_expand<C: CubeType>(
 
 /// Load the matrix with the provided array using the stride.
 #[allow(unused_variables)]
-pub fn load<C: CubeType>(mat: &mut Matrix<C>, value: &Array<C>, stride: UInt) {
+pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Array<C>, stride: UInt) {
     unexpanded!()
 }
 
@@ -95,7 +156,7 @@ pub fn load_expand<C: CubeType>(
 
 #[allow(unused_variables)]
 pub fn store<C: CubePrimitive>(
-    output: &mut Array<C>,
+    output: &Array<C>,
     mat: &Matrix<C>,
     stride: UInt,
     layout: MatrixLayout,

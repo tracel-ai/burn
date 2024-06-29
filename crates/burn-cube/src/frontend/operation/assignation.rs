@@ -11,11 +11,10 @@ pub mod assign {
         input: I,
         output: O,
     ) {
-        let input: ir::Variable = *input.into();
-        let out: ir::Variable = *output.into();
-        panic!("Assiign {:?} = {:?}", input, out);
-
-        context.register(Operator::Assign(UnaryOperator { input, out }));
+        context.register(Operator::Assign(UnaryOperator {
+            input: *input.into(),
+            out: *output.into(),
+        }));
     }
 }
 

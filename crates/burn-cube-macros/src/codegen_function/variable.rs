@@ -78,7 +78,6 @@ pub(crate) fn codegen_local(
                     #let_tok #ident = #init;
                 }
             } else {
-                // panic!("{:?}", local);
                 quote::quote! {
                     #let_tok #ident = {
                         let _inner = #init;

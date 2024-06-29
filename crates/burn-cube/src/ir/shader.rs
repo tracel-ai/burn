@@ -17,7 +17,7 @@ pub enum Visibility {
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum FloatKind {
     F16,
@@ -26,14 +26,14 @@ pub enum FloatKind {
     F64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum IntKind {
     I32,
     I64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[allow(missing_docs)]
 pub enum Elem {
     Float(FloatKind),
