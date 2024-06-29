@@ -468,6 +468,12 @@ impl WgslCompiler {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            cube::Operator::Fma(op) => wgsl::Instruction::Fma {
+                a: self.compile_variable(op.a),
+                b: self.compile_variable(op.b),
+                c: self.compile_variable(op.c),
+                out: self.compile_variable(op.out),
+            },
             cube::Operator::Index(op) => wgsl::Instruction::Index {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),

@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, InitOperator, Item, Operation, Operator, Subcube, UnaryOperator,
-    Variable,
+    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator, Subcube,
+    UnaryOperator, Variable,
 };
 
 pub type Vectorization = u8;
@@ -30,6 +30,7 @@ impl Operator {
             Operator::Max(op) => Operator::Max(op.vectorize(vectorization)),
             Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
             Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
+            Operator::Fma(op) => Operator::Fma(op.vectorize(vectorization)),
             Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
             Operator::UncheckedIndex(op) => Operator::UncheckedIndex(op.vectorize(vectorization)),
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
@@ -133,6 +134,17 @@ impl ClampOperator {
             out: self.out.vectorize(vectorization),
             min_value: self.min_value.vectorize(vectorization),
             max_value: self.max_value.vectorize(vectorization),
+        }
+    }
+}
+
+impl FmaOperator {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            a: self.a.vectorize(vectorization),
+            b: self.b.vectorize(vectorization),
+            c: self.c.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
         }
     }
 }
