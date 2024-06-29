@@ -148,14 +148,13 @@ impl VariableAnalyzer {
                 self.find_occurrences_in_expr(&expr.expr, depth);
                 self.find_occurrences_in_expr(&expr.index, depth);
             }
-            syn::Expr::Path(expr) => match expr.path.get_ident() {
-                Some(ident) => {
+            syn::Expr::Path(expr) => {
+                if let Some(ident) = expr.path.get_ident() {
                     if !KEYWORDS.contains(&ident.to_string().as_str()) {
                         self.variable_tracker.analyze_reuse(ident, depth, None);
                     }
                 }
-                None => (),
-            },
+            }
             syn::Expr::Binary(expr) => {
                 self.find_occurrences_in_expr(&expr.left, depth);
                 self.find_occurrences_in_expr(&expr.right, depth);
