@@ -168,18 +168,19 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         let cube_dim = kernel_compiled.cube_dim;
         let arch = format!("--gpu-architecture=sm_{}", arch);
 
+        #[cfg(target_os = "linux")]
+        let options = &[
+            arch.as_str(),
+            "--include-path=/usr/include",
+            "--include-path=/usr/include/cuda",
+            "--include-path=/usr/local/include/cuda",
+        ];
+        #[cfg(not(target_os = "linux"))] // TODO: add include-path for other OS.
+        let options = &[arch.as_str()];
+
         let ptx = unsafe {
             let program = cudarc::nvrtc::result::create_program(kernel_compiled.source).unwrap();
-            if cudarc::nvrtc::result::compile_program(
-                program,
-                &[
-                    arch.as_str(),
-                    "--include-path=/usr/include",
-                    "--include-path=/usr/include/cuda",
-                ],
-            )
-            .is_err()
-            {
+            if cudarc::nvrtc::result::compile_program(program, options).is_err() {
                 let log_raw = cudarc::nvrtc::result::get_program_log(program).unwrap();
                 let log_ptr = log_raw.as_ptr();
                 let log = CStr::from_ptr(log_ptr).to_str().unwrap();

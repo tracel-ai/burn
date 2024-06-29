@@ -154,6 +154,7 @@ pub fn load_expand<C: CubeType>(
     }));
 }
 
+/// Store the matrix in the given array following the given stride and layout.
 #[allow(unused_variables)]
 pub fn store<C: CubePrimitive>(
     output: &Array<C>,
@@ -164,6 +165,7 @@ pub fn store<C: CubePrimitive>(
     unexpanded!()
 }
 
+/// Expand method of [store].
 #[allow(unused_variables)]
 pub fn store_expand<C: CubePrimitive>(
     context: &mut CubeContext,
@@ -180,6 +182,7 @@ pub fn store_expand<C: CubePrimitive>(
     }));
 }
 
+/// Execute the matrix-multiply and accumulate operation on the given [matrices](Matrix).
 #[allow(unused_variables)]
 pub fn execute<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
     mat_a: &Matrix<A>,
@@ -190,17 +193,18 @@ pub fn execute<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrim
     unexpanded!()
 }
 
+/// Expand method of [execute].
 pub fn execute_expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
     context: &mut CubeContext,
-    a: MatrixExpand,
-    b: MatrixExpand,
-    c: MatrixExpand,
-    d: MatrixExpand,
+    mat_a: MatrixExpand,
+    mat_b: MatrixExpand,
+    mat_c: MatrixExpand,
+    mat_d: MatrixExpand,
 ) {
     context.register(Operation::CoopMma(ir::CoopMma::Execute {
-        mat_a: *a.elem,
-        mat_b: *b.elem,
-        mat_c: *c.elem,
-        mat_d: *d.elem,
+        mat_a: *mat_a.elem,
+        mat_b: *mat_b.elem,
+        mat_c: *mat_c.elem,
+        mat_d: *mat_d.elem,
     }));
 }

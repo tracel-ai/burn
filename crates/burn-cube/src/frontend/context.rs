@@ -111,8 +111,7 @@ impl CubeContext {
         new
     }
 
-    /// When a new variable is required, we check if we can reuse an old one
-    /// Otherwise we create a new one.
+    /// Create a new matrix element.
     pub fn create_matrix(&mut self, matrix: ir::Matrix) -> ExpandElement {
         let variable = self.scope.borrow_mut().create_matrix(matrix);
         ExpandElement::Plain(variable)

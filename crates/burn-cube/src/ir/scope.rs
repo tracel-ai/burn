@@ -18,7 +18,7 @@ pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
-    matrixes: Vec<Variable>,
+    matrices: Vec<Variable>,
     shared_memories: Vec<Variable>,
     local_arrays: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable, Variable)>,
@@ -48,7 +48,7 @@ impl Scope {
             depth: 0,
             operations: Vec::new(),
             locals: Vec::new(),
-            matrixes: Vec::new(),
+            matrices: Vec::new(),
             local_arrays: Vec::new(),
             shared_memories: Vec::new(),
             reads_global: Vec::new(),
@@ -82,9 +82,9 @@ impl Scope {
 
     /// Create a matrix variable
     pub fn create_matrix(&mut self, matrix: Matrix) -> Variable {
-        let index = self.matrixes.len() as u16;
+        let index = self.matrices.len() as u16;
         let variable = Variable::Matrix(index, matrix);
-        self.matrixes.push(variable);
+        self.matrices.push(variable);
         variable
     }
 
@@ -232,7 +232,7 @@ impl Scope {
             depth: self.depth + 1,
             operations: Vec::new(),
             locals: Vec::new(),
-            matrixes: Vec::new(),
+            matrices: Vec::new(),
             shared_memories: Vec::new(),
             local_arrays: Vec::new(),
             reads_global: Vec::new(),
@@ -256,7 +256,7 @@ impl Scope {
         let mut variables = Vec::new();
         core::mem::swap(&mut self.locals, &mut variables);
 
-        for var in self.matrixes.drain(..) {
+        for var in self.matrices.drain(..) {
             variables.push(var);
         }
 
