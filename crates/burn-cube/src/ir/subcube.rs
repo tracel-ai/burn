@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// All subcube operations.
 ///
-/// Note that not all backends support subcube (warp/subgroup) operations. Use the [runtime flag](crate::Runtime::subcube).
+/// Note that not all backends support subcube (warp/subgroup) operations. Use the [runtime flag](crate::Feature::Subcube).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Subcube {

@@ -55,7 +55,7 @@ pub use ir::{MatrixIdent, MatrixLayout};
 /// A matrix represent a 2D grid of numbers.
 ///
 /// They can either be in a [row major](MatrixLayout::RowMajor) or a
-/// [colum major](MatrixLayout::ColMajor) format.
+/// [column major](MatrixLayout::ColMajor) format.
 pub struct Matrix<C: CubeType> {
     _c: PhantomData<C>,
 }
