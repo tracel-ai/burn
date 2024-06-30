@@ -57,7 +57,6 @@ fn matmul_kernel<F: Float>(
         let lhs_index = row * k + i + offset_lhs;
         let rhs_index = col * k + i + offset_rhs;
 
-        // fmaa::<F>(lhs[lhs_index], rhs[rhs_index], &mut sum);
         sum += lhs[lhs_index] * rhs[rhs_index];
     }
 
