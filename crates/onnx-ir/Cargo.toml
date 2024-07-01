@@ -13,8 +13,6 @@ version.workspace = true
 
 
 [dependencies]
-#burn = { path = "../burn", version = "0.14.0", features = ["ndarray"] }
-
 bytemuck = { workspace = true }
 half = { workspace = true }
 log = { workspace = true }
@@ -23,8 +21,7 @@ regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
-#tracing-core = { workspace = true }
-#tracing-subscriber = { workspace = true }
+
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }
