@@ -50,7 +50,7 @@ image = "0.25.1"
 indicatif = "0.17.8"
 js-sys = "0.3.69"
 libm = "0.2.8"
-log = { default-features = false, version = "0.4.21" }
+log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
 percent-encoding = "2.3.1"
 pretty_assertions = "1.4.0"
