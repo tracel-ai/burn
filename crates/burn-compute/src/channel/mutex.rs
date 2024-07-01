@@ -37,7 +37,7 @@ impl<Server> ComputeChannel<Server> for MutexComputeChannel<Server>
 where
     Server: ComputeServer,
 {
-    fn read(&self, handle: Binding<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, handle: Binding<Server>) -> Reader {
         self.server.lock().read(handle)
     }
 

@@ -109,7 +109,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
         TensorHandle::new(&handle, &strides, &shape),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = client.read(handle.binding());
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual, expected);

@@ -6,10 +6,9 @@ use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, In
 use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
-use burn_common::reader::Reader;
+use core::future::Future;
 use core::ops::Range;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use crate::{argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
@@ -47,20 +46,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<TensorData>;
-
-    /// Gets the data from the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data cloned from the data structure.
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<TensorData> {
-        Self::int_into_data(tensor.clone())
-    }
+    fn int_into_data<const D: usize>(
+        tensor: IntTensor<B, D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -1241,7 +1229,6 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
@@ -1263,7 +1250,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// the elements are sorted by value and the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort_with_indices<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
@@ -1286,7 +1272,6 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_argsort<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,

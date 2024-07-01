@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
-    Device, Reader, Shape, TensorData,
+    Device, Shape, TensorData,
 };
 
 use crate::{
@@ -19,12 +19,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::shape(tensor)
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<TensorData> {
+    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
         let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
-        let data = TensorData::new(y, tensor.shape());
-
-        Reader::Concrete(data)
+        TensorData::new(y, tensor.shape())
     }
 
     fn bool_from_data<const D: usize>(

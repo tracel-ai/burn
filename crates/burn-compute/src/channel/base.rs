@@ -9,7 +9,7 @@ use burn_common::{reader::Reader, sync_type::SyncType};
 /// while ensuring thread-safety
 pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send + Sync {
     /// Given a binding, returns owned resource as bytes
-    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>>;
+    fn read(&self, binding: Binding<Server>) -> Reader;
 
     /// Given a resource handle, return the storage resource.
     fn get_resource(

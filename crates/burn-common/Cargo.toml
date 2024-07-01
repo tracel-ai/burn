@@ -12,25 +12,23 @@ version.workspace = true
 
 [features]
 default = ["std"]
-std = ["rand/std", "data-encoding/std"]
+std = ["rand/std", "data-encoding/std", "dep:pollster"]
 doc = ["default"]
-wasm-sync = []
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-async-trait = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
 web-time = { version = "1.1.0" }
 
 
 [dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **
-
 rand = { workspace = true }
-spin = { workspace = true }          # using in place of use std::sync::Mutex;
+spin = { workspace = true }                      # using in place of use std::sync::Mutex;
 derive-new = { workspace = true }
 serde = { workspace = true }
 data-encoding = { workspace = true }
+pollster = { workspace = true, optional = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }

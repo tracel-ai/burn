@@ -7,8 +7,8 @@ use crate::{FloatElement, IntElement, JitRuntime};
 use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
-use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
@@ -45,8 +45,8 @@ where
         tensor.shape.clone()
     }
 
-    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
-        super::into_data(tensor)
+    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+        super::into_data(tensor).await
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {

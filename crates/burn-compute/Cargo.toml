@@ -22,7 +22,7 @@ default = [
 std = ["burn-common/std"]
 channel-mutex = []
 channel-cell = []
-channel-mpsc = [] # Assume std
+channel-mpsc = ["dep:async-channel", "dep:pollster"] # Assume std
 storage-bytes = []
 autotune-persistent-cache = ["dirs", "md5", "serde", "serde_json"] # Assume std
 
@@ -36,6 +36,8 @@ dirs = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 md5 = { workspace = true, optional = true }
+pollster = { workspace = true, optional = true }
+async-channel = { workspace = true, optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 web-time = { workspace = true }

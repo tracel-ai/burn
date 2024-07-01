@@ -13,7 +13,7 @@ mod narrow;
 mod numeric;
 mod sort;
 
-pub use argwhere::argwhere;
+pub use argwhere::argwhere_data;
 pub use autodiff::*;
 pub use base::*;
 pub use cartesian_grid::cartesian_grid;

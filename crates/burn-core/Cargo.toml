@@ -65,8 +65,6 @@ sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 vision = ["burn-dataset?/vision", "burn-common/network"]
 
-wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
-
 # Backend
 autodiff = ["burn-autodiff"]
 fusion = ["burn-wgpu?/fusion"]

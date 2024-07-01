@@ -1,115 +1,54 @@
-use alloc::boxed::Box;
-use core::marker::PhantomData;
+use alloc::{boxed::Box, sync::Arc, task::Wake, vec::Vec};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
 
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-#[async_trait::async_trait]
-/// Allows to create async reader.
-pub trait AsyncReader<T>: Send {
-    /// Read asynchronously.
-    async fn read(self: Box<Self>) -> T;
+/// A future that is used to read resources from a compute server.
+pub type Reader = Pin<Box<dyn Future<Output = Vec<u8>> + Send>>;
+
+/// Create a reader from a concrete value.
+pub fn reader_from_concrete(val: Vec<u8>) -> Reader {
+    Box::pin(async move { val })
 }
 
-/// Define how data is read, sync or async.
-pub enum Reader<T> {
-    /// Concrete variant.
-    Concrete(T),
-    /// Sync data variant.
-    Sync(Box<dyn SyncReader<T>>),
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Async data variant.
-    Async(Box<dyn AsyncReader<T>>),
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Future data variant.
-    Future(core::pin::Pin<Box<dyn core::future::Future<Output = T> + Send>>),
+struct DummyWaker;
+
+impl Wake for DummyWaker {
+    fn wake(self: Arc<Self>) {}
+    fn wake_by_ref(self: &Arc<Self>) {}
 }
 
-/// Allows to create sync reader.
-pub trait SyncReader<T>: Send {
-    /// Read synchronously.
-    fn read(self: Box<Self>) -> T;
+/// Read a future synchronously.
+///
+/// On WASM futures cannot block, so this only succeeds if the future returns immediately.
+/// If you want to handle this error, please use
+/// try_read_sync instead.
+pub fn read_sync<F: Future<Output = T>, T>(f: F) -> T {
+    try_read_sync(f).expect("Failed to read tensor data synchronously. This can happen on platforms that don't support blocking futures like WASM. If possible, try using an async variant of this function instead.")
 }
 
-#[derive(new)]
-struct MappedReader<I, O, F> {
-    reader: Reader<I>,
-    mapper: F,
-    _output: PhantomData<O>,
-}
+/// Read a future synchronously.
+///
+/// On WASM futures cannot block, so this only succeeds if the future returns immediately.
+/// otherwise this returns None.
+pub fn try_read_sync<F: Future<Output = T>, T>(f: F) -> Option<T> {
+    // Create a dummy context.
+    let waker = Waker::from(Arc::new(DummyWaker));
+    let mut context = Context::from_waker(&waker);
 
-impl<I, O, F> SyncReader<O> for MappedReader<I, O, F>
-where
-    I: Send,
-    O: Send,
-    F: Send + FnOnce(I) -> O,
-{
-    fn read(self: Box<Self>) -> O {
-        let input = self
-            .reader
-            .read_sync()
-            .expect("Only sync data supported in a sync reader.");
+    // Pin & poll the future. Some backends don't do async readbacks, and instead immediately get
+    // the data. This let's us detect when a future is synchronous and doesn't require any waiting.
+    let mut pinned = core::pin::pin!(f);
 
-        (self.mapper)(input)
-    }
-}
-
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-#[async_trait::async_trait]
-impl<I, O, F> AsyncReader<O> for MappedReader<I, O, F>
-where
-    I: Send,
-    O: Send,
-    F: Send + FnOnce(I) -> O,
-{
-    async fn read(self: Box<Self>) -> O {
-        let input = self.reader.read().await;
-        (self.mapper)(input)
-    }
-}
-
-impl<T> Reader<T> {
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Read the data.
-    pub async fn read(self) -> T {
-        match self {
-            Self::Concrete(data) => data,
-            Self::Sync(reader) => reader.read(),
-            Self::Async(func) => func.read().await,
-            Self::Future(future) => future.await,
-        }
-    }
-
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Read the data.
-    pub fn read(self) -> T {
-        match self {
-            Self::Concrete(data) => data,
-            Self::Sync(reader) => reader.read(),
-        }
-    }
-
-    /// Read the data only if sync, returns None if an async reader.
-    pub fn read_sync(self) -> Option<T> {
-        match self {
-            Self::Concrete(data) => Some(data),
-            Self::Sync(reader) => Some(reader.read()),
-            #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-            Self::Async(_func) => return None,
-            #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-            Self::Future(_future) => return None,
-        }
-    }
-
-    /// Map the current reader to another type.
-    pub fn map<O, F>(self, mapper: F) -> Reader<O>
-    where
-        T: 'static + Send,
-        O: 'static + Send,
-        F: FnOnce(T) -> O + 'static + Send,
-    {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        return Reader::Async(Box::new(MappedReader::new(self, mapper)));
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        Reader::Sync(Box::new(MappedReader::new(self, mapper)))
+    match pinned.as_mut().poll(&mut context) {
+        Poll::Ready(output) => Some(output),
+        // On platforms that support it, now just block on the future and drive it to completion.
+        #[cfg(all(not(target_family = "wasm"), feature = "std"))]
+        Poll::Pending => Some(pollster::block_on(pinned)),
+        // Otherwise, just bail and return None - this futures will have to be read back asynchronously.
+        #[cfg(any(target_family = "wasm", not(feature = "std")))]
+        Poll::Pending => None,
     }
 }

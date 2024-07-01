@@ -78,37 +78,37 @@ where
         FusionTensor::new(id, shape, dtype, self.clone(), stream)
     }
 
-    fn read_tensor_float<B, const D: usize>(
+    async fn read_tensor_float<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_float::<B, D>(tensor, stream)
+        self.server.lock().read_float::<B, D>(tensor, stream).await
     }
 
-    fn read_tensor_int<B, const D: usize>(
+    async fn read_tensor_int<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_int::<B, D>(tensor, id)
+        self.server.lock().read_int::<B, D>(tensor, id).await
     }
 
-    fn read_tensor_bool<B, const D: usize>(
+    async fn read_tensor_bool<B, const D: usize>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_bool::<B, D>(tensor, stream)
+        self.server.lock().read_bool::<B, D>(tensor, stream).await
     }
 
     fn change_client_float<B, const D: usize>(

@@ -2,19 +2,16 @@
 
 use alloc::vec::Vec;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::format;
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::string::String;
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::vec;
 
-use burn_common::{reader::Reader, stub::Mutex};
+use burn_common::stub::Mutex;
+use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
@@ -675,28 +672,28 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Returns the data of the current tensor.
-    pub async fn into_data(self) -> TensorData {
-        K::into_data(self.primitive).read().await
-    }
-
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Returns the data of the current tensor.
+    /// Converts the data of the current tensor.
     pub fn into_data(self) -> TensorData {
-        K::into_data(self.primitive).read()
+        crate::try_read_sync(self.into_data_async()).expect(
+            "Failed to read tensor data synchronously. 
+        This can happen on platforms that don't support blocking futures like WASM. 
+        If possible, try using into_data_async instead.",
+        )
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
-    pub async fn to_data(&self) -> TensorData {
-        K::into_data(self.primitive.clone()).read().await
+    pub fn to_data(&self) -> TensorData {
+        self.clone().into_data()
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Returns the data of the current tensor without taking ownership.
-    pub fn to_data(&self) -> TensorData {
-        Self::into_data(self.clone())
+    /// Returns the data of the current tensor.
+    pub async fn into_data_async(self) -> TensorData {
+        K::into_data_async(self.primitive).await
+    }
+
+    /// Returns the data of the current tensor.
+    pub async fn to_data_async(&self) -> TensorData {
+        self.clone().into_data_async().await
     }
 
     /// Create a tensor from the given data on the given device.
@@ -875,11 +872,12 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    /// If the backend fails to read the tensor data synchronously.
     pub fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let x = self.into_data().iter().next().unwrap();
-        x
+        crate::try_read_sync(self.into_scalar_async()).expect(
+            "Failed to read tensor data synchronously. This can happen on platforms 
+            that don't support blocking futures like WASM. Try into_scalar_async instead.",
+        )
     }
 
     /// Convert the tensor into a scalar.
@@ -887,10 +885,9 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn into_scalar(self) -> K::Elem {
+    pub async fn into_scalar_async(self) -> K::Elem {
         check!(TensorCheck::into_scalar(&self.shape()));
-        let x = self.into_data().await.iter().next().unwrap();
+        let x = self.into_data_async().await.iter().next().unwrap();
         x
     }
 
@@ -989,7 +986,6 @@ where
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
         acc.push('\n');
@@ -998,7 +994,6 @@ where
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
@@ -1015,18 +1010,18 @@ where
             let range: [core::ops::Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let elem = &self
-                .clone()
-                .slice(range)
-                .into_data()
-                .iter::<<K as BasicOps<B>>::Elem>()
-                .next()
-                .unwrap();
-            acc.push_str(&format!("{elem:?}"));
+            let data =
+                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+
+            if let Some(data) = data {
+                let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
+                acc.push_str(&format!("{elem:?}"));
+            } else {
+                acc.push_str("<Tensor data not available>");
+            }
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_outer_tensor(
         &self,
         acc: &mut String,
@@ -1061,7 +1056,6 @@ where
     /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
     /// * `depth` - The current depth of the tensor dimensions being processed.
     /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn display_recursive(
         &self,
         acc: &mut String,
@@ -1172,7 +1166,6 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
 
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         {
             let po = PRINT_OPTS.lock().unwrap();
             let mut acc = String::new();
@@ -1435,7 +1428,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    /// Extracts the data from the tensor.
+    /// Extracts the data from the tensor asynchronously.
     ///
     /// # Arguments
     ///
@@ -1453,7 +1446,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData>;
+    fn into_data_async<const D: usize>(
+        tensor: Self::Primitive<D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the given data.
     ///
@@ -1724,8 +1719,8 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
-        B::float_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::float_into_data(tensor).await
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
@@ -1846,8 +1841,8 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
-        B::int_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::int_into_data(tensor).await
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
@@ -1968,8 +1963,8 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<TensorData> {
-        B::bool_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::bool_into_data(tensor).await
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
@@ -2230,7 +2225,6 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i32; D2] {
     }
 }
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
 where
     B: Backend,

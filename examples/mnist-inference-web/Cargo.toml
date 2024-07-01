@@ -24,6 +24,3 @@ console_error_panic_hook = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-
-[dev-dependencies]
-pollster = { workspace = true }

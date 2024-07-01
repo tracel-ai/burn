@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Reader, Shape, TensorData};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
@@ -23,12 +23,11 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<TensorData> {
+    async fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> TensorData {
         let shape = Self::bool_shape(&tensor);
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
-
-        Reader::Concrete(TensorData::new(values.unwrap(), shape))
+        TensorData::new(values.unwrap(), shape)
     }
 
     fn bool_to_device<const D: usize>(
@@ -143,13 +142,13 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::flip(tensor, axes)
     }
 
-    fn bool_argwhere<const D: usize>(
+    async fn bool_argwhere<const D: usize>(
         tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> TchTensor<i64, 2> {
         TchTensor::new(tensor.tensor.argwhere())
     }
 
-    fn bool_nonzero<const D: usize>(
+    async fn bool_nonzero<const D: usize>(
         tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Vec<TchTensor<i64, 1>> {
         tensor

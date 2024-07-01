@@ -17,7 +17,7 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Device, ElementConversion, Reader, Shape, Tensor, TensorData,
+    Device, ElementConversion, Shape, Tensor, TensorData,
 };
 
 use super::maxmin::MaxMinDim;
@@ -50,12 +50,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_shape(&tensor.primitive)
     }
 
-    fn float_to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Reader<TensorData> {
-        B::float_to_data(&tensor.primitive)
-    }
-
-    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
-        B::float_into_data(tensor.primitive)
+    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+        B::float_into_data(tensor.primitive).await
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -2364,7 +2360,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -2387,7 +2382,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -2416,7 +2410,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_argsort<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,

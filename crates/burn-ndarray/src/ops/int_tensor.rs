@@ -3,7 +3,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ops::IntTensorOps;
-use burn_tensor::{Distribution, Reader};
+use burn_tensor::Distribution;
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
@@ -32,11 +32,10 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> Reader<TensorData> {
+    async fn int_into_data<const D: usize>(tensor: NdArrayTensor<i64, D>) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(TensorData::new(values, shape))
+        TensorData::new(values, shape)
     }
 
     fn int_to_device<const D: usize>(
