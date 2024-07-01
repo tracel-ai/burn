@@ -195,6 +195,12 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::Fma(op) => {
+                        mark(&op.a, &mut local_tensor_ids_input);
+                        mark(&op.b, &mut local_tensor_ids_input);
+                        mark(&op.c, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
                     Operator::Max(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
