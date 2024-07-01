@@ -876,7 +876,7 @@ where
     pub fn into_scalar(self) -> K::Elem {
         crate::try_read_sync(self.into_scalar_async()).expect(
             "Failed to read tensor data synchronously. This can happen on platforms 
-            that don't support blocking futures like WASM. Try into_scalar_async instead..",
+            that don't support blocking futures like WASM. Try into_scalar_async instead.",
         )
     }
 
