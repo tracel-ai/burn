@@ -6,7 +6,7 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::prelude::*;
+use burn_cube::{prelude::*, FeatureSet};
 use burn_jit::JitAutotuneKey;
 use burn_tensor::{backend::SyncType, Reader};
 use hashbrown::HashMap;
@@ -189,6 +189,7 @@ where
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
 
     fn read(&mut self, binding: server::Binding<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]

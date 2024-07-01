@@ -1,5 +1,5 @@
 use crate::frontend::ExpandElement;
-use crate::ir::{Elem, Item, Operation, Scope};
+use crate::ir::{self, Elem, Item, Operation, Scope};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
@@ -106,6 +106,12 @@ impl CubeContext {
         self.pool.insert(new.clone());
 
         new
+    }
+
+    /// Create a new matrix element.
+    pub fn create_matrix(&mut self, matrix: ir::Matrix) -> ExpandElement {
+        let variable = self.scope.borrow_mut().create_matrix(matrix);
+        ExpandElement::Plain(variable)
     }
 
     pub fn create_shared<T: CubePrimitive>(

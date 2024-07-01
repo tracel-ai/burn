@@ -6,6 +6,8 @@ extern crate derive_new;
 /// Cube Frontend Types.
 pub mod frontend;
 
+pub use frontend::cmma;
+
 /// Cube Language Internal Representation.
 pub mod ir;
 

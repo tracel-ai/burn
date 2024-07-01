@@ -1,4 +1,5 @@
 pub mod branch;
+pub mod cmma;
 pub mod synchronization;
 
 mod base;

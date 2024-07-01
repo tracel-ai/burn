@@ -11,10 +11,10 @@ pub mod assign {
         input: I,
         output: O,
     ) {
-        let input = *input.into();
-        let out = *output.into();
-
-        context.register(Operator::Assign(UnaryOperator { input, out }));
+        context.register(Operator::Assign(UnaryOperator {
+            input: *input.into(),
+            out: *output.into(),
+        }));
     }
 }
 

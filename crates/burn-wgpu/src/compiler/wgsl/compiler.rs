@@ -241,6 +241,9 @@ impl WgslCompiler {
                 wgsl::Variable::NumWorkgroups
             }
             cube::Variable::SubcubeDim => wgsl::Variable::SubgroupSize,
+            cube::Variable::Matrix(_, _) => {
+                panic!("Cooperative matrix-multiply and accumulate not supported.")
+            }
         }
     }
 
@@ -277,6 +280,9 @@ impl WgslCompiler {
                 self.compile_synchronization(instructions, val)
             }
             cube::Operation::Subcube(op) => self.compile_subgroup(instructions, op),
+            cube::Operation::CoopMma(_) => {
+                panic!("Cooperative matrix-multiply and accumulate isn't supported on wgpu.")
+            }
         }
     }
 

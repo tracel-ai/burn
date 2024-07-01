@@ -149,13 +149,10 @@ impl VariableAnalyzer {
                 self.find_occurrences_in_expr(&expr.index, depth);
             }
             syn::Expr::Path(expr) => {
-                let ident = expr
-                    .path
-                    .get_ident()
-                    .expect("Analysis: only ident path are supported.");
-
-                if !KEYWORDS.contains(&ident.to_string().as_str()) {
-                    self.variable_tracker.analyze_reuse(ident, depth, None);
+                if let Some(ident) = expr.path.get_ident() {
+                    if !KEYWORDS.contains(&ident.to_string().as_str()) {
+                        self.variable_tracker.analyze_reuse(ident, depth, None);
+                    }
                 }
             }
             syn::Expr::Binary(expr) => {

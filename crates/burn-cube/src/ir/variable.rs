@@ -1,4 +1,4 @@
-use super::{Elem, Item};
+use super::{Elem, Item, Matrix};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -34,6 +34,7 @@ pub enum Variable {
     AbsolutePosX,
     AbsolutePosY,
     AbsolutePosZ,
+    Matrix(u16, Matrix),
 }
 
 impl Variable {
@@ -69,6 +70,7 @@ impl Variable {
             Variable::CubeCount => None,
             Variable::CubeDim => None,
             Variable::SubcubeDim => None,
+            Variable::Matrix(idx, _) => Some(*idx),
         }
     }
 
@@ -105,6 +107,7 @@ impl Variable {
             Variable::CubeCount => Item::new(Elem::UInt),
             Variable::CubeDim => Item::new(Elem::UInt),
             Variable::SubcubeDim => Item::new(Elem::UInt),
+            Variable::Matrix(_, matrix) => Item::new(matrix.elem),
         }
     }
 }

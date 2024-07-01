@@ -1,6 +1,6 @@
 use super::{
-    cpa, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
-    Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
+    cpa, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Matrix, Operation,
+    Operator, Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
     WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,7 @@ pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
+    matrices: Vec<Variable>,
     shared_memories: Vec<Variable>,
     local_arrays: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable, Variable)>,
@@ -47,6 +48,7 @@ impl Scope {
             depth: 0,
             operations: Vec::new(),
             locals: Vec::new(),
+            matrices: Vec::new(),
             local_arrays: Vec::new(),
             shared_memories: Vec::new(),
             reads_global: Vec::new(),
@@ -76,6 +78,14 @@ impl Scope {
         let value = Variable::ConstantScalar(value.into(), item.into().elem());
         cpa!(self, local = value);
         local
+    }
+
+    /// Create a matrix variable
+    pub fn create_matrix(&mut self, matrix: Matrix) -> Variable {
+        let index = self.matrices.len() as u16;
+        let variable = Variable::Matrix(index, matrix);
+        self.matrices.push(variable);
+        variable
     }
 
     /// Create a local variable of the given [item type](Item).
@@ -222,6 +232,7 @@ impl Scope {
             depth: self.depth + 1,
             operations: Vec::new(),
             locals: Vec::new(),
+            matrices: Vec::new(),
             shared_memories: Vec::new(),
             local_arrays: Vec::new(),
             reads_global: Vec::new(),
@@ -244,6 +255,10 @@ impl Scope {
 
         let mut variables = Vec::new();
         core::mem::swap(&mut self.locals, &mut variables);
+
+        for var in self.matrices.drain(..) {
+            variables.push(var);
+        }
 
         for index in self.index_offset_with_output_layout_position.drain(..) {
             if let Some(Operation::Procedure(Procedure::IndexOffsetGlobalWithLayout(proc))) =
