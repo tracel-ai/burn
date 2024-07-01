@@ -37,7 +37,7 @@ impl Display for Body {
             let declaration = Instruction::Shape {
                 dim: super::Variable::ConstantScalar(shape.dim as f64, super::Elem::U32),
                 position: shape.position,
-                out: super::Variable::ConsttantShape(*shape),
+                out: super::Variable::ConstantShape(*shape),
             };
             f.write_fmt(format_args!("let {declaration};\n"))?;
         }
@@ -46,7 +46,7 @@ impl Display for Body {
             let declaration = Instruction::Stride {
                 dim: super::Variable::ConstantScalar(stride.dim as f64, super::Elem::U32),
                 position: stride.position,
-                out: super::Variable::ConsttantStride(*stride),
+                out: super::Variable::ConstantStride(*stride),
             };
             f.write_fmt(format_args!("let {declaration};\n"))?;
         }

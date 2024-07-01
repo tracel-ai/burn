@@ -451,7 +451,7 @@ impl WgslCompiler {
                         self.constant_strides.insert(var);
 
                         wgsl::Instruction::Assign {
-                            input: wgsl::Variable::ConsttantStride(var),
+                            input: wgsl::Variable::ConstantStride(var),
                             out,
                         }
                     }
@@ -479,7 +479,7 @@ impl WgslCompiler {
                         self.constant_shapes.insert(var);
 
                         wgsl::Instruction::Assign {
-                            input: wgsl::Variable::ConsttantShape(var),
+                            input: wgsl::Variable::ConstantShape(var),
                             out,
                         }
                     }

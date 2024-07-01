@@ -65,8 +65,8 @@ pub enum Variable {
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
-    ConsttantShape(ConstantShape),
-    ConsttantStride(ConstantStride),
+    ConstantShape(ConstantShape),
+    ConstantStride(ConstantStride),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -132,8 +132,8 @@ impl Variable {
             Variable::WorkgroupSize => true,
             Variable::NumWorkgroups => true,
             Variable::SubgroupSize => true,
-            Variable::ConsttantShape(_) => true,
-            Variable::ConsttantStride(_) => true,
+            Variable::ConstantShape(_) => true,
+            Variable::ConstantStride(_) => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -183,8 +183,8 @@ impl Variable {
             Self::NumWorkgroupsY => Item::Scalar(Elem::U32),
             Self::NumWorkgroupsZ => Item::Scalar(Elem::U32),
             Self::SubgroupSize => Item::Scalar(Elem::U32),
-            Self::ConsttantShape(_) => Item::Scalar(Elem::U32),
-            Self::ConsttantStride(_) => Item::Scalar(Elem::U32),
+            Self::ConstantShape(_) => Item::Scalar(Elem::U32),
+            Self::ConstantStride(_) => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -292,8 +292,8 @@ impl Display for Variable {
             Variable::WorkgroupSize => f.write_str("workgroup_size_no_axis"),
             Variable::NumWorkgroups => f.write_str("num_workgroups_no_axis"),
             Variable::SubgroupSize => f.write_str("subgroup_size"),
-            Variable::ConsttantShape(val) => f.write_fmt(format_args!("{val}")),
-            Variable::ConsttantStride(val) => f.write_fmt(format_args!("{val}")),
+            Variable::ConstantShape(val) => f.write_fmt(format_args!("{val}")),
+            Variable::ConstantStride(val) => f.write_fmt(format_args!("{val}")),
         }
     }
 }
