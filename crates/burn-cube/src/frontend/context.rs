@@ -17,10 +17,7 @@ impl VariablePool {
         let map = self.map.borrow();
 
         // Filter for candidate variables of the same Item
-        let variables = match map.get(&item) {
-            Some(val) => val,
-            None => return None,
-        };
+        let variables = map.get(&item)?;
 
         // Among the candidates, take a variable if it's only referenced by the map
         // Arbitrarily takes the first it finds in reverse order.
