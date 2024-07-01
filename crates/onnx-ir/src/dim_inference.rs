@@ -3,10 +3,10 @@ use core::panic;
 
 use protobuf::Enum;
 
-use super::{
+use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
-    op_configuration::flatten_config,
     protos::tensor_proto::DataType,
+    util::flatten_config,
 };
 
 /// Infer the dimension of each output tensor and update them.
