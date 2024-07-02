@@ -19,7 +19,6 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
 
     let sm_stride = Comptime::runtime(block_size_m);
-    let sm_position_base = coordinates.unit_col * sm_stride + coordinates.unit_row;
 
     let cube_offset = coordinates.skip_row * info.lhs_stride;
     let offset = cube_offset + k + batch_offset;
@@ -45,10 +44,10 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     write_tile_transposed::<F>(
         &tile,
         shared_lhs,
-        sm_position_base,
+        coordinates.unit_col,
+        coordinates.unit_row,
         sm_stride,
-        Comptime::map(config, |c| c.unroll),
-        tile_size,
+        config,
     );
 }
 
@@ -66,8 +65,6 @@ pub(crate) fn load_rhs_plain<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
 
     let sm_stride = Comptime::runtime(block_size_n);
-
-    let sm_position_base = coordinates.unit_row * sm_stride + coordinates.unit_col;
 
     let offset = coordinates.skip_col + k * info.rhs_stride + batch_offset;
 
@@ -92,10 +89,10 @@ pub(crate) fn load_rhs_plain<F: Float>(
     write_tile_plain::<F>(
         &tile,
         shared_rhs,
-        sm_position_base,
+        coordinates.unit_row,
+        coordinates.unit_col,
         sm_stride,
-        Comptime::map(config, |c| c.unroll),
-        tile_size,
+        config,
     );
 }
 
@@ -179,15 +176,29 @@ fn load_tile<F: Float>(
 fn write_tile_plain<F: Float>(
     tile: &Array<F>,
     mut shared_memory: SharedMemory<F>,
-    sm_position_base: UInt,
+    write_row: UInt,
+    write_col: UInt,
     sm_stride: UInt,
-    unroll: Comptime<bool>,
-    tile_size: Comptime<UInt>,
+    config: Comptime<CubeTiling2dConfig>,
 ) {
-    let sm_vectorization = Comptime::runtime(tile_size);
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let unroll = Comptime::map(config, |c| c.unroll);
+    let check_sm_bounds = Comptime::map(config, |c| c.check_sm_bounds);
+    let tile_size_runtime = Comptime::runtime(tile_size);
 
-    for i in range(0u32, Comptime::get(tile_size), unroll) {
-        shared_memory[(sm_position_base + i * sm_stride) / sm_vectorization] = tile[i];
+    let sm_position_base = write_row * sm_stride + write_col;
+
+    if Comptime::get(check_sm_bounds) {
+        let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
+        if write_row < sm_dim_vertical {
+            for i in range(0u32, Comptime::get(tile_size), unroll) {
+                shared_memory[(sm_position_base + i * sm_stride) / tile_size_runtime] = tile[i];
+            }
+        }
+    } else {
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            shared_memory[(sm_position_base + i * sm_stride) / tile_size_runtime] = tile[i];
+        }
     }
 }
 
@@ -195,28 +206,71 @@ fn write_tile_plain<F: Float>(
 fn write_tile_transposed<F: Float>(
     tile: &Array<F>,
     mut shared_memory: SharedMemory<F>,
-    sm_position_base: UInt,
+    write_row: UInt,
+    write_col: UInt,
     sm_stride: UInt,
-    unroll: Comptime<bool>,
-    tile_size: Comptime<UInt>,
+    config: Comptime<CubeTiling2dConfig>,
 ) {
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let check_sm_bounds = Comptime::map(config, |c| c.check_sm_bounds);
     let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
-    let sm_vectorization = Comptime::runtime(tile_size);
+
+    let sm_position_base = write_row * sm_stride + write_col;
 
     if Comptime::get(is_scalar) {
-        shared_memory[sm_position_base] = tile[0];
-    } else {
-        for i in range(0u32, Comptime::get(tile_size), unroll) {
-            let mut transposed = F::vectorized(0., Comptime::get(tile_size));
-
-            // Unrolling this one makes the difference
-            for j in range(0u32, Comptime::get(tile_size), Comptime::new(true)) {
-                transposed[j] = tile[j][i];
+        if Comptime::get(check_sm_bounds) {
+            let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
+            if write_row < sm_dim_vertical {
+                shared_memory[sm_position_base] = tile[0];
             }
-
-            let sm_position = (sm_position_base + i * sm_stride) / sm_vectorization;
-            shared_memory[sm_position] = transposed;
+        } else {
+            shared_memory[sm_position_base] = tile[0];
         }
+    } else {
+        if Comptime::get(check_sm_bounds) {
+            let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
+            if write_row < sm_dim_vertical {
+                transpose_tile_to_shared_memory::<F>(
+                    tile,
+                    shared_memory,
+                    sm_position_base,
+                    sm_stride,
+                    config,
+                );
+            }
+        } else {
+            transpose_tile_to_shared_memory::<F>(
+                tile,
+                shared_memory,
+                sm_position_base,
+                sm_stride,
+                config,
+            );
+        }
+    }
+}
+
+#[cube]
+fn transpose_tile_to_shared_memory<F: Float>(
+    tile: &Array<F>,
+    mut shared_memory: SharedMemory<F>,
+    sm_position_base: UInt,
+    sm_stride: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let unroll = Comptime::map(config, |c| c.unroll);
+
+    for i in range(0u32, Comptime::get(tile_size), unroll) {
+        let mut transposed = F::vectorized(0., Comptime::get(tile_size));
+
+        // Unrolling this one makes the difference
+        for j in range(0u32, Comptime::get(tile_size), Comptime::new(true)) {
+            transposed[j] = tile[j][i];
+        }
+
+        let sm_position = (sm_position_base + i * sm_stride) / Comptime::runtime(tile_size);
+        shared_memory[sm_position] = transposed;
     }
 }
 
@@ -571,7 +625,6 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
         transposed: Comptime<bool>,
     ) {
-        let unroll = Comptime::map(config, |c| c.unroll);
         let tile_size = Comptime::map(config, |c| c.tile_size);
         let block_size_m = Comptime::map(config, |c| c.block_size_m);
         let block_size_k = Comptime::map(config, |c| c.block_size_k);
@@ -585,18 +638,18 @@ pub mod tests {
                 tile,
                 shared_memory,
                 UInt::new(0),
+                UInt::new(0),
                 Comptime::runtime(sm_stride),
-                unroll,
-                tile_size,
+                config,
             );
         } else {
             write_tile_plain(
                 tile,
                 shared_memory,
                 UInt::new(0),
+                UInt::new(0),
                 Comptime::runtime(sm_stride),
-                unroll,
-                tile_size,
+                config,
             );
         }
 
