@@ -117,7 +117,8 @@ plug in your operator in terms of \\(x\\) and \\(y\\), and just swap out the var
 
 ### Testing autodiff
 
-For testing the `autodiff` operations, please refer to [this section](../getting-started/testing.md).
+For testing the `autodiff` operations, please refer to
+[this section](../getting-started/testing.md).
 
 ## Adding the Op to other backends
 
@@ -199,11 +200,15 @@ Generating the ONNX test files or tests is already covered
 about the specific changes you need to make when adding new operators after you have generated the
 tests.
 
-The crate is divided into two sections `src/burn` and `src/onnx`. The code under the former
-corresponds to the operation you've implemented earlier in this guide, and the latter to the
-operations defined in the ONNX specification. So when you are loading a model, the operator is first
-parsed to an intermediate representation defined by `src/onnx`, and then mapped to a Burn operation
-defined under `src/burn/node`.
+Changes will need to be made to both `onnx-ir` and `burn-import`. The code within `onnx-ir` defines
+how to parse the nodes in an onnx file and produces the intermediate representation. The code within
+`burn-import` is divided into two sections: `src/onnx` and `src/burn`. The code under the former
+maps that intermediate representation to one used for code generation and the latter defines how to
+generate code for the operator you've implemented earlier in this guide.
+
+So when you are loading a model, the operator is first parsed to an intermediate representation
+defined by `burn-import` and then mapped to a Burn operation defined under `src/burn/node`; the
+mapping from onnx to burn is aptly defined in `src/onnx/to_burn`
 
 Let's review the changes made for powf starting from `src/burn` and moving to `src/onnx`:
 
@@ -218,17 +223,20 @@ Let's review the changes made for powf starting from `src/burn` and moving to `s
    [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/to_burn.rs#L717)
    that maps the ONNX node to the binary type
 3. Specify how dimensions for the output should be derived in
-   [crates/burn-import/src/onnx/dim_inference.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/dim_inference.rs#L55)
+   [crates/onnx-ir/src/dim_inference.rs](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/dim_inference.rs#L17)
 
 And you're done! Congrats, you just fully added a new operation to burn, and we are all one step
 closer to the answer to [Are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and
 it's freaking fast!". Buy yourself a coffee.
 
-[^supertrait]: for more on supertraits see
+[^supertrait]:
+    for more on supertraits see
     [the advanced trait section of the rust book](https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#using-supertraits-to-require-one-traits-functionality-within-another-trait)
 
-[^autodiff]: wiki link for
+[^autodiff]:
+    wiki link for
     [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation)
 
-[^absolute_units]: for more information on unit structs see
+[^absolute_units]:
+    for more information on unit structs see
     [the defining and instantiating structs section of the rust book](https://doc.rust-lang.org/book/ch05-01-defining-structs.html#unit-like-structs-without-any-fields)

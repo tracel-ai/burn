@@ -29,7 +29,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    value: Vec<u8>,
+    pub bytes: Vec<u8>,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -42,7 +42,7 @@ impl TensorData {
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
         Self {
-            value: bytemuck::checked::cast_slice(&value).to_vec(),
+            bytes: bytemuck::checked::cast_slice(&value).to_vec(),
             shape: shape.into(),
             dtype: E::dtype(),
         }
@@ -51,7 +51,7 @@ impl TensorData {
     /// Returns the immutable slice view of the tensor data.
     pub fn as_slice<E: Element>(&self) -> Result<&[E], DataError> {
         if E::dtype() == self.dtype {
-            bytemuck::checked::try_cast_slice(&self.value).map_err(DataError::CastError)
+            bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -67,7 +67,7 @@ impl TensorData {
     /// If the target element type is different from the stored element type.
     pub fn as_mut_slice<E: Element>(&mut self) -> Result<&mut [E], DataError> {
         if E::dtype() == self.dtype {
-            bytemuck::checked::try_cast_slice_mut(&mut self.value).map_err(DataError::CastError)
+            bytemuck::checked::try_cast_slice_mut(&mut self.bytes).map_err(DataError::CastError)
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -85,62 +85,62 @@ impl TensorData {
     /// Returns an iterator over the values of the tensor data.
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
-            Box::new(bytemuck::checked::cast_slice(&self.value).iter().copied())
+            Box::new(bytemuck::checked::cast_slice(&self.bytes).iter().copied())
         } else {
             match self.dtype {
                 DType::I8 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &i8| e.elem::<E>()),
                 ),
                 DType::I16 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &i16| e.elem::<E>()),
                 ),
                 DType::I32 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &i32| e.elem::<E>()),
                 ),
                 DType::I64 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &i64| e.elem::<E>()),
                 ),
-                DType::U8 => Box::new(self.value.iter().map(|e| e.elem::<E>())),
+                DType::U8 => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::U32 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &u32| e.elem::<E>()),
                 ),
                 DType::U64 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &u64| e.elem::<E>()),
                 ),
                 DType::BF16 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &bf16| e.elem::<E>()),
                 ),
                 DType::F16 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &f16| e.elem::<E>()),
                 ),
                 DType::F32 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &f32| e.elem::<E>()),
                 ),
                 DType::F64 => Box::new(
-                    bytemuck::checked::cast_slice(&self.value)
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &f64| e.elem::<E>()),
                 ),
                 // bool is a byte value equal to either 0 or 1
-                DType::Bool => Box::new(self.value.iter().map(|e| e.elem::<E>())),
+                DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
             }
         }
     }
@@ -220,7 +220,7 @@ impl TensorData {
 
     /// Returns the data as a slice of bytes.
     pub fn as_bytes(&self) -> &[u8] {
-        self.value.as_slice()
+        self.bytes.as_slice()
     }
 
     /// Asserts the data is approximately equal to another data.
@@ -919,7 +919,7 @@ mod tests {
             &mut StdRng::from_entropy(),
         );
 
-        assert_eq!(num_elements, data.value.len() / 4); // f32 stored as u8s
+        assert_eq!(num_elements, data.bytes.len() / 4); // f32 stored as u8s
         assert_eq!(num_elements, data.as_slice::<f32>().unwrap().len());
     }
 

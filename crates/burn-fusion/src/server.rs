@@ -39,11 +39,11 @@ where
         self.handles.create_tensor_uninit()
     }
 
-    pub fn read_float<B, const D: usize>(
+    pub async fn read_float<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -52,14 +52,14 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_float_tensor::<B, D>(&tensor);
-        B::float_into_data(tensor)
+        B::float_into_data(tensor).await
     }
 
-    pub fn read_int<B, const D: usize>(
+    pub async fn read_int<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -68,14 +68,14 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_int_tensor::<B, D>(&tensor);
-        B::int_into_data(tensor)
+        B::int_into_data(tensor).await
     }
 
-    pub fn read_bool<B, const D: usize>(
+    pub async fn read_bool<B, const D: usize>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::TensorData>
+    ) -> burn_tensor::TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -84,7 +84,7 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_bool_tensor::<B, D>(&tensor);
-        B::bool_into_data(tensor)
+        B::bool_into_data(tensor).await
     }
 
     pub fn change_server_float<B, const D: usize>(

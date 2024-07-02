@@ -55,6 +55,7 @@ fn main() {
         .input("tests/reduce_max/reduce_max.onnx")
         .input("tests/reduce_min/reduce_min.onnx")
         .input("tests/reduce_mean/reduce_mean.onnx")
+        .input("tests/reduce_prod/reduce_prod.onnx")
         .input("tests/reduce_sum/reduce_sum_opset13.onnx")
         .input("tests/reduce_sum/reduce_sum_opset11.onnx")
         .input("tests/reshape/reshape.onnx")

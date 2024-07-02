@@ -10,7 +10,7 @@ use std::process::Command;
 
 fn main() {
     Command::new("cargo")
-        .args(["run", "--bin", "guide"])
+        .args(["run", "--bin", "train", "--release"])
         .status()
         .expect("guide example should run");
 }

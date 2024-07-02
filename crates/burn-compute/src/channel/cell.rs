@@ -42,9 +42,9 @@ where
 
 impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
-    Server: ComputeServer,
+    Server: ComputeServer + Send,
 {
-    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, binding: Binding<Server>) -> Reader {
         self.server.borrow_mut().read(binding)
     }
 

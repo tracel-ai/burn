@@ -16,7 +16,17 @@ For an introduction to ONNX import in Burn, see
     - [Design Goals](#design-goals)
     - [Design Decisions](#design-decisions)
   - [Adding New Operators](#adding-new-operators)
-    - [Implementing a New Operator](#implementing-a-new-operator)
+  - [Implementing a New Operator](#implementing-a-new-operator)
+    - [Step 1: Visibility](#step-1-visibility)
+    - [Step 2: Node Implementation](#step-2-node-implementation)
+      - [Within Onnx-IR](#within-onnx-ir)
+      - [Within burn-import](#within-burn-import)
+    - [Step 3: Registering New Operations](#step-3-registering-new-operations)
+    - [Step 4: Create a Config Function](#step-4-create-a-config-function)
+    - [Step 5: Dimension Inference](#step-5-dimension-inference)
+    - [Step 6: Integrate into the Graph Building Process](#step-6-integrate-into-the-graph-building-process)
+    - [Step 7: Add Newly Supported Op!](#step-7-add-newly-supported-op)
+    - [Misc:](#misc)
   - [Testing](#testing)
   - [Resources](#resources)
 
@@ -90,6 +100,22 @@ within the
 located in the `src/burn/node/` directory.
 
 ### Step 2: Node Implementation
+
+#### Within Onnx-IR
+
+If the node type does not exist within the
+[`NodeType` enum](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/ir.rs#L246),
+it will need to be added (support for custom operators is planned). If the node might be provided an
+input which is a constant or the output of an identity node, it will need to be added to the list of
+nodeTypes
+[checked for constants](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L21).
+The node will need to be added to `dim_inference`, and in most cases the work parsing side will be
+done. If a node requires extra parsing (such as handling an edge case like potentially remapping an
+unsqueeze to a reshape) the best place for that is after check constants and prior to dim_inference
+in
+[`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L221)
+
+#### Within burn-import
 
 Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory.  
 This file will define the structure and functionality of your new operation. By convention, the

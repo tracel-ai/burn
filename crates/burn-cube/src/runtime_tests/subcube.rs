@@ -1,4 +1,4 @@
-use crate as burn_cube;
+use crate::{self as burn_cube, Feature};
 use burn_cube::prelude::*;
 
 #[cube(launch)]
@@ -100,6 +100,11 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
 ) where
     Launch: Fn(CubeCount, KernelSettings, TensorHandle<'_, TestRuntime>),
 {
+    if !client.features().enabled(Feature::Subcube) {
+        // Can't execute the test.
+        return;
+    }
+
     let handle = client.create(f32::as_bytes(input));
     let (shape, strides) = ([input.len()], [1]);
 
@@ -109,7 +114,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
         TensorHandle::new(&handle, &strides, &shape),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = client.read(handle.binding());
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual, expected);

@@ -23,9 +23,11 @@ where
     type MemoryManagement: MemoryManagement<Self::Storage>;
     /// The key used to cache operations used on specific inputs in autotune
     type AutotuneKey: AutotuneKey;
+    /// Features supported by the compute server.
+    type FeatureSet: Send + Sync;
 
     /// Given a handle, returns the owned resource as bytes.
-    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>>;
+    fn read(&mut self, binding: Binding<Self>) -> Reader;
 
     /// Given a resource handle, returns the storage resource.
     fn get_resource(
