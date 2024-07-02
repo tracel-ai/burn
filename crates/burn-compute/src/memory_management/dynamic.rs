@@ -20,18 +20,15 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     pub fn new(storage: Storage) -> Self {
         let main_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::new_period_tick(10),
-            RoundingStrategy::RoundUp,
-            1024 * 1024 * 1024,
+            RoundingStrategy::FixedAmount(1024 * 1024 * 1024),
         );
         let medium_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
-            RoundingStrategy::None,
-            1024 * 1024 * 200,
+            RoundingStrategy::FixedAmount(1024 * 1024 * 200),
         );
         let small_medium_memory_pool = MemoryPool::new(
             MemoryExtensionStrategy::Never,
-            RoundingStrategy::None,
-            1024 * 1024 * 2,
+            RoundingStrategy::FixedAmount(1024 * 1024 * 2),
         );
         let small_memory_pool = SmallMemoryPool::new();
         Self {

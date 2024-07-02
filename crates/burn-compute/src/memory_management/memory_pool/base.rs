@@ -4,6 +4,7 @@ use super::{
     RingBuffer, SliceHandle, SliceId,
 };
 use crate::storage::{ComputeStorage, StorageHandle, StorageUtilization};
+use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 pub struct MemoryPool {
@@ -13,11 +14,9 @@ pub struct MemoryPool {
     memory_extension_strategy: MemoryExtensionStrategy,
     rounding: RoundingStrategy,
     chunk_index: SearchIndex<ChunkId>,
-    #[allow(unused)] // will be used when we rewrite memory extension
-    max_chunk_size: usize,
     ring: RingBuffer<Chunk, Slice>,
     recently_added_chunks: Vec<ChunkId>,
-    recently_alloced_size: usize,
+    recently_allocated_size: usize,
 }
 
 struct SliceUpdate {
@@ -116,7 +115,10 @@ const BUFFER_ALIGNMENT: usize = 32;
 const MB: usize = 1024 * 1024;
 
 pub enum RoundingStrategy {
+    FixedAmount(usize),
+    #[allow(unused)]
     RoundUp,
+    #[allow(unused)]
     None,
 }
 
@@ -135,6 +137,10 @@ impl RoundingStrategy {
                     let factor = (size + (2 * MB - 1)) / (2 * MB);
                     factor * 2 * MB
                 }
+            }
+            RoundingStrategy::FixedAmount(chunk_size) => {
+                assert!(*chunk_size >= size);
+                *chunk_size
             }
             RoundingStrategy::None => size,
         }
@@ -177,18 +183,16 @@ impl MemoryPool {
     pub fn new(
         merging_strategy: MemoryExtensionStrategy,
         alloc_strategy: RoundingStrategy,
-        max_chunk_size: usize,
     ) -> Self {
         Self {
             chunks: HashMap::new(),
             slices: HashMap::new(),
             memory_extension_strategy: merging_strategy,
             rounding: alloc_strategy,
-            max_chunk_size,
             chunk_index: SearchIndex::new(),
             ring: RingBuffer::new(),
             recently_added_chunks: Vec::new(),
-            recently_alloced_size: 0,
+            recently_allocated_size: 0,
         }
     }
 
@@ -214,10 +218,10 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        //if self.recently_alloced_size > (0.8 * self.max_chunk_size as f64) as usize {
+        //if self.recently_allocated_size > (0.8 * self.max_chunk_size as f64) as usize {
         //    self.extend_max_memory(storage);
         //    self.recently_added_chunks = Vec::new();
-        //    self.recently_alloced_size = 0;
+        //    self.recently_allocated_size = 0;
         //}
         let slice = self.get_free_slice(size);
 
@@ -233,15 +237,8 @@ impl MemoryPool {
         &mut self,
         storage: &mut Storage,
         size: usize,
-        sync: Sync,
+        #[allow(unused)] sync: Sync,
     ) -> MemoryPoolHandle {
-        //if self.recently_alloced_size > (0.8 * self.max_chunk_size as f64) as usize {
-        //    sync();
-        //    self.extend_max_memory(storage);
-        // if let Some(handle) = self.get_free_slice(size) {
-        //return MemoryPoolHandle { slice: handle };
-        // }
-        //}
         let alloc_size = self.rounding.alloc_size(size);
         self.alloc_slice(storage, alloc_size, size)
     }
@@ -252,10 +249,11 @@ impl MemoryPool {
         alloc_size: usize,
         slice_size: usize,
     ) -> MemoryPoolHandle {
-        let handle_chunk = self.create_chunk(storage, alloc_size);
+        let chunk_size = self.rounding.alloc_size(alloc_size);
+        let handle_chunk = self.create_chunk(storage, chunk_size);
         let chunk_size = self.chunks.get(handle_chunk.id()).unwrap().storage.size();
         self.recently_added_chunks.push(*handle_chunk.id());
-        self.recently_alloced_size += chunk_size;
+        self.recently_allocated_size += chunk_size;
 
         let chunk_id = *handle_chunk.id();
         let (slice, extra_slice) =
@@ -397,9 +395,9 @@ impl MemoryPool {
         storage: &mut Storage,
         size: usize,
     ) -> ChunkHandle {
-        //let padding = calculate_padding(size);
-        //let effective_size = size + padding;
-        let effective_size = self.max_chunk_size;
+        let padding = calculate_padding(size);
+        let effective_size = size + padding;
+        //let effective_size = self.max_chunk_size;
 
         let storage = storage.alloc(effective_size);
         let handle = ChunkHandle::new();
@@ -416,6 +414,7 @@ impl MemoryPool {
         handle
     }
 
+    #[allow(unused)]
     fn extend_max_memory<Storage: ComputeStorage>(&mut self, storage: &mut Storage) {
         let mut slices = Vec::<SliceUpdate>::new();
 
