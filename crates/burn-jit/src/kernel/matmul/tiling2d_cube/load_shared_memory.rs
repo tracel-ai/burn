@@ -262,7 +262,7 @@ fn transpose_tile_to_shared_memory<F: Float>(
     let unroll = Comptime::map(config, |c| c.unroll);
 
     for i in range(0u32, Comptime::get(tile_size), unroll) {
-        let mut transposed = F::vectorized(0., Comptime::get(tile_size));
+        let mut transposed = F::vectorized_empty(Comptime::get(tile_size));
 
         // Unrolling this one makes the difference
         for j in range(0u32, Comptime::get(tile_size), Comptime::new(true)) {
@@ -422,7 +422,7 @@ fn read_tile_line_with_checks<F: Float>(
             tile[i] = tensor[position / runtime_vectorization];
         }
     } else {
-        let tile_entry = F::vectorized(0., Comptime::get(tile_size));
+        let tile_entry = F::vectorized_empty(Comptime::get(tile_size));
 
         let mut num_loops = UInt::new(0);
         if dim_horizontal > col {
@@ -463,7 +463,7 @@ fn read_tile_line_without_checks<F: Float>(
     if tile_size == vectorization_factor {
         tile[i] = tensor[position / runtime_vectorization];
     } else {
-        let tile_entry = F::vectorized(0., Comptime::get(tile_size));
+        let tile_entry = F::vectorized_empty(Comptime::get(tile_size));
 
         for j in range(
             0u32,

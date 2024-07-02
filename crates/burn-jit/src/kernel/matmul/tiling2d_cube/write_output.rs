@@ -132,6 +132,7 @@ fn write_within_vector<F: Float>(
     if Comptime::get(is_scalar) {
         out[i + out_position] = results[results_pos_m + i];
     } else {
+        // For some reason, declaring as empty seems way slower
         let mut output_elem = F::vectorized(0., Comptime::get(vectorization_factor));
 
         for j in range(0u32, Comptime::get(vectorization_factor), unroll) {

@@ -36,6 +36,11 @@ pub trait Float:
         val: f32,
         vectorization: UInt,
     ) -> <Self as CubeType>::ExpandType;
+    fn vectorized_empty(vectorization: UInt) -> Self;
+    fn vectorized_empty_expand(
+        context: &mut CubeContext,
+        vectorization: UInt,
+    ) -> <Self as CubeType>::ExpandType;
 }
 
 macro_rules! impl_float {
@@ -106,6 +111,21 @@ macro_rules! impl_float {
                     }
 
                     new_var
+                }
+            }
+
+            fn vectorized_empty(vectorization: UInt) -> Self {
+                Self::vectorized(0., vectorization)
+            }
+
+            fn vectorized_empty_expand(
+                context: &mut CubeContext,
+                vectorization: UInt,
+            ) -> <Self as CubeType>::ExpandType {
+                if vectorization.val == 1 {
+                    Self::new_expand(context, 0.)
+                } else {
+                    context.create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8))
                 }
             }
         }
