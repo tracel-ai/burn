@@ -4,12 +4,12 @@ use crate::{
     compute::{KernelBuilder, KernelLauncher},
     frontend::CubeType,
     ir::{Item, Vectorization},
-    unexpanded, Runtime,
+    unexpanded, KernelSettings, Runtime,
 };
 
 use super::{
-    ArgSettings, CubePrimitive, ExpandElementTyped, Init, LaunchArg, LaunchArgExpand, TensorArg,
-    TensorHandle, UInt,
+    ArgSettings, CubePrimitive, ExpandElementTyped, Init, LaunchArg, LaunchArgExpand, TensorHandle,
+    UInt,
 };
 
 #[derive(new)]
@@ -39,7 +39,7 @@ impl<E: CubeType> Array<E> {
 }
 
 impl<C: CubePrimitive> LaunchArg for Array<C> {
-    type RuntimeArg<'a, R: Runtime> = ArrayHandle<'a, R>;
+    type RuntimeArg<'a, R: Runtime> = ArrayArg<'a, R>;
 }
 
 impl<C: CubePrimitive> LaunchArgExpand for &Array<C> {
@@ -69,9 +69,73 @@ pub struct ArrayHandle<'a, R: Runtime> {
     pub length: [usize; 1],
 }
 
-impl<'a, R: Runtime> ArgSettings<R> for ArrayHandle<'a, R> {
+pub enum ArrayArg<'a, R: Runtime> {
+    Handle {
+        handle: ArrayHandle<'a, R>,
+        vectorization_factor: u8,
+    },
+    Alias {
+        input_pos: usize,
+    },
+}
+
+impl<'a, R: Runtime> ArgSettings<R> for ArrayArg<'a, R> {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.register_array(self)
+        if let ArrayArg::Handle {
+            handle,
+            vectorization_factor: _,
+        } = self
+        {
+            launcher.register_array(handle)
+        }
+    }
+
+    fn configure_input(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+        match self {
+            Self::Handle {
+                handle: _,
+                vectorization_factor,
+            } => settings.vectorize_input(position, *vectorization_factor),
+            Self::Alias { input_pos: _ } => {
+                panic!("Not yet supported, only output can be aliased for now.");
+            }
+        }
+    }
+
+    fn configure_output(&self, position: usize, mut settings: KernelSettings) -> KernelSettings {
+        match self {
+            Self::Handle {
+                handle: _,
+                vectorization_factor,
+            } => settings.vectorize_output(position, *vectorization_factor),
+            Self::Alias { input_pos } => {
+                settings.mappings.push(crate::InplaceMapping {
+                    pos_input: *input_pos,
+                    pos_output: position,
+                });
+                settings
+            }
+        }
+    }
+}
+
+impl<'a, R: Runtime> ArrayArg<'a, R> {
+    pub fn new(handle: &'a burn_compute::server::Handle<R::Server>, length: usize) -> Self {
+        ArrayArg::Handle {
+            handle: ArrayHandle::new(handle, length),
+            vectorization_factor: 1,
+        }
+    }
+
+    pub fn vectorized(
+        vectorization_factor: u8,
+        handle: &'a burn_compute::server::Handle<R::Server>,
+        length: usize,
+    ) -> Self {
+        ArrayArg::Handle {
+            handle: ArrayHandle::new(handle, length),
+            vectorization_factor,
+        }
     }
 }
 

@@ -103,7 +103,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     let rhs_original_shape = rhs.shape.clone();
     let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
 
-    let workgroup = simple_launch_options(
+    let cube_count = simple_launch_options(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,
@@ -118,7 +118,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
 
     matmul_kernel_launch::<E::FloatPrimitive, R>(
         lhs.client,
-        workgroup,
+        cube_count,
         CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
         TensorArg::vectorized(
             vectorization_factor,

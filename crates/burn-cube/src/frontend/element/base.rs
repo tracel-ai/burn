@@ -55,10 +55,10 @@ pub trait LaunchArg: CubeType {
 pub trait ArgSettings<R: Runtime>: Send + Sync {
     /// Register the information to the [KernelLauncher].
     fn register(&self, launcher: &mut KernelLauncher<R>);
-    fn configure_input(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+    fn configure_input(&self, _position: usize, settings: KernelSettings) -> KernelSettings {
         settings
     }
-    fn configure_output(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+    fn configure_output(&self, _position: usize, settings: KernelSettings) -> KernelSettings {
         settings
     }
 }

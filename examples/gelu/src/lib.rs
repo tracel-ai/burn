@@ -24,8 +24,8 @@ pub fn launch<R: Runtime>(device: &R::Device) {
         client.clone(),
         CubeCount::new(1, 1, 1),
         CubeDim::default(),
-        ArrayHandle::new(&input_handle, input.len()),
-        ArrayHandle::new(&output_handle, input.len()),
+        ArrayArg::new(&input_handle, input.len()),
+        ArrayArg::new(&output_handle, input.len()),
     );
 
     let output = client.read(output_handle.binding());

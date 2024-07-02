@@ -65,10 +65,8 @@ pub struct TensorHandle<'a, R: Runtime> {
 }
 
 pub enum TensorArg<'a, R: Runtime> {
-    Owned {
-        handle: &'a burn_compute::server::Handle<R::Server>,
-        strides: &'a [usize],
-        shape: &'a [usize],
+    Handle {
+        handle: TensorHandle<'a, R>,
         vectorization_factor: u8,
     },
     Alias {
@@ -82,10 +80,8 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
         strides: &'a [usize],
         shape: &'a [usize],
     ) -> Self {
-        Self::Owned {
-            handle,
-            strides,
-            shape,
+        Self::Handle {
+            handle: TensorHandle::new(handle, &strides, &shape),
             vectorization_factor: 1,
         }
     }
@@ -95,10 +91,8 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
         strides: &'a [usize],
         shape: &'a [usize],
     ) -> Self {
-        Self::Owned {
-            handle,
-            strides,
-            shape,
+        Self::Handle {
+            handle: TensorHandle::new(handle, &strides, &shape),
             vectorization_factor: factor,
         }
     }
@@ -106,23 +100,19 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
 
 impl<'a, R: Runtime> ArgSettings<R> for TensorArg<'a, R> {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
-        if let TensorArg::Owned {
+        if let TensorArg::Handle {
             handle,
-            strides,
-            shape,
             vectorization_factor: _,
         } = self
         {
-            launcher.register_tensor(&TensorHandle::new(&handle, &strides, &shape))
+            launcher.register_tensor(handle)
         }
     }
 
     fn configure_input(&self, position: usize, settings: KernelSettings) -> KernelSettings {
         match self {
-            TensorArg::Owned {
+            TensorArg::Handle {
                 handle: _,
-                strides: _,
-                shape: _,
                 vectorization_factor,
             } => settings.vectorize_input(position, *vectorization_factor),
             TensorArg::Alias { input_pos: _ } => {
@@ -133,10 +123,8 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorArg<'a, R> {
 
     fn configure_output(&self, position: usize, mut settings: KernelSettings) -> KernelSettings {
         match self {
-            TensorArg::Owned {
+            TensorArg::Handle {
                 handle: _,
-                strides: _,
-                shape: _,
                 vectorization_factor,
             } => settings.vectorize_output(position, *vectorization_factor),
             TensorArg::Alias { input_pos } => {
@@ -149,12 +137,6 @@ impl<'a, R: Runtime> ArgSettings<R> for TensorArg<'a, R> {
         }
     }
 }
-
-// impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
-//     fn register(&self, launcher: &mut KernelLauncher<R>) {
-//         launcher.register_tensor(self)
-//     }
-// }
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
