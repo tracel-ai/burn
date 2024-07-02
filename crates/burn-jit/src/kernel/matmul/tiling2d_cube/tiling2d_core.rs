@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 use super::{
-    base::{BatchOffsets, Coordinates, SharedMemories},
+    base::{BatchOffsets, Coordinates, CubeTiling2dInfo, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
     config::CubeTiling2dConfig,
     load_shared_memory::{
@@ -20,6 +20,7 @@ pub(crate) fn tiling2d_core<F: Float>(
     offsets: BatchOffsets,
     shared: SharedMemories<F>,
     config: Comptime<CubeTiling2dConfig>,
+    info: CubeTiling2dInfo,
 ) {
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
     let mut results = init_results::<F>(config);
@@ -29,8 +30,8 @@ pub(crate) fn tiling2d_core<F: Float>(
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_lhs_transposed::<F>(lhs, coordinates, k, offsets.lhs, shared.lhs, config);
-        load_rhs_plain::<F>(rhs, coordinates, k, offsets.rhs, shared.rhs, config);
+        load_lhs_transposed::<F>(lhs, coordinates, k, offsets.lhs, shared.lhs, config, info);
+        load_rhs_plain::<F>(rhs, coordinates, k, offsets.rhs, shared.rhs, config, info);
 
         sync_units();
 
@@ -39,7 +40,14 @@ pub(crate) fn tiling2d_core<F: Float>(
         sync_units();
     }
 
-    write_to_output::<F>(out, &results, coordinates, offsets.out, config);
+    write_to_output::<F>(
+        out,
+        &results,
+        coordinates,
+        offsets.out,
+        info.out_stride,
+        config,
+    );
 }
 
 #[cube]

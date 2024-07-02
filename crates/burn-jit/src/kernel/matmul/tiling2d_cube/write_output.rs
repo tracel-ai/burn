@@ -8,22 +8,13 @@ pub(crate) fn write_to_output<F: Float>(
     results: &Array<F>,
     coordinates: Coordinates,
     offset_output: UInt,
+    out_stride: UInt,
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let row = coordinates.skip_row + coordinates.unit_row;
     let col = coordinates.skip_col + coordinates.unit_col;
 
-    let out_stride_row = out.stride(out.rank() - UInt::new(2));
-
-    write_results::<F>(
-        out,
-        results,
-        row,
-        col,
-        offset_output,
-        out_stride_row,
-        config,
-    );
+    write_results::<F>(out, results, row, col, offset_output, out_stride, config);
 }
 
 #[cube]
@@ -234,7 +225,9 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
-        write_to_output::<F>(out, results, coordinates, UInt::new(0), config);
+        let out_stride = out.stride(out.rank() - UInt::new(2));
+
+        write_to_output::<F>(out, results, coordinates, UInt::new(0), out_stride, config);
     }
 
     #[cube(launch)]
@@ -249,7 +242,9 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
-        write_to_output::<F>(out, results, coordinates, UInt::new(0), config);
+        let out_stride = out.stride(out.rank() - UInt::new(2));
+
+        write_to_output::<F>(out, results, coordinates, UInt::new(0), out_stride, config);
     }
 
     #[cube(launch)]
@@ -259,6 +254,7 @@ pub mod tests {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let out_stride_row = out.stride(out.rank() - UInt::new(2));
+
         write_results::<F>(
             out,
             results,

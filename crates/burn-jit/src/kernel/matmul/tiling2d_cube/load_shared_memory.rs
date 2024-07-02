@@ -1,6 +1,9 @@
 use burn_cube::prelude::*;
 
-use super::{base::Coordinates, config::CubeTiling2dConfig};
+use super::{
+    base::{Coordinates, CubeTiling2dInfo},
+    config::CubeTiling2dConfig,
+};
 
 #[cube]
 pub(crate) fn load_lhs_transposed<F: Float>(
@@ -10,6 +13,7 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     batch_offset: UInt,
     shared_lhs: SharedMemory<F>,
     config: Comptime<CubeTiling2dConfig>,
+    info: CubeTiling2dInfo,
 ) {
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -17,7 +21,7 @@ pub(crate) fn load_lhs_transposed<F: Float>(
     let sm_stride = Comptime::runtime(block_size_m);
     let sm_position_base = coordinates.unit_col * sm_stride + coordinates.unit_row;
 
-    let cube_offset = coordinates.skip_row * lhs.stride(lhs.rank() - UInt::new(2));
+    let cube_offset = coordinates.skip_row * info.lhs_stride;
     let offset = cube_offset + k + batch_offset;
 
     let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
@@ -30,6 +34,9 @@ pub(crate) fn load_lhs_transposed<F: Float>(
         coordinates.unit_col,
         coordinates.skip_row,
         k,
+        info.lhs_stride,
+        info.dim_m,
+        info.dim_k,
         Comptime::map(config, |c| c.check_m_bounds),
         Comptime::map(config, |c| c.check_k_bounds),
         config,
@@ -53,16 +60,16 @@ pub(crate) fn load_rhs_plain<F: Float>(
     batch_offset: UInt,
     shared_rhs: SharedMemory<F>,
     config: Comptime<CubeTiling2dConfig>,
+    info: CubeTiling2dInfo,
 ) {
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
     let tile_size = Comptime::map(config, |c| c.tile_size);
 
     let sm_stride = Comptime::runtime(block_size_n);
-    let tensor_stride = rhs.stride(rhs.rank() - UInt::new(2));
 
     let sm_position_base = coordinates.unit_row * sm_stride + coordinates.unit_col;
 
-    let offset = coordinates.skip_col + k * tensor_stride + batch_offset;
+    let offset = coordinates.skip_col + k * info.rhs_stride + batch_offset;
 
     let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
 
@@ -74,6 +81,9 @@ pub(crate) fn load_rhs_plain<F: Float>(
         coordinates.unit_col,
         k,
         coordinates.skip_col,
+        info.rhs_stride,
+        info.dim_k,
+        info.dim_n,
         Comptime::map(config, |c| c.check_k_bounds),
         Comptime::map(config, |c| c.check_n_bounds),
         config,
@@ -98,6 +108,9 @@ fn load_tile<F: Float>(
     load_col: UInt,
     skip_row: UInt,
     skip_col: UInt,
+    tensor_stride: UInt,
+    dim_vertical: UInt,
+    dim_horizontal: UInt,
     check_vertical_bounds: Comptime<bool>,
     check_horizontal_bounds: Comptime<bool>,
     config: Comptime<CubeTiling2dConfig>,
@@ -105,8 +118,6 @@ fn load_tile<F: Float>(
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let unroll = Comptime::map(config, |c| c.unroll);
 
-    let rank = tensor.rank();
-    let tensor_stride = tensor.stride(rank - UInt::new(2));
     let tensor_position_base = load_row * tensor_stride + load_col + cube_offset;
 
     if Comptime::get(check_vertical_bounds) {
@@ -120,6 +131,8 @@ fn load_tile<F: Float>(
                 col,
                 tensor_position_base,
                 tensor_stride,
+                dim_vertical,
+                dim_horizontal,
                 tile,
                 tile_size,
                 unroll,
@@ -130,6 +143,7 @@ fn load_tile<F: Float>(
                 row,
                 tensor_position_base,
                 tensor_stride,
+                dim_vertical,
                 tile,
                 tile_size,
                 unroll,
@@ -143,6 +157,7 @@ fn load_tile<F: Float>(
                 col,
                 tensor_position_base,
                 tensor_stride,
+                dim_horizontal,
                 tile,
                 tile_size,
                 unroll,
@@ -212,6 +227,8 @@ fn read_with_both_checks<F: Float>(
     col: UInt,
     position_base: UInt,
     stride: UInt,
+    dim_vertical: UInt,
+    dim_horizontal: UInt,
     tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
@@ -219,7 +236,6 @@ fn read_with_both_checks<F: Float>(
     let tile_size_runtime = Comptime::runtime(tile_size);
 
     let mut num_reads = UInt::new(0);
-    let dim_vertical = tensor.shape(tensor.rank() - UInt::new(2));
     if dim_vertical > row {
         num_reads = UInt::min(dim_vertical - row, tile_size_runtime);
     }
@@ -230,6 +246,7 @@ fn read_with_both_checks<F: Float>(
             col,
             position_base,
             stride,
+            dim_horizontal,
             tile,
             i,
             tile_size,
@@ -249,6 +266,7 @@ fn read_with_vertical_checks<F: Float>(
     row: UInt,
     position_base: UInt,
     stride: UInt,
+    dim_vertical: UInt,
     tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
@@ -256,7 +274,6 @@ fn read_with_vertical_checks<F: Float>(
     let tile_size_runtime = Comptime::runtime(tile_size);
 
     let mut num_reads = UInt::new(0);
-    let dim_vertical = tensor.shape(tensor.rank() - UInt::new(2));
     if dim_vertical > row {
         num_reads = UInt::min(dim_vertical - row, tile_size_runtime);
     }
@@ -307,6 +324,7 @@ fn read_with_horizontal_checks<F: Float>(
     col: UInt,
     position_base: UInt,
     stride: UInt,
+    dim_horizontal: UInt,
     tile: &mut Array<F>,
     tile_size: Comptime<UInt>,
     unroll: Comptime<bool>,
@@ -317,6 +335,7 @@ fn read_with_horizontal_checks<F: Float>(
             col,
             position_base,
             stride,
+            dim_horizontal,
             tile,
             i,
             tile_size,
@@ -331,6 +350,7 @@ fn read_tile_line_with_checks<F: Float>(
     col: UInt,
     position_base: UInt,
     stride: UInt,
+    dim_horizontal: UInt,
     tile: &mut Array<F>,
     i: UInt,
     tile_size: Comptime<UInt>,
@@ -340,8 +360,6 @@ fn read_tile_line_with_checks<F: Float>(
     let runtime_vectorization = Comptime::runtime(vectorization_factor);
 
     let position = position_base + i * stride;
-
-    let dim_horizontal = tensor.shape(tensor.rank() - UInt::new(1));
 
     if tile_size == vectorization_factor {
         if col >= dim_horizontal {
@@ -445,7 +463,7 @@ pub mod tests {
     };
     use crate::JitRuntime;
 
-    use super::{super::base::CoordinatesExpand, *};
+    use super::{super::base::CoordinatesExpand, super::base::CubeTiling2dInfoExpand, *};
 
     #[cube(launch)]
     #[allow(unused_mut)]
@@ -461,6 +479,7 @@ pub mod tests {
                 UInt::new(0),
                 UInt::new(0),
                 tensor.stride(0),
+                tensor.shape(1),
                 tile,
                 tile_size,
                 Comptime::new(true),
@@ -492,6 +511,8 @@ pub mod tests {
                 UInt::new(8),
                 UInt::new(0),
                 tensor.stride(0),
+                tensor.shape(0),
+                tensor.shape(1),
                 tile,
                 tile_size,
                 Comptime::new(true),
@@ -502,6 +523,7 @@ pub mod tests {
                 UInt::new(2),
                 UInt::new(8),
                 tensor.stride(0),
+                tensor.shape(0),
                 tile,
                 tile_size,
                 Comptime::new(true),
@@ -521,6 +543,9 @@ pub mod tests {
         let cube_offset = UInt::new(0);
         let check_vertical_bounds = Comptime::map(config, |c| c.check_m_bounds);
         let check_horizontal_bounds = Comptime::map(config, |c| c.check_k_bounds);
+        let lhs_stride = lhs.stride(lhs.rank() - UInt::new(2));
+        let dim_m = lhs.shape(lhs.rank() - UInt::new(2));
+        let dim_k = lhs.shape(lhs.rank() - UInt::new(1));
 
         load_tile::<F>(
             lhs,
@@ -530,6 +555,9 @@ pub mod tests {
             unit_col,
             UInt::new(0),
             UInt::new(0),
+            lhs_stride,
+            dim_m,
+            dim_k,
             check_vertical_bounds,
             check_horizontal_bounds,
             config,
@@ -602,10 +630,29 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
+
         if Comptime::get(is_lhs) {
-            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config);
+            let info = CubeTiling2dInfo {
+                dim_m: tensor.shape(tensor.rank() - UInt::new(2)),
+                dim_k: tensor.shape(tensor.rank() - UInt::new(1)),
+                dim_n: UInt::new(0),
+                lhs_stride: tensor.stride(tensor.rank() - UInt::new(2)),
+                rhs_stride: UInt::new(0),
+                out_stride: UInt::new(0),
+            };
+
+            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config, info);
         } else {
-            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config);
+            let info = CubeTiling2dInfo {
+                dim_m: UInt::new(0),
+                dim_k: tensor.shape(tensor.rank() - UInt::new(2)),
+                dim_n: tensor.shape(tensor.rank() - UInt::new(1)),
+                lhs_stride: UInt::new(0),
+                rhs_stride: tensor.stride(tensor.rank() - UInt::new(2)),
+                out_stride: UInt::new(0),
+            };
+
+            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config, info);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
@@ -638,10 +685,29 @@ pub mod tests {
             skip_row: UInt::new(0),
             skip_col: UInt::new(0),
         };
+
         if Comptime::get(is_lhs) {
-            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config);
+            let info = CubeTiling2dInfo {
+                dim_m: tensor.shape(tensor.rank() - UInt::new(2)),
+                dim_k: tensor.shape(tensor.rank() - UInt::new(1)),
+                dim_n: UInt::new(0),
+                lhs_stride: tensor.stride(tensor.rank() - UInt::new(2)),
+                rhs_stride: UInt::new(0),
+                out_stride: UInt::new(0),
+            };
+
+            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config, info);
         } else {
-            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config);
+            let info = CubeTiling2dInfo {
+                dim_m: UInt::new(0),
+                dim_k: tensor.shape(tensor.rank() - UInt::new(2)),
+                dim_n: tensor.shape(tensor.rank() - UInt::new(1)),
+                lhs_stride: UInt::new(0),
+                rhs_stride: tensor.stride(tensor.rank() - UInt::new(2)),
+                out_stride: UInt::new(0),
+            };
+
+            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config, info);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {

@@ -23,10 +23,33 @@ fn tiling2d_cube<F: Float>(
     out: &mut Tensor<F>,
     config: Comptime<CubeTiling2dConfig>,
 ) {
+    let info = get_info::<F>(lhs, rhs, out);
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
     let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, CUBE_POS_Z);
     let shared_memories = make_shared_memories::<F>(config);
-    tiling2d_core(lhs, rhs, out, coordinates, offsets, shared_memories, config);
+    tiling2d_core(
+        lhs,
+        rhs,
+        out,
+        coordinates,
+        offsets,
+        shared_memories,
+        config,
+        info,
+    );
+}
+
+// TODO Copy & Clone not automatically derived if function has no generics
+#[derive(CubeType, Copy, Clone)]
+/// Informations available at runtime only
+/// Strides assume contiguous
+pub(crate) struct CubeTiling2dInfo {
+    pub dim_m: UInt,
+    pub dim_k: UInt,
+    pub dim_n: UInt,
+    pub lhs_stride: UInt,
+    pub rhs_stride: UInt,
+    pub out_stride: UInt,
 }
 
 #[derive(CubeType)]
@@ -50,6 +73,28 @@ pub(crate) struct Coordinates {
     pub unit_col: UInt,
     pub skip_row: UInt,
     pub skip_col: UInt,
+}
+
+#[cube]
+fn get_info<F: Float>(lhs: &Tensor<F>, rhs: &Tensor<F>, out: &Tensor<F>) -> CubeTiling2dInfo {
+    let rank = lhs.rank();
+    let first_dim = rank - UInt::new(2);
+    let second_dim = rank - UInt::new(1);
+    let dim_m = lhs.shape(first_dim);
+    let dim_k = lhs.shape(second_dim);
+    let dim_n = rhs.shape(second_dim);
+    let lhs_stride = lhs.stride(first_dim);
+    let rhs_stride = rhs.stride(first_dim);
+    let out_stride = out.stride(first_dim);
+
+    CubeTiling2dInfo {
+        dim_m,
+        dim_k,
+        dim_n,
+        lhs_stride,
+        rhs_stride,
+        out_stride,
+    }
 }
 
 #[cube]

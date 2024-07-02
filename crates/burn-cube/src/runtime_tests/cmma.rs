@@ -68,7 +68,7 @@ pub fn test_simple_1<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
         ArrayHandle::new(&out, 256),
     );
 
-    let actual = client.read(out.binding()).read_sync().unwrap();
+    let actual = client.read(out.binding());
     let actual = f32::from_bytes(&actual);
 
     let expected = [

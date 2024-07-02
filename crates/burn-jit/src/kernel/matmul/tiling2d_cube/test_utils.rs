@@ -67,7 +67,7 @@ pub(crate) fn assert_equals<R: JitRuntime>(
 ) {
     let client = R::client(device);
 
-    let actual = client.read(output.binding()).read_sync().unwrap();
+    let actual = client.read(output.binding());
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual, expected);
