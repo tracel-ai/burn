@@ -35,14 +35,6 @@ impl<T> Comptime<T> {
     pub fn map_expand<R, F: Fn(T) -> R>(inner: T, closure: F) -> R {
         closure(inner)
     }
-
-    pub fn zip<R, F: Fn(T, T) -> R>(_comptime: Self, _comptime2: Self, _closure: F) -> Comptime<R> {
-        unexpanded!()
-    }
-
-    pub fn zip_expand<R, F: Fn(T, T) -> R>(inner1: T, inner2: T, closure: F) -> R {
-        closure(inner1, inner2)
-    }
 }
 
 impl<T: CubeType + Into<T::ExpandType>> Comptime<Option<T>> {

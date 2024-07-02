@@ -193,8 +193,6 @@ mod tests {
             [18., 36., 54., 72.],
         ]);
 
-        println!("{:?}", tensor_3.clone().into_data().as_slice::<f32>());
-        println!("{:?}", expected.clone().as_slice::<f64>());
         tensor_3.into_data().assert_eq(&expected, false);
     }
 
