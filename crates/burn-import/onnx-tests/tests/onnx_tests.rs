@@ -773,9 +773,10 @@ mod tests {
         let expected_scalar = TensorData::from([900f32]);
         let expected = TensorData::from([[[[900f32]]]]);
 
-        output_scalar.to_data().assert_eq(&expected_scalar, true);
-        output_tensor.to_data().assert_eq(&input.to_data(), true);
-        output_value.to_data().assert_eq(&expected, true);
+        // Tolerance of 0.001 since floating-point multiplication won't be perfect 
+        output_scalar.to_data().assert_approx_eq(&expected_scalar, 3);
+        output_tensor.to_data().assert_approx_eq(&input.to_data(), 3);
+        output_value.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
