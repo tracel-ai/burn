@@ -346,6 +346,12 @@ impl CudaCompiler {
             gpu::Operator::Floor(op) => Instruction::Floor(self.compile_unary(op)),
             gpu::Operator::Ceil(op) => Instruction::Ceil(self.compile_unary(op)),
             gpu::Operator::Remainder(_op) => todo!(),
+            gpu::Operator::Fma(op) => Instruction::Fma {
+                a: self.compile_variable(op.a),
+                b: self.compile_variable(op.b),
+                c: self.compile_variable(op.c),
+                out: self.compile_variable(op.out),
+            },
         }
     }
 

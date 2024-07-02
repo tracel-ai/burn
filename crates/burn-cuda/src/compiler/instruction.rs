@@ -27,6 +27,12 @@ pub enum Instruction {
     },
     Modulo(BinaryInstruction),
     Add(BinaryInstruction),
+    Fma {
+        a: Variable,
+        b: Variable,
+        c: Variable,
+        out: Variable,
+    },
     Div(BinaryInstruction),
     Mul(BinaryInstruction),
     Sub(BinaryInstruction),
@@ -246,7 +252,38 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                 ))
             }
             Instruction::Wrap(it) => f.write_fmt(format_args!("{it}")),
+            Instruction::Fma { a, b, c, out } => Fma::format(f, a, b, c, out),
             Instruction::Wmma(it) => f.write_fmt(format_args!("{it}")),
         }
+    }
+}
+
+struct Fma;
+
+impl Fma {
+    fn format(
+        f: &mut core::fmt::Formatter<'_>,
+        a: &Variable,
+        b: &Variable,
+        c: &Variable,
+        out: &Variable,
+    ) -> core::fmt::Result {
+        let num = match out.item() {
+            super::Item::Vec4(_) => 4,
+            super::Item::Vec3(_) => 3,
+            super::Item::Vec2(_) => 2,
+            super::Item::Scalar(_) => 1,
+        };
+
+        for i in 0..num {
+            let ai = a.index(i);
+            let bi = b.index(i);
+            let ci = c.index(i);
+            let outi = out.index(i);
+
+            f.write_fmt(format_args!("{outi} = fma({ai}, {bi}, {ci});\n"))?;
+        }
+
+        Ok(())
     }
 }

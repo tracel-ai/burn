@@ -26,6 +26,12 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Fma {
+        a: Variable,
+        b: Variable,
+        c: Variable,
+        out: Variable,
+    },
     If {
         cond: Variable,
         instructions: Vec<Instruction>,
@@ -238,6 +244,9 @@ impl Display for Instruction {
             }
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
+            }
+            Instruction::Fma { a, b, c, out } => {
+                f.write_fmt(format_args!("{out} = fma({a}, {b}, {c});\n"))
             }
             Instruction::Min { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = min({lhs}, {rhs});\n"))
