@@ -151,12 +151,7 @@ impl SmallMemoryPool {
     /// Finds a free slice that can contain the given size
     /// Returns the chunk's id and size.
     fn get_free_slice(&mut self, size: usize) -> Option<SliceHandle> {
-        let slice_id = self.find_free_slice();
-
-        let slice_id = match slice_id {
-            Some(val) => val,
-            None => return None,
-        };
+        let slice_id = self.find_free_slice()?;
 
         let slice = self.slices.get_mut(&slice_id).unwrap();
         let old_slice_size = slice.effective_size();

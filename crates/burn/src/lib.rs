@@ -73,7 +73,6 @@
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
 //!   - `openblas`: If supported, Openblas will be use
 //!   - `openblas-system`: If supported, Openblas installed on the system will be use
-//!   - `wasm-sync`: When targeting wasm, but want a sync API (won't work with WGPU)
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //! - Backend decorators

@@ -7,10 +7,10 @@ use burn::{
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
-        .expect("Config should exist for the model");
+        .expect("Config should exist for the model; run train first");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
-        .expect("Trained model should exist");
+        .expect("Trained model should exist; run train first");
 
     let model: Model<B> = config.model.init(&device).load_record(record);
 

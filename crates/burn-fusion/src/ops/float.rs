@@ -10,7 +10,7 @@ use crate::{
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     repr::*,
-    DType, Device, Distribution, Element, ElementConversion, Reader, Shape, TensorData,
+    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
 use std::{marker::PhantomData, ops::Range};
 
@@ -169,8 +169,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<TensorData> {
-        tensor.into_data::<B, D>()
+    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+        tensor.into_data::<B, D>().await
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -218,7 +218,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let stream = tensor.stream;
         let out = tensor
             .client
-            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
+            .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),

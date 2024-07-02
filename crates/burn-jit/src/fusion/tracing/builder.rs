@@ -484,6 +484,9 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                 },
+                Operation::CoopMma(_) => {
+                    // Nothing to do, should never impact read-write access to bindings.
+                }
             }
         }
 

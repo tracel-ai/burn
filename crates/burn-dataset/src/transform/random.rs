@@ -42,10 +42,7 @@ where
     I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
-        let index = match self.indices.get(index) {
-            Some(index) => index,
-            None => return None,
-        };
+        let index = self.indices.get(index)?;
         self.dataset.get(*index)
     }
 

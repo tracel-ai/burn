@@ -1,7 +1,8 @@
 use super::{shader::ComputeShader, Item, SharedMemory};
-use super::{LocalArray, Subgroup};
+use super::{ConstantShape, ConstantStride, LocalArray, Subgroup};
 use crate::compiler::wgsl;
 use burn_cube::ir as cube;
+use hashbrown::HashSet;
 
 /// Wgsl Compiler.
 #[derive(Clone, Default)]
@@ -14,14 +15,16 @@ pub struct WgslCompiler {
     workgroup_id: bool,
     rank: bool,
     id: bool,
-    stride: bool,
-    shape: bool,
     num_workgroups: bool,
     workgroup_id_no_axis: bool,
     workgroup_size_no_axis: bool,
     num_workgroup_no_axis: bool,
     shared_memories: Vec<SharedMemory>,
     local_arrays: Vec<LocalArray>,
+    shape: bool,
+    stride: bool,
+    constant_shapes: HashSet<ConstantShape>,
+    constant_strides: HashSet<ConstantStride>,
 }
 
 impl core::fmt::Debug for WgslCompiler {
@@ -54,12 +57,21 @@ impl WgslCompiler {
 
         let instructions = self.compile_scope(&mut value.body);
         let extensions = register_extensions(&instructions);
+
+        let mut constant_shapes = HashSet::new();
+        let mut constant_strides = HashSet::new();
+
+        core::mem::swap(&mut self.constant_shapes, &mut constant_shapes);
+        core::mem::swap(&mut self.constant_strides, &mut constant_strides);
+
         let body = wgsl::Body {
             instructions,
             rank: true,
             id: self.id,
             stride: self.stride,
             shape: self.shape,
+            constant_shapes,
+            constant_strides,
         };
 
         wgsl::ComputeShader {
@@ -241,6 +253,9 @@ impl WgslCompiler {
                 wgsl::Variable::NumWorkgroups
             }
             cube::Variable::SubcubeDim => wgsl::Variable::SubgroupSize,
+            cube::Variable::Matrix(_, _) => {
+                panic!("Cooperative matrix-multiply and accumulate not supported.")
+            }
         }
     }
 
@@ -277,6 +292,9 @@ impl WgslCompiler {
                 self.compile_synchronization(instructions, val)
             }
             cube::Operation::Subcube(op) => self.compile_subgroup(instructions, op),
+            cube::Operation::CoopMma(_) => {
+                panic!("Cooperative matrix-multiply and accumulate isn't supported on wgpu.")
+            }
         }
     }
 
@@ -420,28 +438,58 @@ impl WgslCompiler {
         match metadata {
             cube::Metadata::Stride { dim, var, out } => {
                 self.stride = true;
+
                 let position = match var {
                     cube::Variable::GlobalInputArray(idx, _) => idx as usize,
                     cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
-                wgsl::Instruction::Stride {
-                    dim: self.compile_variable(dim),
-                    position,
-                    out: self.compile_variable(out),
+
+                let dim = self.compile_variable(dim);
+                let out = self.compile_variable(out);
+
+                match dim {
+                    wgsl::Variable::ConstantScalar(val, _) => {
+                        let var = ConstantStride {
+                            position,
+                            dim: val as usize,
+                        };
+                        self.constant_strides.insert(var);
+
+                        wgsl::Instruction::Assign {
+                            input: wgsl::Variable::ConstantStride(var),
+                            out,
+                        }
+                    }
+                    _ => wgsl::Instruction::Stride { dim, position, out },
                 }
             }
             cube::Metadata::Shape { dim, var, out } => {
                 self.shape = true;
+
                 let position = match var {
                     cube::Variable::GlobalInputArray(idx, _) => idx as usize,
                     cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
-                    _ => panic!("Only Input and Output have a shape, got {:?}", var),
+                    _ => panic!("Only Input and Output have a shape, got: {:?}", var),
                 };
-                wgsl::Instruction::Shape {
-                    dim: self.compile_variable(dim),
-                    position,
-                    out: self.compile_variable(out),
+
+                let dim = self.compile_variable(dim);
+                let out = self.compile_variable(out);
+
+                match dim {
+                    wgsl::Variable::ConstantScalar(val, _) => {
+                        let var = ConstantShape {
+                            position,
+                            dim: val as usize,
+                        };
+                        self.constant_shapes.insert(var);
+
+                        wgsl::Instruction::Assign {
+                            input: wgsl::Variable::ConstantShape(var),
+                            out,
+                        }
+                    }
+                    _ => wgsl::Instruction::Shape { dim, position, out },
                 }
             }
             cube::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {

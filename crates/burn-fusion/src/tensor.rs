@@ -1,7 +1,7 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Reader, Shape, TensorData,
+    DType, Shape, TensorData,
 };
 use std::sync::Arc;
 
@@ -108,7 +108,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) fn into_data<B, const D: usize>(self) -> Reader<TensorData>
+    pub(crate) async fn into_data<B, const D: usize>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -116,9 +116,10 @@ impl<R: FusionRuntime> FusionTensor<R> {
         self.client
             .clone()
             .read_tensor_float::<B, D>(self.into_description(), id)
+            .await
     }
 
-    pub(crate) fn int_into_data<B, const D: usize>(self) -> Reader<TensorData>
+    pub(crate) async fn int_into_data<B, const D: usize>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -126,9 +127,10 @@ impl<R: FusionRuntime> FusionTensor<R> {
         self.client
             .clone()
             .read_tensor_int::<B, D>(self.into_description(), id)
+            .await
     }
 
-    pub(crate) fn bool_into_data<B, const D: usize>(self) -> Reader<TensorData>
+    pub(crate) async fn bool_into_data<B, const D: usize>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -136,6 +138,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         self.client
             .clone()
             .read_tensor_bool::<B, D>(self.into_description(), id)
+            .await
     }
 }
 
