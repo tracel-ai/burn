@@ -23,7 +23,7 @@ pub fn launch<R: Runtime>(device: &R::Device) {
     gelu_launch::<F32, R>(
         client.clone(),
         CubeCount::new(1, 1, 1),
-        KernelSettings::default(),
+        CubeDim::default(),
         ArrayHandle::new(&input_handle, input.len()),
         ArrayHandle::new(&output_handle, input.len()),
     );

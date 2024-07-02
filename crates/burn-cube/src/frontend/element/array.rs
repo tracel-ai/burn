@@ -2,12 +2,15 @@ use std::marker::PhantomData;
 
 use crate::{
     compute::{KernelBuilder, KernelLauncher},
-    frontend::{CubeType, ExpandElement},
+    frontend::CubeType,
     ir::{Item, Vectorization},
     unexpanded, Runtime,
 };
 
-use super::{ArgSettings, CubePrimitive, LaunchArg, LaunchArgExpand, TensorHandle, UInt};
+use super::{
+    ArgSettings, CubePrimitive, ExpandElementTyped, Init, LaunchArg, LaunchArgExpand, TensorArg,
+    TensorHandle, UInt,
+};
 
 #[derive(new)]
 pub struct Array<E> {
@@ -15,16 +18,18 @@ pub struct Array<E> {
 }
 
 impl<C: CubeType> CubeType for Array<C> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Array<C>>;
 }
 
 impl<C: CubeType> CubeType for &Array<C> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Array<C>>;
 }
 
 impl<C: CubeType> CubeType for &mut Array<C> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Array<C>>;
 }
+
+impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {}
 
 impl<E: CubeType> Array<E> {
     /// Obtain the array length of input
@@ -38,14 +43,24 @@ impl<C: CubePrimitive> LaunchArg for Array<C> {
 }
 
 impl<C: CubePrimitive> LaunchArgExpand for &Array<C> {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.input_array(Item::vectorized(C::as_elem(), vectorization))
+    fn expand(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElementTyped<Array<C>> {
+        builder
+            .input_array(Item::vectorized(C::as_elem(), vectorization))
+            .into()
     }
 }
 
 impl<C: CubePrimitive> LaunchArgExpand for &mut Array<C> {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.output_array(Item::vectorized(C::as_elem(), vectorization))
+    fn expand(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElementTyped<Array<C>> {
+        builder
+            .output_array(Item::vectorized(C::as_elem(), vectorization))
+            .into()
     }
 }
 

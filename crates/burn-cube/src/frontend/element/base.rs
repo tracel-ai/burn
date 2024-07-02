@@ -1,11 +1,13 @@
+use std::marker::PhantomData;
+
 use crate::{
     ir::{Operator, Variable, Vectorization},
     prelude::{init_expand, CubeContext, KernelBuilder, KernelLauncher},
-    Runtime,
+    KernelSettings, Runtime,
 };
 use alloc::rc::Rc;
 
-use super::UInt;
+use super::{UInt, Vectorized};
 
 /// Types used in a cube function must implement this trait
 ///
@@ -23,8 +25,10 @@ pub trait CubeType {
     type ExpandType: Clone + Init;
 }
 
-pub trait Init {
-    fn init(self, context: &mut CubeContext) -> Self;
+pub trait Init: Sized {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
 }
 
 /// Defines how a [launch argument](LaunchArg) can be expanded.
@@ -51,6 +55,12 @@ pub trait LaunchArg: CubeType {
 pub trait ArgSettings<R: Runtime>: Send + Sync {
     /// Register the information to the [KernelLauncher].
     fn register(&self, launcher: &mut KernelLauncher<R>);
+    fn configure_input(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+        settings
+    }
+    fn configure_output(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+        settings
+    }
 }
 
 /// Reference to a JIT variable
@@ -60,6 +70,49 @@ pub enum ExpandElement {
     Managed(Rc<Variable>),
     /// Variable not kept in the variable pool.
     Plain(Variable),
+}
+
+#[derive(new)]
+pub struct ExpandElementTyped<T> {
+    pub(crate) expand: ExpandElement,
+    _type: PhantomData<T>,
+}
+
+impl<T> Vectorized for ExpandElementTyped<T> {
+    fn vectorization_factor(&self) -> UInt {
+        self.expand.vectorization_factor()
+    }
+
+    fn vectorize(self, factor: UInt) -> Self {
+        Self {
+            expand: self.expand.vectorize(factor),
+            _type: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for ExpandElementTyped<T> {
+    fn clone(&self) -> Self {
+        Self {
+            expand: self.expand.clone(),
+            _type: PhantomData,
+        }
+    }
+}
+
+impl<T> From<ExpandElement> for ExpandElementTyped<T> {
+    fn from(expand: ExpandElement) -> Self {
+        Self {
+            expand,
+            _type: PhantomData,
+        }
+    }
+}
+
+impl<T> From<ExpandElementTyped<T>> for ExpandElement {
+    fn from(value: ExpandElementTyped<T>) -> Self {
+        value.expand
+    }
 }
 
 impl ExpandElement {
@@ -114,6 +167,8 @@ macro_rules! impl_init_for {
         )*
     };
 }
+
+pub(crate) use impl_init_for;
 
 // Add all types used within comptime
 impl_init_for!(u32, bool, UInt);

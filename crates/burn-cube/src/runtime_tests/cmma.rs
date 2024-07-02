@@ -62,13 +62,13 @@ pub fn test_simple_1<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     kernel_simple_1_launch::<R>(
         client.clone(),
         CubeCount::new(1, 1, 1),
-        KernelSettings::default().cube_dim(CubeDim::new(16, 16, 1)),
+        CubeDim::new(16, 16, 1),
         ArrayHandle::new(&lhs, 256),
         ArrayHandle::new(&rhs, 256),
         ArrayHandle::new(&out, 256),
     );
 
-    let actual = client.read(out.binding()).read_sync().unwrap();
+    let actual = client.read(out.binding());
     let actual = f32::from_bytes(&actual);
 
     let expected = [

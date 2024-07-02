@@ -5,7 +5,7 @@ use crate::{
     FloatElement, JitRuntime,
 };
 use burn_cube::ir::KernelDefinition;
-use burn_cube::{frontend::TensorHandle, KernelSettings};
+use burn_cube::{frontend::TensorArg, KernelSettings};
 
 use super::simple_launch_options;
 use burn_cube::prelude::*;
@@ -94,8 +94,8 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
+    cube_dim_x: usize,
+    cube_dim_y: usize,
 ) -> JitTensor<R, E, D> {
     lhs.assert_is_on_same_device(&rhs);
     let lhs = into_contiguous(lhs);
@@ -107,26 +107,32 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,
-        workgroup_size_x,
-        workgroup_size_y,
+        cube_dim_x,
+        cube_dim_y,
     );
 
     let vectorization_factor = match lhs.shape.dims[D - 1] % 4 == 0 {
         true => 4,
         false => 1,
     };
-    let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization_factor)
-        .vectorize_input(1, vectorization_factor)
-        .vectorize_output(0, 1);
 
     matmul_kernel_launch::<E::FloatPrimitive, R>(
         lhs.client,
         workgroup,
-        settings,
-        TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-        TensorHandle::new(&rhs.handle, &rhs.strides, &rhs_original_shape.dims),
-        TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
+        CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
+        TensorArg::vectorized(
+            vectorization_factor,
+            &lhs.handle,
+            &lhs.strides,
+            &lhs.shape.dims,
+        ),
+        TensorArg::vectorized(
+            vectorization_factor,
+            &rhs.handle,
+            &rhs.strides,
+            &rhs_original_shape.dims,
+        ),
+        TensorArg::new(&out.handle, &out.strides, &out.shape.dims),
         Some(UInt::new(D as u32 - 2)),
     );
 

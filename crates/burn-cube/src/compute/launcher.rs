@@ -1,6 +1,7 @@
 use crate::compute::{CubeCount, KernelTask};
 use crate::ir::{Elem, FloatKind, IntKind};
 use crate::prelude::ArrayHandle;
+use crate::KernelSettings;
 use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, Kernel, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
@@ -18,6 +19,7 @@ pub struct KernelLauncher<R: Runtime> {
     scalar_i64: ScalarState<i64>,
     scalar_i32: ScalarState<i32>,
     scalar_order: Vec<Elem>,
+    pub settings: KernelSettings,
 }
 
 impl<R: Runtime> KernelLauncher<R> {
@@ -329,6 +331,7 @@ impl<R: Runtime> Default for KernelLauncher<R> {
             scalar_i64: ScalarState::Empty,
             scalar_i32: ScalarState::Empty,
             scalar_order: Vec::new(),
+            settings: Default::default(),
         }
     }
 }

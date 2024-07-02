@@ -139,32 +139,193 @@ impl Codegen {
         }
     }
 
-    fn gen_compile_impl(&self, expand: &Ident) -> TokenStream {
-        let ident = Ident::new(&self.name, Span::call_site());
-        let generics = add_runtime(self.generics.clone());
-        let (impl_gen, ty_gen, where_gen) = generics.split_for_impl();
+    fn gen_settings(&self) -> TokenStream {
+        let mut variables = quote::quote! {};
+
+        for (pos, (ident, _ty)) in self.state_inputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                settings = #ident.configure_input(#pos, settings);
+            });
+        }
+
+        for (pos, (ident, _ty)) in self.state_outputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                settings = #ident.configure_output(#pos, settings);
+            });
+        }
+
+        quote::quote! {
+            let mut settings = KernelSettings::default();
+            settings = settings.cube_dim(cube_dim);
+            #variables
+        }
+    }
+
+    fn gen_register_input(&self) -> TokenStream {
+        let generics = &self.generics;
+        let mut variables = quote::quote! {};
+
+        for (pos, (_ident, ty)) in self.state_inputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                #pos => std::sync::Arc::new(<&#ty as LaunchArgExpand>::expand(builder, settings.vectorization_input(#pos))),
+            });
+        }
+
+        quote::quote! {
+            #[warn(unused_variables)]
+            fn register_input #generics(
+                builder: &mut KernelBuilder,
+                settings: &KernelSettings,
+                position: usize,
+            ) -> std::sync::Arc<dyn core::any::Any> {
+                match position {
+                    #variables
+                    _ => panic!("Input {position} is invalid."),
+                }
+            }
+        }
+    }
+
+    fn gen_register_output(&self) -> TokenStream {
+        let generics = &self.generics;
+        let mut variables = quote::quote! {};
+
+        for (pos, (_ident, ty)) in self.state_outputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                #pos => std::sync::Arc::new(<&mut #ty as LaunchArgExpand>::expand(builder, settings.vectorization_output(#pos))),
+            });
+        }
+
+        quote::quote! {
+            #[warn(unused_variables)]
+            fn register_output #generics (
+                builder: &mut KernelBuilder,
+                settings: &KernelSettings,
+                position: usize,
+            ) -> std::sync::Arc<dyn core::any::Any> {
+                match position {
+                    #variables
+                    _ => panic!("Input {position} is invalid."),
+                }
+            }
+        }
+    }
+
+    fn gen_define_impl(&self, expand: &Ident) -> TokenStream {
+        let mut expand_args = quote::quote! { &mut builder.context, };
 
         let mut variables = quote::quote! {};
 
         for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <&#ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_input(#pos));
+                let #ident: &<&#ty as CubeType>::ExpandType = inputs.get(&#pos).unwrap().downcast_ref().unwrap();
             });
         }
 
         for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident = <&mut #ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_output(#pos));
+                let #ident: &<&mut #ty as CubeType>::ExpandType = outputs.get(&#pos).unwrap().downcast_ref().unwrap();
             });
         }
 
-        let mut expand_args = quote::quote! { &mut builder.context, };
-
         for arg in self.state_args.iter() {
             expand_args.extend(quote::quote! {
-                #arg,
+                #arg.clone(),
             })
         }
+
+        let expand_func = match self.generics.params.is_empty() {
+            true => quote::quote! { #expand },
+            false => {
+                let generics = self.generics.split_for_impl().1;
+                quote::quote! { #expand::#generics }
+            }
+        };
+
+        quote::quote! {
+            #variables
+            #expand_func(#expand_args);
+            builder.build(self.settings.clone())
+        }
+    }
+
+    fn gen_define_args(&self) -> TokenStream {
+        let num_inputs = self.state_inputs.len();
+        let num_outputs = self.state_outputs.len();
+
+        let register_input = self.gen_register_input();
+        let register_output = self.gen_register_output();
+
+        let (register_input_call, register_output_call) = match self.generics.params.is_empty() {
+            true => (
+                quote::quote! { register_input },
+                quote::quote! { register_output },
+            ),
+            false => {
+                let generics = self.generics.split_for_impl().1;
+
+                (
+                    quote::quote! { register_input::#generics },
+                    quote::quote! { register_output::#generics },
+                )
+            }
+        };
+
+        let mut variables = quote::quote! {};
+
+        for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                let #ident = <&#ty as CubeType>::ExpandType =
+                    *inputs.remove(&#pos).unwrap().downcast().unwrap();
+            });
+        }
+
+        for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
+            variables.extend(quote::quote! {
+                let #ident = <&mut #ty as CubeType>::ExpandType =
+                    *outputs.remove(&#pos).unwrap().downcast().unwrap();
+            });
+        }
+
+        quote::quote! {
+            let mut builder = KernelBuilder::default();
+
+            let mut inputs: std::collections::BTreeMap<usize, std::sync::Arc<dyn core::any::Any>> = std::collections::BTreeMap::new();
+            let mut outputs: std::collections::BTreeMap<usize, std::sync::Arc<dyn core::any::Any>> = std::collections::BTreeMap::new();
+
+            for mapping in self.settings.mappings.iter() {
+                if !inputs.contains_key(&mapping.pos_input) {
+                    inputs.insert(
+                        mapping.pos_input,
+                        #register_input_call(&mut builder, &self.settings, mapping.pos_input),
+                    );
+                }
+
+                let input = inputs.get(&mapping.pos_input).unwrap();
+                outputs.insert(mapping.pos_output, input.clone());
+            }
+
+            for i in 0..#num_inputs {
+                if !inputs.contains_key(&i) {
+                    inputs.insert(i, #register_input_call(&mut builder, &self.settings, i));
+                }
+            }
+
+            for i in 0..#num_outputs {
+                if !outputs.contains_key(&i) {
+                    outputs.insert(i, #register_output_call(&mut builder, &self.settings, i));
+                }
+            }
+
+            #register_input
+            #register_output
+        }
+    }
+
+    fn gen_compile_impl(&self, expand: &Ident) -> TokenStream {
+        let ident = Ident::new(&self.name, Span::call_site());
+        let generics = add_runtime(self.generics.clone());
+        let (impl_gen, ty_gen, where_gen) = generics.split_for_impl();
 
         let mut format_str = "{:?}-{}".to_string();
         for _ in 0..self.state_comptimes.len() {
@@ -177,24 +338,14 @@ impl Codegen {
             format_args.extend(quote::quote! { self.#ident, });
         }
 
-        let expand_func = match self.generics.params.is_empty() {
-            true => quote::quote! { #expand },
-            false => {
-                let generics = self.generics.split_for_impl().1;
-                quote::quote! { #expand::#generics }
-            }
-        };
+        let define_args = self.gen_define_args();
+        let define_impl = self.gen_define_impl(expand);
 
         quote::quote! {
             impl #impl_gen Kernel for #ident #ty_gen #where_gen {
                 fn define(&self) -> KernelDefinition {
-                    let mut builder = KernelBuilder::default();
-
-                    #variables
-
-                    #expand_func(#expand_args);
-
-                    builder.build(self.settings.clone())
+                    #define_args
+                    #define_impl
                 }
 
                 fn id(&self) -> String {
@@ -203,6 +354,71 @@ impl Codegen {
             }
         }
     }
+
+    // fn gen_compile_impl_old(&self, expand: &Ident) -> TokenStream {
+    //     let ident = Ident::new(&self.name, Span::call_site());
+    //     let generics = add_runtime(self.generics.clone());
+    //     let (impl_gen, ty_gen, where_gen) = generics.split_for_impl();
+
+    //     let mut variables = quote::quote! {};
+
+    //     for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
+    //         variables.extend(quote::quote! {
+    //             let #ident = <&#ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_input(#pos));
+    //         });
+    //     }
+
+    //     for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
+    //         variables.extend(quote::quote! {
+    //             let #ident = <&mut #ty as LaunchArgExpand>::expand(&mut builder, self.settings.vectorization_output(#pos));
+    //         });
+    //     }
+
+    //     let mut expand_args = quote::quote! { &mut builder.context, };
+
+    //     for arg in self.state_args.iter() {
+    //         expand_args.extend(quote::quote! {
+    //             #arg,
+    //         })
+    //     }
+
+    //     let mut format_str = "{:?}-{}".to_string();
+    //     for _ in 0..self.state_comptimes.len() {
+    //         format_str.push_str("-{:?}");
+    //     }
+
+    //     let mut format_args = quote::quote! { core::any::TypeId::of::<Self>(), self.settings, };
+
+    //     for (_, ident) in self.state_comptimes.iter() {
+    //         format_args.extend(quote::quote! { self.#ident, });
+    //     }
+
+    //     let expand_func = match self.generics.params.is_empty() {
+    //         true => quote::quote! { #expand },
+    //         false => {
+    //             let generics = self.generics.split_for_impl().1;
+    //             quote::quote! { #expand::#generics }
+    //         }
+    //     };
+
+    //     quote::quote! {
+    //         impl #impl_gen Kernel for #ident #ty_gen #where_gen {
+    //             fn define(&self) -> KernelDefinition {
+    //                 let mut builder = KernelBuilder::default();
+
+    //                 #variables
+
+    //                 #expand_func(#expand_args);
+
+    //                 builder.build(self.settings.clone())
+    //             }
+
+    //             fn id(&self) -> String {
+    //                 format!(#format_str, #format_args)
+    //             }
+    //         }
+    //     }
+    // }
 
     fn phantoms(&self, generics: &Generics, declaration: bool) -> TokenStream {
         let mut phantoms = quote::quote! {};
@@ -236,6 +452,8 @@ impl Codegen {
         let phantoms = self.phantoms(&generics, false);
 
         let mut comptimes = quote::quote! {};
+        let settings = self.gen_settings();
+
         let mut body = quote::quote! {
             let mut launcher = KernelLauncher::<R>::default();
         };
@@ -267,6 +485,8 @@ impl Codegen {
         };
 
         quote::quote! {
+            #settings
+
             let kernel = #kernel;
 
             #body
@@ -298,7 +518,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
             cube_count: CubeCount,
-            settings: KernelSettings,
+            cube_dim: CubeDim,
             #inputs
         ) -> #output {
             #body;

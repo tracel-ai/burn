@@ -1,15 +1,16 @@
+use super::{ExpandElementTyped, Init, LaunchArgExpand};
 use crate::{
     frontend::{
         indexation::Index, ArgSettings, CubeContext, CubePrimitive, CubeType, ExpandElement, UInt,
     },
     ir::{Elem, Item, Metadata, Variable, Vectorization},
     prelude::{KernelBuilder, KernelLauncher},
-    unexpanded, LaunchArg, Runtime,
+    unexpanded, KernelSettings, LaunchArg, Runtime,
 };
 use std::marker::PhantomData;
 
-use super::LaunchArgExpand;
-
+/// The tensor type is similar to the [array type](crate::prelude::Array), however it comes with more
+/// metadata such as [stride](Tensor::stride) and [shape](Tensor::shape).
 #[derive(new)]
 pub struct Tensor<T: CubeType> {
     pub(crate) factor: u8,
@@ -17,31 +18,43 @@ pub struct Tensor<T: CubeType> {
 }
 
 impl<T: CubeType> CubeType for Tensor<T> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Tensor<T>>;
 }
 
 impl<T: CubeType> CubeType for &Tensor<T> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Tensor<T>>;
 }
 
 impl<T: CubeType> CubeType for &mut Tensor<T> {
-    type ExpandType = ExpandElement;
+    type ExpandType = ExpandElementTyped<Tensor<T>>;
 }
 
+impl<T: CubeType> Init for ExpandElementTyped<Tensor<T>> {}
+
 impl<C: CubePrimitive> LaunchArgExpand for &Tensor<C> {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.input_array(Item::vectorized(C::as_elem(), vectorization))
+    fn expand(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElementTyped<Tensor<C>> {
+        builder
+            .input_array(Item::vectorized(C::as_elem(), vectorization))
+            .into()
     }
 }
 
 impl<C: CubePrimitive> LaunchArgExpand for &mut Tensor<C> {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        builder.output_array(Item::vectorized(C::as_elem(), vectorization))
+    fn expand(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> ExpandElementTyped<Tensor<C>> {
+        builder
+            .output_array(Item::vectorized(C::as_elem(), vectorization))
+            .into()
     }
 }
 
 impl<C: CubePrimitive> LaunchArg for Tensor<C> {
-    type RuntimeArg<'a, R: Runtime> = TensorHandle<'a, R>;
+    type RuntimeArg<'a, R: Runtime> = TensorArg<'a, R>;
 }
 
 #[derive(new)]
@@ -51,11 +64,97 @@ pub struct TensorHandle<'a, R: Runtime> {
     pub shape: &'a [usize],
 }
 
-impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
-    fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.register_tensor(self)
+pub enum TensorArg<'a, R: Runtime> {
+    Owned {
+        handle: &'a burn_compute::server::Handle<R::Server>,
+        strides: &'a [usize],
+        shape: &'a [usize],
+        vectorization_factor: u8,
+    },
+    Alias {
+        input_pos: usize,
+    },
+}
+
+impl<'a, R: Runtime> TensorArg<'a, R> {
+    pub fn new(
+        handle: &'a burn_compute::server::Handle<R::Server>,
+        strides: &'a [usize],
+        shape: &'a [usize],
+    ) -> Self {
+        Self::Owned {
+            handle,
+            strides,
+            shape,
+            vectorization_factor: 1,
+        }
+    }
+    pub fn vectorized(
+        factor: u8,
+        handle: &'a burn_compute::server::Handle<R::Server>,
+        strides: &'a [usize],
+        shape: &'a [usize],
+    ) -> Self {
+        Self::Owned {
+            handle,
+            strides,
+            shape,
+            vectorization_factor: factor,
+        }
     }
 }
+
+impl<'a, R: Runtime> ArgSettings<R> for TensorArg<'a, R> {
+    fn register(&self, launcher: &mut KernelLauncher<R>) {
+        if let TensorArg::Owned {
+            handle,
+            strides,
+            shape,
+            vectorization_factor: _,
+        } = self
+        {
+            launcher.register_tensor(&TensorHandle::new(&handle, &strides, &shape))
+        }
+    }
+
+    fn configure_input(&self, position: usize, settings: KernelSettings) -> KernelSettings {
+        match self {
+            TensorArg::Owned {
+                handle: _,
+                strides: _,
+                shape: _,
+                vectorization_factor,
+            } => settings.vectorize_input(position, *vectorization_factor),
+            TensorArg::Alias { input_pos: _ } => {
+                panic!("Not yet supported, only output can be aliased for now.");
+            }
+        }
+    }
+
+    fn configure_output(&self, position: usize, mut settings: KernelSettings) -> KernelSettings {
+        match self {
+            TensorArg::Owned {
+                handle: _,
+                strides: _,
+                shape: _,
+                vectorization_factor,
+            } => settings.vectorize_output(position, *vectorization_factor),
+            TensorArg::Alias { input_pos } => {
+                settings.mappings.push(crate::InplaceMapping {
+                    pos_input: *input_pos,
+                    pos_output: position,
+                });
+                settings
+            }
+        }
+    }
+}
+
+// impl<'a, R: Runtime> ArgSettings<R> for TensorHandle<'a, R> {
+//     fn register(&self, launcher: &mut KernelLauncher<R>) {
+//         launcher.register_tensor(self)
+//     }
+// }
 
 impl<T: CubeType> Tensor<T> {
     /// Obtain the stride of input at dimension dim
@@ -83,13 +182,13 @@ impl<T: CubeType> Tensor<T> {
     }
 }
 
-impl ExpandElement {
+impl<T> ExpandElementTyped<T> {
     // Expanded version of Tensor::stride
     pub fn stride_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
             dim: dim.value(),
-            var: self.into(),
+            var: self.expand.into(),
             out: out.clone().into(),
         });
         out
@@ -100,7 +199,7 @@ impl ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
             dim: dim.value(),
-            var: self.into(),
+            var: self.expand.into(),
             out: out.clone().into(),
         });
         out
@@ -110,7 +209,7 @@ impl ExpandElement {
     pub fn len_expand(self, context: &mut CubeContext) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::ArrayLength {
-            var: self.into(),
+            var: self.expand.into(),
             out: out.clone().into(),
         });
         out
