@@ -3,7 +3,7 @@ use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
-use super::protos::TensorProto;
+use crate::protos::TensorProto;
 
 pub type Dim = usize;
 pub type Shape = Vec<Dim>;
@@ -241,7 +241,7 @@ impl PartialEq for Argument {
 }
 
 /// The list of supported node types (ONNX operators and some extra ones to map easily to Burn's ops)
-/// Refer: https://github.com/onnx/onnx/blob/main/docs/Operators.md
+/// Refer: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,
@@ -444,7 +444,7 @@ pub enum NodeType {
 }
 
 /// Truncate the vector display for debug display
-fn trunc<T: fmt::Display>(v: &Vec<T>) -> String {
+fn trunc<T: fmt::Display>(v: &[T]) -> String {
     const BEGIN_INDEX: usize = 0;
     const MAX_LEN: usize = 5;
     let mut s = String::new();

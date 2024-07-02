@@ -1,6 +1,6 @@
 use std::str::{from_utf8, FromStr};
 
-use crate::onnx::ir::TensorType;
+use crate::ir::TensorType;
 
 use super::from_onnx::GraphData;
 use super::ir::Dim;

@@ -1,0 +1,31 @@
+[package]
+authors = [
+    "Dilshod Tadjibaev (@antimora)",
+    "Nathaniel Simard (@nathanielsimard)",
+]
+description = "Library for parsing ONNX models"
+edition.workspace = true
+license.workspace = true
+name = "onnx-ir"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir"
+version.workspace = true
+
+
+[dependencies]
+bytemuck = { workspace = true }
+half = { workspace = true }
+log = { workspace = true }
+protobuf = { workspace = true, features = ["with-bytes"] }
+regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+
+
+[build-dependencies]
+protobuf-codegen = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+rstest = { workspace = true }
