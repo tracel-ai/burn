@@ -1,7 +1,7 @@
 mod backward;
 mod forward;
 
-use burn::tensor::{activation, Tensor};
+use burn::tensor::{activation, Tensor, TensorPrimitive};
 
 /// We use a type alias for better readability.
 pub type FloatTensor<B, const D: usize> =
@@ -26,12 +26,12 @@ pub fn matmul_add_relu_custom<B: Backend>(
     bias: Tensor<B, 3>,
 ) -> Tensor<B, 3> {
     let output = B::fused_matmul_add_relu(
-        lhs.into_primitive(),
-        rhs.into_primitive(),
-        bias.into_primitive(),
+        lhs.into_primitive().tensor(),
+        rhs.into_primitive().tensor(),
+        bias.into_primitive().tensor(),
     );
 
-    Tensor::from_primitive(output)
+    Tensor::from_primitive(TensorPrimitive::Float(output))
 }
 
 /// We define a reference implementation using basic tensor operations.

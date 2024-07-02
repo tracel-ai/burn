@@ -6,6 +6,7 @@ mod reduction {
     };
     use burn_tensor::{
         backend::Backend, ops::IntTensorOps, Distribution, Int, Shape, Tensor, TensorData,
+        TensorPrimitive,
     };
 
     #[test]
@@ -16,11 +17,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::Naive,
-        ));
+        )));
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -34,11 +40,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(prod_dim::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(prod_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::Naive,
-        ));
+        )));
         let val_ref = tensor_ref.prod_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -54,7 +65,7 @@ mod reduction {
 
         let val =
             Tensor::<TestBackend, 2, Int>::from_primitive(argmin::<TestRuntime, f32, i32, 2>(
-                tensor.into_primitive(),
+                tensor.into_primitive().tensor(),
                 reduce_dim,
                 ReduceStrategy::Naive,
             ));
@@ -73,7 +84,7 @@ mod reduction {
 
         let val =
             Tensor::<TestBackend, 2, Int>::from_primitive(argmax::<TestRuntime, f32, i32, 2>(
-                tensor.into_primitive(),
+                tensor.into_primitive().tensor(),
                 reduce_dim,
                 ReduceStrategy::Naive,
             ));
@@ -119,11 +130,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 0;
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(sum_dim::<TestRuntime, f32, f32, 1>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            1,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -137,11 +153,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -155,11 +176,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -176,11 +202,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 3>::from_primitive(sum_dim::<TestRuntime, f32, f32, 3>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            3,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -194,11 +225,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 0;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(mean_dim::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(mean_dim::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.mean_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -212,11 +248,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(argmin::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(argmin::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.argmin(reduce_dim);
 
         val_ref.into_data().assert_eq(&val.into_data(), false);
@@ -233,11 +274,16 @@ mod reduction {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(argmax::<TestRuntime, f32, f32, 2>(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(argmax::<
+            TestRuntime,
+            f32,
+            f32,
+            2,
+        >(
+            tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
-        ));
+        )));
         let val_ref = tensor_ref.argmax(reduce_dim);
 
         val_ref.into_data().assert_eq(&val.into_data(), false);
@@ -250,10 +296,10 @@ mod reduction {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(sum(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(sum(
+            tensor.into_primitive().tensor(),
             ReduceStrategy::default(),
-        ));
+        )));
         let val_ref = tensor_ref.sum();
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -266,10 +312,10 @@ mod reduction {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(prod(
-            tensor.into_primitive(),
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(prod(
+            tensor.into_primitive().tensor(),
             ReduceStrategy::default(),
-        ));
+        )));
         let val_ref = tensor_ref.prod();
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
@@ -282,7 +328,7 @@ mod reduction {
 
         let val_shared =
             Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, f32, i32, 1>(
-                tensor.into_primitive(),
+                tensor.into_primitive().tensor(),
                 0,
                 ReduceStrategy::SharedMemory,
             ));
@@ -303,7 +349,7 @@ mod reduction {
 
         let val_shared =
             Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, f32, i32, 1>(
-                tensor.into_primitive(),
+                tensor.into_primitive().tensor(),
                 0,
                 ReduceStrategy::SharedMemory,
             ));

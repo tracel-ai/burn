@@ -92,6 +92,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
 
+    // NOTE: candle  does not implement `WithDType` for i8
+    type QuantizedTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+
     fn ad_enabled() -> bool {
         false
     }

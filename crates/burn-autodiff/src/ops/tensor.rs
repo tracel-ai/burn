@@ -17,7 +17,7 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Device, ElementConversion, Shape, Tensor, TensorData,
+    Device, ElementConversion, Shape, Tensor, TensorData, TensorPrimitive,
 };
 
 use super::maxmin::MaxMinDim;
@@ -1446,10 +1446,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let ones = B::float_ones(shape, &B::float_device(&grad));
                     let val = B::float_mul_scalar(ones, val.elem());
 
-                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
-                    let val: Tensor<B, D> = Tensor::from_primitive(val);
+                    let grad: Tensor<B, 1> = Tensor::from_primitive(TensorPrimitive::Float(grad));
+                    let val: Tensor<B, D> = Tensor::from_primitive(TensorPrimitive::Float(val));
 
-                    val.mul(grad.unsqueeze()).into_primitive()
+                    val.mul(grad.unsqueeze()).into_primitive().tensor()
                 });
             }
         }
@@ -1479,10 +1479,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
                     let val = B::float_ones(ops.state, &B::float_device(&grad));
 
-                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
-                    let val: Tensor<B, D> = Tensor::from_primitive(val);
+                    let grad: Tensor<B, 1> = Tensor::from_primitive(TensorPrimitive::Float(grad));
+                    let val: Tensor<B, D> = Tensor::from_primitive(TensorPrimitive::Float(val));
 
-                    val.mul(grad.unsqueeze()).into_primitive()
+                    val.mul(grad.unsqueeze()).into_primitive().tensor()
                 });
             }
         }

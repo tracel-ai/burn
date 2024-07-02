@@ -1,24 +1,19 @@
-use burn_common::reader::Reader;
+use crate::{backend::Backend, QuantizationStrategy};
 
-use crate::{backend::QuantizationBackend, QuantizationStrategy, TensorData};
+use super::{FloatTensor, QuantizedTensor};
 
-/// Quantized Tensor operations API, see [tensor](crate::Tensor) and [quantized tensor][crate::QTensor]
+/// Quantized Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
-pub trait QTensorOps<B: QuantizationBackend> {
+pub trait QTensorOps<B: Backend> {
     /// Convert the tensor to a lower precision data type based on the quantization strategy.
     fn quantize<const D: usize>(
-        tensor: B::FloatTensorPrimitive<D>,
+        tensor: FloatTensor<B, D>,
         strategy: &QuantizationStrategy,
-    ) -> B::QuantizedTensorPrimitive<D>;
+    ) -> QuantizedTensor<B, D>;
 
     /// Convert the tensor back to a higher precision data type based on the quantization strategy.
     fn dequantize<const D: usize>(
-        tensor: B::QuantizedTensorPrimitive<D>,
+        tensor: QuantizedTensor<B, D>,
         strategy: &QuantizationStrategy,
-    ) -> B::FloatTensorPrimitive<D>;
-
-    /// Returns the data of the quantized tensor.
-    fn quantized_into_data<const D: usize>(
-        tensor: B::QuantizedTensorPrimitive<D>,
-    ) -> Reader<TensorData>;
+    ) -> FloatTensor<B, D>;
 }

@@ -2,7 +2,7 @@ use crate::PrecisionBridge;
 
 use super::element::TchElement;
 use super::TchTensor;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps, QuantizationBackend, SyncType};
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncType};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
 
@@ -102,6 +102,8 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
+    type QuantizedTensorPrimitive<const D: usize> = TchTensor<i8, D>;
+
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);
     }
@@ -131,8 +133,4 @@ impl<E: TchElement> Backend for LibTorch<E> {
             }
         }
     }
-}
-
-impl<E: TchElement> QuantizationBackend for LibTorch<E> {
-    type QuantizedTensorPrimitive<const D: usize> = TchTensor<i8, D>;
 }

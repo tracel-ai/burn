@@ -17,8 +17,8 @@ use serde::{Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::Element;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
+use crate::{Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1666,22 +1666,28 @@ impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::float_empty(shape, device)
+        TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
-        B::float_shape(tensor)
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_shape(tensor),
+            TensorPrimitive::QFloat {
+                tensor: _tensor,
+                strategy: _strategy,
+            } => todo!(), // TODO: B::quantized_shape()
+        }
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::float_reshape(tensor, shape)
+        TensorPrimitive::Float(B::float_reshape(tensor.tensor(), shape))
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::float_transpose(tensor)
+        TensorPrimitive::Float(B::float_transpose(tensor.tensor()))
     }
 
     fn swap_dims<const D: usize>(
@@ -1690,14 +1696,14 @@ impl<B: Backend> BasicOps<B> for Float {
         dim2: usize,
     ) -> Self::Primitive<D> {
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        B::float_swap_dims(tensor, dim1, dim2)
+        TensorPrimitive::Float(B::float_swap_dims(tensor.tensor(), dim1, dim2))
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::float_slice(tensor, ranges)
+        TensorPrimitive::Float(B::float_slice(tensor.tensor(), ranges))
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -1705,26 +1711,36 @@ impl<B: Backend> BasicOps<B> for Float {
         ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::float_slice_assign(tensor, ranges, value)
+        TensorPrimitive::Float(B::float_slice_assign(
+            tensor.tensor(),
+            ranges,
+            value.tensor(),
+        ))
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
-        B::float_device(tensor)
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_device(tensor),
+            TensorPrimitive::QFloat {
+                tensor: _,
+                strategy: _,
+            } => B::float_device(&tensor.clone().tensor()), // TODO: B::quantized_device()
+        }
     }
 
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::float_to_device(tensor, device)
+        TensorPrimitive::Float(B::float_to_device(tensor.tensor(), device))
     }
 
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
-        B::float_into_data(tensor).await
+        B::float_into_data(tensor.tensor()).await
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
-        B::float_from_data(data, device)
+        TensorPrimitive::Float(B::float_from_data(data, device))
     }
 
     fn repeat<const D: usize>(
@@ -1732,56 +1748,59 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::float_repeat(tensor, dim, times)
+        TensorPrimitive::Float(B::float_repeat(tensor.tensor(), dim, times))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        B::float_cat(vectors, dim)
+        TensorPrimitive::Float(B::float_cat(
+            vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
+            dim,
+        ))
     }
 
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_equal(lhs, rhs))
+        Tensor::new(B::float_equal(lhs.tensor(), rhs.tensor()))
     }
 
     fn not_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_not_equal(lhs, rhs))
+        Tensor::new(B::float_not_equal(lhs.tensor(), rhs.tensor()))
     }
 
     fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::float_any(tensor))
+        Tensor::new(B::float_any(tensor.tensor()))
     }
 
     fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_any_dim(tensor, dim))
+        Tensor::new(B::float_any_dim(tensor.tensor(), dim))
     }
 
     fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::float_all(tensor))
+        Tensor::new(B::float_all(tensor.tensor()))
     }
 
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_all_dim(tensor, dim))
+        Tensor::new(B::float_all_dim(tensor.tensor(), dim))
     }
 
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
-        B::float_permute(tensor, axes)
+        TensorPrimitive::Float(B::float_permute(tensor.tensor(), axes))
     }
 
     fn expand<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::float_expand(tensor, shape)
+        TensorPrimitive::Float(B::float_expand(tensor.tensor(), shape))
     }
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
-        B::float_flip(tensor, axes)
+        TensorPrimitive::Float(B::float_flip(tensor.tensor(), axes))
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData};
+use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData, TensorPrimitive};
 use alloc::vec::Vec;
 
 use crate::try_read_sync;
@@ -31,7 +31,7 @@ where
 
     /// Convert the bool tensor into an float tensor.
     pub fn float(self) -> Tensor<B, D> {
-        Tensor::new(B::bool_into_float(self.primitive))
+        Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
     }
 
     /// Inverses boolean values.

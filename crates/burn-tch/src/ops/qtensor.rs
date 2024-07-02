@@ -1,16 +1,13 @@
 use burn_tensor::{
-    backend::Backend,
-    ops::{QTensorOps, QuantizedTensor},
-    QuantizationStrategy, Reader, Shape, TensorData,
+    ops::{FloatTensor, QTensorOps, QuantizedTensor},
+    QuantizationStrategy,
 };
 
 use crate::{LibTorch, TchElement, TchTensor};
 
-use super::TchOps;
-
 impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn quantize<const D: usize>(
-        tensor: <Self as Backend>::FloatTensorPrimitive<D>,
+        tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
         match strategy {
@@ -32,17 +29,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn dequantize<const D: usize>(
         tensor: QuantizedTensor<Self, D>,
         _strategy: &QuantizationStrategy,
-    ) -> <Self as Backend>::FloatTensorPrimitive<D> {
+    ) -> FloatTensor<Self, D> {
         TchTensor::new(tensor.tensor.dequantize())
-    }
-
-    fn quantized_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> Reader<TensorData> {
-        let shape = tensor.shape();
-        let tensor = TchOps::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
-        // We have to call `.int_repr()` to get a CPU tensor with the underlying int data
-        let values: Result<Vec<i8>, tch::TchError> =
-            tensor.tensor.int_repr().shallow_clone().try_into();
-
-        Reader::Concrete(TensorData::new(values.unwrap(), shape))
     }
 }

@@ -58,6 +58,7 @@ pub trait Backend:
     + IntTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
+    + QTensorOps<Self>
     + Clone
     + Sized
     + Default
@@ -84,6 +85,9 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+
+    /// Tensor primitive to be used for all quantized operations.
+    type QuantizedTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {

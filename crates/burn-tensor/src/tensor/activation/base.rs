@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{check, Tensor};
+use crate::{check, Tensor, TensorPrimitive};
 
 /// Applies the rectified linear unit function as described in the paper [Deep Learning using
 /// Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -17,15 +17,15 @@ pub fn leaky_relu<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     negative_slope: f64,
 ) -> Tensor<B, D> {
-    Tensor::from_primitive(B::leaky_relu(
-        tensor.primitive,
+    Tensor::from_primitive(TensorPrimitive::Float(B::leaky_relu(
+        tensor.primitive.tensor(),
         crate::ElementConversion::elem(negative_slope),
-    ))
+    )))
 }
 
 /// Applies the Gaussian Error Linear Units function as described in the paper [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    Tensor::from_primitive(B::gelu(tensor.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::gelu(tensor.primitive.tensor())))
 }
 
 /// Applies Parametric ReLu activation function as described in the paper [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
@@ -54,7 +54,10 @@ pub fn prelu<const D: usize, B: Backend>(
         alpha.reshape(s)
     };
 
-    Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::prelu(
+        tensor.primitive.tensor(),
+        weight.primitive.tensor(),
+    )))
 }
 
 /// Applies the softmax function on the input tensor along the given dimension.
@@ -122,12 +125,16 @@ pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize)
 
 /// Applies the sigmoid function.
 pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    Tensor::from_primitive(B::sigmoid(tensor.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::sigmoid(
+        tensor.primitive.tensor(),
+    )))
 }
 
 /// Applies the log sigmoid function.
 pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    Tensor::from_primitive(B::log_sigmoid(tensor.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::log_sigmoid(
+        tensor.primitive.tensor(),
+    )))
 }
 
 /// Applies the silu function
