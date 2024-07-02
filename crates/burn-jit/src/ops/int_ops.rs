@@ -4,7 +4,7 @@ use crate::{kernel, unary, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_cube::ir::{Elem, Item, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Reader, Shape, TensorData};
+use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use std::ops::Range;
 
 impl<R, F, I> IntTensorOps<Self> for JitBackend<R, F, I>
@@ -21,8 +21,8 @@ where
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<TensorData> {
-        super::into_data(tensor)
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+        super::into_data(tensor).await
     }
 
     fn int_from_data<const D: usize>(

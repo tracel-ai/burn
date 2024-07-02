@@ -150,19 +150,13 @@ impl<B: Backend> Model<B> {
         // Convert the model output into probability distribution using softmax formula
         let probabilities = softmax(output, 1);
 
-        #[cfg(not(target_family = "wasm"))]
-        let result = probabilities.into_data().convert::<f32>().to_vec().unwrap();
-
         // Forces the result to be computed
-        #[cfg(target_family = "wasm")]
-        let result = probabilities
-            .into_data()
+        probabilities
+            .into_data_async()
             .await
             .convert::<f32>()
             .to_vec()
-            .unwrap();
-
-        result
+            .unwrap()
     }
 }
 

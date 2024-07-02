@@ -1,7 +1,12 @@
+use alloc::format;
+
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::Content;
+use crate::module::DisplaySettings;
 use crate::module::Module;
+use crate::module::ModuleDisplay;
 use crate::module::Param;
 use crate::nn::conv::checks;
 use crate::nn::Initializer;
@@ -45,17 +50,46 @@ pub struct ConvTranspose2dConfig {
 
 /// Applies a 2D transposed convolution over input tensors.
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct ConvTranspose2d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
     pub weight: Param<Tensor<B, 4>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: [usize; 2],
-    kernel_size: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
-    padding: [usize; 2],
-    padding_out: [usize; 2],
+    /// Stride of the convolution.
+    pub stride: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// Spacing between kernel elements.
+    pub dilation: [usize; 2],
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// Padding configuration.
+    pub padding: [usize; 2],
+    /// Padding output configuration.
+    pub padding_out: [usize; 2],
+    /// Number of channels.
+    pub channels: [usize; 2],
+}
+
+impl<B: Backend> ModuleDisplay for ConvTranspose2d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("channels", &format!("{:?}", &self.channels))
+            .add("stride", &format!("{:?}", &self.stride))
+            .add("kernel_size", &format!("{:?}", &self.kernel_size))
+            .add("dilation", &format!("{:?}", &self.dilation))
+            .add("groups", &self.groups)
+            .add("padding", &format!("{:?}", &self.padding))
+            .add("padding_out", &format!("{:?}", &self.padding_out))
+            .optional()
+    }
 }
 
 impl ConvTranspose2dConfig {
@@ -92,6 +126,7 @@ impl ConvTranspose2dConfig {
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,
+            channels: self.channels,
         }
     }
 }
@@ -151,5 +186,16 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = ConvTranspose2dConfig::new([5, 2], [5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", conv),
+            "ConvTranspose2d {channels: [5, 2], stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: [0, 0], padding_out: [0, 0], params: 252}"
+        );
     }
 }

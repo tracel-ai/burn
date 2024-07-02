@@ -52,11 +52,16 @@ pub struct Conv2d<B: Backend> {
     pub weight: Param<Tensor<B, 4>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: [usize; 2],
-    kernel_size: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
-    padding: Ignored<PaddingConfig2d>,
+    /// Stride of the convolution.
+    pub stride: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// Spacing between kernel elements.
+    pub dilation: [usize; 2],
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// The padding configuration.
+    pub padding: Ignored<PaddingConfig2d>,
 }
 
 impl Conv2dConfig {
@@ -213,5 +218,16 @@ mod tests {
         let _ = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, init);
+    }
+
+    #[test]
+    fn display() {
+        let config = Conv2dConfig::new([5, 1], [5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", conv),
+            "Conv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
+        );
     }
 }

@@ -295,21 +295,6 @@ impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> 
     }
 }
 
-#[cfg(test)]
-mod utils {
-    use super::*;
-    use crate::{backend::LibTorch, element::TchElement};
-
-    impl<P: TchElement, const D: usize> TchTensor<P, D> {
-        pub(crate) fn into_data(self) -> TensorData
-        where
-            P: tch::kind::Element,
-        {
-            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::float_into_data(self).read()
-        }
-    }
-}
-
 impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<E, D> {
     /// Creates an empty tensor from a shape and a device.
     ///
@@ -345,7 +330,7 @@ mod tests {
         );
         let tensor = TchTensor::<f32, 1>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = tensor.into_data();
+        let data_actual = Tensor::<LibTorch<f32>, 1>::from_primitive(tensor).into_data();
 
         assert_eq!(data_expected, data_actual);
     }
@@ -359,7 +344,7 @@ mod tests {
         );
         let tensor = TchTensor::<f32, 2>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = tensor.into_data();
+        let data_actual = Tensor::<LibTorch<f32>, 2>::from_primitive(tensor).into_data();
 
         assert_eq!(data_expected, data_actual);
     }

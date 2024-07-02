@@ -1,7 +1,8 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::{Ignored, Module};
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+
 use burn_tensor::backend::Backend;
 use burn_tensor::module::unfold4d;
 use burn_tensor::ops::UnfoldOptions;
@@ -27,15 +28,43 @@ pub struct Unfold4dConfig {
 ///
 /// Should be created with [Unfold4dConfig].
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct Unfold4d {
-    config: Ignored<Unfold4dConfig>,
+    /// The size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// The stride of the convolution.
+    pub stride: [usize; 2],
+    /// Spacing between kernel elements.
+    pub dilation: [usize; 2],
+    /// The padding configuration.
+    pub padding: [usize; 2],
+}
+
+impl ModuleDisplay for Unfold4d {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
+            .add("stride", &alloc::format!("{:?}", &self.stride))
+            .add("dilation", &alloc::format!("{:?}", &self.dilation))
+            .add("padding", &alloc::format!("{:?}", &self.padding))
+            .optional()
+    }
 }
 
 impl Unfold4dConfig {
     /// Initializes a new [Unfold4d] module.
     pub fn init(&self) -> Unfold4d {
         Unfold4d {
-            config: Ignored(self.clone()),
+            kernel_size: self.kernel_size,
+            stride: self.stride,
+            dilation: self.dilation,
+            padding: self.padding,
         }
     }
 }
@@ -52,12 +81,24 @@ impl Unfold4d {
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 3> {
         unfold4d(
             input,
-            self.config.kernel_size,
-            UnfoldOptions::new(
-                self.config.stride,
-                self.config.padding,
-                self.config.dilation,
-            ),
+            self.kernel_size,
+            UnfoldOptions::new(self.stride, self.padding, self.dilation),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let config = Unfold4dConfig::new([3, 3]);
+        let unfold = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", unfold),
+            "Unfold4d {kernel_size: [3, 3], stride: [1, 1], dilation: [1, 1], padding: [0, 0]}"
+        );
     }
 }

@@ -6,7 +6,7 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::prelude::*;
+use burn_cube::{prelude::*, FeatureSet};
 use burn_jit::JitAutotuneKey;
 use burn_tensor::{backend::SyncType, Reader};
 use hashbrown::HashMap;
@@ -113,7 +113,7 @@ where
         )
     }
 
-    fn buffer_reader(&mut self, handle: server::Binding<Self>) -> BufferReader {
+    fn create_read_buffer(&mut self, handle: server::Binding<Self>) -> wgpu::Buffer {
         let resource = self.memory_management.get(handle.memory);
 
         let size = resource.size();
@@ -134,50 +134,7 @@ where
         self.tasks_count += 1;
 
         self.sync(SyncType::Flush);
-
-        BufferReader::new(buffer_dest)
-    }
-}
-
-#[derive(new)]
-struct BufferReader {
-    buffer: wgpu::Buffer,
-}
-
-impl BufferReader {
-    #[cfg(target_family = "wasm")]
-    async fn read(self, device: alloc::sync::Arc<wgpu::Device>) -> Vec<u8> {
-        self.read_async(&device).await
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn read(self, device: &wgpu::Device) -> Vec<u8> {
-        pollster::block_on(self.read_async(device))
-    }
-
-    async fn read_async(&self, device: &wgpu::Device) -> Vec<u8> {
-        let buffer_slice = self.buffer.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("Unable to send buffer slice result to async channel.")
-        });
-
-        device.poll(wgpu::Maintain::Wait);
-
-        let result = receiver.receive().await;
-
-        if let Some(Ok(())) = result {
-            let data = buffer_slice.get_mapped_range();
-            let result = bytemuck::cast_slice(&data).to_vec();
-
-            drop(data);
-            self.buffer.unmap();
-            result
-        } else {
-            panic!("Unable to read buffer {:?}", result)
-        }
+        buffer_dest
     }
 }
 
@@ -189,16 +146,40 @@ where
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
 
-    fn read(&mut self, binding: server::Binding<Self>) -> Reader<Vec<u8>> {
-        #[cfg(target_family = "wasm")]
-        {
-            let future = self.buffer_reader(binding).read(self.device.clone());
-            return Reader::Future(Box::pin(future));
-        }
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+        let device = self.device.clone();
+        let buffer = self.create_read_buffer(binding);
 
-        #[cfg(not(target_family = "wasm"))]
-        Reader::Concrete(self.buffer_reader(binding).read(&self.device))
+        Box::pin(async move {
+            let buffer_slice = buffer.slice(..);
+            let (sender, receiver) = async_channel::bounded(1);
+
+            buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+                sender
+                    .try_send(v)
+                    .expect("Unable to send buffer slice result to async channel.")
+            });
+
+            device.poll(wgpu::Maintain::Wait);
+
+            let result = receiver
+                .recv()
+                .await
+                .expect("Unable to receive buffer slice result.");
+
+            if let Ok(()) = result {
+                let data = buffer_slice.get_mapped_range();
+                let result = bytemuck::cast_slice(&data).to_vec();
+
+                drop(data);
+                buffer.unmap();
+                result
+            } else {
+                panic!("Unable to read buffer {:?}", result)
+            }
+        })
     }
 
     fn get_resource(

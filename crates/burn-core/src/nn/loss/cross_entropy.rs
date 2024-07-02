@@ -1,8 +1,10 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::activation::log_softmax;
 use crate::tensor::{backend::Backend, Bool, Int, Tensor};
 use crate::{config::Config, module::Module};
+use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -29,7 +31,7 @@ pub struct CrossEntropyLossConfig {
     /// Alpha = 0 would be the same as default.
     pub smoothing: Option<f32>,
 
-    /// Create cross-entropy with probabilities as input instead of logits.    
+    /// Create cross-entropy with probabilities as input instead of logits.
     ///
     #[config(default = true)]
     pub logits: bool,
@@ -71,12 +73,39 @@ impl CrossEntropyLossConfig {
 ///
 /// Should be created using [CrossEntropyLossConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct CrossEntropyLoss<B: Backend> {
-    pad_tokens: Option<Vec<usize>>,
+    /// Pad tokens to ignore in the loss calculation.
+    pub pad_tokens: Option<Vec<usize>>,
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
-    smoothing: Option<f32>,
-    logits: bool,
+    /// Label smoothing factor.
+    pub smoothing: Option<f32>,
+    /// Use logits as input.
+    pub logits: bool,
+}
+
+impl<B: Backend> ModuleDisplay for CrossEntropyLoss<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let pad_tokens = if let Some(pad_tokens) = &self.pad_tokens {
+            alloc::format!("Vec<0..{}>", pad_tokens.len())
+        } else {
+            "None".to_string()
+        };
+
+        content
+            .add("pad_tokens", &pad_tokens)
+            .add("weights", &self.weights)
+            .add("smoothing", &self.smoothing)
+            .add("logits", &self.logits)
+            .optional()
+    }
 }
 
 impl<B: Backend> CrossEntropyLoss<B> {
@@ -405,5 +434,18 @@ mod tests {
         let loss_2 = (x * targets_logits).sum_dim(1).mean().neg();
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = CrossEntropyLossConfig::new()
+            .with_weights(Some(alloc::vec![3., 7., 0.9]))
+            .with_smoothing(Some(0.5));
+        let loss = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
+        );
     }
 }

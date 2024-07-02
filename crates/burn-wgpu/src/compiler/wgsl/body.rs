@@ -1,4 +1,6 @@
-use super::Instruction;
+use hashbrown::HashSet;
+
+use super::{ConstantShape, ConstantStride, Instruction};
 use std::fmt::Display;
 
 /// A body is composed of a list of [instructions](Instruction).
@@ -12,6 +14,8 @@ pub struct Body {
     pub id: bool,
     pub stride: bool,
     pub shape: bool,
+    pub constant_shapes: HashSet<ConstantShape>,
+    pub constant_strides: HashSet<ConstantStride>,
 }
 
 impl Display for Body {
@@ -27,6 +31,24 @@ impl Display for Body {
 
         if self.stride || self.shape {
             f.write_str("let rank_2: u32 = rank * 2u;\n")?;
+        }
+
+        for shape in self.constant_shapes.iter() {
+            let declaration = Instruction::Shape {
+                dim: super::Variable::ConstantScalar(shape.dim as f64, super::Elem::U32),
+                position: shape.position,
+                out: super::Variable::ConstantShape(*shape),
+            };
+            f.write_fmt(format_args!("let {declaration};\n"))?;
+        }
+
+        for stride in self.constant_strides.iter() {
+            let declaration = Instruction::Stride {
+                dim: super::Variable::ConstantScalar(stride.dim as f64, super::Elem::U32),
+                position: stride.position,
+                out: super::Variable::ConstantStride(*stride),
+            };
+            f.write_fmt(format_args!("let {declaration};\n"))?;
         }
 
         for ops in self.instructions.iter() {

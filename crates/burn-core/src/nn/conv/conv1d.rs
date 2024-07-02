@@ -50,11 +50,16 @@ pub struct Conv1d<B: Backend> {
     pub weight: Param<Tensor<B, 3>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: usize,
-    kernel_size: usize,
-    dilation: usize,
-    groups: usize,
-    padding: Ignored<PaddingConfig1d>,
+    /// Stride of the convolution.
+    pub stride: usize,
+    /// Size of the kernel.
+    pub kernel_size: usize,
+    /// Spacing between kernel elements.
+    pub dilation: usize,
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// Padding configuration.
+    pub padding: Ignored<PaddingConfig1d>,
 }
 
 impl<B: Backend> ModuleDisplay for Conv1d<B> {
@@ -168,5 +173,16 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = Conv1dConfig::new(5, 5, 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", conv),
+            "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
+        );
     }
 }

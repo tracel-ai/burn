@@ -1,3 +1,4 @@
+pub mod cmma;
 pub mod launch;
 pub mod subcube;
 
@@ -9,5 +10,6 @@ macro_rules! testgen_all {
 
         burn_cube::testgen_subcube!();
         burn_cube::testgen_launch!();
+        burn_cube::testgen_cmma!();
     };
 }
