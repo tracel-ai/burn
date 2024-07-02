@@ -86,12 +86,12 @@ fn recip_op<F: Float>(a: F) -> F {
 }
 
 #[cube]
-fn equal_op<T: CubeElem>(a: T, b: T) -> bool {
+fn equal_op<T: CubePrimitive>(a: T, b: T) -> bool {
     a == b
 }
 
 #[cube]
-fn not_equal_op<T: CubeElem>(a: T, b: T) -> bool {
+fn not_equal_op<T: CubePrimitive>(a: T, b: T) -> bool {
     a != b
 }
 

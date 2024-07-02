@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, InitOperator, Item, Operation, Operator, Subcube, UnaryOperator,
-    Variable,
+    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator, Subcube,
+    UnaryOperator, Variable,
 };
 
 pub type Vectorization = u8;
@@ -20,6 +20,9 @@ impl Operation {
                 "Synchronization instructions can't be vectorized, they should only be generated after vectorization."
             ),
             Operation::Subcube(op) => Operation::Subcube(op.vectorize(vectorization)),
+            Operation::CoopMma(_) => panic!(
+                "Cooperative matrix-multiply and accumulate doesn't support vectorization."
+            ),
         }
     }
 }
@@ -30,6 +33,7 @@ impl Operator {
             Operator::Max(op) => Operator::Max(op.vectorize(vectorization)),
             Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
             Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
+            Operator::Fma(op) => Operator::Fma(op.vectorize(vectorization)),
             Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
             Operator::UncheckedIndex(op) => Operator::UncheckedIndex(op.vectorize(vectorization)),
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
@@ -137,6 +141,17 @@ impl ClampOperator {
     }
 }
 
+impl FmaOperator {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            a: self.a.vectorize(vectorization),
+            b: self.b.vectorize(vectorization),
+            c: self.c.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
+    }
+}
+
 impl Variable {
     pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
@@ -185,6 +200,7 @@ impl Variable {
             Variable::CubeCount => *self,
             Variable::CubeDim => *self,
             Variable::SubcubeDim => *self,
+            Variable::Matrix(_, _) => *self,
         }
     }
 }

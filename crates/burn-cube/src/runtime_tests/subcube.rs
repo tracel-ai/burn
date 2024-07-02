@@ -1,8 +1,8 @@
-use crate as burn_cube;
+use crate::{self as burn_cube, Feature};
 use burn_cube::prelude::*;
 
 #[cube(launch)]
-pub fn kernel_sum<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_sum<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_sum::<F>(val);
 
@@ -12,7 +12,7 @@ pub fn kernel_sum<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_prod<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_prod::<F>(val);
 
@@ -22,7 +22,7 @@ pub fn kernel_prod<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_max<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_max::<F>(val);
 
@@ -32,7 +32,7 @@ pub fn kernel_max<F: Float>(mut output: Tensor<F>) {
 }
 
 #[cube(launch)]
-pub fn kernel_min<F: Float>(mut output: Tensor<F>) {
+pub fn kernel_min<F: Float>(output: &mut Tensor<F>) {
     let val = output[UNIT_POS];
     let val2 = subcube_min::<F>(val);
 
@@ -100,6 +100,11 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
 ) where
     Launch: Fn(CubeCount, KernelSettings, TensorHandle<'_, TestRuntime>),
 {
+    if !client.features().enabled(Feature::Subcube) {
+        // Can't execute the test.
+        return;
+    }
+
     let handle = client.create(f32::as_bytes(input));
     let (shape, strides) = ([input.len()], [1]);
 
@@ -109,7 +114,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
         TensorHandle::new(&handle, &strides, &shape),
     );
 
-    let actual = client.read(handle.binding()).read_sync().unwrap();
+    let actual = client.read(handle.binding());
     let actual = f32::from_bytes(&actual);
 
     assert_eq!(actual, expected);

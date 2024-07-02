@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[cube(launch)]
-fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
+fn gelu<F: Float>(input: &Array<F>, output: &mut Array<F>) {
     if ABSOLUTE_POS < input.len() {
         output[ABSOLUTE_POS] = gelu_scalar::<F>(input[ABSOLUTE_POS]);
     }
@@ -28,7 +28,7 @@ pub fn launch<R: Runtime>(device: &R::Device) {
         ArrayHandle::new(&output_handle, input.len()),
     );
 
-    let output = client.read(output_handle.binding()).read_sync().unwrap();
+    let output = client.read(output_handle.binding());
     let output = f32::from_bytes(&output);
 
     // Should be [-0.1587,  0.0000,  0.8413,  5.0000]

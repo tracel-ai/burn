@@ -347,12 +347,7 @@ impl MemoryPool {
 
         let slice_id =
             self.ring
-                .find_free_slice(effective_size, &mut self.chunks, &mut self.slices);
-
-        let slice_id = match slice_id {
-            Some(val) => val,
-            None => return None,
-        };
+                .find_free_slice(effective_size, &mut self.chunks, &mut self.slices)?;
 
         let slice = self.slices.get_mut(&slice_id).unwrap();
         let old_slice_size = slice.effective_size();

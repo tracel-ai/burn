@@ -1,4 +1,5 @@
 mod branch;
+mod cmma;
 mod macros;
 mod operation;
 mod procedure;
@@ -11,6 +12,7 @@ mod variable;
 mod vectorization;
 
 pub use branch::*;
+pub use cmma::*;
 pub use operation::*;
 pub use procedure::*;
 pub use scope::*;

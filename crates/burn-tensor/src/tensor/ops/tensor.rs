@@ -7,10 +7,9 @@ use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
-use burn_common::reader::Reader;
+use core::future::Future;
 use core::ops::Range;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use crate::{argsort, sort, sort_with_indices};
 
 /// Operations on float tensors.
@@ -111,20 +110,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_to_data<const D: usize>(tensor: &FloatTensor<B, D>) -> Reader<TensorData> {
-        Self::float_into_data(tensor.clone())
-    }
-
-    /// Converts the tensor to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's data.
-    fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<TensorData>;
+    fn float_into_data<const D: usize>(
+        tensor: FloatTensor<B, D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -1389,7 +1377,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,
@@ -1412,7 +1399,6 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// the elements are sorted by value and the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_sort_with_indices<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,
@@ -1434,7 +1420,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn float_argsort<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,

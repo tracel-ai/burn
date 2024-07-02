@@ -12,9 +12,9 @@ use burn_cube::prelude::*;
 
 #[cube(launch)]
 fn matmul_kernel<F: Float>(
-    lhs: Tensor<F>,
-    rhs: Tensor<F>,
-    mut out: Tensor<F>,
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &mut Tensor<F>,
     num_batches: Comptime<Option<UInt>>,
 ) {
     let rank = out.rank();
@@ -120,7 +120,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         .vectorize_input(1, vectorization_factor)
         .vectorize_output(0, 1);
 
-    matmul_kernel_launch::<E::CubeElement, R>(
+    matmul_kernel_launch::<E::FloatPrimitive, R>(
         lhs.client,
         workgroup,
         settings,

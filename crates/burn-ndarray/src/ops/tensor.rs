@@ -11,8 +11,8 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
+use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
-use burn_tensor::{Distribution, Reader};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -51,11 +51,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> Reader<TensorData> {
+    async fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(TensorData::new(values, shape))
+        TensorData::new(values, shape)
     }
 
     fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {

@@ -44,8 +44,10 @@ pub struct BatchNorm<B: Backend, const D: usize> {
     pub running_mean: RunningState<Tensor<B, 1>>,
     /// The running variance.
     pub running_var: RunningState<Tensor<B, 1>>,
-    momentum: f64,
-    epsilon: f64,
+    /// Momentum used to update the metrics.
+    pub momentum: f64,
+    /// A value required for numerical stability.
+    pub epsilon: f64,
 }
 
 impl BatchNormConfig {
@@ -423,5 +425,16 @@ mod tests_2d {
             ],
             device,
         )
+    }
+
+    #[test]
+    fn display() {
+        let batch_norm =
+            BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&Default::default());
+
+        assert_eq!(
+            format!("{}", batch_norm),
+            "BatchNorm {num_features: 3, momentum: 0.1, epsilon: 0.00001, params: 12}"
+        );
     }
 }

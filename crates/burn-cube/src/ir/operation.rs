@@ -1,4 +1,4 @@
-use super::{Branch, Procedure, Subcube, Synchronization, Variable};
+use super::{Branch, CoopMma, Procedure, Subcube, Synchronization, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
@@ -18,6 +18,7 @@ pub enum Operation {
     Branch(Branch),
     Synchronization(Synchronization),
     Subcube(Subcube),
+    CoopMma(CoopMma),
 }
 
 /// All operators that can be used in a GPU compute shader.
@@ -25,6 +26,7 @@ pub enum Operation {
 #[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Operator {
     Add(BinaryOperator),
+    Fma(FmaOperator),
     Sub(BinaryOperator),
     Mul(BinaryOperator),
     Div(BinaryOperator),
@@ -130,6 +132,15 @@ pub struct ReadGlobalWithLayoutOperator {
     pub variable: Variable,
     pub tensor_read_pos: usize,
     pub tensor_layout_pos: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct FmaOperator {
+    pub a: Variable,
+    pub b: Variable,
+    pub c: Variable,
+    pub out: Variable,
 }
 
 impl From<Operator> for Operation {

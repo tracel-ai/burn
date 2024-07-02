@@ -68,7 +68,7 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 
     match mode {
         CubeMode::Default => code,
-        CubeMode::Debug => panic!("State\n:{variable_tracker:?}\nCode:\n{code}"),
+        CubeMode::Debug => panic!("{code}"),
     }
 }
 
@@ -157,6 +157,7 @@ fn expand_sig(
         match input {
             syn::FnArg::Typed(pat) => {
                 let ty = &pat.ty;
+
                 let ident = pat.pat.clone();
 
                 if let syn::Pat::Ident(ident) = ident.as_ref() {

@@ -101,6 +101,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode {
             groups: ConstantRecord::new(),
             padding: [ConstantRecord::new(); 2],
             padding_out: [ConstantRecord::new(); 2],
+            channels: [ConstantRecord::new(); 2],
         };
 
         let item = Record::into_item::<PS>(record);

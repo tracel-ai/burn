@@ -1,12 +1,12 @@
 use burn_cube::prelude::*;
 
 #[cube]
-fn array_add_assign_simple(mut array: Array<UInt>) {
+fn array_add_assign_simple(array: &mut Array<UInt>) {
     array[UInt::new(1)] += UInt::new(1);
 }
 
 #[cube]
-fn array_add_assign_expr(mut array: Array<UInt>) {
+fn array_add_assign_expr(array: &mut Array<UInt>) {
     array[UInt::new(1) + UInt::new(5)] += UInt::new(1);
 }
 

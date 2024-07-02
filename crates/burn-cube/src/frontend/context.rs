@@ -1,10 +1,10 @@
 use crate::frontend::ExpandElement;
-use crate::ir::{Elem, Item, Operation, Scope};
+use crate::ir::{self, Elem, Item, Operation, Scope};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
-use super::{CubeElem, SharedMemoryExpand};
+use super::{CubePrimitive, SharedMemoryExpand};
 
 #[derive(Default, Clone)]
 pub struct VariablePool {
@@ -17,10 +17,7 @@ impl VariablePool {
         let map = self.map.borrow();
 
         // Filter for candidate variables of the same Item
-        let variables = match map.get(&item) {
-            Some(val) => val,
-            None => return None,
-        };
+        let variables = map.get(&item)?;
 
         // Among the candidates, take a variable if it's only referenced by the map
         // Arbitrarily takes the first it finds in reverse order.
@@ -111,7 +108,17 @@ impl CubeContext {
         new
     }
 
-    pub fn create_shared<T: CubeElem>(&mut self, item: Item, size: u32) -> SharedMemoryExpand<T> {
+    /// Create a new matrix element.
+    pub fn create_matrix(&mut self, matrix: ir::Matrix) -> ExpandElement {
+        let variable = self.scope.borrow_mut().create_matrix(matrix);
+        ExpandElement::Plain(variable)
+    }
+
+    pub fn create_shared<T: CubePrimitive>(
+        &mut self,
+        item: Item,
+        size: u32,
+    ) -> SharedMemoryExpand<T> {
         SharedMemoryExpand {
             val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
         }

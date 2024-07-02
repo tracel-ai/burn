@@ -35,7 +35,7 @@ mod tests {
     use super::*;
     use burn_cube::{
         cpa,
-        frontend::{CubeContext, CubeElem, F32, F64, I32, I64},
+        frontend::{CubeContext, CubePrimitive, F32, F64, I32, I64},
         ir::{Item, Variable},
     };
 

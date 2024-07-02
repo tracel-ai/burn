@@ -2,6 +2,8 @@ use burn_cube::ir as gpu;
 use half::{bf16, f16};
 use std::fmt::Display;
 
+use super::Fragment;
+
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
@@ -23,7 +25,7 @@ pub enum Item {
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Elem::F16 => f.write_str("f16"),
+            Elem::F16 => f.write_str("half"),
             Elem::F32 => f.write_str("float"),
             Elem::BF16 => f.write_str("bf16"),
             Elem::I32 => f.write_str("int"),
@@ -115,6 +117,7 @@ impl Component for Variable {
             Variable::NumWorkgroupsZ => Item::Scalar(Elem::U32),
             Variable::LocalArray(_, e, _, _) => *e,
             Variable::WarpSize => Item::Scalar(Elem::U32),
+            Variable::WmmaFragment { index: _, frag } => Item::Scalar(frag.elem),
         }
     }
 }
@@ -156,6 +159,10 @@ pub enum Variable {
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
+    WmmaFragment {
+        index: u16,
+        frag: Fragment,
+    },
 }
 
 impl Display for Variable {
@@ -202,6 +209,7 @@ impl Display for Variable {
                 f.write_fmt(format_args!("l_arr_{}_{}", id, depth))
             }
             Variable::WarpSize => f.write_str("warpSize"),
+            Variable::WmmaFragment { index, frag: _ } => f.write_fmt(format_args!("frag_{index}")),
         }
     }
 }
@@ -244,6 +252,7 @@ impl Variable {
             Variable::NumWorkgroupsZ => true,
             Variable::LocalArray(_, _, _, _) => false,
             Variable::WarpSize => true,
+            Variable::WmmaFragment { index: _, frag: _ } => false,
         }
     }
 

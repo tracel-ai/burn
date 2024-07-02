@@ -2,7 +2,8 @@ use alloc::vec::Vec;
 
 use crate as burn;
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::tensor::TensorData;
@@ -40,8 +41,31 @@ pub struct PositionalEncodingConfig {
 ///
 /// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct PositionalEncoding<B: Backend> {
-    sinusoids: Tensor<B, 3>,
+    /// The sinusoids used to add positional information to the input embeddings.
+    pub sinusoids: Tensor<B, 3>,
+    /// The maximum sequence size to use.
+    pub max_sequence_size: usize,
+    /// Max time scale to use.
+    pub max_timescale: usize,
+}
+
+impl<B: Backend> ModuleDisplay for PositionalEncoding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [_, _, d_model] = self.sinusoids.shape().dims;
+        content
+            .add("d_model", &d_model)
+            .add("max_sequence_size", &self.max_sequence_size)
+            .add("max_timescale", &self.max_timescale)
+            .optional()
+    }
 }
 
 impl PositionalEncodingConfig {
@@ -55,7 +79,11 @@ impl PositionalEncodingConfig {
         )
         .unsqueeze::<3>();
 
-        PositionalEncoding { sinusoids }
+        PositionalEncoding {
+            sinusoids,
+            max_sequence_size: self.max_sequence_size,
+            max_timescale: self.max_timescale,
+        }
     }
 }
 
@@ -244,5 +272,16 @@ mod tests {
         let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
         let input = Tensor::zeros([1, 6_000, d_model], &device);
         let _output = pe.forward(input);
+    }
+
+    #[test]
+    fn display() {
+        let config = PositionalEncodingConfig::new(4);
+        let pe = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pe),
+            "PositionalEncoding {d_model: 4, max_sequence_size: 5000, max_timescale: 10000}"
+        );
     }
 }

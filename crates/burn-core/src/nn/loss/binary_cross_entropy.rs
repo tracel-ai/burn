@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 
 use crate::tensor::activation::log_sigmoid;
 use crate::tensor::{backend::Backend, Int, Tensor};
@@ -59,11 +60,30 @@ impl BinaryCrossEntropyLossConfig {
 ///
 /// Should be created using [BinaryCrossEntropyLossConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct BinaryCrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
-    smoothing: Option<f32>,
-    logits: bool,
+    /// Label smoothing alpha.
+    pub smoothing: Option<f32>,
+    /// Treat the inputs as logits
+    pub logits: bool,
+}
+
+impl<B: Backend> ModuleDisplay for BinaryCrossEntropyLoss<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("weights", &self.weights)
+            .add("smoothing", &self.smoothing)
+            .add("logits", &self.logits)
+            .optional()
+    }
 }
 
 impl<B: Backend> BinaryCrossEntropyLoss<B> {
@@ -367,5 +387,17 @@ mod tests {
             .with_weights(Some(weights.to_vec()))
             .init(&device)
             .forward(logits, targets);
+    }
+
+    #[test]
+    fn display() {
+        let config =
+            BinaryCrossEntropyLossConfig::new().with_weights(Some(alloc::vec![3., 7., 0.9]));
+        let loss = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "BinaryCrossEntropyLoss {weights: Tensor {rank: 1, shape: [3]}, smoothing: None, logits: false}"
+        );
     }
 }
