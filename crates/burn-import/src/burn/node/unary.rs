@@ -35,6 +35,7 @@ pub enum UnaryNodeKind {
     ReduceMax,
     ReduceMin,
     ReduceMean,
+    ReduceProd,
     ReduceSum,
     Reciprocal,
     Relu,
@@ -65,6 +66,7 @@ impl UnaryNodeKind {
             Self::ReduceMax => "reduce_max",
             Self::ReduceMin => "reduce_min",
             Self::ReduceMean => "reduce_mean",
+            Self::ReduceProd => "reduce_prod",
             Self::ReduceSum => "reduce_sum",
             Self::Reciprocal => "reciprocal",
             Self::Relu => "relu",
@@ -385,6 +387,36 @@ impl UnaryNode {
             }
         } else {
             panic!("ReduceMean only supports tensor output");
+        }
+    }
+
+    pub(crate) fn reduce_prod(input: Type, output: Type, dim: Option<usize>) -> Self {
+        if let Type::Tensor(ref tensor) = output {
+            if let Some(dim) = dim {
+                if tensor.kind == TensorKind::Bool {
+                    // Prod is only implemented on numeric tensors
+                    panic!("ReduceProd is not supported for boolean");
+                }
+
+                // ReduceProd, keepdims=1, axes=[dim]
+                let dim = dim.to_tokens();
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceProd,
+                    Rc::new(move |input| quote! { #input.prod_dim(#dim) }),
+                )
+            } else {
+                // ReduceProd, keepdims=0, axes=None
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::ReduceProd,
+                    Rc::new(move |input| quote! { #input.prod() }),
+                )
+            }
+        } else {
+            panic!("ReduceProd only supports tensor output");
         }
     }
 
@@ -724,6 +756,43 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
                     let tensor2 = tensor1.mean();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_reduce_prod() {
+        one_node_graph(
+            UnaryNode::reduce_prod(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Some(1),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.prod_dim(1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::reduce_prod(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 1)),
+                None,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
+                    let tensor2 = tensor1.prod();
 
                     tensor2
                 }
