@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::{DisplaySettings, Module, ModuleDisplay};
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
@@ -23,7 +23,8 @@ pub struct DropoutConfig {
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct Dropout {
-    prob: f64,
+    /// The probability of randomly zeroes some elements of the input tensor during training.
+    pub prob: f64,
 }
 
 impl DropoutConfig {
@@ -62,7 +63,7 @@ impl ModuleDisplay for Dropout {
             .optional()
     }
 
-    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+    fn custom_content(&self, content: Content) -> Option<Content> {
         content.add("prob", &self.prob).optional()
     }
 }
@@ -98,5 +99,13 @@ mod tests {
         let output = dropout.forward(tensor.clone());
 
         assert_eq!(tensor.to_data(), output.to_data());
+    }
+
+    #[test]
+    fn display() {
+        let config = DropoutConfig::new(0.5);
+        let layer = config.init();
+
+        assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
     }
 }

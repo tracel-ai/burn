@@ -42,10 +42,7 @@ where
     where
         B: Backend,
     {
-        let grad = match self.tensors.get(id) {
-            Some(grad) => grad,
-            None => return None,
-        };
+        let grad = self.tensors.get(id)?;
 
         let tensor = grad
             .downcast_ref::<TensorPrimitive<B, D>>()

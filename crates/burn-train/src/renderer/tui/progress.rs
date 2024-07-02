@@ -116,10 +116,7 @@ impl ProgressEstimate {
     }
 
     fn secs(&self) -> Option<u64> {
-        let eta = match self.started_after_warmup {
-            Some(started) => started.elapsed(),
-            None => return None,
-        };
+        let eta = self.started_after_warmup?.elapsed();
 
         let total_estimated = (eta.as_secs() as f64) / self.progress;
 

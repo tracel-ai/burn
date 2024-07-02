@@ -1,10 +1,8 @@
 use crate as burn;
-use crate::module::DisplaySettings;
-use crate::module::ModuleDisplay;
 
 use crate::config::Config;
-use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::{backend::Backend, Tensor};
 
 use super::Initializer;
@@ -93,7 +91,7 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
             .optional()
     }
 
-    fn custom_content(&self, content: crate::module::Content) -> Option<crate::module::Content> {
+    fn custom_content(&self, content: Content) -> Option<Content> {
         let [d_input, d_output] = self.weight.shape().dims;
         content
             .add("d_input", &d_input)
@@ -195,5 +193,16 @@ mod tests {
         let result_2d = linear.forward(input_2d);
 
         assert_eq!(result_1d.into_data(), result_2d.into_data());
+    }
+
+    #[test]
+    fn display() {
+        let config = LinearConfig::new(3, 5);
+        let linear = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", linear),
+            "Linear {d_input: 3, d_output: 5, bias: true, params: 20}"
+        );
     }
 }

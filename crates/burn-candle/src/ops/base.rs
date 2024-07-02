@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Reader, Shape, TensorData};
+use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},

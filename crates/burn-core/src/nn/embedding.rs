@@ -4,6 +4,7 @@ use super::Initializer;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
@@ -26,10 +27,27 @@ pub struct EmbeddingConfig {
 ///
 /// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Embedding<B: Backend> {
     /// The learnable weights of the module of shape `[n_embedding, d_model]` initialized
     /// from a normal distribution `N(0, 1)`.
     pub weight: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> ModuleDisplay for Embedding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [n_embedding, d_model] = self.weight.shape().dims;
+        content
+            .add("n_embedding", &n_embedding)
+            .add("d_model", &d_model)
+            .optional()
+    }
 }
 
 impl EmbeddingConfig {
@@ -99,5 +117,16 @@ mod tests {
             .weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(embed.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = EmbeddingConfig::new(100, 10);
+        let embed = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", embed),
+            "Embedding {n_embedding: 100, d_model: 10, params: 1000}"
+        );
     }
 }

@@ -1,4 +1,4 @@
-use super::{binary::*, unary::*, Component, Variable, WarpInstruction};
+use super::{binary::*, unary::*, Component, Variable, WarpInstruction, WmmaInstruction};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -27,6 +27,12 @@ pub enum Instruction {
     },
     Modulo(BinaryInstruction),
     Add(BinaryInstruction),
+    Fma {
+        a: Variable,
+        b: Variable,
+        c: Variable,
+        out: Variable,
+    },
     Div(BinaryInstruction),
     Mul(BinaryInstruction),
     Sub(BinaryInstruction),
@@ -99,6 +105,7 @@ pub enum Instruction {
     Ceil(UnaryInstruction),
     Floor(UnaryInstruction),
     Wrap(WarpInstruction),
+    Wmma(WmmaInstruction),
 }
 
 impl Display for Instruction {
@@ -106,10 +113,15 @@ impl Display for Instruction {
         match self {
             Instruction::Return => f.write_str("return;"),
             Instruction::Break => f.write_str("break;"),
-            Instruction::DeclareVariable { var } => {
-                let item = var.item();
-                f.write_fmt(format_args!("{item} {var};\n"))
-            }
+            Instruction::DeclareVariable { var } => match var {
+                Variable::WmmaFragment { index: _, frag } => {
+                    f.write_fmt(format_args!("{frag} {var};\n"))
+                }
+                _ => {
+                    let item = var.item();
+                    f.write_fmt(format_args!("{item} {var};\n"))
+                }
+            },
             Instruction::Add(it) => Add::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Mul(it) => Mul::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Div(it) => Div::format(f, &it.lhs, &it.rhs, &it.out),
@@ -240,6 +252,38 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
                 ))
             }
             Instruction::Wrap(it) => f.write_fmt(format_args!("{it}")),
+            Instruction::Fma { a, b, c, out } => Fma::format(f, a, b, c, out),
+            Instruction::Wmma(it) => f.write_fmt(format_args!("{it}")),
         }
+    }
+}
+
+struct Fma;
+
+impl Fma {
+    fn format(
+        f: &mut core::fmt::Formatter<'_>,
+        a: &Variable,
+        b: &Variable,
+        c: &Variable,
+        out: &Variable,
+    ) -> core::fmt::Result {
+        let num = match out.item() {
+            super::Item::Vec4(_) => 4,
+            super::Item::Vec3(_) => 3,
+            super::Item::Vec2(_) => 2,
+            super::Item::Scalar(_) => 1,
+        };
+
+        for i in 0..num {
+            let ai = a.index(i);
+            let bi = b.index(i);
+            let ci = c.index(i);
+            let outi = out.index(i);
+
+            f.write_fmt(format_args!("{outi} = fma({ai}, {bi}, {ci});\n"))?;
+        }
+
+        Ok(())
     }
 }

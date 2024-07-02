@@ -2,6 +2,7 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -18,8 +19,24 @@ pub struct AdaptiveAvgPool2dConfig {
 ///
 /// Should be created with [AdaptiveAvgPool2dConfig].
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct AdaptiveAvgPool2d {
-    output_size: [usize; 2],
+    /// The size of the output.
+    pub output_size: [usize; 2],
+}
+
+impl ModuleDisplay for AdaptiveAvgPool2d {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let output_size = alloc::format!("{:?}", self.output_size);
+
+        content.add("output_size", &output_size).optional()
+    }
 }
 
 impl AdaptiveAvgPool2dConfig {
@@ -42,5 +59,21 @@ impl AdaptiveAvgPool2d {
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         adaptive_avg_pool2d(input, self.output_size)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let config = AdaptiveAvgPool2dConfig::new([3, 3]);
+        let layer = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "AdaptiveAvgPool2d {output_size: [3, 3]}"
+        );
     }
 }

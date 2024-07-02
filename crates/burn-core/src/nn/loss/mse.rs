@@ -1,26 +1,24 @@
-use crate::nn::loss::reduction::Reduction;
-use core::marker::PhantomData;
+use crate as burn;
 
+use crate::nn::loss::reduction::Reduction;
+
+use crate::module::Module;
 use crate::tensor::{backend::Backend, Tensor};
 
 /// Calculate the mean squared error loss from the input logits and the targets.
-#[derive(Clone, Debug)]
-pub struct MseLoss<B: Backend> {
-    backend: PhantomData<B>,
-}
+#[derive(Module, Clone, Debug)]
+pub struct MseLoss;
 
-impl<B: Backend> Default for MseLoss<B> {
+impl Default for MseLoss {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> MseLoss<B> {
+impl MseLoss {
     /// Create the criterion.
     pub fn new() -> Self {
-        Self {
-            backend: PhantomData,
-        }
+        Self
     }
 
     /// Compute the criterion on the input tensor.
@@ -29,7 +27,7 @@ impl<B: Backend> MseLoss<B> {
     ///
     /// - logits: [batch_size, num_targets]
     /// - targets: [batch_size, num_targets]
-    pub fn forward<const D: usize>(
+    pub fn forward<const D: usize, B: Backend>(
         &self,
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -43,7 +41,7 @@ impl<B: Backend> MseLoss<B> {
     }
 
     /// Compute the criterion on the input tensor without reducing.
-    pub fn forward_no_reduction<const D: usize>(
+    pub fn forward_no_reduction<const D: usize, B: Backend>(
         &self,
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -84,5 +82,11 @@ mod tests {
 
         let expected = TensorData::from([6.0]);
         loss_sum.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn display() {
+        let loss = MseLoss::new();
+        assert_eq!(alloc::format!("{}", loss), "MseLoss");
     }
 }

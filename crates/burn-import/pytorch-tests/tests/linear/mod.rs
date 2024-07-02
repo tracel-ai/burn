@@ -16,7 +16,7 @@ impl<B: Backend> Net<B> {
     pub fn init(device: &B::Device) -> Self {
         let fc1 = LinearConfig::new(2, 3).init(device);
         let fc2 = LinearConfig::new(3, 4).init(device);
-        let relu = Relu::default();
+        let relu = Relu;
 
         Self { fc1, fc2, relu }
     }

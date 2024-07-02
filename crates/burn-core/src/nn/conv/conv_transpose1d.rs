@@ -1,7 +1,12 @@
+use alloc::format;
+
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::Content;
+use crate::module::DisplaySettings;
 use crate::module::Module;
+use crate::module::ModuleDisplay;
 use crate::module::Param;
 use crate::nn::conv::checks;
 use crate::nn::Initializer;
@@ -45,17 +50,46 @@ pub struct ConvTranspose1dConfig {
 
 /// Applies a 1D transposed convolution over input tensors.
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct ConvTranspose1d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: usize,
-    kernel_size: usize,
-    dilation: usize,
-    groups: usize,
-    padding: usize,
-    padding_out: usize,
+    /// Stride of the convolution.
+    pub stride: usize,
+    /// Size of the kernel.
+    pub kernel_size: usize,
+    /// Spacing between kernel elements.
+    pub dilation: usize,
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// The padding configuration.
+    pub padding: usize,
+    /// The padding output configuration.
+    pub padding_out: usize,
+    /// The number of channels.
+    pub channels: [usize; 2],
+}
+
+impl<B: Backend> ModuleDisplay for ConvTranspose1d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("channels", &format!("{:?}", &self.channels))
+            .add("stride", &self.stride)
+            .add("kernel_size", &self.kernel_size)
+            .add("dilation", &self.dilation)
+            .add("groups", &self.groups)
+            .add("padding", &self.padding)
+            .add("padding_out", &self.padding_out)
+            .optional()
+    }
 }
 
 impl ConvTranspose1dConfig {
@@ -91,6 +125,7 @@ impl ConvTranspose1dConfig {
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,
+            channels: self.channels,
         }
     }
 }
@@ -149,5 +184,16 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = ConvTranspose1dConfig::new([5, 2], 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", conv),
+            "ConvTranspose1d {channels: [5, 2], stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: 0, padding_out: 0, params: 52}"
+        );
     }
 }
