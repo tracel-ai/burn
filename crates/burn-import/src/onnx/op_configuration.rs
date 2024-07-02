@@ -1002,22 +1002,22 @@ pub fn reduce_prod_config(node: &Node) -> Option<usize> {
         match key.as_str() {
             "axes" => axes = value.clone().into_i64s(),
             "keepdims" => keepdims = value.clone().into_i64(),
-            // TODO: handle noop_with_empty_axes
+            // TODO: handle noop_with_empty_axes (opset 18)
             _ => {}
         }
     }
 
     if axes.len() > 1 {
-        panic!("ReduceMean: reducing on multiple dimensions is not supported")
+        panic!("ReduceProd: reducing on multiple dimensions is not supported")
     }
 
     if axes.is_empty() && keepdims == 1 {
-        panic!("ReduceMean: axes must be provided with keepdims")
+        panic!("ReduceProd: axes must be provided with keepdims")
     }
 
     if !axes.is_empty() && keepdims == 0 {
         // Not supported in Burn
-        panic!("ReduceMean: the reduce operation must preserve the reduced dimension")
+        panic!("ReduceProd: the reduce operation must preserve the reduced dimension")
     }
 
     if axes.is_empty() {
