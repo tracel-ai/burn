@@ -25,6 +25,7 @@ where
     type Storage = BytesStorage;
     type MemoryManagement = MM;
     type AutotuneKey = String;
+    type FeatureSet = ();
 
     fn read(&mut self, binding: Binding<Self>) -> burn_common::reader::Reader {
         let bytes = self.memory_management.get(binding.memory);

@@ -15,6 +15,7 @@ use burn_common::sync_type::SyncType;
 pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
     tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>,
+    features: Arc<Server::FeatureSet>,
 }
 
 impl<S, C> Clone for ComputeClient<S, C>
@@ -26,6 +27,7 @@ where
         Self {
             channel: self.channel.clone(),
             tuner: self.tuner.clone(),
+            features: self.features.clone(),
         }
     }
 }
@@ -36,8 +38,16 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>) -> Self {
-        Self { channel, tuner }
+    pub fn new(
+        channel: Channel,
+        tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>,
+        features: Arc<Server::FeatureSet>,
+    ) -> Self {
+        Self {
+            channel,
+            tuner,
+            features,
+        }
     }
 
     /// Given a binding, returns owned resource as bytes.
@@ -95,5 +105,10 @@ where
     /// Get the fastest kernel for the given autotune key if it exists.
     pub fn autotune_result(&self, key: &Server::AutotuneKey) -> Option<usize> {
         self.tuner.read().unwrap().autotune_fastest(key)
+    }
+
+    /// Get the features supported by the compute server.
+    pub fn features(&self) -> &Server::FeatureSet {
+        self.features.as_ref()
     }
 }

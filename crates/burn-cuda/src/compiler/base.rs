@@ -16,6 +16,7 @@ pub struct CudaCompiler {
     invocation_index: bool,
     global_invocation_id: (bool, bool, bool),
     wrap_size_checked: bool,
+    wmma: bool,
 }
 
 impl Compiler for CudaCompiler {
@@ -73,6 +74,7 @@ impl CudaCompiler {
                 .collect(),
             cube_dim: value.cube_dim,
             body,
+            wmma_activated: self.wmma,
         }
     }
 
@@ -140,6 +142,48 @@ impl CudaCompiler {
                     _ => todo!(),
                 }
             }
+            gpu::Operation::CoopMma(cmma) => instructions.push(self.compile_cmma(cmma)),
+        }
+    }
+
+    fn compile_cmma(&mut self, cmma: gpu::CoopMma) -> Instruction {
+        match cmma {
+            gpu::CoopMma::Fill { mat: frag, value } => {
+                Instruction::Wmma(super::WmmaInstruction::Fill {
+                    frag: self.compile_variable(frag),
+                    value: self.compile_variable(value),
+                })
+            }
+            gpu::CoopMma::Load { mat, value, stride } => {
+                Instruction::Wmma(super::WmmaInstruction::Load {
+                    frag: self.compile_variable(mat),
+                    value: self.compile_variable(value),
+                    stride: self.compile_variable(stride),
+                })
+            }
+            gpu::CoopMma::Execute {
+                mat_a,
+                mat_b,
+                mat_c,
+                mat_d,
+            } => Instruction::Wmma(super::WmmaInstruction::Execute {
+                frag_a: self.compile_variable(mat_a),
+                frag_b: self.compile_variable(mat_b),
+                frag_c: self.compile_variable(mat_c),
+                frag_d: self.compile_variable(mat_d),
+            }),
+            gpu::CoopMma::Store {
+                output,
+                mat,
+                stride,
+                layout,
+            } => Instruction::Wmma(super::WmmaInstruction::Store {
+                output: self.compile_variable(output),
+                frag: self.compile_variable(mat),
+                stride: self.compile_variable(stride),
+                layout: Self::compile_matrix_layout(layout)
+                    .expect("Layout required for store instruction"),
+            }),
         }
     }
 
@@ -404,6 +448,40 @@ impl CudaCompiler {
             gpu::Variable::CubeDim => todo!(),
             gpu::Variable::CubeCount => todo!(),
             gpu::Variable::SubcubeDim => todo!(),
+            gpu::Variable::Matrix(index, matrix) => {
+                self.wmma = true;
+                super::Variable::WmmaFragment {
+                    index,
+                    frag: Self::compile_matrix(matrix),
+                }
+            }
+        }
+    }
+
+    fn compile_matrix(matrix: gpu::Matrix) -> super::Fragment {
+        super::Fragment {
+            ident: Self::compile_matrix_ident(matrix.ident),
+            m: matrix.m,
+            n: matrix.n,
+            k: matrix.k,
+            elem: Self::compile_elem(matrix.elem),
+            layout: Self::compile_matrix_layout(matrix.layout),
+        }
+    }
+
+    fn compile_matrix_ident(ident: gpu::MatrixIdent) -> super::FragmentIdent {
+        match ident {
+            gpu::MatrixIdent::A => super::FragmentIdent::A,
+            gpu::MatrixIdent::B => super::FragmentIdent::B,
+            gpu::MatrixIdent::Accumulator => super::FragmentIdent::Accumulator,
+        }
+    }
+
+    fn compile_matrix_layout(layout: gpu::MatrixLayout) -> Option<super::FragmentLayout> {
+        match layout {
+            gpu::MatrixLayout::ColMajor => Some(super::FragmentLayout::ColMajor),
+            gpu::MatrixLayout::RowMajor => Some(super::FragmentLayout::RowMajor),
+            gpu::MatrixLayout::Undefined => None,
         }
     }
 
