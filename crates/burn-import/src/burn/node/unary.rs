@@ -404,7 +404,7 @@ impl UnaryNode {
                     input,
                     output,
                     UnaryNodeKind::ReduceProd,
-                    Rc::new(move |input| quote! { #input.prod_dim(#dim) })
+                    Rc::new(move |input| quote! { #input.prod_dim(#dim) }),
                 )
             } else {
                 // ReduceProd, keepdims=0, axes=None
