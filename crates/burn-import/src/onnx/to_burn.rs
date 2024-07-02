@@ -60,8 +60,9 @@ use super::op_configuration::{
     concat_config, conv1d_config, conv2d_config, conv_transpose2d_config, dropout_config,
     expand_config, flatten_config, gather_config, layer_norm_config, leaky_relu_config,
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, reduce_max_config,
-    reduce_mean_config, reduce_min_config, reduce_sum_config, reshape_config, resize_config,
-    shape_config, slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
+    reduce_mean_config, reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config,
+    resize_config, shape_config, slice_config, softmax_config, squeeze_config, transpose_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -664,8 +665,8 @@ impl ParsedOnnxGraph {
     }
 
     fn reduce_prod_conversion(node: Node) -> UnaryNode {
-        let input = node.inputs.first().unwrap().to_type();
-        let output = node.outputs.first().unwrap().to_type();
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = reduce_prod_config(&node);
 
         UnaryNode::reduce_prod(input, output, dim)
