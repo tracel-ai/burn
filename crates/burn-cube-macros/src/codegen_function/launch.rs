@@ -172,7 +172,7 @@ impl Codegen {
         }
 
         quote::quote! {
-            #[warn(unused_variables)]
+            #[allow(unused)]
             fn register_input #generics(
                 builder: &mut KernelBuilder,
                 settings: &KernelSettings,
@@ -197,7 +197,7 @@ impl Codegen {
         }
 
         quote::quote! {
-            #[warn(unused_variables)]
+            #[allow(unused)]
             fn register_output #generics (
                 builder: &mut KernelBuilder,
                 settings: &KernelSettings,
@@ -287,7 +287,7 @@ impl Codegen {
             });
         }
 
-        quote::quote! {
+        let mut tokens = quote::quote! {
             let mut builder = KernelBuilder::default();
 
             let mut inputs: std::collections::BTreeMap<usize, std::sync::Arc<dyn core::any::Any>> = std::collections::BTreeMap::new();
@@ -305,21 +305,31 @@ impl Codegen {
                 outputs.insert(mapping.pos_output, input.clone());
             }
 
-            for i in 0..#num_inputs {
-                if !inputs.contains_key(&i) {
-                    inputs.insert(i, #register_input_call(&mut builder, &self.settings, i));
-                }
-            }
-
-            for i in 0..#num_outputs {
-                if !outputs.contains_key(&i) {
-                    outputs.insert(i, #register_output_call(&mut builder, &self.settings, i));
-                }
-            }
-
             #register_input
             #register_output
+        };
+
+        if num_inputs > 0 {
+            tokens.extend(quote::quote! {
+                for i in 0..#num_inputs {
+                    if !inputs.contains_key(&i) {
+                        inputs.insert(i, #register_input_call(&mut builder, &self.settings, i));
+                    }
+                }
+            });
         }
+
+        if num_outputs > 0 {
+            tokens.extend(quote::quote! {
+                for i in 0..#num_outputs {
+                    if !outputs.contains_key(&i) {
+                        outputs.insert(i, #register_output_call(&mut builder, &self.settings, i));
+                    }
+                }
+            });
+        }
+
+        tokens
     }
 
     fn gen_compile_impl(&self, expand: &Ident) -> TokenStream {

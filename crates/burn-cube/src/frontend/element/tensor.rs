@@ -81,7 +81,7 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
         shape: &'a [usize],
     ) -> Self {
         Self::Handle {
-            handle: TensorHandle::new(handle, &strides, &shape),
+            handle: TensorHandle::new(handle, strides, shape),
             vectorization_factor: 1,
         }
     }
@@ -92,7 +92,7 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
         shape: &'a [usize],
     ) -> Self {
         Self::Handle {
-            handle: TensorHandle::new(handle, &strides, &shape),
+            handle: TensorHandle::new(handle, strides, shape),
             vectorization_factor: factor,
         }
     }
