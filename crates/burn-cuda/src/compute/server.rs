@@ -8,6 +8,8 @@ use burn_cube::ir::CubeDim;
 use burn_cube::prelude::*;
 use burn_jit::JitAutotuneKey;
 use burn_tensor::backend::SyncType;
+use burn_tensor::reader_from_concrete;
+use burn_tensor::Reader;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
 use std::collections::HashMap;
@@ -58,18 +60,17 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
 
-    fn read(&mut self, binding: server::Binding<Self>) -> burn_tensor::Reader<Vec<u8>> {
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
         let ctx = self.get_context();
         let resource = ctx.memory_management.get(binding.memory);
+
         // TODO: Check if it is possible to make this faster
         let mut data = vec![0; resource.size() as usize];
         unsafe {
             cudarc::driver::result::memcpy_dtoh_async(&mut data, resource.ptr, ctx.stream).unwrap();
         };
-
         ctx.sync();
-
-        burn_tensor::Reader::Concrete(data)
+        reader_from_concrete(data)
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {

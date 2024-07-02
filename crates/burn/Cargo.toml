@@ -25,9 +25,6 @@ tui = ["burn-train?/tui"]
 ##  Includes system info metrics (CPU/GPU usage, etc)
 metrics = ["burn-train?/metrics"]
 
-# Useful when targeting WASM and not using WGPU.
-wasm-sync = ["burn-core/wasm-sync"]
-
 # Datasets
 dataset = ["burn-core/dataset"]
 
