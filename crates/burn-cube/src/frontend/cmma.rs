@@ -77,17 +77,17 @@ impl Init for MatrixExpand {
 }
 
 impl<C: CubePrimitive> Matrix<C> {
-    /// Create a new matrix that is going to be use in the
+    /// Create a new matrix that is going to be used in the
     /// [matrix-multiply and accumulate](execute) function.
     ///
     /// You have to declare the shape used for the execution.
-    /// The shape of the current matrix is determine using the [MatrixIdent].
+    /// The shape of the current matrix is determined using the [MatrixIdent].
     ///
     /// * [MatrixIdent::A] Shape => (M, K)
     /// * [MatrixIdent::B] Shape => (K, N)
     /// * [MatrixIdent::Accumulator] Shape => (M, N)
     ///
-    /// Not all shapes are supported, and the permitted shapes depend of the element type.
+    /// Not all shapes are supported, and the permitted shapes depend on the element type.
     ///
     /// Refer to [nvidia documentation](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#element-types-and-matrix-sizes).
     #[allow(unused_variables)]

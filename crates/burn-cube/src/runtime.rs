@@ -56,7 +56,7 @@ impl FeatureSet {
 /// Every feature that can be supported by a [cube runtime](Runtime).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Feature {
-    /// The subcube feature enables all basic warn/subgroup operations.
+    /// The subcube feature enables all basic warp/subgroup operations.
     Subcube,
     /// The cmma feature enables cooperative matrix-multiply and accumulate operations.
     Cmma {
