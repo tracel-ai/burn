@@ -103,7 +103,17 @@ located in the `src/burn/node/` directory.
 
 #### Within Onnx-IR
 
-If the node type does not exist within the [`NodeType` enum](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/ir.rs#L246), it will need to be added (support for custom operators is planned). If the node might be provided an input which is a constant or the output of an identity node, it will need to be added to the list of nodeTypes [checked for constants](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L21). The node will need to be added to `dim_inference`, and in most cases the work parsing side will be done. If a node requires extra parsing (such as handling an edge case like potentially remapping an unsqueeze to a reshape) the best place for that is after check constants and prior to dim_inference in [`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L221)
+If the node type does not exist within the
+[`NodeType` enum](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/ir.rs#L246),
+it will need to be added (support for custom operators is planned). If the node might be provided an
+input which is a constant or the output of an identity node, it will need to be added to the list of
+nodeTypes
+[checked for constants](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L21).
+The node will need to be added to `dim_inference`, and in most cases the work parsing side will be
+done. If a node requires extra parsing (such as handling an edge case like potentially remapping an
+unsqueeze to a reshape) the best place for that is after check constants and prior to dim_inference
+in
+[`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L221)
 
 #### Within burn-import
 
