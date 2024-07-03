@@ -9,33 +9,91 @@ use super::MemoryManagement;
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
     small_memory_pool: SmallMemoryPool,
-    small_medium_memory_pool: MemoryPool,
-    medium_memory_pool: MemoryPool,
-    main_memory_pool: MemoryPool,
+    pools: Vec<MemoryPool>,
+    options: Vec<MemoryPoolOptions>,
     storage: Storage,
+}
+
+/// Options to initialize a [dynamic memory management](DynamicMemoryManagement).
+#[derive(new, Debug)]
+pub struct DynamicMemoryManagementOptions {
+    pools: Vec<MemoryPoolOptions>,
+}
+
+/// Options to create a memory pool.
+#[derive(Debug)]
+pub struct MemoryPoolOptions {
+    /// The amount of bytes used for each chunk in the memory pool.
+    pub chunk_size: usize,
+    /// The number of chunks allocated directly at creation.
+    ///
+    /// Useful when you know in advance how much memory you'll need.
+    pub chunk_num_prealloc: usize,
+    /// The max size in byte a slice can take in the pool.
+    pub slice_max_size: usize,
+}
+
+impl DynamicMemoryManagementOptions {
+    /// Creates the options from the maximum amount of memory a single chunk can contain.
+    ///
+    /// It then creates smaller memory pools that shouldn't cause too much fragmentation.
+    pub fn preset(max_chunk_size: usize) -> Self {
+        // Rounding down to a factor of 8.
+        let max_chunk_size = (max_chunk_size / 8) * 8;
+
+        const MB: usize = 1024 * 1024;
+
+        let mut pools = vec![MemoryPoolOptions {
+            chunk_size: max_chunk_size,
+            chunk_num_prealloc: 0,
+            slice_max_size: max_chunk_size,
+        }];
+
+        let mut current = max_chunk_size;
+
+        while current >= 32 * MB {
+            current /= 4;
+
+            pools.push(MemoryPoolOptions {
+                chunk_size: current,
+                chunk_num_prealloc: 0,
+                // Creating max slices lower than the chunk size reduces defragmentation.
+                slice_max_size: current / 2usize.pow(pools.len() as u32),
+            });
+        }
+
+        Self { pools }
+    }
 }
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(storage: Storage) -> Self {
-        let main_memory_pool = MemoryPool::new(
-            MemoryExtensionStrategy::new_period_tick(10),
-            RoundingStrategy::FixedAmount(1024 * 1024 * 1024),
-        );
-        let medium_memory_pool = MemoryPool::new(
-            MemoryExtensionStrategy::Never,
-            RoundingStrategy::FixedAmount(1024 * 1024 * 200),
-        );
-        let small_medium_memory_pool = MemoryPool::new(
-            MemoryExtensionStrategy::Never,
-            RoundingStrategy::FixedAmount(1024 * 1024 * 2),
-        );
-        let small_memory_pool = SmallMemoryPool::new();
+    pub fn new(mut storage: Storage, mut options: DynamicMemoryManagementOptions) -> Self {
+        options
+            .pools
+            .sort_by(|pool1, pool2| usize::cmp(&pool1.slice_max_size, &pool2.slice_max_size));
+
+        let pools = options
+            .pools
+            .iter()
+            .map(|option| {
+                let mut pool = MemoryPool::new(
+                    MemoryExtensionStrategy::Never,
+                    RoundingStrategy::FixedAmount(option.chunk_size),
+                );
+
+                for _ in 0..option.chunk_num_prealloc {
+                    pool.alloc(&mut storage, option.chunk_size, || {});
+                }
+
+                pool
+            })
+            .collect();
+
         Self {
-            small_memory_pool,
-            small_medium_memory_pool,
-            main_memory_pool,
-            medium_memory_pool,
+            small_memory_pool: SmallMemoryPool::new(),
+            pools,
+            options: options.pools,
             storage,
         }
     }
@@ -62,50 +120,45 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
             return handle;
         }
 
-        if let Some(handle) = self
-            .small_medium_memory_pool
-            .get(&mut self.storage, &binding)
-        {
-            return handle;
+        for pool in &mut self.pools {
+            if let Some(handle) = pool.get(&mut self.storage, &binding) {
+                return handle;
+            }
         }
 
-        if let Some(handle) = self.medium_memory_pool.get(&mut self.storage, &binding) {
-            return handle;
-        }
-
-        if let Some(handle) = self.main_memory_pool.get(&mut self.storage, &binding) {
-            return handle;
-        }
-
-        panic!("No handle found in the small and main memory pool");
+        panic!("No handle found in memory pools");
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
         if size <= 32 {
-            self.small_memory_pool
-                .reserve(&mut self.storage, size, sync)
-        } else if size <= 2 * 1024 * 1024 {
-            self.small_medium_memory_pool
-                .reserve(&mut self.storage, size, sync)
-        } else if size < 200 * 1024 * 1024 {
-            self.medium_memory_pool
-                .reserve(&mut self.storage, size, sync)
-        } else {
-            self.main_memory_pool.reserve(&mut self.storage, size, sync)
+            return self
+                .small_memory_pool
+                .reserve(&mut self.storage, size, sync);
         }
+
+        for (index, option) in self.options.iter().enumerate() {
+            if size <= option.slice_max_size {
+                let pool = &mut self.pools[index];
+                return pool.reserve(&mut self.storage, size, sync);
+            }
+        }
+
+        panic!("No memory pool big enough to reserve {size} bytes.");
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
         if size <= 32 {
-            self.small_memory_pool.alloc(&mut self.storage, size, sync)
-        } else if size <= 2 * 1024 * 1024 {
-            self.small_medium_memory_pool
-                .alloc(&mut self.storage, size, sync)
-        } else if size <= 200 * 1024 * 1024 {
-            self.medium_memory_pool.alloc(&mut self.storage, size, sync)
-        } else {
-            self.main_memory_pool.alloc(&mut self.storage, size, sync)
+            return self.small_memory_pool.alloc(&mut self.storage, size, sync);
         }
+
+        for (index, option) in self.options.iter().enumerate() {
+            if size <= option.slice_max_size {
+                let pool = &mut self.pools[index];
+                return pool.alloc(&mut self.storage, size, sync);
+            }
+        }
+
+        panic!("No memory pool big enough to alloc {size} bytes.");
     }
 
     fn dealloc(&mut self, _binding: Self::Binding) {

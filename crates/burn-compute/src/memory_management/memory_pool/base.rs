@@ -148,6 +148,7 @@ impl RoundingStrategy {
 }
 
 /// The strategy defines the frequency at which merging of free slices (defragmentation) occurs
+#[allow(unused)]
 #[derive(Debug)]
 pub enum MemoryExtensionStrategy {
     /// Once every n calls to reserve.
@@ -161,6 +162,7 @@ pub enum MemoryExtensionStrategy {
     Never,
 }
 
+#[allow(unused)]
 impl MemoryExtensionStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {

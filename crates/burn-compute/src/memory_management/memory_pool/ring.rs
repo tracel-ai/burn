@@ -56,6 +56,8 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
         for (pos, id) in self.queue.iter().enumerate() {
             self.chunk_positions.insert(*id, pos);
         }
+        self.cursor_chunk = 0;
+        self.cursor_slice = 0;
     }
 
     pub fn find_free_slice(
