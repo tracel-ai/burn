@@ -1,4 +1,4 @@
-#![allow(clippy::collapsible_if)] // Not supported with cube yet
+#![allow(clippy::collapsible_if_else)] // Not supported with cube yet
 
 mod base;
 mod block_loop;
