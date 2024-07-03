@@ -4,6 +4,21 @@ This example corresponds to the [book's guide](https://burn.dev/book/basic-workf
 
 ## Example Usage
 
+
+### Training
+
 ```sh
-cargo run --example guide
+cargo run --bin train --release
+```
+
+### Inference
+
+```sh
+cargo run --bin infer --release
+```
+
+### Print the model
+
+```sh
+cargo run --bin print --release
 ```

@@ -4,7 +4,7 @@ use crate::{
     IntElement, JitBackend, JitRuntime,
 };
 use burn_compute::client::ComputeClient;
-use burn_cube::{dialect::ReadingStrategy, CompilationInfo, CompilationSettings, InplaceMapping};
+use burn_cube::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
@@ -229,13 +229,13 @@ impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for 
 /// 2. (Optional) Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
 ///    descriptions. This is enabled only when stateful is set to true.
 pub fn dynamic_settings<R: JitRuntime>(
-    mut settings: CompilationSettings,
-    info: &CompilationInfo,
+    mut settings: KernelSettings,
+    info: &KernelExpansion,
     inputs: &[&burn_tensor::repr::TensorDescription],
     outputs: &[&burn_tensor::repr::TensorDescription],
     handles_inputs: &[JitFusionHandle<R>],
     stateful: bool,
-) -> CompilationSettings {
+) -> KernelSettings {
     if stateful {
         settings = dynamic_inplace(settings, info, inputs, outputs, handles_inputs);
     }
@@ -244,12 +244,12 @@ pub fn dynamic_settings<R: JitRuntime>(
 }
 
 fn dynamic_inplace<R: JitRuntime>(
-    settings: CompilationSettings,
-    info: &CompilationInfo,
+    settings: KernelSettings,
+    info: &KernelExpansion,
     inputs: &[&burn_tensor::repr::TensorDescription],
     outputs: &[&burn_tensor::repr::TensorDescription],
     handles_inputs: &[JitFusionHandle<R>],
-) -> CompilationSettings {
+) -> KernelSettings {
     let mut potential_inplace = inputs
         .iter()
         .zip(info.inputs.iter())
@@ -295,12 +295,12 @@ fn dynamic_inplace<R: JitRuntime>(
 }
 
 fn dynamic_reading_strategy<R: JitRuntime>(
-    mut settings: CompilationSettings,
-    info: &CompilationInfo,
+    mut settings: KernelSettings,
+    info: &KernelExpansion,
     inputs: &[&burn_tensor::repr::TensorDescription],
     outputs: &[&burn_tensor::repr::TensorDescription],
     handles_inputs: &[JitFusionHandle<R>],
-) -> CompilationSettings {
+) -> KernelSettings {
     // First output is chosen for the layout reference.
     // but all outputs should have the same shape anyways.
     let layout_shape = &outputs[0].shape;

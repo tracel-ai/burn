@@ -1,7 +1,8 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
-    Execution, TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, Item, Scope, Variable},
+    CubeCountSettings, Execution,
 };
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -20,8 +21,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial =
-            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
+        let max_initial = Variable::ConstantScalar(E::minimum_value().to_f64(), item.elem());
         cpa!(scope, max_val = max_initial);
         max_val
     }
@@ -67,8 +67,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial =
-            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), item.elem());
+        let max_initial = Variable::ConstantScalar(E::minimum_value().to_f64(), item.elem());
         cpa!(scope, max_val = max_initial);
         let max_index = scope.create_local(Elem::UInt);
         (max_val, max_index)
@@ -152,7 +151,7 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
             padding[0] as u32,
             padding[1] as u32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }
@@ -204,7 +203,7 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
             padding[0] as i32,
             padding[1] as i32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     (output, indices)
 }

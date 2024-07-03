@@ -2,7 +2,7 @@ use crate::element::JitElement;
 use crate::{unary, JitRuntime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
-use burn_cube::dialect::{Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::ir::{Elem, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
@@ -101,11 +101,10 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = self
-            .client
-            .read(self.handle.clone().binding())
-            .read_sync()
-            .expect("Can only change client synchronously");
+        let bytes = burn_common::reader::try_read_sync(
+            self.client.read_async(self.handle.clone().binding()),
+        )
+        .expect("Can only change client synchronously");
         let handle = client.create(&bytes);
 
         Self {

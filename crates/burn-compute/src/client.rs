@@ -1,19 +1,21 @@
 use crate::{
     channel::ComputeChannel,
     server::{Binding, ComputeServer, Handle},
+    storage::ComputeStorage,
     tune::{AutotuneOperationSet, Tuner},
 };
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
-use burn_common::reader::Reader;
 use burn_common::stub::RwLock;
+use burn_common::sync_type::SyncType;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
 #[derive(Debug)]
 pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
-    tuner: Arc<RwLock<Tuner<Server, Channel>>>,
+    tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>,
+    features: Arc<Server::FeatureSet>,
 }
 
 impl<S, C> Clone for ComputeClient<S, C>
@@ -25,6 +27,7 @@ where
         Self {
             channel: self.channel.clone(),
             tuner: self.tuner.clone(),
+            features: self.features.clone(),
         }
     }
 }
@@ -35,13 +38,37 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server, Channel>>>) -> Self {
-        Self { channel, tuner }
+    pub fn new(
+        channel: Channel,
+        tuner: Arc<RwLock<Tuner<Server::AutotuneKey>>>,
+        features: Arc<Server::FeatureSet>,
+    ) -> Self {
+        Self {
+            channel,
+            tuner,
+            features,
+        }
     }
 
     /// Given a binding, returns owned resource as bytes.
-    pub fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
-        self.channel.read(binding)
+    pub async fn read_async(&self, binding: Binding<Server>) -> Vec<u8> {
+        self.channel.read(binding).await
+    }
+
+    /// Given a binding, returns owned resource as bytes.
+    ///
+    /// # Remarks
+    /// Panics if the read operation fails.
+    pub fn read(&self, binding: Binding<Server>) -> Vec<u8> {
+        burn_common::reader::read_sync(self.channel.read(binding))
+    }
+
+    /// Given a resource handle, returns the storage resource.
+    pub fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        self.channel.get_resource(binding)
     }
 
     /// Given a resource, stores it and returns the resource handle.
@@ -60,8 +87,8 @@ where
     }
 
     /// Wait for the completion of every task in the server.
-    pub fn sync(&self) {
-        self.channel.sync()
+    pub fn sync(&self, sync_type: SyncType) {
+        self.channel.sync(sync_type)
     }
 
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
@@ -78,5 +105,10 @@ where
     /// Get the fastest kernel for the given autotune key if it exists.
     pub fn autotune_result(&self, key: &Server::AutotuneKey) -> Option<usize> {
         self.tuner.read().unwrap().autotune_fastest(key)
+    }
+
+    /// Get the features supported by the compute server.
+    pub fn features(&self) -> &Server::FeatureSet {
+        self.features.as_ref()
     }
 }

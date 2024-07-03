@@ -1,5 +1,5 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_cube::{Execution, TensorHandle, WorkgroupLaunch};
+use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 use burn_tensor::Shape;
 
 use super::AdaptivePool2dEagerKernel;
@@ -26,7 +26,7 @@ pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
             &output.strides,
             &output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

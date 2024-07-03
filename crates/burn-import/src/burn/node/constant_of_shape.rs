@@ -174,7 +174,6 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = Tensor::full(tensor1.shape(), 1.25f32, &*self.device);
-
                     tensor2
                 }
             }

@@ -24,8 +24,10 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_forward!();
         burn_tensor::testgen_module_conv1d!();
         burn_tensor::testgen_module_conv2d!();
+        burn_tensor::testgen_module_conv3d!();
         burn_tensor::testgen_module_conv_transpose1d!();
         burn_tensor::testgen_module_conv_transpose2d!();
+        burn_tensor::testgen_module_conv_transpose3d!();
         burn_tensor::testgen_module_unfold4d!();
         burn_tensor::testgen_module_max_pool1d!();
         burn_tensor::testgen_module_max_pool2d!();
@@ -88,6 +90,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_any!();
         burn_tensor::testgen_all_op!();
         burn_tensor::testgen_permute!();
+        burn_tensor::testgen_movedim!();
         burn_tensor::testgen_flip!();
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_argwhere_nonzero!();
@@ -97,6 +100,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_sort_argsort!();
         burn_tensor::testgen_topk!();
         burn_tensor::testgen_remainder!();
+        burn_tensor::testgen_cartesian_grid!();
 
         // test stats
         burn_tensor::testgen_var!();

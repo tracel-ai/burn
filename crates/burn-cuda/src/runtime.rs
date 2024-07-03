@@ -2,11 +2,14 @@ use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
-    memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    memory_management::simple::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
     ComputeRuntime,
 };
-use burn_cube::Runtime;
+use burn_cube::{
+    ir::{Elem, FloatKind},
+    Feature, FeatureSet, Runtime,
+};
 use std::sync::Arc;
 
 use crate::{
@@ -23,7 +26,6 @@ impl burn_jit::JitRuntime for CudaRuntime {
     type JitServer = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 }
 
-// static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
 static RUNTIME: ComputeRuntime<CudaDevice, Server, MutexComputeChannel<Server>> =
     ComputeRuntime::new();
 
@@ -33,7 +35,6 @@ impl Runtime for CudaRuntime {
     type Compiler = CudaCompiler;
     type Server = CudaServer<SimpleMemoryManagement<CudaStorage>>;
 
-    // type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Channel = MutexComputeChannel<CudaServer<SimpleMemoryManagement<CudaStorage>>>;
     type Device = CudaDevice;
 
@@ -62,12 +63,20 @@ impl Runtime for CudaRuntime {
         }
 
         RUNTIME.client(device, move || {
-            let server = CudaServer::new(device.index, Box::new(init));
-
+            let mut server = CudaServer::new(device.index, Box::new(init));
+            let mut features = FeatureSet::new(&[Feature::Subcube]);
             let tuner_device_id = tuner_device_id();
+
+            if let Some(wmma_minimum_version) = register_wmma_features(&mut features, &server.archs)
+            {
+                server.minimum_arch_version =
+                    i32::max(server.minimum_arch_version, wmma_minimum_version);
+            }
+
             ComputeClient::new(
                 MutexComputeChannel::new(server),
-                Arc::new(RwLock::new(Tuner::new(&tuner_device_id))),
+                Arc::new(RwLock::new(Tuner::new("cuda", &tuner_device_id))),
+                Arc::new(features),
             )
         })
     }
@@ -81,6 +90,66 @@ impl Runtime for CudaRuntime {
     }
 }
 
+fn register_wmma_features(features: &mut FeatureSet, archs: &[i32]) -> Option<i32> {
+    let wmma_minimum_version = 70;
+    let mut wmma = false;
+
+    for arch in archs {
+        if *arch >= wmma_minimum_version {
+            wmma = true;
+            break;
+        }
+    }
+
+    if wmma {
+        // Types fully supported.
+        for (a, b, c) in [
+            (
+                Elem::Float(FloatKind::F16),
+                Elem::Float(FloatKind::F16),
+                Elem::Float(FloatKind::F16),
+            ),
+            (
+                Elem::Float(FloatKind::F16),
+                Elem::Float(FloatKind::F16),
+                Elem::Float(FloatKind::F32),
+            ),
+            (
+                Elem::Float(FloatKind::BF16),
+                Elem::Float(FloatKind::BF16),
+                Elem::Float(FloatKind::F32),
+            ),
+        ] {
+            features.register(Feature::Cmma {
+                a,
+                b,
+                c,
+                m: 16,
+                k: 16,
+                n: 16,
+            });
+            features.register(Feature::Cmma {
+                a,
+                b,
+                c,
+                m: 32,
+                k: 8,
+                n: 16,
+            });
+            features.register(Feature::Cmma {
+                a,
+                b,
+                c,
+                m: 8,
+                k: 32,
+                n: 16,
+            });
+        }
+        return Some(wmma_minimum_version);
+    }
+
+    None
+}
 fn tuner_device_id() -> String {
     "cuda".into()
 }

@@ -1,15 +1,16 @@
 use crate::{
     element::JitElement,
-    kernel::{self, GpuComputeShaderPhase},
+    kernel::{self, Kernel},
     ops::numeric::empty_device,
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
     cpa,
-    dialect::{ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -32,7 +33,7 @@ impl MaxPool2dBackwardComputeShader {
         let grad = self.grad;
         let output = self.output;
         let indices = self.indices;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);
@@ -261,10 +262,8 @@ impl MaxPool2dBackwardComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
-    for MaxPool2dWithIndicesBackwardEagerKernel<R, E>
-{
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
@@ -297,14 +296,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase
         };
         let output = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![indices, grad, scalars],
             outputs: vec![output],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -349,7 +348,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: 
             padding[0] as i32,
             padding[1] as i32,
         ])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

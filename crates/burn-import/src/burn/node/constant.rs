@@ -3,28 +3,21 @@ use crate::burn::{ScalarKind, ScalarType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
-    tensor::DataSerialize,
+    tensor::TensorData,
 };
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct ConstantNode<PS: PrecisionSettings> {
+pub struct ConstantNode {
     pub name: String,
-    pub value: ConstantValue<PS>,
+    pub value: ConstantValue,
     pub output: Type,
 }
 
-#[derive(Debug, Clone)]
-pub enum TensorValue<PS: PrecisionSettings> {
-    Float(DataSerialize<PS::FloatElem>),
-    Int(DataSerialize<PS::IntElem>),
-    // TODO Support bool serialization (@antimora 8/26/2023)
-}
-
 #[derive(Debug, Clone, new)]
-pub enum ConstantValue<PS: PrecisionSettings> {
+pub enum ConstantValue {
     /// Float constant.
     Float32(f32),
     Float64(f64),
@@ -37,10 +30,10 @@ pub enum ConstantValue<PS: PrecisionSettings> {
     Bool(bool),
 
     /// Tensor constant.
-    Tensor(TensorType, TensorValue<PS>),
+    Tensor(TensorType, TensorData),
 }
 
-impl<PS: PrecisionSettings> ConstantValue<PS> {
+impl ConstantValue {
     pub fn ty_tokens(&self) -> TokenStream {
         match self {
             ConstantValue::Float32(_) => quote! { f32 },
@@ -68,8 +61,8 @@ impl<PS: PrecisionSettings> ConstantValue<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> ConstantNode<PS> {
-    pub fn new(name: String, value: ConstantValue<PS>, output: Type) -> Self {
+impl ConstantNode {
+    pub fn new(name: String, value: ConstantValue, output: Type) -> Self {
         Self {
             name,
             value,
@@ -105,7 +98,7 @@ impl<PS: PrecisionSettings> ConstantNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
     fn output_types(&self) -> Vec<Type> {
         vec![self.output.clone()]
     }
@@ -162,11 +155,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if let ConstantValue::Tensor(_, ds) = &self.value {
-            let data: DataSerialize<PS::FloatElem> = match ds {
-                TensorValue::Float(data) => data.clone().convert(),
-                TensorValue::Int(data) => data.clone().convert(),
-            };
+        if let ConstantValue::Tensor(_, data) = &self.value {
+            let data = data.clone().convert::<PS::FloatElem>();
             let data = ParamSerde::new(ParamId::new().into_string(), data);
             return data.serialize(serializer);
         }

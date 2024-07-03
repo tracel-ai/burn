@@ -1,14 +1,14 @@
 use crate::{
     element::JitElement,
-    kernel::{GpuComputeShaderPhase, WORKGROUP_DEFAULT},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
 use burn_cube::{
-    cpa,
-    dialect::{Branch, ComputeShader, Elem, IntKind, Item, Scope, Variable, Visibility},
-    elemwise_workgroup, Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo,
-    TensorHandle, WorkgroupLaunch,
+    calculate_cube_count_elemwise, cpa,
+    frontend::TensorHandle,
+    ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use std::marker::PhantomData;
 
@@ -31,7 +31,7 @@ impl SelectAssignComputeShader {
         let tensor = self.tensor;
         let value = self.value;
         let indices = self.indices;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let offset_tensor = scope.zero(Elem::UInt);
         let offset_value = scope.zero(Elem::UInt);
@@ -128,8 +128,8 @@ impl SelectAssignComputeShader {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for SelectAssignEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
@@ -161,14 +161,14 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for SelectAssignEagerKe
             visibility: Visibility::Read,
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![tensor, value, indices],
             outputs: vec![],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -205,7 +205,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
         });
 
     let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
+    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -215,7 +215,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
             // kernel, but we need to put the right number of dimensions (rank).
             TensorHandle::new(&indices.handle, &strides, &strides),
         ])
-        .execute(WorkgroupLaunch::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(workgroup));
 
     tensor
 }

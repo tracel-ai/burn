@@ -1,7 +1,6 @@
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
-use burn_tensor::Reader;
-use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
 use super::{expand, permute};
@@ -20,24 +19,15 @@ where
         tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<Data<bool, D>> {
-        super::bool_into_data(tensor)
+    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
+        super::bool_into_data(tensor).await
     }
 
     fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        let data: Data<u32, D> = Data::new(
-            data.value
-                .into_iter()
-                .map(|c| match c {
-                    true => 1,
-                    false => 0,
-                })
-                .collect(),
-            data.shape,
-        );
+        let data: TensorData = TensorData::new(data.iter::<u32>().collect(), data.shape);
         super::from_data(data, device)
     }
 

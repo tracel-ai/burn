@@ -33,7 +33,7 @@ __sqlite-shared = [
 ]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.15.0", optional = true, features = [
+burn-common = { path = "../burn-common", version = "0.14.0", optional = true, features = [
   "network",
 ] }
 csv = { workspace = true }

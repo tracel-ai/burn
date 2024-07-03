@@ -1,13 +1,13 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::{backend::Backend, Tensor};
 
 use super::Initializer;
 
-/// Configuration to create a [Linear](Linear) layer.
+/// Configuration to create a [Linear](Linear) layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
 pub struct LinearConfig {
     /// The size of the input features.
@@ -26,8 +26,11 @@ pub struct LinearConfig {
 
 /// Applies a linear transformation to the input tensor:
 ///
+/// Should be created with [LinearConfig]
+///
 /// `O = IW + b`
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Linear<B: Backend> {
     /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
@@ -81,11 +84,28 @@ impl<B: Backend> Linear<B> {
     }
 }
 
+impl<B: Backend> ModuleDisplay for Linear<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, d_output] = self.weight.shape().dims;
+        content
+            .add("d_input", &d_input)
+            .add("d_output", &d_output)
+            .add("bias", &self.bias.is_some())
+            .optional()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Shape, TensorData};
     use crate::TestBackend;
-    use burn_tensor::{Data, Shape};
 
     #[test]
     fn initializer_default() {
@@ -118,7 +138,7 @@ mod tests {
         linear
             .weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(linear.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
     }
 
     #[test]
@@ -169,9 +189,20 @@ mod tests {
         let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([2]), &device);
         let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
 
-        let result_1d = linear.forward(input_1d).unsqueeze();
+        let result_1d = linear.forward(input_1d).unsqueeze::<2>();
         let result_2d = linear.forward(input_2d);
 
         assert_eq!(result_1d.into_data(), result_2d.into_data());
+    }
+
+    #[test]
+    fn display() {
+        let config = LinearConfig::new(3, 5);
+        let linear = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", linear),
+            "Linear {d_input: 3, d_output: 5, bias: true, params: 20}"
+        );
     }
 }

@@ -17,15 +17,14 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Data, Device, ElementConversion, Reader, Shape, Tensor,
+    Device, ElementConversion, Shape, Tensor, TensorData,
 };
 
 use super::maxmin::MaxMinDim;
-use super::sort::SortDim;
 
 impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
-        data: Data<FloatElem<B>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_from_data(data, device))
@@ -51,16 +50,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_shape(&tensor.primitive)
     }
 
-    fn float_to_data<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
-        B::float_to_data(&tensor.primitive)
-    }
-
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
-        B::float_into_data(tensor.primitive)
+    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+        B::float_into_data(tensor.primitive).await
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -2374,7 +2365,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
         descending: bool,
     ) -> FloatTensor<Self, D> {
-        match SortDim
+        match super::sort::SortDim
             .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()
@@ -2396,7 +2387,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         dim: usize,
         descending: bool,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
-        match SortDim
+        match super::sort::SortDim
             .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()

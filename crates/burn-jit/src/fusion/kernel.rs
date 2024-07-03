@@ -1,16 +1,13 @@
+use burn_cube::calculate_num_elems_dyn_rank;
+use burn_cube::prelude::*;
+
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
-use crate::kernel::GpuComputeShaderPhase;
+use crate::kernel::Kernel;
 use crate::JitRuntime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use burn_compute::tune::AutotuneOperation;
-use burn_cube::calculate_num_elems_dyn_rank;
-use burn_cube::dialect::ComputeShader;
-use burn_cube::Compilation;
-use burn_cube::CompilationInfo;
-use burn_cube::CompilationSettings;
-use burn_cube::{FullCompilationPhase, JitKernel, Kernel, WorkGroup};
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
@@ -22,10 +19,10 @@ use super::tracing::ExecutionInfo;
 #[derive(new)]
 pub struct FusionKernel<R: JitRuntime> {
     id: String, // Same ID for all different settings.
-    info: Arc<CompilationInfo>,
-    settings: CompilationSettings,
+    info: Arc<KernelExpansion>,
+    settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    workgroup: WorkGroup,
+    cube_count: CubeCount,
     _runtime: PhantomData<R>,
 }
 
@@ -43,7 +40,7 @@ pub trait FusionKernelFactory<R: JitRuntime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: JitRuntime> {
-    kernel: Box<dyn JitKernel>,
+    kernel: Box<dyn CubeTask>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -56,7 +53,7 @@ pub struct ExecutableKernel<R: JitRuntime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: JitRuntime> {
-    kernel: Arc<dyn JitKernel>,
+    kernel: Arc<dyn CubeTask>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -71,15 +68,13 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(Kernel::JitGpu(self.kernel), self.bindings)
+        self.client.execute(self.kernel, self.bindings)
     }
 }
 
 impl<R: JitRuntime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client
-            .execute(Kernel::JitGpu(Box::new(self.kernel)), self.bindings)
+        self.client.execute(Box::new(self.kernel), self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
@@ -238,9 +233,9 @@ impl<R: JitRuntime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        let workgroup = fusion_kernel.workgroup.clone();
+        let workgroup = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
-            Box::new(FullCompilationPhase::<R::Compiler, FusionKernel<R>>::new(
+            Box::new(KernelTask::<R::Compiler, FusionKernel<R>>::new(
                 fusion_kernel,
                 workgroup,
             )),
@@ -250,10 +245,10 @@ impl<R: JitRuntime> FusionKernel<R> {
     }
 }
 
-impl<R: JitRuntime> GpuComputeShaderPhase for FusionKernel<R> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime> Kernel for FusionKernel<R> {
+    fn define(&self) -> KernelDefinition {
         log::info!("Compiling ... {:?}", self.id());
-        Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone())
+        KernelIntegrator::new(self.info.as_ref().clone()).integrate(self.settings.clone())
     }
 
     fn id(&self) -> String {

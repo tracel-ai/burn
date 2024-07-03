@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::Learner;
@@ -45,7 +46,7 @@ where
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
-    directory: String,
+    directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
@@ -74,12 +75,14 @@ where
     /// # Arguments
     ///
     /// * `directory` - The directory to save the checkpoints.
-    pub fn new(directory: &str) -> Self {
+    pub fn new(directory: impl AsRef<Path>) -> Self {
+        let directory = directory.as_ref().to_path_buf();
+        let experiment_log_file = directory.join("experiment.log");
         Self {
             num_epochs: 1,
             checkpoint: None,
             checkpointers: None,
-            directory: directory.to_string(),
+            directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
             metrics: Metrics::default(),
@@ -87,7 +90,7 @@ where
             renderer: None,
             interrupter: TrainingInterrupter::new(),
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
-                format!("{}/experiment.log", directory).as_str(),
+                experiment_log_file,
             ))),
             num_loggers: 0,
             checkpointer_strategy: Box::new(
@@ -124,11 +127,12 @@ where
     }
 
     /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
+    pub fn with_checkpointing_strategy<CS>(mut self, strategy: CS) -> Self
     where
         CS: CheckpointingStrategy + 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
+        self
     }
 
     /// Replace the default CLI renderer with a custom one.
@@ -255,21 +259,12 @@ where
         M::Record: 'static,
         S::Record: 'static,
     {
-        let checkpointer_model = FileCheckpointer::new(
-            recorder.clone(),
-            format!("{}/checkpoint", self.directory).as_str(),
-            "model",
-        );
-        let checkpointer_optimizer = FileCheckpointer::new(
-            recorder.clone(),
-            format!("{}/checkpoint", self.directory).as_str(),
-            "optim",
-        );
-        let checkpointer_scheduler: FileCheckpointer<FR> = FileCheckpointer::new(
-            recorder,
-            format!("{}/checkpoint", self.directory).as_str(),
-            "scheduler",
-        );
+        let checkpoint_dir = self.directory.join("checkpoint");
+        let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
+        let checkpointer_optimizer =
+            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
+        let checkpointer_scheduler: FileCheckpointer<FR> =
+            FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
 
         self.checkpointers = Some((
             AsyncCheckpointer::new(checkpointer_model),
@@ -324,17 +319,12 @@ where
         let renderer = self.renderer.unwrap_or_else(|| {
             Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
         });
-        let directory = &self.directory;
 
         if self.num_loggers == 0 {
             self.event_store
-                .register_logger_train(FileMetricLogger::new(
-                    format!("{directory}/train").as_str(),
-                ));
+                .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
             self.event_store
-                .register_logger_valid(FileMetricLogger::new(
-                    format!("{directory}/valid").as_str(),
-                ));
+                .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
         }
 
         let event_store = Rc::new(EventStoreClient::new(self.event_store));

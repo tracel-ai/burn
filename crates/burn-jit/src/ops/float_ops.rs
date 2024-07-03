@@ -4,11 +4,11 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
 use crate::{unary, JitBackend};
 use crate::{FloatElement, IntElement, JitRuntime};
-use burn_cube::dialect::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
+use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
 use burn_cube::Runtime;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
-use burn_tensor::{ElementConversion, Reader};
+use burn_tensor::ElementConversion;
+use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
@@ -18,7 +18,7 @@ where
     I: IntElement,
 {
     fn float_from_data<const D: usize>(
-        data: Data<FloatElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         super::from_data(data, device)
@@ -45,10 +45,8 @@ where
         tensor.shape.clone()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<Self>, D>> {
-        super::into_data(tensor)
+    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+        super::into_data(tensor).await
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {

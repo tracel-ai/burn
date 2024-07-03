@@ -1,30 +1,30 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 use burn::{
-    module::{Param, ParamId},
+    module::{ConstantRecord, Param, ParamId},
     nn::{PReluConfig, PReluRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Clone, Debug)]
-pub struct PReluNode<PS: PrecisionSettings> {
+pub struct PReluNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub alpha: DataSerialize<PS::FloatElem>,
+    pub alpha: TensorData,
     pub config: PReluConfig,
 }
 
-impl<PS: PrecisionSettings> PReluNode<PS> {
+impl PReluNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        alpha: DataSerialize<PS::FloatElem>,
+        alpha: TensorData,
         config: PReluConfig,
     ) -> Self {
         Self {
@@ -42,7 +42,7 @@ impl<PS: PrecisionSettings> PReluNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -68,8 +68,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
         let record = PReluRecord::<SerializationBackend> {
             alpha: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.alpha.clone().convert(), &device),
+                Tensor::from_data(self.alpha.clone().convert::<PS::FloatElem>(), &device),
             ),
+            alpha_value: ConstantRecord,
         };
 
         let item = Record::into_item::<PS>(record);
@@ -99,7 +100,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -109,7 +110,7 @@ mod tests {
             "prelu",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
             PReluConfig::new(),
         ));
 

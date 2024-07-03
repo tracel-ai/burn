@@ -1,11 +1,18 @@
-mod analysis;
-mod codegen;
+#[macro_use]
+extern crate derive_new;
 
-use analysis::CodeAnalysis;
-use codegen::{codegen_launch, codegen_statement};
+mod analyzer;
+mod codegen_function;
+mod codegen_type;
+mod tracker;
+
+use analyzer::VariableAnalyzer;
+use codegen_function::{codegen_launch, codegen_statement};
+use codegen_type::generate_cube_type;
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
+use tracker::VariableTracker;
 
 enum CubeMode {
     /// Generates the expanded version of the function
@@ -15,26 +22,48 @@ enum CubeMode {
     Debug,
 }
 
+// Derive macro to define a cube type that is launched with a kernel
+#[proc_macro_derive(CubeLaunch)]
+pub fn module_derive_cube_launch(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+
+    generate_cube_type(&input, true)
+}
+
+// Derive macro to define a cube type that is not launched
+#[proc_macro_derive(CubeType)]
+pub fn module_derive_cube_type(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+
+    generate_cube_type(&input, false)
+}
+
 /// Derive macro for the module.
 #[proc_macro_attribute]
 pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
     let (mode, launch) = parse_attributes(&args);
 
-    let func: syn::ItemFn = syn::parse(tokens).unwrap();
-    let mut variable_analyses = CodeAnalysis::create(&func);
+    let func: syn::ItemFn =
+        syn::parse(tokens).expect("Cube annotations only supported for functions");
 
-    let cube = codegen_cube(&func, &mut variable_analyses);
-    let code: TokenStream = if launch {
-        let launch = codegen_launch(&func.sig);
+    let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-        quote::quote! {
-            #cube
-            #launch
+    let code: TokenStream = match codegen_cube(&func, &mut variable_tracker) {
+        Ok(code) => {
+            if launch {
+                let launch = codegen_launch(&func.sig);
+
+                quote::quote! {
+                    #code
+                    #launch
+                }
+                .into()
+            } else {
+                code.into()
+            }
         }
-        .into()
-    } else {
-        cube.into()
+        Err(err) => err.into(),
     };
 
     match mode {
@@ -72,53 +101,71 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
     (mode, launch)
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
-struct VariableKey {
-    name: String,
-}
-
-impl From<&syn::Ident> for VariableKey {
-    fn from(value: &syn::Ident) -> Self {
-        VariableKey {
-            name: value.to_string(),
-        }
-    }
-}
-
 /// Generate the expanded version of a function marked with the cube macro
-fn codegen_cube(func: &syn::ItemFn, code_analysis: &mut CodeAnalysis) -> proc_macro2::TokenStream {
-    let signature = expand_sig(&func.sig);
+fn codegen_cube(
+    func: &syn::ItemFn,
+    variable_tracker: &mut VariableTracker,
+) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
+    let signature = expand_sig(&func.sig, &func.vis, variable_tracker);
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
-        let tokens = codegen_statement(statement, 0, code_analysis);
+        let tokens = codegen_statement(statement, 0, variable_tracker);
         body.extend(tokens);
     }
 
-    quote::quote! {
+    let is_in_error = !variable_tracker.errors.is_empty();
+
+    if is_in_error {
+        // When there is an error, we don't generate the expand method, since it's only going to
+        // create more errors that won't help fixing the issue.
+
+        let mut code = quote::quote! {
+            #[allow(dead_code)]
+            #[allow(clippy::too_many_arguments)]
+            #func
+        };
+
+        for err in variable_tracker.errors.drain(..) {
+            code.extend(err.into_compile_error());
+        }
+
+        return Err(code);
+    }
+
+    Ok(quote::quote! {
         #[allow(dead_code)]
-        #[allow(clippy::too_many_arguments)] // TODO support structs in Cube
+        #[allow(clippy::too_many_arguments)]
         #func
 
         #[allow(unused_mut)]
-        #[allow(clippy::too_many_arguments)] // TODO support structs in Cube
+        #[allow(clippy::too_many_arguments)]
         #signature {
             #body
         }
-    }
+    })
 }
 
-fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
+fn expand_sig(
+    sig: &syn::Signature,
+    visibility: &syn::Visibility,
+    variable_tracker: &mut VariableTracker,
+) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
 
     for input in &sig.inputs {
         match input {
             syn::FnArg::Typed(pat) => {
                 let ty = &pat.ty;
+
                 let ident = pat.pat.clone();
 
+                if let syn::Pat::Ident(ident) = ident.as_ref() {
+                    variable_tracker.codegen_declare(ident.ident.to_string(), 0);
+                }
+
                 inputs.extend(quote::quote! {
-                    #ident: <#ty as burn_cube::CubeType>::ExpandType,
+                    #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                 });
             }
             _ => todo!("Only Typed inputs are supported"),
@@ -131,7 +178,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
         syn::ReturnType::Default => output.extend(quote::quote! { ()}),
         syn::ReturnType::Type(_, ty) => {
             output.extend(quote::quote! {
-                <#ty as burn_cube::CubeType>::ExpandType
+                <#ty as burn_cube::frontend::CubeType>::ExpandType
             });
         }
     }
@@ -142,6 +189,7 @@ fn expand_sig(sig: &syn::Signature) -> proc_macro2::TokenStream {
     let generics = sig.generics.clone().into_token_stream();
 
     quote::quote! {
-        pub fn #ident #generics (context: &mut burn_cube::CubeContext, #inputs) -> #output
+        /// Expanded Cube function
+        #visibility fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
     }
 }

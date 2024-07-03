@@ -1,17 +1,22 @@
+use alloc::format;
+
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::Content;
+use crate::module::DisplaySettings;
 use crate::module::Module;
+use crate::module::ModuleDisplay;
 use crate::module::Param;
+use crate::nn::conv::checks;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
+use crate::tensor::module::conv_transpose1d;
+use crate::tensor::ops::ConvTransposeOptions;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv_transpose1d;
-use burn_tensor::ops::ConvTransposeOptions;
 
-use super::checks;
-
-/// Configuration to create an [1D transposed convolution](ConvTranspose1d) layer.
+/// Configuration to create an [1D transposed convolution](ConvTranspose1d) layer
+/// using the [init function](ConvTranspose1dConfig::init).
 #[derive(Config, Debug)]
 pub struct ConvTranspose1dConfig {
     /// The number of channels.
@@ -44,24 +49,47 @@ pub struct ConvTranspose1dConfig {
 }
 
 /// Applies a 1D transposed convolution over input tensors.
-///
-/// # Params
-///
-/// - weight: Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
-///
-/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct ConvTranspose1d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: usize,
-    kernel_size: usize,
-    dilation: usize,
-    groups: usize,
-    padding: usize,
-    padding_out: usize,
+    /// Stride of the convolution.
+    pub stride: usize,
+    /// Size of the kernel.
+    pub kernel_size: usize,
+    /// Spacing between kernel elements.
+    pub dilation: usize,
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// The padding configuration.
+    pub padding: usize,
+    /// The padding output configuration.
+    pub padding_out: usize,
+    /// The number of channels.
+    pub channels: [usize; 2],
+}
+
+impl<B: Backend> ModuleDisplay for ConvTranspose1d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("channels", &format!("{:?}", &self.channels))
+            .add("stride", &self.stride)
+            .add("kernel_size", &self.kernel_size)
+            .add("dilation", &self.dilation)
+            .add("groups", &self.groups)
+            .add("padding", &self.padding)
+            .add("padding_out", &self.padding_out)
+            .optional()
+    }
 }
 
 impl ConvTranspose1dConfig {
@@ -97,6 +125,7 @@ impl ConvTranspose1dConfig {
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,
+            channels: self.channels,
         }
     }
 }
@@ -104,10 +133,12 @@ impl ConvTranspose1dConfig {
 impl<B: Backend> ConvTranspose1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [conv_transpose1d](crate::tensor::module::conv_transpose1d).
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, length_in],
-    /// - output: [batch_size, channels_out, length_out],
+    /// - input: `[batch_size, channels_in, length_in]`
+    /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         conv_transpose1d(
             input,
@@ -127,8 +158,8 @@ impl<B: Backend> ConvTranspose1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -152,6 +183,17 @@ mod tests {
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = ConvTranspose1dConfig::new([5, 2], 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", conv),
+            "ConvTranspose1d {channels: [5, 2], stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: 0, padding_out: 0, params: 52}"
+        );
     }
 }

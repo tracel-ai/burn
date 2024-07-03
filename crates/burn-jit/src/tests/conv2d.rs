@@ -12,9 +12,11 @@ mod tests {
             Tensor::<TestBackend, 4>::random([12, 8, 3, 3], Distribution::Default, &test_device);
         let bias = Tensor::<TestBackend, 1>::random([12], Distribution::Default, &test_device);
         let ref_device = Default::default();
+
         let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &ref_device);
         let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
         let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
+
         let options = burn_tensor::ops::ConvOptions::new([2, 3], [2, 3], [2, 3], 2);
 
         let output = module::conv2d(input, weight, Some(bias), options.clone());

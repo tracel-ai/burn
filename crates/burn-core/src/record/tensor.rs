@@ -1,25 +1,70 @@
+use core::marker::PhantomData;
+
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Int, Tensor};
+use alloc::format;
+use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "record-backward-compat")]
+use burn_tensor::DataSerialize;
+
+/// Versioned serde data deserialization to maintain backward compatibility between formats.
+#[cfg(feature = "record-backward-compat")]
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum TensorDataSerde<E> {
+    V1(DataSerialize<E>),
+    V2(TensorData),
+}
+
+/// Deserialize the value into [`TensorData`].
+fn deserialize_data<'de, E, De>(deserializer: De) -> Result<TensorData, De::Error>
+where
+    E: Element + Deserialize<'de>,
+    De: serde::Deserializer<'de>,
+{
+    #[cfg(feature = "record-backward-compat")]
+    {
+        let data = match TensorDataSerde::<D, E>::deserialize(deserializer)? {
+            TensorDataSerde::V1(data) => data.into_tensor_data(),
+            // NOTE: loading f32 weights with f16 precision will deserialize the f32 weights (bytes) first and then convert to f16
+            TensorDataSerde::V2(data) => data.convert::<E>(),
+        };
+        Ok(data)
+    }
+
+    #[cfg(not(feature = "record-backward-compat"))]
+    {
+        let data = TensorData::deserialize(deserializer).map_err(|e| {
+            serde::de::Error::custom(format!(
+                "{:?}\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag. Once you have saved the record in the new format, you can disable the feature flag.\n",
+                e
+            ))
+        })?;
+        Ok(data.convert::<E>())
+    }
+}
 
 /// This struct implements serde to lazily serialize and deserialize a float tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
 pub struct FloatTensorSerde<S: PrecisionSettings> {
-    data: DataSerialize<S::FloatElem>,
+    data: TensorData,
+    _e: PhantomData<S::FloatElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an int tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
 pub struct IntTensorSerde<S: PrecisionSettings> {
-    data: DataSerialize<S::IntElem>,
+    data: TensorData,
+    _e: PhantomData<S::IntElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an bool tensor.
 #[derive(new, Clone, Debug)]
 pub struct BoolTensorSerde {
-    data: DataSerialize<bool>,
+    data: TensorData,
 }
 
 // --- SERDE IMPLEMENTATIONS --- //
@@ -38,7 +83,7 @@ impl<'de, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<S> {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<S::FloatElem>::deserialize(deserializer)?;
+        let data = deserialize_data::<S::FloatElem, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -58,7 +103,8 @@ impl<'de, S: PrecisionSettings> Deserialize<'de> for IntTensorSerde<S> {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<S::IntElem>::deserialize(deserializer)?;
+        let data = deserialize_data::<S::IntElem, De>(deserializer)?;
+
         Ok(Self::new(data))
     }
 }
@@ -77,7 +123,7 @@ impl<'de> Deserialize<'de> for BoolTensorSerde {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<bool>::deserialize(deserializer)?;
+        let data = deserialize_data::<bool, De>(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -89,11 +135,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
     type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording float tensors isn't yet supported on wasm.");
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        FloatTensorSerde::new(self.into_data().convert().serialize())
+        FloatTensorSerde::new(self.into_data().convert::<S::FloatElem>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
@@ -101,31 +143,25 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
     }
 }
 
+#[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
     type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording int tensors isn't yet supported on wasm.");
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        IntTensorSerde::new(self.into_data().convert().serialize())
+        IntTensorSerde::new(self.into_data().convert::<S::IntElem>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data.convert(), device)
+        Tensor::from_data(item.data.convert::<B::IntElem>(), device)
     }
 }
 
+#[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
     type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording bool tensors isn't yet supported on wasm.");
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        BoolTensorSerde::new(self.into_data().serialize())
+        BoolTensorSerde::new(self.into_data())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {

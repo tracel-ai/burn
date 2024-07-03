@@ -1,4 +1,4 @@
-use burn_tensor::{DType, Element};
+use burn_tensor::{DType, Element, TensorData};
 use std::marker::PhantomData;
 
 use crate::{
@@ -37,18 +37,16 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensor.shape()
     }
 
-    fn bool_into_data<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
-        tensor.bool_into_data::<B, D>()
+    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
+        tensor.bool_into_data::<B, D>().await
     }
 
     fn bool_from_data<const D: usize>(
-        data: burn_tensor::Data<bool, D>,
+        data: burn_tensor::TensorData,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone());
-        let tensor = B::bool_from_data(data, device);
+        let tensor = B::bool_from_data::<D>(data, device);
         let shape = B::bool_shape(&tensor);
 
         client.register_tensor(

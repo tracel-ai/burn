@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    Bool, Data, Device, Distribution, ElementConversion, Reader, Shape,
+    Bool, Device, Distribution, ElementConversion, Shape, TensorData,
 };
 
 use crate::{
@@ -19,12 +19,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::shape(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        Reader::Concrete(super::base::into_data(tensor))
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+        super::base::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
-        data: Data<IntElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         super::base::from_data(data, device)
@@ -312,7 +312,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<I>().unwrap();
         CandleTensor::from_data(
-            Data::new([sum].into(), [1].into()),
+            TensorData::new([sum].into(), [1]),
             Self::int_device(&tensor),
         )
     }

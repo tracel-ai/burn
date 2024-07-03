@@ -4,7 +4,6 @@ use super::MetricEntry;
 use super::MetricMetadata;
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::ElementConversion;
 use burn_core::tensor::Tensor;
 
 /// The loss metric.
@@ -34,7 +33,14 @@ impl<B: Backend> Metric for LossMetric<B> {
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let [batch_size] = loss.tensor.dims();
-        let loss = f64::from_elem(loss.tensor.clone().mean().into_data().value[0]);
+        let loss = loss
+            .tensor
+            .clone()
+            .mean()
+            .into_data()
+            .iter::<f64>()
+            .next()
+            .unwrap();
 
         self.state.update(
             loss,

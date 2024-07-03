@@ -11,8 +11,8 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
-use burn_tensor::{Distribution, Reader};
+use burn_tensor::Distribution;
+use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -22,7 +22,7 @@ use libm::erf;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_from_data<const D: usize>(
-        data: Data<E, D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
@@ -39,7 +39,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         } else {
             get_seeded_rng()
         };
-        let tensor = Self::float_from_data(Data::random(shape, distribution, &mut rng), device);
+        let tensor = Self::float_from_data(
+            TensorData::random::<E, _, _>(shape, distribution, &mut rng),
+            device,
+        );
         *seed = Some(rng);
         tensor
     }
@@ -48,13 +51,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
+    async fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(Data::new(values, shape))
+        TensorData::new(values, shape)
     }
 
     fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
@@ -406,7 +406,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).cos().elem())
+            .mapv_into(|a| (a.to_f64()).cos().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -415,7 +415,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).sin().elem())
+            .mapv_into(|a| (a.to_f64()).sin().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -424,7 +424,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64().unwrap()).tanh().elem())
+            .mapv_into(|a| (a.to_f64()).tanh().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -433,7 +433,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| erf(a.to_f64()).elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -473,7 +473,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32()))
     }
 
     fn float_permute<const D: usize>(

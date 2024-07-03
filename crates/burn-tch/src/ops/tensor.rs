@@ -1,13 +1,13 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 use burn_tensor::{
-    backend::Backend, ops::FloatTensorOps, Data, Distribution, ElementConversion, Reader, Shape,
+    backend::Backend, ops::FloatTensorOps, Distribution, ElementConversion, Shape, TensorData,
 };
 use std::ops::Range;
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data<const D: usize>(
-        data: Data<E, D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         TchTensor::from_data(data, (*device).into())
@@ -70,14 +70,14 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
+    async fn float_into_data<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
-    ) -> Reader<Data<<LibTorch<E> as Backend>::FloatElem, D>> {
+    ) -> TensorData {
         let shape = Self::float_shape(&tensor);
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();
 
-        Reader::Concrete(Data::new(values.unwrap(), shape))
+        TensorData::new(values.unwrap(), shape)
     }
 
     fn float_device<const D: usize>(tensor: &TchTensor<E, D>) -> LibTorchDevice {

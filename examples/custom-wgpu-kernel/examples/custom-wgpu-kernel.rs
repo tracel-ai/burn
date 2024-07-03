@@ -1,5 +1,5 @@
 use burn::{
-    backend::wgpu::{AutoGraphicsApi, WgpuRuntime},
+    backend::wgpu::WgpuRuntime,
     tensor::{Distribution, Tensor},
 };
 use custom_wgpu_kernel::{
@@ -50,28 +50,28 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 
     lhs_grad_ref
         .into_data()
-        .convert::<f32>()
-        .assert_approx_eq(&lhs_grad_custom.into_data().convert(), 3);
+        .convert::<B::FloatElem>()
+        .assert_approx_eq(&lhs_grad_custom.into_data().convert::<B::FloatElem>(), 3);
 
     println!("Both reference and the custom fused kernel have the same lhs gradient");
 
     rhs_grad_ref
         .into_data()
         .convert::<f32>()
-        .assert_approx_eq(&rhs_grad_custom.into_data().convert(), 3);
+        .assert_approx_eq(&rhs_grad_custom.into_data().convert::<B::FloatElem>(), 3);
 
     println!("Both reference and the custom fused kernel have the same rhs gradient");
 
     bias_grad_ref
         .into_data()
         .convert::<f32>()
-        .assert_approx_eq(&bias_grad_custom.into_data().convert(), 3);
+        .assert_approx_eq(&bias_grad_custom.into_data().convert::<B::FloatElem>(), 3);
 
     println!("Both reference and the custom fused kernel have the same bias gradient");
 }
 
 fn main() {
-    type MyBackend = burn::backend::wgpu::JitBackend<WgpuRuntime<AutoGraphicsApi>, f32, i32>;
+    type MyBackend = burn::backend::wgpu::JitBackend<WgpuRuntime, f32, i32>;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
     let device = Default::default();
     inference::<MyBackend>(&device);

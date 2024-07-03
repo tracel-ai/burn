@@ -1,8 +1,10 @@
 use super::ComputeChannel;
 use crate::server::{Binding, ComputeServer, Handle};
+use crate::storage::ComputeStorage;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
+use burn_common::sync_type::SyncType;
 
 /// A channel using a [ref cell](core::cell::RefCell) to access the server with mutability.
 ///
@@ -40,10 +42,17 @@ where
 
 impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
-    Server: ComputeServer,
+    Server: ComputeServer + Send,
 {
-    fn read(&self, binding: Binding<Server>) -> Reader<Vec<u8>> {
+    fn read(&self, binding: Binding<Server>) -> Reader {
         self.server.borrow_mut().read(binding)
+    }
+
+    fn get_resource(
+        &self,
+        binding: Binding<Server>,
+    ) -> <Server::Storage as ComputeStorage>::Resource {
+        self.server.borrow_mut().get_resource(binding)
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {
@@ -60,8 +69,8 @@ where
             .execute(kernel_description, bindings)
     }
 
-    fn sync(&self) {
-        self.server.borrow_mut().sync()
+    fn sync(&self, sync_type: SyncType) {
+        self.server.borrow_mut().sync(sync_type)
     }
 }
 

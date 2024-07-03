@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+// Allow deprecated `Data` and `DataSerialize`
+#![allow(deprecated)]
 
 //! This library provides multiple tensor implementations hidden behind an easy to use API
 //! that supports reverse mode automatic differentiation.
@@ -23,4 +25,4 @@ pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
-pub use burn_common::reader::Reader; // Useful so that backends don't have to add `burn_common` as
+pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.

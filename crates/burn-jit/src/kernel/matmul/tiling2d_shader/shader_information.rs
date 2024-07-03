@@ -1,6 +1,6 @@
 use burn_cube::{
     cpa,
-    dialect::{Elem, Item, Scope, Variable},
+    ir::{Elem, Item, Scope, Variable},
 };
 
 use super::{MatmulTiling2dShader, Tiling2dState};
@@ -25,8 +25,8 @@ pub(crate) fn gather_shader_information(
     let results_size = (shader.config.tile_size_m * shader.config.tile_size_n) as u32;
 
     // Shader info
-    let local_idx = Variable::LocalInvocationIndex;
-    let batch = Variable::GlobalInvocationIdZ;
+    let local_idx = Variable::UnitPos;
+    let batch = Variable::AbsolutePosZ;
 
     // Shapes
     let rank = Variable::Rank;
@@ -58,8 +58,8 @@ pub(crate) fn gather_shader_information(
     // Workgroup offset
     let skip_row = scope.create_local(Elem::UInt);
     let skip_col = scope.create_local(Elem::UInt);
-    let workgroup_id_x = Variable::WorkgroupIdX;
-    let workgroup_id_y = Variable::WorkgroupIdY;
+    let workgroup_id_x = Variable::CubePosX;
+    let workgroup_id_y = Variable::CubePosY;
     cpa!(scope, skip_row = workgroup_id_x);
     cpa!(scope, skip_row *= block_size_m);
     cpa!(scope, skip_col = workgroup_id_y);

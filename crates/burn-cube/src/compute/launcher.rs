@@ -1,9 +1,12 @@
-use crate::compute::{FullCompilationPhase, Kernel, WorkGroup};
-use crate::dialect::{Elem, FloatKind, IntKind};
-use crate::{calculate_num_elems_dyn_rank, GpuComputeShaderPhase, Runtime, TensorHandle};
+use crate::compute::{CubeCount, KernelTask};
+use crate::ir::{Elem, FloatKind, IntKind};
+use crate::prelude::ArrayHandle;
+use crate::KernelSettings;
+use crate::{calculate_num_elems_dyn_rank, frontend::TensorHandle, Kernel, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Binding;
 use bytemuck::NoUninit;
+use num_traits::ToPrimitive;
 
 /// Prepare a kernel for [launch](KernelLauncher::launch).
 pub struct KernelLauncher<R: Runtime> {
@@ -16,12 +19,18 @@ pub struct KernelLauncher<R: Runtime> {
     scalar_i64: ScalarState<i64>,
     scalar_i32: ScalarState<i32>,
     scalar_order: Vec<Elem>,
+    pub settings: KernelSettings,
 }
 
 impl<R: Runtime> KernelLauncher<R> {
     /// Register a tensor to be launched.
     pub fn register_tensor(&mut self, tensor: &TensorHandle<'_, R>) {
         self.tensors.push(tensor);
+    }
+
+    /// Register an array to be launched.
+    pub fn register_array(&mut self, array: &ArrayHandle<'_, R>) {
+        self.tensors.push(&array.as_tensor());
     }
 
     /// Register a u32 scalar to be launched.
@@ -67,24 +76,22 @@ impl<R: Runtime> KernelLauncher<R> {
     }
 
     /// Launch the kernel.
-    pub fn launch<K: GpuComputeShaderPhase>(
+    pub fn launch<K: Kernel>(
         self,
-        workgroup: WorkGroup,
+        cube_count: CubeCount,
         kernel: K,
         client: ComputeClient<R::Server, R::Channel>,
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Kernel::JitGpu(Box::new(FullCompilationPhase::<R::Compiler, K>::new(
-            kernel, workgroup,
-        )));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, cube_count));
 
         client.execute(kernel, bindings);
     }
 
     /// We need to create the bindings in the same order they are defined in the compilation step.
     ///
-    /// The function [crate::Compilation::compile] stars by registering the input tensors followed
+    /// The function [crate::KernelIntegrator::integrate] stars by registering the input tensors followed
     /// by the output tensors. Then the tensor metadata, and the scalars at the end. The scalars
     /// are registered in the same order they are added. This is why we store the scalar data type
     /// in the `scalar_order` vector, so that we can register them in the same order.
@@ -167,21 +174,101 @@ impl<R: Runtime> TensorState<R> {
 
         bindings.push(tensor.handle.clone().binding());
 
-        if metadata.is_empty() {
-            metadata.push(tensor.strides.len() as u32);
-        }
+        let old_rank = if metadata.is_empty() {
+            let rank = tensor.strides.len() as u32;
+            metadata.push(rank);
+            None
+        } else if tensor.strides.len() > metadata[0] as usize {
+            let old_rank = metadata[0];
+            let rank = tensor.strides.len() as u32;
+            Self::adjust_rank(metadata, bindings.len(), rank);
+            Some(old_rank)
+        } else {
+            None
+        };
 
-        for s in tensor.strides.iter() {
-            metadata.push(*s as u32);
-        }
-
-        for s in tensor.shape.iter() {
-            metadata.push(*s as u32);
-        }
+        Self::register_strides(tensor.strides, tensor.shape, old_rank, metadata);
+        Self::register_shape(tensor.shape, old_rank, metadata);
 
         if R::require_array_lengths() {
             let len = calculate_num_elems_dyn_rank(tensor.shape);
             lengths.push(len as u32);
+        }
+    }
+
+    fn adjust_rank(metadata: &mut Vec<u32>, num_registered: usize, rank: u32) {
+        let old_rank = metadata[0] as usize;
+        let rank_diff = rank as usize - old_rank;
+        let mut updated_metadata = Vec::with_capacity(2 * rank_diff * num_registered);
+
+        for pos in 0..num_registered {
+            let stride_index = (pos * old_rank * 2) + 1;
+            let shape_index = stride_index + old_rank;
+
+            let strides_old = &metadata[stride_index..stride_index + old_rank];
+            let shape_old = &metadata[shape_index..shape_index + old_rank];
+
+            Self::register_strides(
+                strides_old,
+                shape_old,
+                Some(old_rank as u32),
+                &mut updated_metadata,
+            );
+            Self::register_shape(shape_old, Some(old_rank as u32), &mut updated_metadata);
+        }
+
+        core::mem::swap(&mut updated_metadata, metadata);
+    }
+
+    fn register_strides<T: ToPrimitive>(
+        strides: &[T],
+        shape: &[T],
+        old_rank: Option<u32>,
+        output: &mut Vec<u32>,
+    ) {
+        let old_rank = if let Some(old_rank) = old_rank {
+            let rank = output[0];
+            let rank_diff = old_rank - rank;
+            let padded_strides = if rank_diff > 0 {
+                shape
+                    .iter()
+                    .take(old_rank as usize)
+                    .map(|a| a.to_u32().unwrap())
+                    .sum::<u32>()
+            } else {
+                0
+            };
+
+            for _ in 0..rank_diff {
+                output.push(padded_strides.to_u32().unwrap());
+            }
+
+            old_rank as usize
+        } else {
+            output[0] as usize // same as current.
+        };
+
+        for stride in strides.iter().take(old_rank) {
+            output.push(stride.to_u32().unwrap());
+        }
+    }
+
+    fn register_shape<T: ToPrimitive>(shape: &[T], old_rank: Option<u32>, output: &mut Vec<u32>) {
+        let old_rank = if let Some(old_rank) = old_rank {
+            let rank = output[0];
+            let rank_diff = rank - old_rank;
+
+            for _ in 0..rank_diff {
+                output.push(1);
+            }
+
+            old_rank as usize
+        } else {
+            output[0] as usize // same as current
+        };
+
+        for elem in shape.iter().take(old_rank) {
+            output.push(elem.to_u32().unwrap());
         }
     }
 
@@ -207,6 +294,7 @@ impl<R: Runtime> TensorState<R> {
         }
     }
 }
+
 impl<T: NoUninit> ScalarState<T> {
     /// Add a new scalar value to the state.
     pub fn push(&mut self, val: T) {
@@ -243,6 +331,7 @@ impl<R: Runtime> Default for KernelLauncher<R> {
             scalar_i64: ScalarState::Empty,
             scalar_i32: ScalarState::Empty,
             scalar_order: Vec::new(),
+            settings: Default::default(),
         }
     }
 }

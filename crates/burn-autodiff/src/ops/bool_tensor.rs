@@ -3,11 +3,11 @@ use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Au
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, BoolTensorOps, IntTensor},
-    Data, Device, Reader, Shape,
+    Device, Shape, TensorData,
 };
 
 impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
-    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
+    fn bool_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> BoolTensor<B, D> {
         B::bool_from_data(data, device)
     }
 
@@ -15,12 +15,8 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_shape(tensor)
     }
 
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
-        B::bool_to_data(tensor)
-    }
-
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>> {
-        B::bool_into_data(tensor)
+    async fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> TensorData {
+        B::bool_into_data(tensor).await
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
@@ -121,12 +117,12 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_flip(tensor, axes)
     }
 
-    fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
-        B::bool_argwhere(tensor)
+    async fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
+        B::bool_argwhere(tensor).await
     }
 
-    fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
-        B::bool_nonzero(tensor)
+    async fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
+        B::bool_nonzero(tensor).await
     }
 
     fn bool_expand<const D: usize, const D2: usize>(

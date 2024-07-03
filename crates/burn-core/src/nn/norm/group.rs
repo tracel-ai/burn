@@ -4,10 +4,11 @@ use crate::nn::Initializer;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Configuration to create a [GroupNorm](GroupNorm) layer.
+/// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
 pub struct GroupNormConfig {
     /// The number of groups to separate the channels into
@@ -24,17 +25,49 @@ pub struct GroupNormConfig {
     pub affine: bool,
 }
 
-/// Applies Group Normalization over a mini-batch of inputs.
+/// Applies Group Normalization over a mini-batch of inputs as described in the paper [Group Normalization](https://arxiv.org/abs/1803.08494).
 ///
 /// `Y = groupnorm(X) * γ + β`
+///
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
+///
+/// Should be created using [GroupNormConfig](GroupNormConfig).
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct GroupNorm<B: Backend> {
-    num_groups: usize,
-    num_channels: usize,
-    gamma: Option<Param<Tensor<B, 1>>>,
-    beta: Option<Param<Tensor<B, 1>>>,
-    epsilon: f64,
-    affine: bool,
+    /// The learnable weight
+    pub gamma: Option<Param<Tensor<B, 1>>>,
+    /// The learnable bias
+    pub beta: Option<Param<Tensor<B, 1>>>,
+    /// The number of groups to separate the channels into
+    pub num_groups: usize,
+    /// The number of channels expected in the input
+    pub num_channels: usize,
+    /// A value required for numerical stability
+    pub epsilon: f64,
+    /// A boolean value that when set to `true`, this module has learnable
+    pub affine: bool,
+}
+
+impl<B: Backend> ModuleDisplay for GroupNorm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("num_groups", &self.num_groups)
+            .add("num_channels", &self.num_channels)
+            .add("epsilon", &self.epsilon)
+            .add("affine", &self.affine)
+            .optional()
+    }
 }
 
 impl GroupNormConfig {
@@ -69,58 +102,96 @@ impl GroupNormConfig {
 impl<B: Backend> GroupNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [GroupNorm](GroupNorm) for more information.
+    ///
     /// # Shapes
     ///
-    /// - input: `[..., any, d_model]`
-    /// - output: `[..., any, d_model]`
+    /// - input: `[batch_size, num_channels, *]`
+    /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let shape = input.shape();
-        if shape.num_elements() <= 2 {
+        if input.shape().dims[1] != self.num_channels {
             panic!(
-                "input rank for GroupNorm should be at least 3, but got {}",
-                shape.num_elements()
+                "The number of channels in the input tensor should be equal to the number of channels in the GroupNorm module. Expected {}, got {}",
+                self.num_channels,
+                input.shape().dims[1]
             );
         }
 
-        let batch_size = shape.dims[0];
-        let num_channels = shape.dims[1];
+        let gamma = self.gamma.as_ref().map(|x| x.val());
+        let beta = self.beta.as_ref().map(|x| x.val());
 
-        if num_channels != self.num_channels {
-            panic!(
-                "expected {} channels but got {}",
-                self.num_channels, num_channels
-            );
-        }
+        group_norm(
+            input,
+            gamma,
+            beta,
+            self.num_groups,
+            self.epsilon,
+            self.affine,
+        )
+    }
+}
 
-        let hidden_size =
-            shape.dims[2..].iter().product::<usize>() * num_channels / self.num_groups;
-        let input = input.reshape([batch_size, self.num_groups, hidden_size]);
+/// Applies Group Normalization over a mini-batch of inputs as described in the paper [Group Normalization](https://arxiv.org/abs/1803.08494).
+///
+/// `Y = groupnorm(X) * γ + β`
+///
+/// Where:
+/// - `X` is the input tensor
+/// - `Y` is the output tensor
+/// - `γ` is the learnable weight
+/// - `β` is the learnable bias
+///
+pub(crate) fn group_norm<B: Backend, const D: usize>(
+    input: Tensor<B, D>,
+    gamma: Option<Tensor<B, 1>>,
+    beta: Option<Tensor<B, 1>>,
+    num_groups: usize,
+    epsilon: f64,
+    affine: bool,
+) -> Tensor<B, D> {
+    if (beta.is_none() || gamma.is_none()) && affine {
+        panic!("Affine is set to true, but gamma or beta is None");
+    }
 
-        let mean = input.clone().sum_dim(2) / hidden_size as f64;
-        let input = input.sub(mean);
+    let shape = input.shape();
+    if shape.num_elements() <= 2 {
+        panic!(
+            "input rank for GroupNorm should be at least 3, but got {}",
+            shape.num_elements()
+        );
+    }
 
-        let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
-        let input_normalized = input.div(var.sqrt().add_scalar(self.epsilon));
+    let batch_size = shape.dims[0];
+    let num_channels = shape.dims[1];
 
-        if self.affine {
-            let mut affine_shape = [1; D];
-            affine_shape[1] = num_channels;
+    let hidden_size = shape.dims[2..].iter().product::<usize>() * num_channels / num_groups;
+    let input = input.reshape([batch_size, num_groups, hidden_size]);
 
-            input_normalized
-                .reshape(shape)
-                .mul(self.gamma.clone().unwrap().val().reshape(affine_shape))
-                .add(self.beta.clone().unwrap().val().reshape(affine_shape))
-        } else {
-            input_normalized.reshape(shape)
-        }
+    let mean = input.clone().sum_dim(2) / hidden_size as f64;
+    let input = input.sub(mean);
+
+    let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
+    let input_normalized = input.div(var.sqrt().add_scalar(epsilon));
+
+    if affine {
+        let mut affine_shape = [1; D];
+        affine_shape[1] = num_channels;
+
+        input_normalized
+            .reshape(shape)
+            .mul(gamma.clone().unwrap().reshape(affine_shape))
+            .add(beta.clone().unwrap().reshape(affine_shape))
+    } else {
+        input_normalized.reshape(shape)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
+    use alloc::format;
 
     #[test]
     fn group_norm_forward_affine_false() {
@@ -132,8 +203,8 @@ mod tests {
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
                     [-1.1845, -1.3236, 0.0172],
@@ -156,27 +227,25 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [-0.1653, 0.3748, -0.7866],
-                    [-0.9916, -1.1220, 0.1353],
-                    [1.9485, 1.2965, -0.6896],
-                    [1.2769, 0.3628, 0.4120],
-                    [-0.7427, -0.6786, -1.3578],
-                    [1.8547, -0.3022, -0.8252],
-                ],
-                [
-                    [-1.9342, 0.0211, -0.5793],
-                    [1.2223, 0.4945, 0.4365],
-                    [-0.8163, 1.4887, -0.3333],
-                    [-1.7960, -0.0392, 0.3875],
-                    [-1.5469, 0.3998, 0.9561],
-                    [-0.3428, 0.7970, 1.1845],
-                ],
-            ]),
-            3,
-        );
+        let expected = TensorData::from([
+            [
+                [-0.1653, 0.3748, -0.7866],
+                [-0.9916, -1.1220, 0.1353],
+                [1.9485, 1.2965, -0.6896],
+                [1.2769, 0.3628, 0.4120],
+                [-0.7427, -0.6786, -1.3578],
+                [1.8547, -0.3022, -0.8252],
+            ],
+            [
+                [-1.9342, 0.0211, -0.5793],
+                [1.2223, 0.4945, 0.4365],
+                [-0.8163, 1.4887, -0.3333],
+                [-1.7960, -0.0392, 0.3875],
+                [-1.5469, 0.3998, 0.9561],
+                [-0.3428, 0.7970, 1.1845],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -192,7 +261,7 @@ mod tests {
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::ones([6].into()), 3);
+            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 3);
 
         module
             .beta
@@ -200,10 +269,10 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&Data::zeros([6]), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
                     [0.5041, 0.4175, 0.8437],
@@ -226,26 +295,35 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [-1.1694, -0.5353, 0.7572],
-                    [-0.1775, -0.6838, 1.8087],
-                    [0.5205, -1.3107, -1.0723],
-                    [-0.0459, 0.2351, 1.6734],
-                    [-0.5796, 1.3218, -1.6544],
-                    [-0.2744, 1.0406, 0.1459],
-                ],
-                [
-                    [0.2665, -0.3320, -0.8205],
-                    [-0.2667, 2.0612, -0.9085],
-                    [0.6681, 0.9102, 1.1345],
-                    [-0.1453, -1.5287, -1.0389],
-                    [0.4253, 1.5962, 0.4731],
-                    [-1.0903, -0.0419, -1.3623],
-                ],
-            ]),
-            3,
+        let expected = TensorData::from([
+            [
+                [-1.1694, -0.5353, 0.7572],
+                [-0.1775, -0.6838, 1.8087],
+                [0.5205, -1.3107, -1.0723],
+                [-0.0459, 0.2351, 1.6734],
+                [-0.5796, 1.3218, -1.6544],
+                [-0.2744, 1.0406, 0.1459],
+            ],
+            [
+                [0.2665, -0.3320, -0.8205],
+                [-0.2667, 2.0612, -0.9085],
+                [0.6681, 0.9102, 1.1345],
+                [-0.1453, -1.5287, -1.0389],
+                [0.4253, 1.5962, 0.4731],
+                [-1.0903, -0.0419, -1.3623],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = GroupNormConfig::new(3, 6);
+        let group_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", group_norm),
+            "GroupNorm {num_groups: 3, num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }
 }

@@ -1,11 +1,14 @@
 use super::{Param, ParamId, Parameter};
-use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
+use crate::module::{
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
+};
 use crate::tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
 };
-use alloc::vec::Vec;
-use burn_tensor::{Bool, Data, Float, Int};
+use alloc::{format, string::ToString, vec::Vec};
+use burn_tensor::{Bool, Float, Int, TensorData};
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     type Device = B::Device;
@@ -72,7 +75,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// Create a new parameter from data.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
-        T: Into<Data<B::FloatElem, D>>,
+        T: Into<TensorData>,
     {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
@@ -147,6 +150,22 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 }
 
+impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
+    fn content(&self, content: Content) -> Option<Content> {
+        let id = if content.display_settings.show_param_id() {
+            format!(", id: {}", self.id)
+        } else {
+            "".to_string()
+        };
+        let string = format!(
+            "ParamTensor {{rank: {D}, shape: {:?}, kind: float{id}}}",
+            self.shape().dims
+        );
+        content.add_formatted(&string).optional()
+    }
+}
+impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D>> {}
+
 impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     type Record = Param<Tensor<B, D, Int>>;
 
@@ -198,6 +217,22 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 }
 
+impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Int>> {
+    fn content(&self, content: Content) -> Option<Content> {
+        let id = if content.display_settings.show_param_id() {
+            format!(", id: {}", self.id)
+        } else {
+            "".to_string()
+        };
+        let string = format!(
+            "ParamTensor {{rank: {D}, shape: {:?}, kind: int{id}}}",
+            self.shape().dims
+        );
+        content.add_formatted(&string).optional()
+    }
+}
+impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D, Int>> {}
+
 impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     type Record = Param<Tensor<B, D, Bool>>;
 
@@ -248,6 +283,24 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
         devices
     }
 }
+
+impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Bool>> {
+    fn content(&self, content: Content) -> Option<Content> {
+        let id = if content.display_settings.show_param_id() {
+            format!(", id: {}", self.id)
+        } else {
+            "".to_string()
+        };
+
+        let string = format!(
+            "ParamTensor {{rank: {D}, shape: {:?}, kind: bool{id}}}",
+            self.shape().dims
+        );
+        content.add_formatted(&string).optional()
+    }
+}
+
+impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D, Bool>> {}
 
 impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;

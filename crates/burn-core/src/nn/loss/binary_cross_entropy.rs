@@ -1,11 +1,12 @@
 use crate as burn;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 
+use crate::tensor::activation::log_sigmoid;
+use crate::tensor::{backend::Backend, Int, Tensor};
 use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
-use burn_tensor::activation::log_sigmoid;
-use burn_tensor::{backend::Backend, Int, Tensor};
 
-/// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss).
+/// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss) using the [init function](BinaryCrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct BinaryCrossEntropyLossConfig {
     /// Create weighted binary cross-entropy with a weight for each class.
@@ -17,11 +18,11 @@ pub struct BinaryCrossEntropyLossConfig {
     ///
     /// Hard labels {0, 1} will be changed to `y_smoothed = y(1 - a) + a / num_classes`.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
     /// Treat the inputs as logits, applying a sigmoid activation when computing the loss.
     #[config(default = false)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl BinaryCrossEntropyLossConfig {
@@ -56,12 +57,33 @@ impl BinaryCrossEntropyLossConfig {
 }
 
 /// Calculate the binary cross entropy loss from the input logits and the targets.
+///
+/// Should be created using [BinaryCrossEntropyLossConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct BinaryCrossEntropyLoss<B: Backend> {
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
-    smoothing: Option<f32>,
-    logits: bool,
+    /// Label smoothing alpha.
+    pub smoothing: Option<f32>,
+    /// Treat the inputs as logits
+    pub logits: bool,
+}
+
+impl<B: Backend> ModuleDisplay for BinaryCrossEntropyLoss<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("weights", &self.weights)
+            .add("smoothing", &self.smoothing)
+            .add("logits", &self.logits)
+            .optional()
+    }
 }
 
 impl<B: Backend> BinaryCrossEntropyLoss<B> {
@@ -146,8 +168,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{activation::sigmoid, TensorData};
     use crate::TestBackend;
-    use burn_tensor::{activation::sigmoid, Data};
 
     #[test]
     fn test_binary_cross_entropy() {
@@ -162,14 +184,15 @@ mod tests {
         let device = Default::default();
         let logits =
             Tensor::<TestBackend, 1>::from_floats([0.8271, 0.9626, 0.3796, 0.2355], &device);
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([0, 1, 0, 1]), &device);
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
             .init(&device)
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = Data::from([0.7491]);
+        let loss_expected = TensorData::from([0.7491]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -178,7 +201,8 @@ mod tests {
         let device = Default::default();
         let logits =
             Tensor::<TestBackend, 1>::from_floats([0.8271, 0.9626, 0.3796, 0.2355], &device);
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([0, 1, 0, 1]), &device);
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
             .with_logits(true)
@@ -186,7 +210,7 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = Data::from([0.7491]);
+        let loss_expected = TensorData::from([0.7491]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -204,7 +228,8 @@ mod tests {
         let device = Default::default();
         let logits =
             Tensor::<TestBackend, 1>::from_floats([0.8271, 0.9626, 0.3796, 0.2355], &device);
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([0, 1, 0, 1]), &device);
         let weights = [3., 7.];
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
@@ -213,7 +238,7 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = Data::from([3.1531]);
+        let loss_expected = TensorData::from([3.1531]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -231,7 +256,8 @@ mod tests {
         let device = Default::default();
         let logits =
             Tensor::<TestBackend, 1>::from_floats([0.8271, 0.9626, 0.3796, 0.2355], &device);
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([0, 1, 0, 1]), &device);
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
             .with_smoothing(Some(0.1))
@@ -239,7 +265,7 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = Data::from([0.7490]);
+        let loss_expected = TensorData::from([0.7490]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -258,8 +284,10 @@ mod tests {
             [[0.5150, 0.3097, 0.7556], [0.4974, 0.9879, 0.1564]],
             &device,
         );
-        let targets =
-            Tensor::<TestBackend, 2, Int>::from_data(Data::from([[1, 0, 1], [1, 0, 0]]), &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+            TensorData::from([[1, 0, 1], [1, 0, 0]]),
+            &device,
+        );
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
             .with_logits(true)
@@ -267,7 +295,7 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = Data::from([0.7112]);
+        let loss_expected = TensorData::from([0.7112]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -285,8 +313,10 @@ mod tests {
             [[0.5150, 0.3097, 0.7556], [0.4974, 0.9879, 0.1564]],
             &device,
         );
-        let targets =
-            Tensor::<TestBackend, 2, Int>::from_data(Data::from([[1, 0, 1], [1, 0, 0]]), &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+            TensorData::from([[1, 0, 1], [1, 0, 0]]),
+            &device,
+        );
         let weights = [3., 7., 0.9];
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
@@ -296,7 +326,7 @@ mod tests {
             .forward(logits, targets)
             .into_data();
 
-        let loss_expected = Data::from([3.1708]);
+        let loss_expected = TensorData::from([3.1708]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -316,8 +346,10 @@ mod tests {
             [[0.5150, 0.3097, 0.7556], [0.4974, 0.9879, 0.1564]],
             &device,
         );
-        let targets =
-            Tensor::<TestBackend, 2, Int>::from_data(Data::from([[1, 0, 1], [1, 0, 0]]), &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+            TensorData::from([[1, 0, 1], [1, 0, 0]]),
+            &device,
+        );
 
         let loss_actual = BinaryCrossEntropyLossConfig::new()
             .with_smoothing(Some(0.1))
@@ -325,7 +357,7 @@ mod tests {
             .forward(sigmoid(logits), targets)
             .into_data();
 
-        let loss_expected = Data::from([0.7228]);
+        let loss_expected = TensorData::from([0.7228]);
         loss_actual.assert_approx_eq(&loss_expected, 3);
     }
 
@@ -344,8 +376,10 @@ mod tests {
             [[0.5150, 0.3097, 0.7556], [0.4974, 0.9879, 0.1564]],
             &device,
         );
-        let targets =
-            Tensor::<TestBackend, 2, Int>::from_data(Data::from([[1, 0, 1], [1, 0, 0]]), &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+            TensorData::from([[1, 0, 1], [1, 0, 0]]),
+            &device,
+        );
         let weights = [3., 7.];
 
         let _loss = BinaryCrossEntropyLossConfig::new()
@@ -353,5 +387,17 @@ mod tests {
             .with_weights(Some(weights.to_vec()))
             .init(&device)
             .forward(logits, targets);
+    }
+
+    #[test]
+    fn display() {
+        let config =
+            BinaryCrossEntropyLossConfig::new().with_weights(Some(alloc::vec![3., 7., 0.9]));
+        let loss = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "BinaryCrossEntropyLoss {weights: Tensor {rank: 1, shape: [3]}, smoothing: None, logits: false}"
+        );
     }
 }

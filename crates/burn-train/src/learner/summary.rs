@@ -1,5 +1,8 @@
 use core::cmp::Ordering;
-use std::{fmt::Display, path::Path};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     logger::FileMetricLogger,
@@ -73,16 +76,20 @@ impl LearnerSummary {
     ///
     /// * `directory` - The directory containing the training artifacts (checkpoints and logs).
     /// * `metrics` - The list of metrics to collect for the summary.
-    pub fn new<S: AsRef<str>>(directory: &str, metrics: &[S]) -> Result<Self, String> {
-        let directory_path = Path::new(directory);
-        if !directory_path.exists() {
-            return Err(format!("Artifact directory does not exist at: {directory}"));
+    pub fn new<S: AsRef<str>>(directory: impl AsRef<Path>, metrics: &[S]) -> Result<Self, String> {
+        let directory = directory.as_ref();
+        if !directory.exists() {
+            return Err(format!(
+                "Artifact directory does not exist at: {}",
+                directory.display()
+            ));
         }
-        let train_dir = directory_path.join("train");
-        let valid_dir = directory_path.join("valid");
+        let train_dir = directory.join("train");
+        let valid_dir = directory.join("valid");
         if !train_dir.exists() & !valid_dir.exists() {
             return Err(format!(
-                "No training or validation artifacts found at: {directory}"
+                "No training or validation artifacts found at: {}",
+                directory.display()
             ));
         }
 
@@ -151,7 +158,7 @@ impl Display for LearnerSummary {
         )?;
 
         if let Some(model) = &self.model {
-            writeln!(f, "Model: {model}")?;
+            writeln!(f, "Model:\n{model}")?;
         }
         writeln!(f, "Total Epochs: {epochs}\n\n", epochs = self.epochs)?;
 
@@ -219,7 +226,7 @@ impl Display for LearnerSummary {
 }
 
 pub(crate) struct LearnerSummaryConfig {
-    pub(crate) directory: String,
+    pub(crate) directory: PathBuf,
     pub(crate) metrics: Vec<String>,
 }
 

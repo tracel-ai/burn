@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_max_pool1d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::max_pool1d, Data};
+    use burn_tensor::module::max_pool1d;
 
     #[test]
     fn test_max_pool1d_simple() {
@@ -17,7 +17,7 @@ mod tests {
         )
         .require_grad();
         let x_grad_expected =
-            TestAutodiffTensor::from_floats([[[1., 1., 0., 0., 0., 1.]]], &device);
+            TestAutodiffTensor::<3>::from_floats([[[1., 1., 0., 0., 0., 1.]]], &device);
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
         let grads = output.backward();
@@ -46,7 +46,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<3>::from_floats(
             [[[
                 0., 0., 1., 0., 0., 3., 0., 1., 2., 1., 0., 0., 2., 0., 0., 0., 4., 4., 0., 0., 0.,
                 0., 0., 0., 1.,
@@ -81,7 +81,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<3>::from_floats(
             [[[
                 0., 0., 0., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0.,
                 0., 1., 1., 1.,
@@ -116,7 +116,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats(
+        let x_grad_expected = TestAutodiffTensor::<3>::from_floats(
             [[[
                 1., 0., 1., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0.,
                 0., 1., 1., 3.,

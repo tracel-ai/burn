@@ -1,15 +1,14 @@
 use burn_cube::{
-    dialect::{
-        BinaryOperator, ComputeShader, Elem, FloatKind, Scope, Variable, Visibility, WorkgroupSize,
-    },
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
+    frontend::TensorHandle,
+    ir::{BinaryOperator, CubeDim, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use burn_tensor::{Element, Shape};
 
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, GpuComputeShaderPhase},
+    kernel::{into_contiguous, Kernel},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -30,8 +29,8 @@ struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
+impl<R: JitRuntime, E: JitElement> Kernel for MatmulTiling2dEagerKernel<R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
         let elem = E::cube_elem();
         assert!(
@@ -63,18 +62,18 @@ impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for MatmulTiling2dEager
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default().workgroup_size(WorkgroupSize::new(
+        let settings = KernelSettings::default().cube_dim(CubeDim::new(
             self.config.grid_x as u32,
             self.config.grid_y as u32,
             1,
         ));
-        Compilation::new(info).compile(settings)
+        KernelIntegrator::new(info).integrate(settings)
     }
 
     fn id(&self) -> String {
@@ -119,7 +118,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &out.shape, config,
         )));
 
@@ -176,7 +175,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(WorkgroupLaunch::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
             &rounded_output.shape,
             config,
         )));

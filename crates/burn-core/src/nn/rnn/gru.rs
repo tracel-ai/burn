@@ -2,15 +2,16 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 use super::gate_controller::GateController;
 
-/// The configuration for a [gru](Gru) module.
+/// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
 #[derive(Config)]
 pub struct GruConfig {
     /// The size of the input features.
@@ -24,13 +25,41 @@ pub struct GruConfig {
     pub initializer: Initializer,
 }
 
-/// The Gru module. This implementation is for a unidirectional, stateless, Gru.
+/// The Gru (Gated recurrent unit) module. This implementation is for a unidirectional, stateless, Gru.
+///
+/// Introduced in the paper: [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/abs/1406.1078).
+///
+/// Should be created with [GruConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Gru<B: Backend> {
-    update_gate: GateController<B>,
-    reset_gate: GateController<B>,
-    new_gate: GateController<B>,
-    d_hidden: usize,
+    /// The update gate controller.
+    pub update_gate: GateController<B>,
+    /// The reset gate controller.
+    pub reset_gate: GateController<B>,
+    /// The new gate controller.
+    pub new_gate: GateController<B>,
+    /// The size of the hidden state.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for Gru<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.update_gate.input_transform.weight.shape().dims;
+        let bias = self.update_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl GruConfig {
@@ -73,13 +102,11 @@ impl<B: Backend> Gru<B> {
     /// Applies the forward pass on the input tensor. This GRU implementation
     /// returns a single state tensor with dimensions [batch_size, sequence_length, hidden_size].
     ///
-    /// Parameters:
-    ///     batched_input: The input tensor of shape [batch_size, sequence_length, input_size].
-    ///     state: An optional tensor representing an initial cell state with the same dimensions
-    ///            as batched_input. If none is provided, one will be generated.
-    ///
-    /// Returns:
-    ///     The resulting state tensor, with shape [batch_size, sequence_length, hidden_size].
+    /// # Shapes
+    /// - batched_input: `[batch_size, sequence_length, input_size]`.
+    /// - state: An optional tensor representing an initial cell state with the same dimensions
+    ///          as batched_input. If none is provided, one will be generated.
+    /// - output: `[batch_size, sequence_length, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -177,8 +204,8 @@ impl<B: Backend> Gru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///
@@ -204,12 +231,12 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -249,13 +276,16 @@ mod tests {
             &device,
         );
 
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let state = gru.forward(input, None);
 
-        let output = state.select(0, Tensor::arange(0..1, &device)).squeeze(0);
+        let output = state
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze::<2>(0);
 
-        output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
+        let expected = TensorData::from([[0.034]]);
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -268,5 +298,17 @@ mod tests {
         let hidden_state = gru.forward(batched_input, None);
 
         assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+    }
+
+    #[test]
+    fn display() {
+        let config = GruConfig::new(2, 8, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "Gru {d_input: 2, d_hidden: 8, bias: true, params: 288}"
+        );
     }
 }

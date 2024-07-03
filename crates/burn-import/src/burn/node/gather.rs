@@ -35,7 +35,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         let output = &self.output.name;
 
         quote! {
-            let #output = #input.gather(#dim, #index);
+            let #output = #input.select(#dim, #index);
         }
     }
 
@@ -62,9 +62,9 @@ mod tests {
 
         graph.register(GatherNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 2),
+            TensorType::new_int("tensor2", 1),
             TensorType::new_float("tensor3", 2),
-            1,
+            0,
         ));
 
         graph.register_input_output(
@@ -98,9 +98,9 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 2>,
-                    tensor2: Tensor<B, 2, Int>
+                    tensor2: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.gather(1, tensor2);
+                    let tensor3 = tensor1.select(0, tensor2);
 
                     tensor3
                 }

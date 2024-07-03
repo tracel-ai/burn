@@ -18,6 +18,19 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<FloatTensor<B, 1>>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [conv3d](ModuleOps::conv3d).
+#[derive(new)]
+pub struct Conv3dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B, 5>,
+
+    /// Weights gradient.
+    pub weights_grad: FloatTensor<B, 5>,
+
+    /// Bias gradient.
+    pub bias_grad: Option<FloatTensor<B, 1>>,
+}
+
 /// Gradient computed during the backward pass for each tensor used by [max_pool1d](ModuleOps::max_pool1d).
 #[derive(new)]
 pub struct MaxPool1dBackward<B: Backend> {
@@ -241,6 +254,29 @@ pub trait ModuleOps<B: Backend> {
     ) -> Conv2dBackward<B> {
         conv::conv2d_backward(x, weight, bias, output_grad, options)
     }
+    /// Three dimensional convolution.
+    ///
+    /// # Shapes
+    ///
+    /// x:      `[batch_size, channels_in, depth, height, width]`,
+    /// weight: `[channels_out, channels_in, kernel_size_1, kernel_size_2, kernel_size_3]`,
+    /// bias:   `[channels_out]`,
+    fn conv3d(
+        x: FloatTensor<B, 5>,
+        weight: FloatTensor<B, 5>,
+        bias: Option<FloatTensor<B, 1>>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<B, 5>;
+    /// Backward pass for the [conv3d](ModuleOps::conv3d) operation.
+    fn conv3d_backward(
+        x: FloatTensor<B, 5>,
+        weight: FloatTensor<B, 5>,
+        bias: Option<FloatTensor<B, 1>>,
+        output_grad: FloatTensor<B, 5>,
+        options: ConvOptions<3>,
+    ) -> Conv3dBackward<B> {
+        conv::conv3d_backward(x, weight, bias, output_grad, options)
+    }
     /// One dimensional transposed convolution.
     ///
     /// # Shapes
@@ -266,6 +302,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> Conv1dBackward<B> {
         conv::conv_transpose1d_backward(x, weight, bias, output_grad, options)
     }
+
     /// Two dimensional transposed convolution.
     ///
     /// # Shapes
@@ -279,7 +316,6 @@ pub trait ModuleOps<B: Backend> {
         bias: Option<FloatTensor<B, 1>>,
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<B, 4>;
-
     /// Backward pass for the [conv transpose 2d](ModuleOps::conv_transpose2d) operation.
     fn conv_transpose2d_backward(
         x: FloatTensor<B, 4>,
@@ -289,6 +325,30 @@ pub trait ModuleOps<B: Backend> {
         options: ConvTransposeOptions<2>,
     ) -> Conv2dBackward<B> {
         conv::conv_transpose2d_backward(x, weight, bias, output_grad, options)
+    }
+
+    /// Three dimensional transposed convolution.
+    ///
+    /// # Shapes
+    ///
+    /// x:      `[batch_size, channels_in, height, width]`,
+    /// weight: `[channels_in, channels_out, kernel_size_1, kernel_size_2, kernel_size_3]`,
+    /// bias:   `[channels_out]`,
+    fn conv_transpose3d(
+        x: FloatTensor<B, 5>,
+        weight: FloatTensor<B, 5>,
+        bias: Option<FloatTensor<B, 1>>,
+        options: ConvTransposeOptions<3>,
+    ) -> FloatTensor<B, 5>;
+    /// Backward pass for the [conv transpose 3d](ModuleOps::conv_transpose3d) operation.
+    fn conv_transpose3d_backward(
+        x: FloatTensor<B, 5>,
+        weight: FloatTensor<B, 5>,
+        bias: Option<FloatTensor<B, 1>>,
+        output_grad: FloatTensor<B, 5>,
+        options: ConvTransposeOptions<3>,
+    ) -> Conv3dBackward<B> {
+        conv::conv_transpose3d_backward(x, weight, bias, output_grad, options)
     }
 
     /// Four-dimensional unfolding.

@@ -4,11 +4,13 @@ use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
-use burn_cube::dialect::WorkgroupSize;
-use burn_cube::JitKernel;
-use burn_cube::Kernel;
-use burn_cube::WorkGroup;
+use burn_cube::ir::CubeDim;
+use burn_cube::prelude::*;
+use burn_cube::FeatureSet;
 use burn_jit::JitAutotuneKey;
+use burn_tensor::backend::SyncType;
+use burn_tensor::reader_from_concrete;
+use burn_tensor::Reader;
 use cudarc::driver::sys::CUctx_st;
 use cudarc::driver::sys::CUfunc_st;
 use std::collections::HashMap;
@@ -18,6 +20,8 @@ use std::ffi::CString;
 #[derive(Debug)]
 pub struct CudaServer<MM: MemoryManagement<CudaStorage>> {
     state: CudaServerState<MM>,
+    pub(crate) archs: Vec<i32>,
+    pub(crate) minimum_arch_version: i32,
 }
 
 pub(crate) enum CudaServerState<MM: MemoryManagement<CudaStorage>> {
@@ -46,7 +50,7 @@ pub(crate) struct CudaContext<MM: MemoryManagement<CudaStorage>> {
 
 #[derive(Debug)]
 struct CompiledKernel {
-    workgroup_size: WorkgroupSize,
+    cube_dim: CubeDim,
     shared_mem_bytes: usize,
     func: *mut CUfunc_st,
 }
@@ -54,28 +58,30 @@ struct CompiledKernel {
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Kernel;
+    type Kernel = Box<dyn CubeTask>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
 
-    fn read(&mut self, binding: server::Binding<Self>) -> burn_tensor::Reader<Vec<u8>> {
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
         let ctx = self.get_context();
         let resource = ctx.memory_management.get(binding.memory);
+
         // TODO: Check if it is possible to make this faster
         let mut data = vec![0; resource.size() as usize];
         unsafe {
             cudarc::driver::result::memcpy_dtoh_async(&mut data, resource.ptr, ctx.stream).unwrap();
         };
-
         ctx.sync();
-
-        burn_tensor::Reader::Concrete(data)
+        reader_from_concrete(data)
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
         let ctx = self.get_context();
-        let handle = ctx.memory_management.reserve(data.len());
+        let handle = ctx.memory_management.reserve(data.len(), || unsafe {
+            cudarc::driver::result::stream::synchronize(ctx.stream).unwrap();
+        });
         let handle = server::Handle::new(handle);
         let binding = handle.clone().binding().memory;
         let resource = ctx.memory_management.get(binding);
@@ -89,17 +95,21 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
 
     fn empty(&mut self, size: usize) -> server::Handle<Self> {
         let ctx = self.get_context();
-        let handle = ctx.memory_management.reserve(size);
+        let handle = ctx.memory_management.reserve(size, || unsafe {
+            cudarc::driver::result::stream::synchronize(ctx.stream).unwrap();
+        });
         server::Handle::new(handle)
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
+        let arch = self.minimum_arch_version;
+
         let ctx = self.get_context();
         let kernel_id = kernel.id();
         let settings = kernel.launch_settings();
 
         if !ctx.module_names.contains_key(&kernel_id) {
-            ctx.compile_kernel(&kernel_id, kernel);
+            ctx.compile_kernel(&kernel_id, kernel, arch);
         }
 
         let bindings = bindings
@@ -107,14 +117,29 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             .map(|binding| ctx.memory_management.get(binding.memory).as_binding())
             .collect();
 
-        ctx.execute_task(kernel_id, settings.workgroup, bindings);
+        ctx.execute_task(kernel_id, settings.cube_count, bindings);
         // TODO: fix this
         // self.memory_management.storage().perform_deallocations();
     }
 
-    fn sync(&mut self) {
+    fn sync(&mut self, sync_type: SyncType) {
+        match sync_type {
+            // Synchronize the stream if waiting.
+            SyncType::Wait => {
+                let ctx = self.get_context();
+                ctx.sync();
+            }
+            // Nothing to do - all tasks are already submitted to the stream.
+            SyncType::Flush => (),
+        }
+    }
+
+    fn get_resource(
+        &mut self,
+        binding: server::Binding<Self>,
+    ) -> <Self::Storage as burn_compute::storage::ComputeStorage>::Resource {
         let ctx = self.get_context();
-        ctx.sync();
+        ctx.memory_management.get(binding.memory)
     }
 }
 
@@ -138,14 +163,25 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(&mut self, kernel_id: &str, kernel: Kernel) {
+    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>, arch: i32) {
         let kernel_compiled = kernel.compile();
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
-        let workgroup_size = kernel_compiled.workgroup_size;
+        let cube_dim = kernel_compiled.cube_dim;
+        let arch = format!("--gpu-architecture=sm_{}", arch);
+
+        #[cfg(target_os = "linux")]
+        let options = &[
+            arch.as_str(),
+            "--include-path=/usr/include",
+            "--include-path=/usr/include/cuda",
+            "--include-path=/usr/local/include/cuda",
+        ];
+        #[cfg(not(target_os = "linux"))] // TODO: add include-path for other OS.
+        let options = &[arch.as_str()];
 
         let ptx = unsafe {
             let program = cudarc::nvrtc::result::create_program(kernel_compiled.source).unwrap();
-            if cudarc::nvrtc::result::compile_program::<Vec<_>>(program, &[]).is_err() {
+            if cudarc::nvrtc::result::compile_program(program, options).is_err() {
                 let log_raw = cudarc::nvrtc::result::get_program_log(program).unwrap();
                 let log_ptr = log_raw.as_ptr();
                 let log = CStr::from_ptr(log_ptr).to_str().unwrap();
@@ -171,7 +207,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         self.module_names.insert(
             kernel_id.to_string(),
             CompiledKernel {
-                workgroup_size,
+                cube_dim,
                 shared_mem_bytes,
                 func,
             },
@@ -181,17 +217,17 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
     fn execute_task(
         &mut self,
         kernel_id: String,
-        workgroup: WorkGroup,
+        cube_count: CubeCount,
         mut bindings: Vec<Binding>,
     ) {
         let kernel = self.module_names.get(&kernel_id).unwrap();
-        let workgroup_size = kernel.workgroup_size;
+        let cube_dim = kernel.cube_dim;
 
         unsafe {
             cudarc::driver::result::launch_kernel(
                 kernel.func,
-                (workgroup.x, workgroup.y, workgroup.z),
-                (workgroup_size.x, workgroup_size.y, workgroup_size.z),
+                (cube_count.x, cube_count.y, cube_count.z),
+                (cube_dim.x, cube_dim.y, cube_dim.z),
                 kernel.shared_mem_bytes as u32,
                 self.stream,
                 &mut bindings,
@@ -204,11 +240,25 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
 impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
     /// Create a new cuda server.
     pub(crate) fn new(index: usize, init: Box<dyn Fn(usize) -> CudaContext<MM>>) -> Self {
+        let archs = unsafe {
+            let mut num_supported_arg: core::ffi::c_int = 0;
+            cudarc::nvrtc::sys::lib()
+                .nvrtcGetNumSupportedArchs(core::ptr::from_mut(&mut num_supported_arg));
+
+            let mut archs: Vec<core::ffi::c_int> = vec![0; num_supported_arg as usize];
+            cudarc::nvrtc::sys::lib().nvrtcGetSupportedArchs(core::ptr::from_mut(&mut archs[0]));
+            archs
+        };
+
+        let minimum_arch_version = archs[0];
+
         Self {
             state: CudaServerState::Uninitialized {
                 device_index: index,
                 init,
             },
+            archs,
+            minimum_arch_version,
         }
     }
 

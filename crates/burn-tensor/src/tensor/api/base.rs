@@ -2,25 +2,23 @@
 
 use alloc::vec::Vec;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::format;
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::string::String;
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::vec;
 
-use burn_common::{reader::Reader, stub::Mutex};
+use burn_common::stub::Mutex;
+use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
+use crate::Element;
+use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -36,7 +34,7 @@ impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
 where
     B: Backend,
     K: BasicOps<B>,
-    T: Into<Data<K::Elem, D>>,
+    T: Into<TensorData>,
 {
     fn from(value: T) -> Self {
         Tensor::from_data(value.into(), &Default::default())
@@ -169,6 +167,60 @@ where
         check!(TensorCheck::permute(transformed_axes));
 
         Tensor::new(K::permute(self.primitive, transformed_axes))
+    }
+
+    /// Moves the dimension(s) of input at the position(s) in source to the position(s) in destination.
+    ///
+    /// Other dimensions of input that are not explicitly moved remain in their original order and appear
+    /// at the positions not specified in destination.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
+    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// * `dst` - Destination positions for each of the original dims. These must also be unique.
+    ///
+    /// # Panics
+    ///
+    /// - If the source and destination dimensions are not of the same length.
+    /// - If the source and destination vectors contain duplicate values.
+    /// - If the source and destination vectors contain values that are out of bounds.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions moved.
+    // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
+    // for it
+    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
+        let source_dims = src.into_dim_vec::<D>();
+        let destination_dims = dst.into_dim_vec::<D>();
+
+        check!(TensorCheck::movedim_args_length(
+            &source_dims,
+            &destination_dims
+        ));
+
+        let mut m = [-1; D];
+        for (&d, &s) in destination_dims.iter().zip(source_dims.iter()) {
+            m[d] = s as isize;
+        }
+        let mut axes: [isize; D] = [0; D];
+        let mut source_i = 0;
+        for (dest_i, item) in axes.iter_mut().enumerate().take(D) {
+            *item = if m[dest_i] != -1 {
+                m[dest_i]
+            } else {
+                while source_dims.contains(&source_i) {
+                    source_i += 1;
+                }
+                let result = source_i as isize;
+                source_i += 1;
+                result
+            };
+        }
+
+        self.permute(axes)
     }
 
     /// Reverse the order of elements in the tensor along the given dimensions.
@@ -620,36 +672,38 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Returns the data of the current tensor.
-    pub async fn into_data(self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive).read().await
+    /// Converts the data of the current tensor.
+    pub fn into_data(self) -> TensorData {
+        crate::try_read_sync(self.into_data_async()).expect(
+            "Failed to read tensor data synchronously. 
+        This can happen on platforms that don't support blocking futures like WASM. 
+        If possible, try using into_data_async instead.",
+        )
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Returns the data of the current tensor.
-    pub fn into_data(self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive).read()
+    pub fn to_data(&self) -> TensorData {
+        self.clone().into_data()
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
-    pub async fn to_data(&self) -> Data<K::Elem, D> {
-        K::into_data(self.primitive.clone()).read().await
+    pub async fn into_data_async(self) -> TensorData {
+        K::into_data_async(self.primitive).await
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Returns the data of the current tensor without taking ownership.
-    pub fn to_data(&self) -> Data<K::Elem, D> {
-        Self::into_data(self.clone())
+    /// Returns the data of the current tensor.
+    pub async fn to_data_async(&self) -> TensorData {
+        self.clone().into_data_async().await
     }
 
     /// Create a tensor from the given data on the given device.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
-        T: Into<Data<K::Elem, D>>,
+        T: Into<TensorData>,
     {
-        Self::new(K::from_data(data.into(), device))
+        let data = data.into();
+        check!(TensorCheck::from_data::<D>(data.shape.as_slice()));
+        Self::new(K::from_data(data, device))
     }
 
     /// Repeat the tensor along the given dimension.
@@ -818,11 +872,12 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    /// If the backend fails to read the tensor data synchronously.
     pub fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data();
-        data.value[0]
+        crate::try_read_sync(self.into_scalar_async()).expect(
+            "Failed to read tensor data synchronously. This can happen on platforms 
+            that don't support blocking futures like WASM. Try into_scalar_async instead.",
+        )
     }
 
     /// Convert the tensor into a scalar.
@@ -830,11 +885,10 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn into_scalar(self) -> K::Elem {
+    pub async fn into_scalar_async(self) -> K::Elem {
         check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data().await;
-        data.value[0]
+        let x = self.into_data_async().await.iter().next().unwrap();
+        x
     }
 
     /// Broadcast the tensor to the given shape.
@@ -932,7 +986,6 @@ where
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
         acc.push('\n');
@@ -941,7 +994,6 @@ where
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
@@ -958,12 +1010,18 @@ where
             let range: [core::ops::Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
-            let elem = &self.clone().slice(range).into_data().value[0];
-            acc.push_str(&format!("{elem:?}"));
+            let data =
+                burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
+
+            if let Some(data) = data {
+                let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
+                acc.push_str(&format!("{elem:?}"));
+            } else {
+                acc.push_str("<Tensor data not available>");
+            }
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_outer_tensor(
         &self,
         acc: &mut String,
@@ -998,7 +1056,6 @@ where
     /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
     /// * `depth` - The current depth of the tensor dimensions being processed.
     /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn display_recursive(
         &self,
         acc: &mut String,
@@ -1109,7 +1166,6 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
 
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         {
             let po = PRINT_OPTS.lock().unwrap();
             let mut acc = String::new();
@@ -1159,7 +1215,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
-    type Elem: 'static + Copy;
+    type Elem: Element;
 
     /// Creates an empty tensor with the given shape.
     ///
@@ -1372,7 +1428,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    /// Extracts the data from the tensor.
+    /// Extracts the data from the tensor asynchronously.
     ///
     /// # Arguments
     ///
@@ -1390,7 +1446,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>>;
+    fn into_data_async<const D: usize>(
+        tensor: Self::Primitive<D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the given data.
     ///
@@ -1411,10 +1469,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: &B::Device,
-    ) -> Self::Primitive<D>;
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1664,14 +1719,11 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::float_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::float_into_data(tensor).await
     }
 
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: &B::Device,
-    ) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::float_from_data(data, device)
     }
 
@@ -1789,14 +1841,11 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::int_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::int_into_data(tensor).await
     }
 
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: &B::Device,
-    ) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::int_from_data(data, device)
     }
 
@@ -1914,14 +1963,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::bool_into_data(tensor)
+    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+        B::bool_into_data(tensor).await
     }
 
-    fn from_data<const D: usize>(
-        data: Data<Self::Elem, D>,
-        device: &B::Device,
-    ) -> Self::Primitive<D> {
+    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         B::bool_from_data(data, device)
     }
 
@@ -1980,6 +2026,67 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
         B::bool_flip(tensor, axes)
+    }
+}
+
+/// Trait used for movedim arguments
+pub trait MovedimArgs {
+    /// Converts into a set of dimensions `Vec<usize>` for the `tensor.movedim()` function
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize>;
+}
+
+impl MovedimArgs for Vec<i32> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        let set = self
+            .iter()
+            .map(|&dim| {
+                if dim < 0 {
+                    (D as i32 + dim) as usize
+                } else {
+                    dim as usize
+                }
+            })
+            .collect::<Vec<usize>>();
+        check!(TensorCheck::movedim_args_vec::<D>(&set));
+
+        set
+    }
+}
+
+impl MovedimArgs for Vec<usize> {
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_vec::<D>(&self));
+        self
+    }
+}
+
+impl MovedimArgs for usize {
+    #[allow(clippy::vec_init_then_push)]
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_usize::<D>(self));
+
+        let mut set = Vec::with_capacity(1);
+        set.push(self);
+
+        set
+    }
+}
+
+impl MovedimArgs for i32 {
+    #[allow(clippy::vec_init_then_push)]
+    fn into_dim_vec<const D: usize>(self) -> Vec<usize> {
+        check!(TensorCheck::movedim_args_i32::<D>(self));
+
+        let dim = if self < 0 {
+            (D as i32 + self) as usize
+        } else {
+            self as usize
+        };
+
+        let mut set = Vec::with_capacity(1);
+        set.push(dim);
+
+        set
     }
 }
 
@@ -2118,7 +2225,6 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i32; D2] {
     }
 }
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
 where
     B: Backend,
@@ -2127,12 +2233,7 @@ where
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let data = self.to_data();
-        // manually construct instead of calling `serialize` to move instead of clone value
-        let serialized: DataSerialize<K::Elem> = DataSerialize {
-            value: data.value,
-            shape: data.shape.dims.to_vec(),
-        };
-        serialized.serialize(serializer)
+        data.serialize(serializer)
     }
 }
 
@@ -2143,9 +2244,10 @@ where
     K::Elem: Debug + Copy + Deserialize<'de>,
 {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        let data_res: Result<DataSerialize<K::Elem>, De::Error> =
-            DataSerialize::deserialize(deserializer);
-        let tensor = Tensor::from_data(data_res?, &<B::Device as Default>::default());
+        let tensor = Tensor::from_data(
+            TensorData::deserialize(deserializer)?,
+            &<B::Device as Default>::default(),
+        );
         Ok(tensor)
     }
 }

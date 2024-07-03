@@ -4,7 +4,7 @@ use crate::{
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitRuntime,
 };
-use burn_cube::dialect::{
+use burn_cube::ir::{
     BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
@@ -248,10 +248,10 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask, Variable::Id);
-                let lhs = self.builder.input(&desc.value, Variable::Id);
-                let rhs = self.builder.input(&desc.tensor, Variable::Id);
-                let out = self.builder.output(&desc.out, Variable::Id);
+                let cond = self.builder.input(&desc.mask, Variable::AbsolutePos);
+                let lhs = self.builder.input(&desc.value, Variable::AbsolutePos);
+                let rhs = self.builder.input(&desc.tensor, Variable::AbsolutePos);
+                let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
                 self.builder
                     .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
@@ -268,10 +268,10 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask, Variable::Id);
+                let cond = self.builder.input(&desc.mask, Variable::AbsolutePos);
                 let lhs = self.builder.scalar(&desc.value, desc.out.dtype.into());
-                let rhs = self.builder.input(&desc.tensor, Variable::Id);
-                let out = self.builder.output(&desc.out, Variable::Id);
+                let rhs = self.builder.input(&desc.tensor, Variable::AbsolutePos);
+                let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
                 self.builder
                     .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
@@ -289,7 +289,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(1.0, desc.dtype.into());
-                let out = self.builder.output(desc, Variable::Id);
+                let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -302,7 +302,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(0.0, desc.dtype.into());
-                let out = self.builder.output(desc, Variable::Id);
+                let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -315,7 +315,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 }
 
                 let input = self.builder.scalar(elem, desc.dtype.into());
-                let out = self.builder.output(desc, Variable::Id);
+                let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
                     .register_operation(Operator::Assign(UnaryOperator { input, out }));
@@ -334,9 +334,9 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.builder.input(&desc.lhs, Variable::Id);
-        let rhs = self.builder.input(&desc.rhs, Variable::Id);
-        let out = self.builder.output(&desc.out, Variable::Id);
+        let lhs = self.builder.input(&desc.lhs, Variable::AbsolutePos);
+        let rhs = self.builder.input(&desc.rhs, Variable::AbsolutePos);
+        let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
         self.builder.register_operation(func(lhs, rhs, out));
 
@@ -351,8 +351,8 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let input = self.builder.input(&desc.input, Variable::Id);
-        let out = self.builder.output(&desc.out, Variable::Id);
+        let input = self.builder.input(&desc.input, Variable::AbsolutePos);
+        let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
         self.builder.register_operation(func(input, out));
 
@@ -371,9 +371,9 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.builder.input(&desc.lhs, Variable::Id);
+        let lhs = self.builder.input(&desc.lhs, Variable::AbsolutePos);
         let rhs = self.builder.scalar(&desc.rhs, desc.lhs.dtype.into());
-        let out = self.builder.output(&desc.out, Variable::Id);
+        let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
         self.builder.register_operation(func(lhs, rhs, out));
 

@@ -34,7 +34,7 @@ pub enum ModelType {
     WithNdArrayBackend(Model<NdArray<f32>>),
 
     /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
+    WithWgpuBackend(Model<Wgpu<f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)
@@ -138,8 +138,8 @@ impl<B: Backend> Model<B> {
     /// Normalizes input and runs inference on the image
     pub async fn forward(&self, input: &[f32]) -> Vec<f32> {
         // Reshape from the 1D array to 3d tensor [ width, height, channels]
-        let input: Tensor<B, 4> =
-            Tensor::from_floats(input, &B::Device::default()).reshape([1, CHANNELS, HEIGHT, WIDTH]);
+        let input = Tensor::<B, 1>::from_floats(input, &B::Device::default())
+            .reshape([1, CHANNELS, HEIGHT, WIDTH]);
 
         // Normalize input: make between [-1,1] and make the mean=0 and std=1
         let input = self.normalizer.normalize(input);
@@ -150,14 +150,13 @@ impl<B: Backend> Model<B> {
         // Convert the model output into probability distribution using softmax formula
         let probabilities = softmax(output, 1);
 
-        #[cfg(not(target_family = "wasm"))]
-        let result = probabilities.into_data().convert::<f32>().value;
-
         // Forces the result to be computed
-        #[cfg(target_family = "wasm")]
-        let result = probabilities.into_data().await.convert::<f32>().value;
-
-        result
+        probabilities
+            .into_data_async()
+            .await
+            .convert::<f32>()
+            .to_vec()
+            .unwrap()
     }
 }
 

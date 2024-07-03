@@ -1,25 +1,53 @@
-use std::marker::PhantomData;
-
-use burn_cube::{
-    cpa,
-    dialect::{ComputeShader, Elem, IndexOffsetGlobalWithLayout, Scope, Variable, Visibility},
-    Compilation, CompilationInfo, CompilationSettings, Execution, InputInfo, OutputInfo,
-    TensorHandle, WorkgroupLaunch,
-};
-
+use super::Kernel;
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use burn_cube::{calculate_cube_count_elemwise, prelude::*};
+use burn_cube::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
 
-use super::GpuComputeShaderPhase;
+#[cube]
+fn index_offset_with_layout<N: CubePrimitive>(
+    tensor: &Tensor<N>,
+    layout: &Tensor<N>,
+    offset_layout: UInt,
+    dim_start: UInt,
+    dim_end: UInt,
+    unroll: Comptime<bool>,
+) -> UInt {
+    let vectorization_factor = Comptime::vectorization(tensor);
+    let vectorization_factor_runtime = Comptime::runtime(vectorization_factor);
 
-pub(crate) struct IntoContiguousShader {
-    tensor: Variable,
-    output: Variable,
+    let offset_ref = offset_layout * vectorization_factor_runtime;
+    let mut offset = UInt::new(0);
+
+    for i in range(dim_start, dim_end, unroll) {
+        let ogwl = offset_ref / layout.stride(i);
+        offset += ogwl % tensor.shape(i) * tensor.stride(i);
+    }
+
+    offset / vectorization_factor_runtime
 }
 
-#[derive(new)]
-pub(crate) struct IntoContiguousEagerKernel<R: JitRuntime, E: JitElement> {
-    _runtime: PhantomData<R>,
-    _elem_out: PhantomData<E>,
+#[cube(launch)]
+fn into_contiguous_kernel<N: CubePrimitive>(
+    input: &Tensor<N>,
+    output: &mut Tensor<N>,
+    rank: Comptime<Option<UInt>>,
+) {
+    let offset_output = ABSOLUTE_POS;
+
+    if offset_output >= output.len() {
+        return;
+    }
+
+    let offset_input = index_offset_with_layout::<N>(
+        input,
+        output,
+        offset_output,
+        UInt::new(0),
+        Comptime::unwrap_or_else(rank, || output.rank()),
+        Comptime::is_some(rank),
+    );
+
+    output[offset_output] = input[offset_input];
 }
 
 /// Make a jit tensor contiguous.
@@ -30,7 +58,21 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         return tensor;
     }
 
-    let kernel = IntoContiguousEagerKernel::<R, E>::new();
+    // Vectorization is only enabled when the last dimension is contiguous.
+    let vectorization_factor = if tensor.strides[D - 1] == 1 {
+        let last_dim = tensor.shape.dims[D - 1];
+        if last_dim % 4 == 0 {
+            4
+        } else if last_dim % 2 == 0 {
+            2
+        } else {
+            1
+        }
+    } else {
+        1
+    };
+
+    let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
     let output = JitTensor::new(
@@ -39,77 +81,29 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         tensor.shape.clone(),
         buffer,
     );
+    let cube_count = calculate_cube_count_elemwise(
+        num_elems / vectorization_factor as usize,
+        SUBCUBE_DIM_APPROX,
+    );
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandle::<R>::new(
+    into_contiguous_kernel_launch::<E::Primitive, R>(
+        client,
+        cube_count,
+        CubeDim::default(),
+        TensorArg::vectorized(
+            vectorization_factor,
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
+        ),
+        TensorArg::vectorized(
+            vectorization_factor,
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )])
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        ),
+        Some(UInt::new(D as u32)),
+    );
 
     output
-}
-
-impl<R: JitRuntime, E: JitElement> GpuComputeShaderPhase for IntoContiguousEagerKernel<R, E> {
-    fn compile(&self) -> ComputeShader {
-        let mut scope = Scope::root();
-        let item = E::cube_elem().into();
-
-        let tensor = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
-
-        IntoContiguousShader { tensor, output }.expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let tensor = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-
-        let out = OutputInfo::Array { item };
-
-        let info = CompilationInfo {
-            inputs: vec![tensor],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        Compilation::new(info).compile(settings)
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
-    }
-}
-
-impl IntoContiguousShader {
-    pub(crate) fn expand(self, scope: &mut Scope) {
-        let tensor = self.tensor;
-        let id = Variable::Id;
-        let output = self.output;
-
-        let offset_input = scope.zero(Elem::UInt);
-
-        IndexOffsetGlobalWithLayout {
-            tensors: vec![tensor],
-            indexes: vec![offset_input],
-            layout: output,
-            position: id,
-            dim_start: 0u32.into(),
-            dim_end: Variable::Rank,
-        }
-        .expand(scope);
-
-        let value = scope.create_local(tensor.item());
-        cpa!(scope, value = tensor[offset_input]);
-        cpa!(scope, output[id] = value);
-    }
 }

@@ -27,14 +27,14 @@ pub trait MemoryManagement<Storage: ComputeStorage>: Send + core::fmt::Debug {
     fn get(&mut self, binding: Self::Binding) -> Storage::Resource;
 
     /// Finds a spot in memory for a resource with the given size in bytes, and returns a handle to it
-    fn reserve(&mut self, size: usize) -> Self::Handle;
+    fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle;
 
     /// Bypass the memory allocation algorithm to allocate data directly.
     ///
     /// # Notes
     ///
     /// Can be useful for servers that want specific control over memory.
-    fn alloc(&mut self, size: usize) -> Self::Handle;
+    fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle;
 
     /// Bypass the memory allocation algorithm to deallocate data directly.
     ///

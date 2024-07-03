@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use burn_common::reader::Reader;
+use burn_common::{reader::reader_from_concrete, sync_type::SyncType};
 use burn_compute::{
-    memory_management::{MemoryHandle, MemoryManagement, SimpleMemoryManagement},
+    memory_management::{simple::SimpleMemoryManagement, MemoryHandle, MemoryManagement},
     server::{Binding, ComputeServer, Handle},
-    storage::BytesStorage,
+    storage::{BytesResource, BytesStorage},
 };
 use derive_new::new;
 
@@ -25,15 +25,19 @@ where
     type Storage = BytesStorage;
     type MemoryManagement = MM;
     type AutotuneKey = String;
+    type FeatureSet = ();
 
-    fn read(&mut self, binding: Binding<Self>) -> Reader<Vec<u8>> {
+    fn read(&mut self, binding: Binding<Self>) -> burn_common::reader::Reader {
         let bytes = self.memory_management.get(binding.memory);
+        reader_from_concrete(bytes.read().to_vec())
+    }
 
-        Reader::Concrete(bytes.read().to_vec())
+    fn get_resource(&mut self, binding: Binding<Self>) -> BytesResource {
+        self.memory_management.get(binding.memory)
     }
 
     fn create(&mut self, data: &[u8]) -> Handle<Self> {
-        let handle = self.memory_management.reserve(data.len());
+        let handle = self.memory_management.reserve(data.len(), || {});
         let resource = self.memory_management.get(handle.clone().binding());
 
         let bytes = resource.write();
@@ -46,7 +50,7 @@ where
     }
 
     fn empty(&mut self, size: usize) -> Handle<Self> {
-        Handle::new(self.memory_management.reserve(size))
+        Handle::new(self.memory_management.reserve(size, || {}))
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>) {
@@ -58,7 +62,7 @@ where
         kernel.compute(&mut resources);
     }
 
-    fn sync(&mut self) {
+    fn sync(&mut self, _: SyncType) {
         // Nothing to do with dummy backend.
     }
 }

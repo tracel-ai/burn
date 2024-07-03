@@ -115,4 +115,18 @@ impl ComputeStorage for CudaStorage {
     fn dealloc(&mut self, id: StorageId) {
         self.deallocations.push(id);
     }
+
+    fn copy(&mut self, from: &StorageHandle, to: &StorageHandle) {
+        let num_bytes = from.size();
+
+        unsafe {
+            cudarc::driver::result::memcpy_dtod_async(
+                self.get(to).ptr,
+                self.get(from).ptr,
+                num_bytes,
+                self.stream,
+            )
+            .unwrap();
+        }
+    }
 }

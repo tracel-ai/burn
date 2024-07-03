@@ -1,0 +1,11 @@
+error: Variable not declared
+ --> tests/error/undeclared_variable.rs:5:13
+  |
+5 |     if x == y {
+  |             ^
+
+error[E0425]: cannot find value `y` in this scope
+ --> tests/error/undeclared_variable.rs:5:13
+  |
+5 |     if x == y {
+  |             ^ help: a local variable with a similar name exists: `x`

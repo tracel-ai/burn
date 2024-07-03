@@ -10,10 +10,8 @@ mod tests {
         let indices = Tensor::<TestBackend, 1, Int>::arange(0..100, &Default::default());
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
-            &Default::default(),
-        );
+        let indices_ref =
+            Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data(), &Default::default());
 
         let actual = tensor.select(1, indices);
         let expected = tensor_ref.select(1, indices_ref);

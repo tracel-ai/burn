@@ -1,14 +1,14 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::nn::Initializer;
 use crate::{
     config::Config,
-    module::Module,
     nn::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig},
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer.
+/// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).
 #[derive(Config)]
 pub struct PositionWiseFeedForwardConfig {
     /// The size of the input and output features.
@@ -25,18 +25,45 @@ pub struct PositionWiseFeedForwardConfig {
     pub initializer: Initializer,
 }
 
-/// Applies the position-wise feed-forward network to the input tensor.
+/// Applies the position-wise feed-forward network to the input tensor from the paper [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7).
 ///
 /// # Params
 ///
 /// - linear inner: Linear layer with `d_model` input features and `d_ff` output features.
 /// - linear outer: Linear layer with `d_ff` input features and `d_model` output features.
+///
+/// `FFN(x) = max(0, xW1 + b1)W2 + b2`
+///
+/// Should be created using [PositionWiseFeedForwardConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
-    dropout: Dropout,
-    gelu: Gelu,
+    /// Linear layer with `d_model` input features and `d_ff` output features.
+    pub linear_inner: Linear<B>,
+    /// Linear layer with `d_ff` input features and `d_model` output features.
+    pub linear_outer: Linear<B>,
+    /// Dropout layer.
+    pub dropout: Dropout,
+    /// GELU activation function.
+    pub gelu: Gelu,
+}
+
+impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_model, dff] = self.linear_inner.weight.shape().dims;
+
+        content
+            .add("d_model", &d_model)
+            .add("d_ff", &dff)
+            .add("prob", &self.dropout.prob)
+            .optional()
+    }
 }
 
 impl PositionWiseFeedForwardConfig {
@@ -68,5 +95,22 @@ impl<B: Backend> PositionWiseFeedForward<B> {
         let x = self.dropout.forward(x);
 
         self.linear_outer.forward(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn display() {
+        let config = PositionWiseFeedForwardConfig::new(2, 4);
+        let pwff = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pwff),
+            "PositionWiseFeedForward {d_model: 2, d_ff: 4, prob: 0.1, params: 22}"
+        );
     }
 }

@@ -10,7 +10,7 @@ use crate::{
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     repr::{self, *},
-    DType, Data, Device, Distribution, Element, ElementConversion, Reader, Shape,
+    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
 use core::ops::Range;
 use std::marker::PhantomData;
@@ -33,16 +33,16 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor.shape()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        tensor.int_into_data::<B, D>()
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+        tensor.int_into_data::<B, D>().await
     }
 
     fn int_from_data<const D: usize>(
-        data: Data<IntElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone());
-        let tensor = B::int_from_data(data, device);
+        let tensor = B::int_from_data::<D>(data, device);
         let shape = B::int_shape(&tensor);
         let stream = StreamId::current();
 

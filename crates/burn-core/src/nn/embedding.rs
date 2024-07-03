@@ -4,17 +4,20 @@ use super::Initializer;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
+use crate::tensor::Int;
 use crate::tensor::Tensor;
-use burn_tensor::Int;
 
-/// Configuration to create an [Embedding](Embedding) layer.
+use crate::tensor::module::embedding;
+
+/// Configuration to create an [Embedding](Embedding) layer using the [init function](EmbeddingConfig::init).
 #[derive(Config)]
 pub struct EmbeddingConfig {
     /// The number of embedding vectors.
-    n_embedding: usize,
+    pub n_embedding: usize,
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::Normal{mean:0.0, std:1.0}")]
     pub initializer: Initializer,
@@ -22,15 +25,29 @@ pub struct EmbeddingConfig {
 
 /// Lookup table to store a fix number of vectors.
 ///
-/// # Params
-///
-/// - weight: Matrix of shape `[n_embedding, d_model]` initialized from a normal distribution:
-///     `N(0, 1)`
+/// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Embedding<B: Backend> {
-    /// The learnable weights of the module of shape [n_embedding, d_model] initialized
+    /// The learnable weights of the module of shape `[n_embedding, d_model]` initialized
     /// from a normal distribution `N(0, 1)`.
     pub weight: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> ModuleDisplay for Embedding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [n_embedding, d_model] = self.weight.shape().dims;
+        content
+            .add("n_embedding", &n_embedding)
+            .add("d_model", &d_model)
+            .optional()
+    }
 }
 
 impl EmbeddingConfig {
@@ -47,20 +64,22 @@ impl EmbeddingConfig {
 impl<B: Backend> Embedding<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [embedding](crate::tensor::module::embedding).
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, seq_length]
-    /// - output: [batch_size, d_model]
+    /// - input: `[batch_size, seq_length]`
+    /// - output: `[batch_size, d_model]`
     pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 3> {
-        burn_tensor::module::embedding(self.weight.val(), input)
+        embedding(self.weight.val(), input)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -78,10 +97,12 @@ mod tests {
                 std: 1.0
             }
         );
-        var_act.to_data().assert_approx_eq(&Data::from([1.0f32]), 0);
+        var_act
+            .to_data()
+            .assert_approx_eq(&TensorData::from([1.0f32]), 0);
         mean_act
             .to_data()
-            .assert_approx_eq(&Data::from([0.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([0.0f32]), 0);
     }
 
     #[test]
@@ -95,6 +116,17 @@ mod tests {
         embed
             .weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(embed.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(embed.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = EmbeddingConfig::new(100, 10);
+        let embed = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", embed),
+            "Embedding {n_embedding: 100, d_model: 10, params: 1000}"
+        );
     }
 }

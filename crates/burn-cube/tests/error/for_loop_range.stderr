@@ -1,0 +1,5 @@
+error: Invalid for loop: use [range](cubecl::prelude::range] instead.
+ --> tests/error/for_loop_range.rs:5:14
+  |
+5 |     for _ in 0..10 {}
+  |              ^^^^^

@@ -2,66 +2,66 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Tensor, TensorData};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
 
     #[test]
     fn test_var() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
 
-        let data_actual = tensor.var(1).into_data();
+        let output = tensor.var(1);
+        let expected = TensorData::from([[2.4892], [15.3333]]).convert::<FloatElem>();
 
-        let data_expected = Data::from([[2.4892], [15.3333]]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
     fn test_var_mean() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
 
         let (var, mean) = tensor.var_mean(1);
 
-        let var_expected = Data::from([[2.4892], [15.3333]]);
-        let mean_expected = Data::from([[0.125], [1.]]);
+        let var_expected = TensorData::from([[2.4892], [15.3333]]).convert::<FloatElem>();
+        let mean_expected = TensorData::from([[0.125], [1.]]).convert::<FloatElem>();
 
-        var_expected.assert_approx_eq(&(var.into_data()), 3);
-        mean_expected.assert_approx_eq(&(mean.into_data()), 3);
+        var.into_data().assert_approx_eq(&var_expected, 3);
+        mean.into_data().assert_approx_eq(&mean_expected, 3);
     }
 
     #[test]
     fn test_var_bias() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
 
-        let data_actual = tensor.var_bias(1).into_data();
+        let output = tensor.var_bias(1);
+        let expected = TensorData::from([[1.86688], [11.5]]).convert::<FloatElem>();
 
-        let data_expected = Data::from([[1.86688], [11.5]]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
     fn test_var_mean_bias() {
-        let tensor = TestTensor::from_data(
+        let tensor = TestTensor::<2>::from_data(
             [[0.5, 1.8, 0.2, -2.0], [3.0, -4.0, 5.0, 0.0]],
             &Default::default(),
         );
 
         let (var, mean) = tensor.var_mean_bias(1);
 
-        let var_expected = Data::from([[1.86688], [11.5]]);
-        let mean_expected = Data::from([[0.125], [1.]]);
+        let var_expected = TensorData::from([[1.86688], [11.5]]).convert::<FloatElem>();
+        let mean_expected = TensorData::from([[0.125], [1.]]).convert::<FloatElem>();
 
-        var_expected.assert_approx_eq(&(var.into_data()), 3);
-        mean_expected.assert_approx_eq(&(mean.into_data()), 3);
+        var.into_data().assert_approx_eq(&var_expected, 3);
+        mean.into_data().assert_approx_eq(&mean_expected, 3);
     }
 }

@@ -2,11 +2,12 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
+use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::activation;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -23,7 +24,7 @@ impl<B: Backend, const D: usize> LstmState<B, D> {
     }
 }
 
-/// The configuration for a [lstm](Lstm) module.
+/// Configuration to create a [Lstm](Lstm) module using the [init function](LstmConfig::init).
 #[derive(Config)]
 pub struct LstmConfig {
     /// The size of the input features.
@@ -38,7 +39,12 @@ pub struct LstmConfig {
 }
 
 /// The Lstm module. This implementation is for a unidirectional, stateless, Lstm.
+///
+/// Introduced in the paper: [Long Short-Term Memory](https://www.researchgate.net/publication/13853244).
+///
+/// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Lstm<B: Backend> {
     /// The input gate regulates which information to update and store in the cell state at each time step.
     pub input_gate: GateController<B>,
@@ -48,7 +54,27 @@ pub struct Lstm<B: Backend> {
     pub output_gate: GateController<B>,
     /// The cell gate is used to compute the cell state that stores and carries information through time.
     pub cell_gate: GateController<B>,
-    d_hidden: usize,
+    /// The hidden state of the LSTM.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for Lstm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims;
+        let bias = self.input_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl LstmConfig {
@@ -171,7 +197,7 @@ impl<B: Backend> Lstm<B> {
     }
 }
 
-/// The configuration for a [Bidirectional LSTM](BiLstm) module.
+/// Configuration to create a [BiLstm](BiLstm) module using the [init function](BiLstmConfig::init).
 #[derive(Config)]
 pub struct BiLstmConfig {
     /// The size of the input features.
@@ -186,13 +212,38 @@ pub struct BiLstmConfig {
 }
 
 /// The BiLstm module. This implementation is for Bidirectional LSTM.
+///
+/// Introduced in the paper: [Framewise phoneme classification with bidirectional LSTM and other neural network architectures](https://www.cs.toronto.edu/~graves/ijcnn_2005.pdf).
+///
+/// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct BiLstm<B: Backend> {
     /// LSTM for the forward direction.
     pub forward: Lstm<B>,
     /// LSTM for the reverse direction.
     pub reverse: Lstm<B>,
-    d_hidden: usize,
+    /// The size of the hidden state.
+    pub d_hidden: usize,
+}
+
+impl<B: Backend> ModuleDisplay for BiLstm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, _] = self.forward.input_gate.input_transform.weight.shape().dims;
+        let bias = self.forward.input_gate.input_transform.bias.is_some();
+
+        content
+            .add("d_input", &d_input)
+            .add("d_hidden", &self.d_hidden)
+            .add("bias", &bias)
+            .optional()
+    }
 }
 
 impl BiLstmConfig {
@@ -298,8 +349,8 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{Device, Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Device, Distribution};
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -347,12 +398,12 @@ mod tests {
             device: &Device<TestBackend>,
         ) -> GateController<TestBackend> {
             let record_1 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             let record_2 = LinearRecord {
-                weight: Param::from_data(Data::from([[weights]]), device),
-                bias: Some(Param::from_data(Data::from([biases]), device)),
+                weight: Param::from_data(TensorData::from([[weights]]), device),
+                bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
             GateController::create_with_weights(
                 d_input,
@@ -402,20 +453,19 @@ mod tests {
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let (output, state) = lstm.forward(input, None);
-        state
-            .cell
-            .to_data()
-            .assert_approx_eq(&Data::from([[0.046]]), 3);
-        state
-            .hidden
-            .to_data()
-            .assert_approx_eq(&Data::from([[0.024]]), 3);
+
+        let expected = TensorData::from([[0.046]]);
+        state.cell.to_data().assert_approx_eq(&expected, 3);
+
+        let expected = TensorData::from([[0.024]]);
+        state.hidden.to_data().assert_approx_eq(&expected, 3);
+
         output
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze(0)
+            .squeeze::<2>(0)
             .to_data()
             .assert_approx_eq(&state.hidden.to_data(), 3);
     }
@@ -451,7 +501,7 @@ mod tests {
     #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
-        use burn_tensor::Shape;
+        use crate::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
         let shape: Shape<3> = [8, 10, 64].into();
@@ -470,7 +520,15 @@ mod tests {
             .unwrap();
 
         // Asserts that the gradients exist and are non-zero
-        assert!(*some_gradient.any().into_data().value.first().unwrap());
+        assert!(
+            some_gradient
+                .any()
+                .into_data()
+                .iter::<f32>()
+                .next()
+                .unwrap()
+                != 0.0
+        );
     }
 
     #[test]
@@ -491,12 +549,12 @@ mod tests {
             let d_output = input_weights.len();
 
             let input_record = LinearRecord {
-                weight: Param::from_data(Data::from(input_weights), device),
-                bias: Some(Param::from_data(Data::from(input_biases), device)),
+                weight: Param::from_data(TensorData::from(input_weights), device),
+                bias: Some(Param::from_data(TensorData::from(input_biases), device)),
             };
             let hidden_record = LinearRecord {
-                weight: Param::from_data(Data::from(hidden_weights), device),
-                bias: Some(Param::from_data(Data::from(hidden_biases), device)),
+                weight: Param::from_data(TensorData::from(hidden_weights), device),
+                bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
             GateController::create_with_weights(
                 d_input,
@@ -509,7 +567,7 @@ mod tests {
         }
 
         let input = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[
+            TensorData::from([[
                 [0.949, -0.861],
                 [0.892, 0.927],
                 [-0.173, -0.301],
@@ -518,11 +576,11 @@ mod tests {
             &device,
         );
         let h0 = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
+            TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
         let c0 = Tensor::<TestBackend, 3>::from_data(
-            Data::from([[[0.723, 0.397, -0.262]], [[0.471, 0.613, 1.885]]]),
+            TensorData::from([[[0.723, 0.397, -0.262]], [[0.471, 0.613, 1.885]]]),
             &device,
         );
 
@@ -622,31 +680,31 @@ mod tests {
             &device,
         );
 
-        let expected_output_with_init_state = Data::from([[
+        let expected_output_with_init_state = TensorData::from([[
             [0.23764, -0.03442, 0.04414, -0.15635, -0.03366, -0.05798],
             [0.00473, -0.02254, 0.02988, -0.16510, -0.00306, 0.08742],
             [0.06210, -0.06509, -0.05339, -0.01710, 0.02091, 0.16012],
             [-0.03420, 0.07774, -0.09774, -0.02604, 0.12584, 0.20872],
         ]]);
-        let expected_output_without_init_state = Data::from([[
+        let expected_output_without_init_state = TensorData::from([[
             [0.08679, -0.08776, -0.00528, -0.15969, -0.05322, -0.08863],
             [-0.02577, -0.05057, 0.00033, -0.17558, -0.03679, 0.03142],
             [0.02942, -0.07411, -0.06044, -0.03601, -0.09998, 0.04846],
             [-0.04026, 0.07178, -0.10189, -0.07349, -0.04576, 0.05550],
         ]]);
-        let expected_hn_with_init_state = Data::from([
+        let expected_hn_with_init_state = TensorData::from([
             [[-0.03420, 0.07774, -0.09774]],
             [[-0.15635, -0.03366, -0.05798]],
         ]);
-        let expected_cn_with_init_state = Data::from([
+        let expected_cn_with_init_state = TensorData::from([
             [[-0.13593, 0.17125, -0.22395]],
             [[-0.45425, -0.11206, -0.12908]],
         ]);
-        let expected_hn_without_init_state = Data::from([
+        let expected_hn_without_init_state = TensorData::from([
             [[-0.04026, 0.07178, -0.10189]],
             [[-0.15969, -0.05322, -0.08863]],
         ]);
-        let expected_cn_without_init_state = Data::from([
+        let expected_cn_without_init_state = TensorData::from([
             [[-0.15839, 0.15923, -0.23569]],
             [[-0.47407, -0.17493, -0.19643]],
         ]);
@@ -677,5 +735,29 @@ mod tests {
             .cell
             .to_data()
             .assert_approx_eq(&expected_cn_without_init_state, 3);
+    }
+
+    #[test]
+    fn display_lstm() {
+        let config = LstmConfig::new(2, 3, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "Lstm {d_input: 2, d_hidden: 3, bias: true, params: 84}"
+        );
+    }
+
+    #[test]
+    fn display_bilstm() {
+        let config = BiLstmConfig::new(2, 3, true);
+
+        let layer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", layer),
+            "BiLstm {d_input: 2, d_hidden: 3, bias: true, params: 168}"
+        );
     }
 }

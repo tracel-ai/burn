@@ -1,26 +1,26 @@
 use crate as burn;
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
+use crate::tensor::Int;
 use crate::tensor::Tensor;
 use alloc::vec;
-use burn_tensor::Int;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer.
+/// Configuration to create a [RotaryEncoding](RotaryEncoding) layer using the [init function](RotaryEncodingConfig::init).
 #[derive(Config, Debug)]
 pub struct RotaryEncodingConfig {
     /// Maximum sequence length of input
-    max_sequence_length: usize,
+    pub max_sequence_length: usize,
 
     /// Size of the input embedding or hidden dimension
-    d_model: usize,
+    pub d_model: usize,
 
     /// Scaling factor for frequency computation. Defaults to 10000.0
     #[config(default = "10000.0")]
-    theta: f32,
+    pub theta: f32,
 }
 
 impl RotaryEncodingConfig {
@@ -74,7 +74,11 @@ impl RotaryEncodingConfig {
             .repeat(2, 2)
             .reshape([self.max_sequence_length, self.d_model, 2]);
 
-        RotaryEncoding { freq_complex }
+        RotaryEncoding {
+            freq_complex,
+            max_sequence_length: self.max_sequence_length,
+            theta: self.theta,
+        }
     }
 }
 
@@ -84,10 +88,34 @@ impl RotaryEncodingConfig {
 /// explicit relative position dependency in self-attention formulation.
 ///
 /// Introduced in the paper: [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
+///
+/// Should be created using [RotaryEncodingConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct RotaryEncoding<B: Backend> {
     /// Frequency Tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
-    freq_complex: Tensor<B, 3>,
+    pub freq_complex: Tensor<B, 3>,
+    /// Maximum sequence length of input
+    pub max_sequence_length: usize,
+    /// Scaling factor for frequency computation.
+    pub theta: f32,
+}
+
+impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [_, _, d_model] = self.freq_complex.shape().dims;
+        content
+            .add("d_model", &d_model)
+            .add("max_sequence_length", &self.max_sequence_length)
+            .add("theta", &self.theta)
+            .optional()
+    }
 }
 
 #[allow(clippy::single_range_in_vec_init)]
@@ -136,7 +164,7 @@ impl<B: Backend> RotaryEncoding<B> {
         // Create a dummy tensor with signed ones based on the 2D rotation matrix
         // [[cos, -sin], [sin, cos]]
         let sign_tensor =
-            Tensor::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
+            Tensor::<B, 2>::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
 
         // Rotate input using the frequency tensor. Slice the frequencies till input sequence length
         let out: Tensor<B, 4> = x
@@ -164,7 +192,7 @@ mod tests {
         let device = Default::default();
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
 
-        let input = Tensor::from_floats(
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -191,7 +219,7 @@ mod tests {
         );
 
         output
-            .squeeze(0)
+            .squeeze::<3>(0)
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
     }
@@ -220,7 +248,7 @@ mod tests {
         );
 
         output
-            .squeeze(0)
+            .squeeze::<3>(0)
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
     }
@@ -235,5 +263,16 @@ mod tests {
         let pe = RotaryEncodingConfig::new(10, d_model).init::<TestBackend>(&device);
         let input = Tensor::zeros([1, 5, d_model], &device);
         let _output = pe.forward(input);
+    }
+
+    #[test]
+    fn display() {
+        let config = RotaryEncodingConfig::new(10, 4);
+        let pe = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pe),
+            "RotaryEncoding {d_model: 2, max_sequence_length: 10, theta: 10000}"
+        );
     }
 }

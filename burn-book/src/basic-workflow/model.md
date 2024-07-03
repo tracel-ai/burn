@@ -20,7 +20,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.15.0", features = ["train", "wgpu", "vision"] }
+burn = { version = "0.14.0", features = ["train", "wgpu", "vision"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -192,7 +192,7 @@ Next, we need to instantiate the model for training.
 #     linear2: Linear<B>,
 #     activation: Relu,
 # }
-# 
+#
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     num_classes: usize,
@@ -216,6 +216,40 @@ impl ModelConfig {
     }
 }
 ```
+
+
+At a glance, you can view the model configuration by printing the model instance:
+
+```rust , ignore
+use burn::backend::Wgpu;
+use guide::model::ModelConfig;
+
+fn main() {
+    type MyBackend = Wgpu<f32, i32>;
+
+    let device = Default::default();
+    let model = ModelConfig::new(10, 512).init::<MyBackend>(&device);
+
+    println!("{}", model);
+}
+```
+
+Output:
+
+```rust , ignore
+Model {
+  conv1: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 80}
+  conv2: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 1168}
+  pool: AdaptiveAvgPool2d {output_size: [8, 8]}
+  dropout: Dropout {prob: 0.5}
+  linear1: Linear {d_input: 1024, d_output: 512, bias: true, params: 524800}
+  linear2: Linear {d_input: 512, d_output: 10, bias: true, params: 5130}
+  activation: Relu
+  params: 531178
+}
+```
+
+
 
 <details>
 <summary><strong>🦀 References</strong></summary>

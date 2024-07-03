@@ -161,3 +161,9 @@ jobs:
     with:
       crate: burn-import
     secrets: inherit
+
+  publish-onnx-ir:
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
+    with:
+      crate: onnx-ir
+    secrets: inherit

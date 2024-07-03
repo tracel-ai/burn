@@ -2,7 +2,7 @@ use crate::{
     tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
 };
 use burn_compute::server::ComputeServer;
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, SyncType};
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -48,9 +48,9 @@ where
         false
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device, sync_type: SyncType) {
         let client = R::client(device);
-        client.sync();
+        client.sync(sync_type);
     }
 }
 

@@ -1,4 +1,4 @@
-use burn_cube::dialect::{ClampOperator, Operator, Scope, Variable};
+use burn_cube::ir::{ClampOperator, Operator, Scope, Variable};
 
 use super::unary;
 use crate::{element::JitElement, tensor::JitTensor, unary, JitRuntime};

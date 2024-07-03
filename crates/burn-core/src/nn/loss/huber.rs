@@ -1,9 +1,9 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use crate::tensor::backend::Backend;
+use crate::tensor::Tensor;
 use crate::{config::Config, module::Module};
-use burn_tensor::backend::Backend;
-use burn_tensor::Tensor;
-use core::marker::PhantomData;
 
 use super::Reduction;
 
@@ -16,15 +16,11 @@ pub struct HuberLossConfig {
 
 impl HuberLossConfig {
     /// Initialize [Huber loss](HuberLoss).
-    pub fn init<B: Backend>(&self, device: &B::Device) -> HuberLoss<B> {
-        // device is not needed as of now, but we might want to prepare some data on it
-        // and its consistent with other loss functions
-        let _ = device;
+    pub fn init(&self) -> HuberLoss {
         self.assertions();
         HuberLoss {
             delta: self.delta,
             lin_bias: self.delta * self.delta * 0.5,
-            _backend: PhantomData,
         }
     }
 
@@ -52,14 +48,31 @@ impl HuberLossConfig {
 /// This loss function is less sensitive to outliers than the mean squared error loss.
 ///
 /// See also: <https://en.wikipedia.org/wiki/Huber_loss>
-#[derive(Module, Debug)]
-pub struct HuberLoss<B: Backend> {
-    delta: f32,
-    lin_bias: f32, // delta * delta * 0.5 precomputed
-    _backend: PhantomData<B>,
+#[derive(Module, Debug, Clone)]
+#[module(custom_display)]
+pub struct HuberLoss {
+    /// The bound where the Huber loss function changes from quadratic to linear behaviour.
+    pub delta: f32,
+    /// Precomputed value for the linear bias.
+    pub lin_bias: f32, // delta * delta * 0.5 precomputed
 }
 
-impl<B: Backend> HuberLoss<B> {
+impl ModuleDisplay for HuberLoss {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("delta", &self.delta)
+            .add("lin_bias", &self.lin_bias)
+            .optional()
+    }
+}
+
+impl HuberLoss {
     /// Compute the loss element-wise for the predictions and targets, then reduce
     /// to a single loss value.
     ///
@@ -70,7 +83,7 @@ impl<B: Backend> HuberLoss<B> {
     /// - predictions: \[...dims\]
     /// - targets: \[...dims\]
     /// - output: \[1\]
-    pub fn forward<const D: usize>(
+    pub fn forward<const D: usize, B: Backend>(
         &self,
         predictions: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -89,7 +102,7 @@ impl<B: Backend> HuberLoss<B> {
     /// - predictions: [...dims]
     /// - targets: [...dims]
     /// - output: [...dims]
-    pub fn forward_no_reduction<const D: usize>(
+    pub fn forward_no_reduction<const D: usize, B: Backend>(
         &self,
         predictions: Tensor<B, D>,
         targets: Tensor<B, D>,
@@ -103,7 +116,10 @@ impl<B: Backend> HuberLoss<B> {
     ///
     /// - residuals: [...dims]
     /// - output: [...dims]
-    pub fn forward_residuals<const D: usize>(&self, residuals: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward_residuals<const D: usize, B: Backend>(
+        &self,
+        residuals: Tensor<B, D>,
+    ) -> Tensor<B, D> {
         let is_large = residuals.clone().abs().greater_elem(self.delta);
         // We are interested in `sign(r)` when `abs(r) > self.delta`. Note that the
         // `sign()` function, in general, suffers from a jump at 0.
@@ -124,33 +140,34 @@ impl<B: Backend> HuberLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     #[test]
     fn test_huber_loss() {
-        let predict = Data::from([-2., -0.5, 0., 0.3, 1.]);
-        let targets = Data::from([0., 0., 0., 0., 0.]);
+        let predict = TensorData::from([-2., -0.5, 0., 0.3, 1.]);
+        let targets = TensorData::from([0., 0., 0., 0., 0.]);
 
         let device = Default::default();
 
         let predict = TestTensor::<1>::from_data(predict, &device);
         let targets = TestTensor::<1>::from_data(targets, &device);
 
-        let huber = HuberLossConfig::new(0.5).init(&device);
+        let huber = HuberLossConfig::new(0.5).init();
 
         let loss_sum = huber.forward(predict.clone(), targets.clone(), Reduction::Sum);
         let loss = huber.forward(predict.clone(), targets.clone(), Reduction::Auto);
         let loss_no_reduction = huber.forward_no_reduction(predict, targets);
 
-        loss_no_reduction
-            .into_data()
-            .assert_approx_eq(&Data::from([0.875, 0.125, 0., 0.045, 0.375]), 7);
-        loss.into_data().assert_approx_eq(&Data::from([0.284]), 7);
-        loss_sum
-            .into_data()
-            .assert_approx_eq(&Data::from([1.42]), 5);
+        let expected = TensorData::from([0.875, 0.125, 0., 0.045, 0.375]);
+        loss_no_reduction.into_data().assert_approx_eq(&expected, 7);
+
+        let expected = TensorData::from([0.284]);
+        loss.into_data().assert_approx_eq(&expected, 7);
+
+        let expected = TensorData::from([1.42]);
+        loss_sum.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[cfg(feature = "std")]
@@ -158,21 +175,31 @@ mod tests {
     fn test_huber_ad_loss() {
         type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 1>;
 
-        let predict = Data::from([-2., -0.5, 0., 0.3, 1.]);
-        let targets = Data::from([0., 0., 0., 0., 0.]);
+        let predict = TensorData::from([-2., -0.5, 0., 0.3, 1.]);
+        let targets = TensorData::from([0., 0., 0., 0., 0.]);
 
         let device = Default::default();
         let predict = TestAutodiffTensor::from_data(predict, &device).require_grad();
         let targets = TestAutodiffTensor::from_data(targets, &device);
 
-        let loss = HuberLossConfig::new(0.5).init(&device);
+        let loss = HuberLossConfig::new(0.5).init();
         let loss = loss.forward_no_reduction(predict.clone(), targets);
 
         let grads = loss.backward();
         let grads_predict = predict.grad(&grads).unwrap();
 
-        grads_predict
-            .to_data()
-            .assert_approx_eq(&Data::from([-0.5, -0.5, 0., 0.3, 0.5]), 3);
+        let expected = TensorData::from([-0.5, -0.5, 0., 0.3, 0.5]);
+        grads_predict.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = HuberLossConfig::new(0.5);
+        let loss = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "HuberLoss {delta: 0.5, lin_bias: 0.125}"
+        );
     }
 }
