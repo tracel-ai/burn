@@ -628,23 +628,19 @@ name = "burn-import"
 version = "0.14.0"
 dependencies = [
  "burn",
- "bytemuck",
  "candle-core",
  "derive-new",
  "half",
  "log",
+ "onnx-ir",
  "pretty_assertions",
  "proc-macro2",
- "protobuf",
- "protobuf-codegen",
  "quote",
  "regex",
  "rstest",
  "rust-format",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
  "syn 2.0.68",
  "thiserror",
  "tracing-core",
@@ -3687,6 +3683,23 @@ dependencies = [
  "burn",
  "burn-import",
  "serde",
+]
+
+[[package]]
+name = "onnx-ir"
+version = "0.14.0"
+dependencies = [
+ "bytemuck",
+ "half",
+ "log",
+ "pretty_assertions",
+ "protobuf",
+ "protobuf-codegen",
+ "regex",
+ "rstest",
+ "serde",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]

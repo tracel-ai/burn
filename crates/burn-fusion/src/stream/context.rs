@@ -141,6 +141,15 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationDescription::Conv3d(desc) => {
+                ModuleOperationDescription::Conv3d(Conv3dDescription {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 ModuleOperationDescription::ConvTranspose1d(ConvTranspose1dDescription {
                     x: desc.x.to_relative(converter),
@@ -152,6 +161,15 @@ impl RelativeOps for ModuleOperationDescription {
             }
             ModuleOperationDescription::ConvTranspose2d(desc) => {
                 ModuleOperationDescription::ConvTranspose2d(ConvTranspose2dDescription {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationDescription::ConvTranspose3d(desc) => {
+                ModuleOperationDescription::ConvTranspose3d(ConvTranspose3dDescription {
                     x: desc.x.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
                     bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
