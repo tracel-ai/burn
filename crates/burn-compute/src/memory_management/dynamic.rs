@@ -88,6 +88,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
                 let mut pool = MemoryPool::new(
                     MemoryExtensionStrategy::Never,
                     RoundingStrategy::FixedAmount(option.chunk_size),
+                    min_storage_buffer_alignment_offset,
                 );
 
                 for _ in 0..option.chunk_num_prealloc {
