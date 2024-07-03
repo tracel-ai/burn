@@ -273,7 +273,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_mean_bias(dim)`                  | N/A                                |
 | `tensor.zeros_like()`                        | `torch.zeros_like(tensor)`         |
 
-# Int Operations
+### Int Operations
 
 Those operations are only available for `Int` tensors.
 
@@ -286,7 +286,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
 
-# Bool Operations
+### Bool Operations
 
 Those operations are only available for `Bool` tensors.
 
@@ -300,6 +300,15 @@ Those operations are only available for `Bool` tensors.
 | `tensor.int()`                       | `tensor.to(torch.long)`         |
 | `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
 | `tensor.not()`                       | `tensor.logical_not()`          |
+
+### Quantization Operations
+
+Those operations are only available for `Float` tensors on backends that implement quantization strategies.
+
+| Burn API                             | PyTorch Equivalent              |
+| ------------------------------------ | ------------------------------- |
+| `tensor.quantize(strategy)`          | N/A                             |
+| `tensor.dequantize()`                | N/A                             |
 
 ## Activation Functions
 
