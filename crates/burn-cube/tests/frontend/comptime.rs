@@ -45,125 +45,29 @@ pub fn comptime_elsif<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime
     }
 }
 
-// #[allow(dead_code)]
-// #[allow(clippy::too_many_arguments)]
-// pub fn comptime_if_else_if<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime<bool>) {
-//     if Comptime::get(cond1) {
-//         let _ = lhs + T::from_int(4);
-//     } else {
-//         if Comptime::get(cond2) {
-//             let _ = lhs + T::from_int(6);
-//         } else {
-//             let _ = lhs - T::from_int(5);
-//         }
-//     }
-// }
-// #[allow(unused_mut)]
-// #[allow(clippy::too_many_arguments)]
-// #[doc = r" Expanded Cube function"]
-// pub fn comptime_if_else_if_expand<T: Numeric>(
-//     context: &mut burn_cube::frontend::CubeContext,
-//     lhs: <T as burn_cube::frontend::CubeType>::ExpandType,
-//     cond1: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
-//     cond2: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
-// ) -> () {
-//     let _cond = cond1;
-//     burn_cube::frontend::branch::if_else_expand(
-//         context,
-//         Some(cond1),
-//         _cond.into(),
-//         |context| {
-//             let _ = {
-//                 let _inner = {
-//                     let _lhs = lhs.clone();
-//                     let _rhs = {
-//                         let _var_0 = 4;
-//                         T::from_int_expand(context, _var_0)
-//                     };
-//                     burn_cube::frontend::add::expand(context, _lhs, _rhs)
-//                 };
-//                 burn_cube::frontend::Init::init(_inner, context)
-//             };
-//         },
-//         |context| {
-//             let _cond = cond2;
-//             burn_cube::frontend::branch::if_else_expand(
-//                 context,
-//                 Some(cond2),
-//                 _cond.into(),
-//                 |context| {
-//                     let _ = {
-//                         let _inner = {
-//                             let _lhs = lhs.clone();
-//                             let _rhs = {
-//                                 let _var_0 = 6;
-//                                 T::from_int_expand(context, _var_0)
-//                             };
-//                             burn_cube::frontend::add::expand(context, _lhs, _rhs)
-//                         };
-//                         burn_cube::frontend::Init::init(_inner, context)
-//                     };
-//                 },
-//                 |context| {
-//                     let _ = {
-//                         let _inner = {
-//                             let _lhs = lhs.clone();
-//                             let _rhs = {
-//                                 let _var_0 = 5;
-//                                 T::from_int_expand(context, _var_0)
-//                             };
-//                             burn_cube::frontend::sub::expand(context, _lhs, _rhs)
-//                         };
-//                         burn_cube::frontend::Init::init(_inner, context)
-//                     };
-//                 },
-//             );
-//         },
-//     );
-// }
+#[cube]
+pub fn comptime_elsif_with_runtime1<T: Numeric>(lhs: T, comptime_cond: Comptime<bool>) {
+    let runtime_cond = lhs >= T::from_int(2);
+    if Comptime::get(comptime_cond) {
+        let _ = lhs + T::from_int(4);
+    } else if runtime_cond {
+        let _ = lhs + T::from_int(5);
+    } else {
+        let _ = lhs - T::from_int(6);
+    }
+}
 
-// #[allow(unused_mut)]
-// #[allow(clippy::too_many_arguments)]
-// #[doc = r" Expanded Cube function"]
-// pub fn comptime_if_else_if_expand<T: Numeric>(
-//     context: &mut burn_cube::frontend::CubeContext,
-//     lhs: <T as burn_cube::frontend::CubeType>::ExpandType,
-//     cond1: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
-//     cond2: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
-// ) -> () {
-//     let _cond = cond2;
-//     burn_cube::frontend::branch::if_else_expand(
-//         context,
-//         Some(cond2),
-//         _cond.into(),
-//         |context| {
-//             let _ = {
-//                 let _inner = {
-//                     let _lhs = lhs.clone();
-//                     let _rhs = {
-//                         let _var_0 = 6;
-//                         T::from_int_expand(context, _var_0)
-//                     };
-//                     burn_cube::frontend::add::expand(context, _lhs, _rhs)
-//                 };
-//                 burn_cube::frontend::Init::init(_inner, context)
-//             };
-//         },
-//         |context| {
-//             let _ = {
-//                 let _inner = {
-//                     let _lhs = lhs.clone();
-//                     let _rhs = {
-//                         let _var_0 = 5;
-//                         T::from_int_expand(context, _var_0)
-//                     };
-//                     burn_cube::frontend::sub::expand(context, _lhs, _rhs)
-//                 };
-//                 burn_cube::frontend::Init::init(_inner, context)
-//             };
-//         },
-//     );
-// }
+#[cube]
+pub fn comptime_elsif_with_runtime2<T: Numeric>(lhs: T, comptime_cond: Comptime<bool>) {
+    let runtime_cond = lhs >= T::from_int(2);
+    if runtime_cond {
+        let _ = lhs + T::from_int(4);
+    } else if Comptime::get(comptime_cond) {
+        let _ = lhs + T::from_int(5);
+    } else {
+        let _ = lhs - T::from_int(6);
+    }
+}
 
 #[cube]
 pub fn comptime_if_expr<T: Numeric>(lhs: T, x: Comptime<UInt>, y: Comptime<UInt>) {
@@ -206,7 +110,7 @@ mod tests {
     use burn_cube::{
         cpa,
         frontend::{CubeContext, CubePrimitive, F32},
-        ir::{Item, Variable},
+        ir::{Elem, Item, Variable},
     };
 
     type ElemType = F32;
@@ -279,6 +183,36 @@ mod tests {
     }
 
     #[test]
+    fn cube_comptime_elsif_runtime1_test() {
+        for cond in [false, true] {
+            let mut context = CubeContext::root();
+            let lhs = context.create_local(Item::new(ElemType::as_elem()));
+            comptime_elsif_with_runtime1_expand::<ElemType>(&mut context, lhs, cond);
+            let scope = context.into_scope();
+
+            assert_eq!(
+                format!("{:?}", scope.operations),
+                inline_macro_ref_elsif_runtime1(cond)
+            );
+        }
+    }
+
+    #[test]
+    fn cube_comptime_elsif_runtime2_test() {
+        for cond in [false, true] {
+            let mut context = CubeContext::root();
+            let lhs = context.create_local(Item::new(ElemType::as_elem()));
+            comptime_elsif_with_runtime2_expand::<ElemType>(&mut context, lhs, cond);
+            let scope = context.into_scope();
+
+            assert_eq!(
+                format!("{:?}", scope.operations),
+                inline_macro_ref_elsif_runtime2(cond)
+            );
+        }
+    }
+
+    #[test]
     fn cube_comptime_map_bool_test() {
         let mut context1 = CubeContext::root();
         let mut context2 = CubeContext::root();
@@ -334,6 +268,54 @@ mod tests {
         } else {
             cpa!(scope, y = x - 5.0f32);
         };
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_elsif_runtime1(comptime_cond: bool) -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+        let x = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let runtime_cond = scope.create_local(Item::new(Elem::Bool));
+        let y = scope.create_local(item);
+        cpa!(scope, runtime_cond = x >= 2.0f32);
+
+        if comptime_cond {
+            cpa!(scope, y = x + 4.0f32);
+        } else {
+            cpa!(&mut scope, if(runtime_cond).then(|scope| {
+                cpa!(scope, y = x + 5.0f32);
+            }).else(|scope| {
+                cpa!(scope, y = x - 6.0f32);
+            }));
+        };
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_elsif_runtime2(comptime_cond: bool) -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+        let x = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let x: Variable = x.into();
+        let runtime_cond = scope.create_local(Item::new(Elem::Bool));
+        let y = scope.create_local(item);
+        cpa!(scope, runtime_cond = x >= 2.0f32);
+
+        cpa!(&mut scope, if(runtime_cond).then(|scope| {
+            cpa!(scope, y = x + 4.0f32);
+        }).else(|scope| {
+            if comptime_cond {
+                cpa!(scope, y = x + 5.0f32);
+            } else {
+                cpa!(scope, y = x - 6.0f32);
+            }
+        }));
 
         format!("{:?}", scope.operations)
     }
