@@ -17,12 +17,10 @@ pub(crate) fn range_tensor<R: JitRuntime>(
     type B<R> = JitBackend<R, f32, i32>;
 
     let n_elements = (x * y) as i64;
-    let tensor = burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..n_elements, device)
+    burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..n_elements, device)
         .reshape([x, y])
         .float()
-        .into_primitive();
-
-    tensor
+        .into_primitive()
 }
 
 pub(crate) fn range_tensor_transposed<R: JitRuntime>(
@@ -33,7 +31,8 @@ pub(crate) fn range_tensor_transposed<R: JitRuntime>(
     type B<R> = JitBackend<R, f32, i32>;
 
     let n_elements = (x * y) as i64;
-    let tensor = burn_tensor::Tensor::<B<R>, 2>::from_data(
+
+    burn_tensor::Tensor::<B<R>, 2>::from_data(
         burn_tensor::Tensor::<B<R>, 1, burn_tensor::Int>::arange(0..n_elements, device)
             .reshape([x, y])
             .float()
@@ -41,9 +40,7 @@ pub(crate) fn range_tensor_transposed<R: JitRuntime>(
             .into_data(),
         device,
     )
-    .into_primitive();
-
-    tensor
+    .into_primitive()
 }
 
 pub(crate) fn zeros_tensor<R: JitRuntime>(
@@ -78,9 +75,11 @@ pub(crate) fn assert_equals<R: JitRuntime>(
 }
 
 pub(crate) fn make_config(m: usize, k: usize, n: usize) -> CubeTiling2dConfig {
-    let mut tiling2d_config = Tiling2dConfig::default();
-    tiling2d_config.block_size_m = 8;
-    tiling2d_config.block_size_k = 8;
-    tiling2d_config.block_size_n = 8;
+    let tiling2d_config = Tiling2dConfig {
+        block_size_m: 8,
+        block_size_k: 8,
+        block_size_n: 8,
+        ..Default::default()
+    };
     CubeTiling2dConfig::new(&tiling2d_config, m, k, n)
 }
