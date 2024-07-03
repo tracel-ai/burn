@@ -12,7 +12,7 @@ use super::{
 
 #[cube]
 #[allow(unused_mut)]
-pub(crate) fn tiling2d_core<F: Float>(
+pub(crate) fn block_loop<F: Float>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
@@ -53,7 +53,7 @@ pub(crate) fn tiling2d_core<F: Float>(
 #[cube]
 fn init_results<F: Float>(config: Comptime<CubeTiling2dConfig>) -> Array<F> {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
 
     let mut results = Array::<F>::new(Comptime::get(tile_size * tile_size));
     for i in range(0u32, Comptime::get(tile_size * tile_size), unroll) {

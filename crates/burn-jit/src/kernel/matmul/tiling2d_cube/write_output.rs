@@ -29,7 +29,7 @@ fn write_results<F: Float>(
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let sm_is_scalar = Comptime::map(tile_size, |t| t.val == 1);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
     let check_m_bounds = Comptime::map(config, |c| c.check_m_bounds);
 
     let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
@@ -85,7 +85,7 @@ fn write_results_inner_loop<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
     let check_n_bounds = Comptime::map(config, |c| c.check_n_bounds);
     let vectorization_factor = Comptime::vectorization(out);
     let runtime_vectorization = Comptime::runtime(vectorization_factor);
@@ -127,7 +127,7 @@ fn write_within_vector<F: Float>(
 ) {
     let vectorization_factor = Comptime::vectorization(out);
     let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
 
     if Comptime::get(is_scalar) {
         out[i + out_position] = results[results_pos_m + i];

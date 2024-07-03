@@ -17,8 +17,12 @@ pub struct CubeTiling2dConfig {
     pub block_size_k: UInt,
     /// Block size along dimension of rhs
     pub block_size_n: UInt,
-    /// Loop unrolling
-    pub unroll: bool,
+    /// Loop unrolling for outer loop on blocks. Unclear if faster
+    pub unroll_block: bool,
+    /// Loop unrolling for inner compute loop. Probably slower
+    pub unroll_compute: bool,
+    /// Loop unrolling for all loops related to vectorization/tile size. Probably faster
+    pub unroll_tile: bool,
     /// Bounds must be checked on lhs dimension
     pub check_m_bounds: bool,
     /// Bounds must be checked on common dimension
@@ -45,7 +49,9 @@ impl CubeTiling2dConfig {
             block_size_m: UInt::new(config.block_size_m as u32),
             block_size_k: UInt::new(config.block_size_k as u32),
             block_size_n: UInt::new(config.block_size_n as u32),
-            unroll: config.unroll,
+            unroll_block: config.unroll,
+            unroll_compute: false,
+            unroll_tile: true,
             check_m_bounds: m % config.block_size_m != 0,
             check_k_bounds: k % config.block_size_k != 0,
             check_n_bounds: n % config.block_size_n != 0,

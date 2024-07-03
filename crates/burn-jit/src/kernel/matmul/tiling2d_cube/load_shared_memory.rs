@@ -113,7 +113,7 @@ fn load_tile<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
 
     let tensor_position_base = load_row * tensor_stride + load_col + cube_offset;
 
@@ -182,7 +182,7 @@ fn write_tile_plain<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
     let check_sm_bounds = Comptime::map(config, |c| c.check_sm_bounds);
     let tile_size_runtime = Comptime::runtime(tile_size);
 
@@ -259,13 +259,13 @@ fn transpose_tile_to_shared_memory<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
 
     for i in range(0u32, Comptime::get(tile_size), unroll) {
         let mut transposed = F::vectorized_empty(Comptime::get(tile_size));
 
         // Unrolling this one makes the difference
-        for j in range(0u32, Comptime::get(tile_size), Comptime::new(true)) {
+        for j in range(0u32, Comptime::get(tile_size), unroll) {
             transposed[j] = tile[j][i];
         }
 

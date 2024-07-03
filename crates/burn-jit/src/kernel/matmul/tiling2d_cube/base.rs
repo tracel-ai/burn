@@ -7,8 +7,8 @@ use crate::{
 };
 
 use super::{
+    block_loop::{block_loop, block_loop_expand},
     config::CubeTiling2dConfig,
-    tiling2d_core::{tiling2d_core, tiling2d_core_expand},
 };
 use crate::kernel::matmul::tiling2d_launch_options;
 
@@ -27,7 +27,7 @@ fn tiling2d_cube<F: Float>(
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
     let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, CUBE_POS_Z);
     let shared_memories = make_shared_memories::<F>(config);
-    tiling2d_core(
+    block_loop(
         lhs,
         rhs,
         out,

@@ -19,7 +19,7 @@ pub(crate) fn compute_loop<F: Float>(
     let block_size_m = Comptime::map(config, |c| c.block_size_m);
     let block_size_k = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
     let block_size_n = Comptime::map(config, |c| c.block_size_n);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_compute);
 
     let unit_row = coordinates.unit_row;
     let unit_col = coordinates.unit_col;

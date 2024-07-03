@@ -10,7 +10,7 @@ pub(crate) fn tile_outer_product<F: Float>(
     config: Comptime<CubeTiling2dConfig>,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
     let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
 
     if Comptime::get(is_scalar) {
