@@ -1673,9 +1673,9 @@ impl<B: Backend> BasicOps<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
             TensorPrimitive::QFloat {
-                tensor: _tensor,
-                strategy: _strategy,
-            } => todo!(), // TODO: B::quantized_shape()
+                tensor,
+                strategy: _,
+            } => B::q_shape(tensor),
         }
     }
 
@@ -1722,9 +1722,9 @@ impl<B: Backend> BasicOps<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
             TensorPrimitive::QFloat {
-                tensor: _,
+                tensor,
                 strategy: _,
-            } => B::float_device(&tensor.clone().tensor()), // TODO: B::quantized_device()
+            } => B::q_device(tensor),
         }
     }
 

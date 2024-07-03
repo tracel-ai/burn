@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    QuantizationStrategy,
+    Device, QuantizationStrategy, Shape,
 };
 
 use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};
@@ -19,5 +19,13 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         _strategy: &QuantizationStrategy,
     ) -> FloatTensor<Self, D> {
         unimplemented!()
+    }
+
+    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
+        B::q_shape(tensor)
+    }
+
+    fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
+        B::q_device(tensor)
     }
 }

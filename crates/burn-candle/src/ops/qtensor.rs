@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    QuantizationStrategy,
+    Device, QuantizationStrategy, Shape,
 };
 
 use crate::{
@@ -22,5 +22,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         _strategy: &QuantizationStrategy,
     ) -> FloatTensor<Self, D> {
         unimplemented!()
+    }
+
+    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
+        super::base::shape(tensor)
+    }
+
+    fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
+        super::base::device(tensor)
     }
 }

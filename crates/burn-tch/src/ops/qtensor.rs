@@ -1,9 +1,9 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    QuantizationStrategy,
+    QuantizationStrategy, Shape,
 };
 
-use crate::{LibTorch, TchElement, TchTensor};
+use crate::{LibTorch, LibTorchDevice, TchElement, TchTensor};
 
 impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn quantize<const D: usize>(
@@ -31,5 +31,13 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         _strategy: &QuantizationStrategy,
     ) -> FloatTensor<Self, D> {
         TchTensor::new(tensor.tensor.dequantize())
+    }
+
+    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
+        tensor.shape()
+    }
+
+    fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> LibTorchDevice {
+        tensor.tensor.device().into()
     }
 }

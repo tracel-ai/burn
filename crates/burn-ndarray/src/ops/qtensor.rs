@@ -1,9 +1,9 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Quantization, QuantizationStrategy, TensorData,
+    Quantization, QuantizationStrategy, Shape, TensorData,
 };
 
-use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayTensor};
+use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
 
 fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
     let shape = tensor.shape();
@@ -32,5 +32,13 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
             }
         };
         NdArrayTensor::<E, D>::from_data(TensorData::new(values, data.shape))
+    }
+
+    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
+        tensor.shape()
+    }
+
+    fn q_device<const D: usize>(_tensor: &QuantizedTensor<Self, D>) -> NdArrayDevice {
+        NdArrayDevice::Cpu
     }
 }
