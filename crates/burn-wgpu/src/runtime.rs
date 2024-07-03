@@ -160,6 +160,7 @@ fn create_client(
     let limits = device_wgpu.limits();
     let storage = WgpuStorage::new(device_wgpu.clone(), queue.clone());
     let memory_management = DynamicMemoryManagement::new(
+        limits.min_storage_buffer_offset_alignment as usize,
         storage,
         DynamicMemoryManagementOptions::preset(limits.max_storage_buffer_binding_size as usize),
     );

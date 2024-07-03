@@ -9,6 +9,7 @@ use super::MemoryManagement;
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
+    min_storage_buffer_allignment_offset: usize,
     small_memory_pool: SmallMemoryPool,
     pools: Vec<MemoryPool>,
     options: Vec<MemoryPoolOptions>,
@@ -71,7 +72,11 @@ impl DynamicMemoryManagementOptions {
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(mut storage: Storage, mut options: DynamicMemoryManagementOptions) -> Self {
+    pub fn new(
+        min_storage_buffer_allignment_offset: usize,
+        mut storage: Storage,
+        mut options: DynamicMemoryManagementOptions,
+    ) -> Self {
         options
             .pools
             .sort_by(|pool1, pool2| usize::cmp(&pool1.slice_max_size, &pool2.slice_max_size));
@@ -94,6 +99,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             .collect();
 
         Self {
+            min_storage_buffer_allignment_offset,
             small_memory_pool: SmallMemoryPool::new(),
             pools,
             options: options.pools,
@@ -133,7 +139,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= 32 {
+        if size <= self.min_storage_buffer_allignment_offset {
             return self
                 .small_memory_pool
                 .reserve(&mut self.storage, size, sync);
@@ -150,7 +156,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= 32 {
+        if size <= self.min_storage_buffer_allignment_offset {
             return self.small_memory_pool.alloc(&mut self.storage, size, sync);
         }
 
