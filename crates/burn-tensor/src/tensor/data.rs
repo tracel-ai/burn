@@ -6,7 +6,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use half::{bf16, f16};
 
-use crate::{tensor::Shape, DType, Distribution, Element, ElementConversion, QuantizationStrategy};
+use crate::{
+    tensor::Shape, DType, Distribution, Element, ElementConversion, Quantization,
+    QuantizationStrategy,
+};
 
 use num_traits::pow::Pow;
 
@@ -41,10 +44,15 @@ pub struct TensorData {
 impl TensorData {
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
+        Self::init(value, shape, E::dtype())
+    }
+
+    /// Initializes a new tensor data structure from the provided values.
+    fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: bytemuck::checked::cast_slice(&value).to_vec(),
             shape: shape.into(),
-            dtype: E::dtype(),
+            dtype: dtype,
         }
     }
 
@@ -235,6 +243,31 @@ impl TensorData {
     /// Returns the data as a slice of bytes.
     pub fn as_bytes(&self) -> &[u8] {
         self.bytes.as_slice()
+    }
+
+    /// Applies the data quantization strategy.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data type is not supported for quantization.
+    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Self {
+        assert_eq!(
+            self.dtype,
+            DType::F32,
+            "Only f32 data type can be quantized"
+        );
+        match &quantization {
+            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::init(
+                strategy.quantize(self.as_slice().unwrap()),
+                self.shape,
+                DType::QFloat(quantization),
+            ),
+            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::init(
+                strategy.quantize(self.as_slice().unwrap()),
+                self.shape,
+                DType::QFloat(quantization),
+            ),
+        }
     }
 
     /// Asserts the data is approximately equal to another data.
