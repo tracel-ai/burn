@@ -11,14 +11,14 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         _tensor: FloatTensor<Self, D>,
         _strategy: &QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
-        unimplemented!()
+        todo!() // required for QAT
     }
 
     fn dequantize<const D: usize>(
         _tensor: QuantizedTensor<Self, D>,
         _strategy: &QuantizationStrategy,
     ) -> FloatTensor<Self, D> {
-        unimplemented!()
+        todo!()
     }
 
     fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
