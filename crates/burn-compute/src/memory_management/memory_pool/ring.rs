@@ -12,7 +12,7 @@ pub struct RingBuffer<C: MemoryChunk<S>, S: MemorySlice> {
     cursor_chunk: usize,
     _s: PhantomData<S>,
     _c: PhantomData<C>,
-    buffer_alignement: usize,
+    buffer_alignment: usize,
 }
 
 pub trait MemoryChunk<S: MemorySlice> {
@@ -31,7 +31,7 @@ pub trait MemorySlice: Sized {
 }
 
 impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
-    pub fn new(buffer_alignement: usize) -> Self {
+    pub fn new(buffer_alignment: usize) -> Self {
         Self {
             queue: Vec::new(),
             chunk_positions: HashMap::new(),
@@ -39,7 +39,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
             cursor_chunk: 0,
             _s: PhantomData,
             _c: PhantomData,
-            buffer_alignement,
+            buffer_alignment,
         }
     }
 
@@ -97,7 +97,7 @@ impl<C: MemoryChunk<S>, S: MemorySlice> RingBuffer<C, S> {
 
                 if is_big_enough && is_free {
                     if slice.size() > size {
-                        if let Some(new_slice) = slice.split(size, self.buffer_alignement) {
+                        if let Some(new_slice) = slice.split(size, self.buffer_alignment) {
                             let new_slice_id = new_slice.id();
                             chunk.insert_slice(slice.next_slice_position(), new_slice, slices);
                             slices.get(&new_slice_id).unwrap();
@@ -376,7 +376,7 @@ mod stub {
             self.size
         }
 
-        fn split(&mut self, offset: usize, _buffer_alignement: usize) -> Option<Self> {
+        fn split(&mut self, offset: usize, _buffer_alignment: usize) -> Option<Self> {
             let size_remained = self.size - offset;
             self.size = offset;
 

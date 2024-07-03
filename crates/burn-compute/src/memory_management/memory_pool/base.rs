@@ -112,7 +112,6 @@ impl Slice {
 }
 
 const MIN_SIZE_NEEDED_TO_OFFSET: usize = 16;
-const MB: usize = 1024 * 1024;
 
 pub enum RoundingStrategy {
     FixedAmount(usize),
