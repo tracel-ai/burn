@@ -41,7 +41,7 @@ fn tiling2d_cube<F: Float>(
 
 // TODO Copy & Clone not automatically derived if function has no generics
 #[derive(CubeType, Copy, Clone)]
-/// Informations available at runtime only
+/// Information available at runtime only
 /// Strides assume contiguous
 pub(crate) struct CubeTiling2dInfo {
     pub dim_m: UInt,
