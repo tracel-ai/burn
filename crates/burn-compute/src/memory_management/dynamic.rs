@@ -100,7 +100,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
 
         Self {
             min_storage_buffer_alignment_offset,
-            small_memory_pool: SmallMemoryPool::new(),
+            small_memory_pool: SmallMemoryPool::new(min_storage_buffer_alignment_offset),
             pools,
             options: options.pools,
             storage,

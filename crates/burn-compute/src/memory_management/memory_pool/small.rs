@@ -18,6 +18,7 @@ pub struct SmallMemoryPool {
     slices: HashMap<SliceId, SmallSlice>,
     ring_buffer: Vec<ChunkId>,
     index: usize,
+    buffer_storage_alignment_offset: usize,
 }
 
 #[derive(new, Debug)]
@@ -43,15 +44,14 @@ impl SmallSlice {
     }
 }
 
-const BUFFER_ALIGNMENT: usize = 32;
-
 impl SmallMemoryPool {
-    pub fn new() -> Self {
+    pub fn new(buffer_storage_alignment_offset: usize) -> Self {
         Self {
             chunks: HashMap::new(),
             slices: HashMap::new(),
             ring_buffer: Vec::new(),
             index: 0,
+            buffer_storage_alignment_offset,
         }
     }
 
@@ -77,7 +77,7 @@ impl SmallMemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        assert!(size <= BUFFER_ALIGNMENT);
+        assert!(size <= self.buffer_storage_alignment_offset);
         let slice = self.get_free_slice(size);
 
         match slice {
@@ -94,7 +94,7 @@ impl SmallMemoryPool {
         size: usize,
         _sync: Sync,
     ) -> MemoryPoolHandle {
-        assert!(size <= BUFFER_ALIGNMENT);
+        assert!(size <= self.buffer_storage_alignment_offset);
 
         self.alloc_slice(storage, size)
     }
@@ -104,7 +104,7 @@ impl SmallMemoryPool {
         storage: &mut Storage,
         slice_size: usize,
     ) -> MemoryPoolHandle {
-        let handle_chunk = self.create_chunk(storage, BUFFER_ALIGNMENT);
+        let handle_chunk = self.create_chunk(storage, self.buffer_storage_alignment_offset);
         let chunk_id = *handle_chunk.id();
         let slice = self.allocate_slice(handle_chunk.clone(), slice_size);
 
@@ -120,7 +120,7 @@ impl SmallMemoryPool {
         let slice = self.create_slice(0, slice_size, handle_chunk.clone());
 
         let effective_size = slice.effective_size();
-        assert_eq!(effective_size, BUFFER_ALIGNMENT);
+        assert_eq!(effective_size, self.buffer_storage_alignment_offset);
 
         slice
     }
@@ -184,7 +184,7 @@ impl SmallMemoryPool {
             utilization: StorageUtilization::Slice { offset, size },
         };
 
-        let padding = calculate_padding(size);
+        let padding = calculate_padding(size, self.buffer_storage_alignment_offset);
 
         SmallSlice::new(storage, handle, chunk.handle.clone(), padding)
     }
@@ -195,7 +195,7 @@ impl SmallMemoryPool {
         storage: &mut Storage,
         size: usize,
     ) -> ChunkHandle {
-        let padding = calculate_padding(size);
+        let padding = calculate_padding(size, self.buffer_storage_alignment_offset);
         let effective_size = size + padding;
 
         let storage = storage.alloc(effective_size);
@@ -216,10 +216,10 @@ impl SmallMemoryPool {
     }
 }
 
-fn calculate_padding(size: usize) -> usize {
-    let remainder = size % BUFFER_ALIGNMENT;
+fn calculate_padding(size: usize, buffer_storage_alignment_offset: usize) -> usize {
+    let remainder = size % buffer_storage_alignment_offset;
     if remainder != 0 {
-        BUFFER_ALIGNMENT - remainder
+        buffer_storage_alignment_offset - remainder
     } else {
         0
     }
