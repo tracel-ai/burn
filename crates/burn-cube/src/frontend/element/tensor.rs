@@ -57,6 +57,8 @@ impl<C: CubePrimitive> LaunchArg for Tensor<C> {
     type RuntimeArg<'a, R: Runtime> = TensorArg<'a, R>;
 }
 
+/// Tensor representation with a reference to the [server handle](burn_compute::server::Handle),
+/// the strides and the shape.
 #[derive(new)]
 pub struct TensorHandle<'a, R: Runtime> {
     pub handle: &'a burn_compute::server::Handle<R::Server>,
@@ -64,17 +66,27 @@ pub struct TensorHandle<'a, R: Runtime> {
     pub shape: &'a [usize],
 }
 
+/// Argument to be used for [tensors](Tensor) passed as arguments to kernels.
 pub enum TensorArg<'a, R: Runtime> {
+    /// The tensor is passed with a tensor handle.
     Handle {
+        /// The tensor handle.
         handle: TensorHandle<'a, R>,
+        /// The vectorization factor.
         vectorization_factor: u8,
     },
+    /// The tensor is aliasing another input tensor.
     Alias {
+        /// The position of the input tensor.
         input_pos: usize,
     },
 }
 
 impl<'a, R: Runtime> TensorArg<'a, R> {
+    /// Create a new tensor argument.
+    ///
+    /// Equivalent to using the [vectorized constructor](Self::vectorized) with a vectorization
+    /// factor of 1.
     pub fn new(
         handle: &'a burn_compute::server::Handle<R::Server>,
         strides: &'a [usize],
@@ -85,6 +97,7 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
             vectorization_factor: 1,
         }
     }
+    /// Create a new tensor argument specified with its vectorization factor.
     pub fn vectorized(
         factor: u8,
         handle: &'a burn_compute::server::Handle<R::Server>,
@@ -159,13 +172,14 @@ impl<T: CubeType> Tensor<T> {
         unexpanded!()
     }
 
+    /// Returns the rank of the tensor.
     pub fn rank(&self) -> UInt {
         unexpanded!()
     }
 }
 
 impl<T> ExpandElementTyped<T> {
-    // Expanded version of Tensor::stride
+    // Expanded version of stride
     pub fn stride_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Stride {
@@ -176,7 +190,7 @@ impl<T> ExpandElementTyped<T> {
         out
     }
 
-    // Expanded version of Tensor::shape
+    // Expanded version of shape
     pub fn shape_expand<C: Index>(self, context: &mut CubeContext, dim: C) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::Shape {
@@ -187,7 +201,7 @@ impl<T> ExpandElementTyped<T> {
         out
     }
 
-    // Expanded version of Tensor::len
+    // Expanded version of len
     pub fn len_expand(self, context: &mut CubeContext) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
         context.register(Metadata::ArrayLength {
@@ -197,7 +211,7 @@ impl<T> ExpandElementTyped<T> {
         out
     }
 
-    // Expanded version of Tensor::len
+    // Expanded version of rank.
     pub fn rank_expand(self, _context: &mut CubeContext) -> ExpandElement {
         ExpandElement::Plain(Variable::Rank)
     }

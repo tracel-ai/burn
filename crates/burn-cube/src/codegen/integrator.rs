@@ -128,6 +128,12 @@ impl KernelSettings {
     /// Compile the shader with vectorization enabled for an input.
     #[allow(dead_code)]
     pub fn vectorize_input(mut self, position: usize, vectorization: Vectorization) -> Self {
+        // Not setting the vectorization factor when it's the default value reduces the kernel id
+        // size.
+        if vectorization == 1 {
+            return self;
+        }
+
         self.vectorization_partial
             .push(VectorizationPartial::Input {
                 pos: position,
@@ -139,6 +145,12 @@ impl KernelSettings {
     /// Compile the shader with vectorization enabled for an output.
     #[allow(dead_code)]
     pub fn vectorize_output(mut self, position: usize, vectorization: Vectorization) -> Self {
+        // Not setting the vectorization factor when it's the default value reduces the kernel id
+        // size.
+        if vectorization == 1 {
+            return self;
+        }
+
         self.vectorization_partial
             .push(VectorizationPartial::Output {
                 pos: position,

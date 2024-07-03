@@ -25,7 +25,9 @@ pub trait CubeType {
     type ExpandType: Clone + Init;
 }
 
+/// Trait to be implemented by [cube types](CubeType) implementations.
 pub trait Init: Sized {
+    /// Initialize a type within a [context](CubeContext).
     fn init(self, _context: &mut CubeContext) -> Self {
         self
     }
@@ -55,9 +57,11 @@ pub trait LaunchArg: CubeType {
 pub trait ArgSettings<R: Runtime>: Send + Sync {
     /// Register the information to the [KernelLauncher].
     fn register(&self, launcher: &mut KernelLauncher<R>);
+    /// Configure an input argument at the given position.
     fn configure_input(&self, _position: usize, settings: KernelSettings) -> KernelSettings {
         settings
     }
+    /// Configure an output argument at the given position.
     fn configure_output(&self, _position: usize, settings: KernelSettings) -> KernelSettings {
         settings
     }
@@ -72,6 +76,7 @@ pub enum ExpandElement {
     Plain(Variable),
 }
 
+/// Expand type associated with a type.
 #[derive(new)]
 pub struct ExpandElementTyped<T> {
     pub(crate) expand: ExpandElement,
@@ -167,8 +172,6 @@ macro_rules! impl_init_for {
         )*
     };
 }
-
-pub(crate) use impl_init_for;
 
 // Add all types used within comptime
 impl_init_for!(u32, bool, UInt);

@@ -12,6 +12,7 @@ use super::{
     UInt,
 };
 
+/// A contiguous array of elements.
 #[derive(new)]
 pub struct Array<E> {
     _val: PhantomData<E>,
@@ -32,7 +33,7 @@ impl<C: CubeType> CubeType for &mut Array<C> {
 impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {}
 
 impl<E: CubeType> Array<E> {
-    /// Obtain the array length of input
+    /// Obtain the array length
     pub fn len(&self) -> UInt {
         unexpanded!()
     }
@@ -64,17 +65,23 @@ impl<C: CubePrimitive> LaunchArgExpand for &mut Array<C> {
     }
 }
 
+/// Tensor representation with a reference to the [server handle](burn_compute::server::Handle).
 pub struct ArrayHandle<'a, R: Runtime> {
     pub handle: &'a burn_compute::server::Handle<R::Server>,
     pub length: [usize; 1],
 }
 
 pub enum ArrayArg<'a, R: Runtime> {
+    /// The array is passed with an array handle.
     Handle {
+        /// The array handle.
         handle: ArrayHandle<'a, R>,
+        /// The vectorization factor.
         vectorization_factor: u8,
     },
+    /// The array is aliasing another input array.
     Alias {
+        /// The position of the input array.
         input_pos: usize,
     },
 }
@@ -120,13 +127,17 @@ impl<'a, R: Runtime> ArgSettings<R> for ArrayArg<'a, R> {
 }
 
 impl<'a, R: Runtime> ArrayArg<'a, R> {
+    /// Create a new array argument.
+    ///
+    /// Equivalent to using the [vectorized constructor](Self::vectorized) with a vectorization
+    /// factor of 1.
     pub fn new(handle: &'a burn_compute::server::Handle<R::Server>, length: usize) -> Self {
         ArrayArg::Handle {
             handle: ArrayHandle::new(handle, length),
             vectorization_factor: 1,
         }
     }
-
+    /// Create a new array argument specified with its vectorization factor.
     pub fn vectorized(
         vectorization_factor: u8,
         handle: &'a burn_compute::server::Handle<R::Server>,

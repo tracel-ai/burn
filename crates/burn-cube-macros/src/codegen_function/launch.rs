@@ -218,13 +218,21 @@ impl Codegen {
 
         for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident: &<&#ty as CubeType>::ExpandType = inputs.get(&#pos).unwrap().downcast_ref().unwrap();
+                let #ident: &<&#ty as CubeType>::ExpandType = inputs
+                    .get(&#pos)
+                    .unwrap()
+                    .downcast_ref()
+                    .expect("Input type should be correct. It could be caused by an invalid kernel input/output alias.");
             });
         }
 
         for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident: &<&mut #ty as CubeType>::ExpandType = outputs.get(&#pos).unwrap().downcast_ref().unwrap();
+                let #ident: &<&mut #ty as CubeType>::ExpandType = outputs
+                    .get(&#pos)
+                    .unwrap()
+                    .downcast_ref()
+                    .expect("Output type should be correct. It could be caused by an invalid kernel input/output alias.");
             });
         }
 
