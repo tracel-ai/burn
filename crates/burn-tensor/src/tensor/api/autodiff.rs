@@ -19,9 +19,11 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
             TensorPrimitive::QFloat {
-                tensor: _tensor,
-                strategy: _strategy,
-            } => todo!(),
+                tensor: _,
+                strategy: _,
+            } => B::grad(&self.primitive.clone().tensor(), grads)
+                .map(TensorPrimitive::Float)
+                .map(Tensor::new),
         }
     }
 
@@ -32,9 +34,11 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
             TensorPrimitive::QFloat {
-                tensor: _tensor,
-                strategy: _strategy,
-            } => todo!(),
+                tensor: _,
+                strategy: _,
+            } => B::grad_remove(&self.primitive.clone().tensor(), grads)
+                .map(TensorPrimitive::Float)
+                .map(Tensor::new),
         }
     }
 
@@ -46,9 +50,13 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
                 B::grad_replace(tensor, grads, grad.primitive.tensor())
             }
             TensorPrimitive::QFloat {
-                tensor: _tensor,
-                strategy: _strategy,
-            } => todo!(),
+                tensor: _,
+                strategy: _,
+            } => B::grad_replace(
+                &self.primitive.clone().tensor(),
+                grads,
+                grad.primitive.tensor(),
+            ),
         }
     }
 }
