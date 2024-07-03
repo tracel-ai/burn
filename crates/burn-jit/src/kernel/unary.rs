@@ -1,8 +1,283 @@
+use std::any::Any;
+
+use burn_cube::{calculate_cube_count_elemwise, prelude::*, unexpanded, SUBCUBE_DIM_APPROX};
 use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
-use super::Kernel;
+use super::{index_offset_with_layout, index_offset_with_layout_expand, Kernel};
+
+pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
+    /// Execute a unary operation.
+    fn execute(_input: C) -> C {
+        unexpanded!();
+    }
+    fn execute_expand(context: &mut CubeContext, input: C::ExpandType) -> C::ExpandType;
+}
+
+pub(crate) trait UnaryScalarOp<C: CubePrimitive>: 'static + Send + Sync {
+    /// Execute a unary operation.
+    fn execute(_input: C, _scalar: C) -> C {
+        unexpanded!();
+    }
+    fn execute_expand(
+        context: &mut CubeContext,
+        input: C::ExpandType,
+        scalar: C::ExpandType,
+    ) -> C::ExpandType;
+}
+
+macro_rules! unary_op {
+    ($name:ident, $elem:ident, $expand:expr) => {
+        struct $name;
+
+        impl<C: $elem> UnaryOp<C> for $name {
+            fn execute_expand(context: &mut CubeContext, input: C::ExpandType) -> C::ExpandType {
+                $expand(context, input)
+            }
+        }
+    };
+    (scalar $name:ident, $elem:ident, $expand:expr) => {
+        struct $name;
+
+        impl<C: $elem> UnaryScalarOp<C> for $name {
+            fn execute_expand(
+                context: &mut CubeContext,
+                input: C::ExpandType,
+                scalar: C::ExpandType,
+            ) -> C::ExpandType {
+                $expand(context, input, scalar)
+            }
+        }
+    };
+}
+
+pub(crate) use unary_op;
+
+#[cube(launch)]
+pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
+    input: &Tensor<C>,
+    output: &mut Tensor<C>,
+    rank: Comptime<Option<UInt>>,
+    to_contiguous: Comptime<bool>,
+) {
+    let offset_output = ABSOLUTE_POS;
+
+    if offset_output >= output.len() {
+        return;
+    }
+
+    if Comptime::get(to_contiguous) {
+        let offset_input = index_offset_with_layout::<C>(
+            input,
+            output,
+            offset_output,
+            UInt::new(0),
+            Comptime::unwrap_or_else(rank, || output.rank()),
+            Comptime::is_some(rank),
+        );
+
+        output[offset_output] = O::execute(input[offset_input]);
+    } else {
+        output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS]);
+    }
+}
+
+pub(crate) fn launch_unary<
+    const D: usize,
+    R: JitRuntime,
+    E: JitElement,
+    C: CubePrimitive,
+    O: UnaryOp<C>,
+>(
+    tensor: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
+    // Vectorization is only enabled when the last dimension is contiguous.
+    let vectorization_factor = if tensor.strides[D - 1] == 1 {
+        let last_dim = tensor.shape.dims[D - 1];
+        if last_dim % 4 == 0 {
+            4
+        } else if last_dim % 2 == 0 {
+            2
+        } else {
+            1
+        }
+    } else {
+        1
+    };
+    let client = tensor.client.clone();
+    let num_elems = tensor.shape.num_elements();
+    let cube_count = calculate_cube_count_elemwise(
+        num_elems / vectorization_factor as usize,
+        SUBCUBE_DIM_APPROX,
+    );
+    let is_contiguous = tensor.is_contiguous();
+
+    if tensor.can_mut() && is_contiguous {
+        unary_kernel_launch::<C, O, R>(
+            client,
+            cube_count,
+            CubeDim::default(),
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            TensorArg::alias(0),
+            None,
+            false,
+        );
+
+        tensor
+    } else {
+        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+        let output = JitTensor::new(
+            tensor.client.clone(),
+            tensor.device,
+            tensor.shape.clone(),
+            buffer,
+        );
+
+        unary_kernel_launch::<C, O, R>(
+            client,
+            cube_count,
+            CubeDim::default(),
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            TensorArg::vectorized(
+                vectorization_factor,
+                &output.handle,
+                &output.strides,
+                &output.shape.dims,
+            ),
+            Some(UInt::new(D as u32)),
+            !is_contiguous,
+        );
+        output
+    }
+}
+
+#[cube(launch)]
+pub(crate) fn unary_scalar_kernel<C: Numeric, O: UnaryScalarOp<C>>(
+    input: &Tensor<C>,
+    scalar: F32,
+    output: &mut Tensor<C>,
+    rank: Comptime<Option<UInt>>,
+    to_contiguous: Comptime<bool>,
+) {
+    let offset_output = ABSOLUTE_POS;
+
+    if offset_output >= output.len() {
+        return;
+    }
+
+    if Comptime::get(to_contiguous) {
+        let offset_input = index_offset_with_layout::<C>(
+            input,
+            output,
+            offset_output,
+            UInt::new(0),
+            Comptime::unwrap_or_else(rank, || output.rank()),
+            Comptime::is_some(rank),
+        );
+
+        output[offset_output] = O::execute(input[offset_input], C::cast_from(scalar));
+    } else {
+        output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], C::cast_from(scalar));
+    }
+}
+
+pub(crate) fn launch_scalar_unary<
+    const D: usize,
+    R: JitRuntime,
+    E: JitElement,
+    O: UnaryScalarOp<E::Primitive>,
+>(
+    tensor: JitTensor<R, E, D>,
+    scalar: E,
+) -> JitTensor<R, E, D>
+where
+    E::Primitive: Numeric,
+{
+    // Vectorization is only enabled when the last dimension is contiguous.
+    let vectorization_factor = if tensor.strides[D - 1] == 1 {
+        let last_dim = tensor.shape.dims[D - 1];
+        if last_dim % 4 == 0 {
+            4
+        } else if last_dim % 2 == 0 {
+            2
+        } else {
+            1
+        }
+    } else {
+        1
+    };
+
+    let client = tensor.client.clone();
+    let num_elems = tensor.shape.num_elements();
+    let cube_count = calculate_cube_count_elemwise(
+        num_elems / vectorization_factor as usize,
+        SUBCUBE_DIM_APPROX,
+    );
+    let is_contiguous = tensor.is_contiguous();
+
+    if tensor.can_mut() && is_contiguous {
+        let scalar = scalar.elem();
+        unary_scalar_kernel_launch::<E::Primitive, O, R>(
+            client,
+            cube_count,
+            CubeDim::default(),
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            scalar,
+            TensorArg::alias(0),
+            None,
+            false,
+        );
+
+        tensor
+    } else {
+        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+        let output = JitTensor::new(
+            tensor.client.clone(),
+            tensor.device,
+            tensor.shape.clone(),
+            buffer,
+        );
+
+        let scalar = scalar.elem();
+        unary_scalar_kernel_launch::<E::Primitive, O, R>(
+            client,
+            cube_count,
+            CubeDim::default(),
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            scalar,
+            TensorArg::vectorized(
+                vectorization_factor,
+                &output.handle,
+                &output.strides,
+                &output.shape.dims,
+            ),
+            Some(UInt::new(D as u32)),
+            !is_contiguous,
+        );
+        output
+    }
+}
 
 /// Creates a unary kernel.
 #[macro_export]

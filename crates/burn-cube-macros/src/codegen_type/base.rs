@@ -174,10 +174,10 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             body_input.extend(quote! {
-                #vis #ident: <&#ty as LaunchArgExpand>::expand(builder, vectorization),
+                #vis #ident: <#ty as LaunchArgExpand>::expand(builder, vectorization),
             });
             body_output.extend(quote! {
-                #vis #ident: <&mut #ty as LaunchArgExpand>::expand(builder, vectorization),
+                #vis #ident: <#ty as LaunchArgExpand>::expand_output(builder, vectorization),
             });
         }
 
@@ -191,7 +191,7 @@ impl TypeCodegen {
                 type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
             }
 
-            impl #type_generics_impl LaunchArgExpand for &#name #type_generics_use {
+            impl #type_generics_impl LaunchArgExpand for #name #type_generics_use {
                 fn expand(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
@@ -200,10 +200,7 @@ impl TypeCodegen {
                         #body_input
                     }
                 }
-            }
-
-            impl #type_generics_impl LaunchArgExpand for &mut #name #type_generics_use {
-                fn expand(
+                fn expand_output(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
                 ) -> <Self as CubeType>::ExpandType {

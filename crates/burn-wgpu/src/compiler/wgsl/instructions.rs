@@ -292,10 +292,24 @@ impl Display for Instruction {
                 "{out} = clamp({input}, {min_value}, {max_value});\n"
             )),
             Instruction::Powf { lhs, rhs, out } => {
+                let vectorization_factor = match out.item() {
+                    super::Item::Vec4(_) => 4,
+                    super::Item::Vec3(_) => 3,
+                    super::Item::Vec2(_) => 2,
+                    super::Item::Scalar(_) => 1,
+                };
                 if rhs.is_always_scalar() {
                     f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
                 } else {
-                    f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
+                    for i in 0..vectorization_factor {
+                        let lhsi = lhs.index(i);
+                        let rhsi = rhs.index(i);
+                        let outi = out.index(i);
+
+                        f.write_fmt(format_args!("{outi} = powf_primitive({lhsi}, {rhsi});\n"))?;
+                    }
+
+                    Ok(())
                 }
             }
             Instruction::Sqrt { input, out } => {

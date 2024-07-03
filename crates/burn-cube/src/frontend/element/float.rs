@@ -49,14 +49,6 @@ macro_rules! impl_float {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeType for &$type {
-            type ExpandType = ExpandElement;
-        }
-
-        impl CubeType for &mut $type {
-            type ExpandType = ExpandElement;
-        }
-
         impl CubePrimitive for $type {
             /// Return the element type to use on GPU
             fn as_elem() -> Elem {
@@ -117,14 +109,7 @@ macro_rules! impl_float {
             }
         }
 
-        impl LaunchArgExpand for &$type {
-            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar($type::as_elem())
-            }
-        }
-
-        impl LaunchArgExpand for &mut $type {
+        impl LaunchArgExpand for $type {
             fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())

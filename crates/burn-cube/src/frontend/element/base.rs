@@ -45,6 +45,13 @@ pub trait LaunchArgExpand: CubeType {
         builder: &mut KernelBuilder,
         vectorization: Vectorization,
     ) -> <Self as CubeType>::ExpandType;
+    /// Register an output variable during compilation that fill the [KernelBuilder].
+    fn expand_output(
+        builder: &mut KernelBuilder,
+        vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType {
+        Self::expand(builder, vectorization)
+    }
 }
 
 /// Defines a type that can be used as argument to a kernel.

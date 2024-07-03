@@ -1,11 +1,12 @@
 use super::{expand, numeric, permute};
 use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::{self, reduce};
-use crate::{unary, JitBackend};
+use crate::kernel::{
+    self, launch_scalar_unary, launch_unary, reduce, unary_op, UnaryOp, UnaryScalarOp,
+};
+use crate::JitBackend;
 use crate::{FloatElement, IntElement, JitRuntime};
-use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, UnaryOperator, Variable};
-use burn_cube::Runtime;
+use burn_cube::prelude::*;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
@@ -330,127 +331,126 @@ where
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Exp(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::exp(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Log(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::log(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Log1p(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::log1p(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_powf_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: f32,
     ) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Powf(BinaryOperator {
-                lhs: scope.read_array(0, elem, position),
-                rhs: scope.read_scalar(0, elem),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: lhs; rhs.elem(),
-            elem: FloatElem<Self>
-        )
+        unary_op!(scalar Op, Float, |context, input, scalar| {
+            #[cube]
+            fn execute<C: Float>(input: C, scalar: C) -> C {
+                C::powf(input, scalar)
+            }
+            execute_expand::<C>(context, input, scalar)
+        });
+
+        launch_scalar_unary::<D, R, F, Op>(lhs, rhs.elem())
     }
 
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Sqrt(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::sqrt(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::abs(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Cos(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::cos(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Sin(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::sin(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Tanh(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::tanh(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Erf(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::erf(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_argmax<const D: usize>(
@@ -480,15 +480,15 @@ where
     }
 
     fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Recip(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: FloatElem<Self>
-        )
+        unary_op!(Op, Float, |context, input| {
+            #[cube]
+            fn execute<C: Float>(input: C) -> C {
+                C::recip(input)
+            }
+            execute_expand::<C>(context, input)
+        });
+
+        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
     }
 
     fn float_repeat<const D: usize>(

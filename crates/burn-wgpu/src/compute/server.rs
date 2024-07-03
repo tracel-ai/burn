@@ -96,6 +96,7 @@ where
     }
 
     fn compile_source(&self, source: &str) -> Arc<ComputePipeline> {
+        println!("Source {source}");
         let module = self.device.create_shader_module(ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(source)),

@@ -30,14 +30,6 @@ macro_rules! impl_int {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeType for &$type {
-            type ExpandType = ExpandElement;
-        }
-
-        impl CubeType for &mut $type {
-            type ExpandType = ExpandElement;
-        }
-
         impl CubePrimitive for $type {
             fn as_elem() -> Elem {
                 Elem::Int(IntKind::$type)
@@ -89,14 +81,7 @@ macro_rules! impl_int {
             }
         }
 
-        impl LaunchArgExpand for &$type {
-            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar($type::as_elem())
-            }
-        }
-
-        impl LaunchArgExpand for &mut $type {
+        impl LaunchArgExpand for $type {
             fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())

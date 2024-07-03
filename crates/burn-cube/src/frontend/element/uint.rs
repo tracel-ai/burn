@@ -20,14 +20,6 @@ impl CubeType for UInt {
     type ExpandType = ExpandElement;
 }
 
-impl CubeType for &UInt {
-    type ExpandType = ExpandElement;
-}
-
-impl CubeType for &mut UInt {
-    type ExpandType = ExpandElement;
-}
-
 impl CubePrimitive for UInt {
     fn as_elem() -> Elem {
         Elem::UInt
@@ -38,14 +30,7 @@ impl LaunchArg for UInt {
     type RuntimeArg<'a, R: Runtime> = u32;
 }
 
-impl LaunchArgExpand for &UInt {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-        builder.scalar(UInt::as_elem())
-    }
-}
-
-impl LaunchArgExpand for &mut UInt {
+impl LaunchArgExpand for UInt {
     fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(UInt::as_elem())
