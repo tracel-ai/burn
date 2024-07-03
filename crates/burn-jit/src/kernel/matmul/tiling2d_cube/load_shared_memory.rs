@@ -145,29 +145,27 @@ fn load_tile<F: Float>(
                 unroll,
             );
         }
+    } else if Comptime::get(check_horizontal_bounds) {
+        let col = skip_col + load_col;
+        read_with_horizontal_checks::<F>(
+            tensor,
+            col,
+            tensor_position_base,
+            tensor_stride,
+            dim_horizontal,
+            tile,
+            tile_size,
+            unroll,
+        );
     } else {
-        if Comptime::get(check_horizontal_bounds) {
-            let col = skip_col + load_col;
-            read_with_horizontal_checks::<F>(
-                tensor,
-                col,
-                tensor_position_base,
-                tensor_stride,
-                dim_horizontal,
-                tile,
-                tile_size,
-                unroll,
-            );
-        } else {
-            read_without_checks::<F>(
-                tensor,
-                tensor_position_base,
-                tensor_stride,
-                tile,
-                tile_size,
-                unroll,
-            );
-        }
+        read_without_checks::<F>(
+            tensor,
+            tensor_position_base,
+            tensor_stride,
+            tile,
+            tile_size,
+            unroll,
+        );
     }
 }
 
@@ -225,19 +223,9 @@ fn write_tile_transposed<F: Float>(
         } else {
             shared_memory[sm_position_base] = tile[0];
         }
-    } else {
-        if Comptime::get(check_sm_bounds) {
-            let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
-            if write_row < sm_dim_vertical {
-                transpose_tile_to_shared_memory::<F>(
-                    tile,
-                    shared_memory,
-                    sm_position_base,
-                    sm_stride,
-                    config,
-                );
-            }
-        } else {
+    } else if Comptime::get(check_sm_bounds) {
+        let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
+        if write_row < sm_dim_vertical {
             transpose_tile_to_shared_memory::<F>(
                 tile,
                 shared_memory,
@@ -246,6 +234,14 @@ fn write_tile_transposed<F: Float>(
                 config,
             );
         }
+    } else {
+        transpose_tile_to_shared_memory::<F>(
+            tile,
+            shared_memory,
+            sm_position_base,
+            sm_stride,
+            config,
+        );
     }
 }
 

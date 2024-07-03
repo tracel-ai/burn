@@ -37,40 +37,38 @@ fn write_results<F: Float>(
     let vectorization_factor = Comptime::runtime(Comptime::vectorization(out));
     if Comptime::get(sm_is_scalar) {
         out[(row * out_stride_row + col + offset_output) / vectorization_factor] = results[0];
+    } else if Comptime::get(check_m_bounds) {
+        let dim_m = out.shape(out.rank() - UInt::new(2));
+
+        let mut num_writes = UInt::new(0);
+        if dim_m > row {
+            num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
+        }
+
+        for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
+            write_results_inner_loop::<F>(
+                out,
+                results,
+                res_idx_m,
+                row,
+                col,
+                offset_output,
+                out_stride_row,
+                config,
+            )
+        }
     } else {
-        if Comptime::get(check_m_bounds) {
-            let dim_m = out.shape(out.rank() - UInt::new(2));
-
-            let mut num_writes = UInt::new(0);
-            if dim_m > row {
-                num_writes = UInt::min(dim_m - row, Comptime::runtime(tile_size));
-            }
-
-            for res_idx_m in range(0u32, num_writes, Comptime::new(false)) {
-                write_results_inner_loop::<F>(
-                    out,
-                    results,
-                    res_idx_m,
-                    row,
-                    col,
-                    offset_output,
-                    out_stride_row,
-                    config,
-                )
-            }
-        } else {
-            for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-                write_results_inner_loop::<F>(
-                    out,
-                    results,
-                    res_idx_m,
-                    row,
-                    col,
-                    offset_output,
-                    out_stride_row,
-                    config,
-                )
-            }
+        for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
+            write_results_inner_loop::<F>(
+                out,
+                results,
+                res_idx_m,
+                row,
+                col,
+                offset_output,
+                out_stride_row,
+                config,
+            )
         }
     }
 }

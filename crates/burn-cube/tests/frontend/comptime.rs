@@ -22,6 +22,150 @@ pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
 }
 
 #[cube]
+pub fn comptime_else_then_if<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime<bool>) {
+    if Comptime::get(cond1) {
+        let _ = lhs + T::from_int(4);
+    } else {
+        if Comptime::get(cond2) {
+            let _ = lhs + T::from_int(5);
+        } else {
+            let _ = lhs - T::from_int(6);
+        }
+    }
+}
+
+#[cube]
+pub fn comptime_elsif<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime<bool>) {
+    if Comptime::get(cond1) {
+        let _ = lhs + T::from_int(4);
+    } else if Comptime::get(cond2) {
+        let _ = lhs + T::from_int(5);
+    } else {
+        let _ = lhs - T::from_int(6);
+    }
+}
+
+// #[allow(dead_code)]
+// #[allow(clippy::too_many_arguments)]
+// pub fn comptime_if_else_if<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime<bool>) {
+//     if Comptime::get(cond1) {
+//         let _ = lhs + T::from_int(4);
+//     } else {
+//         if Comptime::get(cond2) {
+//             let _ = lhs + T::from_int(6);
+//         } else {
+//             let _ = lhs - T::from_int(5);
+//         }
+//     }
+// }
+// #[allow(unused_mut)]
+// #[allow(clippy::too_many_arguments)]
+// #[doc = r" Expanded Cube function"]
+// pub fn comptime_if_else_if_expand<T: Numeric>(
+//     context: &mut burn_cube::frontend::CubeContext,
+//     lhs: <T as burn_cube::frontend::CubeType>::ExpandType,
+//     cond1: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
+//     cond2: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
+// ) -> () {
+//     let _cond = cond1;
+//     burn_cube::frontend::branch::if_else_expand(
+//         context,
+//         Some(cond1),
+//         _cond.into(),
+//         |context| {
+//             let _ = {
+//                 let _inner = {
+//                     let _lhs = lhs.clone();
+//                     let _rhs = {
+//                         let _var_0 = 4;
+//                         T::from_int_expand(context, _var_0)
+//                     };
+//                     burn_cube::frontend::add::expand(context, _lhs, _rhs)
+//                 };
+//                 burn_cube::frontend::Init::init(_inner, context)
+//             };
+//         },
+//         |context| {
+//             let _cond = cond2;
+//             burn_cube::frontend::branch::if_else_expand(
+//                 context,
+//                 Some(cond2),
+//                 _cond.into(),
+//                 |context| {
+//                     let _ = {
+//                         let _inner = {
+//                             let _lhs = lhs.clone();
+//                             let _rhs = {
+//                                 let _var_0 = 6;
+//                                 T::from_int_expand(context, _var_0)
+//                             };
+//                             burn_cube::frontend::add::expand(context, _lhs, _rhs)
+//                         };
+//                         burn_cube::frontend::Init::init(_inner, context)
+//                     };
+//                 },
+//                 |context| {
+//                     let _ = {
+//                         let _inner = {
+//                             let _lhs = lhs.clone();
+//                             let _rhs = {
+//                                 let _var_0 = 5;
+//                                 T::from_int_expand(context, _var_0)
+//                             };
+//                             burn_cube::frontend::sub::expand(context, _lhs, _rhs)
+//                         };
+//                         burn_cube::frontend::Init::init(_inner, context)
+//                     };
+//                 },
+//             );
+//         },
+//     );
+// }
+
+// #[allow(unused_mut)]
+// #[allow(clippy::too_many_arguments)]
+// #[doc = r" Expanded Cube function"]
+// pub fn comptime_if_else_if_expand<T: Numeric>(
+//     context: &mut burn_cube::frontend::CubeContext,
+//     lhs: <T as burn_cube::frontend::CubeType>::ExpandType,
+//     cond1: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
+//     cond2: <Comptime<bool> as burn_cube::frontend::CubeType>::ExpandType,
+// ) -> () {
+//     let _cond = cond2;
+//     burn_cube::frontend::branch::if_else_expand(
+//         context,
+//         Some(cond2),
+//         _cond.into(),
+//         |context| {
+//             let _ = {
+//                 let _inner = {
+//                     let _lhs = lhs.clone();
+//                     let _rhs = {
+//                         let _var_0 = 6;
+//                         T::from_int_expand(context, _var_0)
+//                     };
+//                     burn_cube::frontend::add::expand(context, _lhs, _rhs)
+//                 };
+//                 burn_cube::frontend::Init::init(_inner, context)
+//             };
+//         },
+//         |context| {
+//             let _ = {
+//                 let _inner = {
+//                     let _lhs = lhs.clone();
+//                     let _rhs = {
+//                         let _var_0 = 5;
+//                         T::from_int_expand(context, _var_0)
+//                     };
+//                     burn_cube::frontend::sub::expand(context, _lhs, _rhs)
+//                 };
+//                 burn_cube::frontend::Init::init(_inner, context)
+//             };
+//         },
+//     );
+// }
+
+#[cube]
 pub fn comptime_if_expr<T: Numeric>(lhs: T, x: Comptime<UInt>, y: Comptime<UInt>) {
     let y2 = x + y;
 
@@ -96,6 +240,7 @@ mod tests {
             inline_macro_ref_comptime(true)
         );
     }
+
     #[test]
     fn cube_comptime_else_test() {
         let mut context = CubeContext::root();
@@ -109,6 +254,28 @@ mod tests {
             format!("{:?}", scope.operations),
             inline_macro_ref_comptime(false)
         );
+    }
+
+    #[test]
+    fn cube_comptime_elsif_test() {
+        for cond1 in [false, true] {
+            for cond2 in [false, true] {
+                let mut context1 = CubeContext::root();
+                let lhs = context1.create_local(Item::new(ElemType::as_elem()));
+                comptime_else_then_if_expand::<ElemType>(&mut context1, lhs, cond1, cond2);
+                let scope1 = context1.into_scope();
+
+                let mut context2 = CubeContext::root();
+                let lhs = context2.create_local(Item::new(ElemType::as_elem()));
+                comptime_elsif_expand::<ElemType>(&mut context2, lhs, cond1, cond2);
+                let scope2 = context2.into_scope();
+
+                assert_eq!(
+                    format!("{:?}", scope1.operations),
+                    format!("{:?}", scope2.operations),
+                );
+            }
+        }
     }
 
     #[test]

@@ -39,7 +39,6 @@ fn tiling2d_cube<F: Float>(
     );
 }
 
-// TODO Copy & Clone not automatically derived if function has no generics
 #[derive(CubeType, Copy, Clone)]
 /// Information available at runtime only
 /// Strides assume contiguous

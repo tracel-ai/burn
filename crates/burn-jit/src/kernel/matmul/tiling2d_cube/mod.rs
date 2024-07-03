@@ -1,5 +1,3 @@
-#![allow(clippy::collapsible_else_if)] // Not supported with cube yet
-
 mod base;
 mod block_loop;
 mod compute_loop;

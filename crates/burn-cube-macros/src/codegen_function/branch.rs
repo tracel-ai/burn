@@ -120,6 +120,7 @@ pub(crate) fn codegen_return(expr_return: &syn::ExprReturn) -> TokenStream {
 /// if cond {...}
 /// if cond {...} else {...}
 /// if Comptime::get(...) {...} [else {...}]
+/// if Comptime::get(...) {...} [else if Comptime::get(...) {...}]* [else {...}]
 pub(crate) fn codegen_if(
     expr_if: &syn::ExprIf,
     loop_level: usize,
@@ -135,19 +136,19 @@ pub(crate) fn codegen_if(
     let then_block = codegen_block(&expr_if.then_branch, loop_level + 1, variable_tracker);
 
     if let Some((_, expr)) = &expr_if.else_branch {
-        if let syn::Expr::Block(expr_block) = &**expr {
-            let else_block = codegen_block(&expr_block.block, loop_level + 1, variable_tracker);
-
-            quote::quote! {
-                let _cond = #cond;
-                burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
+        let else_block = match &**expr {
+            syn::Expr::Block(expr_block) => {
+                codegen_block(&expr_block.block, loop_level + 1, variable_tracker)
             }
-        } else {
-            syn::Error::new_spanned(
-                expr,
-                "Unsupported: only `else` block is allowed after an `if` statement.",
-            )
-            .into_compile_error()
+
+            syn::Expr::If(expr_if) => codegen_if(expr_if, loop_level + 1, variable_tracker),
+            _ => unreachable!(),
+        };
+        quote::quote! {
+            {
+            let _cond = #cond;
+            burn_cube::frontend::branch::if_else_expand(context, #comptime_bool, _cond.into(), |context| #then_block, |context| #else_block);
+            }
         }
     } else {
         quote::quote! {
