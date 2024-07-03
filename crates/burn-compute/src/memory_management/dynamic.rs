@@ -73,7 +73,7 @@ impl DynamicMemoryManagementOptions {
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
     pub fn new(
-        min_storage_buffer_allignment_offset: usize,
+        min_storage_buffer_alignment_offset: usize,
         mut storage: Storage,
         mut options: DynamicMemoryManagementOptions,
     ) -> Self {
@@ -99,7 +99,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             .collect();
 
         Self {
-            min_storage_buffer_alignment_offset: min_storage_buffer_allignment_offset,
+            min_storage_buffer_alignment_offset,
             small_memory_pool: SmallMemoryPool::new(),
             pools,
             options: options.pools,
