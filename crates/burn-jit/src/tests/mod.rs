@@ -6,7 +6,9 @@ mod cast;
 mod cat;
 mod clamp;
 mod conv2d;
+mod conv3d;
 mod conv_transpose2d;
+mod conv_transpose3d;
 mod gather;
 mod mask_fill;
 mod mask_where;
@@ -43,7 +45,9 @@ macro_rules! testgen_all {
 
                 burn_jit::testgen_reduction!();
                 burn_jit::testgen_conv2d!();
+                burn_jit::testgen_conv3d!();
                 burn_jit::testgen_conv_transpose2d!();
+                burn_jit::testgen_conv_transpose3d!();
 
                 burn_jit::testgen_repeat!();
                 burn_jit::testgen_gather!();

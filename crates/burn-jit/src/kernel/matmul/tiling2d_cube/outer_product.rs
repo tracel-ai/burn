@@ -69,17 +69,16 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default().cube_dim(cube_dim);
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
         tile_outer_product_test_launch::<F32, R>(
             client.clone(),
             cube_count,
-            settings,
-            ArrayHandle::new(&register_m, 4),
-            ArrayHandle::new(&register_n, 4),
-            ArrayHandle::new(&results, 16),
+            cube_dim,
+            ArrayArg::new(&register_m, 4),
+            ArrayArg::new(&register_n, 4),
+            ArrayArg::new(&results, 16),
             config,
         );
 
@@ -99,17 +98,16 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default().cube_dim(cube_dim);
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
         tile_outer_product_test_launch::<F32, R>(
             client.clone(),
             cube_count,
-            settings,
-            ArrayHandle::new(&register_m, 4),
-            ArrayHandle::new(&register_n, 4),
-            ArrayHandle::new(&results, 16),
+            cube_dim,
+            ArrayArg::new(&register_m, 4),
+            ArrayArg::new(&register_n, 4),
+            ArrayArg::new(&results, 16),
             config,
         );
 
@@ -130,17 +128,16 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default().cube_dim(cube_dim);
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
         tile_outer_product_test_launch::<F32, R>(
             client.clone(),
             cube_count,
-            settings,
-            ArrayHandle::new(&register_m, 1),
-            ArrayHandle::new(&register_n, 1),
-            ArrayHandle::new(&results, 1),
+            cube_dim,
+            ArrayArg::new(&register_m, 1),
+            ArrayArg::new(&register_n, 1),
+            ArrayArg::new(&results, 1),
             config,
         );
 

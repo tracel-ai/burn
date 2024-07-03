@@ -23,9 +23,9 @@ pub fn launch<R: Runtime>(device: &R::Device) {
     gelu_launch::<F32, R>(
         client.clone(),
         CubeCount::new(1, 1, 1),
-        KernelSettings::default(),
-        ArrayHandle::new(&input_handle, input.len()),
-        ArrayHandle::new(&output_handle, input.len()),
+        CubeDim::default(),
+        ArrayArg::new(&input_handle, input.len()),
+        ArrayArg::new(&output_handle, input.len()),
     );
 
     let output = client.read(output_handle.binding());

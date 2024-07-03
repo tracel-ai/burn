@@ -212,19 +212,13 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     let x = config.grid_x as u32;
     let y = config.grid_y as u32;
 
-    let settings = KernelSettings::default()
-        .vectorize_input(0, vectorization(k))
-        .vectorize_input(1, vectorization(n))
-        .vectorize_output(0, vectorization(n))
-        .cube_dim(CubeDim { x, y, z: 1 });
-
     tiling2d_cube_launch::<E::FloatPrimitive, R>(
         client,
         cube_count,
-        settings,
-        TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-        TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-        TensorHandle::new(&out.handle, &out.strides, &out.shape.dims),
+        CubeDim { x, y, z: 1 },
+        TensorArg::vectorized(vectorization(k), &lhs.handle, &lhs.strides, &lhs.shape.dims),
+        TensorArg::vectorized(vectorization(n), &rhs.handle, &rhs.strides, &rhs.shape.dims),
+        TensorArg::vectorized(vectorization(n), &out.handle, &out.strides, &out.shape.dims),
         cube_config,
     );
 

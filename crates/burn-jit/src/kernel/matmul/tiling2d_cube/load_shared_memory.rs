@@ -775,17 +775,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                TILE_SIZE as u8,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             TILE_SIZE.into(),
             false,
         );
@@ -808,17 +808,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, vectorization_factor as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             TILE_SIZE.into(),
             false,
         );
@@ -841,17 +841,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, vectorization_factor as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             TILE_SIZE.into(),
             false,
         );
@@ -874,17 +874,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, vectorization_factor as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                vectorization_factor,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             TILE_SIZE.into(),
             true,
         );
@@ -905,17 +905,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         read_partial_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                TILE_SIZE as u8,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             TILE_SIZE.into(),
             false,
         );
@@ -933,19 +933,19 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 8);
 
         load_tile_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                TILE_SIZE as u8,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             0,
             0,
             config,
@@ -965,19 +965,19 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(6, 8, 8);
 
         load_tile_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                TILE_SIZE as u8,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             4,
             0,
             config,
@@ -996,19 +996,19 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 4, 8);
 
         load_tile_test_launch::<F32, R>(
             tensor.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            ArrayHandle::new(&tile, 4),
+            cube_dim,
+            TensorArg::vectorized(
+                TILE_SIZE as u8,
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
             0,
             4,
             config,
@@ -1027,19 +1027,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 8);
 
         write_tile_test_launch::<F32, R>(
             tile.client.clone(),
             cube_count,
-            settings,
-            ArrayHandle::new(&tile.handle, 4),
-            ArrayHandle::new(&sm_out, 4),
+            cube_dim,
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile.handle, 4),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 4),
             config,
             false,
         );
@@ -1060,19 +1055,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 8);
 
         write_tile_test_launch::<F32, R>(
             tile.client.clone(),
             cube_count,
-            settings,
-            ArrayHandle::new(&tile.handle, 4),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            ArrayArg::vectorized(TILE_SIZE as u8, &tile.handle, 4),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             config,
             true,
         );
@@ -1093,19 +1083,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(16, 16, 8);
 
         load_tensor_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             4,
             4,
             8,
@@ -1130,19 +1115,19 @@ pub mod tests {
         let cube_dim = CubeDim::new(2, 2, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, vectorization_factor as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(5, 1, 1);
 
         load_tensor_multiple_tiles_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(
+                vectorization_factor as u8,
+                &lhs.handle,
+                &lhs.strides,
+                &lhs.shape.dims,
+            ),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             0,
             config,
             true,
@@ -1164,19 +1149,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(2, 2, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 8);
 
         load_tensor_multiple_tiles_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             0,
             config,
             true,
@@ -1199,19 +1179,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(2, 2, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 16);
 
         load_tensor_multiple_tiles_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             8,
             config,
             true,
@@ -1234,19 +1209,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 16, 16);
 
         load_tensor_test_launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             4,
             4,
             8,
@@ -1271,19 +1241,14 @@ pub mod tests {
         let cube_dim = CubeDim::new(2, 2, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
-
         let config = make_config(8, 8, 8);
 
         load_tensor_multiple_tiles_test_launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             0,
             config,
             false,
@@ -1305,19 +1270,15 @@ pub mod tests {
         let sm_out = create_empty::<R>(8, 8, device);
         let cube_dim = CubeDim::new(2, 2, 1);
         let cube_count = CubeCount::new(1, 1, 1);
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_output(0, TILE_SIZE as u8);
 
         let config = make_config(16, 16, 8);
 
         load_tensor_multiple_tiles_test_launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ArrayHandle::new(&sm_out, 64),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
+            ArrayArg::vectorized(TILE_SIZE as u8, &sm_out, 64),
             8,
             config,
             false,

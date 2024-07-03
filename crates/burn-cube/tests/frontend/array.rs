@@ -57,7 +57,7 @@ mod tests {
         let mut context = CubeContext::root();
         let array = context.input(0, Item::new(Elem::UInt));
 
-        array_add_assign_simple_expand(&mut context, array);
+        array_add_assign_simple_expand(&mut context, array.into());
         let scope = context.into_scope();
 
         assert_eq!(
@@ -113,7 +113,7 @@ mod tests {
         let mut context = CubeContext::root();
         let array = context.input(0, Item::new(Elem::UInt));
 
-        array_add_assign_expr_expand(&mut context, array);
+        array_add_assign_expr_expand(&mut context, array.into());
         let scope = context.into_scope();
 
         assert_eq!(

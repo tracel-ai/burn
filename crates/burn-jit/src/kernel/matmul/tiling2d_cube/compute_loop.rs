@@ -100,23 +100,18 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_input(1, TILE_SIZE as u8);
-
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
         compute_loop_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
             0,
             0,
-            ArrayHandle::new(&results, 1),
+            ArrayArg::new(&results, 1),
             config,
         );
 
@@ -135,22 +130,17 @@ pub mod tests {
         let cube_dim = CubeDim::new(1, 1, 1);
         let cube_count = CubeCount::new(1, 1, 1);
 
-        let settings = KernelSettings::default()
-            .cube_dim(cube_dim)
-            .vectorize_input(0, TILE_SIZE as u8)
-            .vectorize_input(1, TILE_SIZE as u8);
-
         let config = make_config(4, 8, 4);
 
         compute_loop_test_launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
-            settings,
-            TensorHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            cube_dim,
+            TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
             4,
             4,
-            ArrayHandle::new(&results, 1),
+            ArrayArg::new(&results, 1),
             config,
         );
 

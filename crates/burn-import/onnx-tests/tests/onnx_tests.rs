@@ -27,6 +27,7 @@ include_models!(
     concat,
     conv1d,
     conv2d,
+    conv3d,
     cos,
     div,
     dropout_opset16,
@@ -64,6 +65,7 @@ include_models!(
     reduce_max,
     reduce_min,
     reduce_mean,
+    reduce_prod,
     reduce_sum_opset13,
     reduce_sum_opset11,
     relu,
@@ -83,6 +85,7 @@ include_models!(
     tanh,
     transpose,
     conv_transpose2d,
+    conv_transpose3d,
     pow,
     pow_int,
     unsqueeze,
@@ -337,6 +340,28 @@ mod tests {
         let output_sum = output.sum().into_scalar();
 
         let expected_sum = -113.869_99; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn conv3d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv3d::Model<Backend> = conv3d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 3, 5, 5]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv3d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 48.494_262; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -759,6 +784,27 @@ mod tests {
         output_scalar.to_data().assert_eq(&expected_scalar, true);
         output_tensor.to_data().assert_eq(&input.to_data(), true);
         output_value.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn reduce_prod() {
+        let device = Default::default();
+        let model: reduce_prod::Model<Backend> = reduce_prod::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
+        let expected_scalar = TensorData::from([900f32]);
+        let expected = TensorData::from([[[[900f32]]]]);
+
+        // Tolerance of 0.001 since floating-point multiplication won't be perfect
+        output_scalar
+            .to_data()
+            .assert_approx_eq(&expected_scalar, 3);
+        output_tensor
+            .to_data()
+            .assert_approx_eq(&input.to_data(), 3);
+        output_value.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -1227,6 +1273,28 @@ mod tests {
         let output_sum = output.sum().into_scalar();
 
         let expected_sum = -120.070_15; // result running pytorch model (conv_transpose2d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn conv_transpose3d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose3d::Model<Backend> = conv_transpose3d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 5, 5, 9]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose3d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -67.267_15; // result running pytorch model (conv_transpose3d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
