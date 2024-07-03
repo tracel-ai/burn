@@ -1,4 +1,3 @@
-
 use super::{CubeType, ExpandElement, Tensor, UInt};
 
 pub trait Vectorized {
