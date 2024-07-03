@@ -325,4 +325,15 @@ where
             strategy,
         })
     }
+
+    /// Convert the tensor back to a higher precision data type.
+    ///
+    /// If the tensor is not quantized, its value is simply returned.
+    ///
+    /// # Returns
+    ///
+    /// The dequantized tensor.
+    pub fn dequantize(self) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
+    }
 }
