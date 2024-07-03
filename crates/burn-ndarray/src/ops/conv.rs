@@ -1,3 +1,4 @@
+use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions, ConvTransposeOptions},
     ElementConversion,
@@ -5,8 +6,8 @@ use burn_tensor::{
 use ndarray::{s, Array3, Array4, ArrayView2, ArrayViewMut2, Axis, Dim};
 
 use crate::{
-    element::FloatNdArrayElement, iter_par, iter_range_par, ops::padding::apply_padding_4d,
-    run_par, sharing::UnsafeSharedRef, tensor::NdArrayTensor,
+    element::FloatNdArrayElement, ops::padding::apply_padding_4d, sharing::UnsafeSharedRef,
+    tensor::NdArrayTensor,
 };
 
 #[inline(always)]

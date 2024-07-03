@@ -4,6 +4,7 @@ use core::{
 };
 
 use alloc::vec::Vec;
+use burn_common::{iter_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
@@ -62,26 +63,28 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
 
         // x_q = clamp(round(x / scale + offset), a, b)
         let z = E::from(self.offset).unwrap();
-        values
-            .iter()
-            .map(|x| Q::from(x.div(self.scale).add(z).round().clamp(a, b)).unwrap())
-            .collect()
+        run_par!(|| {
+            iter_par!(values.iter())
+                .map(|x| Q::from(x.div(self.scale).add(z).round().clamp(a, b)).unwrap())
+                .collect()
+        })
     }
 
     fn dequantize(&self, values: &[Q]) -> Vec<E> {
         // x = scale * (x_q - offset)
-        values
-            .iter()
-            .map(|x_q| {
-                self.scale
-                    * (E::from(
-                        A::from(*x_q)
-                            .unwrap()
-                            .saturating_sub(A::from(self.offset).unwrap()),
-                    )
-                    .unwrap())
-            })
-            .collect()
+        run_par!(|| {
+            iter_par!(values.iter())
+                .map(|x_q| {
+                    self.scale
+                        * (E::from(
+                            A::from(*x_q)
+                                .unwrap()
+                                .saturating_sub(A::from(self.offset).unwrap()),
+                        )
+                        .unwrap())
+                })
+                .collect()
+        })
     }
 }
 

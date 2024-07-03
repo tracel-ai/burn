@@ -16,7 +16,7 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
         tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
-        let data = into_data(tensor).with_quantization(strategy.clone());
+        let data = into_data(tensor).with_quantization(*strategy);
         NdArrayTensor::<i8, D>::from_data(data)
     }
 

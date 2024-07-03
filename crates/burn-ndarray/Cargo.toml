@@ -15,13 +15,13 @@ default = ["std"]
 std = [
     "burn-autodiff",
     "burn-common/std",
+    "burn-common/rayon",
     "burn-tensor/std",
     "matrixmultiply/std",
     "matrixmultiply/threading",
     "ndarray/rayon",
     "ndarray/std",
     "rand/std",
-    "rayon",
     "num-traits/std",
 ]
 doc = ["default"]
@@ -47,7 +47,6 @@ burn-common = { path = "../burn-common", version = "0.14.0", default-features = 
 burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = false }
 
 matrixmultiply = { workspace = true, default-features = false }
-rayon = { workspace = true, optional = true }
 blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
 derive-new = { workspace = true }
 libm = { workspace = true }

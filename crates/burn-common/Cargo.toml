@@ -15,6 +15,7 @@ default = ["std"]
 std = ["rand/std", "data-encoding/std", "dep:pollster"]
 doc = ["default"]
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+rayon = ["dep:rayon"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 getrandom = { workspace = true, features = ["js"] }
@@ -34,6 +35,9 @@ pollster = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+
+# Parallel
+rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }
