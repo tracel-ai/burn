@@ -21,7 +21,7 @@ mod tests {
         let mut context = CubeContext::root();
         let input = context.input(0, Item::new(ElemType::as_elem()));
 
-        kernel_expand::<ElemType>(&mut context, input);
+        kernel_expand::<ElemType>(&mut context, input.into());
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref()
