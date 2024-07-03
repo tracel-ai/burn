@@ -52,7 +52,7 @@ impl TensorData {
         Self {
             bytes: bytemuck::checked::cast_slice(&value).to_vec(),
             shape: shape.into(),
-            dtype: dtype,
+            dtype,
         }
     }
 
