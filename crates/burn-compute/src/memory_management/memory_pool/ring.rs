@@ -25,7 +25,7 @@ pub trait MemoryChunk<S: MemorySlice> {
 pub trait MemorySlice: Sized {
     fn is_free(&self) -> bool;
     fn size(&self) -> usize;
-    fn split(&mut self, offset: usize, buffer_alignement: usize) -> Option<Self>;
+    fn split(&mut self, offset: usize, buffer_alignment: usize) -> Option<Self>;
     fn id(&self) -> SliceId;
     fn next_slice_position(&self) -> usize;
 }
