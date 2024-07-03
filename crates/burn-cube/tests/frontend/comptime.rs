@@ -22,6 +22,7 @@ pub fn comptime_if_else<T: Numeric>(lhs: T, cond: Comptime<bool>) {
 }
 
 #[cube]
+#[allow(clippy::collapsible_else_if)]
 pub fn comptime_else_then_if<T: Numeric>(lhs: T, cond1: Comptime<bool>, cond2: Comptime<bool>) {
     if Comptime::get(cond1) {
         let _ = lhs + T::from_int(4);
