@@ -9,7 +9,7 @@ use super::MemoryManagement;
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
-    min_storage_buffer_allignment_offset: usize,
+    min_storage_buffer_alignment_offset: usize,
     small_memory_pool: SmallMemoryPool,
     pools: Vec<MemoryPool>,
     options: Vec<MemoryPoolOptions>,
@@ -99,7 +99,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             .collect();
 
         Self {
-            min_storage_buffer_allignment_offset,
+            min_storage_buffer_alignment_offset: min_storage_buffer_allignment_offset,
             small_memory_pool: SmallMemoryPool::new(),
             pools,
             options: options.pools,
@@ -139,7 +139,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= self.min_storage_buffer_allignment_offset {
+        if size <= self.min_storage_buffer_alignment_offset {
             return self
                 .small_memory_pool
                 .reserve(&mut self.storage, size, sync);
@@ -156,7 +156,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= self.min_storage_buffer_allignment_offset {
+        if size <= self.min_storage_buffer_alignment_offset {
             return self.small_memory_pool.alloc(&mut self.storage, size, sync);
         }
 
