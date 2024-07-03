@@ -1,6 +1,8 @@
 use burn_cube::prelude::*;
 
-use super::{base::Coordinates, config::CubeTiling2dConfig};
+use crate::kernel::matmul::config::CubeTiling2dConfig;
+
+use super::base::Coordinates;
 
 #[cube]
 pub(crate) fn write_to_output<F: Float>(
@@ -148,11 +150,9 @@ fn write_within_vector<F: Float>(
 /// Exported tests for write output
 pub mod tests {
     use crate::{
-        kernel::matmul::tiling2d_cube::{
-            base::TILE_SIZE,
-            test_utils::{
-                assert_equals, make_config, range_tensor, range_tensor_transposed, zeros_tensor,
-            },
+        kernel::matmul::tiling2d_cube::test_utils::{
+            assert_equals, make_config, range_tensor, range_tensor_transposed, zeros_tensor,
+            TILE_SIZE,
         },
         JitRuntime,
     };

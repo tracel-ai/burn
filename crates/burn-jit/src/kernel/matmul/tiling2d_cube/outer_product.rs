@@ -1,6 +1,6 @@
 use burn_cube::prelude::*;
 
-use super::config::CubeTiling2dConfig;
+use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 #[cube]
 pub(crate) fn tile_outer_product<F: Float>(
@@ -30,7 +30,10 @@ pub(crate) fn tile_outer_product<F: Float>(
 /// Exported tests for outer product
 pub mod tests {
     use crate::{
-        kernel::matmul::tiling2d_cube::test_utils::{assert_equals, create_empty, make_config},
+        kernel::matmul::{
+            config::CubeTiling2dConfig,
+            tiling2d_cube::test_utils::{assert_equals, create_empty, make_config},
+        },
         JitRuntime,
     };
 

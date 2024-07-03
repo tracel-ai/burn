@@ -1,8 +1,9 @@
 use burn_cube::prelude::*;
 
+use crate::kernel::matmul::config::CubeTiling2dConfig;
+
 use super::{
     base::Coordinates,
-    config::CubeTiling2dConfig,
     outer_product::{tile_outer_product, tile_outer_product_expand},
 };
 
@@ -38,10 +39,10 @@ pub(crate) fn compute_loop<F: Float>(
 /// Compute loop exported tests
 pub mod tests {
     use crate::{
-        kernel::matmul::tiling2d_cube::{
-            base::TILE_SIZE,
-            test_utils::{
-                assert_equals, create_empty, make_config, range_tensor, range_tensor_transposed,
+        kernel::matmul::{
+            config::CubeTiling2dConfig,
+            tiling2d_cube::test_utils::{
+                assert_equals, create_empty, make_config, range_tensor, range_tensor_transposed, TILE_SIZE,
             },
         },
         JitRuntime,

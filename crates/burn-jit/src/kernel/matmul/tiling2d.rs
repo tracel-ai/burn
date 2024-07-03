@@ -1,6 +1,6 @@
 use burn_cube::{
     frontend::TensorHandle,
-    ir::{BinaryOperator, CubeDim, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
+    ir::{BinaryOperator, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -8,18 +8,19 @@ use burn_tensor::{Element, Shape};
 
 use crate::{
     element::JitElement,
-    kernel::{into_contiguous, Kernel},
+    kernel::{into_contiguous, matmul::config::tiling2d_cube_dim, Kernel},
     tensor::JitTensor,
     JitRuntime,
 };
 use std::marker::PhantomData;
 
 use super::{
+    config::tiling2d_cube_count,
     padding::{crop, pad_round, PaddingOutput},
-    shape_out, tiling2d_launch_options,
+    shape_out,
     tiling2d_shader::MatmulTiling2dShader,
-    Tiling2dConfig,
 };
+use crate::kernel::matmul::config::Tiling2dConfig;
 
 #[derive(new, Debug)]
 struct MatmulTiling2dEagerKernel<R: JitRuntime, E: JitElement> {
@@ -68,11 +69,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for MatmulTiling2dEagerKernel<R, E> {
             scope,
         };
 
-        let settings = KernelSettings::default().cube_dim(CubeDim::new(
-            self.config.grid_x as u32,
-            self.config.grid_y as u32,
-            1,
-        ));
+        let settings = KernelSettings::default().cube_dim(tiling2d_cube_dim(&self.config));
         KernelIntegrator::new(info).integrate(settings)
     }
 
@@ -118,7 +115,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_cube_count(
             &out.shape, &config,
         )));
 
@@ -175,7 +172,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_cube_count(
             &rounded_output.shape,
             &config,
         )));

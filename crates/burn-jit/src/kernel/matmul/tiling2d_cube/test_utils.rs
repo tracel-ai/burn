@@ -1,9 +1,13 @@
 use burn_compute::server::Handle;
 use burn_cube::CubeElement;
 
-use crate::{kernel::matmul::Tiling2dConfig, tensor::JitTensor, JitBackend, JitRuntime};
+use crate::{
+    kernel::matmul::config::{CubeTiling2dConfig, Tiling2dConfig},
+    tensor::JitTensor,
+    JitBackend, JitRuntime,
+};
 
-use super::{base::TILE_SIZE, config::CubeTiling2dConfig};
+pub(crate) const TILE_SIZE: usize = 4;
 
 pub(crate) fn range_tensor<R: JitRuntime>(
     x: usize,
@@ -78,7 +82,5 @@ pub(crate) fn make_config(m: usize, k: usize, n: usize) -> CubeTiling2dConfig {
     tiling2d_config.block_size_m = 8;
     tiling2d_config.block_size_k = 8;
     tiling2d_config.block_size_n = 8;
-    tiling2d_config.grid_x = 2;
-    tiling2d_config.grid_y = 2;
-    CubeTiling2dConfig::new(&tiling2d_config, m, k, n, TILE_SIZE)
+    CubeTiling2dConfig::new(&tiling2d_config, m, k, n)
 }

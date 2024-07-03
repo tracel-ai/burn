@@ -26,12 +26,12 @@ pub fn write_to_output(
 
         cpa!(
             scope,
-            range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
+            range(0u32, shader.config.tile_size as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
                     cpa!(
                         scope,
-                        range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
-                            .for_each(|res_idx_n, scope| {
+                        range(0u32, shader.config.tile_size as u32, shader.config.unroll).for_each(
+                            |res_idx_n, scope| {
                                 cpa!(scope, row_index = row + res_idx_m);
                                 cpa!(scope, col_index = col + res_idx_n);
 
@@ -50,7 +50,8 @@ pub fn write_to_output(
                                         col_index,
                                     );
                                 }));
-                            })
+                            }
+                        )
                     );
                 }
             )
@@ -58,12 +59,12 @@ pub fn write_to_output(
     } else {
         cpa!(
             scope,
-            range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
+            range(0u32, shader.config.tile_size as u32, shader.config.unroll).for_each(
                 |res_idx_m, scope| {
                     cpa!(
                         scope,
-                        range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
-                            .for_each(|res_idx_n, scope| {
+                        range(0u32, shader.config.tile_size as u32, shader.config.unroll).for_each(
+                            |res_idx_n, scope| {
                                 cpa!(scope, row_index = row + res_idx_m);
                                 cpa!(scope, col_index = col + res_idx_n);
 
@@ -76,7 +77,8 @@ pub fn write_to_output(
                                     row_index,
                                     col_index,
                                 )
-                            })
+                            }
+                        )
                     );
                 }
             )
@@ -107,7 +109,7 @@ fn write_inner(
 
     cpa!(
         scope,
-        results_position = res_idx_m * shader.config.tile_size_n
+        results_position = res_idx_m * shader.config.tile_size
     );
     cpa!(scope, results_position += res_idx_n);
 

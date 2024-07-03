@@ -1,11 +1,12 @@
 mod base;
+mod config;
 mod simple;
 mod tiling2d;
+#[cfg(not(feature = "export_tests"))]
+mod tiling2d_cube;
 #[cfg(feature = "export_tests")]
 /// Tiling 2d cube functions
 pub mod tiling2d_cube;
-#[cfg(not(feature = "export_tests"))]
-mod tiling2d_cube;
 mod tiling2d_shader;
 mod tune;
 
@@ -24,5 +25,6 @@ pub mod padding;
 #[cfg(not(feature = "export_tests"))]
 mod padding;
 
+pub use config::Tiling2dConfig;
 pub use tiling2d::*;
 pub use tiling2d_cube::*;

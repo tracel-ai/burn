@@ -18,11 +18,11 @@ pub(crate) fn gather_shader_information(
     let block_size_m: Variable = shader.config.block_size_m.into();
     let block_size_k: Variable = shader.config.block_size_k.into();
     let block_size_n: Variable = shader.config.block_size_n.into();
-    let tile_size_m: Variable = shader.config.tile_size_m.into();
-    let tile_size_n: Variable = shader.config.tile_size_n.into();
+    let tile_size_m: Variable = shader.config.tile_size.into();
+    let tile_size_n: Variable = shader.config.tile_size.into();
     let n_threads_per_row: Variable =
-        (((shader.config.block_size_n - 1) / shader.config.tile_size_n) + 1).into();
-    let results_size = (shader.config.tile_size_m * shader.config.tile_size_n) as u32;
+        (((shader.config.block_size_n - 1) / shader.config.tile_size) + 1).into();
+    let results_size = (shader.config.tile_size * shader.config.tile_size) as u32;
 
     // Shader info
     let local_idx = Variable::UnitPos;

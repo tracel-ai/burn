@@ -1,9 +1,8 @@
 use burn_cube::prelude::*;
 
-use super::{
-    base::{Coordinates, CubeTiling2dInfo},
-    config::CubeTiling2dConfig,
-};
+use crate::kernel::matmul::config::CubeTiling2dConfig;
+
+use super::base::{Coordinates, CubeTiling2dInfo};
 
 #[cube]
 pub(crate) fn load_lhs_transposed<F: Float>(
@@ -511,9 +510,8 @@ fn read_within_vector<F: Float>(
 #[cfg(feature = "export_tests")]
 /// Exported tests for loading to shared memory
 pub mod tests {
-    use crate::kernel::matmul::tiling2d_cube::{
-        base::TILE_SIZE,
-        test_utils::{assert_equals, create_empty, make_config, range_tensor},
+    use crate::kernel::matmul::tiling2d_cube::test_utils::{
+        assert_equals, create_empty, make_config, range_tensor, TILE_SIZE,
     };
     use crate::JitRuntime;
 

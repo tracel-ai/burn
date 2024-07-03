@@ -1,19 +1,19 @@
-use burn_cube::prelude::*;
+use std::cmp::max;
+
+use burn_cube::{prelude::*, Compiler};
 
 use crate::{
-    kernel::{into_contiguous, matmul::Tiling2dConfig},
+    kernel::{
+        into_contiguous,
+        matmul::config::{
+            tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig,
+        },
+    },
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
 
-use super::{
-    block_loop::{block_loop, block_loop_expand},
-    config::CubeTiling2dConfig,
-};
-use crate::kernel::matmul::tiling2d_launch_options;
-
-// Other tile sizes are not supported
-pub(crate) const TILE_SIZE: usize = 4;
+use super::block_loop::{block_loop, block_loop_expand};
 
 #[cube(launch)]
 #[allow(unused_mut)]
@@ -180,14 +180,19 @@ fn make_shared_memories<F: Float>(config: Comptime<CubeTiling2dConfig>) -> Share
     SharedMemories { lhs, rhs }
 }
 
-/// Matrix multiplication using tiling 2d algorithm with
-/// written in Cube
+/// Matrix multiplication using tiling 2d algorithm
 pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
     config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
+    assert!(
+        config.block_size_k * max(config.block_size_m, config.block_size_n)
+            <= <R::Compiler as Compiler>::max_shared_memory_size(),
+        "Shared memory limit will be busted. "
+    );
+
     let m = lhs.shape.dims[D - 2];
     let k = lhs.shape.dims[D - 1];
     let n = rhs.shape.dims[D - 1];
@@ -206,20 +211,14 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .unwrap_or(1)
     };
 
-    let cube_config = CubeTiling2dConfig::new(&config, m, k, n, TILE_SIZE as usize);
-    let cube_count = tiling2d_launch_options(&out.shape, &config);
-
-    let x = config.grid_x as u32;
-    let y = config.grid_y as u32;
-
     tiling2d_cube_launch::<E::FloatPrimitive, R>(
         client,
-        cube_count,
-        CubeDim { x, y, z: 1 },
+        tiling2d_cube_count(&out.shape, &config),
+        tiling2d_cube_dim(&config),
         TensorArg::vectorized(vectorization(k), &lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &out.handle, &out.strides, &out.shape.dims),
-        cube_config,
+        CubeTiling2dConfig::new(&config, m, k, n),
     );
 
     out

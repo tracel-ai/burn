@@ -1,7 +1,6 @@
 mod base;
 mod block_loop;
 mod compute_loop;
-mod config;
 mod load_shared_memory;
 mod outer_product;
 #[cfg(feature = "export_tests")]

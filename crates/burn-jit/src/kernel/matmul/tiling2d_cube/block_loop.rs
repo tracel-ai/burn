@@ -1,9 +1,10 @@
 use burn_cube::prelude::*;
 
+use crate::kernel::matmul::config::CubeTiling2dConfig;
+
 use super::{
     base::{BatchOffsets, Coordinates, CubeTiling2dInfo, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
-    config::CubeTiling2dConfig,
     load_shared_memory::{
         load_lhs_transposed, load_lhs_transposed_expand, load_rhs_plain, load_rhs_plain_expand,
     },
