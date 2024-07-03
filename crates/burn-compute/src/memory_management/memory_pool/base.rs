@@ -218,11 +218,6 @@ impl MemoryPool {
         size: usize,
         sync: Sync,
     ) -> MemoryPoolHandle {
-        //if self.recently_allocated_size > (0.8 * self.max_chunk_size as f64) as usize {
-        //    self.extend_max_memory(storage);
-        //    self.recently_added_chunks = Vec::new();
-        //    self.recently_allocated_size = 0;
-        //}
         let slice = self.get_free_slice(size);
 
         match slice {
@@ -397,7 +392,6 @@ impl MemoryPool {
     ) -> ChunkHandle {
         let padding = calculate_padding(size);
         let effective_size = size + padding;
-        //let effective_size = self.max_chunk_size;
 
         let storage = storage.alloc(effective_size);
         let handle = ChunkHandle::new();
