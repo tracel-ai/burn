@@ -3,6 +3,7 @@ use super::memory_pool::{
     SmallMemoryPool,
 };
 use crate::storage::ComputeStorage;
+use alloc::vec::Vec;
 
 use super::MemoryManagement;
 
@@ -29,7 +30,7 @@ pub struct MemoryPoolOptions {
     ///
     /// Useful when you know in advance how much memory you'll need.
     pub chunk_num_prealloc: usize,
-    /// The max size in byte a slice can take in the pool.
+    /// The max size in bytes a slice can take in the pool.
     pub slice_max_size: usize,
 }
 
@@ -43,11 +44,13 @@ impl DynamicMemoryManagementOptions {
 
         const MB: usize = 1024 * 1024;
 
-        let mut pools = vec![MemoryPoolOptions {
+        let mut pools = Vec::new();
+
+        pools.push(MemoryPoolOptions {
             chunk_size: max_chunk_size,
             chunk_num_prealloc: 0,
             slice_max_size: max_chunk_size,
-        }];
+        });
 
         let mut current = max_chunk_size;
 
@@ -57,7 +60,7 @@ impl DynamicMemoryManagementOptions {
             pools.push(MemoryPoolOptions {
                 chunk_size: current,
                 chunk_num_prealloc: 0,
-                // Creating max slices lower than the chunk size reduces defragmentation.
+                // Creating max slices lower than the chunk size reduces fragmentation.
                 slice_max_size: current / 2usize.pow(pools.len() as u32),
             });
         }
