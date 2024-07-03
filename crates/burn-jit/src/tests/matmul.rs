@@ -411,8 +411,7 @@ mod tests {
 
         #[test]
         pub fn straightforward() {
-            let d = 5;
-            test_with_params(d, 1, 1, 1, 1);
+            test_with_params(1, 2, 1, 1, 1);
         }
 
         #[test]
@@ -427,37 +426,37 @@ mod tests {
 
         #[test]
         pub fn m_exceeds_block() {
-            test_with_params(76, 32, 64, 2, 2);
+            test_with_params(75, 32, 64, 2, 2);
         }
 
         #[test]
         pub fn k_exceeds_block() {
-            test_with_params(64, 36, 32, 1, 1);
+            test_with_params(64, 33, 32, 1, 1);
         }
 
         #[test]
         pub fn test_matmul_irregular_shape() {
-            test_with_params(80, 92, 20, 1, 1);
+            test_with_params(123, 255, 72, 3, 5);
         }
 
         #[test]
         pub fn test64_matmul_unpadded_n_exceeds_block() {
-            test_with_params(64, 32, 76, 2, 2);
+            test_with_params(64, 32, 75, 2, 2);
         }
 
         #[test]
         pub fn n_smaller_than_m() {
-            test_with_params(8, 8, 4, 1, 1);
+            test_with_params(8, 8, 3, 1, 1);
         }
 
         #[test]
         pub fn m_smaller_than_n() {
-            test_with_params(4, 8, 8, 1, 1);
+            test_with_params(3, 8, 8, 1, 1);
         }
 
         #[test]
         pub fn k_smaller_than_m_n() {
-            test_with_params(8, 4, 8, 1, 1);
+            test_with_params(8, 3, 8, 1, 1);
         }
 
         #[test]
@@ -477,22 +476,17 @@ mod tests {
 
         #[test]
         pub fn blocks_divide_shapes_unevenly() {
-            test_with_params(28, 12, 32, 1, 1);
+            test_with_params(7, 7, 7, 1, 1);
         }
 
         #[test]
         pub fn medium() {
-            test_with_params(17, 16, 20, 1, 1);
+            test_with_params(17, 16, 16, 1, 1);
         }
 
         #[test]
-        pub fn large_k_multiple() {
-            test_with_params(256, 256, 256, 1, 1);
-        }
-
-        #[test]
-        pub fn large_k_not_multiple() {
-            test_with_params(257, 261, 254, 5, 2);
+        pub fn large() {
+            test_with_params(134, 242, 250, 1, 1);
         }
 
         #[test]
