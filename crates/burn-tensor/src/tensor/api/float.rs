@@ -137,7 +137,6 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        // NOTE: should `tensor.int()` return the quantized values?
         Tensor::new(B::float_into_int(self.primitive.tensor()))
     }
 
