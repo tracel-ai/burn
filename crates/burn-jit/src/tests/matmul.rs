@@ -519,6 +519,54 @@ mod tests {
         }
 
         #[test]
+        fn swapped_lhs_row_col_large_uneven_m() {
+            let (m, k, n) = (252, 256, 256);
+            let swap_lhs = [2, 3];
+            let swap_rhs = [0, 0];
+            let shape_lhs = [3, 2, k, m];
+            let shape_rhs = [3, 2, k, n];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube((Tiling2dConfig::default())),
+                swap_lhs,
+                swap_rhs,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        #[test]
+        fn swapped_rhs_row_col_large_uneven_n() {
+            let (m, k, n) = (256, 256, 252);
+            let swap_lhs = [0, 0];
+            let swap_rhs = [2, 3];
+            let shape_lhs = [3, 2, m, k];
+            let shape_rhs = [3, 2, n, k];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube((Tiling2dConfig::default())),
+                swap_lhs,
+                swap_rhs,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        #[test]
+        fn swapped_both_row_col_large_uneven_k() {
+            let (m, k, n) = (256, 252, 256);
+            let swap_lhs = [2, 3];
+            let swap_rhs = [2, 3];
+            let shape_lhs = [3, 2, k, m];
+            let shape_rhs = [3, 2, n, k];
+            same_as_reference_swapped_dims(
+                MatmulStrategy::Tiling2dCube((Tiling2dConfig::default())),
+                swap_lhs,
+                swap_rhs,
+                shape_lhs,
+                shape_rhs,
+            );
+        }
+
+        #[test]
         fn swapped_row_with_batch_no_padding() {
             let swap_lhs = [0, 3];
             let swap_rhs = [0, 2];

@@ -100,6 +100,18 @@ mod tests {
     }
 
     #[test]
+    pub fn load_lhs_plain_unit_test() {
+        load_shared_memory_tests::load_lhs_plain_unit_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_lhs_plain_out_of_bounds_unit_test() {
+        load_shared_memory_tests::load_lhs_plain_out_of_bounds_unit_test::<TestRuntime>(
+            &Default::default(),
+        )
+    }
+
+    #[test]
     pub fn load_lhs_transposed_out_of_bounds_cube_test() {
         load_shared_memory_tests::load_lhs_transposed_out_of_bounds_cube_test::<TestRuntime>(
             &Default::default(),
@@ -126,6 +138,18 @@ mod tests {
     #[test]
     pub fn load_rhs_plain_cube_offset_test() {
         load_shared_memory_tests::load_rhs_plain_cube_offset_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_rhs_transposed_unit_test() {
+        load_shared_memory_tests::load_rhs_transposed_unit_test::<TestRuntime>(&Default::default())
+    }
+
+    #[test]
+    pub fn load_rhs_transposed_out_of_bounds_unit_test() {
+        load_shared_memory_tests::load_rhs_transposed_out_of_bounds_unit_test::<TestRuntime>(
+            &Default::default(),
+        )
     }
 
     #[test]

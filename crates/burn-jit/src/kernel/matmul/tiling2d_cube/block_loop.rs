@@ -3,7 +3,7 @@ use burn_cube::prelude::*;
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
-    base::{BatchOffsets, Coordinates, CubeTiling2dInfo, SharedMemories},
+    base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
     load_shared_memory::{load_to_shared_memories, load_to_shared_memories_expand},
     write_output::{write_to_output, write_to_output_expand},
@@ -18,7 +18,7 @@ pub(crate) fn block_loop<F: Float>(
     offsets: BatchOffsets,
     shared: SharedMemories<F>,
     config: Comptime<CubeTiling2dConfig>,
-    info: CubeTiling2dInfo,
+    dims: Dimensions,
 ) {
     let block_size_k = Comptime::map(config, |c| c.block_size_k);
     let mut results = init_results::<F>(config);
@@ -28,7 +28,7 @@ pub(crate) fn block_loop<F: Float>(
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_to_shared_memories(lhs, rhs, coordinates, k, offsets, shared, config, info);
+        load_to_shared_memories(lhs, rhs, coordinates, k, offsets, shared, config, dims);
 
         sync_units();
 
@@ -37,14 +37,7 @@ pub(crate) fn block_loop<F: Float>(
         sync_units();
     }
 
-    write_to_output::<F>(
-        out,
-        &results,
-        coordinates,
-        offsets.out,
-        info.out_stride,
-        config,
-    );
+    write_to_output::<F>(out, &results, coordinates, offsets.out, dims.n, config);
 }
 
 #[cube]
