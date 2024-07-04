@@ -193,8 +193,6 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         } => (tensor, transposed),
         MemoryLayout::HighlyPermuted => (into_contiguous(tensor), false),
     };
-
-    // let check_layout = |tensor: JitTensor<R, E, D>| (into_contiguous(tensor), false);
     let (lhs, lhs_transposed) = check_layout(lhs);
     let (rhs, rhs_transposed) = check_layout(rhs);
 
