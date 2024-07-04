@@ -1,6 +1,6 @@
 use super::{
     base::{Item, Variable},
-    Subgroup,
+    IndexedVariable, Subgroup,
 };
 use std::fmt::Display;
 
@@ -288,37 +288,28 @@ impl Display for Instruction {
                 min_value,
                 max_value,
                 out,
-            } => {
-                let vectorization_factor = out.item().vectorization_factor();
-
-                for i in 0..vectorization_factor {
-                    let inputi = input.index(i);
-                    let min_valuei = min_value.index(i);
-                    let max_valuei = max_value.index(i);
-                    let outi = out.index(i);
-
-                    f.write_fmt(format_args!(
-                        "{outi} = clamp({inputi}, {min_valuei}, {max_valuei});\n"
-                    ))?;
-                }
-
-                Ok(())
-            }
+            } => unroll(
+                f,
+                out.item().vectorization_factor(),
+                [input, min_value, max_value, out],
+                |f, [input, min, max, out]| {
+                    f.write_fmt(format_args!("{out} = clamp({input}, {min}, {max});\n"))
+                },
+            ),
             Instruction::Powf { lhs, rhs, out } => {
                 let vectorization_factor = out.item().vectorization_factor();
 
                 if rhs.is_always_scalar() {
                     f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
                 } else {
-                    for i in 0..vectorization_factor {
-                        let lhsi = lhs.index(i);
-                        let rhsi = rhs.index(i);
-                        let outi = out.index(i);
-
-                        f.write_fmt(format_args!("{outi} = powf_primitive({lhsi}, {rhsi});\n"))?;
-                    }
-
-                    Ok(())
+                    unroll(
+                        f,
+                        vectorization_factor,
+                        [lhs, rhs, out],
+                        |f, [lhs, rhs, out]| {
+                            f.write_fmt(format_args!("{out} = powf_primitive({lhs}, {rhs});\n"))
+                        },
+                    )
                 }
             }
             Instruction::Sqrt { input, out } => {
@@ -579,4 +570,25 @@ fn comparison(
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }
+}
+
+fn unroll<
+    const N: usize,
+    F: Fn(&mut core::fmt::Formatter<'_>, [IndexedVariable; N]) -> core::fmt::Result,
+>(
+    f: &mut core::fmt::Formatter<'_>,
+    vectorization_factor: usize,
+    variables: [&Variable; N],
+    func: F,
+) -> core::fmt::Result {
+    for i in 0..vectorization_factor {
+        let mut tmp = Vec::with_capacity(N);
+        for n in 0..N {
+            tmp.push(variables[n].index(i));
+        }
+        let vars = tmp.try_into().unwrap();
+
+        func(f, vars)?;
+    }
+    Ok(())
 }
