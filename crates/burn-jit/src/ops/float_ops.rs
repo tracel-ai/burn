@@ -339,19 +339,17 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary_op!(Op, Float, |context, input| {
+        unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
                 C::log(input)
             }
-            execute_expand::<C>(context, input)
-        });
-
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+            execute_expand::<C>(context, tensor)
+        })
     }
 
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -363,7 +361,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_powf_scalar<const D: usize>(
@@ -390,7 +388,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -402,7 +400,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -414,7 +412,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -426,7 +424,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -438,7 +436,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -450,7 +448,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_argmax<const D: usize>(
@@ -488,7 +486,7 @@ where
             execute_expand::<C>(context, input)
         });
 
-        launch_unary::<D, R, F, F::FloatPrimitive, Op>(tensor)
+        launch_unary::<D, R, F, Op>(tensor)
     }
 
     fn float_repeat<const D: usize>(

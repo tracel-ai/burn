@@ -48,6 +48,15 @@ macro_rules! unary_op {
             }
         }
     };
+    (float($tensor:expr) => $exp:expr) => {{
+        unary_op!(Op, Float, $exp);
+        launch_unary::<D, R, F, Op>($tensor)
+    }};
+
+    (float($tensor:expr, $scalar:expr) => $exp:expr) => {{
+        unary_op!(scalar Op, Float, $exp);
+        launch_unary::<D, R, F, Op>($tensor)
+    }};
 }
 
 pub(crate) use unary_op;
@@ -85,8 +94,7 @@ pub(crate) fn launch_unary<
     const D: usize,
     R: JitRuntime,
     E: JitElement,
-    C: CubePrimitive,
-    O: UnaryOp<C>,
+    O: UnaryOp<E::Primitive>,
 >(
     tensor: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
@@ -112,7 +120,7 @@ pub(crate) fn launch_unary<
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
-        unary_kernel_launch::<C, O, R>(
+        unary_kernel_launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -137,7 +145,7 @@ pub(crate) fn launch_unary<
             buffer,
         );
 
-        unary_kernel_launch::<C, O, R>(
+        unary_kernel_launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
