@@ -288,16 +288,25 @@ impl Display for Instruction {
                 min_value,
                 max_value,
                 out,
-            } => f.write_fmt(format_args!(
-                "{out} = clamp({input}, {min_value}, {max_value});\n"
-            )),
+            } => {
+                let vectorization_factor = out.item().vectorization_factor();
+
+                for i in 0..vectorization_factor {
+                    let inputi = input.index(i);
+                    let min_valuei = min_value.index(i);
+                    let max_valuei = max_value.index(i);
+                    let outi = out.index(i);
+
+                    f.write_fmt(format_args!(
+                        "{outi} = clamp({inputi}, {min_valuei}, {max_valuei});\n"
+                    ))?;
+                }
+
+                Ok(())
+            }
             Instruction::Powf { lhs, rhs, out } => {
-                let vectorization_factor = match out.item() {
-                    super::Item::Vec4(_) => 4,
-                    super::Item::Vec3(_) => 3,
-                    super::Item::Vec2(_) => 2,
-                    super::Item::Scalar(_) => 1,
-                };
+                let vectorization_factor = out.item().vectorization_factor();
+
                 if rhs.is_always_scalar() {
                     f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
                 } else {

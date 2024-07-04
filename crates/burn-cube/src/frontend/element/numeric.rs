@@ -1,6 +1,7 @@
 use crate::compute::KernelLauncher;
 use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement};
 use crate::ir::{Item, Variable};
+use crate::prelude::Clamp;
 use crate::Runtime;
 use crate::{
     frontend::{index_assign, Abs, Max, Min, Remainder},
@@ -27,6 +28,7 @@ pub trait Numeric:
     + Abs
     + Max
     + Min
+    + Clamp
     + Remainder
 {
     /// Create a new constant numeric.

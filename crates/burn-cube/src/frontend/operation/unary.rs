@@ -1,6 +1,7 @@
 use crate::{
     frontend::{CubeContext, CubeType, ExpandElement, UInt, BF16, F16, F32, F64, I32, I64},
-    ir::Operator,
+    ir::{ClampOperator, Operator},
+    prelude::CubePrimitive,
     unexpanded,
 };
 
@@ -17,7 +18,7 @@ pub mod not {
 macro_rules! impl_unary_func {
     ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
         pub trait $trait_name: CubeType + Sized {
-            fn $method_name(self) -> Self {
+            fn $method_name(_input: Self) -> Self {
                 unexpanded!()
             }
 
@@ -29,6 +30,37 @@ macro_rules! impl_unary_func {
         $(impl $trait_name for $type {})*
     }
 }
+
+pub trait Clamp: CubePrimitive + Sized {
+    /// Clamp the input value between the max and min values provided.
+    #[allow(unused_variables)]
+    fn clamp(input: Self, max_value: Self, min_value: Self) -> Self {
+        unexpanded!()
+    }
+    fn clamp_expand(
+        context: &mut CubeContext,
+        input: Self::ExpandType,
+        max_value: Self::ExpandType,
+        min_value: Self::ExpandType,
+    ) -> Self::ExpandType {
+        unary_expand(context, input, |op| {
+            Operator::Clamp(ClampOperator {
+                input: op.input,
+                min_value: *min_value,
+                max_value: *max_value,
+                out: op.out,
+            })
+        })
+    }
+}
+
+impl Clamp for F16 {}
+impl Clamp for BF16 {}
+impl Clamp for F32 {}
+impl Clamp for F64 {}
+impl Clamp for I32 {}
+impl Clamp for I64 {}
+impl Clamp for UInt {}
 
 impl_unary_func!(
     Abs,
