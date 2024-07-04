@@ -28,7 +28,7 @@ libraries/packages your code depends on, and build said libraries.
 Below is a quick cheat sheet of the main `cargo` commands you might use throughout this guide.
 
 | Command             | Description                                                                                  |
-|---------------------|----------------------------------------------------------------------------------------------|
+| ------------------- | -------------------------------------------------------------------------------------------- |
 | `cargo new` _path_  | Create a new Cargo package in the given directory.                                           |
 | `cargo add` _crate_ | Add dependencies to the Cargo.toml manifest file.                                            |
 | `cargo build`       | Compile the local package and all of its dependencies (in debug mode, use `-r` for release). |
@@ -126,9 +126,10 @@ of the Rust Book or the
 If you're new to Rust, you're probably wondering why we had to use `Tensor::<Backend, 2>::...`.
 That's because the `Tensor` struct is [generic](https://doc.rust-lang.org/book/ch10-01-syntax.html)
 over multiple concrete data types. More specifically, a `Tensor` can be defined using three generic
-parameters:  the backend, the number of dimensions (rank) and the data type (defaults to `Float`).
-Here, we only specify the backend and number of dimensions since a `Float` tensor is used by default.
-For more details on the `Tensor` struct, take a look at [this section](./building-blocks/tensor.md).
+parameters: the backend, the number of dimensions (rank) and the data type (defaults to `Float`).
+Here, we only specify the backend and number of dimensions since a `Float` tensor is used by
+default. For more details on the `Tensor` struct, take a look at
+[this section](./building-blocks/tensor.md).
 
 Most of the time when generics are involved, the compiler can infer the generic parameters
 automatically. In this case, the compiler needs a little help. This can usually be done in one of
@@ -141,11 +142,10 @@ let tensor_1: Tensor<Backend, 2> = Tensor::from_data([[2., 3.], [4., 5.]]);
 let tensor_2 = Tensor::ones_like(&tensor_1);
 ```
 
-You probably noticed that we provided a type annotation for the first tensor only and yet this example
-still works.
-That's because the compiler (correctly) inferred that `tensor_2` had the same generic parameters.
-The same could have been done in the original example, but specifying the parameters for both is
-more explicit.
+You probably noticed that we provided a type annotation for the first tensor only and yet this
+example still works. That's because the compiler (correctly) inferred that `tensor_2` had the same
+generic parameters. The same could have been done in the original example, but specifying the
+parameters for both is more explicit.
 
 </details><br>
 
@@ -164,17 +164,17 @@ Tensor {
 }
 ```
 
-While the previous example is somewhat trivial, the upcoming
-basic workflow section will walk you through a much more relevant example for
-deep learning applications.
+While the previous example is somewhat trivial, the upcoming basic workflow section will walk you
+through a much more relevant example for deep learning applications.
 
 ## Using `prelude`
 
-Burn comes with a variety of things in its core library.
-When creating a new model or using an existing one for inference,
-you may need to import every single component you used, which could be a little verbose.
+Burn comes with a variety of things in its core library. When creating a new model or using an
+existing one for inference, you may need to import every single component you used, which could be a
+little verbose.
 
-To address it, a `prelude` module is provided, allowing you to easily import commonly used structs and macros as a group:
+To address it, a `prelude` module is provided, allowing you to easily import commonly used structs
+and macros as a group:
 
 ```rust, ignore
 use burn::prelude::*;
@@ -196,90 +196,8 @@ use burn::{
 
 <div class="warning">
 
-For the sake of simplicity, the subsequent chapters of this book will all use this form of importing except in the [Building Blocks](./building-blocks) chapter, as explicit importing aids users in grasping the usage of particular structures and macros.
+For the sake of simplicity, the subsequent chapters of this book will all use this form of importing
+except in the [Building Blocks](./building-blocks) chapter, as explicit importing aids users in
+grasping the usage of particular structures and macros.
 
 </div>
-
-## Explore examples
-
-In the [next chapter](./basic-workflow) you'll have the opportunity to implement the whole Burn
-`guide` example yourself in a step by step manner.
-
-Many additional Burn examples are available in the
-[examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. Burn examples are
-organized as library crates with one or more examples that are executable binaries. An example
-can then be executed using the following cargo command line in the root of the Burn repository:
-
-```bash
-cargo run --example <example name>
-```
-
-To learn more about crates and examples, read the Rust section below.
-
-<details>
-<summary><strong>🦀 About Rust crates</strong></summary>
-
-Each Burn example is a **package** which are subdirectories of the `examples` directory. A package
-is composed of one or more **crates**.
-
-A package is a bundle of one or more crates that provides a set of functionality. A package
-contains a `Cargo.toml` file that describes how to build those crates.
-
-A crate is a compilation unit in Rust. It could be a single file, but it is often easier to
-split up crates into multiple **modules**.
-
-A module lets us organize code within a crate for readability and easy reuse. Modules also allow
-us to control the _privacy_ of items. For instance the `pub(crate)` keyword is employed to make
-a module publicly available inside the crate. In the snippet below there are four modules declared,
-two of them are public and visible to the users of the crates, one of them is public inside the crate
-only and crate users cannot see it, at last one is private when there is no keyword.
-These modules can be single files or a directory with a `mod.rs` file inside.
-
-```rust, ignore
-pub mod data;
-pub mod inference;
-pub(crate) mod model;
-mod training;
-```
-
-A crate can come in one of two forms: a **binary crate** or a **library crate**. When compiling a crate,
-the compiler first looks in the crate root file (`src/lib.rs` for a library crate and `src/main.rs`
-for a binary crate). Any module declared in the crate root file will be inserted in the crate for
-compilation.
-
-All Burn examples are library crates and they can contain one or more executable examples that
-uses the library. We even have some Burn examples that uses the library crate of other examples.
-
-The examples are unique files under the `examples` directory. Each file produces an executable file
-with the same name. Each example can then be executed with `cargo run --example <executable name>`.
-
-Below is a file tree of a typical Burn example package:
-
-```
-examples/burn-example
-├── Cargo.toml
-├── examples
-│   ├── example1.rs
-│   ├── example2.rs
-│   └── ...
-└── src
-    ├── lib.rs
-    ├── module1.rs
-    ├── module2.rs
-    └── ...
-```
-
-</details><br>
-
-For more information on each example, see their respective `README.md` file.
-
-<div class="warning">
-
-Note that some examples use the
-[`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index) to download the
-datasets required in the examples. This is a Python library, which means that you will need to
-install Python before running these examples. This requirement will be clearly indicated in the
-example's README when applicable.
-
-</div>
-
