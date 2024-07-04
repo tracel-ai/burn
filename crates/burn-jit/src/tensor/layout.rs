@@ -14,6 +14,10 @@ pub(crate) enum MemoryLayout {
 }
 
 pub(crate) fn memory_layout<const D: usize>(strides: &[usize; D]) -> MemoryLayout {
+    if D <= 1 {
+        return MemoryLayout::Contiguous;
+    }
+
     let mut transposed = false;
     let mut batch_swap = false;
     let row_stride = strides[D - 2];
@@ -53,6 +57,12 @@ mod tests {
     fn layout_is_contiguous() {
         let strides = &[8, 4, 2, 1];
         assert_eq!(memory_layout(strides), MemoryLayout::Contiguous);
+    }
+
+    #[test]
+    fn vector_is_contiguous() {
+        let strides = &[1];
+        assert_eq!(memory_layout(strides), MemoryLayout::Contiguous)
     }
 
     #[test]

@@ -198,17 +198,16 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let client = lhs.client.clone();
 
-    let lhs = match lhs.memory_layout() == MemoryLayout::HighlyPermuted {
-        true => into_contiguous(lhs),
-        false => lhs,
+    let check_layout = |tensor: JitTensor<R, E, D>| match tensor.memory_layout() {
+        MemoryLayout::Contiguous => (tensor, false),
+        MemoryLayout::MildlyPermuted {
+            transposed,
+            batch_swap: _,
+        } => (tensor, transposed),
+        MemoryLayout::HighlyPermuted => (into_contiguous(tensor), false),
     };
-    let rhs = match lhs.memory_layout() == MemoryLayout::HighlyPermuted {
-        true => into_contiguous(rhs),
-        false => rhs,
-    };
-
-    let lhs = into_contiguous(lhs);
-    let rhs = into_contiguous(rhs);
+    let (lhs, lhs_transposed) = check_layout(lhs);
+    let (rhs, rhs_transposed) = check_layout(rhs);
 
     let vectorization = |shape: usize| {
         [4, 2]
@@ -226,7 +225,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorArg::vectorized(vectorization(k), &lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(&config, m, k, n, false, false),
+        CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed),
     );
 
     out
