@@ -447,13 +447,13 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                     f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
                 }
                 Item::Scalar(_elem) => {
-                    let is_array = match out {
-                        Variable::GlobalInputArray(_, _) => true,
-                        Variable::GlobalOutputArray(_, _) => true,
-                        Variable::SharedMemory(_, _, _) => true,
-                        Variable::LocalArray(_, _, _, _) => true,
-                        _ => false,
-                    };
+                    let is_array = matches!(
+                        out,
+                        Variable::GlobalInputArray(_, _)
+                            | Variable::GlobalOutputArray(_, _)
+                            | Variable::SharedMemory(_, _, _)
+                            | Variable::LocalArray(_, _, _, _)
+                    );
 
                     if !is_array {
                         let elem_out = out.elem();
@@ -614,8 +614,8 @@ fn unroll<
 ) -> core::fmt::Result {
     for i in 0..vectorization_factor {
         let mut tmp = Vec::with_capacity(N);
-        for n in 0..N {
-            tmp.push(variables[n].index(i));
+        for var in variables.iter().take(N) {
+            tmp.push(var.index(i));
         }
         let vars = tmp.try_into().unwrap();
 

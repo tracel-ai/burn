@@ -1,4 +1,4 @@
-use super::{ExpandElementTyped, Init, LaunchArgExpand, Vectorized};
+use super::{ExpandElementTyped, Init, LaunchArgExpand};
 use crate::{
     frontend::{
         indexation::Index, ArgSettings, CubeContext, CubePrimitive, CubeType, ExpandElement, UInt,
@@ -13,7 +13,6 @@ use std::marker::PhantomData;
 /// metadata such as [stride](Tensor::stride) and [shape](Tensor::shape).
 #[derive(new)]
 pub struct Tensor<T: CubeType> {
-    pub(crate) factor: u8,
     _val: PhantomData<T>,
 }
 

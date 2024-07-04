@@ -75,7 +75,6 @@ impl LaunchArgExpand for () {
         _builder: &mut KernelBuilder,
         _vectorization: Vectorization,
     ) -> <Self as CubeType>::ExpandType {
-        ()
     }
 }
 

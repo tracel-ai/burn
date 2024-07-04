@@ -46,7 +46,7 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
 
         output[offset_output] = O::execute(input[offset_input], options);
     } else {
-        output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], options);
+        output[offset_output] = O::execute(input[offset_output], options);
     }
 }
 
