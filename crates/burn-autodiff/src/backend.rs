@@ -114,4 +114,16 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
         tensor
     }
+
+    fn q_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D> {
+        tensor
+    }
+
+    fn q_from_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self, D> {
+        tensor
+    }
 }

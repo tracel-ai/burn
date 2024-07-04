@@ -87,13 +87,25 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
     fn inner<const D: usize>(
         tensor: <Self as TensorKind<B>>::Primitive<D>,
     ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D> {
-        TensorPrimitive::Float(B::inner(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
+            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
+                tensor: B::q_inner(tensor),
+                strategy,
+            },
+        }
     }
 
     fn from_inner<const D: usize>(
         inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D>,
     ) -> <Self as TensorKind<B>>::Primitive<D> {
-        TensorPrimitive::Float(B::from_inner(inner.tensor()))
+        match inner {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
+            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
+                tensor: B::q_from_inner(tensor),
+                strategy,
+            },
+        }
     }
 }
 
