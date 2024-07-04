@@ -1,9 +1,10 @@
 use crate::element::JitElement;
-use crate::{unary, JitRuntime};
+use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::JitRuntime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
-use burn_cube::ir::{Elem, Operator, Scope, UnaryOperator, Variable};
-use burn_cube::Runtime;
+use burn_cube::frontend::Numeric;
+use burn_cube::prelude::*;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
@@ -138,22 +139,13 @@ where
 
     /// Copy the current tensor.
     pub fn copy(&self) -> Self {
-        // Seems like using the copy buffer from the `wgpu` API leads to race condition when they
-        // are used inplace afterward.
-        //
-        // To avoid them we need to execute the whole pipeline, which leads to significant
-        // slowdowns.
-        //
-        // The solution is just to use a simple unary compute shader.
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Assign(UnaryOperator {
-                input: scope.read_array(0, elem, position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: self.clone(),
-            elem: E
-        )
+        unary_op!(numeric(self.clone()) => |context, tensor| {
+            #[cube]
+            fn execute<C: Numeric>(input: C) -> C {
+                input
+            }
+            execute_expand::<C>(context, tensor)
+        })
     }
 
     /// Check if the tensor is safe to mutate.

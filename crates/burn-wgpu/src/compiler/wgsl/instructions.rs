@@ -447,14 +447,45 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                     f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
                 }
                 Item::Scalar(_elem) => {
-                    let elem_out = out.elem();
-                    let casting_type = match rhs.item() {
-                        Item::Vec4(_) => Item::Vec4(elem_out),
-                        Item::Vec3(_) => Item::Vec3(elem_out),
-                        Item::Vec2(_) => Item::Vec2(elem_out),
-                        Item::Scalar(_) => Item::Scalar(elem_out),
+                    let is_array = match out {
+                        Variable::GlobalInputArray(_, _) => true,
+                        Variable::GlobalOutputArray(_, _) => true,
+                        Variable::SharedMemory(_, _, _) => true,
+                        Variable::LocalArray(_, _, _, _) => true,
+                        _ => false,
                     };
-                    f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+
+                    if !is_array {
+                        let elem_out = out.elem();
+                        let casting_type = match rhs.item() {
+                            Item::Vec4(_) => Item::Vec4(elem_out),
+                            Item::Vec3(_) => Item::Vec3(elem_out),
+                            Item::Vec2(_) => Item::Vec2(elem_out),
+                            Item::Scalar(_) => Item::Scalar(elem_out),
+                        };
+                        f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                    } else {
+                        let item_rhs = rhs.item();
+                        let item_out = out.item();
+
+                        let vectorization_factor = item_out.vectorization_factor();
+                        if vectorization_factor > item_rhs.vectorization_factor() {
+                            let casting_type = item_out.elem();
+                            f.write_fmt(format_args!("{out}[{lhs}] = vec{vectorization_factor}("))?;
+                            for i in 0..vectorization_factor {
+                                let value = rhs.index(i);
+                                f.write_fmt(format_args!("{casting_type}({value})"))?;
+
+                                if i < vectorization_factor - 1 {
+                                    f.write_str(",")?;
+                                }
+                            }
+                            f.write_str(");\n")
+                        } else {
+                            let casting_type = item_out;
+                            f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                        }
+                    }
                 }
             },
             Instruction::If { cond, instructions } => {

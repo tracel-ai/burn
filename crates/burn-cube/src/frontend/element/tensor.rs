@@ -1,4 +1,4 @@
-use super::{ExpandElementTyped, Init, LaunchArgExpand};
+use super::{ExpandElementTyped, Init, LaunchArgExpand, Vectorized};
 use crate::{
     frontend::{
         indexation::Index, ArgSettings, CubeContext, CubePrimitive, CubeType, ExpandElement, UInt,

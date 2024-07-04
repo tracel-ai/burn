@@ -116,7 +116,7 @@ pub enum ExpandElement {
 #[derive(new)]
 pub struct ExpandElementTyped<T> {
     pub(crate) expand: ExpandElement,
-    _type: PhantomData<T>,
+    pub(crate) _type: PhantomData<T>,
 }
 
 impl<T> Vectorized for ExpandElementTyped<T> {
