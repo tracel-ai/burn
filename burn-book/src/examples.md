@@ -57,11 +57,11 @@ Below is a file tree of a typical Burn example package:
 examples/burn-example
 ├── Cargo.toml
 ├── examples
-│   ├── example1.rs
-│   ├── example2.rs
+│   ├── example1.rs      ---> compiled to example1 binary
+│   ├── example2.rs      ---> compiled to example2 binary
 │   └── ...
 └── src
-    ├── lib.rs
+    ├── lib.rs           ---> this is the root file for a library
     ├── module1.rs
     ├── module2.rs
     └── ...
@@ -84,7 +84,7 @@ The following additional examples are currently available if you want to check t
 | [Named Tensor](https://github.com/tracel-ai/burn/tree/main/examples/named-tensor)                         | Performs operations with the experimental `NamedTensor` feature.                                                                                                                             |
 | [ONNX Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)              | Imports an ONNX model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                                 |
 | [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/pytorch-import)           | Imports a PyTorch model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                               |
-| [Text Classification](https://github.com/tracel-ai/burn/tree/main/examples/text-classification)           | Trains a text classification transformer model on the AG News or DbPedia dataset. The trained model can then be used to classify a text sample.                                              |
+| [Text Classification](https://github.com/tracel-ai/burn/tree/main/examples/text-classification)           | Trains a text classification transformer model on the AG News or DbPedia datasets. The trained model can then be used to classify a text sample.                                              |
 | [Text Generation](https://github.com/tracel-ai/burn/tree/main/examples/text-generation)                   | Trains a text generation transformer model on the DbPedia dataset.                                                                                                                           |
 
 For more information on each example, see their respective `README.md` file. Be sure to check out
