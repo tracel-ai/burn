@@ -87,6 +87,7 @@ impl CubeTiling2dConfig {
                 && config.block_size_n % config.tile_size == 0,
             "Tiling 2d algorithm assumes tile size divides block size perfectly. "
         );
+
         CubeTiling2dConfig {
             block_size_m: UInt::new(config.block_size_m as u32),
             block_size_k: UInt::new(config.block_size_k as u32),

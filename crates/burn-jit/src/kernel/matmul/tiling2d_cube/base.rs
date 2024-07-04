@@ -51,13 +51,13 @@ pub(crate) struct CubeTiling2dInfo {
     pub out_stride: UInt,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Copy, Clone)]
 pub(crate) struct SharedMemories<F: Float> {
     pub lhs: SharedMemory<F>,
     pub rhs: SharedMemory<F>,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Copy, Clone)]
 /// Number of elements in previous batches
 /// Not divided by vectorization facto
 pub(crate) struct BatchOffsets {
@@ -217,14 +217,38 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .next()
             .unwrap_or(1)
     };
+    let lhs_vectorization = match lhs_transposed {
+        true => vectorization(m),
+        false => vectorization(k),
+    };
+    let rhs_vectorization = match rhs_transposed {
+        true => vectorization(k),
+        false => vectorization(n),
+    };
+    let out_vectorization = vectorization(n);
 
     tiling2d_cube_launch::<E::FloatPrimitive, R>(
         client,
         tiling2d_cube_count(&out.shape, &config),
         tiling2d_cube_dim(&config),
-        TensorArg::vectorized(vectorization(k), &lhs.handle, &lhs.strides, &lhs.shape.dims),
-        TensorArg::vectorized(vectorization(n), &rhs.handle, &rhs.strides, &rhs.shape.dims),
-        TensorArg::vectorized(vectorization(n), &out.handle, &out.strides, &out.shape.dims),
+        TensorArg::vectorized(
+            lhs_vectorization,
+            &lhs.handle,
+            &lhs.strides,
+            &lhs.shape.dims,
+        ),
+        TensorArg::vectorized(
+            rhs_vectorization,
+            &rhs.handle,
+            &rhs.strides,
+            &rhs.shape.dims,
+        ),
+        TensorArg::vectorized(
+            out_vectorization,
+            &out.handle,
+            &out.strides,
+            &out.shape.dims,
+        ),
         CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed),
     );
 

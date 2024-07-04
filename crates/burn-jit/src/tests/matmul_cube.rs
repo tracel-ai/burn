@@ -2,7 +2,8 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::matmul::tiling2d_cube::{
-        compute_loop_tests, load_shared_memory_tests, outer_product_tests, write_output_tests,
+        compute_loop_tests, load_shared_memory_tests, outer_product_tests, tile_read_tests,
+        tile_write_tests, write_output_tests,
     };
     use burn_jit::kernel::matmul::{matmul, MatmulStrategy, Tiling2dConfig};
     use burn_tensor::{Shape, Tensor};
@@ -38,62 +39,54 @@ mod tests {
 
     #[test]
     pub fn tiling2d_matmul_read_whole_vectorized_like_tile_test() {
-        load_shared_memory_tests::read_whole_vectorized_like_tile_test::<TestRuntime>(
-            &Default::default(),
-        )
+        tile_read_tests::read_whole_vectorized_like_tile_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn tiling2d_matmul_read_whole_vectorized_less_than_tile_test() {
-        load_shared_memory_tests::read_whole_vectorized_less_than_tile_test::<TestRuntime>(
+        tile_read_tests::read_whole_vectorized_less_than_tile_test::<TestRuntime>(
             &Default::default(),
         )
     }
 
     #[test]
     pub fn tiling2d_matmul_read_whole_scalar_test() {
-        load_shared_memory_tests::read_whole_scalar_test::<TestRuntime>(&Default::default())
+        tile_read_tests::read_whole_scalar_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn read_whole_scalar_out_of_bound_test() {
-        load_shared_memory_tests::read_whole_scalar_out_of_bound_test::<TestRuntime>(
-            &Default::default(),
-        )
+        tile_read_tests::read_whole_scalar_out_of_bound_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn tiling2d_matmul_read_partial_unit_test() {
-        load_shared_memory_tests::read_partial_unit_test::<TestRuntime>(&Default::default())
+        tile_read_tests::read_partial_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn tiling2d_matmul_load_tile_no_checks_unit_test() {
-        load_shared_memory_tests::load_tile_no_checks_unit_test::<TestRuntime>(&Default::default())
+        tile_read_tests::read_tile_no_checks_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn tiling2d_matmul_load_tile_vertical_checks_unit_test() {
-        load_shared_memory_tests::load_tile_vertical_checks_unit_test::<TestRuntime>(
-            &Default::default(),
-        )
+        tile_read_tests::read_tile_vertical_checks_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn tiling2d_matmul_load_tile_horizontal_checks_unit_test() {
-        load_shared_memory_tests::load_tile_horizontal_checks_unit_test::<TestRuntime>(
-            &Default::default(),
-        )
+        tile_read_tests::read_tile_horizontal_checks_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn write_tile_plain_unit_test() {
-        load_shared_memory_tests::write_tile_plain_unit_test::<TestRuntime>(&Default::default())
+        tile_write_tests::write_tile_plain_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
     pub fn write_tile_transposed_unit_test() {
-        load_shared_memory_tests::write_tile_transposed_unit_test::<TestRuntime>(&Default::default())
+        tile_write_tests::write_tile_transposed_unit_test::<TestRuntime>(&Default::default())
     }
 
     #[test]
