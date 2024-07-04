@@ -98,14 +98,22 @@ impl TypeCodegen {
     }
 
     pub fn arg_settings_impl(&self) -> proc_macro2::TokenStream {
-        let mut body = quote::quote! {};
+        let mut register_body = quote::quote! {};
+        let mut configure_input_body = quote::quote! {};
+        let mut configure_output_body = quote::quote! {};
         let name = &self.name_launch;
 
-        for field in self.fields.iter() {
+        for (pos, field) in self.fields.iter().enumerate() {
             let ident = &field.ident;
 
-            body.extend(quote! {
+            register_body.extend(quote! {
                 self.#ident.register(launcher);
+            });
+            configure_input_body.extend(quote! {
+                settings = ArgSettings::<R>::configure_input(&self.#ident, #pos, settings);
+            });
+            configure_output_body.extend(quote! {
+                settings = ArgSettings::<R>::configure_output(&self.#ident, #pos, settings);
             });
         }
 
@@ -115,7 +123,19 @@ impl TypeCodegen {
         quote! {
             impl #generics_impl ArgSettings<R> for #name #generics_use {
                 fn register(&self, launcher: &mut KernelLauncher<R>) {
-                    #body
+                    #register_body
+                }
+
+                fn configure_input(&self, position: usize, mut settings: KernelSettings) -> KernelSettings {
+                    #configure_input_body
+
+                    settings
+                }
+
+                fn configure_output(&self, position: usize, mut settings: KernelSettings) -> KernelSettings {
+                    #configure_output_body
+
+                    settings
                 }
             }
         }

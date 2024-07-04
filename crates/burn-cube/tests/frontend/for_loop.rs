@@ -33,7 +33,7 @@ mod tests {
         let rhs = context.create_local(Item::new(ElemType::as_elem()));
         let end = 4u32.into();
 
-        for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
+        for_loop_expand::<ElemType>(&mut context, lhs.into(), rhs, end, unroll);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));
@@ -48,7 +48,7 @@ mod tests {
         let rhs = context.create_local(Item::new(ElemType::as_elem()));
         let end = 4u32.into();
 
-        for_loop_expand::<ElemType>(&mut context, lhs, rhs, end, unroll);
+        for_loop_expand::<ElemType>(&mut context, lhs.into(), rhs, end, unroll);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(unroll));

@@ -188,20 +188,14 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
         }
     };
 
-    let num_elems_output = output.shape.num_elements();
-    let workgroup = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
-    let settings = KernelSettings::default()
-        .vectorize_input(0, 1)
-        .vectorize_output(0, 1);
-
     conv3d_kernel_launch::<E::FloatPrimitive, R>(
         input.client,
-        workgroup,
-        settings,
-        TensorHandle::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-        TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
+        calculate_cube_count_elemwise(output.shape.num_elements(), SUBCUBE_DIM_APPROX),
+        CubeDim::default(),
+        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
+        TensorArg::new(&weight.handle, &weight.strides, &weight.shape.dims),
+        TensorArg::new(&bias.handle, &bias.strides, &bias.shape.dims),
+        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
         Conv3dArgsLaunch::new(
             options.stride[0] as u32,
             options.stride[1] as u32,
