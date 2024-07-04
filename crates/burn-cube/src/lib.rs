@@ -55,7 +55,7 @@ pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeC
 }
 
 /// Runtime arguments to launch a kernel.
-pub type RuntimeArg<'a, T, R> = <T as LaunchArg<R>>::RuntimeArg<'a>;
+pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;
 
 #[cfg(feature = "export_tests")]
 /// Tests only useful for runtimes.

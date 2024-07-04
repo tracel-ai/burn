@@ -84,6 +84,6 @@ impl<T: Numeric, R: Runtime> ArgSettings<R> for ScalarArg<T> {
     }
 }
 
-impl<T: Numeric, R: Runtime> LaunchArg<R> for T {
-    type RuntimeArg<'a> = ScalarArg<T>;
+impl<T: Numeric> LaunchArg for T {
+    type RuntimeArg<'a, R: Runtime> = ScalarArg<T>;
 }

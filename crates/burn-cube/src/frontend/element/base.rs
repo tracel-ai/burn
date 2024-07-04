@@ -55,9 +55,38 @@ pub trait LaunchArgExpand: CubeType {
 }
 
 /// Defines a type that can be used as argument to a kernel.
-pub trait LaunchArg<R: Runtime>: CubeType {
+pub trait LaunchArg: LaunchArgExpand + Send + Sync + 'static {
     /// The runtime argument for the kernel.
-    type RuntimeArg<'a>: ArgSettings<R>;
+    type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
+}
+
+impl LaunchArg for () {
+    type RuntimeArg<'a, R: Runtime> = ();
+}
+
+impl<R: Runtime> ArgSettings<R> for () {
+    fn register(&self, _launcher: &mut KernelLauncher<R>) {
+        // nothing to do
+    }
+}
+
+impl LaunchArgExpand for () {
+    fn expand(
+        _builder: &mut KernelBuilder,
+        _vectorization: Vectorization,
+    ) -> <Self as CubeType>::ExpandType {
+        ()
+    }
+}
+
+impl CubeType for () {
+    type ExpandType = ();
+}
+
+impl Init for () {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
 }
 
 /// Defines the argument settings used to launch a kernel.

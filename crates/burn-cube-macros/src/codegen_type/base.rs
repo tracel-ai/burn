@@ -49,7 +49,7 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             fields.extend(quote! {
-                #vis #ident: <#ty as LaunchArg<R>>::RuntimeArg<'a>,
+                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
             });
         }
 
@@ -73,7 +73,7 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             args.extend(quote! {
-                #vis #ident: <#ty as LaunchArg<R>>::RuntimeArg<'a>,
+                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
             });
             fields.extend(quote! {
                 #ident,
@@ -178,12 +178,11 @@ impl TypeCodegen {
         let type_generics_impl = self.generics.type_definitions();
         let type_generics_use = self.generics.type_in_use();
 
-        let runtime_and_type_impl = self.generics.runtime_and_type();
         let runtime_generics_impl = self.generics.runtime_definitions();
         let all_generics_use = self.generics.all_in_use();
 
         quote! {
-            impl #runtime_and_type_impl LaunchArg<R> for #name #type_generics_use {
+            impl #type_generics_impl LaunchArg for #name #type_generics_use {
                 type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
             }
 

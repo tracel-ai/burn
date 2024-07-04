@@ -31,8 +31,8 @@ impl<E: CubeType> Array<E> {
     }
 }
 
-impl<C: CubePrimitive, R: Runtime> LaunchArg<R> for Array<C> {
-    type RuntimeArg<'a> = ArrayArg<'a, R>;
+impl<C: CubePrimitive> LaunchArg for Array<C> {
+    type RuntimeArg<'a, R: Runtime> = ArrayArg<'a, R>;
 }
 
 impl<C: CubePrimitive> LaunchArgExpand for Array<C> {

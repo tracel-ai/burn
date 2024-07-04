@@ -42,8 +42,8 @@ impl<C: CubePrimitive> LaunchArgExpand for Tensor<C> {
     }
 }
 
-impl<C: CubePrimitive, R: Runtime> LaunchArg<R> for Tensor<C> {
-    type RuntimeArg<'a> = TensorArg<'a, R>;
+impl<C: CubePrimitive> LaunchArg for Tensor<C> {
+    type RuntimeArg<'a, R: Runtime> = TensorArg<'a, R>;
 }
 
 /// Tensor representation with a reference to the [server handle](burn_compute::server::Handle),

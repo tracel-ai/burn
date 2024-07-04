@@ -45,12 +45,8 @@ impl GenericsCodegen {
     }
 
     pub(crate) fn runtime_definitions(&self) -> TokenStream {
-        self.arg_lifetime.to_token_stream()
-    }
-
-    pub(crate) fn runtime_and_type(&self) -> TokenStream {
-        let mut generics = self.type_gens.clone();
-        generics.params.extend(self.arg_runtime.params.clone());
+        let mut generics = self.arg_runtime.clone();
+        generics.params.extend(self.arg_lifetime.params.clone());
         generics.to_token_stream()
     }
 

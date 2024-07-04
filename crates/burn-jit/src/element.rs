@@ -12,7 +12,7 @@ pub trait JitElement: burn_tensor::Element + CubeElement {
 /// The float element type for the jit backend.
 pub trait FloatElement: JitElement<Primitive = Self::FloatPrimitive> {
     /// Cube primitive representing the jit element.
-    type FloatPrimitive: Float;
+    type FloatPrimitive: Float<Primitive = Self>;
 }
 
 /// The int element type for the jit backend.
