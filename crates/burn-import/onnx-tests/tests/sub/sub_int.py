@@ -27,6 +27,9 @@ class Model(nn.Module):
         # Sutract a scalar from a tensor
         x = x - d
 
+        # Sutract a tensor from a scalar
+        x = d - x
+
         return x
 
 
@@ -41,8 +44,9 @@ def main():
     test_input = torch.tensor([[[[1, 2, 3, 4]]]], device=device)
     scalar = 3
 
-    torch.onnx.export(model, (test_input, scalar), onnx_name,
-                      verbose=False, opset_version=16)
+    torch.onnx.export(
+        model, (test_input, scalar), onnx_name, verbose=False, opset_version=16
+    )
 
     print("Finished exporting model to {}".format(onnx_name))
 
@@ -51,5 +55,5 @@ def main():
     print("Test output data: {}".format(output))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
