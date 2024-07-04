@@ -81,5 +81,5 @@ pub(crate) fn make_config(m: usize, k: usize, n: usize) -> CubeTiling2dConfig {
         block_size_n: 8,
         ..Default::default()
     };
-    CubeTiling2dConfig::new(&tiling2d_config, m, k, n)
+    CubeTiling2dConfig::new(&tiling2d_config, m, k, n, false, false)
 }

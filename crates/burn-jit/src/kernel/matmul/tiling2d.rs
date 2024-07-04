@@ -9,7 +9,7 @@ use burn_tensor::{Element, Shape};
 use crate::{
     element::JitElement,
     kernel::{into_contiguous, matmul::config::tiling2d_cube_dim, Kernel},
-    tensor::JitTensor,
+    tensor::{JitTensor, MemoryLayout},
     JitRuntime,
 };
 use std::marker::PhantomData;
@@ -96,14 +96,16 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
     let kernel = MatmulTiling2dEagerKernel::<R, E>::new(config.clone(), bounds_check_required);
     let client = lhs.client.clone();
 
-    let lhs = match lhs.batch_swapped_with_row_col() {
-        true => into_contiguous(lhs),
-        false => lhs,
+    let check_layout = |tensor: JitTensor<R, E, D>| match tensor.memory_layout() {
+        MemoryLayout::Contiguous => (tensor, false),
+        MemoryLayout::MildlyPermuted {
+            transposed,
+            batch_swap: _,
+        } => (tensor, transposed),
+        MemoryLayout::HighlyPermuted => (into_contiguous(tensor), false),
     };
-    let rhs = match rhs.batch_swapped_with_row_col() {
-        true => into_contiguous(rhs),
-        false => rhs,
-    };
+    let (lhs, _lhs_transposed) = check_layout(lhs);
+    let (rhs, _rhs_transposed) = check_layout(rhs);
 
     Execution::start(kernel, client)
         .inputs(&[
@@ -138,14 +140,18 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
     // kernel handles it without needing to turn it into contiguous.
     let round_lhs = pad_round::<R, E, D>(lhs, config.block_size_m, config.block_size_k);
     let lhs = match round_lhs {
-        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+        PaddingOutput::Unchanged(tensor)
+            if tensor.memory_layout() == MemoryLayout::HighlyPermuted =>
+        {
             into_contiguous(tensor)
         }
         _ => round_lhs.into_tensor(),
     };
     let round_rhs = pad_round::<R, E, D>(rhs, config.block_size_k, config.block_size_n);
     let rhs = match round_rhs {
-        PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
+        PaddingOutput::Unchanged(tensor)
+            if tensor.memory_layout() == MemoryLayout::HighlyPermuted =>
+        {
             into_contiguous(tensor)
         }
         _ => round_rhs.into_tensor(),

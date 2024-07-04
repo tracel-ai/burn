@@ -9,7 +9,7 @@ use crate::{
             tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig,
         },
     },
-    tensor::JitTensor,
+    tensor::{JitTensor, MemoryLayout},
     FloatElement, JitRuntime,
 };
 
@@ -198,6 +198,15 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let client = lhs.client.clone();
 
+    let lhs = match lhs.memory_layout() == MemoryLayout::HighlyPermuted {
+        true => into_contiguous(lhs),
+        false => lhs,
+    };
+    let rhs = match lhs.memory_layout() == MemoryLayout::HighlyPermuted {
+        true => into_contiguous(rhs),
+        false => rhs,
+    };
+
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
@@ -217,7 +226,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         TensorArg::vectorized(vectorization(k), &lhs.handle, &lhs.strides, &lhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &rhs.handle, &rhs.strides, &rhs.shape.dims),
         TensorArg::vectorized(vectorization(n), &out.handle, &out.strides, &out.shape.dims),
-        CubeTiling2dConfig::new(&config, m, k, n),
+        CubeTiling2dConfig::new(&config, m, k, n, false, false),
     );
 
     out

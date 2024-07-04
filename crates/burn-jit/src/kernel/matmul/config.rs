@@ -61,10 +61,21 @@ pub struct CubeTiling2dConfig {
     pub check_sm_bounds: bool,
     /// Tile size. Should correspond to vectorization of inputs/outputs/shared memory
     pub tile_size: UInt,
+    /// Lhs is transposed in global memory
+    pub lhs_transposed: bool,
+    /// Rhs is transposed in global memory
+    pub rhs_transposed: bool,
 }
 
 impl CubeTiling2dConfig {
-    pub fn new(config: &Tiling2dConfig, m: usize, k: usize, n: usize) -> Self {
+    pub fn new(
+        config: &Tiling2dConfig,
+        m: usize,
+        k: usize,
+        n: usize,
+        lhs_transposed: bool,
+        rhs_transposed: bool,
+    ) -> Self {
         assert!(
             config.block_size_k <= config.block_size_m
                 && config.block_size_k <= config.block_size_n,
@@ -88,6 +99,8 @@ impl CubeTiling2dConfig {
             check_sm_bounds: config.block_size_k != config.block_size_m
                 || config.block_size_k != config.block_size_n,
             tile_size: UInt::new(config.tile_size as u32),
+            lhs_transposed,
+            rhs_transposed,
         }
     }
 }
