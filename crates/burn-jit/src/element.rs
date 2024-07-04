@@ -1,12 +1,12 @@
 use burn_cube::{
-    frontend::{CubePrimitive, Float, Int, UInt, BF16, F16, F32, I32},
+    frontend::{Float, Int, Numeric, UInt, BF16, F16, F32, I32},
     CubeElement,
 };
 
 /// The base element trait for the jit backend.
 pub trait JitElement: burn_tensor::Element + CubeElement {
     /// Cube primitive representing the jit element.
-    type Primitive: CubePrimitive;
+    type Primitive: Numeric<Primitive = Self>;
 }
 
 /// The float element type for the jit backend.
@@ -40,6 +40,7 @@ impl JitElement for half::f16 {
 impl JitElement for half::bf16 {
     type Primitive = BF16;
 }
+
 impl FloatElement for f32 {
     type FloatPrimitive = F32;
 }

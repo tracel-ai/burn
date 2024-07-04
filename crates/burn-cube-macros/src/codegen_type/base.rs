@@ -49,7 +49,7 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             fields.extend(quote! {
-                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
+                #vis #ident: <#ty as LaunchArg<R>>::RuntimeArg<'a>,
             });
         }
 
@@ -73,7 +73,7 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             args.extend(quote! {
-                #vis #ident: <#ty as LaunchArg>::RuntimeArg<'a, R>,
+                #vis #ident: <#ty as LaunchArg<R>>::RuntimeArg<'a>,
             });
             fields.extend(quote! {
                 #ident,
@@ -152,12 +152,6 @@ impl TypeCodegen {
             impl #generics_impl CubeType for #name #generics_use {
                 type ExpandType = #name_expand #generics_use;
             }
-            impl #generics_impl CubeType for &#name #generics_use {
-                type ExpandType = #name_expand #generics_use;
-            }
-            impl #generics_impl CubeType for &mut #name #generics_use {
-                type ExpandType = #name_expand #generics_use;
-            }
         }
     }
 
@@ -183,11 +177,13 @@ impl TypeCodegen {
 
         let type_generics_impl = self.generics.type_definitions();
         let type_generics_use = self.generics.type_in_use();
+
+        let runtime_and_type_impl = self.generics.runtime_and_type();
         let runtime_generics_impl = self.generics.runtime_definitions();
         let all_generics_use = self.generics.all_in_use();
 
         quote! {
-            impl #type_generics_impl LaunchArg for #name #type_generics_use {
+            impl #runtime_and_type_impl LaunchArg<R> for #name #type_generics_use {
                 type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
             }
 
@@ -218,16 +214,7 @@ impl TypeCodegen {
         let type_generics_use = self.generics.type_in_use();
 
         quote! {
-            impl #type_generics_impl Init for #name_expand  #type_generics_use {
-                fn init(self, context: &mut CubeContext) -> Self {
-                    self
-                }
-            }
-            impl #type_generics_impl Init for &#name_expand  #type_generics_use {
-                fn init(self, context: &mut CubeContext) -> Self {
-                    self
-                }
-            }
+            impl #type_generics_impl Init for #name_expand  #type_generics_use {}
         }
     }
 }

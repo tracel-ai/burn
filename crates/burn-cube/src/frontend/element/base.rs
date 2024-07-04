@@ -55,9 +55,9 @@ pub trait LaunchArgExpand: CubeType {
 }
 
 /// Defines a type that can be used as argument to a kernel.
-pub trait LaunchArg: CubeType {
+pub trait LaunchArg<R: Runtime>: CubeType {
     /// The runtime argument for the kernel.
-    type RuntimeArg<'a, R: Runtime>: ArgSettings<R>;
+    type RuntimeArg<'a>: ArgSettings<R>;
 }
 
 /// Defines the argument settings used to launch a kernel.

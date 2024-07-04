@@ -4,7 +4,7 @@ use crate::ir::{Elem, IntKind, Item, Variable, Vectorization};
 use crate::prelude::index_assign;
 use crate::Runtime;
 
-use super::{ArgSettings, LaunchArg, LaunchArgExpand, UInt, Vectorized};
+use super::{LaunchArgExpand, ScalarArgSettings, UInt, Vectorized};
 
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
@@ -36,7 +36,9 @@ macro_rules! impl_int {
             }
         }
 
-        impl Numeric for $type {}
+        impl Numeric for $type {
+            type Primitive = $primitive;
+        }
 
         impl Int for $type {
             fn new(val: i64) -> Self {
@@ -88,10 +90,6 @@ macro_rules! impl_int {
             }
         }
 
-        impl LaunchArg for $type {
-            type RuntimeArg<'a, R: Runtime> = $primitive;
-        }
-
         impl Vectorized for $type {
             fn vectorization_factor(&self) -> UInt {
                 UInt {
@@ -129,14 +127,14 @@ impl From<i32> for I32 {
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for i32 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for i32 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_i32(*self);
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for i64 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for i64 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_i64(*self);
     }
 }

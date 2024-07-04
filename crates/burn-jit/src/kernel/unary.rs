@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use burn_cube::{calculate_cube_count_elemwise, prelude::*, unexpanded, SUBCUBE_DIM_APPROX};
 use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 
@@ -165,7 +163,7 @@ pub(crate) fn launch_unary<
 #[cube(launch)]
 pub(crate) fn unary_scalar_kernel<C: Numeric, O: UnaryScalarOp<C>>(
     input: &Tensor<C>,
-    scalar: F32,
+    scalar: C,
     output: &mut Tensor<C>,
     rank: Comptime<Option<UInt>>,
     to_contiguous: Comptime<bool>,
@@ -200,10 +198,7 @@ pub(crate) fn launch_scalar_unary<
 >(
     tensor: JitTensor<R, E, D>,
     scalar: E,
-) -> JitTensor<R, E, D>
-where
-    E::Primitive: Numeric,
-{
+) -> JitTensor<R, E, D> {
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor = if tensor.strides[D - 1] == 1 {
         let last_dim = tensor.shape.dims[D - 1];
@@ -227,7 +222,6 @@ where
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
-        let scalar = scalar.elem();
         unary_scalar_kernel_launch::<E::Primitive, O, R>(
             client,
             cube_count,
@@ -238,7 +232,7 @@ where
                 &tensor.strides,
                 &tensor.shape.dims,
             ),
-            scalar,
+            ScalarArg::new(scalar),
             TensorArg::alias(0),
             None,
             false,
@@ -254,7 +248,6 @@ where
             buffer,
         );
 
-        let scalar = scalar.elem();
         unary_scalar_kernel_launch::<E::Primitive, O, R>(
             client,
             cube_count,
@@ -265,7 +258,7 @@ where
                 &tensor.strides,
                 &tensor.shape.dims,
             ),
-            scalar,
+            ScalarArg::new(scalar),
             TensorArg::vectorized(
                 vectorization_factor,
                 &output.handle,

@@ -3,6 +3,7 @@ use crate::{tensor::JitTensor, JitElement, JitRuntime};
 use burn_cube::{calculate_cube_count_elemwise, prelude::*};
 use burn_cube::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
 
+/// Returns the offset of the tensor corresponding to the layout tensor.
 #[cube]
 pub fn index_offset_with_layout<N: CubePrimitive>(
     tensor: &Tensor<N>,
