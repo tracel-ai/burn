@@ -118,10 +118,6 @@ macro_rules! impl_float {
             }
         }
 
-        // impl LaunchArg for $type {
-        //     type RuntimeArg<'a, R: Runtime> = $primitive;
-        // }
-
         impl Vectorized for $type {
             fn vectorization_factor(&self) -> UInt {
                 UInt {
