@@ -24,6 +24,7 @@ edition = "2021"
 version = "0.14.0"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
+rust-version = "1.79"
 
 [workspace.dependencies]
 bytemuck = "1.16.1"
