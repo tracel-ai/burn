@@ -54,6 +54,28 @@ pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeC
     CubeCount::new(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
+pub fn tensor_vectorization_factor(factors: &[u8], shape: &[usize], strides: &[usize]) -> u8 {
+    if let Some(val) = strides.last() {
+        if *val != 1 {
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+    let last_dim = match shape.last() {
+        Some(val) => val,
+        None => return 1,
+    };
+
+    for factor in factors {
+        if last_dim % *factor as usize == 0 {
+            return *factor;
+        }
+    }
+
+    1
+}
+
 /// Runtime arguments to launch a kernel.
 pub type RuntimeArg<'a, T, R> = <T as LaunchArg>::RuntimeArg<'a, R>;
 

@@ -8,6 +8,7 @@ use burn_tensor::Shape;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
+#[derive(new)]
 pub struct JitTensor<R, E, const D: usize>
 where
     R: JitRuntime,
@@ -66,7 +67,7 @@ where
     E: JitElement,
 {
     /// Create a new tensor with a contiguous memory layout.
-    pub fn new(
+    pub fn new_contiguous(
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         shape: Shape<D>,

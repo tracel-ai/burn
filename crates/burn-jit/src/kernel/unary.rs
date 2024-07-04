@@ -34,7 +34,7 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
     }
 
     if Comptime::get(to_contiguous) {
-        let offset_input = index_offset_with_layout::<C>(
+        let offset_input = index_offset_with_layout::<C, C>(
             input,
             output,
             offset_output,
@@ -105,7 +105,7 @@ where
         tensor
     } else {
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new(
+        let output = JitTensor::new_contiguous(
             tensor.client.clone(),
             tensor.device,
             tensor.shape.clone(),
@@ -412,7 +412,7 @@ where
     } else {
         let num_elems = tensor.shape.num_elements();
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new(
+        let output = JitTensor::new_contiguous(
             tensor.client.clone(),
             tensor.device,
             tensor.shape.clone(),

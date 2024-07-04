@@ -75,7 +75,7 @@ pub fn empty_device<R: JitRuntime, E: JitElement, const D: usize>(
 ) -> JitTensor<R, E, D> {
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    JitTensor::new(client, device, shape, buffer)
+    JitTensor::new_contiguous(client, device, shape, buffer)
 }
 
 pub fn add<R: JitRuntime, E: JitElement, const D: usize>(

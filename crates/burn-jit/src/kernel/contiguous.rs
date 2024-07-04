@@ -5,9 +5,9 @@ use burn_cube::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
 
 /// Returns the offset of the tensor corresponding to the layout tensor.
 #[cube]
-pub fn index_offset_with_layout<N: CubePrimitive>(
+pub fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     tensor: &Tensor<N>,
-    layout: &Tensor<N>,
+    layout: &Tensor<L>,
     offset_layout: UInt,
     dim_start: UInt,
     dim_end: UInt,
@@ -39,7 +39,7 @@ fn into_contiguous_kernel<N: CubePrimitive>(
         return;
     }
 
-    let offset_input = index_offset_with_layout::<N>(
+    let offset_input = index_offset_with_layout::<N, N>(
         input,
         output,
         offset_output,
@@ -76,7 +76,7 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         tensor.client.clone(),
         tensor.device,
         tensor.shape.clone(),
