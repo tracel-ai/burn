@@ -14,9 +14,8 @@ fn main() {
     let start = std::time::Instant::now();
     let storage = BytesStorage::default();
     let mut mm = DynamicMemoryManagement::new(
-        32,
         storage,
-        DynamicMemoryManagementOptions::preset(2048 * MB),
+        DynamicMemoryManagementOptions::preset(2048 * MB, 32),
     );
     let mut handles = LinkedList::new();
     for _ in 0..100 * 2048 {

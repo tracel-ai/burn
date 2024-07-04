@@ -9,7 +9,7 @@ use super::MemoryManagement;
 
 /// Reserves and keeps track of chunks of memory in the storage, and slices upon these chunks.
 pub struct DynamicMemoryManagement<Storage> {
-    min_storage_buffer_alignment_offset: usize,
+    min_chunk_alignment_offset: usize,
     small_memory_pool: SmallMemoryPool,
     pools: Vec<MemoryPool>,
     options: Vec<MemoryPoolOptions>,
@@ -20,6 +20,7 @@ pub struct DynamicMemoryManagement<Storage> {
 #[derive(new, Debug)]
 pub struct DynamicMemoryManagementOptions {
     pools: Vec<MemoryPoolOptions>,
+    min_chunk_alignment_offset: usize,
 }
 
 /// Options to create a memory pool.
@@ -36,10 +37,8 @@ pub struct MemoryPoolOptions {
 }
 
 impl DynamicMemoryManagementOptions {
-    /// Creates the options from the maximum amount of memory a single chunk can contain.
-    ///
-    /// It then creates smaller memory pools that shouldn't cause too much fragmentation.
-    pub fn preset(max_chunk_size: usize) -> Self {
+    /// Creates the options from device limits.
+    pub fn preset(max_chunk_size: usize, min_chunk_alignment_offset: usize) -> Self {
         // Rounding down to a factor of 8.
         let max_chunk_size = (max_chunk_size / 8) * 8;
 
@@ -66,20 +65,21 @@ impl DynamicMemoryManagementOptions {
             });
         }
 
-        Self { pools }
+        Self {
+            pools,
+            min_chunk_alignment_offset,
+        }
     }
 }
 
 impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
     /// Creates a new instance using the given storage, merging_strategy strategy and slice strategy.
-    pub fn new(
-        min_storage_buffer_alignment_offset: usize,
-        mut storage: Storage,
-        mut options: DynamicMemoryManagementOptions,
-    ) -> Self {
+    pub fn new(mut storage: Storage, mut options: DynamicMemoryManagementOptions) -> Self {
         options
             .pools
             .sort_by(|pool1, pool2| usize::cmp(&pool1.slice_max_size, &pool2.slice_max_size));
+
+        let min_chunk_alignment_offset = options.min_chunk_alignment_offset;
 
         let pools = options
             .pools
@@ -88,7 +88,7 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
                 let mut pool = MemoryPool::new(
                     MemoryExtensionStrategy::Never,
                     RoundingStrategy::FixedAmount(option.chunk_size),
-                    min_storage_buffer_alignment_offset,
+                    min_chunk_alignment_offset,
                 );
 
                 for _ in 0..option.chunk_num_prealloc {
@@ -100,8 +100,8 @@ impl<Storage: ComputeStorage> DynamicMemoryManagement<Storage> {
             .collect();
 
         Self {
-            min_storage_buffer_alignment_offset,
-            small_memory_pool: SmallMemoryPool::new(min_storage_buffer_alignment_offset),
+            min_chunk_alignment_offset,
+            small_memory_pool: SmallMemoryPool::new(min_chunk_alignment_offset),
             pools,
             options: options.pools,
             storage,
@@ -140,7 +140,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn reserve<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= self.min_storage_buffer_alignment_offset {
+        if size <= self.min_chunk_alignment_offset {
             return self
                 .small_memory_pool
                 .reserve(&mut self.storage, size, sync);
@@ -157,7 +157,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for DynamicMemoryManagem
     }
 
     fn alloc<Sync: FnOnce()>(&mut self, size: usize, sync: Sync) -> Self::Handle {
-        if size <= self.min_storage_buffer_alignment_offset {
+        if size <= self.min_chunk_alignment_offset {
             return self.small_memory_pool.alloc(&mut self.storage, size, sync);
         }
 
