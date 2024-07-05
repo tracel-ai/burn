@@ -7,7 +7,7 @@ use crate::{
 use burn_cube::ir::KernelDefinition;
 use burn_cube::{frontend::TensorArg, KernelSettings};
 
-use super::simple_launch_options;
+use super::simple_workgroup_count;
 use burn_cube::prelude::*;
 
 #[cube(launch)]
@@ -103,7 +103,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     let rhs_original_shape = rhs.shape.clone();
     let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
 
-    let cube_count = simple_launch_options(
+    let cube_count = simple_workgroup_count::<R, D>(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,

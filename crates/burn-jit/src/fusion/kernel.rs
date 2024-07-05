@@ -22,7 +22,7 @@ pub struct FusionKernel<R: JitRuntime> {
     info: Arc<KernelExpansion>,
     settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    cube_count: CubeCount,
+    cube_count: CubeCount<R::Server>,
     _runtime: PhantomData<R>,
 }
 
@@ -40,7 +40,7 @@ pub trait FusionKernelFactory<R: JitRuntime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: JitRuntime> {
-    kernel: Box<dyn CubeTask>,
+    kernel: Box<dyn CubeTask<R::Server>>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -53,7 +53,7 @@ pub struct ExecutableKernel<R: JitRuntime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: JitRuntime> {
-    kernel: Arc<dyn CubeTask>,
+    kernel: Arc<dyn CubeTask<R::Server>>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -235,7 +235,7 @@ impl<R: JitRuntime> FusionKernel<R> {
 
         let workgroup = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
-            Box::new(KernelTask::<R::Compiler, FusionKernel<R>>::new(
+            Box::new(KernelTask::<R, FusionKernel<R>>::new(
                 fusion_kernel,
                 workgroup,
             )),

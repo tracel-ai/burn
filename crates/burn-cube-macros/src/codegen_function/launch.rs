@@ -470,7 +470,7 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
         /// Launch
         pub fn #ident #generics (
             client: ComputeClient<R::Server, R::Channel>,
-            cube_count: CubeCount,
+            cube_count: CubeCount<R::Server>,
             cube_dim: CubeDim,
             #inputs
         ) -> #output {

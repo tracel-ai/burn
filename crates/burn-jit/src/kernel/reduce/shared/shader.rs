@@ -244,7 +244,7 @@ pub fn reduce_dim_shared<
     let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);
-    let grid = CubeCount::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
+    let grid = CubeCount::Fixed(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     let reduce_group_size = input.shape.dims[dim];
     let n_invocation_per_workgroup = SUBCUBE_DIM_APPROX * SUBCUBE_DIM_APPROX;

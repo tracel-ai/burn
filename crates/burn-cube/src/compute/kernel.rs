@@ -1,6 +1,6 @@
-use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, Kernel};
+use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, Kernel, Runtime};
 use alloc::sync::Arc;
-use std::marker::PhantomData;
+use burn_compute::server::{ComputeServer, Handle};
 
 /// A kernel, compiled in the target language
 pub struct CompiledKernel {
@@ -12,38 +12,31 @@ pub struct CompiledKernel {
     pub shared_mem_bytes: usize,
 }
 
-/// Information needed to launch the kernel
-pub struct LaunchSettings {
-    /// Layout of workgroups for the kernel
-    pub cube_count: CubeCount,
-}
-
 /// Kernel trait with the ComputeShader that will be compiled and cached based on the
 /// provided id.
 ///
 /// The kernel will be launched with the given [launch settings](LaunchSettings).
-pub trait CubeTask: Send + Sync {
+pub trait CubeTask<S: ComputeServer>: Send + Sync {
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Compile the kernel into source
     fn compile(&self) -> CompiledKernel;
     /// Launch settings.
-    fn launch_settings(&self) -> LaunchSettings;
+    fn cube_count(&self) -> CubeCount<S>;
 }
 
 /// Wraps a [kernel](Kernel) with its [cube count](CubeCount) to create a [cube task](CubeTask).
 #[derive(new)]
-pub struct KernelTask<C: Compiler, K: Kernel> {
+pub struct KernelTask<R: Runtime, K: Kernel> {
     kernel_definition: K,
-    cube_count: CubeCount,
-    _compiler: PhantomData<C>,
+    cube_count: CubeCount<R::Server>,
 }
 
-impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
+impl<R: Runtime, K: Kernel> CubeTask<R::Server> for KernelTask<R, K> {
     fn compile(&self) -> CompiledKernel {
         let gpu_ir = self.kernel_definition.define();
         let cube_dim = gpu_ir.cube_dim;
-        let lower_level_ir = C::compile(gpu_ir);
+        let lower_level_ir = R::Compiler::compile(gpu_ir);
         let shared_mem_bytes = lower_level_ir.shared_memory_size();
         let source = lower_level_ir.to_string();
 
@@ -58,14 +51,12 @@ impl<C: Compiler, K: Kernel> CubeTask for KernelTask<C, K> {
         self.kernel_definition.id().clone()
     }
 
-    fn launch_settings(&self) -> LaunchSettings {
-        LaunchSettings {
-            cube_count: self.cube_count.clone(),
-        }
+    fn cube_count(&self) -> CubeCount<R::Server> {
+        self.cube_count.clone()
     }
 }
 
-impl CubeTask for Arc<dyn CubeTask> {
+impl<S: ComputeServer> CubeTask<S> for Arc<dyn CubeTask<S>> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -74,12 +65,12 @@ impl CubeTask for Arc<dyn CubeTask> {
         self.as_ref().id()
     }
 
-    fn launch_settings(&self) -> LaunchSettings {
-        self.as_ref().launch_settings()
+    fn cube_count(&self) -> CubeCount<S> {
+        self.as_ref().cube_count()
     }
 }
 
-impl CubeTask for Box<dyn CubeTask> {
+impl<S: ComputeServer> CubeTask<S> for Box<dyn CubeTask<S>> {
     fn compile(&self) -> CompiledKernel {
         self.as_ref().compile()
     }
@@ -88,25 +79,22 @@ impl CubeTask for Box<dyn CubeTask> {
         self.as_ref().id()
     }
 
-    fn launch_settings(&self) -> LaunchSettings {
-        self.as_ref().launch_settings()
+    fn cube_count(&self) -> CubeCount<S> {
+        self.as_ref().cube_count()
     }
 }
 
 /// Provides launch information specifying the number of work groups to be used by a compute shader.
-#[derive(new, Clone, Debug)]
-pub struct CubeCount {
-    /// Work groups for the x axis.
-    pub x: u32,
-    /// Work groups for the y axis.
-    pub y: u32,
-    /// Work groups for the z axis.
-    pub z: u32,
+pub enum CubeCount<S: ComputeServer> {
+    Fixed(u32, u32, u32),
+    Dynamic(Handle<S>),
 }
 
-impl CubeCount {
-    /// Calculate the number of invocations of a compute shader.
-    pub fn num_invocations(&self) -> usize {
-        (self.x * self.y * self.z) as usize
+impl<S: ComputeServer> Clone for CubeCount<S> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Fixed(arg0, arg1, arg2) => Self::Fixed(*arg0, *arg1, *arg2),
+            Self::Dynamic(handle) => Self::Dynamic(handle.clone()),
+        }
     }
 }

@@ -58,7 +58,7 @@ struct CompiledKernel {
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Box<dyn CubeTask>;
+    type Kernel = Box<dyn CubeTask<Self>>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -104,9 +104,22 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
         let arch = self.minimum_arch_version;
 
-        let ctx = self.get_context();
         let kernel_id = kernel.id();
-        let settings = kernel.launch_settings();
+        let settings = kernel.cube_count();
+
+        let count = match settings {
+            CubeCount::Fixed(x, y, z) => (x, y, z),
+
+            // TODO: There should be a way to have cuda use the GPU values without doing a readback,
+            // but I'm not sure.
+            CubeCount::Dynamic(handle) => {
+                let data = burn_tensor::try_read_sync(self.read(handle.binding())).unwrap();
+                let data: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+                (data[0], data[1], data[2])
+            }
+        };
+
+        let ctx = self.get_context();
 
         if !ctx.module_names.contains_key(&kernel_id) {
             ctx.compile_kernel(&kernel_id, kernel, arch);
@@ -117,7 +130,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             .map(|binding| ctx.memory_management.get(binding.memory).as_binding())
             .collect();
 
-        ctx.execute_task(kernel_id, settings.cube_count, bindings);
+        ctx.execute_task(kernel_id, count, bindings);
         // TODO: fix this
         // self.memory_management.storage().perform_deallocations();
     }
@@ -163,7 +176,12 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>, arch: i32) {
+    fn compile_kernel(
+        &mut self,
+        kernel_id: &str,
+        kernel: Box<dyn CubeTask<CudaServer<MM>>>,
+        arch: i32,
+    ) {
         let kernel_compiled = kernel.compile();
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
         let cube_dim = kernel_compiled.cube_dim;
@@ -217,16 +235,15 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
     fn execute_task(
         &mut self,
         kernel_id: String,
-        cube_count: CubeCount,
+        dispatch_count: (u32, u32, u32),
         mut bindings: Vec<Binding>,
     ) {
         let kernel = self.module_names.get(&kernel_id).unwrap();
         let cube_dim = kernel.cube_dim;
-
         unsafe {
             cudarc::driver::result::launch_kernel(
                 kernel.func,
-                (cube_count.x, cube_count.y, cube_count.z),
+                dispatch_count,
                 (cube_dim.x, cube_dim.y, cube_dim.z),
                 kernel.shared_mem_bytes as u32,
                 self.stream,

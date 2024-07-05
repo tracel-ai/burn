@@ -64,8 +64,18 @@ where
         &mut self,
         pipeline: Arc<ComputePipeline>,
         bind_group: BindGroup,
-        work_group: CubeCount,
+        count: CubeCount<Self>,
     ) {
+        // This somewhat weird ordering is because the lifetime of the buffer needs to be longer than the whole compute pass.
+        let counts = match count.clone() {
+            CubeCount::Dynamic(handle) => {
+                let resource = self.memory_management.get(handle.binding().memory);
+                let buffer = resource.buffer.clone();
+                Some((buffer, resource.offset()))
+            }
+            _ => None,
+        };
+
         let mut compute = self
             .encoder
             .begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -75,12 +85,21 @@ where
 
         compute.set_pipeline(&pipeline);
         compute.set_bind_group(0, &bind_group, &[]);
-        compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
+
+        match count {
+            CubeCount::Fixed(x, y, z) => {
+                compute.dispatch_workgroups(x, y, z);
+            }
+            CubeCount::Dynamic(_) => {
+                let (buffer, offset) = counts.as_ref().unwrap();
+                compute.dispatch_workgroups_indirect(buffer, *offset);
+            }
+        }
 
         self.tasks_count += 1;
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn CubeTask>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: <Self as ComputeServer>::Kernel) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
 
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
@@ -142,7 +161,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn CubeTask>;
+    type Kernel = Box<dyn CubeTask<Self>>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -260,7 +279,7 @@ where
     }
 
     fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        let work_group = kernel.launch_settings().cube_count;
+        let settings = kernel.cube_count();
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
@@ -284,7 +303,7 @@ where
             entries: &entries,
         });
 
-        self.register_compute(pipeline, bind_group, work_group);
+        self.register_compute(pipeline, bind_group, settings);
 
         if self.tasks_count >= self.tasks_max {
             self.sync(SyncType::Flush);

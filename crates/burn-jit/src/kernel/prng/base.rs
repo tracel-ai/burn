@@ -38,7 +38,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
         )])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
-        .execute(CubeCountSettings::Custom(prng_cube_count(
+        .execute(CubeCountSettings::Custom(prng_cube_count::<R>(
             num_elems,
             SUBCUBE_DIM_APPROX,
             N_VALUES_PER_THREAD,
@@ -47,14 +47,18 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     output
 }
 
-fn prng_cube_count(num_elems: usize, cube_dim: usize, n_values_per_thread: usize) -> CubeCount {
+fn prng_cube_count<R: JitRuntime>(
+    num_elems: usize,
+    cube_dim: usize,
+    n_values_per_thread: usize,
+) -> CubeCount<R::Server> {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
     let num_elems_per_cube = cube_dim * cube_dim;
     let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);
     let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
     let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
-    CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::Fixed(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
 impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {

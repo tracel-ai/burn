@@ -140,13 +140,13 @@ pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
     }
 }
 
-pub(crate) fn simple_launch_options<const D: usize>(
+pub(crate) fn simple_workgroup_count<R: JitRuntime, const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     output_shape: &Shape<D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> CubeCount {
+) -> CubeCount<R::Server> {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
@@ -158,13 +158,13 @@ pub(crate) fn simple_launch_options<const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Fixed(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
 
-pub(crate) fn tiling2d_launch_options<const D: usize>(
+pub(crate) fn tiling2d_launch_options<R: JitRuntime, const D: usize>(
     output_shape: &Shape<D>,
     config: Tiling2dConfig,
-) -> CubeCount {
+) -> CubeCount<R::Server> {
     let num_rows = output_shape.dims[D - 2];
     let num_cols = output_shape.dims[D - 1];
 
@@ -176,5 +176,5 @@ pub(crate) fn tiling2d_launch_options<const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Fixed(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }

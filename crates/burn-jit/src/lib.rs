@@ -47,6 +47,6 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     /// The cube server with the [JitAutotuneKey].
     type JitServer: burn_compute::server::ComputeServer<
         AutotuneKey = JitAutotuneKey,
-        Kernel = Box<dyn CubeTask>,
+        Kernel = Box<dyn CubeTask<Self::JitServer>>,
     >;
 }
