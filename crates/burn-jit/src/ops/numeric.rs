@@ -36,7 +36,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
 
     let num_elems = empty.shape.num_elements();
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides);
+        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, D - 1);
     let cube_count = calculate_cube_count_elemwise(
         num_elems / vectorization_factor as usize,
         SUBCUBE_DIM_APPROX,

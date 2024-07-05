@@ -26,7 +26,7 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
         ) -> C::ExpandType {
             #[cube]
             fn execute<C: Numeric>(input: C, options: &Options<C>) -> C {
-                C::clamp(input, options.max_value, options.min_value)
+                C::clamp(input, options.min_value, options.max_value)
             }
 
             execute_expand(context, input, options)

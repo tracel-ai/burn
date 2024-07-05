@@ -86,9 +86,9 @@ pub(crate) fn launch_cmp<
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides);
+        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides);
+        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
 
     let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
@@ -207,7 +207,7 @@ pub(crate) fn launch_scalar_cmp<
 ) -> JitTensor<R, u32, D> {
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides);
+        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
     let cube_count = calculate_cube_count_elemwise(

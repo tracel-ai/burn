@@ -67,7 +67,7 @@ where
 {
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides);
+        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
 
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
