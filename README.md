@@ -15,6 +15,8 @@
 **Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme
 flexibility, compute efficiency and portability as its primary goals.**
 
+Dummy Change
+
 <br/>
 </div>
 
