@@ -20,7 +20,7 @@ pub fn test_kernel_with_generics<R: Runtime>(client: ComputeClient<R::Server, R:
 
     kernel_with_generics_launch::<F32, R>(
         client.clone(),
-        CubeCount::Fixed(1, 1, 1),
+        CubeCount::Static(1, 1, 1),
         CubeDim::default(),
         ArrayArg::new(&handle, 2),
     );
@@ -36,7 +36,7 @@ pub fn test_kernel_without_generics<R: Runtime>(client: ComputeClient<R::Server,
 
     kernel_without_generics_launch::<R>(
         client.clone(),
-        CubeCount::Fixed(1, 1, 1),
+        CubeCount::Static(1, 1, 1),
         CubeDim::default(),
         ArrayArg::new(&handle, 2),
     );

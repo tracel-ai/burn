@@ -72,14 +72,16 @@ impl CubeTask for Box<dyn CubeTask> {
 
 /// Provides launch information specifying the number of work groups to be used by a compute shader.
 pub enum CubeCount<S: ComputeServer> {
-    Fixed(u32, u32, u32),
+    /// Dispatch x,y,z work groups.
+    Static(u32, u32, u32),
+    /// Dispatch work groups based on the values in this buffer. The buffer should contain a u32 array [x, y, z].
     Dynamic(Handle<S>),
 }
 
 impl<S: ComputeServer> Clone for CubeCount<S> {
     fn clone(&self) -> Self {
         match self {
-            Self::Fixed(x, y, z) => Self::Fixed(*x, *y, *z),
+            Self::Static(x, y, z) => Self::Static(*x, *y, *z),
             Self::Dynamic(handle) => Self::Dynamic(handle.clone()),
         }
     }

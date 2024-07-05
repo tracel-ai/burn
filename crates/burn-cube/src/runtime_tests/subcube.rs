@@ -109,7 +109,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
     let (shape, strides) = ([input.len()], [1]);
 
     launch(
-        CubeCount::Fixed(1, 1, 1),
+        CubeCount::Static(1, 1, 1),
         CubeDim::new(input.len() as u32, 1, 1),
         TensorArg::new(&handle, &strides, &shape),
     );

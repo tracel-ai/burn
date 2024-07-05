@@ -58,7 +58,7 @@ fn prng_cube_count<R: JitRuntime>(
     let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
     let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
-    CubeCount::Fixed(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::Static(workgroup_x as u32, workgroup_y as u32, 1)
 }
 
 impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {

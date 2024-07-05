@@ -158,7 +158,7 @@ pub(crate) fn simple_workgroup_count<R: JitRuntime, const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::Fixed(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Static(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
 
 pub(crate) fn tiling2d_launch_options<R: JitRuntime, const D: usize>(
@@ -176,5 +176,5 @@ pub(crate) fn tiling2d_launch_options<R: JitRuntime, const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::Fixed(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Static(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }

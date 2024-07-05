@@ -57,15 +57,8 @@ struct CompiledKernel {
 
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
-impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Box<dyn CubeTask>;
-    type DispatchCount = CubeCount<Self>;
-    type Storage = CudaStorage;
-    type MemoryManagement = MM;
-    type AutotuneKey = JitAutotuneKey;
-    type FeatureSet = FeatureSet;
-
-    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
+    fn read_sync(&mut self, binding: server::Binding<Self>) -> Vec<u8> {
         let ctx = self.get_context();
         let resource = ctx.memory_management.get(binding.memory);
 
@@ -75,7 +68,20 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             cudarc::driver::result::memcpy_dtoh_async(&mut data, resource.ptr, ctx.stream).unwrap();
         };
         ctx.sync();
-        reader_from_concrete(data)
+        data
+    }
+}
+
+impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
+    type Kernel = Box<dyn CubeTask>;
+    type DispatchCount = CubeCount<Self>;
+    type Storage = CudaStorage;
+    type MemoryManagement = MM;
+    type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
+
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+        reader_from_concrete(self.read_sync(binding))
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
@@ -113,11 +119,11 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         let kernel_id = kernel.id();
 
         let count = match count {
-            CubeCount::Fixed(x, y, z) => (x, y, z),
-            // TODO: There should be a way to have cuda use the GPU values without doing a readback,
-            // but I'm not sure.
+            CubeCount::Static(x, y, z) => (x, y, z),
+            // TODO: There should be a way to have CUDA use the GPU values without doing a readback,
+            // but I'm not sure how CUDA RC handles this.
             CubeCount::Dynamic(handle) => {
-                let data = burn_tensor::try_read_sync(self.read(handle.binding())).unwrap();
+                let data = self.read_sync(handle.binding());
                 let data: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
                 (data[0], data[1], data[2])
             }

@@ -61,7 +61,7 @@ pub fn test_simple_1<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
 
     kernel_simple_1_launch::<R>(
         client.clone(),
-        CubeCount::Fixed(1, 1, 1),
+        CubeCount::Static(1, 1, 1),
         CubeDim::new(16, 16, 1),
         ArrayArg::new(&lhs, 256),
         ArrayArg::new(&rhs, 256),

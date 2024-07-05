@@ -55,7 +55,7 @@ pub fn calculate_cube_count_elemwise<S: ComputeServer>(
     let cube_count_x = f32::ceil(f32::sqrt(cube_counts));
     let cube_count_y = f32::ceil(num_elems as f32 / (cube_count_x * num_elems_per_cube as f32));
 
-    CubeCount::Fixed(cube_count_x as u32, cube_count_y as u32, 1)
+    CubeCount::Static(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
 /// Runtime arguments to launch a kernel.

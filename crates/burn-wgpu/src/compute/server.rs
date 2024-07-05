@@ -66,13 +66,10 @@ where
         bind_group: BindGroup,
         count: CubeCount<Self>,
     ) {
-        // This somewhat weird ordering is because the lifetime of the buffer needs to be longer than the whole compute pass.
-        let counts = match count.clone() {
-            CubeCount::Dynamic(handle) => {
-                let resource = self.memory_management.get(handle.binding().memory);
-                let buffer = resource.buffer.clone();
-                Some((buffer, resource.offset()))
-            }
+        // First resolve the dispatch buffer if needed. The weird ordering is because the lifetime of this
+        // needs to be longer than the compute pass, so we can't do this just before dispatching.
+        let dispatch_resource = match count.clone() {
+            CubeCount::Dynamic(handle) => Some(self.memory_management.get(handle.binding().memory)),
             _ => None,
         };
 
@@ -87,12 +84,12 @@ where
         compute.set_bind_group(0, &bind_group, &[]);
 
         match count {
-            CubeCount::Fixed(x, y, z) => {
+            CubeCount::Static(x, y, z) => {
                 compute.dispatch_workgroups(x, y, z);
             }
             CubeCount::Dynamic(_) => {
-                let (buffer, offset) = counts.as_ref().unwrap();
-                compute.dispatch_workgroups_indirect(buffer, *offset);
+                let resource = dispatch_resource.as_ref().unwrap();
+                compute.dispatch_workgroups_indirect(&resource.buffer, resource.offset());
             }
         }
 

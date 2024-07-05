@@ -10,8 +10,7 @@ pub trait KernelSource: Send + 'static + Sync {
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask) with launch
-/// information.
+/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
 pub struct SourceKernel<K> {
     kernel_source: K,
     cube_dim: CubeDim,
