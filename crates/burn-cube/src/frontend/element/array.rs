@@ -22,7 +22,12 @@ impl<C: CubeType> CubeType for Array<C> {
     type ExpandType = ExpandElementTyped<Array<C>>;
 }
 
-impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {}
+impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {
+    fn init(self, _context: &mut crate::prelude::CubeContext) -> Self {
+        // The type can't be deeply cloned/copied.
+        self
+    }
+}
 
 impl<E: CubeType> Array<E> {
     /// Obtain the array length

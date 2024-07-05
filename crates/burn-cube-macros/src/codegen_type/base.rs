@@ -212,8 +212,22 @@ impl TypeCodegen {
         let type_generics_impl = self.generics.type_definitions();
         let type_generics_use = self.generics.type_in_use();
 
+        let mut body = quote::quote! {};
+        for field in self.fields.iter() {
+            let ident = &field.ident;
+            body.extend(quote::quote! {
+                #ident: Init::init(self.#ident, context),
+            });
+        }
+
         quote! {
-            impl #type_generics_impl Init for #name_expand  #type_generics_use {}
+            impl #type_generics_impl Init for #name_expand  #type_generics_use {
+                fn init(self, context: &mut CubeContext) -> Self {
+                    Self {
+                        #body
+                    }
+                }
+            }
         }
     }
 }

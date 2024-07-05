@@ -20,7 +20,12 @@ impl<T: CubeType> CubeType for Tensor<T> {
     type ExpandType = ExpandElementTyped<Tensor<T>>;
 }
 
-impl<T: CubeType> Init for ExpandElementTyped<Tensor<T>> {}
+impl<T: CubeType> Init for ExpandElementTyped<Tensor<T>> {
+    fn init(self, _context: &mut crate::prelude::CubeContext) -> Self {
+        // The type can't be deeply cloned/copied.
+        self
+    }
+}
 
 impl<C: CubePrimitive> LaunchArgExpand for Tensor<C> {
     fn expand(

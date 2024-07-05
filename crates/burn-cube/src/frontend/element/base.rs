@@ -28,9 +28,10 @@ pub trait CubeType {
 /// Trait to be implemented by [cube types](CubeType) implementations.
 pub trait Init: Sized {
     /// Initialize a type within a [context](CubeContext).
-    fn init(self, _context: &mut CubeContext) -> Self {
-        self
-    }
+    ///
+    /// You can return the same value when the variable is a non-mutable data structure or
+    /// if the type can not be deeply cloned/copied.
+    fn init(self, context: &mut CubeContext) -> Self;
 }
 
 /// Defines how a [launch argument](LaunchArg) can be expanded.
@@ -192,7 +193,49 @@ impl From<ExpandElement> for Variable {
 
 impl Init for ExpandElement {
     fn init(self, context: &mut CubeContext) -> Self {
-        init_expand(context, self, Operator::Assign)
+        if self.can_mut() {
+            // Can reuse inplace :)
+            return self;
+        }
+
+        let mut init = |elem: Self| init_expand(context, elem, Operator::Assign);
+
+        match *self {
+            Variable::GlobalScalar(_, _) => init(self),
+            Variable::LocalScalar(_, _, _) => init(self),
+            Variable::ConstantScalar(_, _) => init(self),
+            Variable::Local(_, _, _) => init(self),
+            // Constant should be initialized since the new variable can be mutated afterward.
+            // And it is assumed those values are cloned.
+            Variable::Rank
+            | Variable::UnitPos
+            | Variable::UnitPosX
+            | Variable::UnitPosY
+            | Variable::UnitPosZ
+            | Variable::CubePos
+            | Variable::CubePosX
+            | Variable::CubePosY
+            | Variable::CubePosZ
+            | Variable::CubeDim
+            | Variable::CubeDimX
+            | Variable::CubeDimY
+            | Variable::CubeDimZ
+            | Variable::CubeCount
+            | Variable::CubeCountX
+            | Variable::CubeCountY
+            | Variable::CubeCountZ
+            | Variable::SubcubeDim
+            | Variable::AbsolutePos
+            | Variable::AbsolutePosX
+            | Variable::AbsolutePosY
+            | Variable::AbsolutePosZ => init(self),
+            // Array types can't be copied, so we should simply return the same variable.
+            Variable::SharedMemory(_, _, _)
+            | Variable::GlobalInputArray(_, _)
+            | Variable::GlobalOutputArray(_, _)
+            | Variable::LocalArray(_, _, _, _)
+            | Variable::Matrix(_, _) => self,
+        }
     }
 }
 
@@ -201,9 +244,10 @@ macro_rules! impl_init_for {
         $(
             impl Init for $t {
                 fn init(self, _context: &mut CubeContext) -> Self {
-                    self
+                    panic!("Shouln't be called, only for comptime.")
                 }
             }
+
         )*
     };
 }
@@ -211,9 +255,9 @@ macro_rules! impl_init_for {
 // Add all types used within comptime
 impl_init_for!(u32, bool, UInt);
 
-impl<T> Init for Option<T> {
-    fn init(self, _context: &mut CubeContext) -> Self {
-        self
+impl<T: Init> Init for Option<T> {
+    fn init(self, context: &mut CubeContext) -> Self {
+        self.map(|o| Init::init(o, context))
     }
 }
 
