@@ -25,7 +25,9 @@ use crate::{
             constant::{ConstantNode, ConstantValue},
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
+            conv3d::Conv3dNode,
             conv_transpose_2d::ConvTranspose2dNode,
+            conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
             expand::ExpandNode,
             gather::GatherNode,
@@ -57,12 +59,12 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv_transpose2d_config, dropout_config,
-    expand_config, flatten_config, gather_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, reduce_max_config,
-    reduce_mean_config, reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config,
-    resize_config, shape_config, slice_config, softmax_config, squeeze_config, transpose_config,
-    unsqueeze_config,
+    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
+    conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
+    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config,
+    max_pool2d_config, reduce_max_config, reduce_mean_config, reduce_min_config,
+    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
+    slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -260,6 +262,7 @@ impl ParsedOnnxGraph {
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
+                NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
                 NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
@@ -316,6 +319,9 @@ impl ParsedOnnxGraph {
                 }
                 NodeType::ConvTranspose2d => {
                     graph.register(Self::conv_transpose2d_conversion::<PS>(node))
+                }
+                NodeType::ConvTranspose3d => {
+                    graph.register(Self::conv_transpose3d_conversion::<PS>(node))
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
@@ -893,6 +899,22 @@ impl ParsedOnnxGraph {
         Conv2dNode::new(name, input, output, weight, bias, config)
     }
 
+    fn conv3d_conversion<PS: PrecisionSettings>(node: Node) -> Conv3dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = conv3d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
+        let name = &node.name;
+        Conv3dNode::new(name, input, output, weight, bias, config)
+    }
+
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -933,6 +955,21 @@ impl ParsedOnnxGraph {
 
         let name = &node.name;
         ConvTranspose2dNode::new(name, input, output, weight, bias, config)
+    }
+    fn conv_transpose3d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose3dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = conv_transpose3d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
+        let name = &node.name;
+        ConvTranspose3dNode::new(name, input, output, weight, bias, config)
     }
     fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());

@@ -104,8 +104,12 @@ enum BenchmarkValues {
     Autodiff,
     #[strum(to_string = "conv-transpose2d")]
     ConvTranspose2d,
+    #[strum(to_string = "conv-transpose3d")]
+    ConvTranspose3d,
     #[strum(to_string = "conv2d")]
     Conv2d,
+    #[strum(to_string = "conv3d")]
+    Conv3d,
 }
 
 pub fn execute() {

@@ -10,8 +10,10 @@ pub trait BurnModuleAdapter: Sized {
             "BatchNorm" => Self::adapt_batch_norm(data),
             "Conv1d" => Self::adapt_conv1d(data),
             "Conv2d" => Self::adapt_conv2d(data),
+            "Conv3d" => Self::adapt_conv3d(data),
             "ConvTranspose1d" => Self::adapt_conv_transpose_1d(data),
             "ConvTranspose2d" => Self::adapt_conv_transpose_2d(data),
+            "ConvTranspose3d" => Self::adapt_conv_transpose_3d(data),
             "Embedding" => Self::adapt_embedding(data),
             "GroupNorm" => Self::adapt_group_norm(data),
             "LayerNorm" => Self::adapt_layer_norm(data),
@@ -35,6 +37,11 @@ pub trait BurnModuleAdapter: Sized {
         data
     }
 
+    /// Adapts a Convolution 3D module.
+    fn adapt_conv3d(data: NestedValue) -> NestedValue {
+        data
+    }
+
     /// Adapts convolution transpose 1D module.
     fn adapt_conv_transpose_1d(data: NestedValue) -> NestedValue {
         data
@@ -42,6 +49,11 @@ pub trait BurnModuleAdapter: Sized {
 
     /// Adapts convolution transpose 2D module.
     fn adapt_conv_transpose_2d(data: NestedValue) -> NestedValue {
+        data
+    }
+
+    /// Adapts convolution transpose 2D module.
+    fn adapt_conv_transpose_3d(data: NestedValue) -> NestedValue {
         data
     }
 
