@@ -1,7 +1,7 @@
 use super::Kernel;
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
 use burn_cube::{calculate_cube_count_elemwise, prelude::*};
-use burn_cube::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
+use burn_cube::{frontend::TensorHandle, KernelSettings, SUBCUBE_DIM_APPROX};
 
 #[cube]
 fn index_offset_with_layout<N: CubePrimitive>(
@@ -81,6 +81,9 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         tensor.shape.clone(),
         buffer,
     );
+    let settings = KernelSettings::default()
+        .vectorize_input(0, vectorization_factor)
+        .vectorize_output(0, vectorization_factor);
     let cube_count = calculate_cube_count_elemwise(
         num_elems / vectorization_factor as usize,
         SUBCUBE_DIM_APPROX,
@@ -89,19 +92,9 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     into_contiguous_kernel_launch::<E::Primitive, R>(
         client,
         cube_count,
-        CubeDim::default(),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &tensor.handle,
-            &tensor.strides,
-            &tensor.shape.dims,
-        ),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        ),
+        settings,
+        TensorHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+        TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
         Some(UInt::new(D as u32)),
     );
 

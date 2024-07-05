@@ -1,10 +1,8 @@
 use burn::nn::{
-    conv::{
-        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
-    },
+    conv::{Conv1dConfig, Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d, PaddingConfig3d,
+    PaddingConfig2d,
 };
 
 use crate::burn::node::resize::ResizeMode;
@@ -66,7 +64,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
     } else {
-        panic!("Conv2d: weight tensor must be present");
+        panic!("Conv1d: weight tensor must be present");
     };
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
@@ -86,7 +84,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         }
     }
 
-    let padding = padding_config_2d(&pads);
+    let padding = padding_config(&pads);
 
     Conv2dConfig::new(
         channels,
@@ -94,63 +92,6 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     )
     .with_stride([strides[0] as usize, strides[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_groups(group as usize)
-    .with_bias(bias)
-    .with_padding(padding)
-}
-
-/// Create a Conv3dConfig from the attributes of the node
-pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
-    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
-    let mut strides = vec![1, 1, 1];
-    let mut pads = vec![0, 0, 0, 0, 0, 0];
-    let mut dilations = vec![1, 1, 1];
-    let mut group: i64 = 1;
-
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("Conv3d: weight tensor must be present");
-    };
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64(),
-            _ => {}
-        }
-    }
-
-    let padding = padding_config_3d(&pads);
-
-    Conv3dConfig::new(
-        channels,
-        [
-            kernel_shape[0] as usize,
-            kernel_shape[1] as usize,
-            kernel_shape[2] as usize,
-        ],
-    )
-    .with_stride([
-        strides[0] as usize,
-        strides[1] as usize,
-        strides[2] as usize,
-    ])
-    .with_dilation([
-        dilations[0] as usize,
-        dilations[1] as usize,
-        dilations[2] as usize,
-    ])
     .with_groups(group as usize)
     .with_bias(bias)
     .with_padding(padding)
@@ -200,7 +141,7 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         }
     }
 
-    let padding = padding_config_2d(&pads);
+    let padding = padding_config(&pads);
 
     MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
@@ -259,66 +200,6 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_groups(group as usize)
     .with_bias(bias)
 }
-pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
-    let mut attrs = curr.attrs.clone();
-    let kernel_shape = attrs
-        .remove("kernel_shape")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_default();
-    let stride = attrs
-        .remove("strides")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1, 1]);
-    let pads = attrs
-        .remove("pads")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0]);
-    let dilations = attrs
-        .remove("dilations")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1, 1]);
-    let group = attrs
-        .remove("group")
-        .map(AttributeValue::into_i64)
-        .unwrap_or(1);
-
-    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
-    if !attrs.is_empty() {
-        panic!("Not all attributes are used: {attrs:?}");
-    }
-
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("ConvTranspose3d: weight tensor must be present");
-    };
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
-
-    ConvTranspose3dConfig::new(
-        channels,
-        [
-            kernel_shape[0] as usize,
-            kernel_shape[1] as usize,
-            kernel_shape[2] as usize,
-        ],
-    )
-    .with_stride([stride[0] as usize, stride[1] as usize, stride[2] as usize])
-    .with_padding([pads[0] as usize, pads[1] as usize, pads[2] as usize])
-    .with_dilation([
-        dilations[0] as usize,
-        dilations[1] as usize,
-        dilations[2] as usize,
-    ])
-    .with_groups(group as usize)
-    .with_bias(bias)
-}
 
 pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
     let mut kernel_shape = Vec::new();
@@ -374,7 +255,7 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         panic!("ceil_mode is not supported");
     }
 
-    let padding = padding_config_2d(&pads);
+    let padding = padding_config(&pads);
 
     AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
@@ -745,44 +626,6 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     )
 }
 
-/// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
-    let [left, right] = [pads[0], pads[1]];
-
-    if left < 0 || right < 0 {
-        panic!("Negative pad values are not supported");
-    } else if left != right {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && right == 0 {
-        // i.e. [0, 0]
-        PaddingConfig1d::Valid
-    } else if left == right {
-        // i.e. [2, 2]
-        PaddingConfig1d::Explicit(left as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
-}
-
 /// Calculate the padding configuration for a 2D operations such as Convolution and Pooling.
 ///
 /// # Arguments
@@ -802,58 +645,19 @@ fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
 ///
 /// This function is used when the padding is specified as a list of integers,
 /// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
+fn padding_config(pads: &[i64]) -> PaddingConfig2d {
     let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
 
     if left < 0 || top < 0 || right < 0 || bottom < 0 {
         panic!("Negative pad values are not supported");
     } else if (left != right) || (top != bottom) {
         panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && right == 0 && bottom == 0 {
+    } else if left == top && top == right && right == bottom && bottom == 0 {
         // i.e [0, 0, 0, 0]
         PaddingConfig2d::Valid
     } else if left == right && top == bottom {
         // i.e [2, 3, 2, 3]
         PaddingConfig2d::Explicit(left as usize, top as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
-}
-
-/// Calculate the padding configuration for a 3D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
-    let [left, top, front, right, bottom, back] =
-        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
-
-    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) || (front != back) {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && front == 0 && right == 0 && bottom == 0 && back == 0 {
-        // i.e [0, 0, 0, 0]
-        PaddingConfig3d::Valid
-    } else if left == right && top == bottom && front == back {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig3d::Explicit(left as usize, top as usize, front as usize)
     } else {
         // Unaccounted for padding configuration
         panic!("Padding configuration ({:?}) not supported", pads);
@@ -1014,6 +818,44 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     }
 
     (min_result, max_result)
+}
+
+/// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
+///
+/// # Arguments
+///
+/// * `pads` - The padding values
+///
+/// # Panics
+///
+/// * If the padding is negative
+/// * If the padding is not symmetric
+///
+/// # Returns
+///
+/// * The padding configuration
+///
+/// # Remarks
+///
+/// This function is used when the padding is specified as a list of integers,
+/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
+fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
+    let [left, right] = [pads[0], pads[1]];
+
+    if left < 0 || right < 0 {
+        panic!("Negative pad values are not supported");
+    } else if left != right {
+        panic!("Asymmetric padding is not supported");
+    } else if left == right && right == 0 {
+        // i.e. [0, 0]
+        PaddingConfig1d::Valid
+    } else if left == right {
+        // i.e. [2, 2]
+        PaddingConfig1d::Explicit(left as usize)
+    } else {
+        // Unaccounted for padding configuration
+        panic!("Padding configuration ({:?}) not supported", pads);
+    }
 }
 
 pub fn reduce_max_config(node: &Node) -> Option<usize> {

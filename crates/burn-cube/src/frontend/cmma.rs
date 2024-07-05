@@ -48,9 +48,7 @@ use crate::{
     unexpanded,
 };
 
-use super::{
-    Array, CubeContext, CubePrimitive, CubeType, ExpandElement, ExpandElementTyped, Init, UInt,
-};
+use super::{Array, CubeContext, CubePrimitive, CubeType, ExpandElement, Init, UInt};
 
 pub use ir::{MatrixIdent, MatrixLayout};
 
@@ -146,12 +144,12 @@ pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Array<C>, stride: UInt) {
 pub fn load_expand<C: CubeType>(
     context: &mut CubeContext,
     mat: MatrixExpand,
-    value: ExpandElementTyped<Array<C>>,
+    value: ExpandElement,
     stride: ExpandElement,
 ) {
     context.register(Operation::CoopMma(ir::CoopMma::Load {
         mat: *mat.elem,
-        value: *value.expand,
+        value: *value,
         stride: *stride,
     }));
 }
@@ -171,13 +169,13 @@ pub fn store<C: CubePrimitive>(
 #[allow(unused_variables)]
 pub fn store_expand<C: CubePrimitive>(
     context: &mut CubeContext,
-    output: ExpandElementTyped<Array<C>>,
+    output: ExpandElement,
     mat: MatrixExpand,
     stride: ExpandElement,
     layout: MatrixLayout,
 ) {
     context.register(Operation::CoopMma(ir::CoopMma::Store {
-        output: *output.expand,
+        output: *output,
         mat: *mat.elem,
         stride: *stride,
         layout,
