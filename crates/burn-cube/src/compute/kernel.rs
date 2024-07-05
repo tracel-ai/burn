@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{codegen::CompilerRepresentation, ir::CubeDim, Compiler, Kernel};
 use alloc::sync::Arc;
-use burn_compute::server::{ComputeServer, Handle};
+use burn_compute::server::{Binding, ComputeServer};
 
 /// A kernel, compiled in the target language
 pub struct CompiledKernel {
@@ -75,7 +75,7 @@ pub enum CubeCount<S: ComputeServer> {
     /// Dispatch x,y,z work groups.
     Static(u32, u32, u32),
     /// Dispatch work groups based on the values in this buffer. The buffer should contain a u32 array [x, y, z].
-    Dynamic(Handle<S>),
+    Dynamic(Binding<S>),
 }
 
 impl<S: ComputeServer> Clone for CubeCount<S> {

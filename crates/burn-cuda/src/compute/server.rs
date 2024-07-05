@@ -120,10 +120,11 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
 
         let count = match count {
             CubeCount::Static(x, y, z) => (x, y, z),
-            // TODO: There should be a way to have CUDA use the GPU values without doing a readback,
-            // but I'm not sure how CUDA RC handles this.
-            CubeCount::Dynamic(handle) => {
-                let data = self.read_sync(handle.binding());
+            // TODO: CUDA doesn't have an exact equivalen of dynamic dispatch. Instead, kernels are free to launch other kernels.
+            // One option is to create a dummy kernel with 1 thread that launches the real kernel with the dynamic dispatch settings.
+            // For now, just read the dispatch settings from the buffer.
+            CubeCount::Dynamic(binding) => {
+                let data = self.read_sync(binding);
                 let data: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
                 (data[0], data[1], data[2])
             }
