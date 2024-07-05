@@ -20,15 +20,6 @@ where
         kernel::conv::conv2d(x, weight, bias, options)
     }
 
-    fn conv3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
-        options: ConvOptions<3>,
-    ) -> FloatTensor<Self, 5> {
-        kernel::conv::conv3d(x, weight, bias, options)
-    }
-
     fn conv_transpose2d(
         x: FloatTensor<Self, 4>,
         weight: FloatTensor<Self, 4>,
@@ -36,15 +27,6 @@ where
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self, 4> {
         kernel::conv::conv_transpose2d(x, weight, bias, options)
-    }
-
-    fn conv_transpose3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
-        options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self, 5> {
-        kernel::conv::conv_transpose3d(x, weight, bias, options)
     }
 
     fn avg_pool2d(

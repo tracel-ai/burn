@@ -87,7 +87,6 @@ impl TypeCodegen {
         quote! {
             impl #generics_impl #name #generics_use {
                 /// New kernel
-                #[allow(clippy::too_many_arguments)]
                 #vis fn new(#args) -> Self {
                     Self {
                         #fields

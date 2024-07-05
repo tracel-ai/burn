@@ -77,15 +77,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         })
     }
 
-    fn conv3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
-        options: ConvOptions<3>,
-    ) -> FloatTensor<Self, 5> {
-        panic!("Candle does not support 3D convolutions");
-    }
-
     fn conv_transpose1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
@@ -153,15 +144,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 .unwrap(),
             None => conv_transpose,
         })
-    }
-
-    fn conv_transpose3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
-        options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self, 5> {
-        panic!("Candle does not support 3D transposed convolutions");
     }
 
     fn avg_pool2d(

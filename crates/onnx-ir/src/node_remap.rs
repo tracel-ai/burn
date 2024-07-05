@@ -18,14 +18,12 @@ pub fn remap_node_type(node: &mut Node) {
         NodeType::Conv => remap_node_with_kernel_shape(node, |ints| match ints.len() {
             1 => NodeType::Conv1d,
             2 => NodeType::Conv2d,
-            3 => NodeType::Conv3d,
-            _ => panic!("Only conv 1d, 2d and 3d are supported"),
+            _ => panic!("Only conv 1d and 2d are supported"),
         }),
         NodeType::ConvTranspose => remap_node_with_kernel_shape(node, |ints| match ints.len() {
             1 => NodeType::ConvTranspose1d,
             2 => NodeType::ConvTranspose2d,
-            3 => NodeType::ConvTranspose3d,
-            _ => panic!("Only conv_transpose 1d, 2d and 3d are supported"),
+            _ => panic!("Only conv_transpose 1d and 2d are supported"),
         }),
         NodeType::MaxPool => remap_node_with_kernel_shape(node, |ints| match ints.len() {
             1 => NodeType::MaxPool1d,

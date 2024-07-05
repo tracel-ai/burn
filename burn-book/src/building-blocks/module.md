@@ -183,10 +183,8 @@ Burn comes with built-in modules that you can use to build your own modules.
 | ----------------- | -------------------- |
 | `Conv1d`          | `nn.Conv1d`          |
 | `Conv2d`          | `nn.Conv2d`          |
-| `Conv3d`          | `nn.Conv3d`          |
 | `ConvTranspose1d` | `nn.ConvTranspose1d` |
 | `ConvTranspose2d` | `nn.ConvTranspose2d` |
-| `ConvTranspose3d` | `nn.ConvTranspose3d` |
 
 ### Pooling
 
