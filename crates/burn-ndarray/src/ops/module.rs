@@ -1,7 +1,7 @@
 use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
-    conv::{conv2d, conv3d, conv_transpose2d, conv_transpose3d},
+    conv::{conv2d, conv_transpose2d},
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
@@ -129,23 +129,5 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
                 panic!("bicubic interpolation backward is not supported for ndarray backend")
             }
         }
-    }
-
-    fn conv3d(
-        x: NdArrayTensor<E, 5>,
-        weight: NdArrayTensor<E, 5>,
-        bias: Option<NdArrayTensor<E, 1>>,
-        options: ConvOptions<3>,
-    ) -> NdArrayTensor<E, 5> {
-        conv3d(x, weight, bias, options)
-    }
-
-    fn conv_transpose3d(
-        x: NdArrayTensor<E, 5>,
-        weight: NdArrayTensor<E, 5>,
-        bias: Option<NdArrayTensor<E, 1>>,
-        options: ConvTransposeOptions<3>,
-    ) -> NdArrayTensor<E, 5> {
-        conv_transpose3d(x, weight, bias, options)
     }
 }
