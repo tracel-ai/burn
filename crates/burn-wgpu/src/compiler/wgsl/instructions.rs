@@ -268,9 +268,9 @@ impl Display for Instruction {
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
-            Instruction::Remainder { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = (({lhs} % {rhs}) + {rhs}) % {rhs};\n"))
-            }
+            Instruction::Remainder { lhs, rhs, out } => f.write_fmt(format_args!(
+                "{out} = {lhs} - {rhs} * floor({lhs} / {rhs});\n"
+            )),
             Instruction::Sub { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} - {rhs};\n"))
             }
