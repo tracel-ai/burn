@@ -25,7 +25,7 @@ pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement, const D
     let handle = input
         .client
         .empty(num_elems_output * core::mem::size_of::<EO>());
-    JitTensor::new(
+    JitTensor::new_contiguous(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),

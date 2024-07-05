@@ -156,14 +156,13 @@ fn expand_sig(
     for input in &sig.inputs {
         match input {
             syn::FnArg::Typed(pat) => {
-                let ty = &pat.ty;
-
                 let ident = pat.pat.clone();
 
                 if let syn::Pat::Ident(ident) = ident.as_ref() {
                     variable_tracker.codegen_declare(ident.ident.to_string(), 0);
                 }
 
+                let ty = no_ref(pat.ty.as_ref());
                 inputs.extend(quote::quote! {
                     #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
                 });
@@ -177,6 +176,7 @@ fn expand_sig(
     match &sig.output {
         syn::ReturnType::Default => output.extend(quote::quote! { ()}),
         syn::ReturnType::Type(_, ty) => {
+            let ty = no_ref(ty.as_ref());
             output.extend(quote::quote! {
                 <#ty as burn_cube::frontend::CubeType>::ExpandType
             });
@@ -191,5 +191,12 @@ fn expand_sig(
     quote::quote! {
         /// Expanded Cube function
         #visibility fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
+    }
+}
+
+fn no_ref(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Reference(val) => &val.elem,
+        _ => ty,
     }
 }

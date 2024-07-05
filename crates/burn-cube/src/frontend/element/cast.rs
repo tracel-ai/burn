@@ -1,5 +1,5 @@
 use crate::frontend::{assign, CubeContext, CubePrimitive, CubeType};
-use crate::ir::Item;
+use crate::ir::{Item, Variable};
 use crate::{frontend::ExpandElement, unexpanded};
 
 /// Enable elegant casting from any to any CubeElem
@@ -13,8 +13,13 @@ pub trait Cast: CubePrimitive {
     where
         From: Into<ExpandElement>,
     {
-        let new_var = context.create_local(Item::new(<Self as CubePrimitive>::as_elem()));
-        assign::expand(context, value.into(), new_var.clone());
+        let value: ExpandElement = value.into();
+        let var: Variable = *value;
+        let new_var = context.create_local(Item::vectorized(
+            <Self as CubePrimitive>::as_elem(),
+            var.item().vectorization,
+        ));
+        assign::expand(context, value, new_var.clone());
         new_var
     }
 }

@@ -9,6 +9,7 @@ pub fn sum<R: JitRuntime, E: JitElement, const D: usize>(
     strategy: ReduceStrategy,
 ) -> JitTensor<R, E, 1> {
     let shape = Shape::new([input.shape.num_elements()]);
-    let input: JitTensor<R, E, 1> = JitTensor::new(input.client, input.device, shape, input.handle);
+    let input: JitTensor<R, E, 1> =
+        JitTensor::new_contiguous(input.client, input.device, shape, input.handle);
     sum_dim(input, 0, strategy)
 }

@@ -11,7 +11,7 @@ pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
     let client = R::client(device);
     let buffer = client.create(data.convert::<E>().as_bytes());
 
-    JitTensor::new(client, device.clone(), shape, buffer)
+    JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
 pub(crate) async fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
@@ -53,7 +53,7 @@ pub(crate) fn empty<R: JitRuntime, E: JitElement, const D: usize>(
     let client = R::client(device);
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    JitTensor::new(client, device.clone(), shape, buffer)
+    JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
 pub(crate) fn swap_dims<R: JitRuntime, E: JitElement, const D: usize>(
@@ -136,5 +136,5 @@ pub(crate) fn reshape<R: JitRuntime, E: JitElement, const D1: usize, const D2: u
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
-    JitTensor::new(tensor.client, tensor.device, shape, tensor.handle)
+    JitTensor::new_contiguous(tensor.client, tensor.device, shape, tensor.handle)
 }

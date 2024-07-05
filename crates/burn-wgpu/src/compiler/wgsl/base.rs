@@ -171,6 +171,15 @@ impl Item {
             Item::Scalar(e) => e,
         }
     }
+
+    pub fn vectorization_factor(&self) -> usize {
+        match self {
+            Item::Vec4(_) => 4,
+            Item::Vec3(_) => 3,
+            Item::Vec2(_) => 2,
+            Item::Scalar(_) => 1,
+        }
+    }
 }
 
 impl Elem {

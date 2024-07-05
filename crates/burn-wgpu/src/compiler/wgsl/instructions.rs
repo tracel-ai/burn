@@ -1,6 +1,6 @@
 use super::{
     base::{Item, Variable},
-    Subgroup,
+    IndexedVariable, Subgroup,
 };
 use std::fmt::Display;
 
@@ -288,14 +288,28 @@ impl Display for Instruction {
                 min_value,
                 max_value,
                 out,
-            } => f.write_fmt(format_args!(
-                "{out} = clamp({input}, {min_value}, {max_value});\n"
-            )),
+            } => unroll(
+                f,
+                out.item().vectorization_factor(),
+                [input, min_value, max_value, out],
+                |f, [input, min, max, out]| {
+                    f.write_fmt(format_args!("{out} = clamp({input}, {min}, {max});\n"))
+                },
+            ),
             Instruction::Powf { lhs, rhs, out } => {
+                let vectorization_factor = out.item().vectorization_factor();
+
                 if rhs.is_always_scalar() {
                     f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
                 } else {
-                    f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
+                    unroll(
+                        f,
+                        vectorization_factor,
+                        [lhs, rhs, out],
+                        |f, [lhs, rhs, out]| {
+                            f.write_fmt(format_args!("{out} = powf_primitive({lhs}, {rhs});\n"))
+                        },
+                    )
                 }
             }
             Instruction::Sqrt { input, out } => {
@@ -433,14 +447,45 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                     f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
                 }
                 Item::Scalar(_elem) => {
-                    let elem_out = out.elem();
-                    let casting_type = match rhs.item() {
-                        Item::Vec4(_) => Item::Vec4(elem_out),
-                        Item::Vec3(_) => Item::Vec3(elem_out),
-                        Item::Vec2(_) => Item::Vec2(elem_out),
-                        Item::Scalar(_) => Item::Scalar(elem_out),
-                    };
-                    f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                    let is_array = matches!(
+                        out,
+                        Variable::GlobalInputArray(_, _)
+                            | Variable::GlobalOutputArray(_, _)
+                            | Variable::SharedMemory(_, _, _)
+                            | Variable::LocalArray(_, _, _, _)
+                    );
+
+                    if !is_array {
+                        let elem_out = out.elem();
+                        let casting_type = match rhs.item() {
+                            Item::Vec4(_) => Item::Vec4(elem_out),
+                            Item::Vec3(_) => Item::Vec3(elem_out),
+                            Item::Vec2(_) => Item::Vec2(elem_out),
+                            Item::Scalar(_) => Item::Scalar(elem_out),
+                        };
+                        f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                    } else {
+                        let item_rhs = rhs.item();
+                        let item_out = out.item();
+
+                        let vectorization_factor = item_out.vectorization_factor();
+                        if vectorization_factor > item_rhs.vectorization_factor() {
+                            let casting_type = item_out.elem();
+                            f.write_fmt(format_args!("{out}[{lhs}] = vec{vectorization_factor}("))?;
+                            for i in 0..vectorization_factor {
+                                let value = rhs.index(i);
+                                f.write_fmt(format_args!("{casting_type}({value})"))?;
+
+                                if i < vectorization_factor - 1 {
+                                    f.write_str(",")?;
+                                }
+                            }
+                            f.write_str(");\n")
+                        } else {
+                            let casting_type = item_out;
+                            f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                        }
+                    }
                 }
             },
             Instruction::If { cond, instructions } => {
@@ -556,4 +601,25 @@ fn comparison(
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }
+}
+
+fn unroll<
+    const N: usize,
+    F: Fn(&mut core::fmt::Formatter<'_>, [IndexedVariable; N]) -> core::fmt::Result,
+>(
+    f: &mut core::fmt::Formatter<'_>,
+    vectorization_factor: usize,
+    variables: [&Variable; N],
+    func: F,
+) -> core::fmt::Result {
+    for i in 0..vectorization_factor {
+        let mut tmp = Vec::with_capacity(N);
+        for var in variables.iter().take(N) {
+            tmp.push(var.index(i));
+        }
+        let vars = tmp.try_into().unwrap();
+
+        func(f, vars)?;
+    }
+    Ok(())
 }
