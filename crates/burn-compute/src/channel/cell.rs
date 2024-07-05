@@ -63,10 +63,15 @@ where
         self.server.borrow_mut().empty(size)
     }
 
-    fn execute(&self, kernel_description: Server::Kernel, bindings: Vec<Binding<Server>>) {
+    fn execute(
+        &self,
+        kernel_description: Server::Kernel,
+        count: Server::DispatchCount,
+        bindings: Vec<Binding<Server>>,
+    ) {
         self.server
             .borrow_mut()
-            .execute(kernel_description, bindings)
+            .execute(kernel_description, count, bindings)
     }
 
     fn sync(&self, sync_type: SyncType) {

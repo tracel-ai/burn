@@ -24,7 +24,12 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send
     fn empty(&self, size: usize) -> Handle<Server>;
 
     /// Executes the `kernel` over the given `bindings`.
-    fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>);
+    fn execute(
+        &self,
+        kernel: Server::Kernel,
+        count: Server::DispatchCount,
+        bindings: Vec<Binding<Server>>,
+    );
 
     /// Perform some synchronization of commands on the server.
     fn sync(&self, sync_type: SyncType);

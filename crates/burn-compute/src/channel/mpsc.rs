@@ -39,7 +39,10 @@ where
     ),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
-    ExecuteKernel(Server::Kernel, Vec<Binding<Server>>),
+    ExecuteKernel(
+        (Server::Kernel, Server::DispatchCount),
+        Vec<Binding<Server>>,
+    ),
     Sync(SyncType, Callback<()>),
 }
 
@@ -74,7 +77,7 @@ where
                             callback.send(handle).await.unwrap();
                         }
                         Message::ExecuteKernel(kernel, bindings) => {
-                            server.execute(kernel, bindings);
+                            server.execute(kernel.0, kernel.1, bindings);
                         }
                         Message::Sync(sync_type, callback) => {
                             server.sync(sync_type);
@@ -148,10 +151,15 @@ where
         handle_response(response.recv_blocking())
     }
 
-    fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
+    fn execute(
+        &self,
+        kernel: Server::Kernel,
+        count: Server::DispatchCount,
+        bindings: Vec<Binding<Server>>,
+    ) {
         self.state
             .sender
-            .send_blocking(Message::ExecuteKernel(kernel, bindings))
+            .send_blocking(Message::ExecuteKernel((kernel, count), bindings))
             .unwrap()
     }
 

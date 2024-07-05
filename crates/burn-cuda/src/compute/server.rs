@@ -58,7 +58,8 @@ struct CompiledKernel {
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Box<dyn CubeTask<Self>>;
+    type Kernel = Box<dyn CubeTask>;
+    type DispatchCount = CubeCount<Self>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -101,15 +102,18 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         server::Handle::new(handle)
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
+    fn execute(
+        &mut self,
+        kernel: Self::Kernel,
+        count: Self::DispatchCount,
+        bindings: Vec<server::Binding<Self>>,
+    ) {
         let arch = self.minimum_arch_version;
 
         let kernel_id = kernel.id();
-        let settings = kernel.cube_count();
 
-        let count = match settings {
+        let count = match count {
             CubeCount::Fixed(x, y, z) => (x, y, z),
-
             // TODO: There should be a way to have cuda use the GPU values without doing a readback,
             // but I'm not sure.
             CubeCount::Dynamic(handle) => {
@@ -176,12 +180,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
         };
     }
 
-    fn compile_kernel(
-        &mut self,
-        kernel_id: &str,
-        kernel: Box<dyn CubeTask<CudaServer<MM>>>,
-        arch: i32,
-    ) {
+    fn compile_kernel(&mut self, kernel_id: &str, kernel: Box<dyn CubeTask>, arch: i32) {
         let kernel_compiled = kernel.compile();
         let shared_mem_bytes = kernel_compiled.shared_mem_bytes;
         let cube_dim = kernel_compiled.cube_dim;

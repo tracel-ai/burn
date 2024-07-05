@@ -17,6 +17,8 @@ where
 {
     /// The kernel type defines the computation algorithms.
     type Kernel: Send;
+    /// The type for the number of workgroups to dispatch.
+    type DispatchCount: Send;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.
     type Storage: ComputeStorage;
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.
@@ -45,7 +47,12 @@ where
     ///
     /// Kernels have mutable access to every resource they are given
     /// and are responsible of determining which should be read or written.
-    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<Binding<Self>>);
+    fn execute(
+        &mut self,
+        kernel: Self::Kernel,
+        count: Self::DispatchCount,
+        bindings: Vec<Binding<Self>>,
+    );
 
     /// Wait for the completion of every task in the server.
     fn sync(&mut self, command: SyncType);

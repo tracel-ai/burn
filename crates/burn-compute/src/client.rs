@@ -82,8 +82,13 @@ where
     }
 
     /// Executes the `kernel` over the given `bindings`.
-    pub fn execute(&self, kernel: Server::Kernel, bindings: Vec<Binding<Server>>) {
-        self.channel.execute(kernel, bindings)
+    pub fn execute(
+        &self,
+        kernel: Server::Kernel,
+        count: Server::DispatchCount,
+        bindings: Vec<Binding<Server>>,
+    ) {
+        self.channel.execute(kernel, count, bindings)
     }
 
     /// Wait for the completion of every task in the server.

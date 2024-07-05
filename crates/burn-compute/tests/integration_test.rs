@@ -38,6 +38,7 @@ fn execute_elementwise_addition() {
 
     client.execute(
         Arc::new(DummyElementwiseAddition),
+        (),
         vec![lhs.binding(), rhs.binding(), out.clone().binding()],
     );
 

@@ -207,16 +207,14 @@ fn execute_dynamic<R, K, E1, E2, E3>(
         inputs, outputs, scalars_1, scalars_2, scalars_3, launch, &client,
     );
     let mut handles = settings.handles_tensors;
-    let workgroup = settings.cube_count;
 
     handles.push(settings.handle_info.binding());
     for handle in settings.handles_scalars.into_iter() {
         handles.push(handle.binding());
     }
 
-    let kernel = Box::new(KernelTask::<R, K>::new(kernel, workgroup));
-
-    client.execute(kernel, handles);
+    let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel));
+    client.execute(kernel, settings.cube_count, handles);
 }
 
 struct ExecuteSettings<R: Runtime> {

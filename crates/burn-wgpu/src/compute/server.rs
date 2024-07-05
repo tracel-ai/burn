@@ -161,7 +161,8 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Box<dyn CubeTask<Self>>;
+    type Kernel = Box<dyn CubeTask>;
+    type DispatchCount = CubeCount<Self>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -278,8 +279,12 @@ where
         }))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        let settings = kernel.cube_count();
+    fn execute(
+        &mut self,
+        kernel: Self::Kernel,
+        count: Self::DispatchCount,
+        bindings: Vec<server::Binding<Self>>,
+    ) {
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
@@ -303,7 +308,7 @@ where
             entries: &entries,
         });
 
-        self.register_compute(pipeline, bind_group, settings);
+        self.register_compute(pipeline, bind_group, count);
 
         if self.tasks_count >= self.tasks_max {
             self.sync(SyncType::Flush);

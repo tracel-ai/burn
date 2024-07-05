@@ -2,7 +2,6 @@ use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_cube::prelude::*;
 
 use super::SourceTemplate;
-use burn_compute::server::ComputeServer;
 
 /// Kernel source to create a [source](SourceTemplate)
 pub trait KernelSource: Send + 'static + Sync {
@@ -13,13 +12,12 @@ pub trait KernelSource: Send + 'static + Sync {
 #[derive(new)]
 /// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask) with launch
 /// information.
-pub struct SourceKernel<S: ComputeServer, K> {
+pub struct SourceKernel<K> {
     kernel_source: K,
-    cube_count: CubeCount<S>,
     cube_dim: CubeDim,
 }
 
-impl<S: ComputeServer, K: KernelSource> CubeTask<S> for SourceKernel<S, K> {
+impl<K: KernelSource> CubeTask for SourceKernel<K> {
     fn compile(&self) -> CompiledKernel {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
@@ -33,10 +31,6 @@ impl<S: ComputeServer, K: KernelSource> CubeTask<S> for SourceKernel<S, K> {
 
     fn id(&self) -> String {
         format!("{:?}", core::any::TypeId::of::<K>())
-    }
-
-    fn cube_count(&self) -> CubeCount<S> {
-        self.cube_count.clone()
     }
 }
 

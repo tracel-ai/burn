@@ -90,7 +90,8 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Box::new(SourceKernel::new(kernel, cube_count, cube_dim)),
+            Box::new(SourceKernel::new(kernel, cube_dim)),
+            cube_count,
             vec![
                 lhs.handle.binding(),
                 rhs.handle.binding(),

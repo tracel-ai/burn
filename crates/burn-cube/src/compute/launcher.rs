@@ -84,9 +84,9 @@ impl<R: Runtime> KernelLauncher<R> {
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Box::new(KernelTask::<R, K>::new(kernel, cube_count));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel));
 
-        client.execute(kernel, bindings);
+        client.execute(kernel, cube_count, bindings);
     }
 
     /// We need to create the bindings in the same order they are defined in the compilation step.
