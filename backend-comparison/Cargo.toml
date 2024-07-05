@@ -73,16 +73,7 @@ path = "benches/conv_transpose2d.rs"
 harness = false
 
 [[bench]]
-name = "conv-transpose3d"
-path = "benches/conv_transpose3d.rs"
-harness = false
-
-[[bench]]
 name = "conv2d"
-harness = false
-
-[[bench]]
-name = "conv3d"
 harness = false
 
 [[bench]]
