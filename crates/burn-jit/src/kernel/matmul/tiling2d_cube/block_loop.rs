@@ -5,12 +5,14 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 use super::{
     base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
-    load_shared_memory::{load_to_shared_memories, load_to_shared_memories_expand},
+    load_shared_memory::{
+        load_to_shared_memories, load_to_shared_memories_expand, SharedMemoryLoader,
+    },
     write_output::{write_to_output, write_to_output_expand},
 };
 
 #[cube]
-pub(crate) fn block_loop<F: Float>(
+pub(crate) fn block_loop<F: Float, S: SharedMemoryLoader<F>>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
@@ -28,7 +30,7 @@ pub(crate) fn block_loop<F: Float>(
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_to_shared_memories(lhs, rhs, coordinates, k, offsets, shared, config, dims);
+        load_to_shared_memories::<F, S>(lhs, rhs, coordinates, k, offsets, shared, config, dims);
 
         sync_units();
 

@@ -5,19 +5,23 @@ use burn_cube::{prelude::*, Compiler};
 use crate::{
     kernel::{
         into_contiguous,
-        matmul::config::{
-            tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig,
+        matmul::{
+            config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig},
+            tiling2d_cube::{direct::loader::DirectLoader, tile::tile_loading::TileLoader},
         },
     },
     tensor::{JitTensor, MemoryLayout},
     FloatElement, JitRuntime,
 };
 
-use super::block_loop::{block_loop, block_loop_expand};
+use super::{
+    block_loop::{block_loop, block_loop_expand},
+    load_shared_memory::SharedMemoryLoader,
+};
 
 #[cube(launch)]
 #[allow(unused_mut)]
-fn tiling2d_cube<F: Float>(
+fn tiling2d_cube<F: Float, S: SharedMemoryLoader<F>>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
@@ -27,7 +31,7 @@ fn tiling2d_cube<F: Float>(
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
     let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, CUBE_POS_Z);
     let shared_memories = make_shared_memories::<F>(config);
-    block_loop(
+    block_loop::<F, S>(
         lhs,
         rhs,
         out,
@@ -204,40 +208,63 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .next()
             .unwrap_or(1)
     };
-    let lhs_vectorization = match lhs_transposed {
-        true => vectorization(m),
-        false => vectorization(k),
-    };
+
     let rhs_vectorization = match rhs_transposed {
         true => vectorization(k),
         false => vectorization(n),
     };
     let out_vectorization = vectorization(n);
 
-    tiling2d_cube_launch::<E::FloatPrimitive, R>(
-        client,
-        tiling2d_cube_count(&out.shape, &config),
-        tiling2d_cube_dim(&config),
-        TensorArg::vectorized(
-            lhs_vectorization,
-            &lhs.handle,
-            &lhs.strides,
-            &lhs.shape.dims,
-        ),
-        TensorArg::vectorized(
-            rhs_vectorization,
-            &rhs.handle,
-            &rhs.strides,
-            &rhs.shape.dims,
-        ),
-        TensorArg::vectorized(
-            out_vectorization,
-            &out.handle,
-            &out.strides,
-            &out.shape.dims,
-        ),
-        CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed),
-    );
+    let cube_count = tiling2d_cube_count(&out.shape, &config);
+    let cube_dim = tiling2d_cube_dim(&config);
+    let cube_config = CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed);
 
+    let direct = true;
+    if direct {
+        assert!(rhs_vectorization == 4);
+        tiling2d_cube_launch::<E::FloatPrimitive, DirectLoader, R>(
+            client,
+            cube_count,
+            cube_dim,
+            TensorArg::vectorized(1, &lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorArg::vectorized(4, &rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorArg::vectorized(
+                out_vectorization,
+                &out.handle,
+                &out.strides,
+                &out.shape.dims,
+            ),
+            cube_config,
+        );
+    } else {
+        let lhs_vectorization = match lhs_transposed {
+            true => vectorization(m),
+            false => vectorization(k),
+        };
+        tiling2d_cube_launch::<E::FloatPrimitive, TileLoader, R>(
+            client,
+            cube_count,
+            cube_dim,
+            TensorArg::vectorized(
+                lhs_vectorization,
+                &lhs.handle,
+                &lhs.strides,
+                &lhs.shape.dims,
+            ),
+            TensorArg::vectorized(
+                rhs_vectorization,
+                &rhs.handle,
+                &rhs.strides,
+                &rhs.shape.dims,
+            ),
+            TensorArg::vectorized(
+                out_vectorization,
+                &out.handle,
+                &out.strides,
+                &out.shape.dims,
+            ),
+            cube_config,
+        );
+    }
     out
 }

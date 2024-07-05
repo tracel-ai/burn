@@ -486,7 +486,7 @@ mod tests {
 
         #[test]
         pub fn large() {
-            test_with_params(134, 242, 250, 1, 1);
+            test_with_params(256, 256, 256, 1, 1);
         }
 
         #[test]

@@ -53,9 +53,9 @@ fn bench<B: Backend>(
 ) {
     const D: usize = 3;
     let batch_size = 32;
-    let m = 1024;
-    let k = 256;
-    let n = 1024;
+    let m = 256;
+    let k = 1024;
+    let n = 256;
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 
