@@ -3,7 +3,6 @@ use quote::quote;
 
 use burn::nn::PaddingConfig1d;
 use burn::nn::PaddingConfig2d;
-use burn::nn::PaddingConfig3d;
 
 fn convert_primitive<T: ToString>(primitive: T) -> TokenStream {
     let value = primitive.to_string();
@@ -88,22 +87,6 @@ impl ToTokens for PaddingConfig2d {
                 let padding1 = padding1.to_tokens();
                 let padding2 = padding2.to_tokens();
                 quote! { PaddingConfig2d::Explicit(#padding1, #padding2) }
-            }
-        }
-    }
-}
-
-/// Padding configuration
-impl ToTokens for PaddingConfig3d {
-    fn to_tokens(&self) -> TokenStream {
-        match self {
-            Self::Same => quote! { PaddingConfig3d::Same },
-            Self::Valid => quote! { PaddingConfig3d::Valid },
-            Self::Explicit(padding1, padding2, padding3) => {
-                let padding1 = padding1.to_tokens();
-                let padding2 = padding2.to_tokens();
-                let padding3 = padding3.to_tokens();
-                quote! { PaddingConfig3d::Explicit(#padding1, #padding2, #padding3) }
             }
         }
     }
