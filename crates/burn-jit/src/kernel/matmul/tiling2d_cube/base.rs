@@ -7,7 +7,10 @@ use crate::{
         into_contiguous,
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig},
-            tiling2d_cube::{direct::loader::DirectLoader, tile::tile_loading::TileLoader},
+            tiling2d_cube::{
+                direct::{loader::DirectLoader, transpose_trait::WhollyCheckedTransposeLoad},
+                tile::tile_loading::TileLoader,
+            },
         },
     },
     tensor::{JitTensor, MemoryLayout},
@@ -224,9 +227,9 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let direct = true;
     if direct {
-        assert!(m % config.block_size_m == 0);
-        assert!(k % config.block_size_k == 0);
-        assert!(n % config.block_size_n == 0);
+        // assert!(m % config.block_size_m == 0);
+        // assert!(k % config.block_size_k == 0);
+        // assert!(n % config.block_size_n == 0);
         if lhs_transposed {
             assert!(lhs_vectorization == 4);
         } else {
@@ -237,7 +240,11 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         } else {
             assert!(rhs_vectorization == 4);
         }
-        tiling2d_cube_launch::<E::FloatPrimitive, DirectLoader, R>(
+        tiling2d_cube_launch::<
+            E::FloatPrimitive,
+            DirectLoader<E::FloatPrimitive, WhollyCheckedTransposeLoad>,
+            R,
+        >(
             client,
             cube_count,
             cube_dim,
