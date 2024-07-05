@@ -208,8 +208,11 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .next()
             .unwrap_or(1)
     };
-
-    let rhs_vectorization = match rhs_transposed {
+    let mut lhs_vectorization = match rhs_transposed {
+        true => vectorization(m),
+        false => vectorization(k),
+    };
+    let mut rhs_vectorization = match rhs_transposed {
         true => vectorization(k),
         false => vectorization(n),
     };
@@ -221,13 +224,35 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let direct = true;
     if direct {
-        assert!(rhs_vectorization == 4);
+        assert!(m % config.block_size_m == 0);
+        assert!(k % config.block_size_k == 0);
+        assert!(n % config.block_size_n == 0);
+        if lhs_transposed {
+            assert!(lhs_vectorization == 4);
+        } else {
+            lhs_vectorization = 1;
+        }
+        if rhs_transposed {
+            rhs_vectorization = 1;
+        } else {
+            assert!(rhs_vectorization == 4);
+        }
         tiling2d_cube_launch::<E::FloatPrimitive, DirectLoader, R>(
             client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(1, &lhs.handle, &lhs.strides, &lhs.shape.dims),
-            TensorArg::vectorized(4, &rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorArg::vectorized(
+                lhs_vectorization,
+                &lhs.handle,
+                &lhs.strides,
+                &lhs.shape.dims,
+            ),
+            TensorArg::vectorized(
+                rhs_vectorization,
+                &rhs.handle,
+                &rhs.strides,
+                &rhs.shape.dims,
+            ),
             TensorArg::vectorized(
                 out_vectorization,
                 &out.handle,
