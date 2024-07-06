@@ -29,9 +29,9 @@ pub struct CompilationPhase;
 /// Phase where the kernel should be executed.
 #[derive(new)]
 pub struct ExecutionPhase<R: JitRuntime> {
-    /// Kernel set with default workgroup size.
+    /// Kernel set with default cube size.
     pub(super) kernel_factory_1: ElementWiseKernelFactory<R>,
-    /// Kernel set with custom workgroup size.
+    /// Kernel set with custom cube size.
     pub(super) kernel_factory_2: ElementWiseKernelFactory<R>,
 }
 

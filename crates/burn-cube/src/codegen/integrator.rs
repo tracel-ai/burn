@@ -74,9 +74,9 @@ impl core::fmt::Display for KernelSettings {
         // * Vectorization Global:    vg{factor}
         // * Vectorization Partial Input:    v{factor}i{pos}
         // * Vectorization Partial Output:    vo
-        // * Workgroup Size X: x
-        // * Workgroup Size Y: y
-        // * Workgroup Size Z: z
+        // * Cube Dim X: x
+        // * Cube Dim Y: y
+        // * Cube Dim Z: z
         f.write_str("m")?;
         for mapping in self.mappings.iter() {
             f.write_fmt(format_args!(

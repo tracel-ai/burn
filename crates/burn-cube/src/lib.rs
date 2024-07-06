@@ -6,6 +6,7 @@ extern crate derive_new;
 /// Cube Frontend Types.
 pub mod frontend;
 
+use burn_compute::server::ComputeServer;
 pub use frontend::cmma;
 
 /// Cube Language Internal Representation.
@@ -45,13 +46,16 @@ pub trait Kernel: Send + Sync + 'static {
 
 /// Calculate the number of cubes required to execute an operation where one cube unit is
 /// assigned to one element.
-pub fn calculate_cube_count_elemwise(num_elems: usize, cube_dim: usize) -> CubeCount {
+pub fn calculate_cube_count_elemwise<S: ComputeServer>(
+    num_elems: usize,
+    cube_dim: usize,
+) -> CubeCount<S> {
     let num_elems_per_cube = cube_dim * cube_dim;
     let cube_counts = f32::ceil(num_elems as f32 / num_elems_per_cube as f32);
     let cube_count_x = f32::ceil(f32::sqrt(cube_counts));
     let cube_count_y = f32::ceil(num_elems as f32 / (cube_count_x * num_elems_per_cube as f32));
 
-    CubeCount::new(cube_count_x as u32, cube_count_y as u32, 1)
+    CubeCount::Static(cube_count_x as u32, cube_count_y as u32, 1)
 }
 
 pub fn tensor_vectorization_factor(

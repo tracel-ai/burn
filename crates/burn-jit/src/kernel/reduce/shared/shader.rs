@@ -33,8 +33,8 @@ pub(crate) struct SharedReduceDimEagerKernel<
     EO: JitElement,
 > {
     dim: usize,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
+    cube_dim_x: usize,
+    cube_dim_y: usize,
     n_input_values_per_thread: u32,
     divisible_shape: bool,
     _reduce_dim: PhantomData<RD>,
@@ -58,7 +58,7 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         SharedReduceDimComputeShader {
             tensor,
             dim: self.dim,
-            shared_memory_size: self.workgroup_size_x * self.workgroup_size_y,
+            shared_memory_size: self.cube_dim_x * self.cube_dim_y,
             n_input_values_per_thread: self.n_input_values_per_thread,
             output,
             divisible_shape: self.divisible_shape,
@@ -83,8 +83,8 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         };
 
         let settings = KernelSettings::default().cube_dim(CubeDim::new(
-            self.workgroup_size_x as u32,
-            self.workgroup_size_y as u32,
+            self.cube_dim_x as u32,
+            self.cube_dim_y as u32,
             1,
         ));
         KernelIntegrator::new(info).integrate(settings)
@@ -95,8 +95,8 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
             "{:?}dim={}x={}y={}n={}divshape={}",
             core::any::TypeId::of::<Self>(),
             self.dim,
-            self.workgroup_size_x,
-            self.workgroup_size_y,
+            self.cube_dim_x,
+            self.cube_dim_y,
             self.n_input_values_per_thread,
             self.divisible_shape
         )
@@ -111,13 +111,13 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
         let rank = Variable::Rank;
         let dim: Variable = self.dim.into();
 
-        let workgroup_id_x = Variable::CubePosX;
-        let workgroup_id_y = Variable::CubePosY;
-        let num_workgroups_x = Variable::CubeCountX;
+        let cube_pos_x = Variable::CubePosX;
+        let cube_pos_y = Variable::CubePosY;
+        let cube_count_x = Variable::CubeCountX;
         let local_invocation_id_x = Variable::UnitPosX;
         let local_invocation_id_y = Variable::UnitPosY;
-        let workgroup_size_x = Variable::CubeDimX;
-        let workgroup_size_y = Variable::CubeDimY;
+        let cube_dim_x = Variable::CubeDimX;
+        let cube_dim_y = Variable::CubeDimY;
 
         let stride_reduce_dim_input = scope.create_local(Elem::UInt);
         cpa!(scope, stride_reduce_dim_input = stride(tensor, dim));
@@ -126,16 +126,16 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
 
         // To determine which reduce_group (not position, but absolute id)
         let reduce_group_id = scope.create_local(Elem::UInt);
-        cpa!(scope, reduce_group_id = workgroup_id_y * num_workgroups_x);
-        cpa!(scope, reduce_group_id += workgroup_id_x);
+        cpa!(scope, reduce_group_id = cube_pos_y * cube_count_x);
+        cpa!(scope, reduce_group_id += cube_pos_x);
 
-        // nth thread in the workgroup
+        // nth thread in the cube
         let local_id = scope.create_local(Elem::UInt);
-        cpa!(scope, local_id = local_invocation_id_y * workgroup_size_x);
+        cpa!(scope, local_id = local_invocation_id_y * cube_dim_x);
         cpa!(scope, local_id += local_invocation_id_x);
 
         let n_threads = scope.create_local(Elem::UInt);
-        cpa!(scope, n_threads = workgroup_size_x * workgroup_size_y);
+        cpa!(scope, n_threads = cube_dim_x * cube_dim_y);
 
         let index_offset = scope.zero(Elem::UInt);
 
@@ -242,17 +242,17 @@ pub fn reduce_dim_shared<
     dim: usize,
 ) -> JitTensor<R, EO, D> {
     let num_elems_output = output.shape.num_elements();
-    let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
-    let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);
-    let grid = CubeCount::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
+    let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
+    let cube_count_y = f32::ceil(num_elems_output as f32 / cube_count_x);
+    let grid = CubeCount::Static(cube_count_x as u32, cube_count_y as u32, 1);
 
     let reduce_group_size = input.shape.dims[dim];
-    let n_invocation_per_workgroup = SUBCUBE_DIM_APPROX * SUBCUBE_DIM_APPROX;
+    let n_invocation_per_cube = SUBCUBE_DIM_APPROX * SUBCUBE_DIM_APPROX;
     let n_input_values_per_thread =
-        f32::ceil(reduce_group_size as f32 / n_invocation_per_workgroup as f32) as u32;
+        f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
 
     let divisible_shape =
-        n_invocation_per_workgroup as u32 * n_input_values_per_thread == reduce_group_size as u32;
+        n_invocation_per_cube as u32 * n_input_values_per_thread == reduce_group_size as u32;
 
     let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
