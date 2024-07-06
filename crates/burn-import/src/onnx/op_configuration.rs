@@ -1284,57 +1284,39 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 }
 
 pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
-    let start_value = &node.inputs[1].value;
-    let end_value = &node.inputs[2].value;
+    fn ensure_1d_tensor(node: &Node, index: usize) {
+        match &node.inputs[index].ty {
+            ArgType::Tensor(tensor) => assert_eq!(tensor.dim, 1, "Slice: tensor must be 1D"),
+            _ => panic!("Only tensor input is valid"),
+        };
+    }
 
-    let tensor_shape: &Vec<usize> = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.shape.as_ref().unwrap(),
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    let starts = match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Slice: starts tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = start_value.as_ref() {
-                shape
-                    .iter()
-                    .enumerate()
-                    .map(|(i, x)| {
-                        if x.is_negative() {
-                            tensor_shape[i] - x.wrapping_abs() as usize
-                        } else {
-                            *x as usize
-                        }
-                    })
-                    .collect()
-            } else {
-                panic!("Tensor data type must be int64")
-            }
+    fn get_input_values(node: &Node, index: usize) -> Vec<usize> {
+        let tensor_shape = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.shape.as_ref().unwrap(),
+            _ => panic!("Only tensor input is valid"),
+        };
+        match &node.inputs[index].value {
+            Some(Data::Int64s(shape)) => shape
+                .iter()
+                .enumerate()
+                .map(|(i, x)| {
+                    if x.is_negative() {
+                        tensor_shape[i] - x.wrapping_abs() as usize
+                    } else {
+                        *x as usize
+                    }
+                })
+                .collect(),
+            _ => panic!("Tensor data type must be int64"),
         }
-        _ => panic!("Only tensor input is valid for shape"),
-    };
+    }
 
-    let ends = match &node.inputs[2].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = end_value.as_ref() {
-                shape
-                    .iter()
-                    .enumerate()
-                    .map(|(i, x)| {
-                        if x.is_negative() {
-                            tensor_shape[i] - x.wrapping_abs() as usize
-                        } else {
-                            *x as usize
-                        }
-                    })
-                    .collect()
-            } else {
-                panic!("Tensor data type must be int64")
-            }
-        }
-        _ => panic!("Only tensor input is valid for shape"),
-    };
+    ensure_1d_tensor(node, 1);
+    ensure_1d_tensor(node, 2);
+
+    let starts = get_input_values(node, 1);
+    let ends = get_input_values(node, 2);
 
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
