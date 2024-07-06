@@ -22,15 +22,12 @@ impl<C: CubeType> CubeType for Array<C> {
     type ExpandType = ExpandElementTyped<Array<C>>;
 }
 
-impl<C: CubeType> CubeType for &Array<C> {
-    type ExpandType = ExpandElementTyped<Array<C>>;
+impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {
+    fn init(self, _context: &mut crate::prelude::CubeContext) -> Self {
+        // The type can't be deeply cloned/copied.
+        self
+    }
 }
-
-impl<C: CubeType> CubeType for &mut Array<C> {
-    type ExpandType = ExpandElementTyped<Array<C>>;
-}
-
-impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {}
 
 impl<E: CubeType> Array<E> {
     /// Obtain the array length
@@ -43,7 +40,7 @@ impl<C: CubePrimitive> LaunchArg for Array<C> {
     type RuntimeArg<'a, R: Runtime> = ArrayArg<'a, R>;
 }
 
-impl<C: CubePrimitive> LaunchArgExpand for &Array<C> {
+impl<C: CubePrimitive> LaunchArgExpand for Array<C> {
     fn expand(
         builder: &mut KernelBuilder,
         vectorization: Vectorization,
@@ -52,10 +49,7 @@ impl<C: CubePrimitive> LaunchArgExpand for &Array<C> {
             .input_array(Item::vectorized(C::as_elem(), vectorization))
             .into()
     }
-}
-
-impl<C: CubePrimitive> LaunchArgExpand for &mut Array<C> {
-    fn expand(
+    fn expand_output(
         builder: &mut KernelBuilder,
         vectorization: Vectorization,
     ) -> ExpandElementTyped<Array<C>> {

@@ -17,7 +17,7 @@ pub mod not {
 macro_rules! impl_unary_func {
     ($trait_name:ident, $method_name:ident, $method_name_expand:ident, $operator:expr, $($type:ty),*) => {
         pub trait $trait_name: CubeType + Sized {
-            fn $method_name(self) -> Self {
+            fn $method_name(_input: Self) -> Self {
                 unexpanded!()
             }
 

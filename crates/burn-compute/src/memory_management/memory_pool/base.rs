@@ -17,6 +17,7 @@ pub struct MemoryPool {
     ring: RingBuffer<Chunk, Slice>,
     recently_added_chunks: Vec<ChunkId>,
     recently_allocated_size: usize,
+    buffer_alignment: usize,
 }
 
 struct SliceUpdate {
@@ -111,13 +112,9 @@ impl Slice {
 }
 
 const MIN_SIZE_NEEDED_TO_OFFSET: usize = 16;
-const BUFFER_ALIGNMENT: usize = 32;
-const MB: usize = 1024 * 1024;
 
 pub enum RoundingStrategy {
     FixedAmount(usize),
-    #[allow(unused)]
-    RoundUp,
     #[allow(unused)]
     None,
 }
@@ -125,19 +122,6 @@ pub enum RoundingStrategy {
 impl RoundingStrategy {
     fn alloc_size(&self, size: usize) -> usize {
         match self {
-            RoundingStrategy::RoundUp => {
-                if size < BUFFER_ALIGNMENT {
-                    return BUFFER_ALIGNMENT;
-                }
-                if size < MB {
-                    2 * MB
-                } else if size < 10 * MB {
-                    return 20 * MB;
-                } else {
-                    let factor = (size + (2 * MB - 1)) / (2 * MB);
-                    factor * 2 * MB
-                }
-            }
             RoundingStrategy::FixedAmount(chunk_size) => {
                 assert!(*chunk_size >= size);
                 *chunk_size
@@ -148,6 +132,7 @@ impl RoundingStrategy {
 }
 
 /// The strategy defines the frequency at which merging of free slices (defragmentation) occurs
+#[allow(unused)]
 #[derive(Debug)]
 pub enum MemoryExtensionStrategy {
     /// Once every n calls to reserve.
@@ -161,6 +146,7 @@ pub enum MemoryExtensionStrategy {
     Never,
 }
 
+#[allow(unused)]
 impl MemoryExtensionStrategy {
     /// Create a new strategy with the given period.
     pub fn new_period_tick(period: usize) -> Self {
@@ -183,6 +169,7 @@ impl MemoryPool {
     pub fn new(
         merging_strategy: MemoryExtensionStrategy,
         alloc_strategy: RoundingStrategy,
+        buffer_alignment: usize,
     ) -> Self {
         Self {
             chunks: HashMap::new(),
@@ -190,9 +177,10 @@ impl MemoryPool {
             memory_extension_strategy: merging_strategy,
             rounding: alloc_strategy,
             chunk_index: SearchIndex::new(),
-            ring: RingBuffer::new(),
+            ring: RingBuffer::new(buffer_alignment),
             recently_added_chunks: Vec::new(),
             recently_allocated_size: 0,
+            buffer_alignment,
         }
     }
 
@@ -335,7 +323,7 @@ impl MemoryPool {
             return None;
         }
 
-        let padding = calculate_padding(size);
+        let padding = calculate_padding(size, self.buffer_alignment);
         let effective_size = size + padding;
 
         let slice_id =
@@ -364,9 +352,10 @@ impl MemoryPool {
     /// Creates a slice of size `size` upon the given chunk with the given offset.
     fn create_slice(&self, offset: usize, size: usize, handle_chunk: ChunkHandle) -> Slice {
         assert_eq!(
-            offset % BUFFER_ALIGNMENT,
+            offset % self.buffer_alignment,
             0,
-            "slice with offset {offset} needs to be a multiple of {BUFFER_ALIGNMENT}"
+            "slice with offset {offset} needs to be a multiple of {}",
+            self.buffer_alignment
         );
         if offset > 0 && size < MIN_SIZE_NEEDED_TO_OFFSET {
             panic!("tried to create slice of size {size} with an offset while the size needs to atleast be of size {MIN_SIZE_NEEDED_TO_OFFSET} for offset support");
@@ -379,7 +368,7 @@ impl MemoryPool {
             utilization: StorageUtilization::Slice { offset, size },
         };
 
-        let padding = calculate_padding(size);
+        let padding = calculate_padding(size, self.buffer_alignment);
 
         Slice::new(storage, handle, chunk.handle.clone(), padding)
     }
@@ -390,7 +379,7 @@ impl MemoryPool {
         storage: &mut Storage,
         size: usize,
     ) -> ChunkHandle {
-        let padding = calculate_padding(size);
+        let padding = calculate_padding(size, self.buffer_alignment);
         let effective_size = size + padding;
 
         let storage = storage.alloc(effective_size);
@@ -496,7 +485,7 @@ impl MemoryPool {
         }
         let chunk_size = chunk.storage.size();
         let last_slice_size = chunk_size - offset;
-        assert_eq!(last_slice_size % BUFFER_ALIGNMENT, 0);
+        assert_eq!(last_slice_size % self.buffer_alignment, 0);
         if last_slice_size != 0 {
             self.create_slice(offset, last_slice_size, chunk_handle);
         }
@@ -505,10 +494,10 @@ impl MemoryPool {
     }
 }
 
-fn calculate_padding(size: usize) -> usize {
-    let remainder = size % BUFFER_ALIGNMENT;
+fn calculate_padding(size: usize, buffer_alignment: usize) -> usize {
+    let remainder = size % buffer_alignment;
     if remainder != 0 {
-        BUFFER_ALIGNMENT - remainder
+        buffer_alignment - remainder
     } else {
         0
     }
@@ -523,7 +512,7 @@ impl MemorySlice for Slice {
         self.effective_size()
     }
 
-    fn split(&mut self, offset_slice: usize) -> Option<Self> {
+    fn split(&mut self, offset_slice: usize, buffer_alignment: usize) -> Option<Self> {
         let size_new = self.effective_size() - offset_slice;
         let offset_new = self.storage.offset() + offset_slice;
         let old_size = self.effective_size();
@@ -544,22 +533,22 @@ impl MemorySlice for Slice {
         if offset_new > 0 && size_new < MIN_SIZE_NEEDED_TO_OFFSET {
             panic!("tried to create slice of size {size_new} with an offset while the size needs to atleast be of size {MIN_SIZE_NEEDED_TO_OFFSET} for offset support");
         }
-        if offset_new % BUFFER_ALIGNMENT != 0 {
-            panic!("slice with offset {offset_new} needs to be a multiple of {BUFFER_ALIGNMENT}");
+        if offset_new % buffer_alignment != 0 {
+            panic!("slice with offset {offset_new} needs to be a multiple of {buffer_alignment}");
         }
         let handle = SliceHandle::new();
-        if size_new < BUFFER_ALIGNMENT {
+        if size_new < buffer_alignment {
             self.padding = old_size - offset_slice;
             assert_eq!(self.effective_size(), old_size);
             return None;
         }
 
         assert!(
-            size_new >= BUFFER_ALIGNMENT,
-            "Size new > {BUFFER_ALIGNMENT}"
+            size_new >= buffer_alignment,
+            "Size new > {buffer_alignment}"
         );
         self.padding = 0;
-        let padding = calculate_padding(size_new - BUFFER_ALIGNMENT);
+        let padding = calculate_padding(size_new - buffer_alignment, buffer_alignment);
         Some(Slice::new(storage_new, handle, self.chunk.clone(), padding))
     }
 

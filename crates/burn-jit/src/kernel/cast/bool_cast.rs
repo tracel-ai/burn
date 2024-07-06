@@ -20,7 +20,7 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     let kernel = BoolCastEagerKernel::<R, EO>::new();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         tensor.client.clone(),
         tensor.device,
         tensor.shape.clone(),

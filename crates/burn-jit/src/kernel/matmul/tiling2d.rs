@@ -158,7 +158,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
 
     let num_elems = rounded_output_shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let rounded_output = JitTensor::new(
+    let rounded_output = JitTensor::new_contiguous(
         rhs.client.clone(),
         rhs.device.clone(),
         rounded_output_shape.clone(),

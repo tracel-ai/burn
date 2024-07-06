@@ -47,7 +47,7 @@ pub fn interpolate_backward<R: JitRuntime, E: JitElement + Element>(
     let output_shape = input.shape.clone();
     let num_elems = input.shape.num_elements();
     let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         input.client.clone(),
         input.device.clone(),
         output_shape,

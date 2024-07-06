@@ -185,7 +185,7 @@ where
         let shape_out = Shape::new(shape_out);
         let num_elems = shape_out.num_elements();
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let out = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
 
         Execution::start(kernel, lhs.client)
             .inputs(&[

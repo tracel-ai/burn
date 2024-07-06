@@ -69,7 +69,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Slice => slice_update_outputs(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
-        NodeType::Sub => same_as_input(node),
+        NodeType::Sub => sub_update_outputs(node),
         NodeType::Sum => same_as_input(node),
         NodeType::Tanh => same_as_input(node),
         NodeType::Transpose => same_as_input(node),
@@ -505,6 +505,20 @@ fn slice_update_outputs(node: &mut Node) {
             ..output
         });
     }
+}
+
+fn sub_update_outputs(node: &mut Node) {
+    node.outputs[0].ty = match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
+        (ArgType::Scalar(_lhs), ArgType::Scalar(rhs)) => ArgType::Scalar(rhs),
+        (ArgType::Scalar(_lhs), ArgType::Tensor(rhs)) => ArgType::Tensor(rhs),
+        (ArgType::Tensor(lhs), ArgType::Scalar(_rhs)) => ArgType::Tensor(lhs),
+        // Support broadcasting for lhs/rhs
+        (ArgType::Tensor(lhs), ArgType::Tensor(rhs)) if lhs.dim > rhs.dim => ArgType::Tensor(lhs),
+        (ArgType::Tensor(lhs), ArgType::Tensor(rhs)) if lhs.dim <= rhs.dim => ArgType::Tensor(rhs),
+        _ => {
+            panic!("Only tensor-scalar inputs are valid.");
+        }
+    };
 }
 
 /// Update the output tensor dimension based on the "axes" attribute or the second input

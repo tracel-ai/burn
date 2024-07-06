@@ -1,8 +1,9 @@
 use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::{kernel, unary, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_cube::ir::{Elem, Item, Operator, Scope, UnaryOperator, Variable};
-use burn_cube::Runtime;
+use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
+use burn_cube::frontend::Numeric;
+use burn_cube::prelude::*;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use std::ops::Range;
@@ -293,15 +294,13 @@ where
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, Item::new(elem), position),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: IntElem<Self>
-        )
+        unary_op!(int(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Numeric>(input: C) -> C {
+                C::abs(input)
+            }
+            execute_expand::<C>(context, tensor)
+        })
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {

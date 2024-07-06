@@ -74,7 +74,8 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output =
+            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);

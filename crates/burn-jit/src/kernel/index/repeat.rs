@@ -113,7 +113,7 @@ pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
     let handle = input
         .client
         .empty(num_elems_output * core::mem::size_of::<E>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         input.client.clone(),
         input.device.clone(),
         shape.clone(),

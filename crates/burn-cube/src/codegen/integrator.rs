@@ -480,7 +480,10 @@ impl KernelIntegrator {
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
         let output = match self.expansion.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
-            None => panic!("No output found."),
+            None => {
+                // The mapping is handled differently, normally by cube itself.
+                return;
+            }
         };
 
         let (item, local, position) = match output {

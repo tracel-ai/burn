@@ -1,15 +1,21 @@
+use crate::compute::KernelLauncher;
 use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement};
 use crate::ir::{Item, Variable};
+use crate::prelude::Clamp;
+use crate::Runtime;
 use crate::{
     frontend::{index_assign, Abs, Max, Min, Remainder},
     unexpanded,
 };
+
+use super::{ArgSettings, LaunchArg, LaunchArgExpand};
 
 /// Type that encompasses both (unsigned or signed) integers and floats
 /// Used in kernels that should work for both.
 pub trait Numeric:
     Copy
     + CubePrimitive
+    + LaunchArgExpand
     + std::ops::Add<Output = Self>
     + std::ops::AddAssign
     + std::ops::SubAssign
@@ -22,6 +28,7 @@ pub trait Numeric:
     + Abs
     + Max
     + Min
+    + Clamp
     + Remainder
 {
     /// Create a new constant numeric.
@@ -35,6 +42,8 @@ pub trait Numeric:
     fn from_int(_val: i64) -> Self {
         unexpanded!()
     }
+
+    type Primitive: ScalarArgSettings;
 
     /// Expand version of from_int
     fn from_int_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
@@ -57,4 +66,26 @@ pub trait Numeric:
 
         new_var
     }
+}
+
+/// Similar to [ArgSettings], however only for scalar types that don't depend on the [Runtime]
+/// trait.
+pub trait ScalarArgSettings: Send + Sync {
+    /// Register the information to the [KernelLauncher].
+    fn register<R: Runtime>(&self, launcher: &mut KernelLauncher<R>);
+}
+
+#[derive(new)]
+pub struct ScalarArg<T: Numeric> {
+    elem: T::Primitive,
+}
+
+impl<T: Numeric, R: Runtime> ArgSettings<R> for ScalarArg<T> {
+    fn register(&self, launcher: &mut crate::compute::KernelLauncher<R>) {
+        self.elem.register(launcher);
+    }
+}
+
+impl<T: Numeric> LaunchArg for T {
+    type RuntimeArg<'a, R: Runtime> = ScalarArg<T>;
 }

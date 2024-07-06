@@ -1,3 +1,5 @@
+use crate::unexpanded;
+
 use super::{CubeType, ExpandElement, Tensor, UInt};
 
 pub trait Vectorized {
@@ -7,12 +9,31 @@ pub trait Vectorized {
 
 impl<T: Vectorized + CubeType> Vectorized for Tensor<T> {
     fn vectorization_factor(&self) -> UInt {
-        UInt::new(self.factor as u32)
+        unexpanded!()
     }
 
-    fn vectorize(mut self, factor: UInt) -> Self {
-        self.factor = factor.vectorization;
-        self
+    fn vectorize(self, _factor: UInt) -> Self {
+        unexpanded!()
+    }
+}
+
+impl<T: Vectorized + CubeType> Vectorized for &Tensor<T> {
+    fn vectorization_factor(&self) -> UInt {
+        unexpanded!()
+    }
+
+    fn vectorize(self, _factor: UInt) -> Self {
+        unexpanded!()
+    }
+}
+
+impl<T: Vectorized + CubeType> Vectorized for &mut Tensor<T> {
+    fn vectorization_factor(&self) -> UInt {
+        unexpanded!()
+    }
+
+    fn vectorize(self, _factor: UInt) -> Self {
+        unexpanded!()
     }
 }
 

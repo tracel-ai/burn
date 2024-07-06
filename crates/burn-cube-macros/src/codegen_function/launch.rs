@@ -144,13 +144,13 @@ impl Codegen {
 
         for (pos, (ident, _ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                settings = #ident.configure_input(#pos, settings);
+                settings = ArgSettings::<R>::configure_input(&#ident, #pos, settings);
             });
         }
 
         for (pos, (ident, _ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                settings = #ident.configure_output(#pos, settings);
+                settings = ArgSettings::<R>::configure_output(&#ident, #pos, settings);
             });
         }
 
@@ -167,7 +167,7 @@ impl Codegen {
 
         for (pos, (_ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                #pos => std::sync::Arc::new(<&#ty as LaunchArgExpand>::expand(builder, settings.vectorization_input(#pos))),
+                #pos => std::sync::Arc::new(<#ty as LaunchArgExpand>::expand(builder, settings.vectorization_input(#pos))),
             });
         }
 
@@ -192,7 +192,7 @@ impl Codegen {
 
         for (pos, (_ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                #pos => std::sync::Arc::new(<&mut #ty as LaunchArgExpand>::expand(builder, settings.vectorization_output(#pos))),
+                #pos => std::sync::Arc::new(<#ty as LaunchArgExpand>::expand_output(builder, settings.vectorization_output(#pos))),
             });
         }
 
@@ -218,7 +218,7 @@ impl Codegen {
 
         for (pos, (ident, ty)) in self.state_inputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident: &<&#ty as CubeType>::ExpandType = inputs
+                let #ident: &<#ty as CubeType>::ExpandType = inputs
                     .get(&#pos)
                     .unwrap()
                     .downcast_ref()
@@ -228,7 +228,7 @@ impl Codegen {
 
         for (pos, (ident, ty)) in self.state_outputs.iter().enumerate() {
             variables.extend(quote::quote! {
-                let #ident: &<&mut #ty as CubeType>::ExpandType = outputs
+                let #ident: &<#ty as CubeType>::ExpandType = outputs
                     .get(&#pos)
                     .unwrap()
                     .downcast_ref()

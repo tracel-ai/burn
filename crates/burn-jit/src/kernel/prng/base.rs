@@ -27,7 +27,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
     let num_elems = shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
+    let output = JitTensor::new_contiguous(client.clone(), device.clone(), shape.clone(), buffer);
     let seeds = get_seeds();
 
     Execution::start(kernel, client)

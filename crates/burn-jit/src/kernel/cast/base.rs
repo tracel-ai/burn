@@ -16,13 +16,18 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     tensor: JitTensor<R, EI, D>,
 ) -> JitTensor<R, EO, D> {
     if TypeId::of::<EI>() == TypeId::of::<EO>() {
-        return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+        return JitTensor::new_contiguous(
+            tensor.client,
+            tensor.device,
+            tensor.shape,
+            tensor.handle,
+        );
     }
 
     let kernel = CastEagerKernel::<R, EI, EO>::new();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         tensor.client.clone(),
         tensor.device,
         tensor.shape.clone(),
