@@ -159,7 +159,7 @@ where
     MM: MemoryManagement<WgpuStorage>,
 {
     type Kernel = Box<dyn CubeTask>;
-    type DispatchCount = CubeCount<Self>;
+    type DispatchOptions = CubeCount<Self>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -279,7 +279,7 @@ where
     fn execute(
         &mut self,
         kernel: Self::Kernel,
-        count: Self::DispatchCount,
+        count: Self::DispatchOptions,
         bindings: Vec<server::Binding<Self>>,
     ) {
         let pipeline = self.pipeline(kernel);

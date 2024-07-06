@@ -7,7 +7,7 @@ use crate::{
 use burn_cube::ir::KernelDefinition;
 use burn_cube::{frontend::TensorArg, KernelSettings};
 
-use super::simple_workgroup_count;
+use super::simple_cube_count;
 use burn_cube::prelude::*;
 
 #[cube(launch)]
@@ -80,7 +80,7 @@ fn matmul_kernel<F: Float>(
     }
 }
 
-/// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
+/// Matrix multiplication using memory coalescing algorithm with cube dimensions of size 16
 pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
@@ -89,7 +89,7 @@ pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement, const D: us
     matmul_simple::<R, E, D>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
 }
 
-/// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
+/// Matrix multiplication using memory coalescing algorithm with custom cube dimensions
 pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
@@ -103,7 +103,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     let rhs_original_shape = rhs.shape.clone();
     let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
 
-    let cube_count = simple_workgroup_count::<R, D>(
+    let cube_count = simple_cube_count::<R, D>(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,

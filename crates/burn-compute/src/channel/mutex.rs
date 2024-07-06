@@ -59,7 +59,7 @@ where
     fn execute(
         &self,
         kernel: Server::Kernel,
-        count: Server::DispatchCount,
+        count: Server::DispatchOptions,
         handles: Vec<Binding<Server>>,
     ) {
         self.server.lock().execute(kernel, count, handles)

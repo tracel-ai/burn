@@ -21,7 +21,7 @@ impl<MM> ComputeServer for DummyServer<MM>
 where
     MM: MemoryManagement<BytesStorage>,
 {
-    type DispatchCount = ();
+    type DispatchOptions = ();
     type Kernel = Arc<dyn DummyKernel>;
     type Storage = BytesStorage;
     type MemoryManagement = MM;
@@ -57,7 +57,7 @@ where
     fn execute(
         &mut self,
         kernel: Self::Kernel,
-        _count: Self::DispatchCount,
+        _count: Self::DispatchOptions,
         bindings: Vec<Binding<Self>>,
     ) {
         let mut resources = bindings

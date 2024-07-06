@@ -6,7 +6,7 @@ use crate::{calculate_cube_count_elemwise, Kernel, Runtime, SUBCUBE_DIM_APPROX};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::{Binding, ComputeServer, Handle};
 
-/// The position of the input or output to calculate the number of workgroups to launch.
+/// The position of the input or output to calculate the number of cubes to launch.
 pub enum CubeCountSettings<S: ComputeServer> {
     Input { pos: usize },
     Output { pos: usize },
@@ -293,8 +293,8 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
     let handles_scalars =
         create_scalar_handles::<R, E1, E2, E3>(scalars_1, scalars_2, scalars_3, client);
 
-    let workgroup = match launch {
-        CubeCountSettings::Custom(workgroup) => workgroup,
+    let cube_count = match launch {
+        CubeCountSettings::Custom(count) => count,
         _ => calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX),
     };
 
@@ -302,7 +302,7 @@ fn execute_settings<'a, R: Runtime, E1: CubeElement, E2: CubeElement, E3: CubeEl
         handles_tensors: handles,
         handle_info: info,
         handles_scalars,
-        cube_count: workgroup,
+        cube_count,
     }
 }
 

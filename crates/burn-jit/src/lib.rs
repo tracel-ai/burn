@@ -51,6 +51,6 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     type JitServer: burn_compute::server::ComputeServer<
         AutotuneKey = JitAutotuneKey,
         Kernel = Box<dyn CubeTask>,
-        DispatchCount = CubeCount<Self::JitServer>,
+        DispatchOptions = CubeCount<Self::JitServer>,
     >;
 }

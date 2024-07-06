@@ -12,7 +12,7 @@ pub trait Runtime: Send + Sync + 'static + core::fmt::Debug {
     /// The compute server used to run kernels and perform autotuning.
     type Server: ComputeServer<
         Kernel = Box<dyn CubeTask>,
-        DispatchCount = CubeCount<Self::Server>,
+        DispatchOptions = CubeCount<Self::Server>,
         FeatureSet = FeatureSet,
     >;
     /// The channel used to communicate with the compute server.

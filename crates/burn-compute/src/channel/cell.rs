@@ -66,7 +66,7 @@ where
     fn execute(
         &self,
         kernel_description: Server::Kernel,
-        count: Server::DispatchCount,
+        count: Server::DispatchOptions,
         bindings: Vec<Binding<Server>>,
     ) {
         self.server

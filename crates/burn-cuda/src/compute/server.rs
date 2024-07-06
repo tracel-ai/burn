@@ -74,7 +74,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
 
 impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     type Kernel = Box<dyn CubeTask>;
-    type DispatchCount = CubeCount<Self>;
+    type DispatchOptions = CubeCount<Self>;
     type Storage = CudaStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -111,7 +111,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
     fn execute(
         &mut self,
         kernel: Self::Kernel,
-        count: Self::DispatchCount,
+        count: Self::DispatchOptions,
         bindings: Vec<server::Binding<Self>>,
     ) {
         let arch = self.minimum_arch_version;
@@ -125,7 +125,11 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             // For now, just read the dispatch settings from the buffer.
             CubeCount::Dynamic(binding) => {
                 let data = self.read_sync(binding);
-                let data: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+                let data = bytemuck::cast_slice(&data);
+                assert!(
+                    data.len() == 3,
+                    "Dynamic cube count should contain 3 values"
+                );
                 (data[0], data[1], data[2])
             }
         };

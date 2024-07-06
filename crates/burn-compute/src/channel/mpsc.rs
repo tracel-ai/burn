@@ -40,7 +40,7 @@ where
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(
-        (Server::Kernel, Server::DispatchCount),
+        (Server::Kernel, Server::DispatchOptions),
         Vec<Binding<Server>>,
     ),
     Sync(SyncType, Callback<()>),
@@ -154,7 +154,7 @@ where
     fn execute(
         &self,
         kernel: Server::Kernel,
-        count: Server::DispatchCount,
+        count: Server::DispatchOptions,
         bindings: Vec<Binding<Server>>,
     ) {
         self.state

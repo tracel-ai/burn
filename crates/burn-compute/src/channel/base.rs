@@ -27,7 +27,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send
     fn execute(
         &self,
         kernel: Server::Kernel,
-        count: Server::DispatchCount,
+        count: Server::DispatchOptions,
         bindings: Vec<Binding<Server>>,
     );
 

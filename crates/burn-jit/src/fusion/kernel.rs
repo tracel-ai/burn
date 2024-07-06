@@ -41,7 +41,7 @@ pub trait FusionKernelFactory<R: JitRuntime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: JitRuntime> {
     kernel: Box<dyn CubeTask>,
-    count: CubeCount<R::Server>,
+    cube_count: CubeCount<R::Server>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -70,7 +70,8 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client.execute(self.kernel, self.count, self.bindings)
+        self.client
+            .execute(self.kernel, self.cube_count, self.bindings)
     }
 }
 
@@ -94,7 +95,7 @@ impl<R: JitRuntime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
-            count: value.count.clone(),
+            count: value.cube_count.clone(),
             bindings: value.bindings,
             client: value.client,
         }
@@ -238,10 +239,10 @@ impl<R: JitRuntime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        let workgroup = fusion_kernel.cube_count.clone();
+        let cube_count = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
             Box::new(KernelTask::<R::Compiler, _>::new(fusion_kernel)),
-            workgroup,
+            cube_count,
             bindings,
             client,
         )

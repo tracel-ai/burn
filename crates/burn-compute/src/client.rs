@@ -85,7 +85,7 @@ where
     pub fn execute(
         &self,
         kernel: Server::Kernel,
-        count: Server::DispatchCount,
+        count: Server::DispatchOptions,
         bindings: Vec<Binding<Server>>,
     ) {
         self.channel.execute(kernel, count, bindings)

@@ -8,7 +8,7 @@ use burn_compute::server::{Binding, ComputeServer};
 pub struct CompiledKernel {
     /// Source code of the kernel
     pub source: String,
-    /// Size of a workgroup for the compiled kernel
+    /// Size of a cube for the compiled kernel
     pub cube_dim: CubeDim,
     /// The number of bytes used by the share memory
     pub shared_mem_bytes: usize,

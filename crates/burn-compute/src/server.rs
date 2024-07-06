@@ -17,8 +17,8 @@ where
 {
     /// The kernel type defines the computation algorithms.
     type Kernel: Send;
-    /// The type for the number of workgroups to dispatch.
-    type DispatchCount: Send;
+    /// Options when dispatching the kernel, eg. the number of executions.
+    type DispatchOptions: Send;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.
     type Storage: ComputeStorage;
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.
@@ -50,7 +50,7 @@ where
     fn execute(
         &mut self,
         kernel: Self::Kernel,
-        count: Self::DispatchCount,
+        count: Self::DispatchOptions,
         bindings: Vec<Binding<Self>>,
     );
 
