@@ -478,23 +478,21 @@ impl ParsedOnnxGraph {
             .expect("ConstantOfShape requires an input tensor");
         let output = node.outputs.first().unwrap();
 
+        // The value of the output elements.Should be a one-element tensor.
+        // If not specified, it defaults to a tensor of value 0 and datatype float32
+        // https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape
         let value = node
             .attrs
             .get("value")
             .and_then(|val| val.clone().into_tensor().data)
             .map(|val_data| match val_data {
                 // TODO: Handle Float16
-                Data::Float32(val) => val.into(),
                 Data::Float32s(vals) => ConstantValue::from_vec(vals),
-                Data::Float64(val) => val.into(),
                 Data::Float64s(vals) => ConstantValue::from_vec(vals),
-                Data::Int32(val) => val.into(),
                 Data::Int32s(vals) => ConstantValue::from_vec(vals),
-                Data::Int64(val) => val.into(),
                 Data::Int64s(vals) => ConstantValue::from_vec(vals),
-                Data::Bool(val) => val.into(),
                 Data::Bools(vals) => ConstantValue::from_vec(vals),
-                _ => panic!("Unsupported value type for ConstantOfShape!"),
+                ty => panic!("Unsupported value type {:?} for ConstantOfShape!", ty),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 

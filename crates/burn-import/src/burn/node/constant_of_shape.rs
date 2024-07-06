@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -104,10 +104,33 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
         let output = self.output.name();
         let input = self.input.name();
 
+        let output_rank = match &self.output {
+            Type::Tensor(tensor) => tensor.dim.to_tokens(),
+            _ => unreachable!(),
+        };
+
         let value = self.value.val_tokens();
-        // Note: in the generated code, self.device is a &module::Ignored<Device>, so to get a &Device, &* is needed:
-        quote! {
-            let #output = Tensor::full(#input, #value, &*self.device);
+        // Note: in the generated code, self.device is a &module::Ignored<Device>,
+        // so to get a &Device, &* is needed
+
+        match &self.value {
+            ConstantValue::Bool(bool) => {
+                // Currently there is no full bool tensor support in the backend
+                // So we use 0 or 1 with bool type casting
+                // See: https://github.com/tracel-ai/burn/issues/1535
+                if *bool {
+                    quote! {
+                        let #output = Tensor::<B, #output_rank, Int>::ones(#input, &*self.device).bool();
+                    }
+                } else {
+                    quote! {
+                        let #output = Tensor::<B, #output_rank, Int>::zeros(#input, &*self.device).bool();
+                    }
+                }
+            }
+            _ => quote! {
+                let #output = Tensor::full(#input, #value, &*self.device);
+            },
         }
     }
 
