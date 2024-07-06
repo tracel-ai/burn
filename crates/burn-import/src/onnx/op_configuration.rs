@@ -1287,15 +1287,24 @@ pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
     let start_value = &node.inputs[1].value;
     let end_value = &node.inputs[2].value;
 
+    let tensor_shape: &Vec<usize> = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.shape.as_ref().unwrap(),
+        _ => panic!("Only tensor input is valid"),
+    };
+
     let starts = match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Slice: ends tensor must be 1D");
+            assert_eq!(tensor.dim, 1, "Slice: starts tensor must be 1D");
             if let Some(Data::Int64s(shape)) = start_value.as_ref() {
                 shape
                     .iter()
-                    .map(|x| {
-                        assert!(*x >= 0, "Slice: start must be positive");
-                        *x as usize
+                    .enumerate()
+                    .map(|(i, x)| {
+                        if x.is_negative() {
+                            tensor_shape[i] - x.wrapping_abs() as usize
+                        } else {
+                            *x as usize
+                        }
                     })
                     .collect()
             } else {
@@ -1311,9 +1320,13 @@ pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
             if let Some(Data::Int64s(shape)) = end_value.as_ref() {
                 shape
                     .iter()
-                    .map(|x| {
-                        assert!(*x >= 0, "Slice: end must be positive");
-                        *x as usize
+                    .enumerate()
+                    .map(|(i, x)| {
+                        if x.is_negative() {
+                            tensor_shape[i] - x.wrapping_abs() as usize
+                        } else {
+                            *x as usize
+                        }
                     })
                     .collect()
             } else {
