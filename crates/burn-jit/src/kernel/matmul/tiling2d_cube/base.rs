@@ -8,7 +8,7 @@ use crate::{
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig},
             tiling2d_cube::{
-                direct::{loader::DirectLoader, transpose_trait::WhollyCheckedTransposeLoad},
+                direct::{base::DirectLoader, loader::WhollyCheckedLoad},
                 tile::tile_loading::TileLoader,
             },
         },
@@ -211,7 +211,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
             .next()
             .unwrap_or(1)
     };
-    let mut lhs_vectorization = match rhs_transposed {
+    let mut lhs_vectorization = match lhs_transposed {
         true => vectorization(m),
         false => vectorization(k),
     };
@@ -242,7 +242,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         }
         tiling2d_cube_launch::<
             E::FloatPrimitive,
-            DirectLoader<E::FloatPrimitive, WhollyCheckedTransposeLoad>,
+            DirectLoader<E::FloatPrimitive, WhollyCheckedLoad, WhollyCheckedLoad>,
             R,
         >(
             client,

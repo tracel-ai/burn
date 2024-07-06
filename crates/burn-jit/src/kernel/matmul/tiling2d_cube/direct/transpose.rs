@@ -5,22 +5,12 @@ use crate::kernel::matmul::{
 };
 
 use super::{
-    loader::{CheckBounds, LoadIndices},
-    transpose_trait::TransposeLoad,
+    base::{CheckBounds, LoadIndices},
+    loader::{Loader, ReadTileInfo, ReadTileInfoExpand},
 };
 
-#[derive(CubeType)]
-pub(crate) struct ReadTileInfo {
-    read_row: UInt,
-    read_col: UInt,
-    gm_position_base: UInt,
-    sm_position_base: UInt,
-    gm_stride: UInt,
-    sm_stride: UInt,
-}
-
 #[cube]
-pub(crate) fn load_transposed<F: Float, S: TransposeLoad<F>>(
+pub(crate) fn load_transposed<F: Float, L: Loader<F>>(
     tensor: Tensor<F>,
     load_info: LoadInfo<F>,
     load_indices: LoadIndices,
@@ -49,7 +39,7 @@ pub(crate) fn load_transposed<F: Float, S: TransposeLoad<F>>(
     };
 
     if write_row < sm_dim_vertical {
-        S::tile_load(
+        L::load_tile_transposed(
             tensor,
             load_info.shared,
             read_tile_info,
@@ -60,7 +50,7 @@ pub(crate) fn load_transposed<F: Float, S: TransposeLoad<F>>(
 }
 
 #[cube]
-pub(crate) fn unchecked_load<F: Float>(
+pub(crate) fn unchecked_load_transposed<F: Float>(
     tensor: Tensor<F>,
     mut shared_memory: SharedMemory<F>,
     info: ReadTileInfo,
@@ -84,7 +74,7 @@ pub(crate) fn unchecked_load<F: Float>(
 }
 
 #[cube]
-pub(crate) fn vertical_check_load<F: Float>(
+pub(crate) fn vertical_check_load_transposed<F: Float>(
     tensor: Tensor<F>,
     mut shared_memory: SharedMemory<F>,
     info: ReadTileInfo,
@@ -119,7 +109,7 @@ pub(crate) fn vertical_check_load<F: Float>(
 }
 
 #[cube]
-pub(crate) fn horizontal_check_load<F: Float>(
+pub(crate) fn horizontal_check_load_transposed<F: Float>(
     tensor: Tensor<F>,
     mut shared_memory: SharedMemory<F>,
     info: ReadTileInfo,
@@ -148,10 +138,18 @@ pub(crate) fn horizontal_check_load<F: Float>(
 
         shared_memory[sm_position] = transposed;
     }
+
+    let zeros = F::vectorized(0., Comptime::get(tile_size));
+    for i in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
+        let sm_position =
+            (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
+
+        shared_memory[sm_position] = zeros;
+    }
 }
 
 #[cube]
-pub(crate) fn wholly_check_load<F: Float>(
+pub(crate) fn wholly_check_load_transposed<F: Float>(
     tensor: Tensor<F>,
     mut shared_memory: SharedMemory<F>,
     info: ReadTileInfo,
@@ -159,7 +157,6 @@ pub(crate) fn wholly_check_load<F: Float>(
     check_bounds: CheckBounds,
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll_tile);
 
     let mut num_reads_horizontal = UInt::new(0);
     let col = check_bounds.skip_col + info.read_col;
