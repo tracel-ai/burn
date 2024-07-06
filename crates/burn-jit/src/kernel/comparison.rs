@@ -1,22 +1,56 @@
 use super::{index_offset_with_layout, index_offset_with_layout_expand, Kernel};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_cube::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, unexpanded, Runtime,
+    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, Runtime,
     SUBCUBE_DIM_APPROX,
 };
 use burn_tensor::Shape;
 
+#[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a comparison operation.
-    #[allow(unused_variables)]
-    fn execute(lhs: C, rhs: C) -> bool {
-        unexpanded!();
+    fn execute(lhs: C, rhs: C) -> bool;
+}
+
+struct EqualOp;
+struct GreaterEqualOp;
+struct LowerEqualOp;
+struct GreaterOp;
+struct LowerOp;
+
+#[cube]
+impl<N: Numeric> ComparisonOp<N> for EqualOp {
+    fn execute(lhs: N, rhs: N) -> bool {
+        lhs == rhs
     }
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: C::ExpandType,
-        rhs: C::ExpandType,
-    ) -> <bool as CubeType>::ExpandType;
+}
+
+#[cube]
+impl<N: Numeric> ComparisonOp<N> for GreaterEqualOp {
+    fn execute(lhs: N, rhs: N) -> bool {
+        lhs >= rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> ComparisonOp<N> for LowerEqualOp {
+    fn execute(lhs: N, rhs: N) -> bool {
+        lhs <= rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> ComparisonOp<N> for GreaterOp {
+    fn execute(lhs: N, rhs: N) -> bool {
+        lhs > rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> ComparisonOp<N> for LowerOp {
+    fn execute(lhs: N, rhs: N) -> bool {
+        lhs < rhs
+    }
 }
 
 #[cube(launch)]
@@ -268,82 +302,6 @@ pub(crate) fn launch_scalar_cmp<
         );
 
         output
-    }
-}
-
-struct EqualOp;
-struct GreaterEqualOp;
-struct LowerEqualOp;
-struct GreaterOp;
-struct LowerOp;
-
-impl<N: Numeric> ComparisonOp<N> for EqualOp {
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: <N>::ExpandType,
-        rhs: <N>::ExpandType,
-    ) -> <bool as CubeType>::ExpandType {
-        #[cube]
-        fn cmp<N: Numeric>(lhs: N, rhs: N) -> bool {
-            lhs == rhs
-        }
-        cmp_expand::<N>(context, lhs, rhs)
-    }
-}
-
-impl<N: Numeric> ComparisonOp<N> for GreaterEqualOp {
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: <N>::ExpandType,
-        rhs: <N>::ExpandType,
-    ) -> <bool as CubeType>::ExpandType {
-        #[cube]
-        fn cmp<N: Numeric>(lhs: N, rhs: N) -> bool {
-            lhs >= rhs
-        }
-        cmp_expand::<N>(context, lhs, rhs)
-    }
-}
-
-impl<N: Numeric> ComparisonOp<N> for LowerEqualOp {
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: <N>::ExpandType,
-        rhs: <N>::ExpandType,
-    ) -> <bool as CubeType>::ExpandType {
-        #[cube]
-        fn cmp<N: Numeric>(lhs: N, rhs: N) -> bool {
-            lhs <= rhs
-        }
-        cmp_expand::<N>(context, lhs, rhs)
-    }
-}
-
-impl<N: Numeric> ComparisonOp<N> for GreaterOp {
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: <N>::ExpandType,
-        rhs: <N>::ExpandType,
-    ) -> <bool as CubeType>::ExpandType {
-        #[cube]
-        fn cmp<N: Numeric>(lhs: N, rhs: N) -> bool {
-            lhs > rhs
-        }
-        cmp_expand::<N>(context, lhs, rhs)
-    }
-}
-
-impl<N: Numeric> ComparisonOp<N> for LowerOp {
-    fn execute_expand(
-        context: &mut CubeContext,
-        lhs: <N>::ExpandType,
-        rhs: <N>::ExpandType,
-    ) -> <bool as CubeType>::ExpandType {
-        #[cube]
-        fn cmp<N: Numeric>(lhs: N, rhs: N) -> bool {
-            lhs < rhs
-        }
-        cmp_expand::<N>(context, lhs, rhs)
     }
 }
 
