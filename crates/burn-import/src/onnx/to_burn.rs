@@ -52,7 +52,7 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, TensorKind, TensorType, Type,
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -1222,7 +1222,7 @@ impl From<&OnnxArgument> for Type {
             ArgType::Scalar(elem_type) => {
                 Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
             }
-            ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
+            ArgType::Shape(dim) => Type::Shape(ShapeType::new(arg.name.clone(), *dim)),
         }
     }
 }

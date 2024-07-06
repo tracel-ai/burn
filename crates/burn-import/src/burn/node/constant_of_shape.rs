@@ -29,8 +29,8 @@ pub enum ConstantValue {
 impl ConstantOfShapeNode {
     pub fn new(input: Type, output: Type, value: ConstantValue) -> Self {
         assert!(
-            matches!(input, Type::Tensor(_)),
-            "ConstantOfShape input needs to be a Tensor!"
+            matches!(input, Type::Shape(_)),
+            "ConstantOfShape input needs to be a Shape!"
         );
         assert!(
             matches!(output, Type::Tensor(_)),
@@ -103,10 +103,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = self.output.name();
         let input = self.input.name();
+
         let value = self.value.val_tokens();
         // Note: in the generated code, self.device is a &module::Ignored<Device>, so to get a &Device, &* is needed:
         quote! {
-            let #output = Tensor::full(#input.shape(), #value, &*self.device);
+            let #output = Tensor::full(#input, #value, &*self.device);
         }
     }
 
@@ -123,7 +124,7 @@ mod tests {
     use crate::burn::{
         graph::BurnGraph,
         node::{constant_of_shape::ConstantOfShapeNode, test::assert_tokens},
-        TensorType,
+        ShapeType, TensorType,
     };
 
     #[test]
@@ -144,12 +145,12 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 4)),
+            Type::Shape(ShapeType::new("shape1", 4)),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             ConstantValue::Float32(1.25f32),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(vec!["shape1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
             use burn::{
@@ -172,8 +173,8 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = Tensor::full(tensor1.shape(), 1.25f32, &*self.device);
+                pub fn forward(&self, shape1: [usize;4]) -> Tensor<B, 4> {
+                    let tensor2 = Tensor::full(shape1, 1.25f32, &*self.device);
                     tensor2
                 }
             }

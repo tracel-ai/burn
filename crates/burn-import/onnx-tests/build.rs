@@ -86,6 +86,7 @@ fn main() {
         .input("tests/random_uniform/random_uniform.onnx")
         .input("tests/random_normal/random_normal.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")
+        .input("tests/constant_of_shape/constant_of_shape_full_like.onnx")
         .input("tests/range/range.onnx")
         .out_dir("model/")
         .run_from_script();

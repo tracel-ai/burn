@@ -95,7 +95,8 @@ include_models!(
     squeeze_opset13,
     random_uniform,
     random_normal,
-    constant_of_shape
+    constant_of_shape,
+    constant_of_shape_full_like
 );
 
 #[cfg(test)]
@@ -886,9 +887,8 @@ mod tests {
         // Run the model
         let input = Tensor::<Backend, 2>::ones([4, 2], &device);
         let output = model.forward(input);
-        let expected = TensorData::from([4i64, 2]);
-
-        output.to_data().assert_eq(&expected, true);
+        let expected = [4, 2];
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -1655,10 +1655,25 @@ mod tests {
 
     #[test]
     fn constant_of_shape() {
+        // This tests shape is being passed directly to the model
         let device = Default::default();
         let model = constant_of_shape::Model::<Backend>::new(&device);
-        let shape = Shape::from([2, 3, 2]);
-        let expected = Tensor::<Backend, 3>::full(shape.clone(), 1.125f64, &device).to_data();
+        let input_shape = [2, 3, 2];
+        let expected = Tensor::<Backend, 3>::full(input_shape, 1.125, &device).to_data();
+
+        let output = model.forward(input_shape);
+
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn constant_of_shape_full_like() {
+        // This tests shape is being passed from the input tensor
+
+        let device = Default::default();
+        let model = constant_of_shape_full_like::Model::<Backend>::new(&device);
+        let shape = [2, 3, 2];
+        let expected = Tensor::<Backend, 3>::full(shape, 3.0, &device).to_data();
 
         let input = Tensor::ones(shape, &device);
         let output = model.forward(input);

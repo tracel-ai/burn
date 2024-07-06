@@ -292,6 +292,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 Type::Tensor(tensor) => Some(tensor),
                 Type::Scalar(_) => None,
                 Type::Other(_) => None,
+                Type::Shape(_) => None,
             }
         }
 

@@ -6,7 +6,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::flatten_config,
+    util::{flatten_config, shape_config},
 };
 
 /// Infer the dimension of each output tensor and update them.
@@ -136,15 +136,22 @@ fn constant_of_shape_update_output(node: &mut Node) {
         .map(|v| v.clone().into_tensor().elem_type)
         .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
 
-    if let ArgType::Tensor(input_type) = &node.inputs[0].ty {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: value_type,
-            dim: input_type.dim,
-            shape: None,
-        });
-    } else {
-        panic!("ConstantOfShape node must have a Tensor type input");
-    }
+    let dim = match &node.inputs[0].ty {
+        // Sometimes the input is a tensor, sometimes it's a shape
+        // because didn't have a chance to update the IR
+        ArgType::Tensor(input_type) => input_type.dim,
+        ArgType::Shape(dim) => *dim,
+        _ => panic!("ConstantOfShape node must have a Tensor or Shape type input"),
+    };
+
+    // Fix the input type to be a shape
+    node.inputs[0].ty = ArgType::Shape(dim);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: value_type,
+        dim,
+        shape: None,
+    });
 }
 
 /// Infer the shape of a node's output with an explicit shape attribute
@@ -600,17 +607,9 @@ fn shape_update_outputs(node: &mut Node) {
         panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
 
-    let node_input = &mut node.inputs[0];
-    if let ArgType::Tensor(_tensor) = node_input.clone().ty {
-        // Output tensor is 1D int64
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            dim: 1,
-            ..Default::default()
-        });
-    } else {
-        panic!("Only tensor input is valid");
-    }
+    let (start, end) = shape_config(node);
+    let dim = end - start;
+    node.outputs[0].ty = ArgType::Shape(dim);
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.
