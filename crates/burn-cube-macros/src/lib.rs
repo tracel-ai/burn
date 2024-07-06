@@ -54,7 +54,7 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let attrs = parse_attributes(&args);
 
     let code: TokenStream = match syn::parse::<syn::Item>(tokens).unwrap() {
-        syn::Item::Fn(func) => cube_fn(func, &attrs).into(),
+        syn::Item::Fn(func) => cube_fn(func, &attrs),
         syn::Item::Impl(item) => expand_trait_impl(item).into(),
         syn::Item::Trait(item) => expand_trait_def(item).into(),
         _ => panic!("Cube annotations only supported for functions"),

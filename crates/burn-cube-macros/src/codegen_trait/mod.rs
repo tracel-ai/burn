@@ -50,7 +50,7 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
                     }
                     register_expand(&func, &ident, expand, inputs)
                 } else {
-                    register_expand(&func, &ident, expand, inputs)
+                    register_expand(func, &ident, expand, inputs)
                 };
 
                 expand_items.push(syn::parse2(tokens).unwrap());
