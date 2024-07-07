@@ -2,12 +2,8 @@ use std::marker::PhantomData;
 
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::{
-    config::CubeTiling2dConfig,
-    tiling2d_cube::{
-        base::Coordinates,
-        load_shared_memory::{LoadInfo, LoadInfoExpand, SharedMemoryLoader},
-    },
+use crate::kernel::matmul::tiling2d_cube::load_shared_memory::{
+    LoadInfo, LoadInfoExpand, SharedMemoryLoader,
 };
 
 use super::loader::Loader;

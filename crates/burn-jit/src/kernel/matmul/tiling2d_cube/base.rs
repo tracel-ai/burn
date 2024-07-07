@@ -227,9 +227,6 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
 
     let direct = true;
     if direct {
-        // assert!(m % config.block_size_m == 0);
-        // assert!(k % config.block_size_k == 0);
-        // assert!(n % config.block_size_n == 0);
         if lhs_transposed {
             assert!(lhs_vectorization == 4);
         } else {
