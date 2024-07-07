@@ -149,7 +149,7 @@ mod tests {
         let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let scalar = 3.0f64;
         let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[6f32, 7., 8., 9.]]]]);
+        let expected = TensorData::from([[[[-12f32, -13., -14., -15.]]]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -164,7 +164,7 @@ mod tests {
         let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
         let scalar = 3;
         let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[6i64, 6, 6, 6]]]]);
+        let expected = TensorData::from([[[[-12i64, -12, -12, -12]]]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -496,11 +496,18 @@ mod tests {
             [
                 [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.],
                 [11., 12., 13., 14., 15., 16., 17., 18., 19., 20.],
+                [21., 22., 23., 24., 25., 26., 27., 28., 29., 30.],
+                [31., 32., 33., 34., 35., 36., 37., 38., 39., 40.],
+                [41., 42., 43., 44., 45., 46., 47., 48., 49., 50.],
             ],
             &device,
         );
         let output = model.forward(input);
-        let expected = TensorData::from([[1f32, 2., 3., 4., 5.]]);
+        let expected = TensorData::from([
+            [1f32, 2., 3., 4., 5.],
+            [11f32, 12., 13., 14., 15.],
+            [21., 22., 23., 24., 25.],
+        ]);
 
         output.to_data().assert_eq(&expected, true);
     }

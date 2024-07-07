@@ -196,7 +196,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let kernel = ScatterEagerKernel::<R, E>::new(dim);
     let mut strides = [0; D];
     let mut current = 1;
-    let mut num_elems_per_workgroup = 1;
+    let mut num_elems = 1;
 
     tensor
         .shape
@@ -208,13 +208,13 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems_per_workgroup *= tensor.shape.dims[index];
+            num_elems *= tensor.shape.dims[index];
         });
 
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
+    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -222,7 +222,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
             TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
             TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .execute(CubeCountSettings::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(cube_count));
 
     tensor
 }

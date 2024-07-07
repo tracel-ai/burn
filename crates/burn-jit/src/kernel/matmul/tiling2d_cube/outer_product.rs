@@ -70,7 +70,7 @@ pub mod tests {
         let register_n = client.create(f32::as_bytes(&[1., 2., 3., 4.]));
         let results = create_empty::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
@@ -99,7 +99,7 @@ pub mod tests {
         let register_n = client.create(f32::as_bytes(&[4., 5., 6., 7.]));
         let results = create_empty::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
@@ -129,7 +129,7 @@ pub mod tests {
         let register_n = client.create(f32::as_bytes(&[4.]));
         let results = create_empty::<R>(1, 1, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);

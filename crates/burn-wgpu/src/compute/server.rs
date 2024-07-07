@@ -64,8 +64,15 @@ where
         &mut self,
         pipeline: Arc<ComputePipeline>,
         bind_group: BindGroup,
-        work_group: CubeCount,
+        count: CubeCount<Self>,
     ) {
+        // First resolve the dispatch buffer if needed. The weird ordering is because the lifetime of this
+        // needs to be longer than the compute pass, so we can't do this just before dispatching.
+        let dispatch_resource = match count.clone() {
+            CubeCount::Dynamic(binding) => Some(self.memory_management.get(binding.memory)),
+            _ => None,
+        };
+
         let mut compute = self
             .encoder
             .begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -75,12 +82,21 @@ where
 
         compute.set_pipeline(&pipeline);
         compute.set_bind_group(0, &bind_group, &[]);
-        compute.dispatch_workgroups(work_group.x, work_group.y, work_group.z);
+
+        match count {
+            CubeCount::Static(x, y, z) => {
+                compute.dispatch_workgroups(x, y, z);
+            }
+            CubeCount::Dynamic(_) => {
+                let resource = dispatch_resource.as_ref().unwrap();
+                compute.dispatch_workgroups_indirect(&resource.buffer, resource.offset());
+            }
+        }
 
         self.tasks_count += 1;
     }
 
-    fn pipeline(&mut self, kernel: Box<dyn CubeTask>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: <Self as ComputeServer>::Kernel) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
 
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
@@ -143,6 +159,7 @@ where
     MM: MemoryManagement<WgpuStorage>,
 {
     type Kernel = Box<dyn CubeTask>;
+    type DispatchOptions = CubeCount<Self>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
     type AutotuneKey = JitAutotuneKey;
@@ -259,8 +276,12 @@ where
         }))
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
-        let work_group = kernel.launch_settings().cube_count;
+    fn execute(
+        &mut self,
+        kernel: Self::Kernel,
+        count: Self::DispatchOptions,
+        bindings: Vec<server::Binding<Self>>,
+    ) {
         let pipeline = self.pipeline(kernel);
         let group_layout = pipeline.get_bind_group_layout(0);
 
@@ -284,7 +305,7 @@ where
             entries: &entries,
         });
 
-        self.register_compute(pipeline, bind_group, work_group);
+        self.register_compute(pipeline, bind_group, count);
 
         if self.tasks_count >= self.tasks_max {
             self.sync(SyncType::Flush);

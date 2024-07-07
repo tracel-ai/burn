@@ -27,7 +27,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
     let num_elems = shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
+    let output = JitTensor::new_contiguous(client.clone(), device.clone(), shape.clone(), buffer);
     let seeds = get_seeds();
 
     Execution::start(kernel, client)
@@ -38,7 +38,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
         )])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
-        .execute(CubeCountSettings::Custom(prng_cube_count(
+        .execute(CubeCountSettings::Custom(prng_cube_count::<R>(
             num_elems,
             SUBCUBE_DIM_APPROX,
             N_VALUES_PER_THREAD,
@@ -47,14 +47,18 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     output
 }
 
-fn prng_cube_count(num_elems: usize, cube_dim: usize, n_values_per_thread: usize) -> CubeCount {
+fn prng_cube_count<R: JitRuntime>(
+    num_elems: usize,
+    cube_dim: usize,
+    n_values_per_thread: usize,
+) -> CubeCount<R::Server> {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
     let num_elems_per_cube = cube_dim * cube_dim;
     let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
-    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
+    let cubes_x = f32::ceil(f32::sqrt(num_invocations));
+    let cubes_y = f32::ceil(num_invocations / cubes_x);
 
-    CubeCount::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::Static(cubes_x as u32, cubes_y as u32, 1)
 }
 
 impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {
@@ -163,24 +167,24 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let n_values_per_thread: Variable = self.n_values_per_thread.into();
         let args = self.args;
 
-        let workgroup_size_x = Variable::CubeDimX;
-        let workgroup_size_y = Variable::CubeDimY;
-        let workgroup_id_x = Variable::CubePosX;
-        let workgroup_id_y = Variable::CubePosY;
-        let num_workgroups_y = Variable::CubeCountY;
+        let cube_dim_x = Variable::CubeDimX;
+        let cube_dim_y = Variable::CubeDimY;
+        let cube_pos_x = Variable::CubePosX;
+        let cube_pos_y = Variable::CubePosY;
+        let cube_count_y = Variable::CubeCountY;
         let local_index = Variable::UnitPos;
 
         let n_invocations = scope.create_local(Elem::UInt);
-        cpa!(scope, n_invocations = workgroup_size_x);
-        cpa!(scope, n_invocations *= workgroup_size_y);
+        cpa!(scope, n_invocations = cube_dim_x);
+        cpa!(scope, n_invocations *= cube_dim_y);
 
-        let workgroup_offset = scope.create_local(Elem::UInt);
-        cpa!(scope, workgroup_offset = workgroup_id_x * num_workgroups_y);
-        cpa!(scope, workgroup_offset += workgroup_id_y);
-        cpa!(scope, workgroup_offset *= n_invocations);
+        let cube_offset = scope.create_local(Elem::UInt);
+        cpa!(scope, cube_offset = cube_pos_x * cube_count_y);
+        cpa!(scope, cube_offset += cube_pos_y);
+        cpa!(scope, cube_offset *= n_invocations);
 
         let write_index_base = scope.create_local(Elem::UInt);
-        cpa!(scope, write_index_base = workgroup_offset);
+        cpa!(scope, write_index_base = cube_offset);
         cpa!(scope, write_index_base *= n_values_per_thread);
         cpa!(scope, write_index_base += local_index);
 
@@ -188,7 +192,7 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let thread_seed = scope.create_local(Elem::UInt);
         cpa!(scope, thread_seed = cast(1000000007));
         let thread_seed_index = scope.create_local(Elem::UInt);
-        cpa!(scope, thread_seed_index = workgroup_offset + local_index);
+        cpa!(scope, thread_seed_index = cube_offset + local_index);
         cpa!(scope, thread_seed *= thread_seed_index);
 
         let state_0 = scope.create_local(Elem::UInt);

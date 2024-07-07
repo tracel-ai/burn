@@ -78,15 +78,15 @@ impl<R: Runtime> KernelLauncher<R> {
     /// Launch the kernel.
     pub fn launch<K: Kernel>(
         self,
-        cube_count: CubeCount,
+        cube_count: CubeCount<R::Server>,
         kernel: K,
         client: ComputeClient<R::Server, R::Channel>,
     ) {
         let bindings = self.into_bindings(&client);
 
-        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel, cube_count));
+        let kernel = Box::new(KernelTask::<R::Compiler, K>::new(kernel));
 
-        client.execute(kernel, bindings);
+        client.execute(kernel, cube_count, bindings);
     }
 
     /// We need to create the bindings in the same order they are defined in the compilation step.

@@ -5,6 +5,8 @@ use burn_cube::{
 };
 use burn_tensor::Shape;
 
+use crate::JitRuntime;
+
 #[derive(Debug, Clone)]
 /// Tiling 2D parameters
 pub struct Tiling2dConfig {
@@ -106,22 +108,21 @@ impl CubeTiling2dConfig {
     }
 }
 
-pub fn tiling2d_cube_count<const D: usize>(
+pub fn tiling2d_cube_count<R: JitRuntime, const D: usize>(
     output_shape: &Shape<D>,
     config: &Tiling2dConfig,
-) -> CubeCount {
+) -> CubeCount<R::Server> {
     let num_rows = output_shape.dims[D - 2];
     let num_cols = output_shape.dims[D - 1];
 
-    // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / config.block_size_m as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / config.block_size_n as f32) as u32;
+    let cubes_x = f32::ceil(num_rows as f32 / config.block_size_m as f32) as u32;
+    let cubes_y = f32::ceil(num_cols as f32 / config.block_size_n as f32) as u32;
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Static(cubes_x, cubes_y, num_iter as u32)
 }
 
 pub fn tiling2d_cube_dim(config: &Tiling2dConfig) -> CubeDim {

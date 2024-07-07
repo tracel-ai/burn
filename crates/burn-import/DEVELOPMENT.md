@@ -62,7 +62,7 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    the Burn model in Rust code, and `my-model.json` includes the model data.
 
 7. **Add End-to-End Test**: Include the test in `./burn-import/onnx-tests/tests/onnx_tests.rs`.
-   Further details can be found in the [onnx-tests README](./burn-import/onnx-tests/README.md).
+   Further details can be found in the [onnx-tests README](./onnx-tests/README.md).
 
 ## Testing
 

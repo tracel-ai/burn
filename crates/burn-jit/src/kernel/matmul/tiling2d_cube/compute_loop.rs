@@ -100,7 +100,7 @@ pub mod tests {
         let rhs = range_tensor::<R>(8, 8, device);
         let results = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
@@ -111,8 +111,8 @@ pub mod tests {
             cube_dim,
             TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
             TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
-            0,
-            0,
+            ScalarArg::new(0),
+            ScalarArg::new(0),
             ArrayArg::new(&results, 1),
             config,
         );
@@ -130,7 +130,7 @@ pub mod tests {
         let rhs = range_tensor::<R>(4, 8, device);
         let results = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(4, 8, 4);
 
@@ -140,8 +140,8 @@ pub mod tests {
             cube_dim,
             TensorArg::vectorized(TILE_SIZE as u8, &lhs.handle, &lhs.strides, &lhs.shape.dims),
             TensorArg::vectorized(TILE_SIZE as u8, &rhs.handle, &rhs.strides, &rhs.shape.dims),
-            4,
-            4,
+            ScalarArg::new(4),
+            ScalarArg::new(4),
             ArrayArg::new(&results, 1),
             config,
         );

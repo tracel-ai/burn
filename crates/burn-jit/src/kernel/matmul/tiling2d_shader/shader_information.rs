@@ -55,14 +55,14 @@ pub(crate) fn gather_shader_information(
     cpa!(scope, out_stride_row = stride(out, second_to_last_dim));
     cpa!(scope, out_stride_col = stride(out, last_dim));
 
-    // Workgroup offset
+    // Cube offset
     let skip_row = scope.create_local(Elem::UInt);
     let skip_col = scope.create_local(Elem::UInt);
-    let workgroup_id_x = Variable::CubePosX;
-    let workgroup_id_y = Variable::CubePosY;
-    cpa!(scope, skip_row = workgroup_id_x);
+    let cube_pos_x = Variable::CubePosX;
+    let cube_pos_y = Variable::CubePosY;
+    cpa!(scope, skip_row = cube_pos_x);
     cpa!(scope, skip_row *= block_size_m);
-    cpa!(scope, skip_col = workgroup_id_y);
+    cpa!(scope, skip_col = cube_pos_y);
     cpa!(scope, skip_col *= block_size_n);
 
     // Position of the first element of the thread, relative to the block

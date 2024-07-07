@@ -270,7 +270,7 @@ pub mod tests {
         let results = range_tensor::<R>(4, 4, device);
         let out = zeros_tensor::<R>(8, 8, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -297,7 +297,7 @@ pub mod tests {
         let results = range_tensor::<R>(4, 4, device);
         let out = zeros_tensor::<R>(8, 8, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -324,7 +324,7 @@ pub mod tests {
         let results = range_tensor::<R>(4, 4, device);
         let out = zeros_tensor::<R>(6, 8, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(6, 8, 8);
 
@@ -350,7 +350,7 @@ pub mod tests {
         let out = zeros_tensor::<R>(6, 8, device);
         let tile = range_tensor::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(6, 8, 8);
 
@@ -376,7 +376,7 @@ pub mod tests {
         let out = zeros_tensor::<R>(8, 4, device);
         let tile = range_tensor::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 4);
 
@@ -402,7 +402,7 @@ pub mod tests {
         let out = zeros_tensor::<R>(8, 8, device);
         let tile = range_tensor::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -435,7 +435,7 @@ pub mod tests {
         let out = zeros_tensor::<R>(8, 8, device);
         let tile = range_tensor::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -468,7 +468,7 @@ pub mod tests {
         let out = zeros_tensor::<R>(5, 1, device);
         let results = range_tensor_transposed::<R>(4, 4, device);
         let cube_dim = CubeDim::new(2, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(5, 8, 1);
 

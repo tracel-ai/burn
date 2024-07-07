@@ -22,7 +22,7 @@ pub struct FusionKernel<R: JitRuntime> {
     info: Arc<KernelExpansion>,
     settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
-    cube_count: CubeCount,
+    cube_count: CubeCount<R::Server>,
     _runtime: PhantomData<R>,
 }
 
@@ -41,6 +41,7 @@ pub trait FusionKernelFactory<R: JitRuntime> {
 #[derive(new)]
 pub struct ExecutableKernel<R: JitRuntime> {
     kernel: Box<dyn CubeTask>,
+    cube_count: CubeCount<R::Server>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -54,6 +55,7 @@ pub struct ExecutableKernel<R: JitRuntime> {
 #[derive(new)]
 pub struct AutotunableKernel<R: JitRuntime> {
     kernel: Arc<dyn CubeTask>,
+    count: CubeCount<R::Server>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
 }
@@ -68,18 +70,21 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client.execute(self.kernel, self.bindings)
+        self.client
+            .execute(self.kernel, self.cube_count, self.bindings)
     }
 }
 
 impl<R: JitRuntime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
-        self.client.execute(Box::new(self.kernel), self.bindings)
+        self.client
+            .execute(Box::new(self.kernel), self.count, self.bindings)
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             kernel: self.kernel.clone(),
+            count: self.count.clone(),
             bindings: self.bindings.clone(),
             client: self.client.clone(),
         })
@@ -90,6 +95,7 @@ impl<R: JitRuntime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
+            count: value.cube_count.clone(),
             bindings: value.bindings,
             client: value.client,
         }
@@ -233,12 +239,10 @@ impl<R: JitRuntime> FusionKernel<R> {
             context.handles.register_handle(id, handle);
         }
 
-        let workgroup = fusion_kernel.cube_count.clone();
+        let cube_count = fusion_kernel.cube_count.clone();
         ExecutableKernel::new(
-            Box::new(KernelTask::<R::Compiler, FusionKernel<R>>::new(
-                fusion_kernel,
-                workgroup,
-            )),
+            Box::new(KernelTask::<R::Compiler, _>::new(fusion_kernel)),
+            cube_count,
             bindings,
             client,
         )

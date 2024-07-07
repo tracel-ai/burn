@@ -18,7 +18,7 @@ pub struct OneKernelAutotuneOperation {
 impl AutotuneOperation for OneKernelAutotuneOperation {
     /// Executes the operation on given bindings and server, with the additional parameters
     fn execute(self: Box<Self>) {
-        self.client.execute(self.kernel.clone(), self.bindings);
+        self.client.execute(self.kernel.clone(), (), self.bindings);
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {

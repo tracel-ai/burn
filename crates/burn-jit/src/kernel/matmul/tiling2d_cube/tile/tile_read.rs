@@ -423,7 +423,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(4, 4, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
@@ -456,7 +456,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(4, 4, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
@@ -489,7 +489,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(4, 4, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
@@ -522,7 +522,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(4, 2, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         read_whole_test_launch::<F32, R>(
             tensor.client.clone(),
@@ -553,7 +553,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(4, 4, device);
         let tile = create_empty::<R>(4, 4, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         read_partial_test_launch::<F32, R>(
             tensor.client.clone(),
@@ -581,7 +581,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(8, 8, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -596,8 +596,8 @@ pub mod tests {
                 &tensor.shape.dims,
             ),
             ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
-            0,
-            0,
+            ScalarArg::new(0),
+            ScalarArg::new(0),
             config,
         );
 
@@ -613,7 +613,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(6, 8, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(6, 8, 8);
 
@@ -628,8 +628,8 @@ pub mod tests {
                 &tensor.shape.dims,
             ),
             ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
-            4,
-            0,
+            ScalarArg::new(4),
+            ScalarArg::new(0),
             config,
         );
 
@@ -644,7 +644,7 @@ pub mod tests {
         let tensor = range_tensor::<R>(8, 4, device);
         let tile = create_empty::<R>(TILE_SIZE, TILE_SIZE, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 4, 8);
 
@@ -659,8 +659,8 @@ pub mod tests {
                 &tensor.shape.dims,
             ),
             ArrayArg::vectorized(TILE_SIZE as u8, &tile, 4),
-            0,
-            4,
+            ScalarArg::new(0),
+            ScalarArg::new(4),
             config,
         );
 

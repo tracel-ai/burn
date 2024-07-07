@@ -524,8 +524,48 @@ impl<B: Backend> PositionWiseFeedForward<B> {
 ```
 
 We have a somewhat large amount of [examples](./examples) in the repository that shows how to use
-the framework in different scenarios. For more practical insights, you can clone the repository and
-run any of them directly on your computer!
+the framework in different scenarios.
+
+Following [the book](https://burn.dev/book/):
+
+- [Basic Workflow](./examples/guide) : Creates a custom CNN `Module` to train on the MNIST dataset
+  and use for inference.
+- [Custom Training Loop](./examples/custom-training-loop) : Implements a basic training loop instead
+  of using the `Learner`.
+- [Custom WGPU Kernel](./examples/custom-wgpu-kernel) : Learn how to create your own custom
+  operation with the WGPU backend.
+
+Additional examples:
+
+- [Custom CSV Dataset](./examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
+  regression task.
+- [Regression](./examples/simple-regression) : Trains a simple MLP on the CSV dataset for the
+  regression task.
+- [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
+  dataset following a simple folder structure.
+- [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
+  [`Learner`](./building-blocks/learner.md) progress.
+- [Simple CubeCL Kernel](./examples/gelu) : Implements a simple GELU kernel with `CubeCL`.
+- [Image Classification Web](./examples/image-classification-web) : Image classification web browser
+  demo using Burn, WGPU and WebAssembly.
+- [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
+  the browser. The demo is available [online](https://burn.dev/demo/).
+- [MNIST Training](./examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
+  `Learner` configured to log metrics and keep training checkpoints.
+- [Named Tensor](./examples/named-tensor) : Performs operations with the experimental `NamedTensor`
+  feature.
+- [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
+  perform inference on a sample image with Burn.
+- [PyTorch Import Inference](./examples/pytorch-import) : Imports a PyTorch model pre-trained on
+  MNIST to perform inference on a sample image with Burn.
+- [Text Classification](./examples/text-classification) : Trains a text classification transformer
+  model on the AG News or DbPedia dataset. The trained model can then be used to classify a text
+  sample.
+- [Text Generation](./examples/text-generation) : Trains a text generation transformer model on the
+  DbPedia dataset.
+
+For more practical insights, you can clone the repository and run any of them directly on your
+computer!
 
 </details>
 

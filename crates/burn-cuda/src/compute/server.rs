@@ -57,14 +57,8 @@ struct CompiledKernel {
 
 unsafe impl<MM: MemoryManagement<CudaStorage>> Send for CudaServer<MM> {}
 
-impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
-    type Kernel = Box<dyn CubeTask>;
-    type Storage = CudaStorage;
-    type MemoryManagement = MM;
-    type AutotuneKey = JitAutotuneKey;
-    type FeatureSet = FeatureSet;
-
-    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
+    fn read_sync(&mut self, binding: server::Binding<Self>) -> Vec<u8> {
         let ctx = self.get_context();
         let resource = ctx.memory_management.get(binding.memory);
 
@@ -74,7 +68,20 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             cudarc::driver::result::memcpy_dtoh_async(&mut data, resource.ptr, ctx.stream).unwrap();
         };
         ctx.sync();
-        reader_from_concrete(data)
+        data
+    }
+}
+
+impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
+    type Kernel = Box<dyn CubeTask>;
+    type DispatchOptions = CubeCount<Self>;
+    type Storage = CudaStorage;
+    type MemoryManagement = MM;
+    type AutotuneKey = JitAutotuneKey;
+    type FeatureSet = FeatureSet;
+
+    fn read(&mut self, binding: server::Binding<Self>) -> Reader {
+        reader_from_concrete(self.read_sync(binding))
     }
 
     fn create(&mut self, data: &[u8]) -> server::Handle<Self> {
@@ -101,12 +108,33 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         server::Handle::new(handle)
     }
 
-    fn execute(&mut self, kernel: Self::Kernel, bindings: Vec<server::Binding<Self>>) {
+    fn execute(
+        &mut self,
+        kernel: Self::Kernel,
+        count: Self::DispatchOptions,
+        bindings: Vec<server::Binding<Self>>,
+    ) {
         let arch = self.minimum_arch_version;
 
-        let ctx = self.get_context();
         let kernel_id = kernel.id();
-        let settings = kernel.launch_settings();
+
+        let count = match count {
+            CubeCount::Static(x, y, z) => (x, y, z),
+            // TODO: CUDA doesn't have an exact equivalen of dynamic dispatch. Instead, kernels are free to launch other kernels.
+            // One option is to create a dummy kernel with 1 thread that launches the real kernel with the dynamic dispatch settings.
+            // For now, just read the dispatch settings from the buffer.
+            CubeCount::Dynamic(binding) => {
+                let data = self.read_sync(binding);
+                let data = bytemuck::cast_slice(&data);
+                assert!(
+                    data.len() == 3,
+                    "Dynamic cube count should contain 3 values"
+                );
+                (data[0], data[1], data[2])
+            }
+        };
+
+        let ctx = self.get_context();
 
         if !ctx.module_names.contains_key(&kernel_id) {
             ctx.compile_kernel(&kernel_id, kernel, arch);
@@ -117,7 +145,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
             .map(|binding| ctx.memory_management.get(binding.memory).as_binding())
             .collect();
 
-        ctx.execute_task(kernel_id, settings.cube_count, bindings);
+        ctx.execute_task(kernel_id, count, bindings);
         // TODO: fix this
         // self.memory_management.storage().perform_deallocations();
     }
@@ -217,16 +245,15 @@ impl<MM: MemoryManagement<CudaStorage>> CudaContext<MM> {
     fn execute_task(
         &mut self,
         kernel_id: String,
-        cube_count: CubeCount,
+        dispatch_count: (u32, u32, u32),
         mut bindings: Vec<Binding>,
     ) {
         let kernel = self.module_names.get(&kernel_id).unwrap();
         let cube_dim = kernel.cube_dim;
-
         unsafe {
             cudarc::driver::result::launch_kernel(
                 kernel.func,
-                (cube_count.x, cube_count.y, cube_count.z),
+                dispatch_count,
                 (cube_dim.x, cube_dim.y, cube_dim.z),
                 kernel.shared_mem_bytes as u32,
                 self.stream,

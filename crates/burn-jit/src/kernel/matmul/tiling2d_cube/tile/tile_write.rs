@@ -157,7 +157,7 @@ pub mod tests {
         let tile = range_tensor::<R>(4, 4, device);
         let sm_out = create_empty::<R>(8, 8, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 
@@ -185,7 +185,7 @@ pub mod tests {
         let tile = range_tensor::<R>(4, 4, device);
         let sm_out = create_empty::<R>(8, 8, device);
         let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::new(1, 1, 1);
+        let cube_count = CubeCount::Static(1, 1, 1);
 
         let config = make_config(8, 8, 8);
 

@@ -221,7 +221,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     };
     let out_vectorization = vectorization(n);
 
-    let cube_count = tiling2d_cube_count(&out.shape, &config);
+    let cube_count = tiling2d_cube_count::<R, D>(&out.shape, &config);
     let cube_dim = tiling2d_cube_dim(&config);
     let cube_config = CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed);
 

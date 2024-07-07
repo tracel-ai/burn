@@ -3,33 +3,37 @@ use quote::ToTokens;
 use syn::{GenericParam, Generics, Ident, Lifetime, LifetimeParam, TypeParam};
 
 pub(crate) struct GenericsCodegen {
-    runtime_gens: syn::Generics,
+    arg_lifetime: syn::Generics,
+    arg_runtime: syn::Generics,
     type_gens: syn::Generics,
 }
 
 impl GenericsCodegen {
     pub(crate) fn new(type_gens: syn::Generics) -> Self {
         Self {
-            runtime_gens: Self::runtime_gens(),
+            arg_lifetime: Self::arg_lifetime(),
+            arg_runtime: Self::arg_runtime(),
             type_gens,
         }
     }
 
-    fn runtime_gens() -> Generics {
-        let mut runtime_gens = Generics::default();
-
+    fn arg_lifetime() -> Generics {
+        let mut generics = Generics::default();
         let lifetime =
             GenericParam::Lifetime(LifetimeParam::new(Lifetime::new("'a", Span::call_site())));
-        runtime_gens.params.push(lifetime);
+        generics.params.push(lifetime);
+        generics
+    }
 
+    fn arg_runtime() -> Generics {
+        let mut generics = Generics::default();
         let mut runtime_param = TypeParam::from(Ident::new("R", Span::call_site()));
         runtime_param
             .bounds
             .push(syn::parse_str("Runtime").unwrap());
         let runtime = GenericParam::Type(runtime_param);
-        runtime_gens.params.push(runtime);
-
-        runtime_gens
+        generics.params.push(runtime);
+        generics
     }
 
     pub(crate) fn type_definitions(&self) -> TokenStream {
@@ -41,17 +45,21 @@ impl GenericsCodegen {
     }
 
     pub(crate) fn runtime_definitions(&self) -> TokenStream {
-        self.runtime_gens.to_token_stream()
+        let mut generics = self.arg_runtime.clone();
+        generics.params.extend(self.arg_lifetime.params.clone());
+        generics.to_token_stream()
     }
 
     pub(crate) fn all_definitions(&self) -> TokenStream {
-        let mut generics = self.runtime_gens.clone();
+        let mut generics = self.arg_lifetime.clone();
+        generics.params.extend(self.arg_runtime.params.clone());
         generics.params.extend(self.type_gens.params.clone());
         generics.to_token_stream()
     }
 
     pub(crate) fn all_in_use(&self) -> TokenStream {
-        let mut generics = self.runtime_gens.clone();
+        let mut generics = self.arg_lifetime.clone();
+        generics.params.extend(self.arg_runtime.params.clone());
         generics.params.extend(self.type_gens.params.clone());
         generics_in_use_codegen(generics)
     }

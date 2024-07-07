@@ -74,9 +74,9 @@ impl core::fmt::Display for KernelSettings {
         // * Vectorization Global:    vg{factor}
         // * Vectorization Partial Input:    v{factor}i{pos}
         // * Vectorization Partial Output:    vo
-        // * Workgroup Size X: x
-        // * Workgroup Size Y: y
-        // * Workgroup Size Z: z
+        // * Cube Dim X: x
+        // * Cube Dim Y: y
+        // * Cube Dim Z: z
         f.write_str("m")?;
         for mapping in self.mappings.iter() {
             f.write_fmt(format_args!(
@@ -480,7 +480,10 @@ impl KernelIntegrator {
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
         let output = match self.expansion.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
-            None => panic!("No output found."),
+            None => {
+                // The mapping is handled differently, normally by cube itself.
+                return;
+            }
         };
 
         let (item, local, position) = match output {
