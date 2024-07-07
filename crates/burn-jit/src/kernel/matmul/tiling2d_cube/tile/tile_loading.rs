@@ -4,7 +4,7 @@ use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
     tiling2d_cube::{
         base::{Coordinates, Dimensions},
-        load_shared_memory::SharedMemoryLoader,
+        load_shared_memory::{LoadInfo, SharedMemoryLoader},
     },
 };
 
@@ -22,263 +22,189 @@ use super::{
 /// Then the array is all put to shared memory
 pub(crate) struct TileLoader;
 
+#[cube]
 impl<F: Float> SharedMemoryLoader<F> for TileLoader {
-    fn load_lhs_plain_expand(
-        context: &mut CubeContext,
-        lhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand<F>,
-    ) {
-        load_lhs_plain_expand(
-            context,
+    fn load_lhs_plain(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+        let coordinates = load_info.coordinates;
+        let k = load_info.k;
+        let batch_offset = load_info.batch_offset;
+        let shared_memory = load_info.shared_memory;
+        let config = load_info.config;
+        let dims = load_info.dims;
+
+        let block_size_m = Comptime::map(config, |c| c.block_size_m);
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+
+        let sm_stride = Comptime::runtime(block_size_m);
+
+        let tensor_stride = dims.m;
+        let offset = coordinates.skip_row + k * tensor_stride + batch_offset;
+
+        let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+
+        read_tile_from_global_memory::<F>(
             lhs,
-            load_info.coordinates,
-            load_info.k,
-            load_info.batch_offset,
-            load_info.shared,
-            load_info.config,
-            load_info.dims,
-        )
+            &mut tile,
+            offset,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            k,
+            coordinates.skip_row,
+            tensor_stride,
+            dims.k,
+            dims.m,
+            Comptime::map(config, |c| c.check_k_bounds),
+            Comptime::map(config, |c| c.check_m_bounds),
+            config,
+        );
+
+        write_tile_plain::<F>(
+            &tile,
+            shared_memory,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            sm_stride,
+            config,
+        );
     }
 
-    fn load_lhs_transposed_expand(
-        context: &mut CubeContext,
-        lhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand<F>,
-    ) {
-        load_lhs_transposed_expand(
-            context,
+    fn load_lhs_transposed(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+        let coordinates = load_info.coordinates;
+        let k = load_info.k;
+        let batch_offset = load_info.batch_offset;
+        let shared_memory = load_info.shared_memory;
+        let config = load_info.config;
+        let dims = load_info.dims;
+
+        let block_size_m = Comptime::map(config, |c| c.block_size_m);
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+
+        let sm_stride = Comptime::runtime(block_size_m);
+
+        let tensor_stride = dims.k;
+        let offset = coordinates.skip_row * tensor_stride + k + batch_offset;
+
+        let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+
+        read_tile_from_global_memory::<F>(
             lhs,
-            load_info.coordinates,
-            load_info.k,
-            load_info.batch_offset,
-            load_info.shared,
-            load_info.config,
-            load_info.dims,
-        )
+            &mut tile,
+            offset,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            coordinates.skip_row,
+            k,
+            tensor_stride,
+            dims.m,
+            dims.k,
+            Comptime::map(config, |c| c.check_m_bounds),
+            Comptime::map(config, |c| c.check_k_bounds),
+            config,
+        );
+
+        write_tile_transposed::<F>(
+            &tile,
+            shared_memory,
+            coordinates.unit_col,
+            coordinates.unit_row,
+            sm_stride,
+            config,
+        );
     }
 
-    fn load_rhs_plain_expand(
-        context: &mut CubeContext,
-        rhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand<F>,
-    ) {
-        load_rhs_plain_expand(
-            context,
+    fn load_rhs_plain(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+        let coordinates = load_info.coordinates;
+        let k = load_info.k;
+        let batch_offset = load_info.batch_offset;
+        let shared_memory = load_info.shared_memory;
+        let config = load_info.config;
+        let dims = load_info.dims;
+
+        let block_size_n = Comptime::map(config, |c| c.block_size_n);
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+
+        let sm_stride = Comptime::runtime(block_size_n);
+
+        let tensor_stride = dims.n;
+        let offset = coordinates.skip_col + k * tensor_stride + batch_offset;
+
+        let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+
+        read_tile_from_global_memory::<F>(
             rhs,
-            load_info.coordinates,
-            load_info.k,
-            load_info.batch_offset,
-            load_info.shared,
-            load_info.config,
-            load_info.dims,
-        )
+            &mut tile,
+            offset,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            k,
+            coordinates.skip_col,
+            tensor_stride,
+            dims.k,
+            dims.n,
+            Comptime::map(config, |c| c.check_k_bounds),
+            Comptime::map(config, |c| c.check_n_bounds),
+            config,
+        );
+
+        write_tile_plain::<F>(
+            &tile,
+            shared_memory,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            sm_stride,
+            config,
+        );
     }
 
-    fn load_rhs_transposed_expand(
-        context: &mut CubeContext,
-        rhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand<F>,
-    ) {
-        load_rhs_transposed_expand(
-            context,
+    fn load_rhs_transposed(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+        let coordinates = load_info.coordinates;
+        let k = load_info.k;
+        let batch_offset = load_info.batch_offset;
+        let shared_memory = load_info.shared_memory;
+        let config = load_info.config;
+        let dims = load_info.dims;
+
+        let block_size_n = Comptime::map(config, |c| c.block_size_n);
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+
+        let sm_stride = Comptime::runtime(block_size_n);
+
+        let tensor_stride = dims.k;
+        let offset = coordinates.skip_col * tensor_stride + k + batch_offset;
+
+        let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
+
+        read_tile_from_global_memory::<F>(
             rhs,
-            load_info.coordinates,
-            load_info.k,
-            load_info.batch_offset,
-            load_info.shared,
-            load_info.config,
-            load_info.dims,
-        )
+            &mut tile,
+            offset,
+            coordinates.unit_row,
+            coordinates.unit_col,
+            coordinates.skip_col,
+            k,
+            tensor_stride,
+            dims.n,
+            dims.k,
+            Comptime::map(config, |c| c.check_n_bounds),
+            Comptime::map(config, |c| c.check_k_bounds),
+            config,
+        );
+
+        write_tile_transposed::<F>(
+            &tile,
+            shared_memory,
+            coordinates.unit_col,
+            coordinates.unit_row,
+            sm_stride,
+            config,
+        );
     }
-}
-
-#[cube]
-pub(crate) fn load_lhs_transposed<F: Float>(
-    lhs: &Tensor<F>,
-    coordinates: Coordinates,
-    k: UInt,
-    batch_offset: UInt,
-    shared_lhs: SharedMemory<F>,
-    config: Comptime<CubeTiling2dConfig>,
-    dims: Dimensions,
-) {
-    let block_size_m = Comptime::map(config, |c| c.block_size_m);
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-
-    let sm_stride = Comptime::runtime(block_size_m);
-
-    let tensor_stride = dims.k;
-    let offset = coordinates.skip_row * tensor_stride + k + batch_offset;
-
-    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
-
-    read_tile_from_global_memory::<F>(
-        lhs,
-        &mut tile,
-        offset,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        coordinates.skip_row,
-        k,
-        tensor_stride,
-        dims.m,
-        dims.k,
-        Comptime::map(config, |c| c.check_m_bounds),
-        Comptime::map(config, |c| c.check_k_bounds),
-        config,
-    );
-
-    write_tile_transposed::<F>(
-        &tile,
-        shared_lhs,
-        coordinates.unit_col,
-        coordinates.unit_row,
-        sm_stride,
-        config,
-    );
-}
-
-#[cube]
-pub(crate) fn load_lhs_plain<F: Float>(
-    lhs: &Tensor<F>,
-    coordinates: Coordinates,
-    k: UInt,
-    batch_offset: UInt,
-    shared_lhs: SharedMemory<F>,
-    config: Comptime<CubeTiling2dConfig>,
-    dims: Dimensions,
-) {
-    let block_size_m = Comptime::map(config, |c| c.block_size_m);
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-
-    let sm_stride = Comptime::runtime(block_size_m);
-
-    let tensor_stride = dims.m;
-    let offset = coordinates.skip_row + k * tensor_stride + batch_offset;
-
-    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
-
-    read_tile_from_global_memory::<F>(
-        lhs,
-        &mut tile,
-        offset,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        k,
-        coordinates.skip_row,
-        tensor_stride,
-        dims.k,
-        dims.m,
-        Comptime::map(config, |c| c.check_k_bounds),
-        Comptime::map(config, |c| c.check_m_bounds),
-        config,
-    );
-
-    write_tile_plain::<F>(
-        &tile,
-        shared_lhs,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        sm_stride,
-        config,
-    );
-}
-
-#[cube]
-pub(crate) fn load_rhs_plain<F: Float>(
-    rhs: &Tensor<F>,
-    coordinates: Coordinates,
-    k: UInt,
-    batch_offset: UInt,
-    shared_rhs: SharedMemory<F>,
-    config: Comptime<CubeTiling2dConfig>,
-    dims: Dimensions,
-) {
-    let block_size_n = Comptime::map(config, |c| c.block_size_n);
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-
-    let sm_stride = Comptime::runtime(block_size_n);
-
-    let tensor_stride = dims.n;
-    let offset = coordinates.skip_col + k * tensor_stride + batch_offset;
-
-    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
-
-    read_tile_from_global_memory::<F>(
-        rhs,
-        &mut tile,
-        offset,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        k,
-        coordinates.skip_col,
-        tensor_stride,
-        dims.k,
-        dims.n,
-        Comptime::map(config, |c| c.check_k_bounds),
-        Comptime::map(config, |c| c.check_n_bounds),
-        config,
-    );
-
-    write_tile_plain::<F>(
-        &tile,
-        shared_rhs,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        sm_stride,
-        config,
-    );
-}
-
-#[cube]
-pub(crate) fn load_rhs_transposed<F: Float>(
-    rhs: &Tensor<F>,
-    coordinates: Coordinates,
-    k: UInt,
-    batch_offset: UInt,
-    shared_rhs: SharedMemory<F>,
-    config: Comptime<CubeTiling2dConfig>,
-    dims: Dimensions,
-) {
-    let block_size_n = Comptime::map(config, |c| c.block_size_n);
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-
-    let sm_stride = Comptime::runtime(block_size_n);
-
-    let tensor_stride = dims.k;
-    let offset = coordinates.skip_col * tensor_stride + k + batch_offset;
-
-    let mut tile = Array::<F>::vectorized(Comptime::get(tile_size), Comptime::get(tile_size));
-
-    read_tile_from_global_memory::<F>(
-        rhs,
-        &mut tile,
-        offset,
-        coordinates.unit_row,
-        coordinates.unit_col,
-        coordinates.skip_col,
-        k,
-        tensor_stride,
-        dims.n,
-        dims.k,
-        Comptime::map(config, |c| c.check_n_bounds),
-        Comptime::map(config, |c| c.check_k_bounds),
-        config,
-    );
-
-    write_tile_transposed::<F>(
-        &tile,
-        shared_rhs,
-        coordinates.unit_col,
-        coordinates.unit_row,
-        sm_stride,
-        config,
-    );
 }
 
 #[cfg(feature = "export_tests")]
 /// Exported tests for loading to shared memory
 pub mod tests {
+    use crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand;
     use crate::kernel::matmul::tiling2d_cube::test_utils::{
         assert_equals, create_empty, make_config, range_tensor, TILE_SIZE,
     };
@@ -306,7 +232,7 @@ pub mod tests {
         let shared_memory =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size), Comptime::get(tile_size));
 
-        let offset = UInt::new(0);
+        let batch_offset = UInt::new(0);
 
         let coordinates = Coordinates {
             unit_row,
@@ -316,21 +242,37 @@ pub mod tests {
         };
 
         if Comptime::get(is_lhs) {
-            let info = Dimensions {
+            let dims = Dimensions {
                 m: tensor.shape(tensor.rank() - UInt::new(2)),
                 k: tensor.shape(tensor.rank() - UInt::new(1)),
                 n: UInt::new(0),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config, info);
+            TileLoader::load_lhs_transposed(tensor, info);
         } else {
-            let info = Dimensions {
+            let dims = Dimensions {
                 m: UInt::new(0),
                 k: tensor.shape(tensor.rank() - UInt::new(2)),
                 n: tensor.shape(tensor.rank() - UInt::new(1)),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config, info);
+            TileLoader::load_rhs_plain(tensor, info);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
@@ -355,7 +297,7 @@ pub mod tests {
         let shared_memory =
             SharedMemory::<F>::vectorized(Comptime::get(sm_size), Comptime::get(tile_size));
 
-        let offset = UInt::new(0);
+        let batch_offset = UInt::new(0);
 
         let coordinates = Coordinates {
             unit_row,
@@ -371,8 +313,16 @@ pub mod tests {
                 k: tensor.shape(tensor.rank() - UInt::new(2)),
                 n: UInt::new(0),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_lhs_plain(tensor, coordinates, k, offset, shared_memory, config, dims);
+            TileLoader::load_lhs_plain(tensor, info);
         } else {
             // Permuted
             let dims = Dimensions {
@@ -380,8 +330,16 @@ pub mod tests {
                 k: tensor.shape(tensor.rank() - UInt::new(1)),
                 n: tensor.shape(tensor.rank() - UInt::new(2)),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_rhs_transposed(tensor, coordinates, k, offset, shared_memory, config, dims);
+            TileLoader::load_rhs_transposed(tensor, info);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
@@ -406,7 +364,7 @@ pub mod tests {
 
         let unit_row = UInt::new(4) * UNIT_POS_X;
         let unit_col = UInt::new(4) * UNIT_POS_Y;
-        let offset = UInt::new(0);
+        let batch_offset = UInt::new(0);
 
         let coordinates = Coordinates {
             unit_row,
@@ -416,21 +374,37 @@ pub mod tests {
         };
 
         if Comptime::get(is_lhs) {
-            let info = Dimensions {
+            let dims = Dimensions {
                 m: tensor.shape(tensor.rank() - UInt::new(2)),
                 k: tensor.shape(tensor.rank() - UInt::new(1)),
                 n: UInt::new(0),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_lhs_transposed(tensor, coordinates, k, offset, shared_memory, config, info);
+            TileLoader::load_lhs_transposed(tensor, info);
         } else {
-            let info = Dimensions {
+            let dims = Dimensions {
                 m: UInt::new(0),
                 k: tensor.shape(tensor.rank() - UInt::new(2)),
                 n: tensor.shape(tensor.rank() - UInt::new(1)),
             };
+            let info = LoadInfo {
+                coordinates,
+                k,
+                batch_offset,
+                shared_memory,
+                config,
+                dims,
+            };
 
-            load_rhs_plain(tensor, coordinates, k, offset, shared_memory, config, info);
+            TileLoader::load_rhs_plain(tensor, info);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {

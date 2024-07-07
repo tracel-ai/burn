@@ -1,4 +1,4 @@
-use burn_cube::{prelude::*, unexpanded};
+use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
@@ -10,45 +10,17 @@ pub(crate) struct LoadInfo<F: Float> {
     pub coordinates: Coordinates,
     pub k: UInt,
     pub batch_offset: UInt,
-    pub shared: SharedMemory<F>,
+    pub shared_memory: SharedMemory<F>,
     pub config: Comptime<CubeTiling2dConfig>,
     pub dims: Dimensions,
 }
 
+#[cube]
 pub(crate) trait SharedMemoryLoader<F: Float>: Sync + Send + 'static {
-    fn load_lhs_plain(_lhs: &Tensor<F>, _load_info: LoadInfo<F>) {
-        unexpanded!()
-    }
-    fn load_lhs_transposed(_lhs: &Tensor<F>, _load_info: LoadInfo<F>) {
-        unexpanded!()
-    }
-    fn load_rhs_plain(_rhs: &Tensor<F>, _load_info: LoadInfo<F>) {
-        unexpanded!()
-    }
-    fn load_rhs_transposed(_rhs: &Tensor<F>, _load_info: LoadInfo<F>) {
-        unexpanded!()
-    }
-
-    fn load_lhs_plain_expand(
-        context: &mut CubeContext,
-        lhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: LoadInfoExpand<F>,
-    );
-    fn load_lhs_transposed_expand(
-        context: &mut CubeContext,
-        lhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: LoadInfoExpand<F>,
-    );
-    fn load_rhs_plain_expand(
-        context: &mut CubeContext,
-        rhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: LoadInfoExpand<F>,
-    );
-    fn load_rhs_transposed_expand(
-        context: &mut CubeContext,
-        rhs: <Tensor<F> as CubeType>::ExpandType,
-        load_info: LoadInfoExpand<F>,
-    );
+    fn load_lhs_plain(lhs: &Tensor<F>, load_info: LoadInfo<F>);
+    fn load_lhs_transposed(lhs: &Tensor<F>, load_info: LoadInfo<F>);
+    fn load_rhs_plain(rhs: &Tensor<F>, load_info: LoadInfo<F>);
+    fn load_rhs_transposed(rhs: &Tensor<F>, load_info: LoadInfo<F>);
 }
 
 #[cube]
@@ -69,7 +41,7 @@ pub(crate) fn load_to_shared_memories<F: Float, S: SharedMemoryLoader<F>>(
         coordinates,
         k,
         batch_offset: offsets.lhs,
-        shared: shared.lhs,
+        shared_memory: shared.lhs,
         config,
         dims,
     };
@@ -77,7 +49,7 @@ pub(crate) fn load_to_shared_memories<F: Float, S: SharedMemoryLoader<F>>(
         coordinates,
         k,
         batch_offset: offsets.rhs,
-        shared: shared.rhs,
+        shared_memory: shared.rhs,
         config,
         dims,
     };

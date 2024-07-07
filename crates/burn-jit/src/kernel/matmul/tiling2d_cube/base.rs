@@ -8,7 +8,7 @@ use crate::{
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig},
             tiling2d_cube::{
-                direct::{base::DirectLoader, loader::WhollyCheckedLoad},
+                direct::{base::DirectLoader, whole_block_check::WholeBlockCheckLoad},
                 tile::tile_loading::TileLoader,
             },
         },
@@ -239,7 +239,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
         }
         tiling2d_cube_launch::<
             E::FloatPrimitive,
-            DirectLoader<E::FloatPrimitive, WhollyCheckedLoad, WhollyCheckedLoad>,
+            DirectLoader<E::FloatPrimitive, WholeBlockCheckLoad, WholeBlockCheckLoad>,
             R,
         >(
             client,
