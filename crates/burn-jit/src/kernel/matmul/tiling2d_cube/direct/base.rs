@@ -15,6 +15,20 @@ pub(crate) struct DirectLoader<F: Float, L: Loader<F>, R: Loader<F>> {
     _rhs: PhantomData<R>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum BlockCheck {
+    Whole,
+    Horizontal,
+    Vertical,
+    Unchecked,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum VectorReaderEnum {
+    Matching,
+    Unmatching,
+}
+
 #[derive(CubeType)]
 pub(crate) struct LoadIndices {
     pub offset: UInt,
@@ -22,7 +36,7 @@ pub(crate) struct LoadIndices {
     pub sm_stride: UInt,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Copy, Clone)]
 pub(crate) struct CheckBounds {
     pub dim_vertical: UInt,
     pub dim_horizontal: UInt,
@@ -30,7 +44,7 @@ pub(crate) struct CheckBounds {
     pub skip_col: UInt,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Copy, Clone)]
 pub(crate) struct ReadTileInfo {
     pub read_row: UInt,
     pub read_col: UInt,
@@ -212,5 +226,40 @@ pub(crate) fn load_transposed<F: Float, L: Loader<F>>(
 
     if write_row < sm_dim_vertical {
         L::load_tile_transposed(tensor, &mut sm, read_tile_info, config, check_bounds);
+    }
+}
+#[cube]
+pub(crate) fn all_zeros_runtime<F: Float>(
+    shared_memory: &mut SharedMemory<F>,
+    start: UInt,
+    sm_position_base: UInt,
+    sm_stride: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let zeros = F::vectorized(0., Comptime::get(tile_size));
+
+    for i in range(start, Comptime::get(tile_size), Comptime::new(false)) {
+        let sm_position = (sm_position_base + i * sm_stride) / Comptime::runtime(tile_size);
+
+        shared_memory[sm_position] = zeros;
+    }
+}
+
+#[cube]
+pub(crate) fn all_zeros_comptime<F: Float>(
+    shared_memory: &mut SharedMemory<F>,
+    sm_position_base: UInt,
+    sm_stride: UInt,
+    config: Comptime<CubeTiling2dConfig>,
+) {
+    let tile_size = Comptime::map(config, |c| c.tile_size);
+    let unroll = Comptime::map(config, |c| c.unroll_tile);
+    let zeros = F::vectorized(0., Comptime::get(tile_size));
+
+    for i in range(0u32, Comptime::get(tile_size), unroll) {
+        let sm_position = (sm_position_base + i * sm_stride) / Comptime::runtime(tile_size);
+
+        shared_memory[sm_position] = zeros;
     }
 }

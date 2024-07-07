@@ -2,12 +2,18 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::base::{CheckBounds, Loader, ReadTileInfo};
+use super::{
+    base::{all_zeros_runtime, all_zeros_runtime_expand, CheckBounds, Loader, ReadTileInfo},
+    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+};
 
-pub(crate) struct VerticalBlockCheckLoad;
+#[derive(new)]
+pub(crate) struct VerticalBlockCheckLoad<H> {
+    horizontal_reader: H,
+}
 
 #[cube]
-impl<F: Float> Loader<F> for VerticalBlockCheckLoad {
+impl<F: Float, V: HorizontalReader<F>> Loader<F> for VerticalBlockCheckLoad<V> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -33,16 +39,16 @@ impl<F: Float> Loader<F> for VerticalBlockCheckLoad {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = tensor[gm_position];
+            shared_memory[sm_position] = V::read_horizontal_unchecked(tensor, gm_position, config);
         }
 
-        let zeros = F::vectorized(0., Comptime::get(tile_size));
-        for i in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
-            let sm_position =
-                (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
-
-            shared_memory[sm_position] = zeros;
-        }
+        all_zeros_runtime(
+            shared_memory,
+            num_reads,
+            info.sm_position_base,
+            info.sm_stride,
+            config,
+        );
     }
 
     fn load_tile_transposed(
@@ -55,27 +61,19 @@ impl<F: Float> Loader<F> for VerticalBlockCheckLoad {
         let tile_size = Comptime::map(config, |c| c.tile_size);
         let unroll = Comptime::map(config, |c| c.unroll_tile);
 
-        let mut num_reads = UInt::new(0);
-        let row = check_bounds.skip_row + info.read_row;
-        let dim_vertical = check_bounds.dim_vertical;
-        if dim_vertical > row {
-            num_reads = UInt::min(dim_vertical - row, Comptime::runtime(tile_size));
-        }
-
         for i in range(0u32, Comptime::get(tile_size), unroll) {
             let gm_position = info.gm_position_base + i;
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            let mut transposed = F::vectorized_empty(Comptime::get(tile_size));
-            for j in range(0u32, num_reads, Comptime::new(false)) {
-                transposed[j] = tensor[gm_position + j * info.gm_stride];
-            }
-            for j in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
-                transposed[j] = F::new(0.);
-            }
-
-            shared_memory[sm_position] = transposed;
+            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_checked(
+                tensor,
+                gm_position,
+                info.gm_stride,
+                check_bounds,
+                info,
+                config,
+            );
         }
     }
 }

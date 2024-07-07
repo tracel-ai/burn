@@ -2,12 +2,21 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::base::{CheckBounds, Loader, ReadTileInfo};
+use super::{
+    base::{
+        all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
+        CheckBounds, Loader, ReadTileInfo,
+    },
+    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+};
 
-pub(crate) struct HorizontalBlockCheckLoad;
+#[derive(new)]
+pub(crate) struct HorizontalBlockCheckLoad<H> {
+    horizontal_reader: H,
+}
 
 #[cube]
-impl<F: Float> Loader<F> for HorizontalBlockCheckLoad {
+impl<F: Float, V: HorizontalReader<F>> Loader<F> for HorizontalBlockCheckLoad<V> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -27,16 +36,11 @@ impl<F: Float> Loader<F> for HorizontalBlockCheckLoad {
                 let sm_position =
                     (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-                shared_memory[sm_position] = tensor[gm_position];
+                shared_memory[sm_position] =
+                    V::read_horizontal_checked(tensor, gm_position, check_bounds, info, config);
             }
         } else {
-            let zeros = F::vectorized(0., Comptime::get(tile_size));
-            for i in range(0u32, Comptime::get(tile_size), unroll) {
-                let sm_position =
-                    (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
-
-                shared_memory[sm_position] = zeros;
-            }
+            all_zeros_comptime(shared_memory, info.sm_position_base, info.sm_stride, config);
         }
     }
 
@@ -48,7 +52,6 @@ impl<F: Float> Loader<F> for HorizontalBlockCheckLoad {
         check_bounds: CheckBounds,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
-        let unroll = Comptime::map(config, |c| c.unroll_tile);
 
         let mut num_reads = UInt::new(0);
         let col = check_bounds.skip_col + info.read_col;
@@ -62,20 +65,20 @@ impl<F: Float> Loader<F> for HorizontalBlockCheckLoad {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            let mut transposed = F::vectorized_empty(Comptime::get(tile_size));
-            for j in range(0u32, Comptime::get(tile_size), unroll) {
-                transposed[j] = tensor[gm_position + j * info.gm_stride];
-            }
-
-            shared_memory[sm_position] = transposed;
+            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_unchecked(
+                tensor,
+                gm_position,
+                info.gm_stride,
+                config,
+            );
         }
 
-        let zeros = F::vectorized(0., Comptime::get(tile_size));
-        for i in range(num_reads, Comptime::get(tile_size), Comptime::new(false)) {
-            let sm_position =
-                (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
-
-            shared_memory[sm_position] = zeros;
-        }
+        all_zeros_runtime(
+            shared_memory,
+            num_reads,
+            info.sm_position_base,
+            info.sm_stride,
+            config,
+        );
     }
 }

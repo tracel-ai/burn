@@ -2,13 +2,19 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::base::{CheckBounds, Loader, ReadTileInfo};
+use super::{
+    base::{CheckBounds, Loader, ReadTileInfo},
+    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+};
 
+#[derive(new)]
 /// Assumes block sizes divide tensor shape
-pub(crate) struct UncheckedBlockLoad;
+pub(crate) struct UncheckedBlockLoad<H> {
+    horizontal_reader: H,
+}
 
 #[cube]
-impl<F: Float> Loader<F> for UncheckedBlockLoad {
+impl<F: Float, V: HorizontalReader<F>> Loader<F> for UncheckedBlockLoad<V> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -21,11 +27,12 @@ impl<F: Float> Loader<F> for UncheckedBlockLoad {
         let vectorization = Comptime::vectorization(&tensor);
 
         for i in range(0u32, Comptime::get(tile_size), unroll) {
-            let tensor_position = info.gm_position_base + i * info.gm_stride;
+            let gm_position =
+                (info.gm_position_base + i * info.gm_stride) / Comptime::runtime(vectorization);
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = tensor[tensor_position / Comptime::runtime(vectorization)];
+            shared_memory[sm_position] = V::read_horizontal_unchecked(tensor, gm_position, config);
         }
     }
 
@@ -44,12 +51,12 @@ impl<F: Float> Loader<F> for UncheckedBlockLoad {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            let mut transposed = F::vectorized_empty(Comptime::get(tile_size));
-            for j in range(0u32, Comptime::get(tile_size), unroll) {
-                transposed[j] = tensor[gm_position + j * info.gm_stride];
-            }
-
-            shared_memory[sm_position] = transposed;
+            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_unchecked(
+                tensor,
+                gm_position,
+                info.gm_stride,
+                config,
+            );
         }
     }
 }
