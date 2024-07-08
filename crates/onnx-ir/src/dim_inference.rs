@@ -137,10 +137,13 @@ fn constant_of_shape_update_output(node: &mut Node) {
         .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
 
     let dim = match &node.inputs[0].ty {
-        // Sometimes the input is a tensor, sometimes it's a shape
-        // because didn't have a chance to update the IR
-        ArgType::Tensor(input_type) => input_type.dim,
         ArgType::Shape(dim) => *dim,
+        ArgType::Tensor(tensor_type) => tensor_type
+            .shape
+            .as_ref()
+            .and_then(|shape| shape.first())
+            .copied()
+            .expect("ConstantOfShape node must have a Tensor with a non-empty shape"),
         _ => panic!("ConstantOfShape node must have a Tensor or Shape type input"),
     };
 

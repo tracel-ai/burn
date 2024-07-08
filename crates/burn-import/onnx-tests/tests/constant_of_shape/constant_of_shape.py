@@ -27,7 +27,7 @@ def build_model():
             onnx.helper.make_value_info(
                 name="input1",
                 type_proto=onnx.helper.make_tensor_type_proto(
-                    elem_type=onnx.TensorProto.INT64, shape=[2, 3, 2]
+                    elem_type=onnx.TensorProto.INT64, shape=[3]
                 ),
             )
         ],
@@ -45,8 +45,8 @@ def build_model():
 def main():
     onnx_model = build_model()
     file_name = "constant_of_shape.onnx"
-
     onnx.save(onnx_model, file_name)
+    onnx.checker.check_model(file_name)
 
 
 if __name__ == "__main__":

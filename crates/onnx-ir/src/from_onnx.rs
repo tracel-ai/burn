@@ -235,6 +235,11 @@ impl OnnxGraphBuilder {
             i += 1;
             keep
         });
+
+        // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
+        // This is necessary for the graph to be valid
+        // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
+
         OnnxGraph {
             nodes: processed_nodes,
             inputs,
