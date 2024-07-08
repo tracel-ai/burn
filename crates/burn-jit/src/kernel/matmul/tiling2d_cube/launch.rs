@@ -9,8 +9,8 @@ use crate::{
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig},
             tiling2d_cube::direct::{
-                loader::{BlockCheck, DirectLoader, VectorReaderEnum},
                 horizontal_block_check::HorizontalBlockCheck,
+                loader::{BlockCheck, DirectLoader, VectorReaderEnum},
                 unchecked_block::UncheckedBlockCheck,
                 vector_reader::{MatchingVectorization, UnmatchingVectorization},
                 vertical_block_check::VerticalBlockCheckLoad,
@@ -176,7 +176,12 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             $l:ty,
             $r:ty,
         ) => {
-            tiling2d_cube_launch::<E::FloatPrimitive, DirectLoader<E::FloatPrimitive, $l, $r>, R>(
+            tiling2d_cube_launch::<
+                E::FloatPrimitive,
+                DirectLoader<E::FloatPrimitive, $l, $r>,
+                UncheckedBlockCheck<MatchingVectorization>,
+                R,
+            >(
                 client,
                 cube_count,
                 cube_dim,

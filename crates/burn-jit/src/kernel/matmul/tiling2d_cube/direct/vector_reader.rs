@@ -96,9 +96,18 @@ impl<F: Float> ContiguousAccess<F> for MatchingVectorization {
         out_position: UInt,
         results: &Array<F>,
         results_position: UInt,
-        _config: Comptime<CubeTiling2dConfig>,
+        config: Comptime<CubeTiling2dConfig>,
     ) {
-        out[out_position] = results[results_position];
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+        let unroll = Comptime::map(config, |c| c.unroll_tile);
+
+        let mut output_elem = F::vectorized_empty(Comptime::get(tile_size));
+
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            output_elem[i] = results[results_position + i];
+        }
+
+        out[out_position / Comptime::runtime(tile_size)] = output_elem;
     }
 
     fn write_contiguous_checked(
