@@ -1,15 +1,17 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
-use alloc::format;
 use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(feature = "record-backward-compat"))]
+use alloc::format;
 #[cfg(feature = "record-backward-compat")]
 use burn_tensor::DataSerialize;
 
 /// Versioned serde data deserialization to maintain backward compatibility between formats.
 #[cfg(feature = "record-backward-compat")]
+#[allow(deprecated)]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum TensorDataSerde<E> {
@@ -25,7 +27,7 @@ where
 {
     #[cfg(feature = "record-backward-compat")]
     {
-        let data = match TensorDataSerde::<D, E>::deserialize(deserializer)? {
+        let data = match TensorDataSerde::<E>::deserialize(deserializer)? {
             TensorDataSerde::V1(data) => data.into_tensor_data(),
             // NOTE: loading f32 weights with f16 precision will deserialize the f32 weights (bytes) first and then convert to f16
             TensorDataSerde::V2(data) => data.convert::<E>(),
