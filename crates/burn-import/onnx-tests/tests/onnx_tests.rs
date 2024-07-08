@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
