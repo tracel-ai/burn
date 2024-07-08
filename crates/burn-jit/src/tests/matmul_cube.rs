@@ -22,11 +22,6 @@ mod tests {
     }
 
     #[test]
-    pub fn tiling2d_matmul_outer_product_scalar_test() {
-        outer_product_tests::tile_outer_product_scalar_unit_test::<TestRuntime>(&Default::default())
-    }
-
-    #[test]
     pub fn tiling2d_matmul_compute_loop_vectorized_test() {
         compute_loop_tests::compute_loop_unit_test::<TestRuntime>(&Default::default())
     }

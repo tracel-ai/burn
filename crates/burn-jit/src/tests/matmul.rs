@@ -490,6 +490,11 @@ mod tests {
         }
 
         #[test]
+        pub fn use_vec2() {
+            test_with_params(2, 2, 2, 1, 1);
+        }
+
+        #[test]
         fn swapped_batches_no_padding() {
             let swap = [0, 1];
             let shape_lhs = [3, 2, 4, 4];

@@ -11,17 +11,12 @@ pub(crate) fn tile_outer_product<F: Float>(
 ) {
     let tile_size = Comptime::map(config, |c| c.tile_size);
     let unroll = Comptime::map(config, |c| c.unroll_tile);
-    let is_scalar = Comptime::map(tile_size, |c| c.val == 1);
 
-    if Comptime::get(is_scalar) {
-        results[0] += register_m * register_n;
-    } else {
-        for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
-            let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
-            for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
-                let mul = register_m[res_idx_m] * register_n[res_idx_n];
-                results[res_pos_base + res_idx_n] += mul;
-            }
+    for res_idx_m in range(0u32, Comptime::get(tile_size), unroll) {
+        let res_pos_base = res_idx_m * Comptime::runtime(tile_size);
+        for res_idx_n in range(0u32, Comptime::get(tile_size), unroll) {
+            let mul = register_m[res_idx_m] * register_n[res_idx_n];
+            results[res_pos_base + res_idx_n] += mul;
         }
     }
 }
@@ -118,33 +113,6 @@ pub mod tests {
             64.0, 80.0, 96.0, 112.0, 80.0, 100.0, 120.0, 140.0, 96.0, 120.0, 144.0, 168.0, 112.0,
             140.0, 168.0, 196.0,
         ];
-        assert_equals::<R>(results, expected, device);
-    }
-
-    /// Exported test
-    pub fn tile_outer_product_scalar_unit_test<R: JitRuntime>(device: &R::Device) {
-        let client = R::client(device);
-
-        let register_m = client.create(f32::as_bytes(&[3.]));
-        let register_n = client.create(f32::as_bytes(&[4.]));
-        let results = create_empty::<R>(1, 1, device);
-        let cube_dim = CubeDim::new(1, 1, 1);
-        let cube_count = CubeCount::Static(1, 1, 1);
-
-        const SOME_DIM: usize = 12;
-        let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
-
-        tile_outer_product_test_launch::<F32, R>(
-            client.clone(),
-            cube_count,
-            cube_dim,
-            ArrayArg::new(&register_m, 1),
-            ArrayArg::new(&register_n, 1),
-            ArrayArg::new(&results, 1),
-            config,
-        );
-
-        let expected = &[12.];
         assert_equals::<R>(results, expected, device);
     }
 }

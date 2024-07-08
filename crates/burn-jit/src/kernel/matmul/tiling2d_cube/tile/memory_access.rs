@@ -150,7 +150,7 @@ impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
             if Comptime::get(is_scalar) {
                 vector[i] = tensor[gm_position + i];
             } else {
-                let intermediate = tensor[gm_position / runtime_vectorization + i];
+                let intermediate = tensor[gm_position + i];
 
                 for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
                     vector[i * runtime_vectorization + j] = intermediate[j];
@@ -189,7 +189,7 @@ impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
             if Comptime::get(is_scalar) {
                 vector[i] = tensor[gm_position + i];
             } else {
-                let intermediate = tensor[gm_position / runtime_vectorization + i];
+                let intermediate = tensor[gm_position + i];
 
                 for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
                     vector[i * runtime_vectorization + j] = intermediate[j];

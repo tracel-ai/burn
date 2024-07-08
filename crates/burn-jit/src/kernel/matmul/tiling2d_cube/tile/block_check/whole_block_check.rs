@@ -116,11 +116,11 @@ impl<F: Float> BlockCheck<F> for WholeBlockCheck {
         let col = coordinates.skip_col + coordinates.unit_col;
 
         if check_bounds.dim_horizontal > col {
-            let mut num_reads_vertical = UInt::new(0);
+            let mut num_writes_vertical = UInt::new(0);
             let row = coordinates.skip_row + coordinates.unit_row;
 
             if check_bounds.dim_vertical > row {
-                num_reads_vertical = UInt::min(
+                num_writes_vertical = UInt::min(
                     check_bounds.dim_vertical - row,
                     Comptime::runtime(tile_size),
                 );
@@ -128,7 +128,7 @@ impl<F: Float> BlockCheck<F> for WholeBlockCheck {
 
             let out_position_base = row * out_stride + col + offset_output;
 
-            for result_index in range(0u32, num_reads_vertical, Comptime::new(false)) {
+            for result_index in range(0u32, num_writes_vertical, Comptime::new(false)) {
                 let result_position = result_index * Comptime::runtime(tile_size);
                 let out_position = out_position_base + result_index * out_stride;
 
