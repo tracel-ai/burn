@@ -610,7 +610,7 @@ where
     ///     // 1D slicing
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
     ///     let slice = tensor.slice([1..4]);
-    ///     assert_eq!(slice.into_data().to_vec(), vec![1, 2, 3]);
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![1i32, 2, 3]);
     ///
     ///     // 2D slicing
     ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 4]), &device);
@@ -620,10 +620,10 @@ where
     ///     // Using negative indices
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
     ///     let slice = tensor.slice([(1, -1)]); // Equivalent to 1..4
-    ///     assert_eq!(slice.into_data().to_vec(), vec![1, 2, 3]);
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![1i32, 2, 3]);
     ///
     ///     // Using Option<(i64, i64)>
-    ///     let tensor = Tensor::<B, 2, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
     ///     let slice = tensor.slice([Some((1, -1)), None]); // Select rows 1 and 2, all columns
     ///     assert_eq!(slice.dims(), [2, 4]);
     /// }
