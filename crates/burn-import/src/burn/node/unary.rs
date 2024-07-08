@@ -116,12 +116,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
             _ => panic!("lhs must be a tensor or scalar"),
         };
 
-        // let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name();
         let function = (self.function)(input);
 
-        quote! {
-            let #output = #function;
+        match &self.output {
+            Type::Shape(ref shape_type) => {
+                let dim = shape_type.dim.to_tokens();
+                quote! {
+                    let #output: [usize;#dim] = #function.try_into().unwrap();
+                }
+            }
+            _ => {
+                quote! {
+                    let #output = #function;
+                }
+            }
         }
     }
 
@@ -134,9 +143,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match self.kind {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
-            }
-            UnaryNodeKind::Shape => {
-                imports.register("burn::tensor::Int");
             }
             UnaryNodeKind::Not => {
                 imports.register("burn::tensor::Bool");
@@ -451,15 +457,12 @@ impl UnaryNode {
     }
 
     pub(crate) fn shape(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
-        // Shape as defined by the ONNX op should return a tensor because other ops
-        // (e.g., Gather) will be used on a tensor
+        let start_dim = start_dim.to_tokens();
+        let end_dim = end_dim.to_tokens();
+
         let function = move |input| {
             quote! {
-                Tensor::<B, 1, Int>::from_data(
-                    burn::tensor::TensorData::from(&#input.dims()[#start_dim..#end_dim])
-                        .convert::<burn::tensor::ops::IntElem<B>>(),
-                    &#input.device(),
-                )
+                #input.dims()[#start_dim..#end_dim]
             }
         };
         Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
@@ -475,7 +478,7 @@ impl UnaryNode {
 mod tests {
     use super::*;
     use crate::burn::node::tests::one_node_graph;
-    use crate::burn::{ScalarKind, ScalarType, TensorType};
+    use crate::burn::{ScalarKind, ScalarType, ShapeType, TensorType};
 
     #[test]
     fn test_unary_codegen_flatten() {
@@ -1094,23 +1097,19 @@ mod tests {
         one_node_graph(
             UnaryNode::shape(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_int("tensor2", 1)),
+                Type::Shape(ShapeType::new("shape1", 4)),
                 1,
                 3,
             ),
             quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1, Int> {
-                    let tensor2 = Tensor::<B, 1, Int>::from_data(
-                        burn::tensor::TensorData::from(&tensor1.dims()[1usize..3usize])
-                            .convert::<burn::tensor::ops::IntElem<B>>(),
-                        &tensor1.device(),
-                    );
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [usize; 4] {
+                    let shape1: [usize; 4] = tensor1.dims()[1..3].try_into().unwrap();
 
-                    tensor2
+                    shape1
                 }
             },
             vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
+            vec!["shape1".to_string()],
         );
     }
 

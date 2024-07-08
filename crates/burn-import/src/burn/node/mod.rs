@@ -8,6 +8,7 @@ pub(crate) mod binary;
 pub(crate) mod clip;
 pub(crate) mod concat;
 pub(crate) mod constant;
+pub(crate) mod constant_of_shape;
 pub(crate) mod conv1d;
 pub(crate) mod conv2d;
 pub(crate) mod conv3d;

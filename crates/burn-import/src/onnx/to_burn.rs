@@ -23,6 +23,7 @@ use crate::{
             clip::ClipNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
+            constant_of_shape::ConstantOfShapeNode,
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv3d::Conv3dNode,
@@ -51,7 +52,7 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, TensorKind, TensorType, Type,
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -330,6 +331,9 @@ impl ParsedOnnxGraph {
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
+                NodeType::ConstantOfShape => {
+                    graph.register(Self::constant_of_shape_conversion(node))
+                }
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -359,6 +363,9 @@ impl ParsedOnnxGraph {
     }
 
     fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
+        // Additional types needed for Constant:
+        // use crate::burn::node::constant::{ConstantValue, TensorValue};
+
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node);
@@ -459,6 +466,37 @@ impl ParsedOnnxGraph {
         }
 
         RandomNormalNode::new(output_type, mean, scale)
+    }
+
+    pub(crate) fn constant_of_shape_conversion(node: Node) -> ConstantOfShapeNode {
+        // Additional types needed for ConstantOfShape:
+        use crate::burn::node::constant_of_shape::ConstantValue;
+
+        let input = node
+            .inputs
+            .first()
+            .expect("ConstantOfShape requires an input tensor");
+        let output = node.outputs.first().unwrap();
+
+        // The value of the output elements.Should be a one-element tensor.
+        // If not specified, it defaults to a tensor of value 0 and datatype float32
+        // https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape
+        let value = node
+            .attrs
+            .get("value")
+            .and_then(|val| val.clone().into_tensor().data)
+            .map(|val_data| match val_data {
+                // TODO: Handle Float16
+                Data::Float32s(vals) => ConstantValue::from_vec(vals),
+                Data::Float64s(vals) => ConstantValue::from_vec(vals),
+                Data::Int32s(vals) => ConstantValue::from_vec(vals),
+                Data::Int64s(vals) => ConstantValue::from_vec(vals),
+                Data::Bools(vals) => ConstantValue::from_vec(vals),
+                ty => panic!("Unsupported value type {:?} for ConstantOfShape!", ty),
+            })
+            .unwrap_or(ConstantValue::Float32(0.0f32));
+
+        ConstantOfShapeNode::new(Type::from(input), Type::from(output), value)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
@@ -1182,7 +1220,7 @@ impl From<&OnnxArgument> for Type {
             ArgType::Scalar(elem_type) => {
                 Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
             }
-            ArgType::Shape(_shape) => panic!("Can't transform shape to tensor."),
+            ArgType::Shape(dim) => Type::Shape(ShapeType::new(arg.name.clone(), *dim)),
         }
     }
 }
