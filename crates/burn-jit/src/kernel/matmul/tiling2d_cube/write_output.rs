@@ -60,28 +60,26 @@ pub(crate) fn write_to_output<F: Float, W: OutputWriter<F>>(
                 config,
             );
         }
+    } else if Comptime::get(check_n_bounds) {
+        W::write_output::<HorizontalBlockCheck>(
+            out,
+            results,
+            coordinates,
+            offset_output,
+            out_stride,
+            dims,
+            config,
+        );
     } else {
-        if Comptime::get(check_n_bounds) {
-            W::write_output::<HorizontalBlockCheck>(
-                out,
-                results,
-                coordinates,
-                offset_output,
-                out_stride,
-                dims,
-                config,
-            );
-        } else {
-            W::write_output::<UncheckedBlockCheck>(
-                out,
-                results,
-                coordinates,
-                offset_output,
-                out_stride,
-                dims,
-                config,
-            );
-        }
+        W::write_output::<UncheckedBlockCheck>(
+            out,
+            results,
+            coordinates,
+            offset_output,
+            out_stride,
+            dims,
+            config,
+        );
     }
 }
 

@@ -91,12 +91,10 @@ fn load_lhs_transposed<F: Float, L: Loader<F>>(
         } else {
             L::load_lhs_transposed::<VerticalBlockCheck>(lhs, load_info);
         }
+    } else if Comptime::get(check_k_bounds) {
+        L::load_lhs_transposed::<HorizontalBlockCheck>(lhs, load_info);
     } else {
-        if Comptime::get(check_k_bounds) {
-            L::load_lhs_transposed::<HorizontalBlockCheck>(lhs, load_info);
-        } else {
-            L::load_lhs_transposed::<UncheckedBlockCheck>(lhs, load_info);
-        }
+        L::load_lhs_transposed::<UncheckedBlockCheck>(lhs, load_info);
     }
 }
 
@@ -115,12 +113,10 @@ fn load_lhs_plain<F: Float, L: Loader<F>>(
         } else {
             L::load_lhs_plain::<VerticalBlockCheck>(lhs, load_info);
         }
+    } else if Comptime::get(check_m_bounds) {
+        L::load_lhs_plain::<HorizontalBlockCheck>(lhs, load_info);
     } else {
-        if Comptime::get(check_m_bounds) {
-            L::load_lhs_plain::<HorizontalBlockCheck>(lhs, load_info);
-        } else {
-            L::load_lhs_plain::<UncheckedBlockCheck>(lhs, load_info);
-        }
+        L::load_lhs_plain::<UncheckedBlockCheck>(lhs, load_info);
     }
 }
 
@@ -139,12 +135,10 @@ fn load_rhs_transposed<F: Float, L: Loader<F>>(
         } else {
             L::load_rhs_transposed::<VerticalBlockCheck>(rhs, load_info);
         }
+    } else if Comptime::get(check_k_bounds) {
+        L::load_rhs_transposed::<HorizontalBlockCheck>(rhs, load_info);
     } else {
-        if Comptime::get(check_k_bounds) {
-            L::load_rhs_transposed::<HorizontalBlockCheck>(rhs, load_info);
-        } else {
-            L::load_rhs_transposed::<UncheckedBlockCheck>(rhs, load_info);
-        }
+        L::load_rhs_transposed::<UncheckedBlockCheck>(rhs, load_info);
     }
 }
 
@@ -163,12 +157,10 @@ fn load_rhs_plain<F: Float, L: Loader<F>>(
         } else {
             L::load_rhs_plain::<VerticalBlockCheck>(rhs, load_info);
         }
+    } else if Comptime::get(check_n_bounds) {
+        L::load_rhs_plain::<HorizontalBlockCheck>(rhs, load_info);
     } else {
-        if Comptime::get(check_n_bounds) {
-            L::load_rhs_plain::<HorizontalBlockCheck>(rhs, load_info);
-        } else {
-            L::load_rhs_plain::<UncheckedBlockCheck>(rhs, load_info);
-        }
+        L::load_rhs_plain::<UncheckedBlockCheck>(rhs, load_info);
     }
 }
 

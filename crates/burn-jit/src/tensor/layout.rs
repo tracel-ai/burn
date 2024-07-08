@@ -75,7 +75,7 @@ mod tests {
         {
             assert!(transposed && !batch_swap);
         } else {
-            assert!(false);
+            unreachable!()
         }
     }
 
@@ -89,7 +89,7 @@ mod tests {
         {
             assert!(!transposed && batch_swap);
         } else {
-            assert!(false);
+            unreachable!()
         }
     }
 
@@ -103,7 +103,7 @@ mod tests {
         {
             assert!(transposed && batch_swap);
         } else {
-            assert!(false);
+            unreachable!()
         }
     }
 
