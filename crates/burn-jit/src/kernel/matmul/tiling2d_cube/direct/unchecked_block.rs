@@ -2,20 +2,21 @@ use std::marker::PhantomData;
 
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::config::CubeTiling2dConfig;
+use crate::kernel::matmul::{config::CubeTiling2dConfig, tiling2d_cube::base::Coordinates};
 
 use super::{
-    base::{CheckBounds, Loader, ReadTileInfo},
-    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+    loader::{CheckBounds, Loader, ReadTileInfo},
+    vector_reader::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
+    writer::OutputWriter,
 };
 
 /// Assumes block sizes divide tensor shape
-pub(crate) struct UncheckedBlockLoad<H> {
+pub(crate) struct UncheckedBlockCheck<H> {
     _h: PhantomData<H>,
 }
 
 #[cube]
-impl<F: Float, V: HorizontalReader<F>> Loader<F> for UncheckedBlockLoad<V> {
+impl<F: Float, H: ContiguousAccess<F>> Loader<F> for UncheckedBlockCheck<H> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -33,7 +34,7 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for UncheckedBlockLoad<V> {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = V::read_horizontal_unchecked(tensor, gm_position, config);
+            shared_memory[sm_position] = H::read_contiguous_unchecked(tensor, gm_position, config);
         }
     }
 
@@ -52,12 +53,38 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for UncheckedBlockLoad<V> {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_unchecked(
+            shared_memory[sm_position] = UnmatchingVectorization::read_strided_unchecked(
                 tensor,
                 gm_position,
                 info.gm_stride,
                 config,
             );
+        }
+    }
+}
+
+#[cube]
+impl<F: Float, H: ContiguousAccess<F>> OutputWriter<F> for UncheckedBlockCheck<H> {
+    fn write_output(
+        out: &mut Tensor<F>,
+        results: &Array<F>,
+        coordinates: Coordinates,
+        offset_output: UInt,
+        out_stride: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+        let unroll = Comptime::map(config, |c| c.unroll_tile);
+
+        let row = coordinates.skip_row + coordinates.unit_row;
+        let col = coordinates.skip_col + coordinates.unit_col;
+        let out_base_position = row * out_stride + col + offset_output;
+
+        for result_index in range(0u32, Comptime::get(tile_size), unroll) {
+            let result_position = result_index * Comptime::runtime(tile_size);
+            let out_position = out_base_position + result_index * out_stride;
+
+            H::write_contiguous_unchecked(out, out_position, results, result_position, config);
         }
     }
 }

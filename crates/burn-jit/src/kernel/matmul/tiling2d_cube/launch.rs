@@ -9,10 +9,10 @@ use crate::{
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig},
             tiling2d_cube::direct::{
-                base::{BlockCheck, DirectLoader, VectorReaderEnum},
-                horizontal_block_check::HorizontalBlockCheckLoad,
-                unchecked_block::UncheckedBlockLoad,
-                vector_reader::{MatchingVectorReader, UnmatchingVectorReader},
+                loader::{BlockCheck, DirectLoader, VectorReaderEnum},
+                horizontal_block_check::HorizontalBlockCheck,
+                unchecked_block::UncheckedBlockCheck,
+                vector_reader::{MatchingVectorization, UnmatchingVectorization},
                 vertical_block_check::VerticalBlockCheckLoad,
                 whole_block_check::WholeBlockCheckLoad,
             },
@@ -205,8 +205,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                UncheckedBlockLoad<UnmatchingVectorReader>,
-                UncheckedBlockLoad<MatchingVectorReader>,
+                UncheckedBlockCheck<UnmatchingVectorization>,
+                UncheckedBlockCheck<MatchingVectorization>,
             )
         }
         (
@@ -216,8 +216,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                HorizontalBlockCheckLoad<UnmatchingVectorReader>,
-                WholeBlockCheckLoad<MatchingVectorReader>,
+                HorizontalBlockCheck<UnmatchingVectorization>,
+                WholeBlockCheckLoad<MatchingVectorization>,
             )
         }
         (
@@ -227,8 +227,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                WholeBlockCheckLoad<UnmatchingVectorReader>,
-                WholeBlockCheckLoad<MatchingVectorReader>,
+                WholeBlockCheckLoad<UnmatchingVectorization>,
+                WholeBlockCheckLoad<MatchingVectorization>,
             )
         }
         (
@@ -238,8 +238,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                UncheckedBlockLoad<UnmatchingVectorReader>,
-                HorizontalBlockCheckLoad<MatchingVectorReader>,
+                UncheckedBlockCheck<UnmatchingVectorization>,
+                HorizontalBlockCheck<MatchingVectorization>,
             )
         }
         (
@@ -249,8 +249,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Unmatching,
         ) => {
             tiling2d_cube_launch_macro!(
-                WholeBlockCheckLoad<UnmatchingVectorReader>,
-                WholeBlockCheckLoad<UnmatchingVectorReader>,
+                WholeBlockCheckLoad<UnmatchingVectorization>,
+                WholeBlockCheckLoad<UnmatchingVectorization>,
             )
         }
         (
@@ -260,8 +260,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                HorizontalBlockCheckLoad<MatchingVectorReader>,
-                UncheckedBlockLoad<MatchingVectorReader>,
+                HorizontalBlockCheck<MatchingVectorization>,
+                UncheckedBlockCheck<MatchingVectorization>,
             )
         }
         (
@@ -271,8 +271,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Unmatching,
         ) => {
             tiling2d_cube_launch_macro!(
-                UncheckedBlockLoad<UnmatchingVectorReader>,
-                VerticalBlockCheckLoad<UnmatchingVectorReader>,
+                UncheckedBlockCheck<UnmatchingVectorization>,
+                VerticalBlockCheckLoad<UnmatchingVectorization>,
             )
         }
         (
@@ -281,10 +281,9 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Horizontal,
             VectorReaderEnum::Unmatching,
         ) => {
-            //NON
             tiling2d_cube_launch_macro!(
-                UncheckedBlockLoad<UnmatchingVectorReader>,
-                HorizontalBlockCheckLoad<UnmatchingVectorReader>,
+                UncheckedBlockCheck<UnmatchingVectorization>,
+                HorizontalBlockCheck<UnmatchingVectorization>,
             )
         }
         (
@@ -294,8 +293,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Unmatching,
         ) => {
             tiling2d_cube_launch_macro!(
-                VerticalBlockCheckLoad<MatchingVectorReader>,
-                HorizontalBlockCheckLoad<UnmatchingVectorReader>,
+                VerticalBlockCheckLoad<MatchingVectorization>,
+                HorizontalBlockCheck<UnmatchingVectorization>,
             )
         }
         (
@@ -305,8 +304,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Unmatching,
         ) => {
             tiling2d_cube_launch_macro!(
-                VerticalBlockCheckLoad<UnmatchingVectorReader>,
-                UncheckedBlockLoad<UnmatchingVectorReader>,
+                VerticalBlockCheckLoad<UnmatchingVectorization>,
+                UncheckedBlockCheck<UnmatchingVectorization>,
             )
         }
         (
@@ -316,8 +315,8 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             VectorReaderEnum::Matching,
         ) => {
             tiling2d_cube_launch_macro!(
-                VerticalBlockCheckLoad<UnmatchingVectorReader>,
-                UncheckedBlockLoad<MatchingVectorReader>,
+                VerticalBlockCheckLoad<UnmatchingVectorization>,
+                UncheckedBlockCheck<MatchingVectorization>,
             )
         }
         _ => todo!(

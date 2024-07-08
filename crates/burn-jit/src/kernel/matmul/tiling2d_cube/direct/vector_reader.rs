@@ -2,35 +2,51 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::base::{CheckBounds, ReadTileInfo};
+use super::loader::{CheckBounds, ReadTileInfo};
 
 #[cube]
-pub(crate) trait HorizontalReader<F: Float>: Send + Sync + 'static {
-    fn read_horizontal_unchecked(
+pub(crate) trait ContiguousAccess<F: Float>: Send + Sync + 'static {
+    fn read_contiguous_unchecked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         config: Comptime<CubeTiling2dConfig>,
     ) -> F;
 
-    fn read_horizontal_checked(
+    fn read_contiguous_checked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         check_bounds: CheckBounds,
         read_info: ReadTileInfo,
         config: Comptime<CubeTiling2dConfig>,
     ) -> F;
+
+    fn write_contiguous_unchecked(
+        out: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    );
+
+    fn write_contiguous_checked(
+        out: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    );
 }
 
 #[cube]
-pub(crate) trait VerticalReader<F: Float>: Send + Sync + 'static {
-    fn read_vertical_unchecked(
+pub(crate) trait StridedAccess<F: Float>: Send + Sync + 'static {
+    fn read_strided_unchecked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         gm_stride: UInt,
         config: Comptime<CubeTiling2dConfig>,
     ) -> F;
 
-    fn read_vertical_checked(
+    fn read_strided_checked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         gm_stride: UInt,
@@ -42,15 +58,15 @@ pub(crate) trait VerticalReader<F: Float>: Send + Sync + 'static {
 
 #[derive(new)]
 /// When vectorization == tile_size
-pub(crate) struct MatchingVectorReader;
+pub(crate) struct MatchingVectorization;
 
 /// When vectorization != tile_size
 #[derive(new)]
-pub(crate) struct UnmatchingVectorReader;
+pub(crate) struct UnmatchingVectorization;
 
 #[cube]
-impl<F: Float> HorizontalReader<F> for MatchingVectorReader {
-    fn read_horizontal_unchecked(
+impl<F: Float> ContiguousAccess<F> for MatchingVectorization {
+    fn read_contiguous_unchecked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         _config: Comptime<CubeTiling2dConfig>,
@@ -58,7 +74,7 @@ impl<F: Float> HorizontalReader<F> for MatchingVectorReader {
         tensor[gm_position]
     }
 
-    fn read_horizontal_checked(
+    fn read_contiguous_checked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         check_bounds: CheckBounds,
@@ -74,11 +90,30 @@ impl<F: Float> HorizontalReader<F> for MatchingVectorReader {
 
         vector
     }
+
+    fn write_contiguous_unchecked(
+        out: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        _config: Comptime<CubeTiling2dConfig>,
+    ) {
+        out[out_position] = results[results_position];
+    }
+
+    fn write_contiguous_checked(
+        tensor: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+    }
 }
 
 #[cube]
-impl<F: Float> HorizontalReader<F> for UnmatchingVectorReader {
-    fn read_horizontal_unchecked(
+impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
+    fn read_contiguous_unchecked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         config: Comptime<CubeTiling2dConfig>,
@@ -111,7 +146,7 @@ impl<F: Float> HorizontalReader<F> for UnmatchingVectorReader {
         vector
     }
 
-    fn read_horizontal_checked(
+    fn read_contiguous_checked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         check_bounds: CheckBounds,
@@ -149,11 +184,53 @@ impl<F: Float> HorizontalReader<F> for UnmatchingVectorReader {
 
         vector
     }
+
+    fn write_contiguous_unchecked(
+        out: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+        let unroll = Comptime::map(config, |c| c.unroll_tile);
+        let vectorization_factor = Comptime::vectorization(out);
+        let runtime_vectorization = Comptime::runtime(vectorization_factor);
+        let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
+
+        for i in range(
+            0u32,
+            Comptime::get(tile_size / vectorization_factor),
+            unroll,
+        ) {
+            if Comptime::get(is_scalar) {
+                out[i + out_position] = results[results_position + i];
+            } else {
+                let mut output_elem = F::vectorized_empty(Comptime::get(vectorization_factor));
+
+                for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
+                    let index = i * runtime_vectorization + j;
+                    output_elem[j] = results[results_position + index];
+                }
+
+                out[i + out_position / runtime_vectorization] = output_elem;
+            }
+        }
+    }
+
+    fn write_contiguous_checked(
+        tensor: &mut Tensor<F>,
+        out_position: UInt,
+        results: &Array<F>,
+        results_position: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
+    }
 }
 
 #[cube]
-impl<F: Float> VerticalReader<F> for UnmatchingVectorReader {
-    fn read_vertical_unchecked(
+impl<F: Float> StridedAccess<F> for UnmatchingVectorization {
+    fn read_strided_unchecked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         gm_stride: UInt,
@@ -170,7 +247,7 @@ impl<F: Float> VerticalReader<F> for UnmatchingVectorReader {
         vertical
     }
 
-    fn read_vertical_checked(
+    fn read_strided_checked(
         tensor: &Tensor<F>,
         gm_position: UInt,
         gm_stride: UInt,

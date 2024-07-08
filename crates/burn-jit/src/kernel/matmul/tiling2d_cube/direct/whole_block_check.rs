@@ -5,11 +5,11 @@ use burn_cube::prelude::*;
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
-    base::{
+    loader::{
         all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
         CheckBounds, Loader, ReadTileInfo,
     },
-    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+    vector_reader::{ContiguousAccess, UnmatchingVectorization, StridedAccess},
 };
 
 pub(crate) struct WholeBlockCheckLoad<H> {
@@ -17,7 +17,7 @@ pub(crate) struct WholeBlockCheckLoad<H> {
 }
 
 #[cube]
-impl<F: Float, V: HorizontalReader<F>> Loader<F> for WholeBlockCheckLoad<V> {
+impl<F: Float, H: ContiguousAccess<F>> Loader<F> for WholeBlockCheckLoad<H> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -46,7 +46,7 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for WholeBlockCheckLoad<V> {
                     (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
                 shared_memory[sm_position] =
-                    V::read_horizontal_checked(tensor, gm_position, check_bounds, info, config);
+                    H::read_contiguous_checked(tensor, gm_position, check_bounds, info, config);
             }
 
             all_zeros_runtime(
@@ -81,7 +81,7 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for WholeBlockCheckLoad<V> {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_checked(
+            shared_memory[sm_position] = UnmatchingVectorization::read_strided_checked(
                 tensor,
                 gm_position,
                 info.gm_stride,

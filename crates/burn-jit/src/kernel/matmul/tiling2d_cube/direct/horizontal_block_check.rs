@@ -2,22 +2,23 @@ use std::marker::PhantomData;
 
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::config::CubeTiling2dConfig;
+use crate::kernel::matmul::{config::CubeTiling2dConfig, tiling2d_cube::base::Coordinates};
 
 use super::{
-    base::{
+    loader::{
         all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
         CheckBounds, Loader, ReadTileInfo,
     },
-    vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
+    vector_reader::{UnmatchingVectorization, ContiguousAccess, StridedAccess},
+    writer::OutputWriter,
 };
 
-pub(crate) struct HorizontalBlockCheckLoad<H> {
+pub(crate) struct HorizontalBlockCheck<H> {
     _h: PhantomData<H>,
 }
 
 #[cube]
-impl<F: Float, V: HorizontalReader<F>> Loader<F> for HorizontalBlockCheckLoad<V> {
+impl<F: Float, H: ContiguousAccess<F>> Loader<F> for HorizontalBlockCheck<H> {
     fn load_tile_plain(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -38,7 +39,7 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for HorizontalBlockCheckLoad<V>
                     (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
                 shared_memory[sm_position] =
-                    V::read_horizontal_checked(tensor, gm_position, check_bounds, info, config);
+                    H::read_contiguous_checked(tensor, gm_position, check_bounds, info, config);
             }
         } else {
             all_zeros_comptime(shared_memory, info.sm_position_base, info.sm_stride, config);
@@ -66,7 +67,7 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for HorizontalBlockCheckLoad<V>
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = UnmatchingVectorReader::read_vertical_unchecked(
+            shared_memory[sm_position] = UnmatchingVectorization::read_strided_unchecked(
                 tensor,
                 gm_position,
                 info.gm_stride,
@@ -81,5 +82,18 @@ impl<F: Float, V: HorizontalReader<F>> Loader<F> for HorizontalBlockCheckLoad<V>
             info.sm_stride,
             config,
         );
+    }
+}
+
+#[cube]
+impl<F: Float, H: ContiguousAccess<F>> OutputWriter<F> for HorizontalBlockCheck<H> {
+    fn write_output(
+        out: &mut Tensor<F>,
+        results: &Array<F>,
+        coordinates: Coordinates,
+        offset_output: UInt,
+        out_stride: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+    ) {
     }
 }

@@ -1,32 +1,9 @@
-use std::cmp::max;
+use burn_cube::prelude::*;
 
-use burn_cube::{prelude::*, Compiler};
-
-use crate::{
-    kernel::{
-        into_contiguous,
-        matmul::{
-            config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig, Tiling2dConfig},
-            tiling2d_cube::{
-                direct::{
-                    base::{BlockCheck, Loader, VectorReaderEnum},
-                    horizontal_block_check::HorizontalBlockCheckLoad,
-                    unchecked_block::UncheckedBlockLoad,
-                    vector_reader::{MatchingVectorReader, UnmatchingVectorReader},
-                    vertical_block_check::VerticalBlockCheckLoad,
-                    whole_block_check::WholeBlockCheckLoad,
-                },
-                tile::tile_loading::TileLoader,
-            },
-        },
-    },
-    tensor::{JitTensor, MemoryLayout},
-    FloatElement, JitElement, JitRuntime,
-};
+use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
     block_loop::{block_loop, block_loop_expand},
-    direct::base::DirectLoader,
     load_shared_memory::SharedMemoryLoader,
 };
 
