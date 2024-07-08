@@ -28,6 +28,7 @@ pub(crate) trait ContiguousAccess<F: Float>: Send + Sync + 'static {
         config: Comptime<CubeTiling2dConfig>,
     );
 
+    #[allow(clippy::too_many_arguments)]
     fn write_contiguous_checked(
         out: &mut Tensor<F>,
         out_position: UInt,

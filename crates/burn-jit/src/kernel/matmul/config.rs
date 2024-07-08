@@ -59,8 +59,6 @@ pub struct CubeTiling2dConfig {
     pub check_k_bounds: bool,
     /// Bounds must be checked on rhs dimension
     pub check_n_bounds: bool,
-    /// Bounds must be checked on shared memory write
-    pub check_sm_bounds: bool,
     /// Tile size. Should correspond to vectorization of inputs/outputs/shared memory
     pub tile_size: UInt,
     /// Lhs is transposed in global memory
@@ -99,8 +97,6 @@ impl CubeTiling2dConfig {
             check_m_bounds: m % config.block_size_m != 0,
             check_k_bounds: k % config.block_size_k != 0,
             check_n_bounds: n % config.block_size_n != 0,
-            check_sm_bounds: config.block_size_k != config.block_size_m
-                || config.block_size_k != config.block_size_n,
             tile_size: UInt::new(config.tile_size as u32),
             lhs_transposed,
             rhs_transposed,
