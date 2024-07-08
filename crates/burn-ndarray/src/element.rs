@@ -161,4 +161,5 @@ make_elem!(double i64);
 make_elem!(single f32);
 make_elem!(single i32);
 make_elem!(single i16);
+make_elem!(single i8);
 make_elem!(single u8);

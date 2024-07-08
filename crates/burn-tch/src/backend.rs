@@ -102,6 +102,8 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
+    type QuantizedTensorPrimitive<const D: usize> = TchTensor<i8, D>;
+
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);
     }

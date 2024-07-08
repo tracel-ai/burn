@@ -4,14 +4,14 @@ macro_rules! run_par {
     (
         $func:expr
     ) => {{
-        #[cfg(feature = "std")]
+        #[cfg(feature = "rayon")]
         use rayon::prelude::*;
 
-        #[cfg(feature = "std")]
+        #[cfg(feature = "rayon")]
         #[allow(clippy::redundant_closure_call)]
         let output = rayon::scope(|_| $func());
 
-        #[cfg(not(feature = "std"))]
+        #[cfg(not(feature = "rayon"))]
         let output = $func();
 
         output
@@ -24,10 +24,10 @@ macro_rules! iter_par {
     (
         $iter:expr
     ) => {{
-        #[cfg(feature = "std")]
+        #[cfg(feature = "rayon")]
         let output = $iter.into_par_iter();
 
-        #[cfg(not(feature = "std"))]
+        #[cfg(not(feature = "rayon"))]
         let output = $iter;
 
         output
@@ -40,10 +40,10 @@ macro_rules! iter_range_par {
     (
         $start:expr, $end:expr
     ) => {{
-        #[cfg(feature = "std")]
+        #[cfg(feature = "rayon")]
         let output = ($start..$end).into_par_iter();
 
-        #[cfg(not(feature = "std"))]
+        #[cfg(not(feature = "rayon"))]
         let output = ($start..$end);
 
         output

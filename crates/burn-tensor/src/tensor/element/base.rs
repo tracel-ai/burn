@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 
-use crate::{cast::ToElement, Distribution};
+use crate::{cast::ToElement, Distribution, QuantizationStrategy};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -256,4 +256,5 @@ pub enum DType {
     U32,
     U8,
     Bool,
+    QFloat(QuantizationStrategy),
 }

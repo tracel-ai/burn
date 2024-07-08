@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use super::{
     argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
-    constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode,
-    conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode,
-    dropout::DropoutNode, expand::ExpandNode, gather::GatherNode,
-    gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
+    constant::ConstantNode, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode,
+    conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_2d::ConvTranspose2dNode,
+    conv_transpose_3d::ConvTranspose3dNode, dropout::DropoutNode, expand::ExpandNode,
+    gather::GatherNode, gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, prelu::PReluNode,
     random_normal::RandomNormalNode, random_uniform::RandomUniformNode, range::RangeNode,
@@ -116,6 +116,7 @@ pub enum Node<PS: PrecisionSettings> {
     Where(WhereNode),
     RandomUniform(RandomUniformNode),
     RandomNormal(RandomNormalNode),
+    ConstantOfShape(ConstantOfShapeNode),
     // For now, we have to keep the precision settings in order to correctly serialize the fields
     // into the right data types.
     _Unreachable(std::convert::Infallible, PhantomData<PS>),
@@ -160,6 +161,7 @@ macro_rules! match_all {
             Node::Where(node) => $func(node),
             Node::RandomNormal(node) => $func(node),
             Node::RandomUniform(node) => $func(node),
+            Node::ConstantOfShape(node) => $func(node),
             _ => unimplemented!(),
         }
     }};
@@ -212,6 +214,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Where(_) => "where",
             Node::RandomNormal(_) => "random_normal",
             Node::RandomUniform(_) => "random_uniform",
+            Node::ConstantOfShape(_) => "constant_of_shape",
             _ => unimplemented!(),
         }
     }

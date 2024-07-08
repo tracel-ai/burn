@@ -50,6 +50,8 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
 
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
+    type QuantizedTensorPrimitive<const D: usize> = NdArrayTensor<i8, D>;
+
     fn ad_enabled() -> bool {
         false
     }

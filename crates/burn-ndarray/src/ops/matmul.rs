@@ -1,6 +1,7 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
-use crate::{iter_range_par, run_par, UnsafeSharedRef};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, UnsafeSharedRef};
+
 use alloc::vec::Vec;
+use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Shape};
 use ndarray::s;

@@ -1,18 +1,19 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+/// Node for all unary operators.
+#[derive(Debug, Clone)]
 pub struct ConstantOfShapeNode {
-    pub value: ConstantOfShapeValue,
     pub input: Type,
     pub output: Type,
+    pub value: ConstantValue,
 }
 
-#[derive(Debug, Clone, new)]
-pub enum ConstantOfShapeValue {
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConstantValue {
     /// Float constant.
     Float32(f32),
     Float64(f64),
@@ -25,52 +26,112 @@ pub enum ConstantOfShapeValue {
     Bool(bool),
 }
 
-impl ToTokens for ConstantOfShapeValue {
-    fn to_tokens(&self) -> TokenStream {
-        match self {
-            ConstantOfShapeValue::Bool(val) => val.to_tokens(),
-            ConstantOfShapeValue::Float32(val) => val.to_tokens(),
-            ConstantOfShapeValue::Float64(val) => val.to_tokens(),
-            ConstantOfShapeValue::Int32(val) => val.to_tokens(),
-            ConstantOfShapeValue::Int64(val) => val.to_tokens(),
+impl ConstantOfShapeNode {
+    pub fn new(input: Type, output: Type, value: ConstantValue) -> Self {
+        assert!(
+            matches!(input, Type::Shape(_)),
+            "ConstantOfShape input needs to be a Shape!"
+        );
+        assert!(
+            matches!(output, Type::Tensor(_)),
+            "ConstantOfShape output needs to be a Tensor!"
+        );
+        Self {
+            input,
+            output,
+            value,
         }
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
+impl ConstantValue {
+    pub fn val_tokens(&self) -> TokenStream {
+        match self {
+            Self::Float32(val) => quote! { #val },
+            Self::Float64(val) => quote! { #val },
+            Self::Int32(val) => quote! { #val },
+            Self::Int64(val) => quote! { #val },
+            Self::Bool(val) => quote! { #val },
+        }
     }
 
+    pub fn from_vec<T: Into<Self> + Copy>(mut source: Vec<T>) -> Self {
+        assert_eq!(
+            source.len(),
+            1,
+            "ConstantOfShape value from a vec needs to have exactly 1 element!"
+        );
+        source.drain(..).next().unwrap().into()
+    }
+}
+
+impl From<f32> for ConstantValue {
+    fn from(value: f32) -> Self {
+        Self::Float32(value)
+    }
+}
+impl From<f64> for ConstantValue {
+    fn from(value: f64) -> Self {
+        Self::Float64(value)
+    }
+}
+impl From<i32> for ConstantValue {
+    fn from(value: i32) -> Self {
+        Self::Int32(value)
+    }
+}
+impl From<i64> for ConstantValue {
+    fn from(value: i64) -> Self {
+        Self::Int64(value)
+    }
+}
+impl From<bool> for ConstantValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn input_types(&self) -> Vec<Type> {
         vec![self.input.clone()]
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
-        let value = self.value.to_tokens();
-
-        match (&self.input, &self.output) {
-            (Type::Tensor(input), Type::Tensor(_)) => {
-                let input = scope.tensor_use_owned(&input, node_position);
-                quote! {
-                    let #output = Tensor::full(#input.to_data().value, #value, &#input.device());
-                }
-            }
-            (Type::Scalar(_), Type::Scalar(_)) => {
-                quote! {
-                    let #output = #value;
-                }
-            }
-            _ => panic!(
-                "Invalid input/output type ({:?}, {:?})",
-                self.input, self.output
-            ),
-        }
+    fn output_types(&self) -> Vec<Type> {
+        vec![self.output.clone()]
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::Int");
+    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+        let output = self.output.name();
+        let input = self.input.name();
+
+        let output_rank = match &self.output {
+            Type::Tensor(tensor) => tensor.dim.to_tokens(),
+            _ => unreachable!(),
+        };
+
+        let value = self.value.val_tokens();
+        // Note: in the generated code, self.device is a &module::Ignored<Device>,
+        // so to get a &Device, &* is needed
+
+        match &self.value {
+            ConstantValue::Bool(bool) => {
+                // Currently there is no full bool tensor support in the backend
+                // So we use 0 or 1 with bool type casting
+                // See: https://github.com/tracel-ai/burn/issues/1535
+                if *bool {
+                    quote! {
+                        let #output = Tensor::<B, #output_rank, Int>::ones(#input, &*self.device).bool();
+                    }
+                } else {
+                    quote! {
+                        let #output = Tensor::<B, #output_rank, Int>::zeros(#input, &*self.device).bool();
+                    }
+                }
+            }
+            _ => quote! {
+                let #output = Tensor::full(#input, #value, &*self.device);
+            },
+        }
     }
 
     fn into_node(self) -> Node<PS> {
@@ -86,62 +147,33 @@ mod tests {
     use crate::burn::{
         graph::BurnGraph,
         node::{constant_of_shape::ConstantOfShapeNode, test::assert_tokens},
-        ScalarType, TensorType,
+        ShapeType, TensorType,
     };
 
     #[test]
-    fn test_codegen() {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeValue::new_float32(1.25),
-            Type::Tensor(TensorType::new_int("tensor1", 1)),
-            Type::Tensor(TensorType::new_float("tensor2", 3)),
-        ));
-
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
-
-        let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
-
-            #[derive(Module, Debug)]
-            pub struct Model<B: Backend> {
-                phantom: core::marker::PhantomData<B>,
-            }
-
-            impl<B: Backend> Model <B> {
-                #[allow(unused_variables)]
-                pub fn new(device: &B::Device) -> Self {
-                    Self {
-                        phantom: core::marker::PhantomData,
-                    }
-                }
-                #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 1, Int>) -> Tensor<B, 3> {
-                    let tensor2 = Tensor::full(tensor1.to_data().value, 1.25, &tensor1.device());
-
-                    tensor2
-                }
-            }
-        };
-
-        assert_tokens(graph.codegen(), expected);
+    fn test_constant_val() {
+        assert_eq!(ConstantValue::from(1i32), ConstantValue::Int32(1i32));
+        assert_eq!(ConstantValue::from(-1i64), ConstantValue::Int64(-1i64));
+        assert_eq!(ConstantValue::from(0f32), ConstantValue::Float32(0f32));
+        assert_eq!(ConstantValue::from(0f64), ConstantValue::Float64(0f64));
+        assert_eq!(ConstantValue::from(true), ConstantValue::Bool(true));
+        assert_eq!(
+            ConstantValue::from_vec(vec![2i32]),
+            ConstantValue::Int32(2i32)
+        );
     }
 
     #[test]
-    fn test_codegen_scalar() {
+    fn test_codegen_nodes() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeValue::new_float64(1.25),
-            Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Int64)),
-            Type::Scalar(ScalarType::new("scalar2", crate::burn::ScalarKind::Float64)),
+            Type::Shape(ShapeType::new("shape1", 4)),
+            Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ConstantValue::Float32(1.25f32),
         ));
 
-        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+        graph.register_input_output(vec!["shape1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
             use burn::{
@@ -152,6 +184,7 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
@@ -159,13 +192,13 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, scalar1: i64) -> f64 {
-                    let scalar2 = 1.25;
-
-                    scalar2
+                pub fn forward(&self, shape1: [usize;4]) -> Tensor<B, 4> {
+                    let tensor2 = Tensor::full(shape1, 1.25f32, &*self.device);
+                    tensor2
                 }
             }
         };

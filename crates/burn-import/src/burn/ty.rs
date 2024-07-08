@@ -35,6 +35,12 @@ pub struct ScalarType {
     pub kind: ScalarKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShapeType {
+    pub name: Ident,
+    pub dim: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct OtherType {
     pub name: Ident,
@@ -49,6 +55,9 @@ pub enum Type {
     /// Scalar type.
     Scalar(ScalarType),
 
+    /// Shape type.
+    Shape(ShapeType),
+
     // Other type (more flexible type).
     Other(OtherType),
 }
@@ -58,6 +67,7 @@ impl Type {
         match self {
             Type::Tensor(tensor) => &tensor.name,
             Type::Scalar(scalar) => &scalar.name,
+            Type::Shape(shape) => &shape.name,
             Type::Other(other) => &other.name,
         }
     }
@@ -65,6 +75,7 @@ impl Type {
         match self {
             Type::Tensor(tensor) => tensor.ty(),
             Type::Scalar(scalar) => scalar.ty(),
+            Type::Shape(shape) => shape.ty(),
             Type::Other(other) => other.ty(),
         }
     }
@@ -88,6 +99,22 @@ impl ScalarType {
             ScalarKind::Float64 => quote! { f64 },
             ScalarKind::Bool => quote! { bool },
         }
+    }
+}
+
+impl ShapeType {
+    pub fn new<S: AsRef<str>>(name: S, dim: usize) -> Self {
+        if name.as_ref().is_empty() {
+            panic!("Shape was passed with empty name");
+        }
+        Self {
+            name: Ident::new(name.as_ref(), Span::call_site()),
+            dim,
+        }
+    }
+    pub fn ty(&self) -> TokenStream {
+        let dim = self.dim.to_tokens();
+        quote! { [usize; #dim] }
     }
 }
 

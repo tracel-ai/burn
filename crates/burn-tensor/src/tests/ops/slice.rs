@@ -137,14 +137,58 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn should_panic_when_slice_exceeds_dimension() {
-        let data = TensorData::from([0.0, 1.0, 2.0]);
+    fn clamp_when_slice_exceeds_dimension() {
+        let data = TensorData::from([0.0f32, 1.0, 2.0]);
         let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..4]);
+        output.into_data().assert_eq(&data, true);
+    }
 
-        output.into_data().assert_eq(&data, false);
+    #[test]
+    fn negative_dimensions() {
+        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+
+        // Clamping to the tensor dimensions
+        let output = tensor.clone().slice([(0, 4), (0, 4)]);
+        output.into_data().assert_eq(&data, true);
+
+        // Negative dimensions
+        let output = tensor.clone().slice([(0, 1), (0, 1)]);
+        let data = TensorData::from([[0.0f32]]);
+        output.into_data().assert_eq(&data, true);
+
+        let output = tensor.slice([(0, -1), (0, -2)]);
+        output.into_data().assert_eq(&data, true);
+    }
+
+    #[test]
+    fn missing_dimensions() {
+        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+
+        // Clamping to the tensor dimensions
+        let output = tensor.clone().slice([Some((0, 4)), Some((0, 4))]);
+        output.into_data().assert_eq(&data, true);
+
+        // Negative dimensions
+        let data = TensorData::from([[0.0f32]]);
+        let output = tensor.clone().slice([Some((0, -1)), Some((0, -2))]);
+        output.into_data().assert_eq(&data, true);
+
+        // Missing dimensions
+        let output = tensor.clone().slice([Some((0, 1)), None]);
+        let data = TensorData::from([[0.0f32, 1.0, 2.0]]);
+        output.into_data().assert_eq(&data, true);
+
+        let output = tensor.clone().slice([None, Some((0, 2))]);
+        let data = TensorData::from([[0.0f32, 1.0], [3.0, 4.0]]);
+        output.into_data().assert_eq(&data, true);
+
+        let output = tensor.clone().slice([None, None]);
+        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        output.into_data().assert_eq(&data, true);
     }
 
     #[test]

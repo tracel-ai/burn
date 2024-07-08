@@ -23,7 +23,10 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
 
     fn execute(&self, (lhs, rhs): Self::Args) {
         // Choice of add is arbitrary
-        B::float_add(lhs.clone().into_primitive(), rhs.clone().into_primitive());
+        B::float_add(
+            lhs.clone().into_primitive().tensor(),
+            rhs.clone().into_primitive().tensor(),
+        );
     }
 
     fn prepare(&self) -> Self::Args {

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(max_pool2d_backward)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor};
+    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive};
 
     #[test]
     pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
@@ -29,30 +29,31 @@ mod tests {
             dilation,
         );
         let grad = TestBackend::max_pool2d_with_indices_backward(
-            tensor.into_primitive(),
+            tensor.into_primitive().tensor(),
             kernel_size,
             stride,
             padding,
             dilation,
-            grad_output.into_primitive(),
+            grad_output.into_primitive().tensor(),
             indices.into_primitive(),
         )
         .x_grad;
         let grad_ref = ReferenceBackend::max_pool2d_with_indices_backward(
-            tensor_ref.into_primitive(),
+            tensor_ref.into_primitive().tensor(),
             kernel_size,
             stride,
             padding,
             dilation,
-            grad_output_ref.into_primitive(),
+            grad_output_ref.into_primitive().tensor(),
             indices_ref.into_primitive(),
         )
         .x_grad;
 
-        Tensor::<TestBackend, 4>::from_primitive(grad)
+        Tensor::<TestBackend, 4>::from_primitive(TensorPrimitive::Float(grad))
             .into_data()
             .assert_approx_eq(
-                &Tensor::<ReferenceBackend, 4>::from_primitive(grad_ref).into_data(),
+                &Tensor::<ReferenceBackend, 4>::from_primitive(TensorPrimitive::Float(grad_ref))
+                    .into_data(),
                 3,
             );
     }

@@ -1,9 +1,10 @@
+use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-use crate::{iter_range_par, run_par, FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
 
 pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,

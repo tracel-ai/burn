@@ -135,6 +135,7 @@ macro_rules! unary_op {
         impl<C: $elem> UnaryOp<C> for $name {
             type Options = ();
 
+            #[allow(clippy::redundant_closure_call)]
             fn execute_expand(
                 context: &mut CubeContext,
                 input: C::ExpandType,
@@ -150,6 +151,7 @@ macro_rules! unary_op {
         impl<C: $elem> UnaryOp<C> for $name {
             type Options = C;
 
+            #[allow(clippy::redundant_closure_call)]
             fn execute_expand(
                 context: &mut CubeContext,
                 input: C::ExpandType,

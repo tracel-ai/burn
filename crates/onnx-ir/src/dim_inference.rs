@@ -6,7 +6,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::flatten_config,
+    util::{flatten_config, shape_config},
 };
 
 /// Infer the dimension of each output tensor and update them.
@@ -66,7 +66,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
-        NodeType::Slice => slice_update_outputs(node),
+        NodeType::Slice => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => sub_update_outputs(node),
@@ -81,6 +81,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Squeeze => squeeze_update_output(node),
         NodeType::RandomUniform => random_update_output(node),
         NodeType::RandomNormal => random_update_output(node),
+        NodeType::ConstantOfShape => constant_of_shape_update_output(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
@@ -126,6 +127,34 @@ fn constant_update_outputs(node: &mut Node) {
         },
         None => panic!("Constant node must have a value attribute"),
     };
+}
+
+fn constant_of_shape_update_output(node: &mut Node) {
+    let value_type = node
+        .attrs
+        .get("value")
+        .map(|v| v.clone().into_tensor().elem_type)
+        .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+
+    let dim = match &node.inputs[0].ty {
+        ArgType::Shape(dim) => *dim,
+        ArgType::Tensor(tensor_type) => tensor_type
+            .shape
+            .as_ref()
+            .and_then(|shape| shape.first())
+            .copied()
+            .expect("ConstantOfShape node must have a Tensor with a non-empty shape"),
+        _ => panic!("ConstantOfShape node must have a Tensor or Shape type input"),
+    };
+
+    // Fix the input type to be a shape
+    node.inputs[0].ty = ArgType::Shape(dim);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: value_type,
+        dim,
+        shape: None,
+    });
 }
 
 /// Infer the shape of a node's output with an explicit shape attribute
@@ -454,33 +483,6 @@ fn squeeze_update_output(node: &mut Node) {
     });
 }
 
-fn slice_update_outputs(node: &mut Node) {
-    let shape = match &node.inputs[1].value {
-        Some(value) => match value {
-            Data::Int64s(shape) => Some(shape.clone()),
-            _ => panic!("Slice: invalid input types"),
-        },
-        None => None,
-    };
-
-    if shape.is_none() {
-        panic!("Slice: invalid shape");
-    }
-
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Slice: invalid output types"),
-    };
-
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: shape.len(),
-            shape: None, // shape is calculated at runtime
-            ..output
-        });
-    }
-}
-
 fn sub_update_outputs(node: &mut Node) {
     node.outputs[0].ty = match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
         (ArgType::Scalar(_lhs), ArgType::Scalar(rhs)) => ArgType::Scalar(rhs),
@@ -595,17 +597,9 @@ fn shape_update_outputs(node: &mut Node) {
         panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
 
-    let node_input = &mut node.inputs[0];
-    if let ArgType::Tensor(_tensor) = node_input.clone().ty {
-        // Output tensor is 1D int64
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            dim: 1,
-            ..Default::default()
-        });
-    } else {
-        panic!("Only tensor input is valid");
-    }
+    let (start, end) = shape_config(node);
+    let dim = end - start;
+    node.outputs[0].ty = ArgType::Shape(dim);
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.

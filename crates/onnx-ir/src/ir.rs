@@ -5,6 +5,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::protos::TensorProto;
 
+// TODO: Rename Dim to Rank
 pub type Dim = usize;
 pub type Shape = Vec<Dim>;
 
@@ -108,6 +109,7 @@ pub struct TensorType {
     pub elem_type: ElementType,
 
     /// The dimension of the tensor.
+    /// TODO Rename to rank
     pub dim: Dim,
 
     /// The shape of the tensor.

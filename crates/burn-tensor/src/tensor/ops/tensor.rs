@@ -3,9 +3,9 @@ use super::repeat::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
-use crate::Tensor;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
+use crate::{Tensor, TensorPrimitive};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -179,8 +179,13 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         times: usize,
     ) -> FloatTensor<B, D> {
-        repeat_with_slice_assign::<B, D, Float>(Tensor::<B, D>::from_primitive(tensor), dim, times)
-            .into_primitive()
+        repeat_with_slice_assign::<B, D, Float>(
+            Tensor::<B, D>::from_primitive(TensorPrimitive::Float(tensor)),
+            dim,
+            times,
+        )
+        .into_primitive()
+        .tensor()
     }
 
     /// Adds two tensors together.
@@ -1088,11 +1093,13 @@ pub trait FloatTensorOps<B: Backend> {
         cat_with_slice_assign::<B, D, Float>(
             tensors
                 .into_iter()
+                .map(TensorPrimitive::Float)
                 .map(Tensor::<B, D>::from_primitive)
                 .collect(),
             dim,
         )
         .into_primitive()
+        .tensor()
     }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
@@ -1244,7 +1251,7 @@ pub trait FloatTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> FloatTensor<B, D> {
-        narrow::<B, D, Float>(tensor, dim, start, length)
+        narrow::<B, D, Float>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -1263,7 +1270,10 @@ pub trait FloatTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<FloatTensor<B, D>> {
-        chunk::<B, D, Float>(tensor, chunks, dim)
+        chunk::<B, D, Float>(TensorPrimitive::Float(tensor), chunks, dim)
+            .into_iter()
+            .map(|t| t.tensor())
+            .collect()
     }
 
     /// Tests if any element in the float `tensor` evaluates to True.
@@ -1382,7 +1392,7 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         descending: bool,
     ) -> FloatTensor<B, D> {
-        sort::<B, D, Float>(tensor, dim, descending)
+        sort::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending).tensor()
     }
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
@@ -1404,7 +1414,9 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         descending: bool,
     ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
-        sort_with_indices::<B, D, Float>(tensor, dim, descending)
+        let (values, indices) =
+            sort_with_indices::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending);
+        (values.tensor(), indices)
     }
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
@@ -1425,6 +1437,6 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         descending: bool,
     ) -> IntTensor<B, D> {
-        argsort::<B, D, Float>(tensor, dim, descending)
+        argsort::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending)
     }
 }
