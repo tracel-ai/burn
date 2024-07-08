@@ -2,15 +2,11 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::{
-    block_loop::{block_loop, block_loop_expand},
-    direct::writer::OutputWriter,
-    load_shared_memory::SharedMemoryLoader,
-};
+use super::block_loop::{block_loop, block_loop_expand};
 
 #[cube(launch)]
 #[allow(unused_mut)]
-fn tiling2d_cube<F: Float, L: SharedMemoryLoader<F>, W: OutputWriter<F>>(
+fn tiling2d_cube<F: Float>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
@@ -20,7 +16,7 @@ fn tiling2d_cube<F: Float, L: SharedMemoryLoader<F>, W: OutputWriter<F>>(
     let coordinates = calculate_coordinates(CUBE_POS_X, CUBE_POS_Y, UNIT_POS, config);
     let offsets = calculate_batch_offsets::<F>(lhs, rhs, out, CUBE_POS_Z);
     let shared_memories = make_shared_memories::<F>(config);
-    block_loop::<F, L, W>(
+    block_loop::<F>(
         lhs,
         rhs,
         out,

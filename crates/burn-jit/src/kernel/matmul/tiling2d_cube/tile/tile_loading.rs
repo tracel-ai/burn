@@ -4,7 +4,7 @@ use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
     tiling2d_cube::{
         base::{Coordinates, Dimensions},
-        load_shared_memory::{LoadInfo, SharedMemoryLoader},
+        load_shared_memory::{LoadInfo, Loader},
     },
 };
 
@@ -23,7 +23,7 @@ use super::{
 pub(crate) struct TileLoader;
 
 #[cube]
-impl<F: Float> SharedMemoryLoader<F> for TileLoader {
+impl<F: Float> Loader<F> for TileLoader {
     fn load_lhs_plain(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let coordinates = load_info.coordinates;
         let k = load_info.k;

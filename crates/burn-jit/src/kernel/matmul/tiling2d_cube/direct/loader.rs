@@ -2,31 +2,17 @@ use std::marker::PhantomData;
 
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::{
-    config::CubeTiling2dConfig,
-    tiling2d_cube::load_shared_memory::{LoadInfo, SharedMemoryLoader},
+use crate::kernel::matmul::tiling2d_cube::load_shared_memory::{LoadInfo, Loader};
+
+use super::{
+    block_check::base::BlockCheck,
+    memory_access::{MatchingVectorization, UnmatchingVectorization},
 };
 
 // Transposed tensor's vectorization must be 1
 // Plain tensor's vectorization must equal tile size
-pub(crate) struct DirectLoader<F: Float, L: Loader<F>, R: Loader<F>> {
+pub(crate) struct DirectLoader<F: Float> {
     _f: PhantomData<F>,
-    _lhs: PhantomData<L>,
-    _rhs: PhantomData<R>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum BlockCheck {
-    Whole,
-    Horizontal,
-    Vertical,
-    Unchecked,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum VectorReaderEnum {
-    Matching,
-    Unmatching,
 }
 
 #[derive(CubeType)]
@@ -55,26 +41,8 @@ pub(crate) struct ReadTileInfo {
 }
 
 #[cube]
-pub(crate) trait Loader<F: Float>: Send + Sync + 'static {
-    fn load_tile_plain(
-        tensor: &Tensor<F>,
-        shared_memory: &mut SharedMemory<F>,
-        read_tile_info: ReadTileInfo,
-        config: Comptime<CubeTiling2dConfig>,
-        check_bounds: CheckBounds,
-    );
-    fn load_tile_transposed(
-        tensor: &Tensor<F>,
-        shared_memory: &mut SharedMemory<F>,
-        read_tile_info: ReadTileInfo,
-        config: Comptime<CubeTiling2dConfig>,
-        check_bounds: CheckBounds,
-    );
-}
-
-#[cube]
-impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoader<F, L, R> {
-    fn load_lhs_plain(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+impl<F: Float> Loader<F> for DirectLoader<F> {
+    fn load_lhs_plain<B: BlockCheck<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -92,10 +60,10 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: coordinates.skip_row,
         };
 
-        load_plain::<F, L>(lhs, load_info, load_indices, check_bounds);
+        load_plain::<F, B>(lhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_lhs_transposed(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_lhs_transposed<B: BlockCheck<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -113,10 +81,10 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: load_info.k,
         };
 
-        load_transposed::<F, L>(lhs, load_info, load_indices, check_bounds);
+        load_transposed::<F, B>(lhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_rhs_plain(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_rhs_plain<B: BlockCheck<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let coordinates = load_info.coordinates;
         let dims = load_info.dims;
         let config = load_info.config;
@@ -134,10 +102,10 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: coordinates.skip_col,
         };
 
-        load_plain::<F, R>(rhs, load_info, load_indices, check_bounds);
+        load_plain::<F, B>(rhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_rhs_transposed(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_rhs_transposed<B: BlockCheck<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -155,12 +123,12 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: load_info.k,
         };
 
-        load_transposed::<F, R>(rhs, load_info, load_indices, check_bounds);
+        load_transposed::<F, B>(rhs, load_info, load_indices, check_bounds);
     }
 }
 
 #[cube]
-pub(crate) fn load_plain<F: Float, L: Loader<F>>(
+pub(crate) fn load_plain<F: Float, L: BlockCheck<F>>(
     tensor: &Tensor<F>,
     load_info: LoadInfo<F>,
     load_indices: LoadIndices,
@@ -169,6 +137,9 @@ pub(crate) fn load_plain<F: Float, L: Loader<F>>(
     let coordinates = load_info.coordinates;
     let config = load_info.config;
 
+    let vectorization = Comptime::vectorization(tensor);
+    // let tile_size = Comptime::map(config, |c| c.tile_size);
+    let match_tile = Comptime::map(vectorization, |v| v.val == 4); // TODO HARDCODED TO 4
     let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
 
     let read_row = coordinates.unit_row;
@@ -190,12 +161,28 @@ pub(crate) fn load_plain<F: Float, L: Loader<F>>(
     let mut sm = load_info.shared_memory;
 
     if write_row < sm_dim_vertical {
-        L::load_tile_plain(tensor, &mut sm, read_tile_info, config, check_bounds);
+        if Comptime::get(match_tile) {
+            L::load_tile_plain::<MatchingVectorization>(
+                tensor,
+                &mut sm,
+                read_tile_info,
+                config,
+                check_bounds,
+            );
+        } else {
+            L::load_tile_plain::<UnmatchingVectorization>(
+                tensor,
+                &mut sm,
+                read_tile_info,
+                config,
+                check_bounds,
+            );
+        }
     }
 }
 
 #[cube]
-pub(crate) fn load_transposed<F: Float, L: Loader<F>>(
+pub(crate) fn load_transposed<F: Float, L: BlockCheck<F>>(
     tensor: &Tensor<F>,
     load_info: LoadInfo<F>,
     load_indices: LoadIndices,
@@ -226,40 +213,5 @@ pub(crate) fn load_transposed<F: Float, L: Loader<F>>(
 
     if write_row < sm_dim_vertical {
         L::load_tile_transposed(tensor, &mut sm, read_tile_info, config, check_bounds);
-    }
-}
-#[cube]
-pub(crate) fn all_zeros_runtime<F: Float>(
-    shared_memory: &mut SharedMemory<F>,
-    start: UInt,
-    sm_position_base: UInt,
-    sm_stride: UInt,
-    config: Comptime<CubeTiling2dConfig>,
-) {
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-    let zeros = F::vectorized(0., Comptime::get(tile_size));
-
-    for i in range(start, Comptime::get(tile_size), Comptime::new(false)) {
-        let sm_position = (sm_position_base + i * sm_stride) / Comptime::runtime(tile_size);
-
-        shared_memory[sm_position] = zeros;
-    }
-}
-
-#[cube]
-pub(crate) fn all_zeros_comptime<F: Float>(
-    shared_memory: &mut SharedMemory<F>,
-    sm_position_base: UInt,
-    sm_stride: UInt,
-    config: Comptime<CubeTiling2dConfig>,
-) {
-    let tile_size = Comptime::map(config, |c| c.tile_size);
-    let unroll = Comptime::map(config, |c| c.unroll_tile);
-    let zeros = F::vectorized(0., Comptime::get(tile_size));
-
-    for i in range(0u32, Comptime::get(tile_size), unroll) {
-        let sm_position = (sm_position_base + i * sm_stride) / Comptime::runtime(tile_size);
-
-        shared_memory[sm_position] = zeros;
     }
 }

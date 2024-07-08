@@ -5,15 +5,13 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 use super::{
     base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
-    direct::writer::OutputWriter,
-    load_shared_memory::{
-        load_to_shared_memories, load_to_shared_memories_expand, SharedMemoryLoader,
-    },
+    direct::{loader::DirectLoader, writer::DirectWriter},
+    load_shared_memory::{load_to_shared_memories, load_to_shared_memories_expand},
     write_output::{write_to_output, write_to_output_expand},
 };
 
 #[cube]
-pub(crate) fn block_loop<F: Float, S: SharedMemoryLoader<F>, W: OutputWriter<F>>(
+pub(crate) fn block_loop<F: Float>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
@@ -31,7 +29,16 @@ pub(crate) fn block_loop<F: Float, S: SharedMemoryLoader<F>, W: OutputWriter<F>>
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_to_shared_memories::<F, S>(lhs, rhs, coordinates, k, offsets, shared, config, dims);
+        load_to_shared_memories::<F, DirectLoader<F>>(
+            lhs,
+            rhs,
+            coordinates,
+            k,
+            offsets,
+            shared,
+            config,
+            dims,
+        );
 
         sync_units();
 
@@ -40,7 +47,7 @@ pub(crate) fn block_loop<F: Float, S: SharedMemoryLoader<F>, W: OutputWriter<F>>
         sync_units();
     }
 
-    W::write_output(out, &results, coordinates, offsets.out, dims.n, config);
+    write_to_output::<F, DirectWriter<F>>(out, &results, coordinates, offsets.out, dims, config);
 }
 
 #[cube]

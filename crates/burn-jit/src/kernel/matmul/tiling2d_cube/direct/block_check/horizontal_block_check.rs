@@ -1,25 +1,26 @@
-use std::marker::PhantomData;
-
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::{config::CubeTiling2dConfig, tiling2d_cube::base::Coordinates};
-
-use super::{
-    loader::{
-        all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
-        CheckBounds, Loader, ReadTileInfo,
+use crate::kernel::matmul::{
+    config::CubeTiling2dConfig,
+    tiling2d_cube::{
+        base::Coordinates,
+        direct::{
+            loader::{CheckBounds, ReadTileInfo},
+            memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
+        },
     },
-    vector_reader::{UnmatchingVectorization, ContiguousAccess, StridedAccess},
-    writer::OutputWriter,
 };
 
-pub(crate) struct HorizontalBlockCheck<H> {
-    _h: PhantomData<H>,
-}
+use super::base::{
+    all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
+    BlockCheck,
+};
+
+pub(crate) struct HorizontalBlockCheck;
 
 #[cube]
-impl<F: Float, H: ContiguousAccess<F>> Loader<F> for HorizontalBlockCheck<H> {
-    fn load_tile_plain(
+impl<F: Float> BlockCheck<F> for HorizontalBlockCheck {
+    fn load_tile_plain<A: ContiguousAccess<F>>(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
         info: ReadTileInfo,
@@ -39,7 +40,7 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for HorizontalBlockCheck<H> {
                     (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
                 shared_memory[sm_position] =
-                    H::read_contiguous_checked(tensor, gm_position, check_bounds, info, config);
+                    A::read_contiguous_checked(tensor, gm_position, check_bounds, info, config);
             }
         } else {
             all_zeros_comptime(shared_memory, info.sm_position_base, info.sm_stride, config);
@@ -83,17 +84,39 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for HorizontalBlockCheck<H> {
             config,
         );
     }
-}
 
-#[cube]
-impl<F: Float, H: ContiguousAccess<F>> OutputWriter<F> for HorizontalBlockCheck<H> {
-    fn write_output(
+    fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
         coordinates: Coordinates,
         offset_output: UInt,
         out_stride: UInt,
         config: Comptime<CubeTiling2dConfig>,
+        check_bounds: CheckBounds,
     ) {
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+        let unroll = Comptime::map(config, |c| c.unroll_tile);
+
+        let col = coordinates.skip_col + coordinates.unit_col;
+
+        if check_bounds.dim_horizontal > col {
+            let row = coordinates.skip_row + coordinates.unit_row;
+            let out_base_position = row * out_stride + col + offset_output;
+
+            for result_index in range(0u32, Comptime::get(tile_size), unroll) {
+                let result_position = result_index * Comptime::runtime(tile_size);
+                let out_position = out_base_position + result_index * out_stride;
+
+                A::write_contiguous_checked(
+                    out,
+                    out_position,
+                    results,
+                    result_position,
+                    check_bounds,
+                    col,
+                    config,
+                );
+            }
+        }
     }
 }

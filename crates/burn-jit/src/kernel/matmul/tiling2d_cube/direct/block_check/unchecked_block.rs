@@ -1,23 +1,24 @@
-use std::marker::PhantomData;
-
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::{config::CubeTiling2dConfig, tiling2d_cube::base::Coordinates};
-
-use super::{
-    loader::{CheckBounds, Loader, ReadTileInfo},
-    vector_reader::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
-    writer::OutputWriter,
+use crate::kernel::matmul::{
+    config::CubeTiling2dConfig,
+    tiling2d_cube::{
+        base::Coordinates,
+        direct::{
+            loader::{CheckBounds, ReadTileInfo},
+            memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
+        },
+    },
 };
 
+use super::base::BlockCheck;
+
 /// Assumes block sizes divide tensor shape
-pub(crate) struct UncheckedBlockCheck<H> {
-    _h: PhantomData<H>,
-}
+pub(crate) struct UncheckedBlockCheck;
 
 #[cube]
-impl<F: Float, H: ContiguousAccess<F>> Loader<F> for UncheckedBlockCheck<H> {
-    fn load_tile_plain(
+impl<F: Float> BlockCheck<F> for UncheckedBlockCheck {
+    fn load_tile_plain<A: ContiguousAccess<F>>(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
         info: ReadTileInfo,
@@ -34,7 +35,7 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for UncheckedBlockCheck<H> {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = H::read_contiguous_unchecked(tensor, gm_position, config);
+            shared_memory[sm_position] = A::read_contiguous_unchecked(tensor, gm_position, config);
         }
     }
 
@@ -61,17 +62,15 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for UncheckedBlockCheck<H> {
             );
         }
     }
-}
 
-#[cube]
-impl<F: Float, H: ContiguousAccess<F>> OutputWriter<F> for UncheckedBlockCheck<H> {
-    fn write_output(
+    fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
         coordinates: Coordinates,
         offset_output: UInt,
         out_stride: UInt,
         config: Comptime<CubeTiling2dConfig>,
+        _check_bounds: CheckBounds,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
         let unroll = Comptime::map(config, |c| c.unroll_tile);
@@ -84,7 +83,7 @@ impl<F: Float, H: ContiguousAccess<F>> OutputWriter<F> for UncheckedBlockCheck<H
             let result_position = result_index * Comptime::runtime(tile_size);
             let out_position = out_base_position + result_index * out_stride;
 
-            H::write_contiguous_unchecked(out, out_position, results, result_position, config);
+            A::write_contiguous_unchecked(out, out_position, results, result_position, config);
         }
     }
 }

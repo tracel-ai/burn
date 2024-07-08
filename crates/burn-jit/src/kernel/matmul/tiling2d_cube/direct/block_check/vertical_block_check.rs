@@ -1,21 +1,23 @@
-use std::marker::PhantomData;
-
 use burn_cube::prelude::*;
 
-use crate::kernel::matmul::config::CubeTiling2dConfig;
-
-use super::{
-    loader::{all_zeros_runtime, all_zeros_runtime_expand, CheckBounds, Loader, ReadTileInfo},
-    vector_reader::{ContiguousAccess, UnmatchingVectorization, StridedAccess},
+use crate::kernel::matmul::{
+    config::CubeTiling2dConfig,
+    tiling2d_cube::{
+        base::Coordinates,
+        direct::{
+            loader::{CheckBounds, ReadTileInfo},
+            memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
+        },
+    },
 };
 
-pub(crate) struct VerticalBlockCheckLoad<H> {
-    _h: PhantomData<H>,
-}
+use super::base::{all_zeros_runtime, all_zeros_runtime_expand, BlockCheck};
+
+pub(crate) struct VerticalBlockCheck;
 
 #[cube]
-impl<F: Float, H: ContiguousAccess<F>> Loader<F> for VerticalBlockCheckLoad<H> {
-    fn load_tile_plain(
+impl<F: Float> BlockCheck<F> for VerticalBlockCheck {
+    fn load_tile_plain<A: ContiguousAccess<F>>(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
         info: ReadTileInfo,
@@ -40,7 +42,7 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for VerticalBlockCheckLoad<H> {
             let sm_position =
                 (info.sm_position_base + i * info.sm_stride) / Comptime::runtime(tile_size);
 
-            shared_memory[sm_position] = H::read_contiguous_unchecked(tensor, gm_position, config);
+            shared_memory[sm_position] = A::read_contiguous_unchecked(tensor, gm_position, config);
         }
 
         all_zeros_runtime(
@@ -75,6 +77,37 @@ impl<F: Float, H: ContiguousAccess<F>> Loader<F> for VerticalBlockCheckLoad<H> {
                 info,
                 config,
             );
+        }
+    }
+
+    fn write_output<A: ContiguousAccess<F>>(
+        out: &mut Tensor<F>,
+        results: &Array<F>,
+        coordinates: Coordinates,
+        offset_output: UInt,
+        out_stride: UInt,
+        config: Comptime<CubeTiling2dConfig>,
+        check_bounds: CheckBounds,
+    ) {
+        let tile_size = Comptime::map(config, |c| c.tile_size);
+
+        let row = coordinates.skip_row + coordinates.unit_row;
+        let col = coordinates.skip_col + coordinates.unit_col;
+        let out_position_base = row * out_stride + col + offset_output;
+
+        let mut num_writes = UInt::new(0);
+        if check_bounds.dim_vertical > row {
+            num_writes = UInt::min(
+                check_bounds.dim_vertical - row,
+                Comptime::runtime(tile_size),
+            );
+        }
+
+        for result_index in range(0u32, num_writes, Comptime::new(false)) {
+            let result_position = result_index * Comptime::runtime(tile_size);
+            let out_position = out_position_base + result_index * out_stride;
+
+            A::write_contiguous_unchecked(out, out_position, results, result_position, config);
         }
     }
 }
