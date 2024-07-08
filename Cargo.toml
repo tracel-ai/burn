@@ -72,7 +72,7 @@ serial_test = "3.1.1"
 spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.68", features = ["full", "extra-traits"] }
+syn = { version = "2.0.69", features = ["full", "extra-traits"] }
 tempfile = "3.10.1"
 thiserror = "1.0.61"
 tokio = { version = "1.38.0", features = ["rt", "macros"] }
