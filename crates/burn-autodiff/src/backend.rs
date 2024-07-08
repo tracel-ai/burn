@@ -32,6 +32,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
 
+    type QuantizedTensorPrimitive<const D: usize> = B::QuantizedTensorPrimitive<D>;
+
     fn ad_enabled() -> bool {
         true
     }
@@ -110,6 +112,18 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     fn bool_from_inner<const D: usize>(
         tensor: burn_tensor::ops::BoolTensor<Self::InnerBackend, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        tensor
+    }
+
+    fn q_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D> {
+        tensor
+    }
+
+    fn q_from_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self, D> {
         tensor
     }
 }

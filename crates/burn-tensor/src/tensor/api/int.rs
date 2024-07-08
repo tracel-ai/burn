@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData};
+use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData, TensorPrimitive};
 
 use core::ops::Range;
 
@@ -65,7 +65,7 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
-        Tensor::new(B::int_into_float(self.primitive))
+        Tensor::new(TensorPrimitive::Float(B::int_into_float(self.primitive)))
     }
 
     /// Generates a cartesian grid for the given tensor shape on the specified device.

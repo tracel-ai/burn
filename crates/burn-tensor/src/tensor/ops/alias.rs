@@ -20,3 +20,5 @@ pub type FloatTensor<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D
 pub type IntTensor<B, const D: usize> = <B as Backend>::IntTensorPrimitive<D>;
 /// Boolean tensor primitive type used by the backend.
 pub type BoolTensor<B, const D: usize> = <B as Backend>::BoolTensorPrimitive<D>;
+/// Quantized tensor primitive type used by the backend.
+pub type QuantizedTensor<B, const D: usize> = <B as Backend>::QuantizedTensorPrimitive<D>;

@@ -64,6 +64,7 @@ impl From<burn_tensor::DType> for Elem {
             burn_tensor::DType::U32 => Elem::UInt,
             burn_tensor::DType::U8 => panic!("u8 isn't supported yet."),
             burn_tensor::DType::Bool => Elem::Bool,
+            burn_tensor::DType::QFloat(_) => panic!("quantized type is not supported yet."),
         }
     }
 }

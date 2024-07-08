@@ -17,7 +17,6 @@ mod backend;
 mod bridge;
 mod element;
 mod ops;
-mod parallel;
 mod sharing;
 mod tensor;
 

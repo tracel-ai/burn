@@ -1,14 +1,14 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use crate::check;
 use crate::check::TensorCheck;
 use crate::ops::FullPrecisionBackend;
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, Shape, TensorData};
-use crate::Int;
 use crate::Tensor;
+use crate::{check, QuantizationStrategy};
+use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
 where
@@ -36,53 +36,71 @@ where
     ///
     /// `y = e^x`
     pub fn exp(self) -> Self {
-        Self::new(B::float_exp(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_exp(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
     pub fn log(self) -> Self {
-        Self::new(B::float_log(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_log(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     /// `y = log(x+1)`
     pub fn log1p(self) -> Self {
-        Self::new(B::float_log1p(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_log1p(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`
     pub fn erf(self) -> Self {
-        Self::new(B::float_erf(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_erf(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise reciprocal operation.
     pub fn recip(self) -> Self {
-        Self::new(B::float_recip(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_recip(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise root square operation.
     pub fn sqrt(self) -> Self {
-        Self::new(B::float_sqrt(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_sqrt(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise cosine operation.
     pub fn cos(self) -> Self {
-        Self::new(B::float_cos(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_cos(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise sine operation.
     pub fn sin(self) -> Self {
-        Self::new(B::float_sin(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_sin(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
-        Self::new(B::float_tanh(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_tanh(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Create a tensor from floats (f32) on a given device.
@@ -119,23 +137,33 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::float_into_int(self.primitive))
+        Tensor::new(B::float_into_int(self.primitive.tensor()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::float_zeros(self.shape(), &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_zeros(
+            self.shape(),
+            &self.device(),
+        )))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::float_ones(self.shape(), &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_ones(
+            self.shape(),
+            &self.device(),
+        )))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Tensor::new(B::float_random(self.shape(), distribution, &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_random(
+            self.shape(),
+            distribution,
+            &self.device(),
+        )))
     }
 
     /// Create a one hot tensor.
@@ -176,7 +204,10 @@ where
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
-        Self::new(B::float_matmul(self.primitive, other.primitive))
+        Self::new(TensorPrimitive::Float(B::float_matmul(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+        )))
     }
 
     /// Calculate the variance along the given dimension.
@@ -205,12 +236,16 @@ where
 
     /// Returns a tensor with full precision based on the selected backend.
     pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
-        Tensor::new(B::float_into_full_precision(self.primitive))
+        Tensor::new(TensorPrimitive::Float(B::float_into_full_precision(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<FullPrecisionBackend<B>, D>) -> Self {
-        Self::new(B::float_from_full_precision(tensor.primitive))
+        Self::new(TensorPrimitive::Float(B::float_from_full_precision(
+            tensor.primitive.tensor(),
+        )))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -219,7 +254,9 @@ where
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(B::float_detach(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_detach(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
@@ -231,7 +268,13 @@ where
 
     /// Returns true if the tensor requires gradients during the backward pass.
     pub fn is_require_grad(&self) -> bool {
-        B::float_is_require_grad(&self.primitive)
+        match &self.primitive {
+            TensorPrimitive::Float(tensor) => B::float_is_require_grad(tensor),
+            TensorPrimitive::QFloat {
+                tensor: _,
+                strategy: _,
+            } => B::float_is_require_grad(&self.primitive.clone().tensor()),
+        }
     }
 
     /// Mark the tensor as tracked or untracked depending on the require grad argument.
@@ -239,12 +282,15 @@ where
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        Self::new(B::float_set_require_grad(self.primitive, require_grad))
+        Self::new(TensorPrimitive::Float(B::float_set_require_grad(
+            self.primitive.tensor(),
+            require_grad,
+        )))
     }
 
     /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
-        Self::new(B::relu(self.primitive))
+        Self::new(TensorPrimitive::Float(B::relu(self.primitive.tensor())))
     }
 
     /// Calculate covaraince matrix between different entries alongside a given dimension.
@@ -261,5 +307,32 @@ where
             .transpose()
             .matmul(centered)
             .div_scalar(n as f32 - correction_factor as f32)
+    }
+
+    /// Convert the tensor to a lower precision data type based on the quantization strategy.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The quantization strategy.
+    ///
+    /// # Returns
+    ///
+    /// The quantized tensor.
+    pub fn quantize(self, strategy: QuantizationStrategy) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::QFloat {
+            tensor: B::quantize(self.primitive.tensor(), &strategy),
+            strategy,
+        })
+    }
+
+    /// Convert the tensor back to a higher precision data type.
+    ///
+    /// If the tensor is not quantized, its value is simply returned.
+    ///
+    /// # Returns
+    ///
+    /// The dequantized tensor.
+    pub fn dequantize(self) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
     }
 }

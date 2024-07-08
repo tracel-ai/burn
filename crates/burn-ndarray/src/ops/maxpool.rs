@@ -1,8 +1,9 @@
 use crate::{
-    element::FloatNdArrayElement, iter_range_par, ops::padding::apply_padding_4d, run_par,
-    sharing::UnsafeSharedRef, tensor::NdArrayTensor,
+    element::FloatNdArrayElement, ops::padding::apply_padding_4d, sharing::UnsafeSharedRef,
+    tensor::NdArrayTensor,
 };
 
+use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 

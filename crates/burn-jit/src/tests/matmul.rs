@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::matmul::{matmul, MatmulStrategy, Tiling2dConfig};
-    use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, TensorPrimitive};
 
     mod simple {
         use super::*;
@@ -225,11 +225,11 @@ mod tests {
             let y_jit = TestTensor::from_data(y.to_data(), &test_tensor_device);
 
             let z_reference = x.matmul(y);
-            let z = Tensor::<TestBackend, 2>::from_primitive(matmul(
-                x_jit.into_primitive(),
-                y_jit.into_primitive(),
+            let z = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(matmul(
+                x_jit.into_primitive().tensor(),
+                y_jit.into_primitive().tensor(),
                 MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
-            ));
+            )));
 
             z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
         }
@@ -248,11 +248,11 @@ mod tests {
             let y_jit = TestTensor::from_data(y.to_data(), &test_tensor_device);
 
             let z_reference = x.matmul(y);
-            let z = Tensor::<TestBackend, 2>::from_primitive(matmul(
-                x_jit.into_primitive(),
-                y_jit.into_primitive(),
+            let z = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(matmul(
+                x_jit.into_primitive().tensor(),
+                y_jit.into_primitive().tensor(),
                 MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
-            ));
+            )));
 
             z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
         }
@@ -423,7 +423,8 @@ mod tests {
             );
             let expected_shape = [row, col].into();
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
 
             assert!(padded.shape == expected_shape);
         }
@@ -440,9 +441,13 @@ mod tests {
                 &Default::default(),
             );
 
-            let padded = pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor);
+            let padded = pad_round(
+                tensor.clone().into_primitive().tensor(),
+                row_divisor,
+                col_divisor,
+            );
 
-            let padded = TestTensor::from_primitive(padded.into_tensor());
+            let padded = TestTensor::from_primitive(TensorPrimitive::Float((padded.into_tensor())));
             padded.into_data().assert_approx_eq(&tensor.into_data(), 3);
         }
 
@@ -459,7 +464,8 @@ mod tests {
             );
             let expected_shape = [12, 15].into();
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
 
             assert!(padded.shape == expected_shape);
         }
@@ -476,10 +482,14 @@ mod tests {
                 &Default::default(),
             );
 
-            let padded =
-                pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded = pad_round(
+                tensor.clone().into_primitive().tensor(),
+                row_divisor,
+                col_divisor,
+            )
+            .into_tensor();
 
-            let padded = TestTensor::from_primitive(padded).to_data();
+            let padded = TestTensor::from_primitive(TensorPrimitive::Float(padded)).to_data();
             let padded = padded
                 .as_slice::<<TestBackend as Backend>::FloatElem>()
                 .unwrap();
@@ -506,8 +516,9 @@ mod tests {
                 &Default::default(),
             );
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-            let padded = TestTensor::from_primitive(padded).to_data();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
+            let padded = TestTensor::from_primitive(TensorPrimitive::Float(padded)).to_data();
             let padded = padded
                 .as_slice::<<TestBackend as Backend>::FloatElem>()
                 .unwrap();
@@ -539,7 +550,8 @@ mod tests {
             );
             let expected_shape = [2, 3, 12, 15].into();
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
 
             assert!(padded.shape == expected_shape);
         }
@@ -557,7 +569,8 @@ mod tests {
             );
             let expected_shape = [row_divisor, 2 * col_divisor].into();
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
 
             assert!(padded.shape == expected_shape);
         }
@@ -575,7 +588,8 @@ mod tests {
             );
             let expected_shape = [32, 64].into();
 
-            let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
+            let padded =
+                pad_round(tensor.into_primitive().tensor(), row_divisor, col_divisor).into_tensor();
 
             assert!(padded.shape == expected_shape);
         }
@@ -590,8 +604,10 @@ mod tests {
             let expected_shape = [row, col].into();
 
             let unpadded = crop(
-                tensor.clone().into_primitive(),
-                TestTensor::empty([row, col], &device).into_primitive(),
+                tensor.clone().into_primitive().tensor(),
+                TestTensor::empty([row, col], &device)
+                    .into_primitive()
+                    .tensor(),
             );
 
             assert!(unpadded.shape == expected_shape);
@@ -606,11 +622,13 @@ mod tests {
                 TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
 
             let unpadded = crop(
-                tensor.clone().into_primitive(),
-                TestTensor::empty([row, col], &device).into_primitive(),
+                tensor.clone().into_primitive().tensor(),
+                TestTensor::empty([row, col], &device)
+                    .into_primitive()
+                    .tensor(),
             );
 
-            let unpadded = TestTensor::from_primitive(unpadded).to_data();
+            let unpadded = TestTensor::from_primitive(TensorPrimitive::Float(unpadded)).to_data();
             let unpadded = unpadded
                 .as_slice::<<TestBackend as Backend>::FloatElem>()
                 .unwrap();
@@ -637,8 +655,10 @@ mod tests {
             let expected_shape = [keep_rows, keep_cols].into();
 
             let unpadded = crop(
-                tensor.clone().into_primitive(),
-                TestTensor::empty([keep_rows, keep_cols], &device).into_primitive(),
+                tensor.clone().into_primitive().tensor(),
+                TestTensor::empty([keep_rows, keep_cols], &device)
+                    .into_primitive()
+                    .tensor(),
             );
 
             assert!(unpadded.shape == expected_shape);
@@ -655,11 +675,13 @@ mod tests {
                 TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
 
             let unpadded = crop(
-                tensor.clone().into_primitive(),
-                TestTensor::empty([keep_rows, keep_cols], &device).into_primitive(),
+                tensor.clone().into_primitive().tensor(),
+                TestTensor::empty([keep_rows, keep_cols], &device)
+                    .into_primitive()
+                    .tensor(),
             );
 
-            let unpadded = TestTensor::from_primitive(unpadded).to_data();
+            let unpadded = TestTensor::from_primitive(TensorPrimitive::Float(unpadded)).to_data();
             let unpadded = unpadded
                 .as_slice::<<TestBackend as Backend>::FloatElem>()
                 .unwrap();
@@ -697,11 +719,11 @@ mod tests {
         let y_jit = TestTensor::from_data(y.to_data(), &test_tensor_device);
 
         let z_reference = x.matmul(y);
-        let z = Tensor::<TestBackend, D>::from_primitive(matmul(
-            x_jit.into_primitive(),
-            y_jit.into_primitive(),
+        let z = Tensor::<TestBackend, D>::from_primitive(TensorPrimitive::Float(matmul(
+            x_jit.into_primitive().tensor(),
+            y_jit.into_primitive().tensor(),
             strategy,
-        ));
+        )));
 
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }
@@ -735,11 +757,11 @@ mod tests {
             .swap_dims(swap_lhs[0], swap_lhs[1])
             .matmul(y.swap_dims(swap_rhs[0], swap_rhs[1]));
 
-        let z = Tensor::<TestBackend, D>::from_primitive(matmul(
-            x_jit.into_primitive(),
-            y_jit.into_primitive(),
+        let z = Tensor::<TestBackend, D>::from_primitive(TensorPrimitive::Float(matmul(
+            x_jit.into_primitive().tensor(),
+            y_jit.into_primitive().tensor(),
             strategy,
-        ));
+        )));
 
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
     }

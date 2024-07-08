@@ -37,6 +37,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
+    type QuantizedTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+
     fn name() -> String {
         format!("fusion<{}>", B::name())
     }

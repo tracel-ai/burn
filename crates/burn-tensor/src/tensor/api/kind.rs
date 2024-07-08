@@ -1,4 +1,4 @@
-use crate::backend::Backend;
+use crate::{backend::Backend, QuantizationStrategy};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -12,6 +12,30 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+#[derive(Debug, Clone)]
+/// A primitive tensor representation.
+pub enum TensorPrimitive<B: Backend, const D: usize> {
+    /// Float tensor primitive.
+    Float(B::FloatTensorPrimitive<D>),
+    /// Quantized float tensor primitive.
+    QFloat {
+        /// The underlying quantized tensor.
+        tensor: B::QuantizedTensorPrimitive<D>,
+        /// The tensor quantization strategy.
+        strategy: QuantizationStrategy,
+    },
+}
+
+impl<B: Backend, const D: usize> TensorPrimitive<B, D> {
+    /// Returns the full tensor representation.
+    pub fn tensor(self) -> B::FloatTensorPrimitive<D> {
+        match self {
+            Self::QFloat { tensor, strategy } => B::dequantize(tensor, &strategy),
+            Self::Float(tensor) => tensor,
+        }
+    }
+}
+
 /// A type-level representation of the kind of a tensor.
 pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
@@ -22,7 +46,7 @@ pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
 }
 
 impl<B: Backend> TensorKind<B> for Float {
-    type Primitive<const D: usize> = B::FloatTensorPrimitive<D>;
+    type Primitive<const D: usize> = TensorPrimitive<B, D>;
     fn name() -> &'static str {
         "Float"
     }

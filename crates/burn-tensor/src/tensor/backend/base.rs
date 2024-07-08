@@ -58,6 +58,7 @@ pub trait Backend:
     + IntTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
+    + QTensorOps<Self>
     + Clone
     + Sized
     + Default
@@ -84,6 +85,9 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+
+    /// Tensor primitive to be used for all quantized operations.
+    type QuantizedTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {
@@ -201,6 +205,19 @@ pub trait AutodiffBackend: Backend {
     fn bool_inner<const D: usize>(tensor: BoolTensor<Self, D>)
         -> BoolTensor<Self::InnerBackend, D>;
 
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn q_inner<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+    ) -> QuantizedTensor<Self::InnerBackend, D>;
+
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
     /// # Arguments
@@ -242,4 +259,18 @@ pub trait AutodiffBackend: Backend {
     fn bool_from_inner<const D: usize>(
         tensor: BoolTensor<Self::InnerBackend, D>,
     ) -> BoolTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn q_from_inner<const D: usize>(
+        tensor: QuantizedTensor<Self::InnerBackend, D>,
+    ) -> QuantizedTensor<Self, D>;
 }

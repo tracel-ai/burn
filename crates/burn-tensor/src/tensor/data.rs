@@ -6,7 +6,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use half::{bf16, f16};
 
-use crate::{tensor::Shape, DType, Distribution, Element, ElementConversion};
+use crate::{
+    tensor::Shape, DType, Distribution, Element, ElementConversion, Quantization,
+    QuantizationStrategy,
+};
 
 use num_traits::pow::Pow;
 
@@ -41,10 +44,15 @@ pub struct TensorData {
 impl TensorData {
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
+        Self::init(value, shape, E::dtype())
+    }
+
+    /// Initializes a new tensor data structure from the provided values.
+    fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: bytemuck::checked::cast_slice(&value).to_vec(),
             shape: shape.into(),
-            dtype: E::dtype(),
+            dtype,
         }
     }
 
@@ -141,6 +149,20 @@ impl TensorData {
                 ),
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::QFloat(q) => match q {
+                    // NOTE: we do not dequantize the values to iterate over
+                    QuantizationStrategy::PerTensorAffineInt8(_strategy) => Box::new(
+                        bytemuck::checked::cast_slice(&self.bytes)
+                            .iter()
+                            .map(|e: &i8| e.elem::<E>()),
+                    ),
+
+                    QuantizationStrategy::PerTensorSymmetricInt8(_strategy) => Box::new(
+                        bytemuck::checked::cast_slice(&self.bytes)
+                            .iter()
+                            .map(|e: &i8| e.elem::<E>()),
+                    ),
+                },
             }
         }
     }
@@ -223,6 +245,31 @@ impl TensorData {
         self.bytes.as_slice()
     }
 
+    /// Applies the data quantization strategy.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data type is not supported for quantization.
+    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Self {
+        assert_eq!(
+            self.dtype,
+            DType::F32,
+            "Only f32 data type can be quantized"
+        );
+        match &quantization {
+            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::init(
+                strategy.quantize(self.as_slice().unwrap()),
+                self.shape,
+                DType::QFloat(quantization),
+            ),
+            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::init(
+                strategy.quantize(self.as_slice().unwrap()),
+                self.shape,
+                DType::QFloat(quantization),
+            ),
+        }
+    }
+
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
@@ -274,6 +321,26 @@ impl TensorData {
             DType::U32 => self.assert_eq_elem::<u32>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
+            DType::QFloat(q) => {
+                // Strict or not, it doesn't make sense to compare quantized data to not quantized data for equality
+                if let DType::QFloat(q_other) = other.dtype {
+                    assert_eq!(
+                        q, q_other,
+                        "Quantization strategies differ ({:?} != {:?})",
+                        q, q_other
+                    )
+                } else {
+                    panic!("Quantized data differs from other not quantized data")
+                }
+                match q {
+                    QuantizationStrategy::PerTensorAffineInt8(_) => {
+                        self.assert_eq_elem::<i8>(other)
+                    }
+                    QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                        self.assert_eq_elem::<i8>(other)
+                    }
+                }
+            }
         }
     }
 
@@ -519,6 +586,14 @@ impl core::fmt::Display for TensorData {
             DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
+            DType::QFloat(q) => match &q {
+                QuantizationStrategy::PerTensorAffineInt8(_) => {
+                    format!("{:?} {q:?}", self.as_slice::<i8>().unwrap())
+                }
+                QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                    format!("{:?} {q:?}", self.as_slice::<i8>().unwrap())
+                }
+            },
         };
         f.write_str(fmt.as_str())
     }

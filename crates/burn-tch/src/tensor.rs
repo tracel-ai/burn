@@ -317,7 +317,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
 
@@ -330,7 +330,8 @@ mod tests {
         );
         let tensor = TchTensor::<f32, 1>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = Tensor::<LibTorch<f32>, 1>::from_primitive(tensor).into_data();
+        let data_actual =
+            Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
 
         assert_eq!(data_expected, data_actual);
     }
@@ -344,7 +345,8 @@ mod tests {
         );
         let tensor = TchTensor::<f32, 2>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = Tensor::<LibTorch<f32>, 2>::from_primitive(tensor).into_data();
+        let data_actual =
+            Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
 
         assert_eq!(data_expected, data_actual);
     }

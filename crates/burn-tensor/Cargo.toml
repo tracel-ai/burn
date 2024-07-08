@@ -15,11 +15,11 @@ default = ["std", "repr"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
-std = ["rand/std", "half/std", "num-traits/std"]
+std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "burn-common/rayon"]
 repr = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.14.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.14.0", default-features = false}
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.14.0", optional = true }
 
 derive-new = { workspace = true }
