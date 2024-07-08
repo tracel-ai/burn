@@ -1,4 +1,3 @@
-use core::panic;
 use std::cmp::max;
 
 use burn_compute::client::ComputeClient;
@@ -74,11 +73,10 @@ pub fn matmul_tiling_2d_cube<'a, R: JitRuntime, E: FloatElement, const D: usize>
     let direct = true;
     if direct {
         let (lhs_check_vertical, lhs_check_horizontal, lhs_vectorization) = if lhs_transposed {
-            let vectorization = vectorization(m);
             (
                 cube_config.check_k_bounds,
                 cube_config.check_m_bounds,
-                vectorization,
+                vectorization(m),
             )
         } else {
             (cube_config.check_m_bounds, cube_config.check_k_bounds, 1)
@@ -98,11 +96,10 @@ pub fn matmul_tiling_2d_cube<'a, R: JitRuntime, E: FloatElement, const D: usize>
         let (rhs_check_vertical, rhs_check_horizontal, rhs_vectorization) = if rhs_transposed {
             (cube_config.check_n_bounds, cube_config.check_k_bounds, 1)
         } else {
-            let vectorization = vectorization(n);
             (
                 cube_config.check_k_bounds,
                 cube_config.check_n_bounds,
-                vectorization,
+                vectorization(n),
             )
         };
         let rhs_vector_reader = match rhs_vectorization {
@@ -134,42 +131,7 @@ pub fn matmul_tiling_2d_cube<'a, R: JitRuntime, E: FloatElement, const D: usize>
             rhs_vector_reader,
         );
     } else {
-        // let lhs_vectorization = match lhs_transposed {
-        //     true => vectorization(m),
-        //     false => vectorization(k),
-        // };
-        // let mut rhs_vectorization = match rhs_transposed {
-        //     true => vectorization(k),
-        //     false => vectorization(n),
-        // };
-
-        // tiling2d_cube_launch_macro!(
-        //     E::FloatPrimitive,
-        //     TileLoader,
-        //     R,
-        //     client,
-        //     cube_count,
-        //     cube_dim,
-        //     TensorArg::<'a, R>::vectorized(
-        //         lhs_vectorization,
-        //         &lhs.handle,
-        //         &lhs.strides,
-        //         &lhs.shape.dims
-        //     ),
-        //     TensorArg::<'a, R>::vectorized(
-        //         rhs_vectorization,
-        //         &rhs.handle,
-        //         &rhs.strides,
-        //         &rhs.shape.dims
-        //     ),
-        //     TensorArg::<'a, R>::vectorized(
-        //         out_vectorization,
-        //         &out.handle,
-        //         &out.strides,
-        //         &out.shape.dims
-        //     ),
-        //     cube_config
-        // );
+        panic!("not available now")
     }
     out
 }
@@ -226,6 +188,10 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
         };
     }
 
+    println!("{:?}", lhs_block_check);
+    println!("{:?}", lhs_vector_reader);
+    println!("{:?}", rhs_block_check);
+    println!("{:?}", rhs_vector_reader);
     match (
         lhs_block_check,
         lhs_vector_reader,
@@ -238,7 +204,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Unchecked,
             VectorReaderEnum::Matching,
         ) => {
-            //OUI
             tiling2d_cube_launch_macro!(
                 UncheckedBlockLoad<UnmatchingVectorReader>,
                 UncheckedBlockLoad<MatchingVectorReader>,
@@ -250,7 +215,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Whole,
             VectorReaderEnum::Matching,
         ) => {
-            //OUI
             tiling2d_cube_launch_macro!(
                 HorizontalBlockCheckLoad<UnmatchingVectorReader>,
                 WholeBlockCheckLoad<MatchingVectorReader>,
@@ -262,7 +226,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Whole,
             VectorReaderEnum::Matching,
         ) => {
-            //OUI
             tiling2d_cube_launch_macro!(
                 WholeBlockCheckLoad<UnmatchingVectorReader>,
                 WholeBlockCheckLoad<MatchingVectorReader>,
@@ -274,7 +237,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Horizontal,
             VectorReaderEnum::Matching,
         ) => {
-            // OUI
             tiling2d_cube_launch_macro!(
                 UncheckedBlockLoad<UnmatchingVectorReader>,
                 HorizontalBlockCheckLoad<MatchingVectorReader>,
@@ -286,7 +248,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Whole,
             VectorReaderEnum::Unmatching,
         ) => {
-            // NON
             tiling2d_cube_launch_macro!(
                 WholeBlockCheckLoad<UnmatchingVectorReader>,
                 WholeBlockCheckLoad<UnmatchingVectorReader>,
@@ -298,7 +259,6 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Unchecked,
             VectorReaderEnum::Matching,
         ) => {
-            //NON
             tiling2d_cube_launch_macro!(
                 HorizontalBlockCheckLoad<MatchingVectorReader>,
                 UncheckedBlockLoad<MatchingVectorReader>,
@@ -310,10 +270,21 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Vertical,
             VectorReaderEnum::Unmatching,
         ) => {
-            //NON
             tiling2d_cube_launch_macro!(
                 UncheckedBlockLoad<UnmatchingVectorReader>,
                 VerticalBlockCheckLoad<UnmatchingVectorReader>,
+            )
+        }
+        (
+            BlockCheck::Unchecked,
+            VectorReaderEnum::Unmatching,
+            BlockCheck::Horizontal,
+            VectorReaderEnum::Unmatching,
+        ) => {
+            //NON
+            tiling2d_cube_launch_macro!(
+                UncheckedBlockLoad<UnmatchingVectorReader>,
+                HorizontalBlockCheckLoad<UnmatchingVectorReader>,
             )
         }
         (
@@ -333,10 +304,20 @@ fn direct_dispatch<'a, R: JitRuntime, E: FloatElement, const D: usize>(
             BlockCheck::Unchecked,
             VectorReaderEnum::Unmatching,
         ) => {
-            // NON
             tiling2d_cube_launch_macro!(
                 VerticalBlockCheckLoad<UnmatchingVectorReader>,
                 UncheckedBlockLoad<UnmatchingVectorReader>,
+            )
+        }
+        (
+            BlockCheck::Vertical,
+            VectorReaderEnum::Unmatching,
+            BlockCheck::Unchecked,
+            VectorReaderEnum::Matching,
+        ) => {
+            tiling2d_cube_launch_macro!(
+                VerticalBlockCheckLoad<UnmatchingVectorReader>,
+                UncheckedBlockLoad<MatchingVectorReader>,
             )
         }
         _ => todo!(

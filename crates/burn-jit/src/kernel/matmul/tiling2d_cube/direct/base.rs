@@ -134,7 +134,7 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: coordinates.skip_col,
         };
 
-        load_plain::<F, L>(rhs, load_info, load_indices, check_bounds);
+        load_plain::<F, R>(rhs, load_info, load_indices, check_bounds);
     }
 
     fn load_rhs_transposed(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
@@ -155,7 +155,7 @@ impl<F: Float, L: Loader<F>, R: Loader<F>> SharedMemoryLoader<F> for DirectLoade
             skip_col: load_info.k,
         };
 
-        load_transposed::<F, L>(rhs, load_info, load_indices, check_bounds);
+        load_transposed::<F, R>(rhs, load_info, load_indices, check_bounds);
     }
 }
 

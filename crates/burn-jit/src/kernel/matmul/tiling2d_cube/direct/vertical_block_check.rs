@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
@@ -7,9 +9,8 @@ use super::{
     vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
 };
 
-#[derive(new)]
 pub(crate) struct VerticalBlockCheckLoad<H> {
-    horizontal_reader: H,
+    _h: PhantomData<H>,
 }
 
 #[cube]

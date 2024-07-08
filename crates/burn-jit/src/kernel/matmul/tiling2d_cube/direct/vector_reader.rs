@@ -69,7 +69,7 @@ impl<F: Float> HorizontalReader<F> for MatchingVectorReader {
 
         let mut vector = F::vectorized(0., Comptime::get(tile_size));
         if check_bounds.dim_horizontal > read_info.read_col {
-            vector = tensor[gm_position]
+            vector = tensor[gm_position];
         }
 
         vector
@@ -88,7 +88,7 @@ impl<F: Float> HorizontalReader<F> for UnmatchingVectorReader {
         let vectorization_factor = Comptime::vectorization(tensor);
         let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
 
-        let mut vector = F::vectorized_empty(Comptime::get(tile_size));
+        let mut vector = F::vectorized(0., Comptime::get(tile_size));
 
         for i in range(
             0u32,
@@ -124,7 +124,7 @@ impl<F: Float> HorizontalReader<F> for UnmatchingVectorReader {
         let is_scalar = Comptime::map(vectorization_factor, |v| v.val == 1);
         let runtime_vectorization = Comptime::runtime(vectorization_factor);
 
-        let mut vector = F::vectorized_empty(Comptime::get(tile_size));
+        let mut vector = F::vectorized(0., Comptime::get(tile_size));
 
         let mut num_loops = UInt::new(0);
         if check_bounds.dim_horizontal > read_info.read_col {
@@ -163,8 +163,8 @@ impl<F: Float> VerticalReader<F> for UnmatchingVectorReader {
         let unroll = Comptime::map(config, |c| c.unroll_tile);
 
         let mut vertical = F::vectorized_empty(Comptime::get(tile_size));
-        for j in range(0u32, Comptime::get(tile_size), unroll) {
-            vertical[j] = tensor[gm_position + j * gm_stride];
+        for i in range(0u32, Comptime::get(tile_size), unroll) {
+            vertical[i] = tensor[gm_position + i * gm_stride];
         }
 
         vertical

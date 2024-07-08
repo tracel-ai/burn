@@ -12,7 +12,6 @@ use super::{
     vector_reader::{HorizontalReader, UnmatchingVectorReader, VerticalReader},
 };
 
-#[derive(new)]
 pub(crate) struct WholeBlockCheckLoad<H> {
     _h: PhantomData<H>,
 }
