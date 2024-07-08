@@ -5,7 +5,7 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 use super::{
     base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
     compute_loop::{compute_loop, compute_loop_expand},
-    direct::{loader::DirectLoader, writer::DirectWriter},
+    tile::{loader::TileLoader, writer::TileWriter},
     load_shared_memory::{load_to_shared_memories, load_to_shared_memories_expand},
     write_output::{write_to_output, write_to_output_expand},
 };
@@ -29,7 +29,7 @@ pub(crate) fn block_loop<F: Float>(
     for k in range(0u32, n_loops, Comptime::new(false)) {
         let k = k * Comptime::runtime(block_size_k);
 
-        load_to_shared_memories::<F, DirectLoader<F>>(
+        load_to_shared_memories::<F, TileLoader<F>>(
             lhs,
             rhs,
             coordinates,
@@ -47,7 +47,7 @@ pub(crate) fn block_loop<F: Float>(
         sync_units();
     }
 
-    write_to_output::<F, DirectWriter<F>>(out, &results, coordinates, offsets.out, dims, config);
+    write_to_output::<F, TileWriter<F>>(out, &results, coordinates, offsets.out, dims, config);
 }
 
 #[cube]

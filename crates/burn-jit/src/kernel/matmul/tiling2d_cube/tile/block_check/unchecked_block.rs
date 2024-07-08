@@ -4,7 +4,7 @@ use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
     tiling2d_cube::{
         base::Coordinates,
-        direct::{
+        tile::{
             loader::{CheckBounds, ReadTileInfo},
             memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
         },

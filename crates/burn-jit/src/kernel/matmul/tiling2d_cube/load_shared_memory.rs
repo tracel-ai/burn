@@ -4,7 +4,7 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
     base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
-    direct::block_check::{
+    tile::block_check::{
         base::BlockCheck, horizontal_block_check::HorizontalBlockCheck,
         unchecked_block::UncheckedBlockCheck, vertical_block_check::VerticalBlockCheck,
         whole_block_check::WholeBlockCheck,
@@ -63,9 +63,9 @@ pub(crate) fn load_to_shared_memories<F: Float, L: Loader<F>>(
 
     // Lhs must be loaded as transposed. If it already is transposed in global memory, we load as plain.
     if Comptime::get(lhs_transposed) {
-        load_lhs_transposed::<F, L>(lhs, lhs_load_info, config);
-    } else {
         load_lhs_plain::<F, L>(lhs, lhs_load_info, config);
+    } else {
+        load_lhs_transposed::<F, L>(lhs, lhs_load_info, config);
     }
 
     // Rhs must be loaded as plain. If it is transposed in global memory, we transpose it back.
@@ -175,11 +175,11 @@ fn load_rhs_plain<F: Float, L: Loader<F>>(
 #[cfg(feature = "export_tests")]
 /// Exported tests for loading to shared memory
 pub mod tests {
-    use crate::kernel::matmul::tiling2d_cube::direct::loader::DirectLoader;
     use crate::kernel::matmul::tiling2d_cube::load_shared_memory::LoadInfoExpand;
     use crate::kernel::matmul::tiling2d_cube::test_utils::{
         assert_equals, create_empty, make_config, range_tensor, TILE_SIZE,
     };
+    use crate::kernel::matmul::tiling2d_cube::tile::loader::TileLoader;
     use crate::JitRuntime;
 
     use super::{
@@ -228,7 +228,7 @@ pub mod tests {
                 dims,
             };
 
-            load_lhs_transposed::<F, DirectLoader<F>>(tensor, info, config);
+            load_lhs_transposed::<F, TileLoader<F>>(tensor, info, config);
         } else {
             let dims = Dimensions {
                 m: UInt::new(0),
@@ -244,7 +244,7 @@ pub mod tests {
                 dims,
             };
 
-            load_rhs_plain::<F, DirectLoader<F>>(tensor, info, config);
+            load_rhs_plain::<F, TileLoader<F>>(tensor, info, config);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
@@ -294,7 +294,7 @@ pub mod tests {
                 dims,
             };
 
-            load_lhs_plain::<F, DirectLoader<F>>(tensor, info, config);
+            load_lhs_plain::<F, TileLoader<F>>(tensor, info, config);
         } else {
             // Permuted
             let dims = Dimensions {
@@ -311,7 +311,7 @@ pub mod tests {
                 dims,
             };
 
-            load_rhs_transposed::<F, DirectLoader<F>>(tensor, info, config);
+            load_rhs_transposed::<F, TileLoader<F>>(tensor, info, config);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {
@@ -360,7 +360,7 @@ pub mod tests {
                 dims,
             };
 
-            load_lhs_transposed::<F, DirectLoader<F>>(tensor, info, config);
+            load_lhs_transposed::<F, TileLoader<F>>(tensor, info, config);
         } else {
             let dims = Dimensions {
                 m: UInt::new(0),
@@ -376,7 +376,7 @@ pub mod tests {
                 dims,
             };
 
-            load_rhs_plain::<F, DirectLoader<F>>(tensor, info, config);
+            load_rhs_plain::<F, TileLoader<F>>(tensor, info, config);
         }
 
         for i in range(0u32, Comptime::get(sm_size), Comptime::new(false)) {

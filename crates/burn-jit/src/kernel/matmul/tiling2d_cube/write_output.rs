@@ -4,7 +4,7 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
     base::{Coordinates, Dimensions},
-    direct::block_check::{
+    tile::block_check::{
         base::BlockCheck, horizontal_block_check::HorizontalBlockCheck,
         unchecked_block::UncheckedBlockCheck, vertical_block_check::VerticalBlockCheck,
         whole_block_check::WholeBlockCheck,
@@ -90,11 +90,11 @@ pub(crate) fn write_to_output<F: Float, W: OutputWriter<F>>(
 pub mod tests {
     use crate::{
         kernel::matmul::tiling2d_cube::{
-            direct::writer::DirectWriter,
             test_utils::{
                 assert_equals, make_config, range_tensor, range_tensor_transposed, zeros_tensor,
                 TILE_SIZE,
             },
+            tile::writer::TileWriter,
         },
         JitRuntime,
     };
@@ -122,14 +122,7 @@ pub mod tests {
             n: out.shape(out.rank() - UInt::new(1)),
         };
 
-        write_to_output::<F, DirectWriter<F>>(
-            out,
-            results,
-            coordinates,
-            UInt::new(0),
-            dims,
-            config,
-        );
+        write_to_output::<F, TileWriter<F>>(out, results, coordinates, UInt::new(0), dims, config);
     }
 
     #[cube(launch)]
@@ -150,14 +143,7 @@ pub mod tests {
             n: out.shape(out.rank() - UInt::new(1)),
         };
 
-        write_to_output::<F, DirectWriter<F>>(
-            out,
-            results,
-            coordinates,
-            UInt::new(0),
-            dims,
-            config,
-        );
+        write_to_output::<F, TileWriter<F>>(out, results, coordinates, UInt::new(0), dims, config);
     }
 
     /// Exported test

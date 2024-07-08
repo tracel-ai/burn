@@ -11,7 +11,7 @@ use super::{
 
 // Transposed tensor's vectorization must be 1
 // Plain tensor's vectorization must equal tile size
-pub(crate) struct DirectLoader<F: Float> {
+pub(crate) struct TileLoader<F: Float> {
     _f: PhantomData<F>,
 }
 
@@ -41,7 +41,7 @@ pub(crate) struct ReadTileInfo {
 }
 
 #[cube]
-impl<F: Float> Loader<F> for DirectLoader<F> {
+impl<F: Float> Loader<F> for TileLoader<F> {
     fn load_lhs_plain<B: BlockCheck<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
