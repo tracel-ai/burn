@@ -8,7 +8,7 @@ use crate::compute::{KernelBuilder, KernelLauncher};
 use crate::prelude::index_assign;
 use crate::{unexpanded, Runtime};
 
-use super::{ArgSettings, LaunchArg, LaunchArgExpand, UInt, Vectorized};
+use super::{LaunchArgExpand, ScalarArgSettings, UInt, Vectorized};
 
 /// Floating point numbers. Used as input in float kernels
 pub trait Float:
@@ -49,14 +49,6 @@ macro_rules! impl_float {
             type ExpandType = ExpandElement;
         }
 
-        impl CubeType for &$type {
-            type ExpandType = ExpandElement;
-        }
-
-        impl CubeType for &mut $type {
-            type ExpandType = ExpandElement;
-        }
-
         impl CubePrimitive for $type {
             /// Return the element type to use on GPU
             fn as_elem() -> Elem {
@@ -64,7 +56,9 @@ macro_rules! impl_float {
             }
         }
 
-        impl Numeric for $type {}
+        impl Numeric for $type {
+            type Primitive = $primitive;
+        }
 
         impl Float for $type {
             fn new(val: f32) -> Self {
@@ -117,22 +111,11 @@ macro_rules! impl_float {
             }
         }
 
-        impl LaunchArgExpand for &$type {
+        impl LaunchArgExpand for $type {
             fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
                 assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
                 builder.scalar($type::as_elem())
             }
-        }
-
-        impl LaunchArgExpand for &mut $type {
-            fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-                assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-                builder.scalar($type::as_elem())
-            }
-        }
-
-        impl LaunchArg for $type {
-            type RuntimeArg<'a, R: Runtime> = $primitive;
         }
 
         impl Vectorized for $type {
@@ -192,26 +175,26 @@ impl From<f32> for F64 {
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for f16 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for f16 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_f16(*self);
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for bf16 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for bf16 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_bf16(*self);
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for f32 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for f32 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_f32(*self);
     }
 }
 
-impl<R: Runtime> ArgSettings<R> for f64 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for f64 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_f64(*self);
     }
 }

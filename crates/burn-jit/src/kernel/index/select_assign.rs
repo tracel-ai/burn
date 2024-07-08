@@ -189,7 +189,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
 
     let mut strides = [0; D];
     let mut current = 1;
-    let mut num_elems_per_workgroup = 1;
+    let mut num_elems = 1;
 
     tensor
         .shape
@@ -201,11 +201,11 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems_per_workgroup *= tensor.shape.dims[index];
+            num_elems *= tensor.shape.dims[index];
         });
 
     let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
-    let workgroup = calculate_cube_count_elemwise(num_elems_per_workgroup, SUBCUBE_DIM_APPROX);
+    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
@@ -215,7 +215,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
             // kernel, but we need to put the right number of dimensions (rank).
             TensorHandle::new(&indices.handle, &strides, &strides),
         ])
-        .execute(CubeCountSettings::Custom(workgroup));
+        .execute(CubeCountSettings::Custom(cube_count));
 
     tensor
 }

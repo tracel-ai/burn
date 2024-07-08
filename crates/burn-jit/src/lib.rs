@@ -18,7 +18,10 @@ pub(crate) mod tune;
 /// Elements for JIT backend
 pub mod element;
 
-use burn_cube::{compute::CubeTask, Runtime};
+use burn_cube::{
+    compute::{CubeCount, CubeTask},
+    Runtime,
+};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
@@ -48,5 +51,6 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     type JitServer: burn_compute::server::ComputeServer<
         AutotuneKey = JitAutotuneKey,
         Kernel = Box<dyn CubeTask>,
+        DispatchOptions = CubeCount<Self::JitServer>,
     >;
 }

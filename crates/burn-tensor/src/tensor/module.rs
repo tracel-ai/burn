@@ -51,6 +51,24 @@ where
     )))
 }
 
+/// Applies a [3D convolution](crate::ops::ModuleOps::conv3d).
+pub fn conv3d<B>(
+    x: Tensor<B, 5>,
+    weight: Tensor<B, 5>,
+    bias: Option<Tensor<B, 1>>,
+    options: ConvOptions<3>,
+) -> Tensor<B, 5>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::conv3d(
+        x.primitive.tensor(),
+        weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+        options,
+    )))
+}
+
 /// Applies a [1D transposed convolution](crate::ops::ModuleOps::conv_transpose1d).
 pub fn conv_transpose1d<B>(
     x: Tensor<B, 3>,
@@ -80,6 +98,24 @@ where
     B: Backend,
 {
     Tensor::new(TensorPrimitive::Float(B::conv_transpose2d(
+        x.primitive.tensor(),
+        weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+        options,
+    )))
+}
+
+/// Applies a 3D transposed convolution](crate::ops::ModuleOps::conv_transpose3d).
+pub fn conv_transpose3d<B>(
+    x: Tensor<B, 5>,
+    weight: Tensor<B, 5>,
+    bias: Option<Tensor<B, 1>>,
+    options: ConvTransposeOptions<3>,
+) -> Tensor<B, 5>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::conv_transpose3d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
         bias.map(|b| b.primitive.tensor()),

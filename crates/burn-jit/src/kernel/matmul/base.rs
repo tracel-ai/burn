@@ -140,41 +140,39 @@ pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
     }
 }
 
-pub(crate) fn simple_launch_options<const D: usize>(
+pub(crate) fn simple_cube_count<R: JitRuntime, const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     output_shape: &Shape<D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-) -> CubeCount {
+    cube_dim_x: usize,
+    cube_dim_y: usize,
+) -> CubeCount<R::Server> {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
-    // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
+    let cubes_x = f32::ceil(num_rows as f32 / cube_dim_x as f32) as u32;
+    let cubes_y = f32::ceil(num_cols as f32 / cube_dim_y as f32) as u32;
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Static(cubes_x, cubes_y, num_iter as u32)
 }
 
-pub(crate) fn tiling2d_launch_options<const D: usize>(
+pub(crate) fn tiling2d_launch_options<R: JitRuntime, const D: usize>(
     output_shape: &Shape<D>,
     config: Tiling2dConfig,
-) -> CubeCount {
+) -> CubeCount<R::Server> {
     let num_rows = output_shape.dims[D - 2];
     let num_cols = output_shape.dims[D - 1];
 
-    // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / config.block_size_m as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / config.block_size_n as f32) as u32;
+    let cubes_x = f32::ceil(num_rows as f32 / config.block_size_m as f32) as u32;
+    let cubes_y = f32::ceil(num_cols as f32 / config.block_size_n as f32) as u32;
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output_shape.dims[i];
     }
 
-    CubeCount::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
+    CubeCount::Static(cubes_x, cubes_y, num_iter as u32)
 }

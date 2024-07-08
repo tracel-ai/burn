@@ -98,7 +98,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
     client: ComputeClient<TestRuntime::Server, TestRuntime::Channel>,
     launch: Launch,
 ) where
-    Launch: Fn(CubeCount, CubeDim, TensorArg<'_, TestRuntime>),
+    Launch: Fn(CubeCount<TestRuntime::Server>, CubeDim, TensorArg<'_, TestRuntime>),
 {
     if !client.features().enabled(Feature::Subcube) {
         // Can't execute the test.
@@ -109,7 +109,7 @@ fn test_subcube_operation<TestRuntime: Runtime, Launch>(
     let (shape, strides) = ([input.len()], [1]);
 
     launch(
-        CubeCount::new(1, 1, 1),
+        CubeCount::Static(1, 1, 1),
         CubeDim::new(input.len() as u32, 1, 1),
         TensorArg::new(&handle, &strides, &shape),
     );

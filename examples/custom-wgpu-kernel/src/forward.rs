@@ -74,7 +74,8 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output =
+            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
@@ -86,11 +87,13 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
         let cubes_needed_in_y = f32::ceil(num_cols as f32 / cube_dim.y as f32) as u32;
-        let cube_count = CubeCount::new(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
+        let cube_count =
+            CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Box::new(SourceKernel::new(kernel, cube_count, cube_dim)),
+            Box::new(SourceKernel::new(kernel, cube_dim)),
+            cube_count,
             vec![
                 lhs.handle.binding(),
                 rhs.handle.binding(),

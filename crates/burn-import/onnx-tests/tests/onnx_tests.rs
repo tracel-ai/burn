@@ -27,6 +27,7 @@ include_models!(
     concat,
     conv1d,
     conv2d,
+    conv3d,
     cos,
     div,
     dropout_opset16,
@@ -84,6 +85,7 @@ include_models!(
     tanh,
     transpose,
     conv_transpose2d,
+    conv_transpose3d,
     pow,
     pow_int,
     unsqueeze,
@@ -147,7 +149,7 @@ mod tests {
         let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let scalar = 3.0f64;
         let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[6f32, 7., 8., 9.]]]]);
+        let expected = TensorData::from([[[[-12f32, -13., -14., -15.]]]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -162,7 +164,7 @@ mod tests {
         let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
         let scalar = 3;
         let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[6i64, 6, 6, 6]]]]);
+        let expected = TensorData::from([[[[-12i64, -12, -12, -12]]]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -343,6 +345,28 @@ mod tests {
     }
 
     #[test]
+    fn conv3d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv3d::Model<Backend> = conv3d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 3, 5, 5]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv3d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 48.494_262; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
     fn dropout_opset16() {
         let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
 
@@ -472,11 +496,18 @@ mod tests {
             [
                 [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.],
                 [11., 12., 13., 14., 15., 16., 17., 18., 19., 20.],
+                [21., 22., 23., 24., 25., 26., 27., 28., 29., 30.],
+                [31., 32., 33., 34., 35., 36., 37., 38., 39., 40.],
+                [41., 42., 43., 44., 45., 46., 47., 48., 49., 50.],
             ],
             &device,
         );
         let output = model.forward(input);
-        let expected = TensorData::from([[1f32, 2., 3., 4., 5.]]);
+        let expected = TensorData::from([
+            [1f32, 2., 3., 4., 5.],
+            [11f32, 12., 13., 14., 15.],
+            [21., 22., 23., 24., 25.],
+        ]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -1249,6 +1280,28 @@ mod tests {
         let output_sum = output.sum().into_scalar();
 
         let expected_sum = -120.070_15; // result running pytorch model (conv_transpose2d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn conv_transpose3d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose3d::Model<Backend> = conv_transpose3d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 5, 5, 9]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose3d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -67.267_15; // result running pytorch model (conv_transpose3d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }

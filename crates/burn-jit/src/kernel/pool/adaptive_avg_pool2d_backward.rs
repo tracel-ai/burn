@@ -251,7 +251,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(
+    let output = JitTensor::new_contiguous(
         x.client.clone(),
         x.device.clone(),
         output_shape,

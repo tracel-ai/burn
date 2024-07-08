@@ -3,14 +3,18 @@ extern crate derive_new;
 
 mod analyzer;
 mod codegen_function;
+mod codegen_trait;
 mod codegen_type;
 mod tracker;
 
+pub(crate) mod codegen_common;
+
 use analyzer::VariableAnalyzer;
+use codegen_common::signature::expand_sig;
 use codegen_function::{codegen_launch, codegen_statement};
+use codegen_trait::{expand_trait_def, expand_trait_impl};
 use codegen_type::generate_cube_type;
 use proc_macro::TokenStream;
-use quote::ToTokens;
 use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Meta};
 use tracker::VariableTracker;
 
@@ -38,20 +42,36 @@ pub fn module_derive_cube_type(input: TokenStream) -> TokenStream {
     generate_cube_type(&input, false)
 }
 
+struct SupportedAttributes {
+    mode: CubeMode,
+    launch: bool,
+}
+
 /// Derive macro for the module.
 #[proc_macro_attribute]
 pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, syn::Token![,]>::parse_terminated);
-    let (mode, launch) = parse_attributes(&args);
+    let attrs = parse_attributes(&args);
 
-    let func: syn::ItemFn =
-        syn::parse(tokens).expect("Cube annotations only supported for functions");
+    let code: TokenStream = match syn::parse::<syn::Item>(tokens).unwrap() {
+        syn::Item::Fn(func) => cube_fn(func, &attrs),
+        syn::Item::Impl(item) => expand_trait_impl(item).into(),
+        syn::Item::Trait(item) => expand_trait_def(item).into(),
+        _ => panic!("Cube annotations only supported for functions"),
+    };
 
+    match attrs.mode {
+        CubeMode::Default => code,
+        CubeMode::Debug => panic!("{code}"),
+    }
+}
+
+fn cube_fn(func: syn::ItemFn, attrs: &SupportedAttributes) -> TokenStream {
     let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-    let code: TokenStream = match codegen_cube(&func, &mut variable_tracker) {
+    match codegen_cube(&func, &mut variable_tracker) {
         Ok(code) => {
-            if launch {
+            if attrs.launch {
                 let launch = codegen_launch(&func.sig);
 
                 quote::quote! {
@@ -64,15 +84,10 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
             }
         }
         Err(err) => err.into(),
-    };
-
-    match mode {
-        CubeMode::Default => code,
-        CubeMode::Debug => panic!("{code}"),
     }
 }
 
-fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
+fn parse_attributes(args: &Punctuated<Meta, Comma>) -> SupportedAttributes {
     let mut mode = CubeMode::Default;
     let mut launch = false;
 
@@ -98,7 +113,7 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> (CubeMode, bool) {
         }
     }
 
-    (mode, launch)
+    SupportedAttributes { mode, launch }
 }
 
 /// Generate the expanded version of a function marked with the cube macro
@@ -106,7 +121,7 @@ fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
-    let signature = expand_sig(&func.sig, &func.vis, variable_tracker);
+    let signature = expand_sig(&func.sig, &func.vis, Some(variable_tracker));
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
@@ -144,52 +159,4 @@ fn codegen_cube(
             #body
         }
     })
-}
-
-fn expand_sig(
-    sig: &syn::Signature,
-    visibility: &syn::Visibility,
-    variable_tracker: &mut VariableTracker,
-) -> proc_macro2::TokenStream {
-    let mut inputs = quote::quote!();
-
-    for input in &sig.inputs {
-        match input {
-            syn::FnArg::Typed(pat) => {
-                let ty = &pat.ty;
-
-                let ident = pat.pat.clone();
-
-                if let syn::Pat::Ident(ident) = ident.as_ref() {
-                    variable_tracker.codegen_declare(ident.ident.to_string(), 0);
-                }
-
-                inputs.extend(quote::quote! {
-                    #ident: <#ty as burn_cube::frontend::CubeType>::ExpandType,
-                });
-            }
-            _ => todo!("Only Typed inputs are supported"),
-        }
-    }
-
-    let mut output = quote::quote!();
-
-    match &sig.output {
-        syn::ReturnType::Default => output.extend(quote::quote! { ()}),
-        syn::ReturnType::Type(_, ty) => {
-            output.extend(quote::quote! {
-                <#ty as burn_cube::frontend::CubeType>::ExpandType
-            });
-        }
-    }
-
-    let ident = &sig.ident;
-    let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
-
-    let generics = sig.generics.clone().into_token_stream();
-
-    quote::quote! {
-        /// Expanded Cube function
-        #visibility fn #ident #generics (context: &mut burn_cube::frontend::CubeContext, #inputs) -> #output
-    }
 }

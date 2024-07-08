@@ -56,8 +56,13 @@ where
         self.server.lock().empty(size)
     }
 
-    fn execute(&self, kernel: Server::Kernel, handles: Vec<Binding<Server>>) {
-        self.server.lock().execute(kernel, handles)
+    fn execute(
+        &self,
+        kernel: Server::Kernel,
+        count: Server::DispatchOptions,
+        handles: Vec<Binding<Server>>,
+    ) {
+        self.server.lock().execute(kernel, count, handles)
     }
 
     fn sync(&self, sync_type: SyncType) {

@@ -5,9 +5,10 @@
 import onnx
 from onnx import helper, TensorProto
 
+
 def main() -> None:
     # Starts
-    starts_val = [0,0]  # Example shape value
+    starts_val = [-5, 0]  # Equivalently [0, 0]
     starts_tensor = helper.make_tensor(
         name="starts",
         data_type=TensorProto.INT64,
@@ -23,7 +24,7 @@ def main() -> None:
     )
 
     # Ends
-    ends_val = [1,5]  # Example shape value
+    ends_val = [3, -5]  # Equivalently [3, 5]
     ends_tensor = helper.make_tensor(
         name="ends",
         data_type=TensorProto.INT64,
@@ -39,7 +40,7 @@ def main() -> None:
     )
 
     # Axes
-    axes_val = [0,1]  # Example shape value
+    axes_val = [0, 1]  # Example shape value
     axes_tensor = helper.make_tensor(
         name="axes",
         data_type=TensorProto.INT64,
@@ -83,11 +84,9 @@ def main() -> None:
         nodes=[starts_node, ends_node, axes_node, steps_node, slice_node],
         name="SliceGraph",
         inputs=[
-            helper.make_tensor_value_info("input_tensor", TensorProto.FLOAT, [2, 10]),
+            helper.make_tensor_value_info("input_tensor", TensorProto.FLOAT, [5, 10]),
         ],
-        outputs=[
-            helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 5])
-        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 5])],
     )
 
     # Create the model

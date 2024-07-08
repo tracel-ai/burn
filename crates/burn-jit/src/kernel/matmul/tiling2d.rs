@@ -118,7 +118,7 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
             &out.strides,
             &out.shape.dims,
         )])
-        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options::<R, D>(
             &out.shape, config,
         )));
 
@@ -158,7 +158,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
 
     let num_elems = rounded_output_shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let rounded_output = JitTensor::new(
+    let rounded_output = JitTensor::new_contiguous(
         rhs.client.clone(),
         rhs.device.clone(),
         rounded_output_shape.clone(),
@@ -175,7 +175,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
             &rounded_output.strides,
             &rounded_output.shape.dims,
         )])
-        .execute(CubeCountSettings::Custom(tiling2d_launch_options(
+        .execute(CubeCountSettings::Custom(tiling2d_launch_options::<R, D>(
             &rounded_output.shape,
             config,
         )));

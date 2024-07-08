@@ -111,7 +111,8 @@ impl ComputeStorage for WgpuStorage {
             size: size as u64,
             usage: wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_SRC,
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::INDIRECT,
             mapped_at_creation: false,
         }));
 

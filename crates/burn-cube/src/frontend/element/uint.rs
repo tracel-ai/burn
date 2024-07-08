@@ -1,12 +1,9 @@
 use crate::frontend::{CubeContext, CubePrimitive, CubeType, ExpandElement, Numeric};
 use crate::ir::{Elem, Item, Variable, Vectorization};
 use crate::prelude::{index_assign, KernelBuilder, KernelLauncher};
-use crate::{
-    frontend::{ArgSettings, Comptime},
-    LaunchArg, Runtime,
-};
+use crate::{frontend::Comptime, Runtime};
 
-use super::{LaunchArgExpand, Vectorized};
+use super::{LaunchArgExpand, ScalarArgSettings, Vectorized};
 
 #[derive(Clone, Copy, Debug)]
 /// An unsigned int.
@@ -20,45 +17,28 @@ impl CubeType for UInt {
     type ExpandType = ExpandElement;
 }
 
-impl CubeType for &UInt {
-    type ExpandType = ExpandElement;
-}
-
-impl CubeType for &mut UInt {
-    type ExpandType = ExpandElement;
-}
-
 impl CubePrimitive for UInt {
     fn as_elem() -> Elem {
         Elem::UInt
     }
 }
 
-impl LaunchArg for UInt {
-    type RuntimeArg<'a, R: Runtime> = u32;
-}
-
-impl LaunchArgExpand for &UInt {
+impl LaunchArgExpand for UInt {
     fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
         assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
         builder.scalar(UInt::as_elem())
     }
 }
 
-impl LaunchArgExpand for &mut UInt {
-    fn expand(builder: &mut KernelBuilder, vectorization: Vectorization) -> ExpandElement {
-        assert_eq!(vectorization, 1, "Attempted to vectorize a scalar");
-        builder.scalar(UInt::as_elem())
-    }
-}
-
-impl<R: Runtime> ArgSettings<R> for u32 {
-    fn register(&self, settings: &mut KernelLauncher<R>) {
+impl ScalarArgSettings for u32 {
+    fn register<R: Runtime>(&self, settings: &mut KernelLauncher<R>) {
         settings.register_u32(*self);
     }
 }
 
-impl Numeric for UInt {}
+impl Numeric for UInt {
+    type Primitive = u32;
+}
 
 impl UInt {
     pub const fn new(val: u32) -> Self {

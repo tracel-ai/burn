@@ -13,7 +13,6 @@ use std::marker::PhantomData;
 /// metadata such as [stride](Tensor::stride) and [shape](Tensor::shape).
 #[derive(new)]
 pub struct Tensor<T: CubeType> {
-    pub(crate) factor: u8,
     _val: PhantomData<T>,
 }
 
@@ -21,17 +20,14 @@ impl<T: CubeType> CubeType for Tensor<T> {
     type ExpandType = ExpandElementTyped<Tensor<T>>;
 }
 
-impl<T: CubeType> CubeType for &Tensor<T> {
-    type ExpandType = ExpandElementTyped<Tensor<T>>;
+impl<T: CubeType> Init for ExpandElementTyped<Tensor<T>> {
+    fn init(self, _context: &mut crate::prelude::CubeContext) -> Self {
+        // The type can't be deeply cloned/copied.
+        self
+    }
 }
 
-impl<T: CubeType> CubeType for &mut Tensor<T> {
-    type ExpandType = ExpandElementTyped<Tensor<T>>;
-}
-
-impl<T: CubeType> Init for ExpandElementTyped<Tensor<T>> {}
-
-impl<C: CubePrimitive> LaunchArgExpand for &Tensor<C> {
+impl<C: CubePrimitive> LaunchArgExpand for Tensor<C> {
     fn expand(
         builder: &mut KernelBuilder,
         vectorization: Vectorization,
@@ -40,10 +36,7 @@ impl<C: CubePrimitive> LaunchArgExpand for &Tensor<C> {
             .input_array(Item::vectorized(C::as_elem(), vectorization))
             .into()
     }
-}
-
-impl<C: CubePrimitive> LaunchArgExpand for &mut Tensor<C> {
-    fn expand(
+    fn expand_output(
         builder: &mut KernelBuilder,
         vectorization: Vectorization,
     ) -> ExpandElementTyped<Tensor<C>> {
@@ -107,6 +100,11 @@ impl<'a, R: Runtime> TensorArg<'a, R> {
         Self::Handle {
             handle: TensorHandle::new(handle, strides, shape),
             vectorization_factor: factor,
+        }
+    }
+    pub fn alias(position: usize) -> Self {
+        Self::Alias {
+            input_pos: position,
         }
     }
 }

@@ -87,6 +87,7 @@ impl TypeCodegen {
         quote! {
             impl #generics_impl #name #generics_use {
                 /// New kernel
+                #[allow(clippy::too_many_arguments)]
                 #vis fn new(#args) -> Self {
                     Self {
                         #fields
@@ -151,12 +152,6 @@ impl TypeCodegen {
             impl #generics_impl CubeType for #name #generics_use {
                 type ExpandType = #name_expand #generics_use;
             }
-            impl #generics_impl CubeType for &#name #generics_use {
-                type ExpandType = #name_expand #generics_use;
-            }
-            impl #generics_impl CubeType for &mut #name #generics_use {
-                type ExpandType = #name_expand #generics_use;
-            }
         }
     }
 
@@ -173,15 +168,16 @@ impl TypeCodegen {
             let vis = &field.vis;
 
             body_input.extend(quote! {
-                #vis #ident: <&#ty as LaunchArgExpand>::expand(builder, vectorization),
+                #vis #ident: <#ty as LaunchArgExpand>::expand(builder, vectorization),
             });
             body_output.extend(quote! {
-                #vis #ident: <&mut #ty as LaunchArgExpand>::expand(builder, vectorization),
+                #vis #ident: <#ty as LaunchArgExpand>::expand_output(builder, vectorization),
             });
         }
 
         let type_generics_impl = self.generics.type_definitions();
         let type_generics_use = self.generics.type_in_use();
+
         let runtime_generics_impl = self.generics.runtime_definitions();
         let all_generics_use = self.generics.all_in_use();
 
@@ -190,7 +186,7 @@ impl TypeCodegen {
                 type RuntimeArg #runtime_generics_impl = #name_launch #all_generics_use;
             }
 
-            impl #type_generics_impl LaunchArgExpand for &#name #type_generics_use {
+            impl #type_generics_impl LaunchArgExpand for #name #type_generics_use {
                 fn expand(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
@@ -199,10 +195,7 @@ impl TypeCodegen {
                         #body_input
                     }
                 }
-            }
-
-            impl #type_generics_impl LaunchArgExpand for &mut #name #type_generics_use {
-                fn expand(
+                fn expand_output(
                     builder: &mut KernelBuilder,
                     vectorization: burn_cube::ir::Vectorization,
                 ) -> <Self as CubeType>::ExpandType {
@@ -219,15 +212,20 @@ impl TypeCodegen {
         let type_generics_impl = self.generics.type_definitions();
         let type_generics_use = self.generics.type_in_use();
 
+        let mut body = quote::quote! {};
+        for field in self.fields.iter() {
+            let ident = &field.ident;
+            body.extend(quote::quote! {
+                #ident: Init::init(self.#ident, context),
+            });
+        }
+
         quote! {
             impl #type_generics_impl Init for #name_expand  #type_generics_use {
                 fn init(self, context: &mut CubeContext) -> Self {
-                    self
-                }
-            }
-            impl #type_generics_impl Init for &#name_expand  #type_generics_use {
-                fn init(self, context: &mut CubeContext) -> Self {
-                    self
+                    Self {
+                        #body
+                    }
                 }
             }
         }
