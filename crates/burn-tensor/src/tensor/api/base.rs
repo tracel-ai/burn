@@ -2106,7 +2106,7 @@ impl MovedimArgs for i32 {
 
 /// Trait used for slice arguments
 pub trait RangesArg<const D2: usize> {
-    /// Converts into a set of ranges to [core::ops::Range<usize>; D2] for the `tensor.slice()` function
+    /// Converts into a set of ranges to `[core::ops::Range<usize>; D2]` for the `tensor.slice()` function
     fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2];
 
     /// Handles negative index values
