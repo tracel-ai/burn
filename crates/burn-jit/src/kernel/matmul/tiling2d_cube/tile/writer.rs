@@ -16,6 +16,13 @@ use super::{
     memory_access::{MatchingVectorization, UnmatchingVectorization},
 };
 
+#[derive(CubeType)]
+pub(crate) struct WriteTileInfo {
+    pub coordinates: Coordinates,
+    pub offset_output: UInt,
+    pub out_stride: UInt,
+}
+
 pub(crate) struct TileWriter<F: Float> {
     _f: PhantomData<F>,
 }
@@ -42,13 +49,17 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
             skip_col: coordinates.skip_col,
         };
 
+        let write_tile_info = WriteTileInfo {
+            coordinates,
+            offset_output,
+            out_stride,
+        };
+
         if Comptime::get(match_tile) {
             B::write_output::<MatchingVectorization>(
                 out,
                 results,
-                coordinates,
-                offset_output,
-                out_stride,
+                write_tile_info,
                 config,
                 check_bounds,
             );
@@ -56,9 +67,7 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
             B::write_output::<UnmatchingVectorization>(
                 out,
                 results,
-                coordinates,
-                offset_output,
-                out_stride,
+                write_tile_info,
                 config,
                 check_bounds,
             );

@@ -2,12 +2,10 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
-    tiling2d_cube::{
-        base::Coordinates,
-        tile::{
-            loader::{CheckBounds, ReadTileInfo},
-            memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
-        },
+    tiling2d_cube::tile::{
+        loader::{CheckBounds, ReadTileInfo},
+        memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
+        writer::WriteTileInfo,
     },
 };
 
@@ -83,17 +81,16 @@ impl<F: Float> BlockCheck<F> for VerticalBlockCheck {
     fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
-        coordinates: Coordinates,
-        offset_output: UInt,
-        out_stride: UInt,
+        info: WriteTileInfo,
         config: Comptime<CubeTiling2dConfig>,
         check_bounds: CheckBounds,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
+        let coordinates = info.coordinates;
 
         let row = coordinates.skip_row + coordinates.unit_row;
         let col = coordinates.skip_col + coordinates.unit_col;
-        let out_position_base = row * out_stride + col + offset_output;
+        let out_position_base = row * info.out_stride + col + info.offset_output;
 
         let mut num_writes = UInt::new(0);
         if check_bounds.dim_vertical > row {
@@ -105,7 +102,7 @@ impl<F: Float> BlockCheck<F> for VerticalBlockCheck {
 
         for result_index in range(0u32, num_writes, Comptime::new(false)) {
             let result_position = result_index * Comptime::runtime(tile_size);
-            let out_position = out_position_base + result_index * out_stride;
+            let out_position = out_position_base + result_index * info.out_stride;
 
             A::write_contiguous_unchecked(out, out_position, results, result_position, config);
         }

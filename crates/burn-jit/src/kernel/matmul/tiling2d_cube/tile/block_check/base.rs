@@ -2,12 +2,10 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
-    tiling2d_cube::{
-        base::Coordinates,
-        tile::{
-            loader::{CheckBounds, ReadTileInfo},
-            memory_access::ContiguousAccess,
-        },
+    tiling2d_cube::tile::{
+        loader::{CheckBounds, ReadTileInfo},
+        memory_access::ContiguousAccess,
+        writer::WriteTileInfo,
     },
 };
 
@@ -32,9 +30,7 @@ pub(crate) trait BlockCheck<F: Float>: Send + Sync + 'static {
     fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
-        coordinates: Coordinates,
-        offset_output: UInt,
-        out_stride: UInt,
+        write_tile_info: WriteTileInfo,
         config: Comptime<CubeTiling2dConfig>,
         check_bounds: CheckBounds,
     );

@@ -17,7 +17,7 @@ use crate::{
 use super::base::tiling2d_cube_launch;
 
 /// Matrix multiplication using tiling 2d algorithm
-pub fn matmul_tiling_2d_cube<'a, R: JitRuntime, E: FloatElement, const D: usize>(
+pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
