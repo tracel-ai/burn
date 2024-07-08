@@ -1306,8 +1306,8 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
     // TODO default missing axes ranges to the full range of the corresponding axis
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "ends" => starts = value.clone().into_i64s(),
-            "starts" => ends = value.clone().into_i64s(),
+            "starts" => starts = value.clone().into_i64s(),
+            "ends" => ends = value.clone().into_i64s(),
             "axes" => axes = value.clone().into_i64s(),
             "steps" => steps = value.clone().into_i64s(),
             _ => {}
