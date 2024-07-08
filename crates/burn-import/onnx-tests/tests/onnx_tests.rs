@@ -55,6 +55,7 @@ include_models!(
     mul,
     neg,
     not,
+    pad,
     greater,
     greater_or_equal,
     less,
@@ -1402,6 +1403,26 @@ mod tests {
 
         let output = model.forward(input).to_data();
         let expected = TensorData::from([[[[false, true, false, true]]]]);
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn pad() {
+        let device = Default::default();
+        let model: pad::Model<Backend> = pad::Model::new(&device);
+
+        let input = Tensor::<Backend, 2, Int>::from_ints([[1, 2], [3, 4], [5, 6]], &device);
+        let output = model.forward(input).to_data();
+        let expected = TensorData::from([
+            [0_i64, 0, 0, 0, 0, 0, 0, 0],
+            [0_i64, 0, 1, 2, 0, 0, 0, 0],
+            [0_i64, 0, 3, 4, 0, 0, 0, 0],
+            [0_i64, 0, 5, 6, 0, 0, 0, 0],
+            [0_i64, 0, 0, 0, 0, 0, 0, 0],
+            [0_i64, 0, 0, 0, 0, 0, 0, 0],
+            [0_i64, 0, 0, 0, 0, 0, 0, 0],
+        ]);
 
         output.assert_eq(&expected, true);
     }

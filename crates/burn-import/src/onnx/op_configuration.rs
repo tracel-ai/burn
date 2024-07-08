@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::resize::ResizeMode;
+use crate::burn::node::{pad::PadConfig, resize::ResizeMode};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -743,6 +743,49 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
         stash_type == 1,
     )
+}
+
+/// Create a PadConfig from the attributes of the node
+pub fn pad_config(node: &Node) -> PadConfig {
+    fn get_pads(node: &Node) -> Vec<usize> {
+        let input_dim = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.dim,
+            _ => panic!("Only tensor input is valid"),
+        };
+        let pads: Vec<usize> = match &node.inputs[1].value {
+            Some(Data::Int64s(shape)) => shape
+                .iter()
+                .map(|&x| {
+                    if x < 0 {
+                        // TODO: support negative pads
+                        panic!("Negative pad is not supported");
+                    }
+                    x as usize
+                })
+                .collect(),
+            _ => panic!("Pads data type must be int64"),
+        };
+
+        assert_eq!(pads.len(), input_dim * 2);
+
+        if input_dim == 1 {
+            vec![pads[0], pads[1], 0, 0]
+        } else {
+            let left = pads[input_dim - 1];
+            let top = pads[input_dim - 2];
+            let right = pads[pads.len() - 1];
+            let bottom = pads[pads.len() - 2];
+            vec![left, right, top, bottom]
+        }
+    }
+
+    let pads = get_pads(node);
+    // TODO: support float, boolean
+    let constant_value: i64 = match &node.inputs[2].value {
+        Some(Data::Int64s(shape)) => shape.first().unwrap().to_owned(),
+        _ => 0,
+    };
+    PadConfig::new(pads, constant_value)
 }
 
 /// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
