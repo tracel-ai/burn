@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::resize::ResizeMode;
+use crate::burn::node::{pad::PadConfig, resize::ResizeMode};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -743,6 +743,72 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
         stash_type == 1,
     )
+}
+
+/// Create a PadConfig from the attributes of the node
+pub fn pad_config(node: &Node) -> PadConfig {
+    fn get_pads(node: &Node) -> Vec<usize> {
+        if node.inputs.len() != 3 {
+            panic!("Pad: must provide three inputs")
+        }
+
+        let input_dim = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.dim,
+            _ => panic!("Pad: Only tensor input is valid"),
+        };
+
+        let pads: Vec<usize> = match &node.inputs[1].value {
+            Some(Data::Int64s(shape)) => shape
+                .iter()
+                .map(|&x| {
+                    if x < 0 {
+                        // TODO: support negative pads
+                        panic!("Pad: Negative pad is not supported");
+                    }
+                    x as usize
+                })
+                .collect(),
+            _ => panic!("Pad: pads data type must be int64"),
+        };
+
+        if pads.len() != input_dim * 2 {
+            panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
+        }
+        // TODO: Burn's pad should support 1D tensor
+        if input_dim < 2 {
+            panic!("Pad: input tensor should be rank 2 or higher");
+        }
+
+        let left_index = input_dim - 1;
+        let top_index = input_dim - 2;
+        let right_index = pads.len() - 1;
+        let bottom_index = pads.len() - 2;
+        let index_list = [left_index, top_index, right_index, bottom_index];
+
+        for (index, &item) in pads.iter().enumerate() {
+            if !index_list.contains(&index) && item != 0 {
+                panic!("Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions");
+            }
+        }
+
+        let left = pads[left_index];
+        let top = pads[top_index];
+        let right = pads[right_index];
+        let bottom = pads[bottom_index];
+        vec![left, right, top, bottom]
+    }
+    fn get_constant_value(node: &Node) -> f32 {
+        // TODO: support int, boolean
+        match &node.inputs[2].value {
+            Some(Data::Float32s(shape)) => shape.first().unwrap().to_owned(),
+            _ => panic!("Pad: should provide a constant value input to pad with, for example 0.0"),
+        }
+    }
+
+    let pads = get_pads(node);
+    let constant_value = get_constant_value(node);
+
+    PadConfig::new(pads, constant_value)
 }
 
 /// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.

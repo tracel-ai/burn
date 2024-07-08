@@ -736,7 +736,7 @@ where
         )
     }
 
-    /// Pad the tensor with the given value on the last two dimensions.
+    /// Pad the tensor of rank two or higher with the given value on the last two dimensions.
     ///
     /// # Arguments
     ///
