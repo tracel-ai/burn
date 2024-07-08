@@ -75,7 +75,7 @@ macro_rules! testgen_all {
                 burn_jit::testgen_clamp!();
                 burn_jit::testgen_unary!();
                 burn_jit::testgen_matmul!();
-                // burn_jit::testgen_matmul_cube!();
+                burn_jit::testgen_matmul_cube!();
             }
         }
         mod jit_fusion {
