@@ -1283,60 +1283,74 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     (start_dim as usize, end_dim as usize)
 }
 
-pub fn slice_config(node: &Node) -> (Vec<usize>, Vec<usize>) {
-    fn ensure_1d_tensor(node: &Node, index: usize) {
-        match &node.inputs[index].ty {
-            ArgType::Tensor(tensor) => assert_eq!(tensor.dim, 1, "Slice: tensor must be 1D"),
-            _ => panic!("Only tensor input is valid"),
-        };
-    }
+pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
+    fn get_input_values(node: &Node, index: usize) -> Vec<i64> {
+        // If the input is not provided, return an empty vector
+        if node.inputs.get(index).is_none() {
+            return Vec::new();
+        }
 
-    fn get_input_values(node: &Node, index: usize) -> Vec<usize> {
-        let tensor_shape = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor.shape.as_ref().unwrap(),
-            _ => panic!("Only tensor input is valid"),
-        };
         match &node.inputs[index].value {
-            Some(Data::Int64s(shape)) => shape
-                .iter()
-                .enumerate()
-                .map(|(i, x)| {
-                    if x.is_negative() {
-                        tensor_shape[i] - x.wrapping_abs() as usize
-                    } else {
-                        *x as usize
-                    }
-                })
-                .collect(),
+            Some(Data::Int64s(shape)) => shape.clone(),
+
             _ => panic!("Tensor data type must be int64"),
         }
     }
 
-    ensure_1d_tensor(node, 1);
-    ensure_1d_tensor(node, 2);
+    let mut starts = get_input_values(node, 1);
+    let mut ends = get_input_values(node, 2);
+    let mut axes = get_input_values(node, 3);
+    let mut steps = get_input_values(node, 4);
 
-    let starts = get_input_values(node, 1);
-    let ends = get_input_values(node, 2);
-
+    // https://burn.dev/docs/burn/prelude/struct.Tensor.html#method.slice
+    // TODO default missing axes ranges to the full range of the corresponding axis
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axes" => {
-                let mut i = 0;
-                value.clone().into_i64s().iter().for_each(|x| {
-                    assert_eq!(*x, i, "Slice: axes must be consecutive");
-                    i += 1;
-                })
-            }
-            "steps" => value.clone().into_i64s().into_iter().for_each(|x| {
-                if x != 1 {
-                    panic!("Slice: steps other than 1 are not supported");
-                }
-            }),
+            "ends" => starts = value.clone().into_i64s(),
+            "starts" => ends = value.clone().into_i64s(),
+            "axes" => axes = value.clone().into_i64s(),
+            "steps" => steps = value.clone().into_i64s(),
             _ => {}
         }
     }
 
-    (starts, ends)
+    if !steps.is_empty() && steps.iter().any(|&x| x != 1) {
+        panic!("Slice: steps other than 1 are not supported");
+    }
+
+    // Extract the shape of the input tensor
+    let input_dim = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // If axes is not provided, it defaults to all axes
+    if axes.is_empty() {
+        axes = (0..starts.len() as i64).collect();
+    }
+
+    // assert len(starts) == len(ends) == len(axes)
+    if starts.len() != ends.len() || starts.len() != axes.len() {
+        panic!("Slice: starts, ends, and axes must have the same length");
+    }
+
+    // If dim is negative, it is counted from the end
+    // Negative value means counting dimensions from the back.
+    for i in 0..axes.len() {
+        let axis = axes[i];
+        if axis < 0 {
+            axes[i] = axis + input_dim as i64;
+        }
+    }
+
+    // convert starts, ends, and axes to ranges. Use None for missing axes ranges
+    let mut ranges: Vec<Option<(i64, i64)>> = vec![None; input_dim];
+    for i in 0..axes.len() {
+        let axis = axes[i] as usize;
+        ranges[axis] = Some((starts[i], ends[i]));
+    }
+
+    ranges
 }
 
 pub fn transpose_config(curr: &Node) -> Vec<i64> {

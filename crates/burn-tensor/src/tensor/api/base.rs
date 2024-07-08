@@ -579,11 +579,26 @@ where
 
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
+    /// # Arguments
+    ///
+    /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
+    ///   - An array of `core::ops::Range<usize>`
+    ///   - An array of `Option<(i64, i64)>`
+    ///   - An array of `(i64, i64)` tuples
+    ///
+    /// # Behavior
+    ///
+    /// - Supports partial and full slicing in any number of dimensions.
+    /// - Handles negative indices by wrapping around from the end of the dimension.
+    /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
+    /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
+    ///
     /// # Panics
     ///
-    /// If a range exceeds the number of elements on a dimension.
+    /// - If the number of ranges provided doesn't match the tensor's dimensions.
+    /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
@@ -591,38 +606,37 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();
-    ///     // Create a tensor with a single dimension of ints between 0 and 11
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
-    ///     // Select elements 0, 1, 2, 3 from the first dimension
-    ///     let tensor_slices = tensor.clone().slice([0..4]);
-    ///     println!("\nexpecting [0,1,2,3] : {:?}", tensor);
-    ///     println!("expecting [4] : {:?}", tensor.dims());
     ///
-    ///     // Create a Tensor with 3 dimensions
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
-    ///     // This slice will select the element 0 on the first dimension,
-    ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
-    ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
-    ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
+    ///     // 1D slicing
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
+    ///     let slice = tensor.slice([1..4]);
+    ///     assert_eq!(slice.into_data().to_vec(), vec![1, 2, 3]);
     ///
-    ///     // Create a tensor of ints from 0 to 11 and reshape it into three dimensions
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
-    ///     let tensor = tensor.reshape([1, 3, 4]);
-    ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
-    ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
-    ///     // Select element 0 of first dimension, elements 1,2 of second dimension
-    ///     // and element 1 of third dimension
-    ///     //
-    ///     // This is the equivalent of this pseudo code
-    ///     // let mut v = vec![[[]]];
-    ///     // v[0][0][0] = tensor[0][1][1];
-    ///     // v[0][1][0] = tensor[0][2][1];
-    ///     let tensor_slices = tensor.slice([0..1, 1..3, 1..2]);
-    ///     println!("\nexpecting [1, 2, 1] : {:?}", tensor_slices.dims());
-    ///     println!("expecting [[[5],[9]]] : {:?}", tensor_slices);
+    ///     // 2D slicing
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 4]), &device);
+    ///     let slice = tensor.slice([1..3, 0..2]);
+    ///     assert_eq!(slice.dims(), [2, 2]);
+    ///
+    ///     // Using negative indices
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
+    ///     let slice = tensor.slice([(1, -1)]); // Equivalent to 1..4
+    ///     assert_eq!(slice.into_data().to_vec(), vec![1, 2, 3]);
+    ///
+    ///     // Using Option<(i64, i64)>
+    ///     let tensor = Tensor::<B, 2, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
+    ///     let slice = tensor.slice([Some((1, -1)), None]); // Select rows 1 and 2, all columns
+    ///     assert_eq!(slice.dims(), [2, 4]);
     /// }
     /// ```
-    pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
+
         check!(TensorCheck::slice(&self.shape(), &ranges));
         Self::new(K::slice(self.primitive, ranges))
     }
@@ -675,8 +689,8 @@ where
     /// Converts the data of the current tensor.
     pub fn into_data(self) -> TensorData {
         crate::try_read_sync(self.into_data_async()).expect(
-            "Failed to read tensor data synchronously. 
-        This can happen on platforms that don't support blocking futures like WASM. 
+            "Failed to read tensor data synchronously.
+        This can happen on platforms that don't support blocking futures like WASM.
         If possible, try using into_data_async instead.",
         )
     }
@@ -875,7 +889,7 @@ where
     /// If the backend fails to read the tensor data synchronously.
     pub fn into_scalar(self) -> K::Elem {
         crate::try_read_sync(self.into_scalar_async()).expect(
-            "Failed to read tensor data synchronously. This can happen on platforms 
+            "Failed to read tensor data synchronously. This can happen on platforms
             that don't support blocking futures like WASM. Try into_scalar_async instead.",
         )
     }
@@ -2087,6 +2101,84 @@ impl MovedimArgs for i32 {
         set.push(dim);
 
         set
+    }
+}
+
+/// Trait used for slice arguments
+pub trait RangesArg<const D2: usize> {
+    /// Converts into a set of ranges to [core::ops::Range<usize>; D2] for the `tensor.slice()` function
+    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2];
+
+    /// Handles negative index values
+    fn handle_negative_index(start: i64, end: i64, dim: usize) -> (usize, usize) {
+        let start = if start < 0 {
+            (dim as i64 + start) as usize
+        } else {
+            start as usize
+        };
+        let end = if end < 0 {
+            (dim as i64 + end) as usize
+        } else {
+            end as usize
+        };
+        (start, end)
+    }
+
+    /// Clamps the range to the shape dimensions
+    fn clamp_range(start: usize, end: usize, dim: usize) -> (usize, usize) {
+        let start = start.clamp(0, dim);
+        let end = end.clamp(0, dim);
+        (start, end)
+    }
+}
+
+impl<const D2: usize> RangesArg<D2> for [core::ops::Range<usize>; D2] {
+    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+        // clamp the ranges to the shape dimensions
+        let ranges = self
+            .iter()
+            .enumerate()
+            .map(|(i, range)| {
+                let (start, end) = Self::clamp_range(range.start, range.end, shape.dims[i]);
+                start..end
+            })
+            .collect::<Vec<_>>();
+        ranges.try_into().unwrap()
+    }
+}
+
+impl<const D2: usize> RangesArg<D2> for [Option<(i64, i64)>; D2] {
+    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+        let ranges = self
+            .iter()
+            .enumerate()
+            .map(|(i, range)| match range {
+                Some((start, end)) => {
+                    let (start, end) = Self::handle_negative_index(*start, *end, shape.dims[i]);
+                    let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
+                    start..end
+                }
+                None => 0..shape.dims[i], // if None, use the full range
+            })
+            .collect::<Vec<_>>();
+
+        ranges.try_into().unwrap()
+    }
+}
+
+impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
+    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+        let ranges = self
+            .iter()
+            .enumerate()
+            .map(|(i, &(start, end))| {
+                let (start, end) = Self::handle_negative_index(start, end, shape.dims[i]);
+                let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
+                start..end
+            })
+            .collect::<Vec<_>>();
+
+        ranges.try_into().unwrap()
     }
 }
 

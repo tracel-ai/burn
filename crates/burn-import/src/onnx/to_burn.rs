@@ -736,9 +736,9 @@ impl ParsedOnnxGraph {
     fn slice_conversion(node: Node) -> SliceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let (starts, ends) = slice_config(&node);
+        let ranges = slice_config(&node);
 
-        SliceNode::new(input, output, starts, ends)
+        SliceNode::new(input, output, ranges)
     }
 
     fn sum_conversion(node: Node) -> SumNode {

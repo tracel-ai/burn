@@ -66,7 +66,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
-        NodeType::Slice => slice_update_outputs(node),
+        NodeType::Slice => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => sub_update_outputs(node),
@@ -452,33 +452,6 @@ fn squeeze_update_output(node: &mut Node) {
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_elem,
     });
-}
-
-fn slice_update_outputs(node: &mut Node) {
-    let shape = match &node.inputs[1].value {
-        Some(value) => match value {
-            Data::Int64s(shape) => Some(shape.clone()),
-            _ => panic!("Slice: invalid input types"),
-        },
-        None => None,
-    };
-
-    if shape.is_none() {
-        panic!("Slice: invalid shape");
-    }
-
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Slice: invalid output types"),
-    };
-
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            dim: shape.len(),
-            shape: None, // shape is calculated at runtime
-            ..output
-        });
-    }
 }
 
 fn sub_update_outputs(node: &mut Node) {

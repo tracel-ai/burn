@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -8,8 +8,7 @@ use quote::quote;
 pub struct SliceNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub starts: Vec<usize>,
-    pub ends: Vec<usize>,
+    pub ranges: Vec<Option<(i64, i64)>>,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
@@ -22,11 +21,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
-        let starts = &self.starts;
-        let ends = &self.ends;
+
+        let ranges = self.ranges.iter().map(|range| match range {
+            Some((start, end)) => {
+                let start = start.to_tokens();
+                let end = end.to_tokens();
+
+                quote! { Some((#start, #end))}
+            }
+            None => quote! { None },
+        });
 
         quote! {
-            let #output = #input.slice([#(#starts..#ends),*]);
+            let #output = #input.slice([#(#ranges),*]);
         }
     }
     fn into_node(self) -> Node<PS> {
@@ -51,8 +58,7 @@ mod tests {
         graph.register(SliceNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            vec![0, 0, 0, 0],
-            vec![1, 1, 1, 1],
+            vec![Some((0, 1)), Some((0, 1)), Some((0, 1)), Some((0, 1))],
         ));
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
@@ -78,8 +84,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.slice([0usize..1usize,0usize..1usize,0usize..1usize,0usize..1usize]);
-
+                    let tensor2 = tensor1.slice([Some((0, 1)), Some((0, 1)), Some((0, 1)), Some((0, 1))]);
                     tensor2
                 }
             }
