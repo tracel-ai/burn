@@ -1,12 +1,12 @@
 mod base;
 mod block_loop;
 mod compute_loop;
-mod tile;
 mod launch;
 mod load_shared_memory;
 mod outer_product;
 #[cfg(feature = "export_tests")]
 mod test_utils;
+mod tile;
 mod write_output;
 
 pub use launch::matmul_tiling_2d_cube;
