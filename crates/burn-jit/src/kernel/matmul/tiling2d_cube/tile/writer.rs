@@ -5,8 +5,8 @@ use burn_cube::prelude::*;
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
     tiling2d_cube::{
-        base::{Coordinates, Dimensions},
-        write_output::OutputWriter,
+        base::Dimensions,
+        write_output::{OutputWriter, WriteTileInfo},
     },
 };
 
@@ -15,14 +15,6 @@ use super::{
     loader::{CheckBounds, CheckBoundsExpand},
     memory_access::{MatchingVectorization, UnmatchingVectorization},
 };
-
-#[derive(CubeType)]
-pub(crate) struct WriteTileInfo {
-    pub coordinates: Coordinates,
-    pub offset_output: UInt,
-    pub out_stride: UInt,
-}
-
 pub(crate) struct TileWriter<F: Float> {
     _f: PhantomData<F>,
 }
@@ -32,15 +24,14 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
     fn write_output<B: BlockCheck<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
-        coordinates: Coordinates,
-        offset_output: UInt,
-        out_stride: UInt,
+        write_info: WriteTileInfo,
         dims: Dimensions,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let vectorization = Comptime::vectorization(out);
         // let tile_size = Comptime::map(config, |c| c.tile_size);
         let match_tile = Comptime::map(vectorization, |v| v.val == 4); // TODO HARDCODED TO 4
+        let coordinates = write_info.coordinates;
 
         let check_bounds = CheckBounds {
             dim_vertical: dims.m,
@@ -49,17 +40,11 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
             skip_col: coordinates.skip_col,
         };
 
-        let write_tile_info = WriteTileInfo {
-            coordinates,
-            offset_output,
-            out_stride,
-        };
-
         if Comptime::get(match_tile) {
             B::write_output::<MatchingVectorization>(
                 out,
                 results,
-                write_tile_info,
+                write_info,
                 config,
                 check_bounds,
             );
@@ -67,7 +52,7 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
             B::write_output::<UnmatchingVectorization>(
                 out,
                 results,
-                write_tile_info,
+                write_info,
                 config,
                 check_bounds,
             );

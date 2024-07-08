@@ -2,10 +2,15 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
-    tiling2d_cube::tile::{
-        loader::{CheckBounds, ReadTileInfo},
-        memory_access::{ContiguousAccess, StridedAccess, UnmatchingVectorization},
-        writer::WriteTileInfo,
+    tiling2d_cube::{
+        tile::{
+            loader::{CheckBounds, ReadTileInfo},
+            memory_access::{
+                ContiguousAccess, StridedAccess, UnmatchingVectorization, WritePositions,
+                WritePositionsExpand,
+            },
+        },
+        write_output::WriteTileInfo,
     },
 };
 
@@ -126,18 +131,12 @@ impl<F: Float> BlockCheck<F> for WholeBlockCheck {
             let out_position_base = row * info.out_stride + col + info.offset_output;
 
             for result_index in range(0u32, num_writes_vertical, Comptime::new(false)) {
-                let result_position = result_index * Comptime::runtime(tile_size);
-                let out_position = out_position_base + result_index * info.out_stride;
+                let positions = WritePositions {
+                    result: result_index * Comptime::runtime(tile_size),
+                    out: out_position_base + result_index * info.out_stride,
+                };
 
-                A::write_contiguous_checked(
-                    out,
-                    out_position,
-                    results,
-                    result_position,
-                    check_bounds,
-                    col,
-                    config,
-                );
+                A::write_contiguous_checked(out, results, positions, check_bounds, col, config);
             }
         }
     }

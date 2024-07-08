@@ -4,6 +4,12 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::loader::{CheckBounds, ReadTileInfo};
 
+#[derive(CubeType)]
+pub(crate) struct WritePositions {
+    pub out: UInt,
+    pub result: UInt,
+}
+
 #[cube]
 pub(crate) trait ContiguousAccess<F: Float>: Send + Sync + 'static {
     fn read_contiguous_unchecked(
@@ -22,18 +28,15 @@ pub(crate) trait ContiguousAccess<F: Float>: Send + Sync + 'static {
 
     fn write_contiguous_unchecked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         config: Comptime<CubeTiling2dConfig>,
     );
 
-    #[allow(clippy::too_many_arguments)]
     fn write_contiguous_checked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         check_bounds: CheckBounds,
         write_col: UInt,
         config: Comptime<CubeTiling2dConfig>,
@@ -90,9 +93,8 @@ impl<F: Float> ContiguousAccess<F> for MatchingVectorization {
 
     fn write_contiguous_unchecked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -101,29 +103,22 @@ impl<F: Float> ContiguousAccess<F> for MatchingVectorization {
         let mut output_elem = F::vectorized_empty(Comptime::get(tile_size));
 
         for i in range(0u32, Comptime::get(tile_size), unroll) {
-            output_elem[i] = results[results_position + i];
+            output_elem[i] = results[positions.result + i];
         }
 
-        out[out_position / Comptime::runtime(tile_size)] = output_elem;
+        out[positions.out / Comptime::runtime(tile_size)] = output_elem;
     }
 
     fn write_contiguous_checked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         _check_bounds: CheckBounds,
         _write_col: UInt,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         // If vectorization matches, then it's certain to fit since tile_size divides block_sizes
-        MatchingVectorization::write_contiguous_unchecked(
-            out,
-            out_position,
-            results,
-            results_position,
-            config,
-        )
+        MatchingVectorization::write_contiguous_unchecked(out, results, positions, config)
     }
 }
 
@@ -203,9 +198,8 @@ impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
 
     fn write_contiguous_unchecked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let tile_size = Comptime::map(config, |c| c.tile_size);
@@ -220,25 +214,24 @@ impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
             unroll,
         ) {
             if Comptime::get(is_scalar) {
-                out[i + out_position] = results[results_position + i];
+                out[i + positions.out] = results[positions.result + i];
             } else {
                 let mut output_elem = F::vectorized_empty(Comptime::get(vectorization_factor));
 
                 for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
                     let index = i * runtime_vectorization + j;
-                    output_elem[j] = results[results_position + index];
+                    output_elem[j] = results[positions.result + index];
                 }
 
-                out[i + out_position / runtime_vectorization] = output_elem;
+                out[i + positions.out / runtime_vectorization] = output_elem;
             }
         }
     }
 
     fn write_contiguous_checked(
         out: &mut Tensor<F>,
-        out_position: UInt,
         results: &Array<F>,
-        results_position: UInt,
+        positions: WritePositions,
         check_bounds: CheckBounds,
         write_col: UInt,
         config: Comptime<CubeTiling2dConfig>,
@@ -261,16 +254,16 @@ impl<F: Float> ContiguousAccess<F> for UnmatchingVectorization {
             let unroll = Comptime::map(config, |c| c.unroll_tile);
 
             if Comptime::get(is_scalar) {
-                out[i + out_position] = results[results_position + i];
+                out[i + positions.out] = results[positions.result + i];
             } else {
                 let mut output_elem = F::vectorized_empty(Comptime::get(vectorization_factor));
 
                 for j in range(0u32, Comptime::get(vectorization_factor), unroll) {
                     let index = i * runtime_vectorization + j;
-                    output_elem[j] = results[results_position + index];
+                    output_elem[j] = results[positions.result + index];
                 }
 
-                out[i + out_position / runtime_vectorization] = output_elem;
+                out[i + positions.out / runtime_vectorization] = output_elem;
             }
         }
     }

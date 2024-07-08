@@ -2,10 +2,12 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,
-    tiling2d_cube::tile::{
-        loader::{CheckBounds, ReadTileInfo},
-        memory_access::ContiguousAccess,
-        writer::WriteTileInfo,
+    tiling2d_cube::{
+        tile::{
+            loader::{CheckBounds, ReadTileInfo},
+            memory_access::ContiguousAccess,
+        },
+        write_output::WriteTileInfo,
     },
 };
 
