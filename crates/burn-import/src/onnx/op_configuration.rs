@@ -1336,10 +1336,9 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
 
     // If dim is negative, it is counted from the end
     // Negative value means counting dimensions from the back.
-    for i in 0..axes.len() {
-        let axis = axes[i];
-        if axis < 0 {
-            axes[i] = axis + input_dim as i64;
+    for axis in &mut axes {
+        if *axis < 0 {
+            *axis = *axis + input_dim as i64;
         }
     }
 
