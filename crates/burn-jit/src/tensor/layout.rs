@@ -1,6 +1,6 @@
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) enum MemoryLayout {
-    /// Memory is wholy contiguous, with row major layout
+    /// Memory is wholly contiguous, with row major layout
     Contiguous,
     /// Permutations happened, but may not impact some kernels
     MildlyPermuted {
