@@ -138,8 +138,7 @@ pub(crate) fn load_plain<F: Float, L: BlockCheck<F>>(
     let config = load_info.config;
 
     let vectorization = Comptime::vectorization(tensor);
-    // let tile_size = Comptime::map(config, |c| c.tile_size);
-    let match_tile = Comptime::map(vectorization, |v| v.val == 4); // TODO HARDCODED TO 4
+    let tile_size = Comptime::map(config, |c| c.tile_size);
     let sm_dim_vertical = Comptime::runtime(Comptime::map(config, |c| c.block_size_k));
 
     let read_row = coordinates.unit_row;
@@ -161,7 +160,7 @@ pub(crate) fn load_plain<F: Float, L: BlockCheck<F>>(
     let mut sm = load_info.shared_memory;
 
     if write_row < sm_dim_vertical {
-        if Comptime::get(match_tile) {
+        if vectorization == tile_size {
             L::load_tile_plain::<MatchingVectorization>(
                 tensor,
                 &mut sm,

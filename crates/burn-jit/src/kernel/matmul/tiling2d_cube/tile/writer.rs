@@ -29,8 +29,7 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
         config: Comptime<CubeTiling2dConfig>,
     ) {
         let vectorization = Comptime::vectorization(out);
-        // let tile_size = Comptime::map(config, |c| c.tile_size);
-        let match_tile = Comptime::map(vectorization, |v| v.val == 4); // TODO HARDCODED TO 4
+        let tile_size = Comptime::map(config, |c| c.tile_size);
         let coordinates = write_info.coordinates;
 
         let check_bounds = CheckBounds {
@@ -40,7 +39,7 @@ impl<F: Float> OutputWriter<F> for TileWriter<F> {
             skip_col: coordinates.skip_col,
         };
 
-        if Comptime::get(match_tile) {
+        if vectorization == tile_size {
             B::write_output::<MatchingVectorization>(
                 out,
                 results,
