@@ -8,7 +8,7 @@ use burn_cube::prelude::*;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
-use super::layout::{memory_layout, MemoryLayout};
+use super::layout::{memory_layout, MatrixLayout};
 
 /// The basic tensor primitive struct.
 #[derive(new)]
@@ -167,10 +167,10 @@ where
 
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
-        self.memory_layout() == MemoryLayout::Contiguous
+        self.matrix_layout() == MatrixLayout::Contiguous
     }
 
-    pub(crate) fn memory_layout(&self) -> MemoryLayout {
+    pub(crate) fn matrix_layout(&self) -> MatrixLayout {
         memory_layout(&self.strides)
     }
 }

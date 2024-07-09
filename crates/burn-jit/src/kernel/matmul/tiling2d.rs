@@ -9,7 +9,7 @@ use burn_tensor::{Element, Shape};
 use crate::{
     element::JitElement,
     kernel::{into_contiguous, matmul::config::tiling2d_cube_dim, Kernel},
-    tensor::{JitTensor, MemoryLayout},
+    tensor::{JitTensor, MatrixLayout},
     JitRuntime,
 };
 use std::marker::PhantomData;
@@ -96,13 +96,13 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
     let kernel = MatmulTiling2dEagerKernel::<R, E>::new(config.clone(), bounds_check_required);
     let client = lhs.client.clone();
 
-    let check_layout = |tensor: JitTensor<R, E, D>| match tensor.memory_layout() {
-        MemoryLayout::Contiguous => (tensor, false),
-        MemoryLayout::MildlyPermuted {
+    let check_layout = |tensor: JitTensor<R, E, D>| match tensor.matrix_layout() {
+        MatrixLayout::Contiguous => (tensor, false),
+        MatrixLayout::MildlyPermuted {
             transposed,
             batch_swap: _,
         } => (tensor, transposed),
-        MemoryLayout::HighlyPermuted => (into_contiguous(tensor), false),
+        MatrixLayout::HighlyPermuted => (into_contiguous(tensor), false),
     };
     let (lhs, _lhs_transposed) = check_layout(lhs);
     let (rhs, _rhs_transposed) = check_layout(rhs);
@@ -141,7 +141,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
     let round_lhs = pad_round::<R, E, D>(lhs, config.block_size_m, config.block_size_k);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor)
-            if tensor.memory_layout() == MemoryLayout::HighlyPermuted =>
+            if tensor.matrix_layout() == MatrixLayout::HighlyPermuted =>
         {
             into_contiguous(tensor)
         }
@@ -150,7 +150,7 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
     let round_rhs = pad_round::<R, E, D>(rhs, config.block_size_k, config.block_size_n);
     let rhs = match round_rhs {
         PaddingOutput::Unchanged(tensor)
-            if tensor.memory_layout() == MemoryLayout::HighlyPermuted =>
+            if tensor.matrix_layout() == MatrixLayout::HighlyPermuted =>
         {
             into_contiguous(tensor)
         }
