@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    QuantizationStrategy, Shape, TensorData,
+    DType, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{LibTorch, LibTorchDevice, TchElement, TchTensor};
@@ -12,6 +12,12 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
+        let mut tensor = tensor;
+        // Quantize only works on Float Tensor
+        if E::dtype() == DType::F16 {
+            tensor.tensor = tensor.tensor.to_kind(tch::Kind::Float);
+        }
+
         match strategy {
             QuantizationStrategy::PerTensorAffineInt8(ref q) => {
                 TchTensor::new(tensor.tensor.quantize_per_tensor(
@@ -56,7 +62,8 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     ) -> TensorData {
         let shape = Self::q_shape(&tensor);
         let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
-        let values: Result<Vec<i8>, tch::TchError> = tensor.tensor.try_into();
+        // To get the integer values we have to call `int_repr()`
+        let values: Result<Vec<i8>, tch::TchError> = tensor.tensor.int_repr().try_into();
 
         TensorData::quantized(values.unwrap(), shape, strategy)
     }
