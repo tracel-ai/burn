@@ -16,13 +16,13 @@ use crate::kernel::matmul::{
 
 use super::base::{
     all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
-    BlockCheck,
+    BlockLoader, BlockWriter,
 };
 
-pub(crate) struct WholeBlockCheck;
+pub(crate) struct WholeCheckBlockIO;
 
 #[cube]
-impl<F: Float> BlockCheck<F> for WholeBlockCheck {
+impl<F: Float> BlockLoader<F> for WholeCheckBlockIO {
     fn load_tile_plain<A: ContiguousAccess<F>>(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -104,7 +104,10 @@ impl<F: Float> BlockCheck<F> for WholeBlockCheck {
             config,
         );
     }
+}
 
+#[cube]
+impl<F: Float> BlockWriter<F> for WholeCheckBlockIO {
     fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,

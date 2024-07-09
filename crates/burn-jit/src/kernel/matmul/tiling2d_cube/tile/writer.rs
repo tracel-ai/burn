@@ -11,7 +11,7 @@ use crate::kernel::matmul::{
 };
 
 use super::{
-    block_check::base::BlockCheck,
+    block_io::base::BlockWriter,
     loader::{CheckBounds, CheckBoundsExpand},
     memory_access::{MatchingVectorization, UnmatchingVectorization},
 };
@@ -21,7 +21,7 @@ pub(crate) struct TileWriter<F: Float> {
 
 #[cube]
 impl<F: Float> OutputWriter<F> for TileWriter<F> {
-    fn write_output<B: BlockCheck<F>>(
+    fn write_output<B: BlockWriter<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
         write_info: WriteTileInfo,

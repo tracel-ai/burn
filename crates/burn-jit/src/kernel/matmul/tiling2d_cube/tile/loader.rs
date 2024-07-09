@@ -5,7 +5,7 @@ use burn_cube::prelude::*;
 use crate::kernel::matmul::tiling2d_cube::load_shared_memory::{LoadInfo, Loader};
 
 use super::{
-    block_check::base::BlockCheck,
+    block_io::base::BlockLoader,
     memory_access::{MatchingVectorization, UnmatchingVectorization},
 };
 
@@ -42,7 +42,7 @@ pub(crate) struct ReadTileInfo {
 
 #[cube]
 impl<F: Float> Loader<F> for TileLoader<F> {
-    fn load_lhs_plain<B: BlockCheck<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_lhs_plain<B: BlockLoader<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -63,7 +63,7 @@ impl<F: Float> Loader<F> for TileLoader<F> {
         load_plain::<F, B>(lhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_lhs_transposed<B: BlockCheck<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_lhs_transposed<B: BlockLoader<F>>(lhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -84,7 +84,7 @@ impl<F: Float> Loader<F> for TileLoader<F> {
         load_transposed::<F, B>(lhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_rhs_plain<B: BlockCheck<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_rhs_plain<B: BlockLoader<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let coordinates = load_info.coordinates;
         let dims = load_info.dims;
         let config = load_info.config;
@@ -105,7 +105,7 @@ impl<F: Float> Loader<F> for TileLoader<F> {
         load_plain::<F, B>(rhs, load_info, load_indices, check_bounds);
     }
 
-    fn load_rhs_transposed<B: BlockCheck<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
+    fn load_rhs_transposed<B: BlockLoader<F>>(rhs: &Tensor<F>, load_info: LoadInfo<F>) {
         let config = load_info.config;
         let dims = load_info.dims;
         let coordinates = load_info.coordinates;
@@ -128,7 +128,7 @@ impl<F: Float> Loader<F> for TileLoader<F> {
 }
 
 #[cube]
-pub(crate) fn load_plain<F: Float, L: BlockCheck<F>>(
+pub(crate) fn load_plain<F: Float, L: BlockLoader<F>>(
     tensor: &Tensor<F>,
     load_info: LoadInfo<F>,
     load_indices: LoadIndices,
@@ -181,7 +181,7 @@ pub(crate) fn load_plain<F: Float, L: BlockCheck<F>>(
 }
 
 #[cube]
-pub(crate) fn load_transposed<F: Float, L: BlockCheck<F>>(
+pub(crate) fn load_transposed<F: Float, L: BlockLoader<F>>(
     tensor: &Tensor<F>,
     load_info: LoadInfo<F>,
     load_indices: LoadIndices,

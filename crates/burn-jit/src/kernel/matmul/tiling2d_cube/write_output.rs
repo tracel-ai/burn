@@ -4,10 +4,10 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
     base::{Coordinates, Dimensions},
-    tile::block_check::{
-        base::BlockCheck, horizontal_block_check::HorizontalBlockCheck,
-        unchecked_block::UncheckedBlockCheck, vertical_block_check::VerticalBlockCheck,
-        whole_block_check::WholeBlockCheck,
+    tile::block_io::{
+        base::BlockWriter, horizontal_block_check::HorizontalCheckBlockIO,
+        unchecked_block::UncheckedBlockIO, vertical_block_check::VerticalCheckBlockIO,
+        whole_block_check::WholeCheckBlockIO,
     },
 };
 
@@ -20,7 +20,7 @@ pub(crate) struct WriteTileInfo {
 
 #[cube]
 pub(crate) trait OutputWriter<F: Float>: Sync + Send + 'static {
-    fn write_output<B: BlockCheck<F>>(
+    fn write_output<B: BlockWriter<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
         write_tile_info: WriteTileInfo,
@@ -49,14 +49,14 @@ pub(crate) fn write_to_output<F: Float, W: OutputWriter<F>>(
 
     if Comptime::get(check_m_bounds) {
         if Comptime::get(check_n_bounds) {
-            W::write_output::<WholeBlockCheck>(out, results, write_info, dims, config);
+            W::write_output::<WholeCheckBlockIO>(out, results, write_info, dims, config);
         } else {
-            W::write_output::<VerticalBlockCheck>(out, results, write_info, dims, config);
+            W::write_output::<VerticalCheckBlockIO>(out, results, write_info, dims, config);
         }
     } else if Comptime::get(check_n_bounds) {
-        W::write_output::<HorizontalBlockCheck>(out, results, write_info, dims, config);
+        W::write_output::<HorizontalCheckBlockIO>(out, results, write_info, dims, config);
     } else {
-        W::write_output::<UncheckedBlockCheck>(out, results, write_info, dims, config);
+        W::write_output::<UncheckedBlockIO>(out, results, write_info, dims, config);
     }
 }
 

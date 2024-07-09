@@ -12,7 +12,7 @@ use crate::kernel::matmul::{
 };
 
 #[cube]
-pub(crate) trait BlockCheck<F: Float>: Send + Sync + 'static {
+pub(crate) trait BlockLoader<F: Float>: Send + Sync + 'static {
     fn load_tile_plain<A: ContiguousAccess<F>>(
         tensor: &Tensor<F>,
         shared_memory: &mut SharedMemory<F>,
@@ -28,7 +28,10 @@ pub(crate) trait BlockCheck<F: Float>: Send + Sync + 'static {
         config: Comptime<CubeTiling2dConfig>,
         check_bounds: CheckBounds,
     );
+}
 
+#[cube]
+pub(crate) trait BlockWriter<F: Float>: Send + Sync + 'static {
     fn write_output<A: ContiguousAccess<F>>(
         out: &mut Tensor<F>,
         results: &Array<F>,
