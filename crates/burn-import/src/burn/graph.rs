@@ -13,7 +13,9 @@ use serde::{
     ser::{SerializeMap, SerializeTuple},
     Serialize,
 };
-use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
+use std::{
+    any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf, process::exit,
+};
 
 /// Type of the record to be saved.
 #[derive(Debug, Clone, Default, Copy)]
@@ -434,6 +436,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .iter()
             .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
+
+        // let fields = self.scope.constants().map(|(name, var_data)| {
+        //     let tensor_type = self.nodes[var_data.node_position - 1]
+        //         .inputs()
+        //         .find(|input| input.name() == name)
+        //         .unwrap()
+        //         .clone();
+        // });
 
         let fields = self
             .nodes

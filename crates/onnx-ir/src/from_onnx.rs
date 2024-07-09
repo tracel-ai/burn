@@ -63,7 +63,7 @@ impl GraphData {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
 
-        let constants = initializers
+        let mut constants = initializers
             .iter()
             .map(|x| (x.name.clone(), Argument::from_initializer(x)))
             .collect::<HashMap<String, Argument>>();
@@ -92,6 +92,14 @@ impl GraphData {
                 arg
             })
             .collect::<Vec<Argument>>();
+        //to avoid illegal variable names on older onnx files
+        let mut initializer_count = 1;
+        constants.iter_mut().for_each(|(k, v)| {
+            if !input_name_map.contains_key(k) {
+                v.name = format!("initializer{}", initializer_count);
+                initializer_count += 1;
+            }
+        });
         Self {
             inputs,
             outputs,
