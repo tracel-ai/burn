@@ -1,4 +1,6 @@
-use crate::{backend::Backend, Device, QuantizationStrategy, Shape};
+use core::future::Future;
+
+use crate::{backend::Backend, Device, QuantizationStrategy, Shape, TensorData};
 
 use super::{FloatTensor, QuantizedTensor};
 
@@ -38,4 +40,33 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The device of the tensor.
     fn q_device<const D: usize>(tensor: &QuantizedTensor<B, D>) -> Device<B>;
+
+    /// Reshapes a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reshape.
+    /// * `shape` - The new shape of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the new shape.
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<B, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<B, D2>;
+
+    /// Converts the tensor to a data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data structure with the tensor's data.
+    fn q_into_data<const D: usize>(
+        tensor: QuantizedTensor<B, D>,
+        strategy: QuantizationStrategy,
+    ) -> impl Future<Output = TensorData> + Send;
 }

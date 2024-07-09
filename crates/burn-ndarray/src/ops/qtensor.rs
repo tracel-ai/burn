@@ -5,6 +5,8 @@ use burn_tensor::{
 
 use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
 
+use super::NdArrayOps;
+
 fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
     let shape = tensor.shape();
     let values = tensor.array.into_iter().collect();
@@ -40,5 +42,21 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
 
     fn q_device<const D: usize>(_tensor: &QuantizedTensor<Self, D>) -> NdArrayDevice {
         NdArrayDevice::Cpu
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        NdArrayOps::reshape(tensor, shape)
+    }
+
+    async fn q_into_data<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        strategy: QuantizationStrategy,
+    ) -> TensorData {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        TensorData::quantized(values, shape, strategy)
     }
 }

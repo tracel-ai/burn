@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape,
+    Device, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};
@@ -27,5 +27,19 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
         B::q_device(tensor)
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        B::q_reshape(tensor, shape)
+    }
+
+    async fn q_into_data<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        strategy: QuantizationStrategy,
+    ) -> TensorData {
+        B::q_into_data(tensor, strategy).await
     }
 }

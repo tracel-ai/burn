@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape,
+    Device, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{FloatElement, IntElement, JitBackend, JitRuntime};
@@ -31,5 +31,19 @@ where
 
     fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
         tensor.device.clone()
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        super::reshape(tensor, shape)
+    }
+
+    async fn q_into_data<const D: usize>(
+        _tensor: QuantizedTensor<Self, D>,
+        _strategy: QuantizationStrategy,
+    ) -> TensorData {
+        unimplemented!()
     }
 }

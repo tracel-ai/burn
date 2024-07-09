@@ -1,9 +1,11 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    QuantizationStrategy, Shape,
+    QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{LibTorch, LibTorchDevice, TchElement, TchTensor};
+
+use super::TchOps;
 
 impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn quantize<const D: usize>(
@@ -39,5 +41,23 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
 
     fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> LibTorchDevice {
         tensor.tensor.device().into()
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        TchOps::reshape(tensor, shape)
+    }
+
+    async fn q_into_data<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        strategy: QuantizationStrategy,
+    ) -> TensorData {
+        let shape = Self::q_shape(&tensor);
+        let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
+        let values: Result<Vec<i8>, tch::TchError> = tensor.tensor.try_into();
+
+        TensorData::quantized(values.unwrap(), shape, strategy)
     }
 }
