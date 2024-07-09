@@ -6,28 +6,20 @@ import numpy
 from onnx import TensorProto, numpy_helper
 from onnx.helper import make_tensor_value_info
 
-from .pad_lib import save_model
+from pad_lib import build_test_save
 
 
 def get_initializers() -> list[TensorProto]:
     constant_value = numpy_helper.from_array(
-        numpy.array([0], dtype="int"), name="starts"
+        numpy.array([0.0]).astype(numpy.float32), name="constant_value"
     )
 
-    value = numpy.array([-1, -1], dtype="int")
-    ends_init = numpy_helper.from_array(value, name="ends")
-
-    value = numpy.arange(2, dtype="int")
-    axes_init = numpy_helper.from_array(value, name="axes")
-
-    value = numpy.ones(2, dtype="int")
-    steps_init = numpy_helper.from_array(value, name="steps")
-
-    return [constant_value, ends_init, axes_init, steps_init]
+    return [constant_value]
 
 
 def main() -> None:
     name = "pad"
+
     inputs = [
         make_tensor_value_info("input_tensor", TensorProto.FLOAT, [None, None]),
         make_tensor_value_info("pads", TensorProto.FLOAT, [None, None]),
@@ -35,11 +27,12 @@ def main() -> None:
     outputs = [make_tensor_value_info("output", TensorProto.FLOAT, [None, None])]
     initializers = get_initializers()
 
-    save_model(
+    build_test_save(
         name=name,
         inputs=inputs,
         outputs=outputs,
         initializers=initializers,
+        attributes={"mode": "constant"},
     )
 
 
