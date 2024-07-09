@@ -26,6 +26,7 @@ pub trait Float:
     + Erf
     + Recip
     + core::ops::Index<UInt, Output = Self>
+    + core::ops::IndexMut<UInt, Output = Self>
 {
     fn new(val: f32) -> Self;
     fn new_expand(context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType;
@@ -33,6 +34,11 @@ pub trait Float:
     fn vectorized_expand(
         context: &mut CubeContext,
         val: f32,
+        vectorization: UInt,
+    ) -> <Self as CubeType>::ExpandType;
+    fn vectorized_empty(vectorization: UInt) -> Self;
+    fn vectorized_empty_expand(
+        context: &mut CubeContext,
         vectorization: UInt,
     ) -> <Self as CubeType>::ExpandType;
 }
@@ -101,12 +107,33 @@ macro_rules! impl_float {
                     new_var
                 }
             }
+
+            fn vectorized_empty(vectorization: UInt) -> Self {
+                Self::vectorized(0., vectorization)
+            }
+
+            fn vectorized_empty_expand(
+                context: &mut CubeContext,
+                vectorization: UInt,
+            ) -> <Self as CubeType>::ExpandType {
+                if vectorization.val == 1 {
+                    Self::new_expand(context, 0.)
+                } else {
+                    context.create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8))
+                }
+            }
         }
 
         impl core::ops::Index<UInt> for $type {
             type Output = Self;
 
             fn index(&self, _index: UInt) -> &Self::Output {
+                unexpanded!()
+            }
+        }
+
+        impl core::ops::IndexMut<UInt> for $type {
+            fn index_mut(&mut self, _index: UInt) -> &mut Self::Output {
                 unexpanded!()
             }
         }

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData};
 
     #[test]
     fn test_matmul_d2() {
@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn test_matmul_tmp() {
+    fn test_matmul_4_3() {
         let device = Default::default();
         let tensor_1 = TestTensor::<2>::from_floats(
             [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
@@ -96,6 +96,69 @@ mod tests {
         let expected = TensorData::from([[56., 62., 68.], [152., 174., 196.], [248., 286., 324.]]);
 
         tensor_3.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_matmul_trivial() {
+        let device = Default::default();
+
+        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
+            .reshape([4, 4])
+            .float();
+
+        let tensor_3 = tensor_1.clone().matmul(tensor_1);
+
+        tensor_3.into_data().assert_eq(
+            &TensorData::from([
+                [56., 62., 68., 74.],
+                [152., 174., 196., 218.],
+                [248., 286., 324., 362.],
+                [344., 398., 452., 506.],
+            ]),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_matmul_trivial_transposed() {
+        let device = Default::default();
+
+        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
+            .reshape([4, 4])
+            .float();
+
+        let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
+
+        tensor_3.into_data().assert_eq(
+            &TensorData::from([
+                [14., 38., 62., 86.],
+                [38., 126., 214., 302.],
+                [62., 214., 366., 518.],
+                [86., 302., 518., 734.],
+            ]),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_matmul_4_8() {
+        let device = Default::default();
+
+        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..32, &device)
+            .reshape([4, 8])
+            .float();
+
+        let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
+
+        tensor_3.into_data().assert_eq(
+            &TensorData::from([
+                [140., 364., 588., 812.],
+                [364., 1100., 1836., 2572.],
+                [588., 1836., 3084., 4332.],
+                [812., 2572., 4332., 6092.],
+            ]),
+            false,
+        );
     }
 
     #[test]

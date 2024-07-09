@@ -3,13 +3,9 @@ use burn_cube::prelude::*;
 /// Traits used in Cube kernels must expose an _expand variant
 /// for all their methods. However, one does not need to provide its
 /// implementation, see examples below.
+#[cube]
 trait Strategy<T: Numeric> {
     fn operation(input_1: T, input_2: T) -> T;
-    fn operation_expand(
-        context: &mut CubeContext,
-        input_1: <T as CubeType>::ExpandType,
-        input_2: <T as CubeType>::ExpandType,
-    ) -> <T as CubeType>::ExpandType;
 }
 
 struct AddStrategy;
@@ -21,40 +17,19 @@ fn add_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
     input_1 + input_2
 }
 
+#[cube]
 impl<T: Numeric> Strategy<T> for AddStrategy {
-    /// Here we link the trait's method to the cube function
     fn operation(input_1: T, input_2: T) -> T {
-        add_strategy_operation(input_1, input_2)
-    }
-
-    /// Here we link the trait's expanded method to the cube expanded function
-    fn operation_expand(
-        context: &mut CubeContext,
-        input_1: <T as CubeType>::ExpandType,
-        input_2: <T as CubeType>::ExpandType,
-    ) -> <T as CubeType>::ExpandType {
-        add_strategy_operation_expand::<T>(context, input_1, input_2)
+        add_strategy_operation::<T>(input_1, input_2)
     }
 }
 
 struct SubStrategy;
 
 #[cube]
-fn sub_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
-    input_1 - input_2
-}
-
 impl<T: Numeric> Strategy<T> for SubStrategy {
     fn operation(input_1: T, input_2: T) -> T {
-        sub_strategy_operation(input_1, input_2)
-    }
-
-    fn operation_expand(
-        context: &mut CubeContext,
-        input_1: <T as CubeType>::ExpandType,
-        input_2: <T as CubeType>::ExpandType,
-    ) -> <T as CubeType>::ExpandType {
-        sub_strategy_operation_expand::<T>(context, input_1, input_2)
+        input_1 - input_2
     }
 }
 

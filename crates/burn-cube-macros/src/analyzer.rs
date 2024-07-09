@@ -133,10 +133,14 @@ impl VariableAnalyzer {
                 self.find_occurrences_in_expr(&expr.cond, depth);
                 self.find_occurrences_in_stmts(&expr.then_branch.stmts, depth);
                 if let Some((_, expr)) = &expr.else_branch {
-                    if let syn::Expr::Block(expr_block) = &**expr {
-                        self.find_occurrences_in_stmts(&expr_block.block.stmts, depth);
-                    } else {
-                        // Unsupported: handled in codegen.
+                    match &**expr {
+                        syn::Expr::Block(expr_block) => {
+                            self.find_occurrences_in_stmts(&expr_block.block.stmts, depth);
+                        }
+                        syn::Expr::If(expr) => {
+                            self.find_occurrences_in_expr(&syn::Expr::If(expr.clone()), depth);
+                        }
+                        _ => unreachable!(),
                     }
                 }
             }

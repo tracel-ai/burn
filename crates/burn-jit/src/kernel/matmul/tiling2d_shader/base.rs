@@ -1,10 +1,10 @@
 use burn_cube::cpa;
 use burn_cube::ir::{BinaryOperator, Scope, Synchronization, Variable};
 
+use crate::kernel::matmul::config::Tiling2dConfig;
 use crate::kernel::matmul::tiling2d_shader::{
     computation_loop, gather_shader_information, load_shared_memory, write_to_output,
 };
-use crate::kernel::matmul::Tiling2dConfig;
 
 pub(crate) struct MatmulTiling2dShader {
     pub variables: BinaryOperator,

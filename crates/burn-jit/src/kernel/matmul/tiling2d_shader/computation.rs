@@ -56,11 +56,11 @@ pub fn computation_loop(
 
             cpa!(
                 scope,
-                range(0u32, shader.config.tile_size_m as u32, shader.config.unroll).for_each(
+                range(0u32, shader.config.tile_size as u32, shader.config.unroll).for_each(
                     |res_idx_m, scope| {
                         cpa!(
                             scope,
-                            range(0u32, shader.config.tile_size_n as u32, shader.config.unroll)
+                            range(0u32, shader.config.tile_size as u32, shader.config.unroll)
                                 .for_each(|res_idx_n, scope| {
                                     cpa!(scope, registered_m = register_m[res_idx_m]);
                                     cpa!(scope, registered_n = register_n[res_idx_n]);
@@ -69,7 +69,7 @@ pub fn computation_loop(
 
                                     cpa!(
                                         scope,
-                                        results_position = res_idx_m * shader.config.tile_size_n
+                                        results_position = res_idx_m * shader.config.tile_size
                                     );
                                     cpa!(scope, results_position += res_idx_n);
 

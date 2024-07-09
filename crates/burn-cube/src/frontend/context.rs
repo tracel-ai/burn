@@ -124,6 +124,10 @@ impl CubeContext {
         }
     }
 
+    pub fn create_local_array(&mut self, item: Item, size: u32) -> ExpandElement {
+        ExpandElement::Plain(self.root.borrow_mut().create_local_array(item, size))
+    }
+
     /// Obtain the index-th input
     pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
         ExpandElement::Plain(crate::ir::Variable::GlobalInputArray(index, item))

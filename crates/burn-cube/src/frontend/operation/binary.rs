@@ -51,8 +51,8 @@ pub mod sub {
             impl core::ops::Sub for $type {
                 type Output = Self;
 
-                fn sub(self, _rhs: Self) -> Self::Output {
-                    unexpanded!()
+                fn sub(self, rhs: Self) -> Self::Output {
+                    (self.val - rhs.val).into()
                 }
             }
         };
@@ -83,8 +83,8 @@ pub mod mul {
             impl core::ops::Mul for $type {
                 type Output = Self;
 
-                fn mul(self, _rhs: Self) -> Self::Output {
-                    unexpanded!()
+                fn mul(self, rhs: Self) -> Self::Output {
+                    (self.val * rhs.val).into()
                 }
             }
         };
@@ -115,8 +115,8 @@ pub mod div {
             impl core::ops::Div for $type {
                 type Output = Self;
 
-                fn div(self, _rhs: Self) -> Self::Output {
-                    unexpanded!()
+                fn div(self, rhs: Self) -> Self::Output {
+                    (self.val / rhs.val).into()
                 }
             }
         };

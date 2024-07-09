@@ -6,14 +6,17 @@ use crate::{
     ir::{Item, Vectorization},
     unexpanded, KernelSettings, Runtime,
 };
+use crate::{
+    frontend::{indexation::Index, CubeContext},
+    prelude::{assign, index, index_assign, Comptime},
+};
 
 use super::{
-    ArgSettings, CubePrimitive, ExpandElementTyped, Init, LaunchArg, LaunchArgExpand, TensorHandle,
-    UInt,
+    ArgSettings, CubePrimitive, ExpandElement, ExpandElementTyped, Init, LaunchArg,
+    LaunchArgExpand, TensorHandle, UInt,
 };
 
 /// A contiguous array of elements.
-#[derive(new)]
 pub struct Array<E> {
     _val: PhantomData<E>,
 }
@@ -22,6 +25,77 @@ impl<C: CubeType> CubeType for Array<C> {
     type ExpandType = ExpandElementTyped<Array<C>>;
 }
 
+impl<T: CubePrimitive + Clone> Array<T> {
+    pub fn new<S: Index>(_size: S) -> Self {
+        Array { _val: PhantomData }
+    }
+
+    pub fn new_expand<S: Index>(
+        context: &mut CubeContext,
+        size: S,
+    ) -> <Self as CubeType>::ExpandType {
+        let size = size.value();
+        let size = match size {
+            crate::ir::Variable::ConstantScalar(val, _) => val as u32,
+            _ => panic!("Array need constant initialization value"),
+        };
+        context
+            .create_local_array(Item::new(T::as_elem()), size)
+            .into()
+    }
+
+    pub fn vectorized<S: Index>(_size: S, _vectorization_factor: UInt) -> Self {
+        Array { _val: PhantomData }
+    }
+
+    pub fn vectorized_expand<S: Index>(
+        context: &mut CubeContext,
+        size: S,
+        vectorization_factor: UInt,
+    ) -> <Self as CubeType>::ExpandType {
+        let size = size.value();
+        let size = match size {
+            crate::ir::Variable::ConstantScalar(val, _) => val as u32,
+            _ => panic!("Shared memory need constant initialization value"),
+        };
+        context
+            .create_local_array(
+                Item::vectorized(T::as_elem(), vectorization_factor.val as u8),
+                size,
+            )
+            .into()
+    }
+
+    pub fn to_vectorized(self, _vectorization_factor: Comptime<UInt>) -> T {
+        unexpanded!()
+    }
+}
+
+impl<C: CubeType> ExpandElementTyped<Array<C>> {
+    pub fn to_vectorized_expand(
+        self,
+        context: &mut CubeContext,
+        vectorization_factor: UInt,
+    ) -> ExpandElement {
+        let factor = vectorization_factor.val;
+        let var = self.expand.clone();
+        let mut new_var = context.create_local(Item::vectorized(var.item().elem(), factor as u8));
+        if vectorization_factor.val == 1 {
+            let element = index::expand(context, self.clone(), 0u32);
+            assign::expand(context, element, new_var.clone());
+        } else {
+            for i in 0..factor {
+                let element = index::expand(context, self.expand.clone(), i);
+                new_var = index_assign::expand(context, new_var, i, element);
+            }
+        }
+        new_var
+    }
+}
+
+impl<C: CubeType> CubeType for &Array<C> {
+    type ExpandType = ExpandElementTyped<Array<C>>;
+}
 impl<C: CubeType> Init for ExpandElementTyped<Array<C>> {
     fn init(self, _context: &mut crate::prelude::CubeContext) -> Self {
         // The type can't be deeply cloned/copied.

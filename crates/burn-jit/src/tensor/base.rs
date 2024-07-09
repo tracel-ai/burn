@@ -8,6 +8,8 @@ use burn_cube::prelude::*;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
+use super::layout::{memory_layout, MatrixLayout};
+
 /// The basic tensor primitive struct.
 #[derive(new)]
 pub struct JitTensor<R, E, const D: usize>
@@ -165,27 +167,10 @@ where
 
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
-        let mut current_stride = 0;
-        for d in 0..D {
-            let stride = self.strides[D - 1 - d];
-
-            if stride <= current_stride {
-                return false;
-            }
-
-            current_stride = stride;
-        }
-
-        true
+        self.matrix_layout() == MatrixLayout::Contiguous
     }
 
-    pub(crate) fn batch_swapped_with_row_col(&self) -> bool {
-        for d in 0..D - 2 {
-            let stride = self.strides[d];
-            if stride < self.strides[D - 2] || stride < self.strides[D - 1] {
-                return true;
-            }
-        }
-        false
+    pub(crate) fn matrix_layout(&self) -> MatrixLayout {
+        memory_layout(&self.strides)
     }
 }

@@ -24,6 +24,17 @@ pub fn if_then_else<F: Float>(lhs: F) {
     }
 }
 
+#[cube]
+pub fn elsif<F: Float>(lhs: F) {
+    if lhs < F::new(0.) {
+        let _ = lhs + F::new(2.);
+    } else if lhs > F::new(0.) {
+        let _ = lhs + F::new(1.);
+    } else {
+        let _ = lhs + F::new(0.);
+    }
+}
+
 mod tests {
     use burn_cube::{
         cpa,
@@ -62,6 +73,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn cube_elsif_test() {
+        let mut context = CubeContext::root();
+
+        let lhs = context.create_local(Item::new(ElemType::as_elem()));
+
+        elsif_expand::<ElemType>(&mut context, lhs);
+        let scope = context.into_scope();
+
+        assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_elsif());
+    }
+
     fn inline_macro_ref_if() -> String {
         let mut context = CubeContext::root();
         let item = Item::new(ElemType::as_elem());
@@ -95,6 +118,32 @@ mod tests {
             cpa!(scope, y = lhs + 4.0f32);
         }).else(|scope|{
             cpa!(scope, y = lhs - 5.0f32);
+        }));
+
+        format!("{:?}", scope.operations)
+    }
+
+    fn inline_macro_ref_elsif() -> String {
+        let mut context = CubeContext::root();
+        let item = Item::new(ElemType::as_elem());
+        let lhs = context.create_local(item);
+
+        let mut scope = context.into_scope();
+        let cond1 = scope.create_local(Item::new(Elem::Bool));
+        let lhs: Variable = lhs.into();
+        let y = scope.create_local(item);
+        let cond2 = scope.create_local(Item::new(Elem::Bool));
+
+        cpa!(scope, cond1 = lhs < 0f32);
+        cpa!(&mut scope, if(cond1).then(|scope| {
+            cpa!(scope, y = lhs + 2.0f32);
+        }).else(|mut scope|{
+            cpa!(scope, cond2 = lhs > 0f32);
+            cpa!(&mut scope, if(cond2).then(|scope| {
+                cpa!(scope, y = lhs + 1.0f32);
+            }).else(|scope|{
+                cpa!(scope, y = lhs + 0.0f32);
+            }));
         }));
 
         format!("{:?}", scope.operations)

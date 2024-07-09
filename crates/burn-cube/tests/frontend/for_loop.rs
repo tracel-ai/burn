@@ -17,10 +17,7 @@ pub fn for_loop<F: Float>(mut lhs: Array<F>, rhs: F, end: UInt, unroll: Comptime
 }
 
 mod tests {
-    use burn_cube::{
-        cpa,
-        ir::{Item, Variable},
-    };
+    use burn_cube::{cpa, ir::Item};
 
     use super::*;
 
@@ -29,7 +26,7 @@ mod tests {
         let mut context = CubeContext::root();
         let unroll = true;
 
-        let lhs = context.create_local(Item::new(ElemType::as_elem()));
+        let lhs = context.create_local_array(Item::new(ElemType::as_elem()), 4u32);
         let rhs = context.create_local(Item::new(ElemType::as_elem()));
         let end = 4u32.into();
 
@@ -44,7 +41,7 @@ mod tests {
         let mut context = CubeContext::root();
         let unroll = false;
 
-        let lhs = context.create_local(Item::new(ElemType::as_elem()));
+        let lhs = context.create_local_array(Item::new(ElemType::as_elem()), 4u32);
         let rhs = context.create_local(Item::new(ElemType::as_elem()));
         let end = 4u32.into();
 
@@ -55,15 +52,13 @@ mod tests {
     }
 
     fn inline_macro_ref(unroll: bool) -> String {
-        let mut context = CubeContext::root();
+        let context = CubeContext::root();
         let item = Item::new(ElemType::as_elem());
 
-        let lhs = context.create_local(item);
-        let rhs = context.create_local(item);
-        let lhs: Variable = lhs.into();
-        let rhs: Variable = rhs.into();
-        let end = 4u32;
         let mut scope = context.into_scope();
+        let lhs = scope.create_local_array(item, 4u32);
+        let rhs = scope.create_local(item);
+        let end = 4u32;
 
         // Kernel
         let tmp1 = scope.create_local(item);
