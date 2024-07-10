@@ -48,6 +48,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::Pad => same_as_input(node),
         NodeType::Greater => greater_update_outputs(node),
         NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
         NodeType::Less => less_update_outputs(node),

@@ -324,6 +324,7 @@ impl ParsedOnnxGraph {
                 NodeType::ConvTranspose3d => {
                     graph.register(Self::conv_transpose3d_conversion::<PS>(node))
                 }
+                NodeType::Pad => graph.register(Self::pad_conversion(node)),
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
@@ -1096,6 +1097,16 @@ impl ParsedOnnxGraph {
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::lower_equal(lhs, rhs, output)
+    }
+
+    fn pad_conversion(node: Node) -> BinaryNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let pads = TensorType::from(&node.inputs[1]);
+        let constant_value = TensorType::from(&node.inputs[2]);
+        println!("{:#?}", node.inputs);
+        println!("{:#?}, {:#?}", pads, constant_value);
+        panic!("test");
     }
 
     fn pow_conversion(node: Node) -> BinaryNode {
