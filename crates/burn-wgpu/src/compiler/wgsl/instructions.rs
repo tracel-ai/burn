@@ -167,7 +167,7 @@ pub enum Instruction {
         position: usize,
         out: Variable,
     },
-    ArrayLength {
+    Length {
         var: Variable,
         out: Variable,
     },
@@ -234,7 +234,8 @@ pub enum Instruction {
     },
     Slice {
         input: Variable,
-        offset: Variable,
+        start: Variable,
+        end: Variable,
         out: Variable,
     },
     Subgroup(Subgroup),
@@ -250,8 +251,14 @@ impl Display for Instruction {
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
-            Instruction::Slice { input, offset, out } => {
-                f.write_fmt(format_args!("let {out}_offset = {offset};\n"))?;
+            Instruction::Slice {
+                input,
+                start,
+                end,
+                out,
+            } => {
+                f.write_fmt(format_args!("let {out}_offset = {start};\n"))?;
+                f.write_fmt(format_args!("let {out}_length = {end} - {start};\n"))?;
                 f.write_fmt(format_args!("let {out}_ptr = &{input};\n"))
             }
             Instruction::Fma { a, b, c, out } => {
@@ -470,9 +477,10 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             Instruction::Return => f.write_str("return;\n"),
             Instruction::Break => f.write_str("break;\n"),
             Instruction::WorkgroupBarrier => f.write_str("workgroupBarrier();\n"),
-            Instruction::ArrayLength { var, out } => {
-                f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
-            }
+            Instruction::Length { var, out } => match var {
+                Variable::Slice { .. } => f.write_fmt(format_args!("{out} = {var}_length;\n")),
+                _ => f.write_fmt(format_args!("{out} = arrayLength(&{var});\n")),
+            },
             Instruction::Loop { instructions } => {
                 f.write_fmt(format_args!("loop {{\n"))?;
                 for i in instructions {

@@ -465,7 +465,7 @@ impl WgslCompiler {
                     out: self.compile_variable(out),
                 }
             }
-            cube::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
+            cube::Metadata::Length { var, out } => wgsl::Instruction::Length {
                 out: self.compile_variable(out),
                 var: self.compile_variable(var),
             },
@@ -669,7 +669,8 @@ impl WgslCompiler {
             },
             cube::Operator::Slice(op) => wgsl::Instruction::Slice {
                 input: self.compile_variable(op.input),
-                offset: self.compile_variable(op.offset),
+                start: self.compile_variable(op.start),
+                end: self.compile_variable(op.end),
                 out: self.compile_variable(op.out),
             },
         }

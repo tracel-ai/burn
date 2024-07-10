@@ -174,11 +174,9 @@ impl Display for Variable {
                 item: _,
                 depth: scope_depth,
             } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
-            Variable::Slice {
-                id: index,
-                item: _,
-                depth: scope_depth,
-            } => f.write_fmt(format_args!("slice_{scope_depth}_{index}")),
+            Variable::Slice { id, item: _, depth } => {
+                f.write_fmt(format_args!("slice_{depth}_{id}"))
+            }
             Variable::GlobalOutputArray(number, _) => f.write_fmt(format_args!("output_{number}")),
             Variable::GlobalScalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))

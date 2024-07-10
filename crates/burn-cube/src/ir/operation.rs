@@ -85,7 +85,7 @@ pub enum Metadata {
         var: Variable,
         out: Variable,
     },
-    ArrayLength {
+    Length {
         var: Variable,
         out: Variable,
     },
@@ -125,7 +125,8 @@ pub struct ClampOperator {
 #[allow(missing_docs)]
 pub struct SliceOperator {
     pub input: Variable,
-    pub offset: Variable,
+    pub start: Variable,
+    pub end: Variable,
     pub out: Variable,
 }
 

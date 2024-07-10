@@ -108,10 +108,16 @@ impl UnaryOperator {
 impl SliceOperator {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         let input = self.input.vectorize(vectorization);
-        let offset = self.offset.vectorize(vectorization);
+        let start = self.start.vectorize(vectorization);
+        let end = self.end.vectorize(vectorization);
         let out = self.out.vectorize(vectorization);
 
-        Self { input, offset, out }
+        Self {
+            input,
+            start,
+            end,
+            out,
+        }
     }
 }
 

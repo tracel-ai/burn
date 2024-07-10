@@ -5,32 +5,21 @@ use crate::{
     ir::Item,
 };
 
-use super::{ExpandElement, Init, UInt};
+use super::{ExpandElementTyped, Init, UInt};
 
 #[derive(Clone, Copy)]
 pub struct SharedMemory<T: CubeType> {
     _val: PhantomData<T>,
 }
 
-#[derive(Clone)]
-pub struct SharedMemoryExpand<T: CubePrimitive> {
-    pub val: <T as CubeType>::ExpandType,
-}
-
-impl<T: CubePrimitive> From<SharedMemoryExpand<T>> for ExpandElement {
-    fn from(shared_memory_expand: SharedMemoryExpand<T>) -> Self {
-        shared_memory_expand.val
-    }
-}
-
-impl<T: CubePrimitive> Init for SharedMemoryExpand<T> {
+impl<T: CubePrimitive> Init for ExpandElementTyped<SharedMemory<T>> {
     fn init(self, _context: &mut CubeContext) -> Self {
         self
     }
 }
 
 impl<T: CubePrimitive> CubeType for SharedMemory<T> {
-    type ExpandType = SharedMemoryExpand<T>;
+    type ExpandType = ExpandElementTyped<SharedMemory<T>>;
 }
 
 impl<T: CubePrimitive + Clone> SharedMemory<T> {
@@ -47,7 +36,8 @@ impl<T: CubePrimitive + Clone> SharedMemory<T> {
             crate::ir::Variable::ConstantScalar { value, .. } => value as u32,
             _ => panic!("Shared memory need constant initialization value"),
         };
-        context.create_shared(Item::new(T::as_elem()), size)
+        let var = context.create_shared(Item::new(T::as_elem()), size);
+        ExpandElementTyped::new(var)
     }
 
     pub fn vectorized<S: Index>(_size: S, _vectorization_factor: UInt) -> Self {
@@ -64,9 +54,10 @@ impl<T: CubePrimitive + Clone> SharedMemory<T> {
             crate::ir::Variable::ConstantScalar { value, .. } => value as u32,
             _ => panic!("Shared memory need constant initialization value"),
         };
-        context.create_shared(
+        let var = context.create_shared(
             Item::vectorized(T::as_elem(), vectorization_factor.val as u8),
             size,
-        )
+        );
+        ExpandElementTyped::new(var)
     }
 }

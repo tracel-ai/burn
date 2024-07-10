@@ -202,7 +202,7 @@ impl<T> ExpandElementTyped<T> {
     // Expanded version of len
     pub fn len_expand(self, context: &mut CubeContext) -> ExpandElement {
         let out = context.create_local(Item::new(Elem::UInt));
-        context.register(Metadata::ArrayLength {
+        context.register(Metadata::Length {
             var: self.expand.into(),
             out: out.clone().into(),
         });

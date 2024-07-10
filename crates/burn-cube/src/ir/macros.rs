@@ -352,7 +352,7 @@ macro_rules! cpa {
     };
     // out = len(array)
     ($scope:expr, $out:ident = len($input:expr)) => {
-        $scope.register($crate::ir::Metadata::ArrayLength {
+        $scope.register($crate::ir::Metadata::Length {
             var: $input.into(),
             out: $out.into(),
         });

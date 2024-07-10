@@ -83,6 +83,9 @@ impl CudaCompiler {
         let processing = value.process();
 
         for var in processing.variables {
+            if let gpu::Variable::Slice { .. } = var {
+                continue;
+            }
             instructions.push(Instruction::DeclareVariable {
                 var: self.compile_variable(var),
             });
@@ -215,12 +218,22 @@ impl CudaCompiler {
                     out: self.compile_variable(out),
                 }
             }
-            gpu::Metadata::ArrayLength { var, out } => super::Instruction::ArrayLength {
-                input: self.compile_variable(var),
-                out: self.compile_variable(out),
-                num_inputs: self.num_inputs,
-                num_outputs: self.num_outputs,
-            },
+            gpu::Metadata::Length { var, out } => {
+                let input = self.compile_variable(var);
+                let out = self.compile_variable(out);
+
+                match input {
+                    super::Variable::Slice { id, item, depth } => {
+                        super::Instruction::SliceLength { input, out }
+                    }
+                    _ => super::Instruction::Length {
+                        input,
+                        out,
+                        num_inputs: self.num_inputs,
+                        num_outputs: self.num_outputs,
+                    },
+                }
+            }
         }
     }
 
@@ -299,7 +312,8 @@ impl CudaCompiler {
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
             gpu::Operator::Slice(op) => Instruction::Slice {
                 input: self.compile_variable(op.input),
-                offset: self.compile_variable(op.offset),
+                start: self.compile_variable(op.start),
+                end: self.compile_variable(op.end),
                 out: self.compile_variable(op.out),
             },
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
