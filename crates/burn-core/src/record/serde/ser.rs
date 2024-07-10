@@ -107,8 +107,8 @@ impl SerializerTrait for Serializer {
         unimplemented!()
     }
 
-    fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+    fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
+        Ok(NestedValue::U8s(v.to_vec()))
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
