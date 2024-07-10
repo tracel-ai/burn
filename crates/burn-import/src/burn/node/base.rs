@@ -151,6 +151,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Pad(node) => $func(node),
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Resize(node) => $func(node),
