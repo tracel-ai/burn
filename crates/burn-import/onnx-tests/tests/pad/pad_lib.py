@@ -94,3 +94,4 @@ def test_positive_pads(model: ModelProto) -> None:
 def run_tests(model: ModelProto) -> None:
     test_positive_pads(model)
     # TODO: test_negative_pads
+    # TODO: support other modes: reflect, edge, wrap
