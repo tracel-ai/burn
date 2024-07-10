@@ -275,10 +275,12 @@ impl Display for Instruction {
                     let offset = Variable::Named {
                         name: format!("{lhs}_offset"),
                         item: Item::Scalar(Elem::U32),
+                        is_array: false,
                     };
                     let lhs = Variable::Named {
                         name: format!("(*{lhs}_ptr)"),
                         item: *item,
+                        is_array: true,
                     };
                     index(f, &lhs, rhs, out, Some(offset))
                 }
@@ -427,14 +429,18 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::IndexAssign { lhs, rhs, out } => {
                 if let Variable::Slice { item, .. } = out {
-                    let name = format!("{out}_offset");
-                    index_assign(
-                        f,
-                        lhs,
-                        rhs,
-                        out,
-                        Some(Variable::Named { name, item: *item }),
-                    )
+                    let offset = Variable::Named {
+                        name: format!("{out}_offset"),
+                        item: Item::Scalar(Elem::U32),
+                        is_array: false,
+                    };
+                    let out = Variable::Named {
+                        name: format!("(*{out}_ptr)"),
+                        item: *item,
+                        is_array: true,
+                    };
+
+                    index_assign(f, lhs, rhs, &out, Some(offset))
                 } else {
                     index_assign(f, lhs, rhs, out, None)
                 }
@@ -678,14 +684,15 @@ fn index_assign(
             f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
         }
         Item::Scalar(_elem) => {
-            let is_array = matches!(
-                out,
+            let is_array = match out {
                 Variable::GlobalInputArray(_, _)
-                    | Variable::GlobalOutputArray(_, _)
-                    | Variable::SharedMemory(_, _, _)
-                    | Variable::Slice { .. }
-                    | Variable::LocalArray(_, _, _, _)
-            );
+                | Variable::GlobalOutputArray(_, _)
+                | Variable::SharedMemory(_, _, _)
+                | Variable::Slice { .. }
+                | Variable::LocalArray(_, _, _, _) => true,
+                Variable::Named { is_array, .. } => *is_array,
+                _ => false,
+            };
 
             if !is_array {
                 let elem_out = out.elem();

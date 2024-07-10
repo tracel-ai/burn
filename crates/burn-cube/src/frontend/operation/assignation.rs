@@ -19,7 +19,11 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::{frontend::CubeType, prelude::Slice, unexpanded};
+    use crate::{
+        frontend::CubeType,
+        prelude::{Slice, SliceMut},
+        unexpanded,
+    };
 
     use self::ir::{BinaryOperator, Operator, Variable};
 
@@ -59,9 +63,14 @@ pub mod index_assign {
     }
 
     impl_index!(Array);
-    impl_index!(Slice);
     impl_index!(Tensor);
     impl_index!(SharedMemory);
+
+    impl<'a, E: CubeType, I: Into<UInt>> core::ops::IndexMut<I> for SliceMut<'a, E> {
+        fn index_mut(&mut self, _index: I) -> &mut Self::Output {
+            unexpanded!()
+        }
+    }
 }
 
 pub mod index {
@@ -70,7 +79,7 @@ pub mod index {
             operation::base::{binary_expand, binary_expand_no_vec},
             CubeType,
         },
-        prelude::Slice,
+        prelude::{Slice, SliceMut},
         unexpanded,
     };
 
@@ -115,9 +124,22 @@ pub mod index {
     }
 
     impl_index!(Array);
-    impl_index!(Slice);
     impl_index!(Tensor);
     impl_index!(SharedMemory);
+
+    impl<'a, E: CubeType, I: Into<UInt>> core::ops::Index<I> for SliceMut<'a, E> {
+        type Output = E;
+        fn index(&self, _index: I) -> &Self::Output {
+            unexpanded!()
+        }
+    }
+
+    impl<'a, E: CubeType, I: Into<UInt>> core::ops::Index<I> for Slice<'a, E> {
+        type Output = E;
+        fn index(&self, _index: I) -> &Self::Output {
+            unexpanded!()
+        }
+    }
 }
 
 pub mod add_assign_array_op {
