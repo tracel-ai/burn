@@ -7,31 +7,46 @@ pub trait Index {
 
 impl Index for Comptime<u32> {
     fn value(self) -> Variable {
-        Variable::ConstantScalar(self.inner as f64, Elem::UInt)
+        Variable::ConstantScalar {
+            value: self.inner as f64,
+            elem: Elem::UInt,
+        }
     }
 }
 
 impl Index for Comptime<i32> {
     fn value(self) -> Variable {
-        Variable::ConstantScalar(self.inner as f64, Elem::UInt)
+        Variable::ConstantScalar {
+            value: self.inner as f64,
+            elem: Elem::UInt,
+        }
     }
 }
 
 impl Index for i32 {
     fn value(self) -> Variable {
-        Variable::ConstantScalar(self as f64, Elem::UInt)
+        Variable::ConstantScalar {
+            value: self as f64,
+            elem: Elem::UInt,
+        }
     }
 }
 
 impl Index for u32 {
     fn value(self) -> Variable {
-        Variable::ConstantScalar(self as f64, Elem::UInt)
+        Variable::ConstantScalar {
+            value: self as f64,
+            elem: Elem::UInt,
+        }
     }
 }
 
 impl Index for UInt {
     fn value(self) -> Variable {
-        Variable::ConstantScalar(self.val as f64, Elem::UInt)
+        Variable::ConstantScalar {
+            value: self.val as f64,
+            elem: Elem::UInt,
+        }
     }
 }
 

@@ -27,8 +27,8 @@ struct GatherComputeShader {
 impl GatherComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         match self.tensor {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Tensor variable must be an global array."),
         };
 
@@ -78,10 +78,16 @@ impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
         let item_tensor = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let tensor = Variable::GlobalInputArray(0, item_tensor);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_tensor,
+        };
         let indices = scope.read_array(1, item_indices, Variable::AbsolutePos);
 
-        let output_array = Variable::GlobalOutputArray(0, item_tensor);
+        let output_array = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_tensor,
+        };
         let output_local = scope.create_local(item_tensor);
 
         GatherComputeShader {

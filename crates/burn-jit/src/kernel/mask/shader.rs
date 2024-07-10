@@ -40,7 +40,10 @@ impl MaskStrategy for MaskFill {
     }
 
     fn value_variable(value_item: Item) -> Variable {
-        Variable::GlobalScalar(0, value_item.elem())
+        Variable::GlobalScalar {
+            id: 0,
+            elem: value_item.elem(),
+        }
     }
 }
 
@@ -65,7 +68,10 @@ impl MaskStrategy for MaskWhere {
     }
 
     fn value_variable(value_item: Item) -> Variable {
-        Variable::GlobalInputArray(2, value_item)
+        Variable::GlobalInputArray {
+            id: 2,
+            item: value_item,
+        }
     }
 }
 
@@ -102,10 +108,19 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
         let tensor_item = EI::cube_elem().into();
         let mask_item = EM::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, tensor_item);
-        let mask = Variable::GlobalInputArray(1, mask_item);
+        let input = Variable::GlobalInputArray {
+            id: 0,
+            item: tensor_item,
+        };
+        let mask = Variable::GlobalInputArray {
+            id: 1,
+            item: mask_item,
+        };
         let value = M::value_variable(tensor_item);
-        let output = Variable::GlobalOutputArray(0, tensor_item);
+        let output = Variable::GlobalOutputArray {
+            id: 0,
+            item: tensor_item,
+        };
 
         MaskShader::<EI, EM, M> {
             input,
@@ -176,8 +191,14 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
         let tensor_item = EI::cube_elem().into();
         let mask_item = EM::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, tensor_item);
-        let mask = Variable::GlobalInputArray(1, mask_item);
+        let input = Variable::GlobalInputArray {
+            id: 0,
+            item: tensor_item,
+        };
+        let mask = Variable::GlobalInputArray {
+            id: 1,
+            item: mask_item,
+        };
         let value = M::value_variable(tensor_item);
 
         MaskShader::<EI, EM, M> {

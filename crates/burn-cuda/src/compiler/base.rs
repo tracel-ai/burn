@@ -192,8 +192,8 @@ impl CudaCompiler {
             gpu::Metadata::Stride { dim, var, out } => {
                 self.stride = true;
                 let position = match var {
-                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    gpu::Variable::GlobalInputArray { id, .. } => id as usize,
+                    gpu::Variable::GlobalOutputArray { id, .. } => self.num_inputs + id as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 Instruction::Stride {
@@ -205,8 +205,8 @@ impl CudaCompiler {
             gpu::Metadata::Shape { dim, var, out } => {
                 self.shape = true;
                 let position = match var {
-                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    gpu::Variable::GlobalInputArray { id, .. } => id as usize,
+                    gpu::Variable::GlobalOutputArray { id, .. } => self.num_inputs + id as usize,
                     _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
                 Instruction::Shape {
@@ -372,35 +372,40 @@ impl CudaCompiler {
 
     fn compile_variable(&mut self, value: gpu::Variable) -> super::Variable {
         match value {
-            gpu::Variable::GlobalInputArray(index, item) => {
-                super::Variable::GlobalInputArray(index, Self::compile_item(item))
+            gpu::Variable::GlobalInputArray { id, item } => {
+                super::Variable::GlobalInputArray(id, Self::compile_item(item))
             }
-            gpu::Variable::GlobalScalar(index, elem) => {
-                super::Variable::GlobalScalar(index, Self::compile_elem(elem), elem)
+            gpu::Variable::GlobalScalar { id, elem } => {
+                super::Variable::GlobalScalar(id, Self::compile_elem(elem), elem)
             }
-            gpu::Variable::Local(index, item, scope_depth) => super::Variable::Local {
-                index,
+            gpu::Variable::Local { id, item, depth } => super::Variable::Local {
+                id,
                 item: Self::compile_item(item),
-                scope_depth,
+                depth,
             },
-            gpu::Variable::LocalScalar(index, elem, scope_depth) => super::Variable::LocalScalar {
-                index,
+            gpu::Variable::Slice { id, item, depth } => super::Variable::Slice {
+                id,
+                item: Self::compile_item(item),
+                depth,
+            },
+            gpu::Variable::LocalScalar { id, elem, depth } => super::Variable::LocalScalar {
+                id,
                 elem: Self::compile_elem(elem),
-                scope_depth,
+                depth,
             },
-            gpu::Variable::GlobalOutputArray(index, item) => {
-                super::Variable::GlobalOutputArray(index, Self::compile_item(item))
+            gpu::Variable::GlobalOutputArray { id, item } => {
+                super::Variable::GlobalOutputArray(id, Self::compile_item(item))
             }
-            gpu::Variable::ConstantScalar(index, elem) => {
-                super::Variable::ConstantScalar(index, Self::compile_elem(elem))
+            gpu::Variable::ConstantScalar { value, elem } => {
+                super::Variable::ConstantScalar(value, Self::compile_elem(elem))
             }
-            gpu::Variable::SharedMemory(index, item, size) => {
+            gpu::Variable::SharedMemory { id, item, length } => {
                 let item = Self::compile_item(item);
-                if !self.shared_memories.iter().any(|s| s.index == index) {
+                if !self.shared_memories.iter().any(|s| s.index == id) {
                     self.shared_memories
-                        .push(super::SharedMemory::new(index, item, size));
+                        .push(super::SharedMemory::new(id, item, length));
                 }
-                super::Variable::SharedMemory(index, item, size)
+                super::Variable::SharedMemory(id, item, length)
             }
             gpu::Variable::AbsolutePos => {
                 self.id = true;
@@ -438,7 +443,12 @@ impl CudaCompiler {
             gpu::Variable::CubeCountX => super::Variable::NumWorkgroupsX,
             gpu::Variable::CubeCountY => super::Variable::NumWorkgroupsY,
             gpu::Variable::CubeCountZ => super::Variable::NumWorkgroupsZ,
-            gpu::Variable::LocalArray(id, item, depth, size) => {
+            gpu::Variable::LocalArray {
+                id,
+                item,
+                depth,
+                length,
+            } => {
                 let item = Self::compile_item(item);
                 if !self
                     .local_arrays
@@ -446,19 +456,19 @@ impl CudaCompiler {
                     .any(|s| s.index == id && s.depth == depth)
                 {
                     self.local_arrays
-                        .push(super::LocalArray::new(id, item, depth, size));
+                        .push(super::LocalArray::new(id, item, depth, length));
                 }
-                super::Variable::LocalArray(id, item, depth, size)
+                super::Variable::LocalArray(id, item, depth, length)
             }
             gpu::Variable::CubePos => todo!(),
             gpu::Variable::CubeDim => todo!(),
             gpu::Variable::CubeCount => todo!(),
             gpu::Variable::SubcubeDim => todo!(),
-            gpu::Variable::Matrix(index, matrix) => {
+            gpu::Variable::Matrix { id, mat } => {
                 self.wmma = true;
                 super::Variable::WmmaFragment {
-                    index,
-                    frag: Self::compile_matrix(matrix),
+                    id,
+                    frag: Self::compile_matrix(mat),
                 }
             }
         }

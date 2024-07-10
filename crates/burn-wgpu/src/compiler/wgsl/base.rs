@@ -8,16 +8,9 @@ pub enum Variable {
     GlobalOutputArray(u16, Item),
     GlobalScalar(u16, Elem, cube::Elem),
     ConstantScalar(f64, Elem),
-    Local {
-        index: u16,
-        item: Item,
-        scope_depth: u8,
-    },
-    LocalScalar {
-        index: u16,
-        elem: Elem,
-        scope_depth: u8,
-    },
+    Local { id: u16, item: Item, depth: u8 },
+    Slice { id: u16, item: Item, depth: u8 },
+    LocalScalar { id: u16, elem: Elem, depth: u8 },
     SharedMemory(u16, Item, u32),
     LocalArray(u16, Item, u8, u32),
     Id,
@@ -71,9 +64,9 @@ impl Variable {
             Variable::GlobalScalar(_, _, _) => true,
             Variable::ConstantScalar(_, _) => true,
             Variable::LocalScalar {
-                index: _,
+                id: _,
                 elem: _,
-                scope_depth: _,
+                depth: _,
             } => true,
             Variable::Id => true,
             Variable::LocalInvocationIndex => true,
@@ -86,9 +79,14 @@ impl Variable {
             Variable::SharedMemory(_, _, _) => false,
             Variable::LocalArray(_, _, _, _) => false,
             Variable::Local {
-                index: _,
+                id: _,
                 item: _,
-                scope_depth: _,
+                depth: _,
+            } => false,
+            Variable::Slice {
+                id: _,
+                item: _,
+                depth: _,
             } => false,
             Variable::WorkgroupIdX => true,
             Variable::WorkgroupIdY => true,
@@ -122,9 +120,14 @@ impl Variable {
             Self::SharedMemory(_, e, _) => *e,
             Self::LocalArray(_, e, _, _) => *e,
             Self::Local {
-                index: _,
+                id: _,
                 item,
-                scope_depth: _,
+                depth: _,
+            } => *item,
+            Self::Slice {
+                id: _,
+                item,
+                depth: _,
             } => *item,
             Self::ConstantScalar(_, e) => Item::Scalar(*e),
             Self::GlobalScalar(_, e, _) => Item::Scalar(*e),
@@ -135,9 +138,9 @@ impl Variable {
             Self::LocalInvocationIdZ => Item::Scalar(Elem::U32),
             Self::Rank => Item::Scalar(Elem::U32),
             Self::LocalScalar {
-                index: _,
+                id: _,
                 elem,
-                scope_depth: _,
+                depth: _,
             } => Item::Scalar(*elem),
             Self::WorkgroupId => Item::Scalar(Elem::U32),
             Self::WorkgroupIdX => Item::Scalar(Elem::U32),
@@ -222,15 +225,20 @@ impl Display for Variable {
                 f.write_fmt(format_args!("input_{number}_global"))
             }
             Variable::LocalScalar {
-                index,
+                id: index,
                 elem: _,
-                scope_depth,
+                depth: scope_depth,
             } => f.write_fmt(format_args!("s_{scope_depth}_{index}")),
             Variable::Local {
-                index,
+                id: index,
                 item: _,
-                scope_depth,
+                depth: scope_depth,
             } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
+            Variable::Slice {
+                id: index,
+                item: _,
+                depth: scope_depth,
+            } => f.write_fmt(format_args!("slice_{scope_depth}_{index}")),
             Variable::GlobalOutputArray(number, _) => {
                 f.write_fmt(format_args!("output_{number}_global"))
             }

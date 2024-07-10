@@ -60,8 +60,14 @@ impl<R: JitRuntime, EO: JitElement> Kernel for BoolCastEagerKernel<R, EO> {
         let item_input = Item::new(Elem::Bool);
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray(0, item_input);
-        let output = Variable::GlobalOutputArray(0, item_output);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_input,
+        };
+        let output = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_output,
+        };
 
         BoolCastShader { tensor, output }.expand(&mut scope);
 

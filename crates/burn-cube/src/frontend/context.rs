@@ -129,19 +129,19 @@ impl CubeContext {
     }
 
     /// Obtain the index-th input
-    pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
-        ExpandElement::Plain(crate::ir::Variable::GlobalInputArray(index, item))
+    pub fn input(&mut self, id: u16, item: Item) -> ExpandElement {
+        ExpandElement::Plain(crate::ir::Variable::GlobalInputArray { id, item })
     }
 
     /// Obtain the index-th output
-    pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
-        let var = crate::ir::Variable::GlobalOutputArray(index, item);
+    pub fn output(&mut self, id: u16, item: Item) -> ExpandElement {
+        let var = crate::ir::Variable::GlobalOutputArray { id, item };
         self.scope.borrow_mut().write_global_custom(var);
         ExpandElement::Plain(var)
     }
 
     /// Obtain the index-th scalar
-    pub fn scalar(&self, index: u16, elem: Elem) -> ExpandElement {
-        ExpandElement::Plain(crate::ir::Variable::GlobalScalar(index, elem))
+    pub fn scalar(&self, id: u16, elem: Elem) -> ExpandElement {
+        ExpandElement::Plain(crate::ir::Variable::GlobalScalar { id, elem })
     }
 }

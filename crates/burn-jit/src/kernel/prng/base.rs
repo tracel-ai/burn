@@ -66,17 +66,32 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, 
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let output = Variable::GlobalOutputArray(0, item);
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
-        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
-        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
-        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
-        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
+        let seed0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let seed1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let seed2 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let seed3 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
         let seeds = [seed0, seed1, seed2, seed3];
 
         let mut args = Vec::<Variable>::new();
         for i in 0..P::args_length() {
-            args.push(Variable::GlobalScalar(i as u16, item.elem()));
+            args.push(Variable::GlobalScalar {
+                id: i as u16,
+                elem: item.elem(),
+            });
         }
 
         PrngShader::<P, E>::new(output, N_VALUES_PER_THREAD, seeds, args).expand(&mut scope);

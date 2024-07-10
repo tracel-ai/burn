@@ -44,7 +44,7 @@ impl<T: CubePrimitive + Clone> SharedMemory<T> {
     ) -> <Self as CubeType>::ExpandType {
         let size = size.value();
         let size = match size {
-            crate::ir::Variable::ConstantScalar(val, _) => val as u32,
+            crate::ir::Variable::ConstantScalar { value, .. } => value as u32,
             _ => panic!("Shared memory need constant initialization value"),
         };
         context.create_shared(Item::new(T::as_elem()), size)
@@ -61,7 +61,7 @@ impl<T: CubePrimitive + Clone> SharedMemory<T> {
     ) -> <Self as CubeType>::ExpandType {
         let size = size.value();
         let size = match size {
-            crate::ir::Variable::ConstantScalar(val, _) => val as u32,
+            crate::ir::Variable::ConstantScalar { value, .. } => value as u32,
             _ => panic!("Shared memory need constant initialization value"),
         };
         context.create_shared(

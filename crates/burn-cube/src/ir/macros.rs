@@ -398,43 +398,64 @@ macro_rules! cpa {
 
 impl From<bool> for Variable {
     fn from(value: bool) -> Self {
-        Self::ConstantScalar(if value { 1.0 } else { 0.0 }, super::Elem::Bool)
+        Self::ConstantScalar {
+            value: if value { 1.0 } else { 0.0 },
+            elem: super::Elem::Bool,
+        }
     }
 }
 
 impl From<i32> for Variable {
     fn from(value: i32) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Int(super::IntKind::I32))
+        Self::ConstantScalar {
+            value: value as f64,
+            elem: super::Elem::Int(super::IntKind::I32),
+        }
     }
 }
 
 impl From<i64> for Variable {
     fn from(value: i64) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Int(super::IntKind::I64))
+        Self::ConstantScalar {
+            value: value as f64,
+            elem: super::Elem::Int(super::IntKind::I64),
+        }
     }
 }
 
 impl From<f32> for Variable {
     fn from(value: f32) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::Float(super::FloatKind::F32))
+        Self::ConstantScalar {
+            value: value as f64,
+            elem: super::Elem::Float(super::FloatKind::F32),
+        }
     }
 }
 
 impl From<f64> for Variable {
     fn from(value: f64) -> Self {
-        Self::ConstantScalar(value, super::Elem::Float(super::FloatKind::F64))
+        Self::ConstantScalar {
+            value,
+            elem: super::Elem::Float(super::FloatKind::F64),
+        }
     }
 }
 
 impl From<u32> for Variable {
     fn from(value: u32) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::UInt)
+        Self::ConstantScalar {
+            value: value as f64,
+            elem: super::Elem::UInt,
+        }
     }
 }
 
 impl From<usize> for Variable {
     fn from(value: usize) -> Self {
-        Self::ConstantScalar(value as f64, super::Elem::UInt)
+        Self::ConstantScalar {
+            value: value as f64,
+            elem: super::Elem::UInt,
+        }
     }
 }
 

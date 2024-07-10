@@ -34,7 +34,10 @@ pub mod index_assign {
         let array = array.into();
         let index: Variable = *index.into();
         let index = match index {
-            Variable::ConstantScalar(val, _) => Variable::ConstantScalar(val, ir::Elem::UInt),
+            Variable::ConstantScalar { value, .. } => Variable::ConstantScalar {
+                value,
+                elem: ir::Elem::UInt,
+            },
             _ => index,
         };
         context.register(Operator::IndexAssign(BinaryOperator {
@@ -78,20 +81,21 @@ pub mod index {
         array: L,
         index: R,
     ) -> ExpandElement {
-        let index = index.into();
+        let index: ExpandElement = index.into();
         let index_var: Variable = *index;
         let index = match index_var {
-            Variable::ConstantScalar(val, _) => {
-                ExpandElement::Plain(Variable::ConstantScalar(val, ir::Elem::UInt))
+            Variable::ConstantScalar { value, .. } => {
+                ExpandElement::Plain(Variable::ConstantScalar {
+                    value,
+                    elem: ir::Elem::UInt,
+                })
             }
             _ => index,
         };
-        let array = array.into();
+        let array: ExpandElement = array.into();
         let var: Variable = *array;
         match var {
-            Variable::Local(_, _, _) => {
-                binary_expand_no_vec(context, array, index, Operator::Index)
-            }
+            Variable::Local { .. } => binary_expand_no_vec(context, array, index, Operator::Index),
             _ => binary_expand(context, array, index, Operator::Index),
         }
     }

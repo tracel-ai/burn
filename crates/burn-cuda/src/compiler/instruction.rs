@@ -114,7 +114,7 @@ impl Display for Instruction {
             Instruction::Return => f.write_str("return;"),
             Instruction::Break => f.write_str("break;"),
             Instruction::DeclareVariable { var } => match var {
-                Variable::WmmaFragment { index: _, frag } => {
+                Variable::WmmaFragment { id: _, frag } => {
                     f.write_fmt(format_args!("{frag} {var};\n"))
                 }
                 _ => {

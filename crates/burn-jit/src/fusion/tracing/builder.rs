@@ -56,9 +56,11 @@ impl TraceBuilder {
             }
             true => match self.output_to_local.get(&tensor.id) {
                 // Is a local variable.
-                Some(local_index) => {
-                    Variable::Local(*local_index, Item::new(elem), self.scope.depth)
-                }
+                Some(local_index) => Variable::Local {
+                    id: *local_index,
+                    item: Item::new(elem),
+                    depth: self.scope.depth,
+                },
                 // Isn't an operation output variable, so must be an existing input.
                 None => self
                     .inputs
@@ -85,7 +87,11 @@ impl TraceBuilder {
 
         // Output already registered as a local variable.
         if let Some(index) = self.output_to_local.get(&tensor.id) {
-            return Variable::Local(*index, Item::new(elem), self.scope.depth);
+            return Variable::Local {
+                id: *index,
+                item: Item::new(elem),
+                depth: self.scope.depth,
+            };
         }
 
         let variable = self.scope.create_local(Item::new(elem));
@@ -159,11 +165,11 @@ impl TraceBuilder {
         //
         // Only local variables can become outputs.
         let mark = |var: &Variable, list: &mut Vec<TensorId>| {
-            if let Variable::Local(index, _, _) = var {
+            if let Variable::Local { id: id_local, .. } = var {
                 if let Some((id, _)) = self
                     .output_to_local
                     .iter()
-                    .find(|(_id, position)| *position == index)
+                    .find(|(_tensor_id, position)| *position == id_local)
                 {
                     if !list.contains(id) {
                         list.push(*id);

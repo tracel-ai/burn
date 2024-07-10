@@ -128,9 +128,18 @@ mod tests {
         let mut scope = context.into_scope();
         let local = scope.create_local(Item::new(Elem::UInt));
 
-        let array = Variable::GlobalInputArray(0, Item::new(Elem::UInt));
-        let index = Variable::ConstantScalar(1., Elem::UInt);
-        let value = Variable::ConstantScalar(1., Elem::UInt);
+        let array = Variable::GlobalInputArray {
+            id: 0,
+            item: Item::new(Elem::UInt),
+        };
+        let index = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
+        let value = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
 
         cpa!(scope, local = array[index]);
         cpa!(scope, local += value);
@@ -186,10 +195,22 @@ mod tests {
         let index = scope.create_local(Item::new(Elem::UInt));
         let local = scope.create_local(Item::new(Elem::UInt));
 
-        let array = Variable::GlobalInputArray(0, Item::new(Elem::UInt));
-        let const1 = Variable::ConstantScalar(1., Elem::UInt);
-        let const2 = Variable::ConstantScalar(5., Elem::UInt);
-        let value = Variable::ConstantScalar(1., Elem::UInt);
+        let array = Variable::GlobalInputArray {
+            id: 0,
+            item: Item::new(Elem::UInt),
+        };
+        let const1 = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
+        let const2 = Variable::ConstantScalar {
+            value: 5.,
+            elem: Elem::UInt,
+        };
+        let value = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
 
         cpa!(scope, index = const1 + const2);
         cpa!(scope, local = array[index]);

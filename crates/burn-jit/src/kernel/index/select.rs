@@ -73,9 +73,12 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let indices = Variable::GlobalInputArray(1, item_indices);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let indices = Variable::GlobalInputArray {
+            id: 1,
+            item: item_indices,
+        };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 

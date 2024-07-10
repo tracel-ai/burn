@@ -86,9 +86,14 @@ impl Component for Variable {
             Variable::GlobalOutputArray(_, e) => *e,
             Variable::SharedMemory(_, e, _) => *e,
             Variable::Local {
-                index: _,
+                id: _,
                 item,
-                scope_depth: _,
+                depth: _,
+            } => *item,
+            Variable::Slice {
+                id: _,
+                item,
+                depth: _,
             } => *item,
             Variable::ConstantScalar(_, e) => Item::Scalar(*e),
             Variable::GlobalScalar(_, e, _) => Item::Scalar(*e),
@@ -99,9 +104,9 @@ impl Component for Variable {
             Variable::LocalInvocationIdZ => Item::Scalar(Elem::U32),
             Variable::Rank => Item::Scalar(Elem::U32),
             Variable::LocalScalar {
-                index: _,
+                id: _,
                 elem,
-                scope_depth: _,
+                depth: _,
             } => Item::Scalar(*elem),
             Variable::WorkgroupIdX => Item::Scalar(Elem::U32),
             Variable::WorkgroupIdY => Item::Scalar(Elem::U32),
@@ -117,7 +122,7 @@ impl Component for Variable {
             Variable::NumWorkgroupsZ => Item::Scalar(Elem::U32),
             Variable::LocalArray(_, e, _, _) => *e,
             Variable::WarpSize => Item::Scalar(Elem::U32),
-            Variable::WmmaFragment { index: _, frag } => Item::Scalar(frag.elem),
+            Variable::WmmaFragment { id: _, frag } => Item::Scalar(frag.elem),
         }
     }
 }
@@ -129,16 +134,9 @@ pub enum Variable {
     GlobalOutputArray(u16, Item),
     GlobalScalar(u16, Elem, gpu::Elem),
     ConstantScalar(f64, Elem),
-    Local {
-        index: u16,
-        item: Item,
-        scope_depth: u8,
-    },
-    LocalScalar {
-        index: u16,
-        elem: Elem,
-        scope_depth: u8,
-    },
+    Local { id: u16, item: Item, depth: u8 },
+    Slice { id: u16, item: Item, depth: u8 },
+    LocalScalar { id: u16, elem: Elem, depth: u8 },
     SharedMemory(u16, Item, u32),
     LocalArray(u16, Item, u8, u32),
     Id,
@@ -159,10 +157,7 @@ pub enum Variable {
     NumWorkgroupsX,
     NumWorkgroupsY,
     NumWorkgroupsZ,
-    WmmaFragment {
-        index: u16,
-        frag: Fragment,
-    },
+    WmmaFragment { id: u16, frag: Fragment },
 }
 
 impl Display for Variable {
@@ -170,15 +165,20 @@ impl Display for Variable {
         match self {
             Variable::GlobalInputArray(number, _) => f.write_fmt(format_args!("input_{number}")),
             Variable::LocalScalar {
-                index,
+                id: index,
                 elem: _,
-                scope_depth,
+                depth: scope_depth,
             } => f.write_fmt(format_args!("s_{scope_depth}_{index}")),
             Variable::Local {
-                index,
+                id: index,
                 item: _,
-                scope_depth,
+                depth: scope_depth,
             } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
+            Variable::Slice {
+                id: index,
+                item: _,
+                depth: scope_depth,
+            } => f.write_fmt(format_args!("slice_{scope_depth}_{index}")),
             Variable::GlobalOutputArray(number, _) => f.write_fmt(format_args!("output_{number}")),
             Variable::GlobalScalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))
@@ -209,7 +209,9 @@ impl Display for Variable {
                 f.write_fmt(format_args!("l_arr_{}_{}", id, depth))
             }
             Variable::WarpSize => f.write_str("warpSize"),
-            Variable::WmmaFragment { index, frag: _ } => f.write_fmt(format_args!("frag_{index}")),
+            Variable::WmmaFragment { id: index, frag: _ } => {
+                f.write_fmt(format_args!("frag_{index}"))
+            }
         }
     }
 }
@@ -220,9 +222,9 @@ impl Variable {
             Variable::GlobalScalar(_, _, _) => true,
             Variable::ConstantScalar(_, _) => true,
             Variable::LocalScalar {
-                index: _,
+                id: _,
                 elem: _,
-                scope_depth: _,
+                depth: _,
             } => true,
             Variable::Id => true,
             Variable::LocalInvocationIndex => true,
@@ -234,9 +236,14 @@ impl Variable {
             Variable::GlobalOutputArray(_, _) => false,
             Variable::SharedMemory(_, _, _) => false,
             Variable::Local {
-                index: _,
+                id: _,
                 item: _,
-                scope_depth: _,
+                depth: _,
+            } => false,
+            Variable::Slice {
+                id: _,
+                item: _,
+                depth: _,
             } => false,
             Variable::WorkgroupIdX => true,
             Variable::WorkgroupIdY => true,
@@ -252,7 +259,7 @@ impl Variable {
             Variable::NumWorkgroupsZ => true,
             Variable::LocalArray(_, _, _, _) => false,
             Variable::WarpSize => true,
-            Variable::WmmaFragment { index: _, frag: _ } => false,
+            Variable::WmmaFragment { id: _, frag: _ } => false,
         }
     }
 
