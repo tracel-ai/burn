@@ -223,9 +223,7 @@ impl CudaCompiler {
                 let out = self.compile_variable(out);
 
                 match input {
-                    super::Variable::Slice { id, item, depth } => {
-                        super::Instruction::SliceLength { input, out }
-                    }
+                    super::Variable::Slice { .. } => super::Instruction::SliceLength { input, out },
                     _ => super::Instruction::Length {
                         input,
                         out,

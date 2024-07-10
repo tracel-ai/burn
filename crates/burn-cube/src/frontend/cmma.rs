@@ -49,7 +49,8 @@ use crate::{
 };
 
 use super::{
-    Array, CubeContext, CubePrimitive, CubeType, ExpandElement, ExpandElementTyped, Init, UInt,
+    CubeContext, CubePrimitive, CubeType, ExpandElement, ExpandElementTyped, Init, Slice, SliceMut,
+    UInt,
 };
 
 pub use ir::{MatrixIdent, MatrixLayout};
@@ -137,7 +138,7 @@ pub fn fill_expand<C: CubeType>(
 
 /// Load the matrix with the provided array using the stride.
 #[allow(unused_variables)]
-pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Array<C>, stride: UInt) {
+pub fn load<C: CubeType>(mat: &Matrix<C>, value: Slice<'_, C>, stride: UInt) {
     unexpanded!()
 }
 
@@ -146,7 +147,7 @@ pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Array<C>, stride: UInt) {
 pub fn load_expand<C: CubeType>(
     context: &mut CubeContext,
     mat: MatrixExpand,
-    value: ExpandElementTyped<Array<C>>,
+    value: ExpandElementTyped<Slice<'static, C>>,
     stride: ExpandElement,
 ) {
     context.register(Operation::CoopMma(ir::CoopMma::Load {
@@ -159,7 +160,7 @@ pub fn load_expand<C: CubeType>(
 /// Store the matrix in the given array following the given stride and layout.
 #[allow(unused_variables)]
 pub fn store<C: CubePrimitive>(
-    output: &Array<C>,
+    output: SliceMut<'_, C>,
     mat: &Matrix<C>,
     stride: UInt,
     layout: MatrixLayout,
@@ -171,7 +172,7 @@ pub fn store<C: CubePrimitive>(
 #[allow(unused_variables)]
 pub fn store_expand<C: CubePrimitive>(
     context: &mut CubeContext,
-    output: ExpandElementTyped<Array<C>>,
+    output: ExpandElementTyped<SliceMut<'static, C>>,
     mat: MatrixExpand,
     stride: ExpandElement,
     layout: MatrixLayout,

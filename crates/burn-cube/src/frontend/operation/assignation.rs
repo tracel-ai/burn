@@ -19,11 +19,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::{
-        frontend::CubeType,
-        prelude::{Slice, SliceMut},
-        unexpanded,
-    };
+    use crate::{frontend::CubeType, prelude::SliceMut, unexpanded};
 
     use self::ir::{BinaryOperator, Operator, Variable};
 
