@@ -297,6 +297,11 @@ impl CudaCompiler {
             gpu::Operator::Div(op) => Instruction::Div(self.compile_binary(op)),
             gpu::Operator::Sub(op) => Instruction::Sub(self.compile_binary(op)),
             gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
+            gpu::Operator::Slice(op) => Instruction::Slice {
+                input: self.compile_variable(op.input),
+                offset: self.compile_variable(op.offset),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
             gpu::Operator::UncheckedIndex(op) => Instruction::Index(self.compile_binary(op)),
             gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),

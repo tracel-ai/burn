@@ -19,7 +19,7 @@ pub mod assign {
 }
 
 pub mod index_assign {
-    use crate::{frontend::CubeType, unexpanded};
+    use crate::{frontend::CubeType, prelude::Slice, unexpanded};
 
     use self::ir::{BinaryOperator, Operator, Variable};
 
@@ -59,6 +59,7 @@ pub mod index_assign {
     }
 
     impl_index!(Array);
+    impl_index!(Slice);
     impl_index!(Tensor);
     impl_index!(SharedMemory);
 }
@@ -69,6 +70,7 @@ pub mod index {
             operation::base::{binary_expand, binary_expand_no_vec},
             CubeType,
         },
+        prelude::Slice,
         unexpanded,
     };
 
@@ -113,6 +115,7 @@ pub mod index {
     }
 
     impl_index!(Array);
+    impl_index!(Slice);
     impl_index!(Tensor);
     impl_index!(SharedMemory);
 }

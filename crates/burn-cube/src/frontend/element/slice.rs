@@ -1,8 +1,12 @@
 use std::marker::PhantomData;
 
-use crate::{frontend::indexation::Index, unexpanded};
-
 use super::{Array, CubeType, ExpandElementTyped, Init};
+use crate::{
+    frontend::indexation::Index,
+    ir::{self, Operator},
+    prelude::CubeContext,
+    unexpanded,
+};
 
 /// A contiguous list of elements
 pub struct Slice<E> {
@@ -22,13 +26,34 @@ impl<C: CubeType> Init for ExpandElementTyped<Slice<C>> {
 
 impl<C: CubeType> Slice<C> {
     #[allow(unused_variables)]
-    pub fn from_array<S: Index>(array: Array<C>, offset: S) -> Self {
+    pub fn from_array<S1: Index, S2: Index>(array: &Array<C>, start: S1, end: S2) -> Self {
         unexpanded!()
+    }
+    pub fn from_array_expand<S1: Index, S2: Index>(
+        context: &mut CubeContext,
+        array: ExpandElementTyped<Array<C>>,
+        start: S1,
+        end: S2, // Todo use it to get the length.
+    ) -> ExpandElementTyped<Self> {
+        ExpandElementTyped::<Self>::from_array_expand(context, array, start, end)
     }
 }
 
 impl<C: CubeType> ExpandElementTyped<Slice<C>> {
-    pub fn from_array_expand<S: Index>(array: ExpandElementTyped<Array<C>>, offset: S) -> Self {
-        unexpanded!()
+    pub fn from_array_expand<S1: Index, S2: Index>(
+        context: &mut CubeContext,
+        array: ExpandElementTyped<Array<C>>,
+        start: S1,
+        end: S2, // Todo use it to get the length.
+    ) -> Self {
+        let input = *array.expand;
+        let out = context.create_slice(input.item());
+        context.register(Operator::Slice(ir::SliceOperator {
+            input,
+            offset: start.value(),
+            out: *out,
+        }));
+
+        ExpandElementTyped::new(out)
     }
 }

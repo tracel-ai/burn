@@ -114,6 +114,12 @@ impl CubeContext {
         ExpandElement::Plain(variable)
     }
 
+    /// Create a new slice element.
+    pub fn create_slice(&mut self, item: Item) -> ExpandElement {
+        let variable = self.scope.borrow_mut().create_slice(item);
+        ExpandElement::Plain(variable)
+    }
+
     pub fn create_shared<T: CubePrimitive>(
         &mut self,
         item: Item,

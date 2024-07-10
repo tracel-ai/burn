@@ -262,6 +262,11 @@ impl WgslCompiler {
         let processing = value.process();
 
         for var in processing.variables {
+            // We don't declare slices.
+            if let cube::Variable::Slice { .. } = var {
+                continue;
+            }
+
             instructions.push(wgsl::Instruction::DeclareVariable {
                 var: self.compile_variable(var),
             });
@@ -660,6 +665,11 @@ impl WgslCompiler {
             cube::Operator::Remainder(op) => wgsl::Instruction::Remainder {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            cube::Operator::Slice(op) => wgsl::Instruction::Slice {
+                input: self.compile_variable(op.input),
+                offset: self.compile_variable(op.offset),
                 out: self.compile_variable(op.out),
             },
         }

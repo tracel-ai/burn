@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator, Subcube,
-    UnaryOperator, Variable,
+    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator,
+    SliceOperator, Subcube, UnaryOperator, Variable,
 };
 
 pub type Vectorization = u8;
@@ -81,6 +81,7 @@ impl Operator {
             Operator::ShiftLeft(op) => Operator::ShiftLeft(op.vectorize(vectorization)),
             Operator::ShiftRight(op) => Operator::ShiftRight(op.vectorize(vectorization)),
             Operator::Remainder(op) => Operator::Remainder(op.vectorize(vectorization)),
+            Operator::Slice(op) => Operator::Slice(op.vectorize(vectorization)),
         }
     }
 }
@@ -101,6 +102,16 @@ impl UnaryOperator {
         let out = self.out.vectorize(vectorization);
 
         Self { input, out }
+    }
+}
+
+impl SliceOperator {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        let input = self.input.vectorize(vectorization);
+        let offset = self.offset.vectorize(vectorization);
+        let out = self.out.vectorize(vectorization);
+
+        Self { input, offset, out }
     }
 }
 

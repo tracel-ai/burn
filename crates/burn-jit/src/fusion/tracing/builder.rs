@@ -207,6 +207,11 @@ impl TraceBuilder {
                         mark(&op.c, &mut local_tensor_ids_input);
                         mark(&op.out, &mut local_tensor_ids_output);
                     }
+                    Operator::Slice(op) => {
+                        mark(&op.input, &mut local_tensor_ids_input);
+                        mark(&op.offset, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
                     Operator::Max(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,

@@ -53,6 +53,7 @@ pub enum Operator {
     Assign(UnaryOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
+    Slice(SliceOperator),
     UncheckedIndex(BinaryOperator),
     IndexAssign(BinaryOperator),
     UncheckedIndexAssign(BinaryOperator),
@@ -117,6 +118,14 @@ pub struct ClampOperator {
     pub input: Variable,
     pub min_value: Variable,
     pub max_value: Variable,
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
+pub struct SliceOperator {
+    pub input: Variable,
+    pub offset: Variable,
     pub out: Variable,
 }
 

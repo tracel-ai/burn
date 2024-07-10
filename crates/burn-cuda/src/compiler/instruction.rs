@@ -58,6 +58,11 @@ pub enum Instruction {
         instructions_if: Vec<Self>,
         instructions_else: Vec<Self>,
     },
+    Slice {
+        input: Variable,
+        offset: Variable,
+        out: Variable,
+    },
     Return,
     Break,
     Stride {
@@ -123,6 +128,7 @@ impl Display for Instruction {
                 }
             },
             Instruction::Add(it) => Add::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Slice { .. } => todo!(),
             Instruction::Mul(it) => Mul::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Div(it) => Div::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Sub(it) => Sub::format(f, &it.lhs, &it.rhs, &it.out),
