@@ -5,11 +5,16 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
+pub struct PadConfig {
+    pub pads: TensorType,
+    pub constant_value: f64,
+}
+
+#[derive(Debug, Clone, new)]
 pub struct PadNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub pads: TensorType,
-    pub constant_value: f64,
+    pub pad_config: PadConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {

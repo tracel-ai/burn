@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::resize::ResizeMode;
+use crate::burn::node::{pad::PadConfig, resize::ResizeMode};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -1397,3 +1397,5 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 
     axes
 }
+
+pub fn pad_config(node: &Node) -> PadConfig {}
