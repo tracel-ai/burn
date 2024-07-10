@@ -204,6 +204,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Pad(_) => "pad",
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
             Node::Resize(_) => "resize",

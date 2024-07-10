@@ -1,12 +1,13 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
+use burn::config::Config;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+#[derive(Config, Debug)]
 pub struct PadConfig {
-    pub pads: TensorType,
+    pub pads: Vec<i64>,
     pub constant_value: f64,
 }
 
@@ -29,7 +30,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
         let output = &self.output.name;
 
         quote! {
-            let #output = #input.pad([#(#ranges),*]);
+            println!("hello world")
+            // let #output = #input.pad([#(#ranges),*]);
         }
     }
     fn into_node(self) -> Node<PS> {
