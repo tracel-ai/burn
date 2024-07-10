@@ -1399,16 +1399,11 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 }
 
 pub fn pad_config(node: &Node) -> PadConfig {
-    let pads = match &node.inputs[1].value {
-        // TODO: fix
-        Some(_) => Vec::new(),
-        _ => Vec::new(),
-    };
     let constant_value = match &node.inputs[1].value {
         // TODO: fix
         Some(_) => 0.0,
         _ => 0.0,
     };
 
-    PadConfig::new(pads, constant_value)
+    PadConfig::new(constant_value)
 }

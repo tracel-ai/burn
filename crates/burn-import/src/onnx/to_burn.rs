@@ -1103,9 +1103,10 @@ impl ParsedOnnxGraph {
     fn pad_conversion(node: Node) -> PadNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
+        let pads = TensorType::from(node.inputs.get(1).unwrap());
         let pad_config = pad_config(&node);
 
-        PadNode::new(input, output, pad_config)
+        PadNode::new(input, output, pads, pad_config)
     }
 
     fn pow_conversion(node: Node) -> BinaryNode {

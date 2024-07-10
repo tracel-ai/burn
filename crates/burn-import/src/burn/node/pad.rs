@@ -7,7 +7,6 @@ use quote::quote;
 
 #[derive(Config, Debug)]
 pub struct PadConfig {
-    pub pads: Vec<i64>,
     pub constant_value: f64,
 }
 
@@ -15,6 +14,7 @@ pub struct PadConfig {
 pub struct PadNode {
     pub input: TensorType,
     pub output: TensorType,
+    pub pads: TensorType,
     pub pad_config: PadConfig,
 }
 
@@ -23,14 +23,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
         vec![Type::Tensor(self.output.clone())]
     }
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        vec![
+            Type::Tensor(self.input.clone()),
+            Type::Tensor(self.pads.clone()),
+        ]
     }
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         // let input = scope.tensor_use_owned(&self.input, node_position);
         // let output = &self.output.name;
 
         quote! {
-            println!("hello world")
+            println!("hello world");
             // let #output = #input.pad([#(#ranges),*]);
         }
     }
