@@ -430,20 +430,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     }
 
     fn codegen_new(&self) -> TokenStream {
+        let constants = self.scope.constants().map(|(name, var_data)| {
+            let tensor_type = self.nodes[var_data.node_position - 1]
+                .input_types()
+                .iter()
+                .find(|input| input.name() == name)
+                .unwrap()
+                .clone();
+        });
+
         let mut body = quote! {};
 
         self.nodes
             .iter()
             .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
-
-        // let fields = self.scope.constants().map(|(name, var_data)| {
-        //     let tensor_type = self.nodes[var_data.node_position - 1]
-        //         .inputs()
-        //         .find(|input| input.name() == name)
-        //         .unwrap()
-        //         .clone();
-        // });
 
         let fields = self
             .nodes

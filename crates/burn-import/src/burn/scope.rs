@@ -9,13 +9,13 @@ use std::collections::{HashMap, HashSet};
 #[derive(Clone, Debug, Default)]
 pub struct Scope {
     variables: HashMap<Ident, TensorVariable>,
-    constant_set: HashSet<Ident>,
+    pub constant_set: HashSet<Ident>,
 }
 
 #[derive(Clone, Debug, new)]
 pub struct TensorVariable {
-    references: usize,
-    node_position: usize,
+    pub references: usize,
+    pub node_position: usize,
 }
 
 impl Scope {
@@ -32,10 +32,10 @@ impl Scope {
         }
     }
 
-    pub fn constants(&self) -> impl Iterator<Item = (Ident, &'_ TensorVariable)> {
+    pub fn constants(&self) -> impl Iterator<Item = (&'_ Ident, &'_ TensorVariable)> {
         self.constant_set
             .iter()
-            .map(|ident| (ident.clone(), self.variables.get(ident).unwrap()))
+            .map(|ident| (ident, self.variables.get(ident).unwrap()))
     }
 
     /// Register a future use of a tensor variable.
@@ -51,7 +51,7 @@ impl Scope {
         } else {
             // The tensor originated from an initializer or lifted constant
             self.constant_set.insert(tensor.name.clone());
-            // self.tensor_register_variable(&tensor, 0)
+            self.tensor_register_variable(&tensor, node_position);
         }
     }
 

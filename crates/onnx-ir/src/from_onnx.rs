@@ -33,6 +33,11 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 12] = [
     NodeType::Squeeze,
 ];
 
+//NOTE: if it turns out we need to rename the initializers for more binary ops, this may
+// be removed in favor of a new op type enum that has from<NodeType> implemented. I suspect
+// that the ability to categorize ops will be useful in other
+const RENAME_INITIALIZERS_FOR_NODE_TYPES: [NodeType; 2] = [NodeType::Mul, NodeType::Add];
+
 #[derive(Debug, Clone)]
 pub(crate) enum IOEntry {
     In(usize),
@@ -93,13 +98,13 @@ impl GraphData {
             })
             .collect::<Vec<Argument>>();
         //to avoid illegal variable names on older onnx files
-        let mut initializer_count = 1;
-        constants.iter_mut().for_each(|(k, v)| {
-            if !input_name_map.contains_key(k) {
-                v.name = format!("initializer{}", initializer_count);
-                initializer_count += 1;
-            }
-        });
+        // let mut initializer_count = 1;
+        // constants.iter_mut().for_each(|(k, v)| {
+        //     if !input_name_map.contains_key(k) {
+        //         v.name = format!("initializer{}", initializer_count);
+        //         initializer_count += 1;
+        //     }
+        // });
         Self {
             inputs,
             outputs,
@@ -229,6 +234,7 @@ impl OnnxGraphBuilder {
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
+            self.legacy_rename_initializer(&mut node, &graph_data);
             self.handle_unsqueeze(&mut node, &graph_data);
 
             dim_inference(&mut node);
@@ -298,6 +304,24 @@ impl OnnxGraphBuilder {
                         input.ty = arg.ty;
                     }
                     self.nodes_to_remove.insert(*const_idx);
+                }
+            }
+        }
+    }
+
+    //TODO: this could either be feature gated, or skipped if we can determine the affected onnx versions
+    /// Older onnx files sometimes use initializers as constants rather than default values
+    /// so we need to rename the initializers to avoid illegal variable names
+    fn legacy_rename_initializer(&self, node: &mut Node, graph_data: &GraphData) {
+        if RENAME_INITIALIZERS_FOR_NODE_TYPES.contains(&node.node_type) {
+            let mut initializer_count = 1;
+            for input in node.inputs.iter_mut() {
+                // should only happen if the initializer is not a graph input,
+                // else the input would have already been renamed
+                //right now we are assuming that the initializer is used only once
+                if graph_data.initializers.contains_key(&input.name) {
+                    input.name = format!("{}_in{}", node.name, initializer_count);
+                    initializer_count += 1;
                 }
             }
         }
