@@ -123,16 +123,17 @@ pub fn fill<C: CubeType>(mat: &Matrix<C>, value: C) {
     unexpanded!()
 }
 
-/// Expand method of [fill].
-pub fn fill_expand<C: CubeType>(
-    context: &mut CubeContext,
-    mat: MatrixExpand,
-    value: ExpandElement,
-) {
-    context.register(Operation::CoopMma(ir::CoopMma::Fill {
-        mat: *mat.elem,
-        value: *value,
-    }));
+/// Module containing the expand function for [fill].
+pub mod fill {
+    use super::*;
+
+    /// Expand method of [fill].
+    pub fn expand<C: CubeType>(context: &mut CubeContext, mat: MatrixExpand, value: ExpandElement) {
+        context.register(Operation::CoopMma(ir::CoopMma::Fill {
+            mat: *mat.elem,
+            value: *value,
+        }));
+    }
 }
 
 /// Load the matrix with the provided array using the stride.
@@ -141,19 +142,24 @@ pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Array<C>, stride: UInt) {
     unexpanded!()
 }
 
-/// Expand method of [load].
-#[allow(unused_variables)]
-pub fn load_expand<C: CubeType>(
-    context: &mut CubeContext,
-    mat: MatrixExpand,
-    value: ExpandElementTyped<Array<C>>,
-    stride: ExpandElement,
-) {
-    context.register(Operation::CoopMma(ir::CoopMma::Load {
-        mat: *mat.elem,
-        value: *value.expand,
-        stride: *stride,
-    }));
+/// Module containing the expand function for [load].
+pub mod load {
+    use super::*;
+
+    /// Expand method of [load].
+    #[allow(unused_variables)]
+    pub fn expand<C: CubeType>(
+        context: &mut CubeContext,
+        mat: MatrixExpand,
+        value: ExpandElementTyped<Array<C>>,
+        stride: ExpandElement,
+    ) {
+        context.register(Operation::CoopMma(ir::CoopMma::Load {
+            mat: *mat.elem,
+            value: *value.expand,
+            stride: *stride,
+        }));
+    }
 }
 
 /// Store the matrix in the given array following the given stride and layout.
@@ -167,21 +173,26 @@ pub fn store<C: CubePrimitive>(
     unexpanded!()
 }
 
-/// Expand method of [store].
-#[allow(unused_variables)]
-pub fn store_expand<C: CubePrimitive>(
-    context: &mut CubeContext,
-    output: ExpandElementTyped<Array<C>>,
-    mat: MatrixExpand,
-    stride: ExpandElement,
-    layout: MatrixLayout,
-) {
-    context.register(Operation::CoopMma(ir::CoopMma::Store {
-        output: *output.expand,
-        mat: *mat.elem,
-        stride: *stride,
-        layout,
-    }));
+/// Module containing the expand function for [store].
+pub mod store {
+    use super::*;
+
+    /// Expand method of [store].
+    #[allow(unused_variables)]
+    pub fn expand<C: CubePrimitive>(
+        context: &mut CubeContext,
+        output: ExpandElementTyped<Array<C>>,
+        mat: MatrixExpand,
+        stride: ExpandElement,
+        layout: MatrixLayout,
+    ) {
+        context.register(Operation::CoopMma(ir::CoopMma::Store {
+            output: *output.expand,
+            mat: *mat.elem,
+            stride: *stride,
+            layout,
+        }));
+    }
 }
 
 /// Execute the matrix-multiply and accumulate operation on the given [matrices](Matrix).
@@ -195,18 +206,23 @@ pub fn execute<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrim
     unexpanded!()
 }
 
-/// Expand method of [execute].
-pub fn execute_expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
-    context: &mut CubeContext,
-    mat_a: MatrixExpand,
-    mat_b: MatrixExpand,
-    mat_c: MatrixExpand,
-    mat_d: MatrixExpand,
-) {
-    context.register(Operation::CoopMma(ir::CoopMma::Execute {
-        mat_a: *mat_a.elem,
-        mat_b: *mat_b.elem,
-        mat_c: *mat_c.elem,
-        mat_d: *mat_d.elem,
-    }));
+/// Module containing the expand function for [execute].
+pub mod execute {
+    use super::*;
+
+    /// Expand method of [execute].
+    pub fn expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
+        context: &mut CubeContext,
+        mat_a: MatrixExpand,
+        mat_b: MatrixExpand,
+        mat_c: MatrixExpand,
+        mat_d: MatrixExpand,
+    ) {
+        context.register(Operation::CoopMma(ir::CoopMma::Execute {
+            mat_a: *mat_a.elem,
+            mat_b: *mat_b.elem,
+            mat_c: *mat_c.elem,
+            mat_d: *mat_d.elem,
+        }));
+    }
 }

@@ -1,4 +1,4 @@
-use crate::codegen_common::signature::expand_sig;
+use crate::codegen_common::signature::{expand_sig, ExpandMode};
 
 pub fn expand_trait_def(mut tr: syn::ItemTrait) -> proc_macro2::TokenStream {
     let mut expand_items = Vec::new();
@@ -6,7 +6,12 @@ pub fn expand_trait_def(mut tr: syn::ItemTrait) -> proc_macro2::TokenStream {
     for item in tr.items.iter() {
         match item {
             syn::TraitItem::Fn(func) => {
-                let expand = expand_sig(&func.sig, &syn::Visibility::Inherited, None);
+                let expand = expand_sig(
+                    &func.sig,
+                    &syn::Visibility::Inherited,
+                    None,
+                    ExpandMode::TraitImpl,
+                );
                 expand_items.push(syn::parse_quote!(#expand;));
             }
             _ => continue,
@@ -41,7 +46,12 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
                     }
                 }
 
-                let expand = expand_sig(&func.sig, &syn::Visibility::Inherited, None);
+                let expand = expand_sig(
+                    &func.sig,
+                    &syn::Visibility::Inherited,
+                    None,
+                    ExpandMode::TraitImpl,
+                );
 
                 let tokens = if !tr.generics.params.is_empty() {
                     let mut func = func.clone();

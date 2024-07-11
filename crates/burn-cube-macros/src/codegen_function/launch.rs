@@ -211,7 +211,7 @@ impl Codegen {
         }
     }
 
-    fn gen_define_impl(&self, expand: &Ident) -> TokenStream {
+    fn gen_define_impl(&self, expand: &TokenStream) -> TokenStream {
         let mut expand_args = quote::quote! { &mut builder.context, };
 
         let mut variables = quote::quote! {};
@@ -340,7 +340,7 @@ impl Codegen {
         tokens
     }
 
-    fn gen_compile_impl(&self, expand: &Ident) -> TokenStream {
+    fn gen_compile_impl(&self, expand: &TokenStream) -> TokenStream {
         let ident = Ident::new(&self.name, Span::call_site());
         let generics = add_runtime(self.generics.clone());
         let (impl_gen, ty_gen, where_gen) = generics.split_for_impl();
@@ -453,7 +453,12 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
     let codegen = Codegen::from_sig(sig);
 
     let ident = &sig.ident;
-    let ident_expand = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
+
+    let mut ident_expand = TokenStream::new();
+    ident_expand.extend(quote::quote! {
+        #ident::expand
+    });
+
     let ident = syn::Ident::new(format!("{ident}_launch").as_str(), ident.span());
 
     let generics = add_runtime(add_lifetime(sig.generics.clone()));

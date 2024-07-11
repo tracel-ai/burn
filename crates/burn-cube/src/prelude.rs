@@ -23,10 +23,7 @@ pub use crate::frontend::{
 };
 
 /// Export subcube operations.
-pub use crate::frontend::{
-    subcube_all, subcube_all_expand, subcube_max, subcube_max_expand, subcube_min,
-    subcube_min_expand, subcube_prod, subcube_prod_expand, subcube_sum, subcube_sum_expand,
-};
+pub use crate::frontend::{subcube_all, subcube_max, subcube_min, subcube_prod, subcube_sum};
 pub use burn_compute::client::ComputeClient;
 
 pub use crate::frontend::*;

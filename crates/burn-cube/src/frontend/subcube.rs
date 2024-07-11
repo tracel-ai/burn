@@ -19,107 +19,143 @@ pub fn subcube_elect_expand<E: CubePrimitive>(context: &mut CubeContext) -> Expa
     output
 }
 
-pub fn subcube_sum<E: CubePrimitive>(_elem: E) -> E {
+/// Perform a reduce sum operation across all units in a subcube.
+#[allow(unused_variables)]
+pub fn subcube_sum<E: CubePrimitive>(value: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_sum_expand<E: CubePrimitive>(
-    context: &mut CubeContext,
-    elem: ExpandElement,
-) -> ExpandElement {
-    let output = context.create_local(elem.item());
+/// Module containing the expand function for [subcube_sum].
+pub mod subcube_sum {
+    use super::*;
 
-    let out = *output;
-    let input = *elem;
+    /// Expand method of [subcube_sum].
+    pub fn expand<E: CubePrimitive>(
+        context: &mut CubeContext,
+        elem: ExpandElement,
+    ) -> ExpandElement {
+        let output = context.create_local(elem.item());
 
-    context.register(Operation::Subcube(Subcube::Sum(UnaryOperator {
-        input,
-        out,
-    })));
+        let out = *output;
+        let input = *elem;
 
-    output
+        context.register(Operation::Subcube(Subcube::Sum(UnaryOperator {
+            input,
+            out,
+        })));
+
+        output
+    }
 }
 
+/// Perform a reduce prod operation across all units in a subcube.
 pub fn subcube_prod<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_prod_expand<E: CubePrimitive>(
-    context: &mut CubeContext,
-    elem: ExpandElement,
-) -> ExpandElement {
-    let output = context.create_local(elem.item());
+/// Module containing the expand function for [subcube_prod].
+pub mod subcube_prod {
+    use super::*;
 
-    let out = *output;
-    let input = *elem;
+    /// Expand method of [subcube_prod].
+    pub fn expand<E: CubePrimitive>(
+        context: &mut CubeContext,
+        elem: ExpandElement,
+    ) -> ExpandElement {
+        let output = context.create_local(elem.item());
 
-    context.register(Operation::Subcube(Subcube::Prod(UnaryOperator {
-        input,
-        out,
-    })));
+        let out = *output;
+        let input = *elem;
 
-    output
+        context.register(Operation::Subcube(Subcube::Prod(UnaryOperator {
+            input,
+            out,
+        })));
+
+        output
+    }
 }
 
+/// Perform a reduce max operation across all units in a subcube.
 pub fn subcube_max<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_max_expand<E: CubePrimitive>(
-    context: &mut CubeContext,
-    elem: ExpandElement,
-) -> ExpandElement {
-    let output = context.create_local(elem.item());
+/// Module containing the expand function for [subcube_max].
+pub mod subcube_max {
+    use super::*;
 
-    let out = *output;
-    let input = *elem;
+    /// Expand method of [subcube_max].
+    pub fn expand<E: CubePrimitive>(
+        context: &mut CubeContext,
+        elem: ExpandElement,
+    ) -> ExpandElement {
+        let output = context.create_local(elem.item());
 
-    context.register(Operation::Subcube(Subcube::Max(UnaryOperator {
-        input,
-        out,
-    })));
+        let out = *output;
+        let input = *elem;
 
-    output
+        context.register(Operation::Subcube(Subcube::Max(UnaryOperator {
+            input,
+            out,
+        })));
+
+        output
+    }
 }
 
+/// Perform a reduce min operation across all units in a subcube.
 pub fn subcube_min<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_min_expand<E: CubePrimitive>(
-    context: &mut CubeContext,
-    elem: ExpandElement,
-) -> ExpandElement {
-    let output = context.create_local(elem.item());
+/// Module containing the expand function for [subcube_min].
+pub mod subcube_min {
+    use super::*;
 
-    let out = *output;
-    let input = *elem;
+    /// Expand method of [subcube_min].
+    pub fn expand<E: CubePrimitive>(
+        context: &mut CubeContext,
+        elem: ExpandElement,
+    ) -> ExpandElement {
+        let output = context.create_local(elem.item());
 
-    context.register(Operation::Subcube(Subcube::Min(UnaryOperator {
-        input,
-        out,
-    })));
+        let out = *output;
+        let input = *elem;
 
-    output
+        context.register(Operation::Subcube(Subcube::Min(UnaryOperator {
+            input,
+            out,
+        })));
+
+        output
+    }
 }
 
+/// Perform a reduce all operation across all units in a subcube.
 pub fn subcube_all<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-pub fn subcube_all_expand<E: CubePrimitive>(
-    context: &mut CubeContext,
-    elem: ExpandElement,
-) -> ExpandElement {
-    let output = context.create_local(elem.item());
+/// Module containing the expand function for [subcube_all].
+pub mod subcube_all {
+    use super::*;
 
-    let out = *output;
-    let input = *elem;
+    /// Expand method of [subcube_all].
+    pub fn expand<E: CubePrimitive>(
+        context: &mut CubeContext,
+        elem: ExpandElement,
+    ) -> ExpandElement {
+        let output = context.create_local(elem.item());
 
-    context.register(Operation::Subcube(Subcube::All(UnaryOperator {
-        input,
-        out,
-    })));
+        let out = *output;
+        let input = *elem;
 
-    output
+        context.register(Operation::Subcube(Subcube::All(UnaryOperator {
+            input,
+            out,
+        })));
+
+        output
+    }
 }

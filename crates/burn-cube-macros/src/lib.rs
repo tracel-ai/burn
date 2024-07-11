@@ -10,7 +10,7 @@ mod tracker;
 pub(crate) mod codegen_common;
 
 use analyzer::VariableAnalyzer;
-use codegen_common::signature::expand_sig;
+use codegen_common::signature::{expand_sig, ExpandMode};
 use codegen_function::{codegen_launch, codegen_statement};
 use codegen_trait::{expand_trait_def, expand_trait_impl};
 use codegen_type::generate_cube_type;
@@ -121,7 +121,12 @@ fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
-    let signature = expand_sig(&func.sig, &func.vis, Some(variable_tracker));
+    let signature = expand_sig(
+        &func.sig,
+        &func.vis,
+        Some(variable_tracker),
+        ExpandMode::FuncImpl,
+    );
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
@@ -148,15 +153,22 @@ fn codegen_cube(
         return Err(code);
     }
 
+    let mod_name = &func.sig.ident;
+    let vis = &func.vis;
+
     Ok(quote::quote! {
         #[allow(dead_code)]
         #[allow(clippy::too_many_arguments)]
         #func
 
-        #[allow(unused_mut)]
-        #[allow(clippy::too_many_arguments)]
-        #signature {
-            #body
+        #vis mod #mod_name {
+            use super::*;
+
+            #[allow(unused_mut)]
+            #[allow(clippy::too_many_arguments)]
+            #signature {
+                #body
+            }
         }
     })
 }
