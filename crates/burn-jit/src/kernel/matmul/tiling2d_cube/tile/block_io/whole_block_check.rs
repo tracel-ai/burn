@@ -14,10 +14,7 @@ use crate::kernel::matmul::{
     },
 };
 
-use super::base::{
-    all_zeros_comptime, all_zeros_comptime_expand, all_zeros_runtime, all_zeros_runtime_expand,
-    BlockLoader, BlockWriter,
-};
+use super::base::{all_zeros_comptime, all_zeros_runtime, BlockLoader, BlockWriter};
 
 pub(crate) struct WholeCheckBlockIO;
 

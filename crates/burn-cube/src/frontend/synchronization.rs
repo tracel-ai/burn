@@ -3,6 +3,10 @@ use crate::ir::Synchronization;
 
 pub fn sync_units() {}
 
-pub fn sync_units_expand(context: &mut CubeContext) {
-    context.register(Synchronization::SyncUnits)
+pub mod sync_units {
+    use super::*;
+
+    pub fn __expand(context: &mut CubeContext) {
+        context.register(Synchronization::SyncUnits)
+    }
 }

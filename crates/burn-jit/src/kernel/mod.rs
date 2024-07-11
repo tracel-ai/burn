@@ -11,7 +11,7 @@ pub use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
-pub use unary::*;
+pub(crate) use unary::*;
 
 pub use burn_cube::{Kernel, SUBCUBE_DIM_APPROX};
 

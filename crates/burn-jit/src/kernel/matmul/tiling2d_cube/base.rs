@@ -2,11 +2,11 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::block_loop::{block_loop, block_loop_expand};
+use super::block_loop::block_loop;
 
 #[cube(launch)]
 #[allow(unused_mut)]
-fn tiling2d_cube<F: Float>(
+pub fn tiling2d_cube_kernel<F: Float>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,

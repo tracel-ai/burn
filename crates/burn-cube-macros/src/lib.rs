@@ -113,7 +113,7 @@ fn codegen_cube(
     let signature = expand_sig(
         &func.sig,
         &syn::Visibility::Public(Default::default()), // Always public, otherwise we can't import
-                                                      // it from an outside module.
+        // it from an outside module.
         Some(variable_tracker),
         ExpandMode::FuncImpl,
     );
@@ -143,6 +143,8 @@ fn codegen_cube(
         return Err(code);
     }
 
+    let launch_doc = if launch { "and launch function " } else { "" };
+
     let launch = if launch {
         codegen_launch(&func.sig)
     } else {
@@ -151,12 +153,15 @@ fn codegen_cube(
 
     let mod_name = &func.sig.ident;
     let vis = &func.vis;
+    let doc = format!("Module containing the expand method {launch_doc}of {mod_name}.");
 
     Ok(quote::quote! {
         #[allow(dead_code)]
         #[allow(clippy::too_many_arguments)]
         #func
 
+
+        #[doc = #doc]
         #vis mod #mod_name {
             use super::*;
 

@@ -70,7 +70,7 @@ pub mod tests {
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
-        tile_outer_product_test_launch::<F32, R>(
+        tile_outer_product_test::launch::<F32, R>(
             client.clone(),
             cube_count,
             cube_dim,
@@ -99,7 +99,7 @@ pub mod tests {
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
-        tile_outer_product_test_launch::<F32, R>(
+        tile_outer_product_test::launch::<F32, R>(
             client.clone(),
             cube_count,
             cube_dim,

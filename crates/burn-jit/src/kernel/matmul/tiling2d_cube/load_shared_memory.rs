@@ -385,7 +385,7 @@ pub mod tests {
 
         let config = make_config(16, 16, 8);
 
-        load_tensor_test_launch::<F32, R>(
+        load_tensor_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -417,7 +417,7 @@ pub mod tests {
 
         let config = make_config(5, 1, 1);
 
-        load_tensor_multiple_tiles_test_launch::<F32, R>(
+        load_tensor_multiple_tiles_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -451,7 +451,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 8);
 
-        load_tensor_multiple_tiles_test_launch::<F32, R>(
+        load_tensor_multiple_tiles_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -481,7 +481,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 16);
 
-        load_tensor_multiple_tiles_test_launch::<F32, R>(
+        load_tensor_multiple_tiles_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -511,7 +511,7 @@ pub mod tests {
 
         let config = make_config(8, 16, 16);
 
-        load_tensor_test_launch::<F32, R>(
+        load_tensor_test::launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
             cube_dim,
@@ -543,7 +543,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 8);
 
-        load_tensor_multiple_tiles_test_launch::<F32, R>(
+        load_tensor_multiple_tiles_test::launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
             cube_dim,
@@ -573,7 +573,7 @@ pub mod tests {
 
         let config = make_config(16, 16, 8);
 
-        load_tensor_multiple_tiles_test_launch::<F32, R>(
+        load_tensor_multiple_tiles_test::launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
             cube_dim,
@@ -603,7 +603,7 @@ pub mod tests {
 
         let config = make_config(16, 16, 8);
 
-        load_tensor_permuted_test_launch::<F32, R>(
+        load_tensor_permuted_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -636,7 +636,7 @@ pub mod tests {
 
         let config = make_config(m, k, 8);
 
-        load_tensor_permuted_test_launch::<F32, R>(
+        load_tensor_permuted_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -667,7 +667,7 @@ pub mod tests {
 
         let config = make_config(16, 16, 8);
 
-        load_tensor_permuted_test_launch::<F32, R>(
+        load_tensor_permuted_test::launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
             cube_dim,
@@ -699,7 +699,7 @@ pub mod tests {
 
         let config = make_config(8, k, n);
 
-        load_tensor_permuted_test_launch::<F32, R>(
+        load_tensor_permuted_test::launch::<F32, R>(
             rhs.client.clone(),
             cube_count,
             cube_dim,

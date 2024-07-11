@@ -1,4 +1,4 @@
-use super::{index_offset_with_layout, index_offset_with_layout_expand, Kernel};
+use super::{index_offset_with_layout, Kernel};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_cube::{
     calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, Runtime,
@@ -146,7 +146,7 @@ pub(crate) fn launch_cmp<
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
-        kernel_cmp_launch::<E::Primitive, O, R>(
+        kernel_cmp::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -170,7 +170,7 @@ pub(crate) fn launch_cmp<
 
         JitTensor::new(lhs.client, lhs.handle, lhs.shape, lhs.device, lhs.strides)
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
-        kernel_cmp_launch::<E::Primitive, O, R>(
+        kernel_cmp::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -199,7 +199,7 @@ pub(crate) fn launch_cmp<
         let to_contiguous_rhs = !rhs.is_contiguous();
         let output = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        kernel_cmp_launch::<E::Primitive, O, R>(
+        kernel_cmp::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -251,7 +251,7 @@ pub(crate) fn launch_scalar_cmp<
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && tensor.can_mut() {
-        kernel_scalar_cmp_launch::<E::Primitive, O, R>(
+        kernel_scalar_cmp::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -282,7 +282,7 @@ pub(crate) fn launch_scalar_cmp<
             tensor.strides,
         );
 
-        kernel_scalar_cmp_launch::<E::Primitive, O, R>(
+        kernel_scalar_cmp::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),

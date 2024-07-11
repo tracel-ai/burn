@@ -163,7 +163,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let num_elems_output = output.shape.num_elements();
     let cube_dim = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
 
-    conv2d_kernel_launch::<E::FloatPrimitive, R>(
+    conv2d_kernel::launch::<E::FloatPrimitive, R>(
         input.client,
         cube_dim,
         CubeDim::default(),

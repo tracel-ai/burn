@@ -12,7 +12,7 @@ pub trait Clamp: CubePrimitive + Sized {
     fn clamp(input: Self, min_value: Self, max_value: Self) -> Self {
         unexpanded!()
     }
-    fn clamp_expand(
+    fn __expand_clamp(
         context: &mut CubeContext,
         input: Self::ExpandType,
         min_value: Self::ExpandType,

@@ -130,7 +130,7 @@ pub mod tests {
 
         let config = make_config(6, 8, 8);
 
-        write_to_output_test_launch::<F32, R>(
+        write_to_output_test::launch::<F32, R>(
             out.client.clone(),
             cube_count,
             cube_dim,
@@ -156,7 +156,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 4);
 
-        write_to_output_test_launch::<F32, R>(
+        write_to_output_test::launch::<F32, R>(
             out.client.clone(),
             cube_count,
             cube_dim,
@@ -182,7 +182,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 8);
 
-        write_to_output_test_launch::<F32, R>(
+        write_to_output_test::launch::<F32, R>(
             out.client.clone(),
             cube_count,
             cube_dim,
@@ -215,7 +215,7 @@ pub mod tests {
 
         let config = make_config(8, 8, 8);
 
-        write_to_output_test_launch::<F32, R>(
+        write_to_output_test::launch::<F32, R>(
             out.client.clone(),
             cube_count,
             cube_dim,
@@ -248,7 +248,7 @@ pub mod tests {
 
         let config = make_config(5, 8, 1);
 
-        write_results_to_output_out_of_bounds_test_launch::<F32, R>(
+        write_results_to_output_out_of_bounds_test::launch::<F32, R>(
             out.client.clone(),
             cube_count,
             cube_dim,

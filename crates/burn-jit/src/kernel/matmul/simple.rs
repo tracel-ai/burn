@@ -116,7 +116,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         false => 1,
     };
 
-    matmul_kernel_launch::<E::FloatPrimitive, R>(
+    matmul_kernel::launch::<E::FloatPrimitive, R>(
         lhs.client,
         cube_count,
         CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),

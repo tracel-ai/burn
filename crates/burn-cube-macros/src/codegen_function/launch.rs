@@ -454,10 +454,9 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
 
     let ident = &sig.ident;
 
-    let mut ident_expand = TokenStream::new();
-    ident_expand.extend(quote::quote! {
-        #ident::__expand
-    });
+    let ident_expand = quote::quote! {
+        __expand
+    };
 
     let generics = add_runtime(add_lifetime(sig.generics.clone()));
     let body = codegen.gen_launch_body();

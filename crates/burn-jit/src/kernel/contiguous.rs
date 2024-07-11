@@ -87,7 +87,7 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         SUBCUBE_DIM_APPROX,
     );
 
-    into_contiguous_kernel_launch::<E::Primitive, R>(
+    into_contiguous_kernel::launch::<E::Primitive, R>(
         client,
         cube_count,
         CubeDim::default(),

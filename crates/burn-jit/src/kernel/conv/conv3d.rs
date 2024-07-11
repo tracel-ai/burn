@@ -188,7 +188,7 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
         }
     };
 
-    conv3d_kernel_launch::<E::FloatPrimitive, R>(
+    conv3d_kernel::launch::<E::FloatPrimitive, R>(
         input.client,
         calculate_cube_count_elemwise(output.shape.num_elements(), SUBCUBE_DIM_APPROX),
         CubeDim::default(),

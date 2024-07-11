@@ -4,10 +4,10 @@ use crate::kernel::matmul::config::CubeTiling2dConfig;
 
 use super::{
     base::{BatchOffsets, Coordinates, Dimensions, SharedMemories},
-    compute_loop::{compute_loop, compute_loop_expand},
-    load_shared_memory::{load_to_shared_memories, load_to_shared_memories_expand},
+    compute_loop::compute_loop,
+    load_shared_memory::load_to_shared_memories,
     tile::{loader::TileLoader, writer::TileWriter},
-    write_output::{write_to_output, write_to_output_expand},
+    write_output::write_to_output,
 };
 
 #[cube]

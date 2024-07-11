@@ -2,10 +2,7 @@ use burn_cube::prelude::*;
 
 use crate::kernel::matmul::config::CubeTiling2dConfig;
 
-use super::{
-    base::Coordinates,
-    outer_product::{tile_outer_product, tile_outer_product_expand},
-};
+use super::{base::Coordinates, outer_product::tile_outer_product};
 
 #[cube]
 #[allow(unused_mut)]
@@ -105,7 +102,7 @@ pub mod tests {
         const SOME_DIM: usize = 12;
         let config = make_config(SOME_DIM, SOME_DIM, SOME_DIM);
 
-        compute_loop_test_launch::<F32, R>(
+        compute_loop_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
@@ -134,7 +131,7 @@ pub mod tests {
 
         let config = make_config(4, 8, 4);
 
-        compute_loop_test_launch::<F32, R>(
+        compute_loop_test::launch::<F32, R>(
             lhs.client.clone(),
             cube_count,
             cube_dim,
