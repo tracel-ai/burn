@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator, Subcube,
-    UnaryOperator, Variable,
+    BinaryOperator, ClampOperator, FmaOperator, InitOperator, Item, Operation, Operator,
+    SliceOperator, Subcube, UnaryOperator, Variable,
 };
 
 pub type Vectorization = u8;
@@ -60,7 +60,7 @@ impl Operator {
             Operator::LowerEqual(op) => Operator::LowerEqual(op.vectorize(vectorization)),
             Operator::GreaterEqual(op) => Operator::GreaterEqual(op.vectorize(vectorization)),
             Operator::Assign(op) => {
-                if let Variable::GlobalScalar(_, _) = op.input {
+                if let Variable::GlobalScalar { .. } = op.input {
                     // Assign will not change the type of the output if the input can't be
                     // vectorized.
                     return Operator::Assign(op.clone());
@@ -81,6 +81,7 @@ impl Operator {
             Operator::ShiftLeft(op) => Operator::ShiftLeft(op.vectorize(vectorization)),
             Operator::ShiftRight(op) => Operator::ShiftRight(op.vectorize(vectorization)),
             Operator::Remainder(op) => Operator::Remainder(op.vectorize(vectorization)),
+            Operator::Slice(op) => Operator::Slice(op.vectorize(vectorization)),
         }
     }
 }
@@ -101,6 +102,22 @@ impl UnaryOperator {
         let out = self.out.vectorize(vectorization);
 
         Self { input, out }
+    }
+}
+
+impl SliceOperator {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        let input = self.input.vectorize(vectorization);
+        let start = self.start.vectorize(vectorization);
+        let end = self.end.vectorize(vectorization);
+        let out = self.out.vectorize(vectorization);
+
+        Self {
+            input,
+            start,
+            end,
+            out,
+        }
     }
 }
 
@@ -155,31 +172,46 @@ impl FmaOperator {
 impl Variable {
     pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
-            Variable::GlobalInputArray(index, item) => {
-                Variable::GlobalInputArray(*index, item.vectorize(vectorize))
-            }
-            Variable::Local(index, item, name) => {
-                Variable::Local(*index, item.vectorize(vectorize), *name)
-            }
-            Variable::GlobalOutputArray(index, item) => {
-                Variable::GlobalOutputArray(*index, item.vectorize(vectorize))
-            }
-            Variable::SharedMemory(index, item, size) => Variable::SharedMemory(
-                *index,
-                item.vectorize(vectorize),
-                item.vectorized_size(vectorize, *size),
-            ),
-            Variable::LocalArray(index, item, name, size) => Variable::LocalArray(
-                *index,
-                item.vectorize(vectorize),
-                *name,
-                item.vectorized_size(vectorize, *size),
-            ),
-            Variable::ConstantScalar(_, _) => *self,
-            Variable::GlobalScalar(_, _) => *self,
+            Variable::GlobalInputArray { id, item } => Variable::GlobalInputArray {
+                id: *id,
+                item: item.vectorize(vectorize),
+            },
+            Variable::Local { id, item, depth } => Variable::Local {
+                id: *id,
+                item: item.vectorize(vectorize),
+                depth: *depth,
+            },
+            Variable::Slice { id, item, depth } => Variable::Slice {
+                id: *id,
+                item: item.vectorize(vectorize),
+                depth: *depth,
+            },
+            Variable::GlobalOutputArray { id, item } => Variable::GlobalOutputArray {
+                id: *id,
+                item: item.vectorize(vectorize),
+            },
+            Variable::SharedMemory { id, item, length } => Variable::SharedMemory {
+                id: *id,
+                item: item.vectorize(vectorize),
+                length: item.vectorized_size(vectorize, *length),
+            },
+            Variable::LocalArray {
+                id,
+                item,
+                depth,
+                length,
+            } => Variable::LocalArray {
+                id: *id,
+                item: item.vectorize(vectorize),
+                depth: *depth,
+                length: item.vectorized_size(vectorize, *length),
+            },
+            Variable::ConstantScalar { .. } => *self,
+            Variable::GlobalScalar { .. } => *self,
             Variable::AbsolutePos => *self,
             Variable::Rank => *self,
-            Variable::LocalScalar(_, _, _) => *self,
+            Variable::LocalScalar { .. } => *self,
+            Variable::Matrix { .. } => *self,
             Variable::UnitPos => *self,
             Variable::UnitPosX => *self,
             Variable::UnitPosY => *self,
@@ -200,7 +232,6 @@ impl Variable {
             Variable::CubeCount => *self,
             Variable::CubeDim => *self,
             Variable::SubcubeDim => *self,
-            Variable::Matrix(_, _) => *self,
         }
     }
 }

@@ -41,9 +41,9 @@ impl_into_expand_element!(i64);
 /// Useful for Comptime
 impl From<UInt> for ExpandElement {
     fn from(value: UInt) -> Self {
-        ExpandElement::Plain(crate::ir::Variable::ConstantScalar(
-            value.val as f64,
-            UInt::as_elem(),
-        ))
+        ExpandElement::Plain(crate::ir::Variable::ConstantScalar {
+            value: value.val as f64,
+            elem: UInt::as_elem(),
+        })
     }
 }

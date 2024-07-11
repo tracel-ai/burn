@@ -40,9 +40,9 @@ impl<R: JitRuntime, E: JitElement> Kernel for MatmulTiling2dEagerKernel<R, E> {
         );
         let item = elem.into();
 
-        let lhs = Variable::GlobalInputArray(0, item);
-        let rhs = Variable::GlobalInputArray(1, item);
-        let out = Variable::GlobalOutputArray(0, item);
+        let lhs = Variable::GlobalInputArray { id: 0, item };
+        let rhs = Variable::GlobalInputArray { id: 1, item };
+        let out = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(out);
 

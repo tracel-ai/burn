@@ -71,10 +71,22 @@ impl AvgPool2dBackwardComputeShader {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
         let b = scope.create_local(Elem::UInt);
@@ -215,12 +227,30 @@ impl AvgPool2dBackwardComputeShader {
         output_stride_2: Variable,
         output_stride_3: Variable,
     ) -> (Variable, Variable, Variable, Variable) {
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
@@ -321,8 +351,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let grad = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let grad = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 

@@ -134,9 +134,12 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectAssignEagerKernel<R, E> {
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let tensor = Variable::GlobalInputArray(0, item);
-        let value = Variable::GlobalInputArray(1, item);
-        let indices = Variable::GlobalInputArray(2, item_indices);
+        let tensor = Variable::GlobalInputArray { id: 0, item };
+        let value = Variable::GlobalInputArray { id: 1, item };
+        let indices = Variable::GlobalInputArray {
+            id: 2,
+            item: item_indices,
+        };
 
         scope.write_global_custom(tensor);
 

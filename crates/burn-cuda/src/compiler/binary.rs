@@ -361,9 +361,9 @@ impl Binary for IndexAssign {
         out: &Variable,
     ) -> std::fmt::Result {
         if let Variable::Local {
-            index: _,
+            id: _,
             item: _,
-            scope_depth: _,
+            depth: _,
         } = out
         {
             return IndexAssignVector::format(f, lhs, rhs, out);
@@ -388,9 +388,9 @@ impl Binary for Index {
         out: &Variable,
     ) -> std::fmt::Result {
         if let Variable::Local {
-            index: _,
+            id: _,
             item: _,
-            scope_depth: _,
+            depth: _,
         } = lhs
         {
             return IndexVector::format(f, lhs, rhs, out);

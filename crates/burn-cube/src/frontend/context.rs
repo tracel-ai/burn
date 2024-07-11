@@ -4,8 +4,6 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use std::collections::HashMap;
 
-use super::{CubePrimitive, SharedMemoryExpand};
-
 #[derive(Default, Clone)]
 pub struct VariablePool {
     map: Rc<RefCell<HashMap<Item, Vec<ExpandElement>>>>,
@@ -114,14 +112,14 @@ impl CubeContext {
         ExpandElement::Plain(variable)
     }
 
-    pub fn create_shared<T: CubePrimitive>(
-        &mut self,
-        item: Item,
-        size: u32,
-    ) -> SharedMemoryExpand<T> {
-        SharedMemoryExpand {
-            val: ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size)),
-        }
+    /// Create a new slice element.
+    pub fn create_slice(&mut self, item: Item) -> ExpandElement {
+        let variable = self.scope.borrow_mut().create_slice(item);
+        ExpandElement::Plain(variable)
+    }
+
+    pub fn create_shared(&mut self, item: Item, size: u32) -> ExpandElement {
+        ExpandElement::Plain(self.root.borrow_mut().create_shared(item, size))
     }
 
     pub fn create_local_array(&mut self, item: Item, size: u32) -> ExpandElement {
@@ -129,19 +127,19 @@ impl CubeContext {
     }
 
     /// Obtain the index-th input
-    pub fn input(&mut self, index: u16, item: Item) -> ExpandElement {
-        ExpandElement::Plain(crate::ir::Variable::GlobalInputArray(index, item))
+    pub fn input(&mut self, id: u16, item: Item) -> ExpandElement {
+        ExpandElement::Plain(crate::ir::Variable::GlobalInputArray { id, item })
     }
 
     /// Obtain the index-th output
-    pub fn output(&mut self, index: u16, item: Item) -> ExpandElement {
-        let var = crate::ir::Variable::GlobalOutputArray(index, item);
+    pub fn output(&mut self, id: u16, item: Item) -> ExpandElement {
+        let var = crate::ir::Variable::GlobalOutputArray { id, item };
         self.scope.borrow_mut().write_global_custom(var);
         ExpandElement::Plain(var)
     }
 
     /// Obtain the index-th scalar
-    pub fn scalar(&self, index: u16, elem: Elem) -> ExpandElement {
-        ExpandElement::Plain(crate::ir::Variable::GlobalScalar(index, elem))
+    pub fn scalar(&self, id: u16, elem: Elem) -> ExpandElement {
+        ExpandElement::Plain(crate::ir::Variable::GlobalScalar { id, elem })
     }
 }

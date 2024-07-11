@@ -117,7 +117,10 @@ mod tests {
 
         let i = scope.create_with_value(1, item);
         cpa!(scope, x += i);
-        let value = Variable::ConstantScalar(2., item.elem());
+        let value = Variable::ConstantScalar {
+            value: 2.,
+            elem: item.elem(),
+        };
         cpa!(scope, i = value);
         cpa!(scope, x += i);
 
@@ -156,7 +159,10 @@ mod tests {
         cpa!(
             &mut scope,
             range(0u32, end, false).for_each(|_, scope| {
-                let value = Variable::ConstantScalar(2.into(), item.elem());
+                let value = Variable::ConstantScalar {
+                    value: 2.into(),
+                    elem: item.elem(),
+                };
                 cpa!(scope, y = value);
                 cpa!(scope, x += y);
             })

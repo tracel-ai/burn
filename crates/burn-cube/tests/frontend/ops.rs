@@ -395,31 +395,31 @@ mod tests {
             let out_number = if in_type == out_type { 0 } else { 2 };
             format!(
                 "[Operator({ops_name}(BinaryOperator {{ \
-                lhs: Local(0, Item {{ \
+                lhs: Local {{ id: 0, item: Item {{ \
                     elem: {in_type}, \
                     vectorization: 1 \
-                }}, 0), \
-                rhs: Local(1, Item {{ \
+                }}, depth: 0 }}, \
+                rhs: Local {{ id: 1, item: Item {{ \
                     elem: {in_type}, \
                     vectorization: 1 \
-                }}, 0), \
-                out: Local({out_number}, Item {{ \
+                }}, depth: 0 }}, \
+                out: Local {{ id: {out_number}, item: Item {{ \
                     elem: {out_type}, \
                     vectorization: 1 \
-                }}, 0) \
+                }}, depth: 0 }} \
             }}))]"
             )
         } else {
             format!(
                 "[Operator({ops_name}(UnaryOperator {{ \
-                input: Local(0, Item {{ \
+                input: Local {{ id: 0, item: Item {{ \
                     elem: {in_type}, \
                     vectorization: 1 \
-                }}, 0), \
-                out: Local(0, Item {{ \
+                }}, depth: 0 }}, \
+                out: Local {{ id: 0, item: Item {{ \
                     elem: {out_type}, \
                     vectorization: 1 \
-                }}, 0) \
+                }}, depth: 0 }} \
             }}))]"
             )
         }

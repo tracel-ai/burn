@@ -16,7 +16,10 @@ impl<E: JitElement> ReduceDimNaive<E> for Argmax {
     ) -> Self::Accumulator {
         let index = scope.create_local(Elem::UInt);
         let max = scope.create_local(input_item);
-        let max_initial = Variable::ConstantScalar(E::minimum_value().to_f64(), input_item.elem());
+        let max_initial = Variable::ConstantScalar {
+            value: E::minimum_value().to_f64(),
+            elem: input_item.elem(),
+        };
         cpa!(scope, max = max_initial);
 
         (max, index)

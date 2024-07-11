@@ -32,13 +32,13 @@ struct ScatterComputeShader {
 impl ScatterComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         match self.input {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Input variable must be an global array."),
         };
         match self.value {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Value variable must be an global array."),
         };
 
@@ -136,9 +136,18 @@ impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
         let item_value = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let input_output = Variable::GlobalInputArray(0, item_value);
-        let indices = Variable::GlobalInputArray(1, Elem::Int(IntKind::I32).into());
-        let value = Variable::GlobalInputArray(2, item_value);
+        let input_output = Variable::GlobalInputArray {
+            id: 0,
+            item: item_value,
+        };
+        let indices = Variable::GlobalInputArray {
+            id: 1,
+            item: Elem::Int(IntKind::I32).into(),
+        };
+        let value = Variable::GlobalInputArray {
+            id: 2,
+            item: item_value,
+        };
 
         scope.write_global_custom(input_output);
 

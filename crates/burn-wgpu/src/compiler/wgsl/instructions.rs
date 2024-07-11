@@ -1,6 +1,6 @@
 use super::{
     base::{Item, Variable},
-    IndexedVariable, Subgroup,
+    Elem, IndexedVariable, Subgroup,
 };
 use std::fmt::Display;
 
@@ -167,7 +167,7 @@ pub enum Instruction {
         position: usize,
         out: Variable,
     },
-    ArrayLength {
+    Length {
         var: Variable,
         out: Variable,
     },
@@ -232,6 +232,12 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Slice {
+        input: Variable,
+        start: Variable,
+        end: Variable,
+        out: Variable,
+    },
     Subgroup(Subgroup),
 }
 
@@ -244,6 +250,16 @@ impl Display for Instruction {
             }
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
+            }
+            Instruction::Slice {
+                input,
+                start,
+                end,
+                out,
+            } => {
+                f.write_fmt(format_args!("let {out}_offset = {start};\n"))?;
+                f.write_fmt(format_args!("let {out}_length = {end} - {start};\n"))?;
+                f.write_fmt(format_args!("let {out}_ptr = &{input};\n"))
             }
             Instruction::Fma { a, b, c, out } => {
                 f.write_fmt(format_args!("{out} = fma({a}, {b}, {c});\n"))
@@ -261,10 +277,22 @@ impl Display for Instruction {
                 f.write_fmt(format_args!("{out} = {lhs} || {rhs};\n"))
             }
             Instruction::Not { input, out } => f.write_fmt(format_args!("{out} = !{input};\n")),
-            Instruction::Index { lhs, rhs, out } => {
-                let item = out.item();
-                f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
-            }
+            Instruction::Index { lhs, rhs, out } => match lhs {
+                Variable::Slice { item, .. } => {
+                    let offset = Variable::Named {
+                        name: format!("{lhs}_offset"),
+                        item: Item::Scalar(Elem::U32),
+                        is_array: false,
+                    };
+                    let lhs = Variable::Named {
+                        name: format!("(*{lhs}_ptr)"),
+                        item: *item,
+                        is_array: true,
+                    };
+                    index(f, &lhs, rhs, out, Some(offset))
+                }
+                _ => index(f, lhs, rhs, out, None),
+            },
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
@@ -406,88 +434,24 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
 
                 f.write_str("}\n")
             }
-            Instruction::IndexAssign { lhs, rhs, out } => match lhs.item() {
-                Item::Vec4(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-                    let lhs3 = lhs.index(3);
+            Instruction::IndexAssign { lhs, rhs, out } => {
+                if let Variable::Slice { item, .. } = out {
+                    let offset = Variable::Named {
+                        name: format!("{out}_offset"),
+                        item: Item::Scalar(Elem::U32),
+                        is_array: false,
+                    };
+                    let out = Variable::Named {
+                        name: format!("(*{out}_ptr)"),
+                        item: *item,
+                        is_array: true,
+                    };
 
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-                    let rhs3 = rhs.index(3);
-
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+                    index_assign(f, lhs, rhs, &out, Some(offset))
+                } else {
+                    index_assign(f, lhs, rhs, out, None)
                 }
-                Item::Vec3(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
-                }
-                Item::Vec2(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
-                }
-                Item::Scalar(_elem) => {
-                    let is_array = matches!(
-                        out,
-                        Variable::GlobalInputArray(_, _)
-                            | Variable::GlobalOutputArray(_, _)
-                            | Variable::SharedMemory(_, _, _)
-                            | Variable::LocalArray(_, _, _, _)
-                    );
-
-                    if !is_array {
-                        let elem_out = out.elem();
-                        let casting_type = match rhs.item() {
-                            Item::Vec4(_) => Item::Vec4(elem_out),
-                            Item::Vec3(_) => Item::Vec3(elem_out),
-                            Item::Vec2(_) => Item::Vec2(elem_out),
-                            Item::Scalar(_) => Item::Scalar(elem_out),
-                        };
-                        f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
-                    } else {
-                        let item_rhs = rhs.item();
-                        let item_out = out.item();
-
-                        let vectorization_factor = item_out.vectorization_factor();
-                        if vectorization_factor > item_rhs.vectorization_factor() {
-                            let casting_type = item_out.elem();
-                            f.write_fmt(format_args!("{out}[{lhs}] = vec{vectorization_factor}("))?;
-                            for i in 0..vectorization_factor {
-                                let value = rhs.index(i);
-                                f.write_fmt(format_args!("{casting_type}({value})"))?;
-
-                                if i < vectorization_factor - 1 {
-                                    f.write_str(",")?;
-                                }
-                            }
-                            f.write_str(");\n")
-                        } else {
-                            let casting_type = item_out;
-                            f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
-                        }
-                    }
-                }
-            },
+            }
             Instruction::If { cond, instructions } => {
                 f.write_fmt(format_args!("if {cond} {{\n"))?;
                 for i in instructions {
@@ -513,9 +477,10 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             Instruction::Return => f.write_str("return;\n"),
             Instruction::Break => f.write_str("break;\n"),
             Instruction::WorkgroupBarrier => f.write_str("workgroupBarrier();\n"),
-            Instruction::ArrayLength { var, out } => {
-                f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
-            }
+            Instruction::Length { var, out } => match var {
+                Variable::Slice { .. } => f.write_fmt(format_args!("{out} = {var}_length;\n")),
+                _ => f.write_fmt(format_args!("{out} = arrayLength(&{var});\n")),
+            },
             Instruction::Loop { instructions } => {
                 f.write_fmt(format_args!("loop {{\n"))?;
                 for i in instructions {
@@ -622,4 +587,141 @@ fn unroll<
         func(f, vars)?;
     }
     Ok(())
+}
+
+struct IndexOffset {
+    var: Variable,
+    offset: Option<Variable>,
+    index: usize,
+}
+impl IndexOffset {
+    fn new(var: &Variable, offset: &Option<Variable>, index: usize) -> Self {
+        Self {
+            var: var.clone(),
+            offset: offset.clone(),
+            index,
+        }
+    }
+}
+
+impl Display for IndexOffset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let var = self.var.index(self.index);
+
+        match &self.offset {
+            Some(offset) => {
+                let offset = offset.index(self.index);
+                f.write_fmt(format_args!("{var} + {offset}"))
+            }
+            None => f.write_fmt(format_args!("{var}")),
+        }
+    }
+}
+
+fn index(
+    f: &mut std::fmt::Formatter<'_>,
+    lhs: &Variable,
+    rhs: &Variable,
+    out: &Variable,
+    offset: Option<Variable>,
+) -> core::fmt::Result {
+    let item = out.item();
+    match offset {
+        Some(offset) => f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs} + {offset}]);\n")),
+        None => f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n")),
+    }
+}
+
+fn index_assign(
+    f: &mut std::fmt::Formatter<'_>,
+    lhs: &Variable,
+    rhs: &Variable,
+    out: &Variable,
+    offset: Option<Variable>,
+) -> core::fmt::Result {
+    match lhs.item() {
+        Item::Vec4(elem) => {
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
+            let lhs2 = IndexOffset::new(lhs, &offset, 2);
+            let lhs3 = IndexOffset::new(lhs, &offset, 3);
+
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+            let rhs3 = rhs.index(3);
+
+            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+        }
+        Item::Vec3(elem) => {
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
+            let lhs2 = IndexOffset::new(lhs, &offset, 2);
+
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+
+            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
+        }
+        Item::Vec2(elem) => {
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
+
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+
+            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
+        }
+        Item::Scalar(_elem) => {
+            let is_array = match out {
+                Variable::GlobalInputArray(_, _)
+                | Variable::GlobalOutputArray(_, _)
+                | Variable::SharedMemory(_, _, _)
+                | Variable::Slice { .. }
+                | Variable::LocalArray(_, _, _, _) => true,
+                Variable::Named { is_array, .. } => *is_array,
+                _ => false,
+            };
+
+            if !is_array {
+                let elem_out = out.elem();
+                let casting_type = match rhs.item() {
+                    Item::Vec4(_) => Item::Vec4(elem_out),
+                    Item::Vec3(_) => Item::Vec3(elem_out),
+                    Item::Vec2(_) => Item::Vec2(elem_out),
+                    Item::Scalar(_) => Item::Scalar(elem_out),
+                };
+                f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+            } else {
+                let item_rhs = rhs.item();
+                let item_out = out.item();
+                let lhs = IndexOffset::new(lhs, &offset, 0);
+
+                let vectorization_factor = item_out.vectorization_factor();
+                if vectorization_factor > item_rhs.vectorization_factor() {
+                    let casting_type = item_out.elem();
+                    f.write_fmt(format_args!("{out}[{lhs}] = vec{vectorization_factor}("))?;
+                    for i in 0..vectorization_factor {
+                        let value = rhs.index(i);
+                        f.write_fmt(format_args!("{casting_type}({value})"))?;
+
+                        if i < vectorization_factor - 1 {
+                            f.write_str(",")?;
+                        }
+                    }
+                    f.write_str(");\n")
+                } else {
+                    let casting_type = item_out;
+                    f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                }
+            }
+        }
+    }
 }

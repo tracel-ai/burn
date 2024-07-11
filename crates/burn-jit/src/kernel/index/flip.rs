@@ -43,7 +43,10 @@ impl FlipComputeShader {
             cpa!(scope, shape = shape(output, i));
             cpa!(
                 scope,
-                flip = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
+                flip = cast(Variable::GlobalScalar {
+                    id: i as u16,
+                    elem: Elem::UInt
+                })
             );
             cpa!(scope, flip_bool = flip == 1u32);
 
@@ -70,8 +73,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 

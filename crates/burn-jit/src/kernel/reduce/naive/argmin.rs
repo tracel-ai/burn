@@ -17,7 +17,10 @@ impl<E: JitElement> ReduceDimNaive<E> for Argmin {
     ) -> Self::Accumulator {
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(input_item);
-        let min_initial = Variable::ConstantScalar(E::maximum_value().to_f64(), input_item.elem());
+        let min_initial = Variable::ConstantScalar {
+            value: E::maximum_value().to_f64(),
+            elem: input_item.elem(),
+        };
         cpa!(scope, min = min_initial);
 
         (min, index)

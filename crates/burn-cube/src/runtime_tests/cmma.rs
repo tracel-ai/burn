@@ -31,12 +31,17 @@ pub fn kernel_simple_1(lhs: &Array<F16>, rhs: &Array<F16>, out: &mut Array<F32>)
         cmma::MatrixLayout::Undefined,
     );
     cmma::fill::<F32>(&c, F32::new(0.0));
-    cmma::load::<F16>(&a, lhs, UInt::new(16));
-    cmma::load::<F16>(&b, rhs, UInt::new(16));
+    cmma::load::<F16>(&a, lhs.as_slice(), UInt::new(16));
+    cmma::load::<F16>(&b, rhs.as_slice(), UInt::new(16));
 
     cmma::execute::<F16, F16, F32, F32>(&a, &b, &c, &c);
 
-    cmma::store::<F32>(out, &c, UInt::new(16), cmma::MatrixLayout::RowMajor);
+    cmma::store::<F32>(
+        out.as_slice_mut(),
+        &c,
+        UInt::new(16),
+        cmma::MatrixLayout::RowMajor,
+    );
 }
 
 pub fn test_simple_1<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {

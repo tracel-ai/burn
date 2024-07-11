@@ -16,11 +16,15 @@ pub struct UnaryInstruction {
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    ArrayLength {
+    Length {
         input: Variable,
         out: Variable,
         num_inputs: usize,
         num_outputs: usize,
+    },
+    SliceLength {
+        input: Variable,
+        out: Variable,
     },
     DeclareVariable {
         var: Variable,
@@ -57,6 +61,12 @@ pub enum Instruction {
         cond: Variable,
         instructions_if: Vec<Self>,
         instructions_else: Vec<Self>,
+    },
+    Slice {
+        input: Variable,
+        start: Variable,
+        end: Variable,
+        out: Variable,
     },
     Return,
     Break,
@@ -114,7 +124,7 @@ impl Display for Instruction {
             Instruction::Return => f.write_str("return;"),
             Instruction::Break => f.write_str("break;"),
             Instruction::DeclareVariable { var } => match var {
-                Variable::WmmaFragment { index: _, frag } => {
+                Variable::WmmaFragment { id: _, frag } => {
                     f.write_fmt(format_args!("{frag} {var};\n"))
                 }
                 _ => {
@@ -123,6 +133,16 @@ impl Display for Instruction {
                 }
             },
             Instruction::Add(it) => Add::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Slice {
+                input,
+                start,
+                end,
+                out,
+            } => {
+                let item = out.item();
+                f.write_fmt(format_args!("uint {out}_length = {end} - {start};\n"))?;
+                f.write_fmt(format_args!("{item} *{out} = {input} + {start};\n"))
+            }
             Instruction::Mul(it) => Mul::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Div(it) => Div::format(f, &it.lhs, &it.rhs, &it.out),
             Instruction::Sub(it) => Sub::format(f, &it.lhs, &it.rhs, &it.out),
@@ -225,7 +245,10 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::SyncThreads => f.write_str("__syncthreads();\n"),
             Instruction::Ceil(it) => Ceil::format(f, &it.input, &it.out),
             Instruction::Floor(it) => Floor::format(f, &it.input, &it.out),
-            Instruction::ArrayLength {
+            Instruction::SliceLength { input, out } => {
+                f.write_fmt(format_args!("{out} = {input}_length;\n"))
+            }
+            Instruction::Length {
                 input,
                 out,
                 num_inputs,

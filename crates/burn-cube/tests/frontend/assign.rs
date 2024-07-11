@@ -98,8 +98,14 @@ mod tests {
         let mut scope = context.into_scope();
         let x = scope.create_local(Item::new(Elem::UInt));
 
-        let zero = Variable::ConstantScalar(0., Elem::UInt);
-        let one = Variable::ConstantScalar(1., Elem::UInt);
+        let zero = Variable::ConstantScalar {
+            value: 0.,
+            elem: Elem::UInt,
+        };
+        let one = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
         cpa!(scope, x = zero);
         cpa!(scope, x = x + one);
 
@@ -115,8 +121,14 @@ mod tests {
         let y: Variable = y.into();
         let x = scope.create_local(item);
 
-        let one = Variable::ConstantScalar(1., Elem::UInt);
-        let two = Variable::ConstantScalar(2., Elem::UInt);
+        let one = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
+        let two = Variable::ConstantScalar {
+            value: 2.,
+            elem: Elem::UInt,
+        };
         cpa!(scope, x = y);
         cpa!(scope, x = x + one);
         cpa!(scope, y = y + two);
@@ -133,8 +145,14 @@ mod tests {
         let y: Variable = y.into();
         let x = scope.create_local(item);
 
-        let one = Variable::ConstantScalar(1., Elem::UInt);
-        let two = Variable::ConstantScalar(2., Elem::UInt);
+        let one = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
+        let two = Variable::ConstantScalar {
+            value: 2.,
+            elem: Elem::UInt,
+        };
         cpa!(scope, x = y);
         cpa!(scope, y = y + one);
         cpa!(scope, x = x + two);
@@ -151,10 +169,22 @@ mod tests {
         let y: Variable = y.into();
         let x = scope.create_local(item);
 
-        let zero = Variable::ConstantScalar(0., Elem::UInt);
-        let one = Variable::ConstantScalar(1., Elem::UInt);
-        let two = Variable::ConstantScalar(2., Elem::UInt);
-        let three = Variable::ConstantScalar(3., Elem::UInt);
+        let zero = Variable::ConstantScalar {
+            value: 0.,
+            elem: Elem::UInt,
+        };
+        let one = Variable::ConstantScalar {
+            value: 1.,
+            elem: Elem::UInt,
+        };
+        let two = Variable::ConstantScalar {
+            value: 2.,
+            elem: Elem::UInt,
+        };
+        let three = Variable::ConstantScalar {
+            value: 3.,
+            elem: Elem::UInt,
+        };
         cpa!(scope, x[zero] = one);
         cpa!(scope, x[one] = one);
         cpa!(scope, x[two] = one);
