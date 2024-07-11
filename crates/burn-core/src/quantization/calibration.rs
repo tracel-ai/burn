@@ -36,3 +36,45 @@ impl Calibration for MinMaxCalibration {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn min_max_calibration_per_tensor_affine_int8() {
+        let device = <TestBackend as Backend>::Device::default();
+        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+        let calibration = MinMaxCalibration {
+            scheme: QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+        };
+
+        let strategy = calibration.configure(&tensor);
+
+        if let QuantizationStrategy::PerTensorAffineInt8(q) = strategy {
+            assert_eq!(q.scale, 0.009019607843137253);
+            assert_eq!(q.offset, 72);
+        } else {
+            panic!("Wrong quantization strategy");
+        }
+    }
+
+    #[test]
+    fn min_max_calibration_per_tensor_symmetric_int8() {
+        let device = <TestBackend as Backend>::Device::default();
+        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+        let calibration = MinMaxCalibration {
+            scheme: QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+        };
+
+        let strategy = calibration.configure(&tensor);
+
+        if let QuantizationStrategy::PerTensorSymmetricInt8(q) = strategy {
+            assert_eq!(q.scale, 0.014173228346456693);
+        } else {
+            panic!("Wrong quantization strategy");
+        }
+    }
+}
