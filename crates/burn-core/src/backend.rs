@@ -29,4 +29,4 @@ pub use burn_tch as libtorch;
 pub use burn_tch::LibTorch;
 
 #[cfg(feature = "sparse")]
-pub use burn_sparse as sparse;
+pub use burn_sparse::decorator as sparse;

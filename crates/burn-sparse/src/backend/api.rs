@@ -1,7 +1,14 @@
 use crate::backend::{Sparse, SparseBackend};
 use burn_tensor::{Int, Tensor, TensorPrimitive};
 
-pub trait SparseTensor<const D: usize, B>
+pub trait ToSparse<const D: usize, B>
+where
+    B: SparseBackend,
+{
+    fn into_sparse(self) -> Tensor<B, D, Sparse>;
+}
+
+pub trait SparseTensorApi<const D: usize, B>
 where
     B: SparseBackend,
 {
@@ -10,7 +17,16 @@ where
     fn dense(self) -> Tensor<B, D>;
 }
 
-impl<const D: usize, B> SparseTensor<D, B> for Tensor<B, D, Sparse>
+impl<const D: usize, B> ToSparse<D, B> for Tensor<B, D>
+where
+    B: SparseBackend,
+{
+    fn into_sparse(self) -> Tensor<B, D, Sparse> {
+        Tensor::new(B::sparse_to_sparse(self.into_primitive().tensor()))
+    }
+}
+
+impl<const D: usize, B> SparseTensorApi<D, B> for Tensor<B, D, Sparse>
 where
     B: SparseBackend,
 {
