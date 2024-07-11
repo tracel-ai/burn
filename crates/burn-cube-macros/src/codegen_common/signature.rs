@@ -50,7 +50,7 @@ pub fn expand_sig(
 
     let ident = &sig.ident;
     let ident = match mode {
-        ExpandMode::FuncImpl => syn::Ident::new(format!("__expand").as_str(), ident.span()),
+        ExpandMode::FuncImpl => syn::Ident::new("__expand".to_string().as_str(), ident.span()),
         _ => syn::Ident::new(format!("__expand_{ident}").as_str(), ident.span()),
     };
 
