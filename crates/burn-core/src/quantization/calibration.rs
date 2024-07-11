@@ -54,7 +54,7 @@ mod tests {
         let strategy = calibration.configure(&tensor);
 
         if let QuantizationStrategy::PerTensorAffineInt8(q) = strategy {
-            assert_eq!(q.scale, 0.009019607843137253);
+            assert_eq!(q.scale, 0.009_019_608);
             assert_eq!(q.offset, 72);
         } else {
             panic!("Wrong quantization strategy");
@@ -72,7 +72,7 @@ mod tests {
         let strategy = calibration.configure(&tensor);
 
         if let QuantizationStrategy::PerTensorSymmetricInt8(q) = strategy {
-            assert_eq!(q.scale, 0.014173228346456693);
+            assert_eq!(q.scale, 0.014_173_228);
         } else {
             panic!("Wrong quantization strategy");
         }
