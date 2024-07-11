@@ -38,7 +38,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         tensor: QuantizedTensor<Self, D>,
         _strategy: &QuantizationStrategy,
     ) -> FloatTensor<Self, D> {
-        TchTensor::new(tensor.tensor.dequantize())
+        TchTensor::new(tensor.tensor.dequantize().to_kind(E::KIND))
     }
 
     fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
