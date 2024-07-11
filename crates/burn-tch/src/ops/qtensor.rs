@@ -24,22 +24,20 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
                 QuantizationStrategy::PerTensorAffineInt8(q) => {
                     let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
                     let tensor = tch::Tensor::from_slice(&values).to(device);
-                    let tensor = TchOps::<E>::quantize::<D, i8>(
+                    TchOps::<E>::quantize::<D, i8>(
                         TchTensor::new(tensor.reshape(shape_tch.dims)),
                         &strategy,
                     )
-                    .tensor;
-                    tensor
+                    .tensor
                 }
                 QuantizationStrategy::PerTensorSymmetricInt8(q) => {
                     let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
                     let tensor = tch::Tensor::from_slice(&values).to(device);
-                    let tensor = TchOps::<E>::quantize::<D, i8>(
+                    TchOps::<E>::quantize::<D, i8>(
                         TchTensor::new(tensor.reshape(shape_tch.dims)),
                         &strategy,
                     )
-                    .tensor;
-                    tensor
+                    .tensor
                 }
             },
             _ => panic!(
