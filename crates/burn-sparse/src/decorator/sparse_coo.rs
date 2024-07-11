@@ -2,6 +2,7 @@ use crate::backend::SparseBackend;
 use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
 use crate::decorator::SparseDecorator;
+use burn_tensor::ops::FloatTensor;
 use burn_tensor::{
     backend::Backend, ElementConversion, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
 };
@@ -274,9 +275,44 @@ where
 
     fn sparse_reshape<const D1: usize, const D2: usize>(
         tensor: SparseTensor<Self, D1>,
-        shape: Shape<D2>,
+        out_shape: Shape<D2>,
     ) -> SparseTensor<Self, D2> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
+
+        let device = coordinates.device();
+
+        // Flatten the coordinates:
+        let mut strides_data = [[1]; D1];
+        for i in (0..D1 - 1).rev() {
+            strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
+        }
+        let strides_data: TensorData = TensorData::from(strides_data);
+        let strides: Tensor<B, 2, Int> = Tensor::from_data(strides_data, &device);
+        let flat_coordinates: Tensor<B, 1, Int> = strides.mul(coordinates).sum_dim(0).flatten(0, 1);
+
+        // Convert the flattened coordinates to the new shape
+        let mut remaining_flat_coordinates = flat_coordinates.clone();
+        let mut new_coordinates = Vec::with_capacity(D2);
+
+        for &dim_size in out_shape.dims.iter().rev() {
+            let size = dim_size as i64;
+            let new_coord = remaining_flat_coordinates.clone().remainder_scalar(size);
+            new_coordinates.push(new_coord.clone());
+            remaining_flat_coordinates = remaining_flat_coordinates.div_scalar(size);
+        }
+
+        new_coordinates.reverse();
+        let new_coordinates = Tensor::stack(new_coordinates, 0);
+
+        SparseCOOTensor {
+            coordinates: new_coordinates,
+            values,
+            shape: out_shape,
+        }
     }
 
     fn sparse_transpose<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
