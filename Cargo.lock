@@ -508,6 +508,7 @@ dependencies = [
  "burn-dataset",
  "burn-derive",
  "burn-ndarray",
+ "burn-sparse",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
@@ -699,6 +700,24 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "serde",
+]
+
+[[package]]
+name = "burn-sparse"
+version = "0.14.0"
+dependencies = [
+ "burn-common",
+ "burn-tensor",
+ "derive-new",
+ "half",
+ "hashbrown 0.14.5",
+ "num-traits",
+ "proc-macro2",
+ "quote",
+ "rand",
+ "rand_distr",
+ "serde",
+ "syn 2.0.69",
 ]
 
 [[package]]

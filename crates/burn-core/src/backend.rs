@@ -27,3 +27,6 @@ pub use burn_tch as libtorch;
 
 #[cfg(feature = "tch")]
 pub use burn_tch::LibTorch;
+
+#[cfg(feature = "sparse")]
+pub use burn_sparse as sparse;

@@ -1,0 +1,43 @@
+[package]
+authors = []
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Sparse tensor crate that offers a default sparse backend wrapper around burn backends."
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "sparse"]
+license.workspace = true
+name = "burn-sparse"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-sparse"
+version.workspace = true
+
+[features]
+default = ["std"]
+doc = ["default"]
+experimental-named-tensor = []
+std = ["rand/std", "half/std", "num-traits/std"]
+wasm-sync = []
+
+[dependencies]
+burn-common = { path = "../burn-common", version = "0.14.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.14.0" }
+
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+derive-new = { workspace = true }
+half = { workspace = true }
+num-traits = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true } # use instead of statrs because it supports no_std
+
+# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
+hashbrown = { workspace = true } # no_std compatible
+
+# Serialization
+serde = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
+
+[package.metadata.docs.rs]
+features = ["doc"]
