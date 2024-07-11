@@ -43,6 +43,11 @@ where
                 e
             ))
         })?;
+        let data = if let DType::QFloat(_) = data.dtype {
+            data // do not convert quantized tensors
+        } else {
+            data.convert::<E>()
+        };
         Ok(data)
     }
 }
@@ -147,7 +152,6 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        // println!("from_item {:?}", item.data.dtype);
         let data = if let DType::QFloat(_) = item.data.dtype {
             item.data // do not convert quantized tensors
         } else {
