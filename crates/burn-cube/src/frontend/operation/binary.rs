@@ -280,11 +280,20 @@ macro_rules! impl_binary_func {
     }
 }
 
-impl_binary_func!(Powf, powf, powf_expand, Operator::Powf, F16, BF16, F32, F64);
+impl_binary_func!(
+    Powf,
+    powf,
+    __expand_powf,
+    Operator::Powf,
+    F16,
+    BF16,
+    F32,
+    F64
+);
 impl_binary_func!(
     Max,
     max,
-    max_expand,
+    __expand_max,
     Operator::Max,
     F16,
     BF16,
@@ -297,7 +306,7 @@ impl_binary_func!(
 impl_binary_func!(
     Min,
     min,
-    min_expand,
+    __expand_min,
     Operator::Min,
     F16,
     BF16,
@@ -310,7 +319,7 @@ impl_binary_func!(
 impl_binary_func!(
     Remainder,
     rem,
-    rem_expand,
+    __expand_rem,
     Operator::Remainder,
     F16,
     BF16,

@@ -1,6 +1,6 @@
 use burn_cube::{
     cube,
-    frontend::{Cast, Numeric, UInt, F32, I32, Bool},
+    frontend::{Bool, Cast, Numeric, UInt, F32, I32},
 };
 
 // From float

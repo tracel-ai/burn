@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[cube]
-fn topology_kernel<T: Numeric>(input: Tensor<T>) {
+pub fn topology_kernel<T: Numeric>(input: Tensor<T>) {
     let x = ABSOLUTE_POS + UInt::new(4);
     let _ = input[x];
 }
@@ -20,7 +20,7 @@ mod tests {
         let mut context = CubeContext::root();
         let input = context.input(0, Item::new(ElemType::as_elem()));
 
-        topology_kernel_expand::<ElemType>(&mut context, input.into());
+        topology_kernel::__expand::<ElemType>(&mut context, input.into());
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref()

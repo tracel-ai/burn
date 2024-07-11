@@ -13,7 +13,7 @@ struct AddStrategy;
 #[cube]
 /// The actual implementation of AddStrategy's operation
 /// Automatically generated an _expand variant
-fn add_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
+pub fn add_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
     input_1 + input_2
 }
 

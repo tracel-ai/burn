@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[cube]
-fn kernel<T: Numeric>(input: &Tensor<T>) {
+pub fn kernel<T: Numeric>(input: &Tensor<T>) {
     let _shape = input.shape(1);
     let _stride = input.stride(1);
     let _length = input.len();
@@ -21,7 +21,7 @@ mod tests {
         let mut context = CubeContext::root();
         let input = context.input(0, Item::new(ElemType::as_elem()));
 
-        kernel_expand::<ElemType>(&mut context, input.into());
+        kernel::__expand::<ElemType>(&mut context, input.into());
         assert_eq!(
             format!("{:?}", context.into_scope().operations),
             inline_macro_ref()
