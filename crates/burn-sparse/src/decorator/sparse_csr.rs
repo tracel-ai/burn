@@ -1,6 +1,8 @@
+use crate::backend::SparseBackend;
+use crate::backend::SparseTensor;
 use crate::decorator::SparseCSR;
 use crate::decorator::SparseDecorator;
-use burn_tensor::{backend::Backend, sparse_backend::SparseBackend};
+use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
 
 #[derive(Debug, Default, Clone)]
@@ -17,7 +19,7 @@ where
     fn sparse_empty<const D: usize>(
         shape: burn_tensor::Shape<D>,
         device: &burn_tensor::Device<Self>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         todo!()
     }
 
@@ -48,33 +50,29 @@ where
     }
 
     fn sparse_slice<const D1: usize, const D2: usize>(
-        tensor: burn_tensor::ops::SparseTensor<Self, D1>,
+        tensor: SparseTensor<Self, D1>,
         indices: [std::ops::Range<usize>; D2],
-    ) -> burn_tensor::ops::SparseTensor<Self, D1> {
+    ) -> SparseTensor<Self, D1> {
         todo!()
     }
 
-    fn sparse_device<const D: usize>(
-        tensor: &burn_tensor::ops::SparseTensor<Self, D>,
-    ) -> burn_tensor::Device<Self> {
+    fn sparse_device<const D: usize>(tensor: &SparseTensor<Self, D>) -> burn_tensor::Device<Self> {
         todo!()
     }
 
     fn sparse_to_device<const D: usize>(
-        tensor: burn_tensor::ops::SparseTensor<Self, D>,
+        tensor: SparseTensor<Self, D>,
         device: &burn_tensor::Device<Self>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         todo!()
     }
 
-    fn sparse_shape<const D: usize>(
-        tensor: &burn_tensor::ops::SparseTensor<Self, D>,
-    ) -> burn_tensor::Shape<D> {
+    fn sparse_shape<const D: usize>(tensor: &SparseTensor<Self, D>) -> burn_tensor::Shape<D> {
         todo!()
     }
 
     fn sparse_into_data<const D: usize>(
-        tensor: burn_tensor::ops::SparseTensor<Self, D>,
+        tensor: SparseTensor<Self, D>,
     ) -> impl std::future::Future<Output = burn_tensor::TensorData> + Send {
         async { todo!() }
     }
@@ -82,7 +80,7 @@ where
     fn sparse_from_data<const D: usize>(
         data: burn_tensor::TensorData,
         device: &burn_tensor::Device<Self>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         todo!()
     }
 }

@@ -58,4 +58,98 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
     ) -> Self::Primitive<D1> {
         B::sparse_slice(tensor, ranges)
     }
+
+    fn reshape<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2> {
+        todo!()
+    }
+
+    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn swap_dims<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn slice_assign<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        ranges: [Range<usize>; D2],
+        value: Self::Primitive<D1>,
+    ) -> Self::Primitive<D1> {
+        todo!()
+    }
+
+    fn repeat<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+        todo!()
+    }
+
+    fn equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn any<const D: usize>(
+        tensor: Self::Primitive<D>,
+    ) -> burn_tensor::Tensor<B, 1, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn any_dim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn all<const D: usize>(
+        tensor: Self::Primitive<D>,
+    ) -> burn_tensor::Tensor<B, 1, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn all_dim<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+    ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
+        todo!()
+    }
+
+    fn expand<const D1: usize, const D2: usize>(
+        tensor: Self::Primitive<D1>,
+        shape: Shape<D2>,
+    ) -> Self::Primitive<D2> {
+        todo!()
+    }
 }

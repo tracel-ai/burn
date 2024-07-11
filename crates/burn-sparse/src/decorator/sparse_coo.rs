@@ -1,8 +1,9 @@
+use crate::backend::SparseBackend;
+use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
 use crate::decorator::SparseDecorator;
 use burn_tensor::{
-    backend::Backend, ops::SparseTensor, sparse_backend::SparseBackend, ElementConversion, Float,
-    Int, Shape, Tensor, TensorData, TensorPrimitive,
+    backend::Backend, ElementConversion, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
 };
 
 #[derive(Clone, Debug)]
@@ -174,9 +175,9 @@ where
     }
 
     fn sparse_to_device<const D: usize>(
-        tensor: burn_tensor::ops::SparseTensor<Self, D>,
+        tensor: SparseTensor<Self, D>,
         device: &burn_tensor::Device<Self>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         SparseCOOTensor {
             coordinates: tensor.coordinates.to_device(device),
             values: tensor.values.to_device(device),
@@ -193,7 +194,7 @@ where
     fn sparse_empty<const D: usize>(
         shape: burn_tensor::Shape<D>,
         device: &burn_tensor::Device<B>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         SparseCOOTensor {
             coordinates: Tensor::from_primitive(B::int_empty(
                 burn_tensor::Shape::new([0, 0]),
@@ -210,7 +211,7 @@ where
     fn sparse_slice<const D1: usize, const D2: usize>(
         tensor: Self::SparseTensorPrimitive<D1>,
         indices: [std::ops::Range<usize>; D2],
-    ) -> burn_tensor::ops::SparseTensor<Self, D1> {
+    ) -> SparseTensor<Self, D1> {
         let SparseCOOTensor {
             coordinates,
             values,
@@ -259,13 +260,13 @@ where
     fn sparse_from_data<const D: usize>(
         data: TensorData,
         device: &burn_tensor::Device<Self>,
-    ) -> burn_tensor::ops::SparseTensor<Self, D> {
+    ) -> SparseTensor<Self, D> {
         let dense = B::float_from_data(data, &device);
         Self::sparse_to_sparse(dense)
     }
 
     fn sparse_into_data<const D: usize>(
-        tensor: burn_tensor::ops::SparseTensor<Self, D>,
+        tensor: SparseTensor<Self, D>,
     ) -> impl std::future::Future<Output = TensorData> + Send {
         // TODO this could be way better
         B::float_into_data(Self::sparse_to_dense(tensor))
