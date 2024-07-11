@@ -1,7 +1,7 @@
 use std::{future::Future, ops::Range};
 
 use crate::backend::SparseBackend;
-use burn_tensor::{backend::Backend, BasicOps, Shape, TensorData, TensorKind};
+use burn_tensor::{backend::Backend, BasicOps, Shape, Tensor, TensorData, TensorKind};
 
 /// A type-level representation of the kind of a sparse (float) tensor.
 #[derive(Clone, Debug)]
@@ -63,11 +63,11 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        todo!()
+        B::sparse_reshape(tensor, shape)
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_transpose(tensor)
     }
 
     fn swap_dims<const D: usize>(
@@ -75,15 +75,15 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
         dim1: usize,
         dim2: usize,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_swap_dims(tensor, dim1, dim2)
     }
 
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_permute(tensor, &axes)
     }
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_flip(tensor, &axes)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -91,7 +91,7 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
         ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        todo!()
+        B::sparse_slice_assign(tensor, ranges, value)
     }
 
     fn repeat<const D: usize>(
@@ -99,57 +99,57 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_repeat(tensor, dim, times)
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_cat(vectors, dim)
     }
 
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_equal(lhs, rhs))
     }
 
     fn not_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_not_equal(lhs, rhs))
     }
 
     fn any<const D: usize>(
         tensor: Self::Primitive<D>,
     ) -> burn_tensor::Tensor<B, 1, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_any(tensor))
     }
 
     fn any_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_any_dim(tensor, dim))
     }
 
     fn all<const D: usize>(
         tensor: Self::Primitive<D>,
     ) -> burn_tensor::Tensor<B, 1, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_all(tensor))
     }
 
     fn all_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> burn_tensor::Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_all_dim(tensor, dim))
     }
 
     fn expand<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        todo!()
+        B::sparse_expand(tensor, shape)
     }
 }

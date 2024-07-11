@@ -1,5 +1,5 @@
 use crate::backend::SparseTensor;
-use burn_tensor::{backend::Backend, Device, Shape, TensorData};
+use burn_tensor::{backend::Backend, ops::BoolTensor, Device, Shape, TensorData};
 use core::{future::Future, ops::Range};
 
 pub trait SparseBackend: Backend {
@@ -107,4 +107,73 @@ pub trait SparseBackend: Backend {
         data: TensorData,
         device: &Device<Self>,
     ) -> SparseTensor<Self, D>;
+
+    fn sparse_reshape<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> SparseTensor<Self, D2>;
+
+    fn sparse_transpose<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D>;
+
+    fn sparse_swap_dims<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> SparseTensor<Self, D>;
+
+    fn sparse_permute<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        axes: &[usize],
+    ) -> SparseTensor<Self, D>;
+
+    fn sparse_flip<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        axes: &[usize],
+    ) -> SparseTensor<Self, D>;
+
+    fn sparse_slice_assign<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        ranges: [Range<usize>; D2],
+        value: SparseTensor<Self, D1>,
+    ) -> SparseTensor<Self, D1>;
+
+    fn sparse_repeat<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> SparseTensor<Self, D>;
+
+    fn sparse_cat<const D: usize>(
+        tensors: Vec<SparseTensor<Self, D>>,
+        dim: usize,
+    ) -> SparseTensor<Self, D>;
+
+    fn sparse_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> BoolTensor<Self, D>;
+
+    fn sparse_not_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> BoolTensor<Self, D>;
+
+    fn sparse_any<const D: usize>(tensor: SparseTensor<Self, D>) -> BoolTensor<Self, 1>;
+
+    fn sparse_any_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> BoolTensor<Self, D>;
+
+    fn sparse_all<const D: usize>(tensor: SparseTensor<Self, D>) -> BoolTensor<Self, 1>;
+
+    fn sparse_all_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> BoolTensor<Self, D>;
+
+    fn sparse_expand<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> SparseTensor<Self, D2>;
 }

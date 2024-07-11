@@ -271,4 +271,107 @@ where
         // TODO this could be way better
         B::float_into_data(Self::sparse_to_dense(tensor))
     }
+
+    fn sparse_reshape<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> SparseTensor<Self, D2> {
+        todo!()
+    }
+
+    fn sparse_transpose<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_swap_dims<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_permute<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        axes: &[usize],
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_flip<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        axes: &[usize],
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_slice_assign<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        ranges: [std::ops::Range<usize>; D2],
+        value: SparseTensor<Self, D1>,
+    ) -> SparseTensor<Self, D1> {
+        todo!()
+    }
+
+    fn sparse_repeat<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_cat<const D: usize>(
+        tensors: Vec<SparseTensor<Self, D>>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_not_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_any<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_any_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_all<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_all_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_expand<const D1: usize, const D2: usize>(
+        tensor: SparseTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> SparseTensor<Self, D2> {
+        todo!()
+    }
 }
