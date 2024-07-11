@@ -81,7 +81,7 @@ Burn currently supports the following `QuantizationType` variants.
 | `QInt8` | 8-bit signed integer quantization. |
 
 Quantization parameters are defined based on the range of values to represent and can typically be
-calculated for the layer's entire weight tensor with per-tensor quantization or separetely for each
+calculated for the layer's entire weight tensor with per-tensor quantization or separately for each
 channel with per-channel quantization (commonly used with CNNs).
 
 Burn currently supports the following `QuantizationScheme` variants.
