@@ -30,7 +30,7 @@ pub mod subcube_sum {
     use super::*;
 
     /// Expand method of [subcube_sum].
-    pub fn expand<E: CubePrimitive>(
+    pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
     ) -> ExpandElement {
@@ -58,7 +58,7 @@ pub mod subcube_prod {
     use super::*;
 
     /// Expand method of [subcube_prod].
-    pub fn expand<E: CubePrimitive>(
+    pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
     ) -> ExpandElement {
@@ -86,7 +86,7 @@ pub mod subcube_max {
     use super::*;
 
     /// Expand method of [subcube_max].
-    pub fn expand<E: CubePrimitive>(
+    pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
     ) -> ExpandElement {
@@ -114,7 +114,7 @@ pub mod subcube_min {
     use super::*;
 
     /// Expand method of [subcube_min].
-    pub fn expand<E: CubePrimitive>(
+    pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
     ) -> ExpandElement {
@@ -142,7 +142,7 @@ pub mod subcube_all {
     use super::*;
 
     /// Expand method of [subcube_all].
-    pub fn expand<E: CubePrimitive>(
+    pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
     ) -> ExpandElement {

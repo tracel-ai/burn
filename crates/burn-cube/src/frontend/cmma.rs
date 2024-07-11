@@ -97,7 +97,7 @@ impl<C: CubePrimitive> Matrix<C> {
         Matrix { _c: PhantomData }
     }
 
-    pub fn new_expand(
+    pub fn __expand_new(
         context: &mut CubeContext,
         ident: MatrixIdent,
         m: u8,
@@ -128,7 +128,11 @@ pub mod fill {
     use super::*;
 
     /// Expand method of [fill].
-    pub fn expand<C: CubeType>(context: &mut CubeContext, mat: MatrixExpand, value: ExpandElement) {
+    pub fn __expand<C: CubeType>(
+        context: &mut CubeContext,
+        mat: MatrixExpand,
+        value: ExpandElement,
+    ) {
         context.register(Operation::CoopMma(ir::CoopMma::Fill {
             mat: *mat.elem,
             value: *value,
@@ -148,7 +152,7 @@ pub mod load {
 
     /// Expand method of [load].
     #[allow(unused_variables)]
-    pub fn expand<C: CubeType>(
+    pub fn __expand<C: CubeType>(
         context: &mut CubeContext,
         mat: MatrixExpand,
         value: ExpandElementTyped<Array<C>>,
@@ -179,7 +183,7 @@ pub mod store {
 
     /// Expand method of [store].
     #[allow(unused_variables)]
-    pub fn expand<C: CubePrimitive>(
+    pub fn __expand<C: CubePrimitive>(
         context: &mut CubeContext,
         output: ExpandElementTyped<Array<C>>,
         mat: MatrixExpand,
@@ -211,7 +215,7 @@ pub mod execute {
     use super::*;
 
     /// Expand method of [execute].
-    pub fn expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
+    pub fn __expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
         context: &mut CubeContext,
         mat_a: MatrixExpand,
         mat_b: MatrixExpand,

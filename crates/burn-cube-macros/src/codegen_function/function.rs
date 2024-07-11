@@ -131,11 +131,11 @@ pub(crate) fn codegen_call(
 
             let func_name_expand = if is_plain_func {
                 quote::quote! {
-                    #ident::expand
+                    #ident::__expand
                 }
             } else {
                 let ident = syn::Ident::new(
-                    format!("{ident}_expand").as_str(),
+                    format!("__expand_{ident}").as_str(),
                     proc_macro2::Span::call_site(),
                 );
                 quote::quote! {

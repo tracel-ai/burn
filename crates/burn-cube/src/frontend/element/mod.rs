@@ -13,6 +13,7 @@ mod vectorized;
 
 pub use array::*;
 pub use base::*;
+pub use bool::*;
 pub use cast::*;
 pub use cube_elem::*;
 pub use float::*;

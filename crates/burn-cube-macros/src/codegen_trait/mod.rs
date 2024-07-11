@@ -31,7 +31,7 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
         match item {
             syn::ImplItem::Fn(func) => {
                 let ident = &func.sig.ident;
-                let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
+                let ident = syn::Ident::new(format!("__expand_{ident}").as_str(), ident.span());
                 let mut inputs = quote::quote!();
 
                 for input in &func.sig.inputs {

@@ -69,20 +69,8 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 fn cube_fn(func: syn::ItemFn, attrs: &SupportedAttributes) -> TokenStream {
     let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-    match codegen_cube(&func, &mut variable_tracker) {
-        Ok(code) => {
-            if attrs.launch {
-                let launch = codegen_launch(&func.sig);
-
-                quote::quote! {
-                    #code
-                    #launch
-                }
-                .into()
-            } else {
-                code.into()
-            }
-        }
+    match codegen_cube(&func, &mut variable_tracker, attrs.launch) {
+        Ok(code) => code.into(),
         Err(err) => err.into(),
     }
 }
@@ -120,6 +108,7 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> SupportedAttributes {
 fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
+    launch: bool,
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
     let signature = expand_sig(
         &func.sig,
@@ -153,6 +142,12 @@ fn codegen_cube(
         return Err(code);
     }
 
+    let launch = if launch {
+        codegen_launch(&func.sig)
+    } else {
+        quote::quote! {}
+    };
+
     let mod_name = &func.sig.ident;
     let vis = &func.vis;
 
@@ -164,11 +159,14 @@ fn codegen_cube(
         #vis mod #mod_name {
             use super::*;
 
+            #launch
+
             #[allow(unused_mut)]
             #[allow(clippy::too_many_arguments)]
             #signature {
                 #body
             }
+
         }
     })
 }

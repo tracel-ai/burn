@@ -30,7 +30,11 @@ impl<T: CubePrimitive + Clone> Array<T> {
         Array { _val: PhantomData }
     }
 
-    pub fn new_expand<S: Index>(
+    pub fn vectorized<S: Index>(_size: S, _vectorization_factor: UInt) -> Self {
+        Array { _val: PhantomData }
+    }
+
+    pub fn __expand_new<S: Index>(
         context: &mut CubeContext,
         size: S,
     ) -> <Self as CubeType>::ExpandType {
@@ -44,11 +48,7 @@ impl<T: CubePrimitive + Clone> Array<T> {
             .into()
     }
 
-    pub fn vectorized<S: Index>(_size: S, _vectorization_factor: UInt) -> Self {
-        Array { _val: PhantomData }
-    }
-
-    pub fn vectorized_expand<S: Index>(
+    pub fn __expand_vectorized<S: Index>(
         context: &mut CubeContext,
         size: S,
         vectorization_factor: UInt,

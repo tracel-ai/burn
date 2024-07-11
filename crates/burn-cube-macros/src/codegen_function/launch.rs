@@ -456,24 +456,25 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
 
     let mut ident_expand = TokenStream::new();
     ident_expand.extend(quote::quote! {
-        #ident::expand
+        #ident::__expand
     });
-
-    let ident = syn::Ident::new(format!("{ident}_launch").as_str(), ident.span());
 
     let generics = add_runtime(add_lifetime(sig.generics.clone()));
     let body = codegen.gen_launch_body();
     let kernel = codegen.gen_kernel_struct();
     let compile = codegen.gen_compile_impl(&ident_expand);
     let (inputs, output) = (codegen.fn_inputs, codegen.fn_output);
+    let doc =
+        format!("Launch the kernel [{ident}] with the provided argument on the given runtime.");
 
     quote::quote! {
         #kernel
         #compile
 
         #[allow(clippy::too_many_arguments)]
-        /// Launch
-        pub fn #ident #generics (
+        #[doc = #doc]
+        /// Launch the kernel.
+        pub fn launch #generics (
             client: ComputeClient<R::Server, R::Channel>,
             cube_count: CubeCount<R::Server>,
             cube_dim: CubeDim,

@@ -11,7 +11,7 @@ pub use crate::runtime::Runtime;
 
 /// Elements
 pub use crate::frontend::{
-    Array, ArrayHandle, Float, LaunchArg, Tensor, TensorArg, UInt, F16, F32, F64, I32, I64,
+    Array, ArrayHandle, Bool, Float, LaunchArg, Tensor, TensorArg, UInt, F16, F32, F64, I32, I64,
 };
 pub use crate::pod::CubeElement;
 

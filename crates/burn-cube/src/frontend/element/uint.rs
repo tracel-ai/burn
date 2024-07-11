@@ -48,7 +48,7 @@ impl UInt {
         }
     }
 
-    pub fn new_expand(_context: &mut CubeContext, val: u32) -> <Self as CubeType>::ExpandType {
+    pub fn __expand_new(_context: &mut CubeContext, val: u32) -> <Self as CubeType>::ExpandType {
         let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
         ExpandElement::Plain(new_var)
     }
@@ -64,13 +64,13 @@ impl UInt {
         }
     }
 
-    pub fn vectorized_expand(
+    pub fn __expand_vectorized(
         context: &mut CubeContext,
         val: u32,
         vectorization: UInt,
     ) -> <Self as CubeType>::ExpandType {
         if vectorization.val == 1 {
-            Self::new_expand(context, val)
+            Self::__expand_new(context, val)
         } else {
             let mut new_var =
                 context.create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8));

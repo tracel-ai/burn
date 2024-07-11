@@ -49,7 +49,7 @@ pub fn test_subcube_sum<TestRuntime: Runtime>(
         &[17.0, 5.0, 7.0, 1.0],
         client.clone(),
         |cube_count, cube_dim, handle| {
-            kernel_sum_launch::<F32, TestRuntime>(client.clone(), cube_count, cube_dim, handle)
+            kernel_sum::launch::<F32, TestRuntime>(client.clone(), cube_count, cube_dim, handle)
         },
     );
 }
@@ -62,7 +62,7 @@ pub fn test_subcube_prod<TestRuntime: Runtime>(
         &[140.0, 5.0, 7.0, 1.0],
         client.clone(),
         |cube_dim, settings, handle| {
-            kernel_prod_launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
+            kernel_prod::launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
         },
     );
 }
@@ -74,7 +74,7 @@ pub fn test_subcube_max<TestRuntime: Runtime>(
         &[7.0, 5.0, 7.0, 1.0],
         client.clone(),
         |cube_dim, settings, handle| {
-            kernel_max_launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
+            kernel_max::launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
         },
     );
 }
@@ -87,7 +87,7 @@ pub fn test_subcube_min<TestRuntime: Runtime>(
         &[1.0, 5.0, 7.0, 1.0],
         client.clone(),
         |cube_dim, settings, handle| {
-            kernel_min_launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
+            kernel_min::launch::<F32, TestRuntime>(client.clone(), cube_dim, settings, handle)
         },
     );
 }

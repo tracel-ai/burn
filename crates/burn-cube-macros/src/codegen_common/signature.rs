@@ -51,8 +51,8 @@ pub fn expand_sig(
 
     let ident = &sig.ident;
     let ident = match mode {
-        ExpandMode::FuncImpl => syn::Ident::new(format!("expand").as_str(), ident.span()),
-        _ => syn::Ident::new(format!("{ident}_expand").as_str(), ident.span()),
+        ExpandMode::FuncImpl => syn::Ident::new(format!("__expand").as_str(), ident.span()),
+        _ => syn::Ident::new(format!("__expand_{ident}").as_str(), ident.span()),
     };
 
     let generics = sig.generics.clone().into_token_stream();
