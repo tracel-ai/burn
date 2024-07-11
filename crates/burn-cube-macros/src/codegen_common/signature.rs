@@ -5,8 +5,7 @@ use crate::tracker::VariableTracker;
 #[derive(Copy, Clone, Debug)]
 pub enum ExpandMode {
     FuncImpl,
-    StructImpl,
-    TraitImpl,
+    MethodImpl,
 }
 
 pub fn expand_sig(

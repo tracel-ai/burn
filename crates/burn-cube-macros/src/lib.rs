@@ -112,7 +112,8 @@ fn codegen_cube(
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
     let signature = expand_sig(
         &func.sig,
-        &func.vis,
+        &syn::Visibility::Public(Default::default()), // Always public, otherwise we can't import
+                                                      // it from an outside module.
         Some(variable_tracker),
         ExpandMode::FuncImpl,
     );

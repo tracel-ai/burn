@@ -42,12 +42,12 @@ impl<C: Float> CombinedTraitFunctionGeneric<C> for Test {
 }
 
 #[cube]
-fn simple<C: Float>(lhs: C, rhs: C) -> C {
+pub fn simple<C: Float>(lhs: C, rhs: C) -> C {
     lhs + rhs
 }
 
 #[cube]
-fn with_cast<C: Float, O: Numeric>(lhs: C, rhs: C) -> O {
+pub fn with_cast<C: Float, O: Numeric>(lhs: C, rhs: C) -> O {
     O::cast_from(lhs + rhs)
 }
 
@@ -62,7 +62,7 @@ mod tests {
         let lhs = context.create_local(Item::new(F32::as_elem()));
         let rhs = context.create_local(Item::new(F32::as_elem()));
 
-        <Test as FunctionGeneric>::test_expand::<F32>(&mut context, lhs, rhs);
+        <Test as FunctionGeneric>::__expand_test::<F32>(&mut context, lhs, rhs);
 
         assert_eq!(simple_scope(), context.into_scope());
     }
@@ -73,7 +73,7 @@ mod tests {
         let lhs = context.create_local(Item::new(F32::as_elem()));
         let rhs = context.create_local(Item::new(F32::as_elem()));
 
-        <Test as TraitGeneric<F32>>::test_expand(&mut context, lhs, rhs);
+        <Test as TraitGeneric<F32>>::__expand_test(&mut context, lhs, rhs);
 
         assert_eq!(simple_scope(), context.into_scope());
     }
@@ -84,7 +84,7 @@ mod tests {
         let lhs = context.create_local(Item::new(F32::as_elem()));
         let rhs = context.create_local(Item::new(F32::as_elem()));
 
-        <Test as CombinedTraitFunctionGeneric<F32>>::test_expand::<UInt>(&mut context, lhs, rhs);
+        <Test as CombinedTraitFunctionGeneric<F32>>::__expand_test::<UInt>(&mut context, lhs, rhs);
 
         assert_eq!(with_cast_scope(), context.into_scope());
     }
@@ -94,7 +94,7 @@ mod tests {
         let lhs = context_ref.create_local(Item::new(F32::as_elem()));
         let rhs = context_ref.create_local(Item::new(F32::as_elem()));
 
-        simple_expand::<F32>(&mut context_ref, lhs, rhs);
+        simple::__expand::<F32>(&mut context_ref, lhs, rhs);
         context_ref.into_scope()
     }
 
@@ -103,7 +103,7 @@ mod tests {
         let lhs = context_ref.create_local(Item::new(F32::as_elem()));
         let rhs = context_ref.create_local(Item::new(F32::as_elem()));
 
-        with_cast_expand::<F32, UInt>(&mut context_ref, lhs, rhs);
+        with_cast::__expand::<F32, UInt>(&mut context_ref, lhs, rhs);
         context_ref.into_scope()
     }
 }

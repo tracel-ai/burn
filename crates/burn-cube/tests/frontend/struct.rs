@@ -1,7 +1,7 @@
 use burn_cube::prelude::*;
 
 #[derive(CubeType)]
-struct State<T: Numeric> {
+pub struct State<T: Numeric> {
     first: T,
     second: T,
 }
@@ -25,7 +25,7 @@ pub fn attribute_modifier_reuse_struct<T: Numeric>(mut state: State<T>) -> State
 }
 
 #[cube]
-pub fn creator<T: Numeric>(x: T, second: T) -> State<T> {
+fn creator<T: Numeric>(x: T, second: T) -> State<T> {
     let mut state = State::<T> { first: x, second };
     state.second = state.first;
 
