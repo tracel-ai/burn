@@ -7,6 +7,13 @@ use burn_tensor::{
 use crate::{client::FusionClient, Fusion, FusionBackend};
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
+    fn q_from_data<const D: usize>(
+        _data: TensorData,
+        _device: &Device<Self>,
+    ) -> QuantizedTensor<Self, D> {
+        unimplemented!()
+    }
+
     fn quantize<const D: usize>(
         _tensor: <Self as Backend>::FloatTensorPrimitive<D>,
         _strategy: &QuantizationStrategy,

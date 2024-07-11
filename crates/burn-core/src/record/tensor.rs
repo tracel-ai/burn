@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor, TensorData};
+use burn_tensor::{backend::Backend, Bool, DType, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
 #[cfg(not(feature = "record-backward-compat"))]
@@ -43,7 +43,7 @@ where
                 e
             ))
         })?;
-        Ok(data.convert::<E>())
+        Ok(data)
     }
 }
 
@@ -137,15 +137,26 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
     type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        FloatTensorSerde::new(self.into_data().convert::<S::FloatElem>())
+        let data = self.into_data();
+        let data = if let DType::QFloat(_) = data.dtype {
+            data // do not convert quantized tensors
+        } else {
+            data.convert::<S::FloatElem>()
+        };
+        FloatTensorSerde::new(data)
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data.convert::<B::FloatElem>(), device)
+        // println!("from_item {:?}", item.data.dtype);
+        let data = if let DType::QFloat(_) = item.data.dtype {
+            item.data // do not convert quantized tensors
+        } else {
+            item.data.convert::<B::FloatElem>()
+        };
+        Tensor::from_data(data, device)
     }
 }
 
-#[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
     type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
@@ -158,7 +169,6 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
     }
 }
 
-#[allow(deprecated)]
 impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
     type Item<S: PrecisionSettings> = BoolTensorSerde;
 

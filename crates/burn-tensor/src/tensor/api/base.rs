@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{Element, TensorPrimitive};
+use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1765,7 +1765,13 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_from_data(data, device))
+        match data.dtype {
+            DType::QFloat(strategy) => TensorPrimitive::QFloat {
+                tensor: B::q_from_data(data, device),
+                strategy,
+            },
+            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+        }
     }
 
     fn repeat<const D: usize>(

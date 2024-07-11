@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Quantization, QuantizationStrategy, Shape, TensorData,
+    DType, Quantization, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
@@ -14,6 +14,28 @@ fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> 
 }
 
 impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
+    fn q_from_data<const D: usize>(
+        data: TensorData,
+        _device: &NdArrayDevice,
+    ) -> QuantizedTensor<Self, D> {
+        match data.dtype {
+            DType::QFloat(strategy) => match strategy {
+                QuantizationStrategy::PerTensorAffineInt8(_) => {
+                    let data = data.convert::<i8>();
+                    NdArrayTensor::<i8, D>::from_data(data)
+                }
+                QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                    let data = data.convert::<i8>();
+                    NdArrayTensor::<i8, D>::from_data(data)
+                }
+            },
+            _ => panic!(
+                "Invalid dtype (expected DType::QFloat, got {:?})",
+                data.dtype
+            ),
+        }
+    }
+
     fn quantize<const D: usize>(
         tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,

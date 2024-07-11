@@ -7,6 +7,18 @@ use super::{FloatTensor, QuantizedTensor};
 /// Quantized Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
 pub trait QTensorOps<B: Backend> {
+    /// Creates a new tensor from the data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data structure.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given data.
+    fn q_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> QuantizedTensor<B, D>;
+
     /// Convert the tensor to a lower precision data type based on the quantization strategy.
     fn quantize<const D: usize>(
         tensor: FloatTensor<B, D>,

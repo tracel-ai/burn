@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape, TensorData,
+    DType, Device, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{
@@ -10,6 +10,13 @@ use crate::{
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, I> {
+    fn q_from_data<const D: usize>(
+        data: TensorData,
+        device: &Device<Self>,
+    ) -> QuantizedTensor<Self, D> {
+        unimplemented!() // no i8 support
+    }
+
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
         _strategy: &QuantizationStrategy,

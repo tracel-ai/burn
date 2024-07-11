@@ -1,13 +1,55 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    DType, QuantizationStrategy, Shape, TensorData,
+    DType, Quantization, QuantizationStrategy, Shape, TensorData,
 };
 
-use crate::{LibTorch, LibTorchDevice, TchElement, TchTensor};
+use crate::{LibTorch, LibTorchDevice, TchElement, TchShape, TchTensor};
 
 use super::TchOps;
 
 impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
+    fn q_from_data<const D: usize>(
+        data: TensorData,
+        device: &LibTorchDevice,
+    ) -> QuantizedTensor<Self, D> {
+        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+        let device = (*device).into();
+
+        // NOTE: tch-rs doesn't have `from_blob_quantized_*` APIs
+        // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/quantized/Quantizer.cpp#L322
+        // So for now we have to load the dequantized values to quantize them back since the dequantization
+        // methods take the values provided when quantizing.
+        let tensor = match data.dtype {
+            DType::QFloat(strategy) => match strategy {
+                QuantizationStrategy::PerTensorAffineInt8(q) => {
+                    let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
+                    let tensor = tch::Tensor::from_slice(&values).to(device);
+                    let tensor = TchOps::<E>::quantize::<D, i8>(
+                        TchTensor::new(tensor.reshape(shape_tch.dims)),
+                        &strategy,
+                    )
+                    .tensor;
+                    tensor
+                }
+                QuantizationStrategy::PerTensorSymmetricInt8(q) => {
+                    let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
+                    let tensor = tch::Tensor::from_slice(&values).to(device);
+                    let tensor = TchOps::<E>::quantize::<D, i8>(
+                        TchTensor::new(tensor.reshape(shape_tch.dims)),
+                        &strategy,
+                    )
+                    .tensor;
+                    tensor
+                }
+            },
+            _ => panic!(
+                "Invalid dtype (expected DType::QFloat, got {:?})",
+                data.dtype
+            ),
+        };
+        TchTensor::new(tensor)
+    }
+
     fn quantize<const D: usize>(
         tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,

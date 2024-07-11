@@ -7,6 +7,13 @@ use burn_tensor::{
 use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};
 
 impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
+    fn q_from_data<const D: usize>(
+        _data: TensorData,
+        _device: &Device<Self>,
+    ) -> QuantizedTensor<Self, D> {
+        todo!()
+    }
+
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
         _strategy: &QuantizationStrategy,

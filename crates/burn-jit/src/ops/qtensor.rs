@@ -11,6 +11,13 @@ where
     F: FloatElement,
     I: IntElement,
 {
+    fn q_from_data<const D: usize>(
+        _data: TensorData,
+        _device: &Device<Self>,
+    ) -> QuantizedTensor<Self, D> {
+        todo!()
+    }
+
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
         _strategy: &QuantizationStrategy,

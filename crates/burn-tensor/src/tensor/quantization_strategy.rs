@@ -8,7 +8,7 @@ use burn_common::{iter_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
-/// Quantization scheme/strategy.
+/// Quantization strategy.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationStrategy {
     /// Per-tensor `int8` affine/asymmetric quantization.
