@@ -25,6 +25,7 @@
   - [ONNX Model](./import/onnx-model.md)
   - [PyTorch Model](./import/pytorch-model.md)
 - [Models & Pre-Trained Weights](./models-and-pretrained-weights.md)
+- [Quantization (Beta)](./quantization.md)
 - [Advanced](./advanced/README.md)
   - [Backend Extension](./advanced/backend-extension/README.md)
     - [Custom WGPU Kernel](./advanced/backend-extension/custom-wgpu-kernel.md)
