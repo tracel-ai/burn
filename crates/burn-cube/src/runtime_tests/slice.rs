@@ -30,7 +30,7 @@ pub fn test_slice_select<R: Runtime>(client: ComputeClient<R::Server, R::Channel
     let input = client.create(f32::as_bytes(&[0.0, 1.0, 2.0, 3.0, 4.0]));
     let output = client.empty(core::mem::size_of::<f32>());
 
-    slice_select_launch::<F32, R>(
+    slice_select::launch::<F32, R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::new(1, 1, 1),
@@ -48,7 +48,7 @@ pub fn test_slice_len<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) 
     let input = client.create(f32::as_bytes(&[0.0, 1.0, 2.0, 3.0, 4.0]));
     let output = client.empty(core::mem::size_of::<u32>());
 
-    slice_len_launch::<F32, R>(
+    slice_len::launch::<F32, R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::new(1, 1, 1),
@@ -66,7 +66,7 @@ pub fn test_slice_assign<R: Runtime>(client: ComputeClient<R::Server, R::Channel
     let input = client.create(f32::as_bytes(&[15.0]));
     let output = client.create(f32::as_bytes(&[0.0, 1.0, 2.0, 3.0, 4.0]));
 
-    slice_assign_launch::<F32, R>(
+    slice_assign::launch::<F32, R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::new(1, 1, 1),

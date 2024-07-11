@@ -25,11 +25,11 @@ pub fn subcube_sum<E: CubePrimitive>(value: E) -> E {
     unexpanded!()
 }
 
-/// Module containing the expand function for [subcube_sum].
+/// Module containing the expand function for [subcube_sum()].
 pub mod subcube_sum {
     use super::*;
 
-    /// Expand method of [subcube_sum].
+    /// Expand method of [subcube_sum()].
     pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
@@ -53,11 +53,11 @@ pub fn subcube_prod<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-/// Module containing the expand function for [subcube_prod].
+/// Module containing the expand function for [subcube_prod()].
 pub mod subcube_prod {
     use super::*;
 
-    /// Expand method of [subcube_prod].
+    /// Expand method of [subcube_prod()].
     pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
@@ -81,11 +81,11 @@ pub fn subcube_max<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-/// Module containing the expand function for [subcube_max].
+/// Module containing the expand function for [subcube_max()].
 pub mod subcube_max {
     use super::*;
 
-    /// Expand method of [subcube_max].
+    /// Expand method of [subcube_max()].
     pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
@@ -109,11 +109,11 @@ pub fn subcube_min<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-/// Module containing the expand function for [subcube_min].
+/// Module containing the expand function for [subcube_min()].
 pub mod subcube_min {
     use super::*;
 
-    /// Expand method of [subcube_min].
+    /// Expand method of [subcube_min()].
     pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,
@@ -137,11 +137,11 @@ pub fn subcube_all<E: CubePrimitive>(_elem: E) -> E {
     unexpanded!()
 }
 
-/// Module containing the expand function for [subcube_all].
+/// Module containing the expand function for [subcube_all()].
 pub mod subcube_all {
     use super::*;
 
-    /// Expand method of [subcube_all].
+    /// Expand method of [subcube_all()].
     pub fn __expand<E: CubePrimitive>(
         context: &mut CubeContext,
         elem: ExpandElement,

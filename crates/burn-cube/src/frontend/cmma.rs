@@ -86,7 +86,7 @@ impl Init for MatrixExpand {
 
 impl<C: CubePrimitive> Matrix<C> {
     /// Create a new matrix that is going to be used in the
-    /// [matrix-multiply and accumulate](execute) function.
+    /// [matrix-multiply and accumulate](execute()) function.
     ///
     /// You have to declare the shape used for the execution.
     /// The shape of the current matrix is determined using the [MatrixIdent].
@@ -129,11 +129,11 @@ pub fn fill<C: CubeType>(mat: &Matrix<C>, value: C) {
     unexpanded!()
 }
 
-/// Module containing the expand function for [fill].
+/// Module containing the expand function for [fill()].
 pub mod fill {
     use super::*;
 
-    /// Expand method of [fill].
+    /// Expand method of [fill()].
     pub fn __expand<C: CubeType>(
         context: &mut CubeContext,
         mat: MatrixExpand,
@@ -152,11 +152,11 @@ pub fn load<C: CubeType>(mat: &Matrix<C>, value: &Slice<'_, C>, stride: UInt) {
     unexpanded!()
 }
 
-/// Module containing the expand function for [load].
+/// Module containing the expand function for [load()].
 pub mod load {
     use super::*;
 
-    /// Expand method of [load].
+    /// Expand method of [load()].
     #[allow(unused_variables)]
     pub fn __expand<C: CubeType>(
         context: &mut CubeContext,
@@ -183,11 +183,11 @@ pub fn store<C: CubePrimitive>(
     unexpanded!()
 }
 
-/// Module containing the expand function for [store].
+/// Module containing the expand function for [store()].
 pub mod store {
     use super::*;
 
-    /// Expand method of [store].
+    /// Expand method of [store()].
     #[allow(unused_variables)]
     pub fn __expand<C: CubePrimitive>(
         context: &mut CubeContext,
@@ -216,11 +216,11 @@ pub fn execute<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrim
     unexpanded!()
 }
 
-/// Module containing the expand function for [execute].
+/// Module containing the expand function for [execute()].
 pub mod execute {
     use super::*;
 
-    /// Expand method of [execute].
+    /// Expand method of [execute()].
     pub fn __expand<A: CubePrimitive, B: CubePrimitive, C: CubePrimitive, D: CubePrimitive>(
         context: &mut CubeContext,
         mat_a: MatrixExpand,
