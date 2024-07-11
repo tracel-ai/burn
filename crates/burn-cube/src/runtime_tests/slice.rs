@@ -28,7 +28,7 @@ pub fn slice_len<F: Float>(input: &Array<F>, output: &mut Array<UInt>) {
 
 pub fn test_slice_select<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     let input = client.create(f32::as_bytes(&[0.0, 1.0, 2.0, 3.0, 4.0]));
-    let output = client.empty(1 * core::mem::size_of::<f32>());
+    let output = client.empty(core::mem::size_of::<f32>());
 
     slice_select_launch::<F32, R>(
         client.clone(),
@@ -46,7 +46,7 @@ pub fn test_slice_select<R: Runtime>(client: ComputeClient<R::Server, R::Channel
 
 pub fn test_slice_len<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     let input = client.create(f32::as_bytes(&[0.0, 1.0, 2.0, 3.0, 4.0]));
-    let output = client.empty(1 * core::mem::size_of::<u32>());
+    let output = client.empty(core::mem::size_of::<u32>());
 
     slice_len_launch::<F32, R>(
         client.clone(),

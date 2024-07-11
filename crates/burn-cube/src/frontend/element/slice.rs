@@ -64,7 +64,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Return a read-only view of all elements comprise between the start and end index.
     #[allow(unused_variables)]
-    fn slice<'a, Start: Index, End: Index>(&'a self, start: Start, end: End) -> Slice<'a, E> {
+    fn slice<Start: Index, End: Index>(&self, start: Start, end: End) -> Slice<'_, E> {
         unexpanded!()
     }
     /// Expand function of [SliceOperator::slice].
@@ -79,11 +79,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Return a read-write view of all elements comprise between the start and end index.
     #[allow(unused_variables)]
-    fn slice_mut<'a, Start: Index, End: Index>(
-        &'a mut self,
-        start: Start,
-        end: End,
-    ) -> SliceMut<'a, E> {
+    fn slice_mut<Start: Index, End: Index>(&mut self, start: Start, end: End) -> SliceMut<'_, E> {
         unexpanded!()
     }
 
@@ -123,12 +119,12 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Reinterprete the current type as a read-only slice.
     #[allow(unused_variables)]
-    fn as_slice<'a>(&'a self) -> Slice<'a, E> {
+    fn as_slice(&self) -> Slice<'_, E> {
         unexpanded!()
     }
 
     /// Expand function of [SliceOperator::as_slice].
-    fn as_slice_expand<'a>(
+    fn as_slice_expand(
         context: &mut CubeContext,
         expand: Self::Expand,
     ) -> ExpandElementTyped<Slice<'static, E>> {
@@ -137,12 +133,12 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Reinterprete the current type as a read-write slice.
     #[allow(unused_variables)]
-    fn as_slice_mut<'a>(&'a mut self) -> SliceMut<'a, E> {
+    fn as_slice_mut(&mut self) -> SliceMut<'_, E> {
         unexpanded!()
     }
 
     /// Expand function of [SliceOperator::as_slice_mut].
-    fn as_slice_mut_expand<'a>(
+    fn as_slice_mut_expand(
         context: &mut CubeContext,
         expand: Self::Expand,
     ) -> ExpandElementTyped<SliceMut<'static, E>> {
@@ -160,7 +156,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
     }
 
     /// Expand function of [SliceOperator::as_slice_mut_unsafe].
-    fn as_slice_mut_unsafe_expand<'a>(
+    fn as_slice_mut_unsafe_expand(
         context: &mut CubeContext,
         expand: Self::Expand,
     ) -> ExpandElementTyped<SliceMut<'static, E>> {

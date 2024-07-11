@@ -233,7 +233,7 @@ impl Display for Variable {
                 item: _,
                 depth: scope_depth,
             } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
-            Variable::Named { name, .. } => f.write_str(&name),
+            Variable::Named { name, .. } => f.write_str(name),
             Variable::Slice {
                 id: index,
                 item: _,

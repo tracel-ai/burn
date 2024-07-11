@@ -291,7 +291,7 @@ impl Display for Instruction {
                     };
                     index(f, &lhs, rhs, out, Some(offset))
                 }
-                _ => index(f, &lhs, rhs, out, None),
+                _ => index(f, lhs, rhs, out, None),
             },
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
@@ -653,10 +653,10 @@ fn index_assign(
 ) -> core::fmt::Result {
     match lhs.item() {
         Item::Vec4(elem) => {
-            let lhs0 = IndexOffset::new(&lhs, &offset, 0);
-            let lhs1 = IndexOffset::new(&lhs, &offset, 1);
-            let lhs2 = IndexOffset::new(&lhs, &offset, 2);
-            let lhs3 = IndexOffset::new(&lhs, &offset, 3);
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
+            let lhs2 = IndexOffset::new(lhs, &offset, 2);
+            let lhs3 = IndexOffset::new(lhs, &offset, 3);
 
             let rhs0 = rhs.index(0);
             let rhs1 = rhs.index(1);
@@ -669,9 +669,9 @@ fn index_assign(
             f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
         }
         Item::Vec3(elem) => {
-            let lhs0 = IndexOffset::new(&lhs, &offset, 0);
-            let lhs1 = IndexOffset::new(&lhs, &offset, 1);
-            let lhs2 = IndexOffset::new(&lhs, &offset, 2);
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
+            let lhs2 = IndexOffset::new(lhs, &offset, 2);
 
             let rhs0 = rhs.index(0);
             let rhs1 = rhs.index(1);
@@ -682,8 +682,8 @@ fn index_assign(
             f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
         }
         Item::Vec2(elem) => {
-            let lhs0 = IndexOffset::new(&lhs, &offset, 0);
-            let lhs1 = IndexOffset::new(&lhs, &offset, 1);
+            let lhs0 = IndexOffset::new(lhs, &offset, 0);
+            let lhs1 = IndexOffset::new(lhs, &offset, 1);
 
             let rhs0 = rhs.index(0);
             let rhs1 = rhs.index(1);
@@ -714,7 +714,7 @@ fn index_assign(
             } else {
                 let item_rhs = rhs.item();
                 let item_out = out.item();
-                let lhs = IndexOffset::new(&lhs, &offset, 0);
+                let lhs = IndexOffset::new(lhs, &offset, 0);
 
                 let vectorization_factor = item_out.vectorization_factor();
                 if vectorization_factor > item_rhs.vectorization_factor() {
