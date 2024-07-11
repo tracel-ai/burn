@@ -7,6 +7,7 @@ use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
     PrecisionSettings, PrettyJsonFileRecorder, Recorder,
 };
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
@@ -47,6 +48,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     default: Option<TokenStream>,
     blank_spaces: bool,
     graph_input_types: Vec<Type>,
+    graph_constants: Vec<TensorType>,
     graph_output_types: Vec<Type>,
     _ps: PhantomData<PS>,
 }
@@ -328,6 +330,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                             .tensor_register_future_use(&tensor, node_position)
                     })
             });
+
+        self.graph_constants = self
+            .scope
+            .constants()
+            .map(|(name, var_data)| {
+                // we can safely unwrap since: 1. we know the tensor is from this node, 2. the matching input is a tensor
+                to_tensor(
+                    self.nodes[var_data.node_position - 1]
+                        .input_types()
+                        .iter()
+                        .find(|input| input.name() == name)
+                        .unwrap()
+                        .clone(),
+                )
+                .unwrap()
+            })
+            .collect();
     }
 
     fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
@@ -392,6 +411,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
     fn codegen_struct(&self) -> TokenStream {
         let mut body = quote! {};
+
+        // if !self.graph_constants.is_empty() {
+        //     body.extend(quote! {
+        //         __comment__!("Constants")
+        //     });
+        //     self.graph_constants.iter().for_each(|constant| {
+        //         let ty = constant.ty();
+        //         let name = &constant.name;
+        //         body.extend(quote! {
+        //             #name: #ty,
+        //         });
+        //     });
+        //     body.extend(quote! {
+        //         __comment__!("Nodes")
+        //     });
+        // }
+
         self.nodes
             .iter()
             .filter_map(|node| node.field_type())
@@ -426,15 +462,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     }
 
     fn codegen_new(&self) -> TokenStream {
-        let constants = self.scope.constants().map(|(name, var_data)| {
-            let tensor_type = self.nodes[var_data.node_position - 1]
-                .input_types()
-                .iter()
-                .find(|input| input.name() == name)
-                .unwrap()
-                .clone();
-        });
-
         let mut body = quote! {};
 
         self.nodes
@@ -442,6 +469,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
+        // if !self.graph_constants.is_empty() {
+        //     self.graph_constants.iter().for_each(|constant| {
+        //         let name = &constant.name;
+        //         let ty = constant.ty();
+        //         body.extend(quote! {
+        //             // just realized tensor values aren't stored
+        //             let #name =
+        //         });
+        //     });
+        // }
         let fields = self
             .nodes
             .iter()

@@ -36,7 +36,7 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 12] = [
 //NOTE: if it turns out we need to rename the initializers for more binary ops, this may
 // be removed in favor of a new op type enum that has from<NodeType> implemented. I suspect
 // that the ability to categorize ops will be useful in other
-const RENAME_INITIALIZERS_FOR_NODE_TYPES: [NodeType; 2] = [NodeType::Mul, NodeType::Add];
+//const RENAME_INITIALIZERS_FOR_NODE_TYPES: [NodeType; 2] = [NodeType::Mul, NodeType::Add];
 
 #[derive(Debug, Clone)]
 pub(crate) enum IOEntry {
