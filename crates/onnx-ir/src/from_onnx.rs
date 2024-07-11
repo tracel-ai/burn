@@ -97,14 +97,16 @@ impl GraphData {
                 arg
             })
             .collect::<Vec<Argument>>();
+
         //to avoid illegal variable names on older onnx files
-        // let mut initializer_count = 1;
-        // constants.iter_mut().for_each(|(k, v)| {
-        //     if !input_name_map.contains_key(k) {
-        //         v.name = format!("initializer{}", initializer_count);
-        //         initializer_count += 1;
-        //     }
-        // });
+        let mut initializer_count = 1;
+        constants.iter_mut().for_each(|(k, v)| {
+            if !input_name_map.contains_key(k) {
+                v.name = format!("initializer{}", initializer_count);
+                initializer_count += 1;
+            }
+        });
+
         Self {
             inputs,
             outputs,
@@ -209,11 +211,14 @@ pub(crate) struct OnnxGraphBuilder {
     /// Map from identity node output names to indices of identity nodes
     identity_idx: HashMap<String, usize>,
     node_name_counter: HashMap<NodeType, usize>,
+    // /// Counter for initializer renaming
+    // initializer_counter: usize,
 }
 
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
+        //self.initializer_counter = 1;
 
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
@@ -234,7 +239,7 @@ impl OnnxGraphBuilder {
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
-            self.legacy_rename_initializer(&mut node, &graph_data);
+            //self.legacy_rename_initializer(&mut node, &graph_data);
             self.handle_unsqueeze(&mut node, &graph_data);
 
             dim_inference(&mut node);
@@ -312,20 +317,19 @@ impl OnnxGraphBuilder {
     //TODO: this could either be feature gated, or skipped if we can determine the affected onnx versions
     /// Older onnx files sometimes use initializers as constants rather than default values
     /// so we need to rename the initializers to avoid illegal variable names
-    fn legacy_rename_initializer(&self, node: &mut Node, graph_data: &GraphData) {
-        if RENAME_INITIALIZERS_FOR_NODE_TYPES.contains(&node.node_type) {
-            let mut initializer_count = 1;
-            for input in node.inputs.iter_mut() {
-                // should only happen if the initializer is not a graph input,
-                // else the input would have already been renamed
-                //right now we are assuming that the initializer is used only once
-                if graph_data.initializers.contains_key(&input.name) {
-                    input.name = format!("{}_in{}", node.name, initializer_count);
-                    initializer_count += 1;
-                }
-            }
-        }
-    }
+    // fn legacy_rename_initializer(&mut self, node: &mut Node, graph_data: &GraphData) {
+    //     if RENAME_INITIALIZERS_FOR_NODE_TYPES.contains(&node.node_type) {
+    //         for input in node.inputs.iter_mut() {
+    //             // should only happen if the initializer is not a graph input,
+    //             // else the input would have already been renamed
+    //             //right now we are assuming that the initializer is used only once
+    //             if graph_data.initializers.contains_key(&input.name) {
+    //                 input.name = format!("{}_in{}", node.name, initializer_count);
+    //                 initializer_count += 1;
+    //             }
+    //         }
+    //     }
+    // }
 
     /// Check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
     /// Needs to be called after node renaming to ensure that the rhs name is correct

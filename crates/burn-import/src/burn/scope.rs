@@ -2,7 +2,7 @@ use super::TensorType;
 use derive_new::new;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use serde_json::map::Iter;
+
 use std::collections::{HashMap, HashSet};
 
 /// The scope struct ensures that ownership rules are respected during the forward pass.
@@ -49,6 +49,7 @@ impl Scope {
                 variable.references += 1;
             }
         } else {
+            //should there be any validation checks here?
             // The tensor originated from an initializer or lifted constant
             self.constant_set.insert(tensor.name.clone());
             self.tensor_register_variable(&tensor, node_position);

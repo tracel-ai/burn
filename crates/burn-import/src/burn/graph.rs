@@ -317,13 +317,9 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .for_each(|tensor| {
                         self.scope
                             .tensor_register_variable(&tensor, node_position + 1)
-                    })
-            });
+                    });
 
-        self.nodes
-            .iter()
-            .enumerate()
-            .for_each(|(node_position, node)| {
+                // since the graph is guaranteed to be a DAG, we can safely register future uses
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
