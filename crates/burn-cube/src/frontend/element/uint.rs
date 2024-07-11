@@ -49,7 +49,10 @@ impl UInt {
     }
 
     pub fn new_expand(_context: &mut CubeContext, val: u32) -> <Self as CubeType>::ExpandType {
-        let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
+        let new_var = Variable::ConstantScalar {
+            value: val as f64,
+            elem: Self::as_elem(),
+        };
         ExpandElement::Plain(new_var)
     }
 

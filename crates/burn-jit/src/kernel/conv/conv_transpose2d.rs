@@ -93,13 +93,34 @@ impl<E: JitElement> Conv2dTransposeComputeShader<E> {
         cpa!(scope, kernel_size_0 = shape(weight, 2u32));
         cpa!(scope, kernel_size_1 = shape(weight, 3u32));
 
-        let conv_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let conv_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
-        let groups = Variable::GlobalScalar(6, Elem::UInt);
+        let conv_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let conv_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
+        let groups = Variable::GlobalScalar {
+            id: 6,
+            elem: Elem::UInt,
+        };
 
         let stride_0_i = scope.create_local(Elem::Int(IntKind::I32));
         let stride_1_i = scope.create_local(Elem::Int(IntKind::I32));
@@ -294,10 +315,10 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let weight = Variable::GlobalInputArray(1, item);
-        let bias = Variable::GlobalInputArray(2, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let weight = Variable::GlobalInputArray { id: 1, item };
+        let bias = Variable::GlobalInputArray { id: 2, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 

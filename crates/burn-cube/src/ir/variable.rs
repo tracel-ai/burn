@@ -5,14 +5,52 @@ use serde::{Deserialize, Serialize};
 #[allow(missing_docs)]
 pub enum Variable {
     Rank,
-    GlobalInputArray(u16, Item),
-    GlobalScalar(u16, Elem),
-    GlobalOutputArray(u16, Item),
-    Local(u16, Item, u8),
-    LocalScalar(u16, Elem, u8),
-    ConstantScalar(f64, Elem),
-    SharedMemory(u16, Item, u32),
-    LocalArray(u16, Item, u8, u32),
+    GlobalInputArray {
+        id: u16,
+        item: Item,
+    },
+    GlobalScalar {
+        id: u16,
+        elem: Elem,
+    },
+    GlobalOutputArray {
+        id: u16,
+        item: Item,
+    },
+    Local {
+        id: u16,
+        item: Item,
+        depth: u8,
+    },
+    LocalScalar {
+        id: u16,
+        elem: Elem,
+        depth: u8,
+    },
+    ConstantScalar {
+        value: f64,
+        elem: Elem,
+    },
+    SharedMemory {
+        id: u16,
+        item: Item,
+        length: u32,
+    },
+    LocalArray {
+        id: u16,
+        item: Item,
+        depth: u8,
+        length: u32,
+    },
+    Matrix {
+        id: u16,
+        mat: Matrix,
+    },
+    Slice {
+        id: u16,
+        item: Item,
+        depth: u8,
+    },
     UnitPos,
     UnitPosX,
     UnitPosY,
@@ -34,20 +72,21 @@ pub enum Variable {
     AbsolutePosX,
     AbsolutePosY,
     AbsolutePosZ,
-    Matrix(u16, Matrix),
 }
 
 impl Variable {
     pub fn index(&self) -> Option<u16> {
         match self {
-            Variable::GlobalInputArray(idx, _) => Some(*idx),
-            Variable::GlobalScalar(idx, _) => Some(*idx),
-            Variable::Local(idx, _, _) => Some(*idx),
-            Variable::LocalScalar(idx, _, _) => Some(*idx),
-            Variable::GlobalOutputArray(idx, _) => Some(*idx),
-            Variable::ConstantScalar(_, _) => None,
-            Variable::SharedMemory(idx, _, _) => Some(*idx),
-            Variable::LocalArray(idx, _, _, _) => Some(*idx),
+            Variable::GlobalInputArray { id, .. } => Some(*id),
+            Variable::GlobalScalar { id, .. } => Some(*id),
+            Variable::Local { id, .. } => Some(*id),
+            Variable::Slice { id, .. } => Some(*id),
+            Variable::LocalScalar { id, .. } => Some(*id),
+            Variable::GlobalOutputArray { id, .. } => Some(*id),
+            Variable::ConstantScalar { .. } => None,
+            Variable::SharedMemory { id, .. } => Some(*id),
+            Variable::LocalArray { id, .. } => Some(*id),
+            Variable::Matrix { id, .. } => Some(*id),
             Variable::AbsolutePos => None,
             Variable::UnitPos => None,
             Variable::UnitPosX => None,
@@ -70,21 +109,22 @@ impl Variable {
             Variable::CubeCount => None,
             Variable::CubeDim => None,
             Variable::SubcubeDim => None,
-            Variable::Matrix(idx, _) => Some(*idx),
         }
     }
 
     /// Fetch the item of the variable.
     pub fn item(&self) -> Item {
         match self {
-            Variable::GlobalInputArray(_, item) => *item,
-            Variable::GlobalOutputArray(_, item) => *item,
-            Variable::GlobalScalar(_, elem) => Item::new(*elem),
-            Variable::Local(_, item, _) => *item,
-            Variable::LocalScalar(_, elem, _) => Item::new(*elem),
-            Variable::ConstantScalar(_, elem) => Item::new(*elem),
-            Variable::SharedMemory(_, item, _) => *item,
-            Variable::LocalArray(_, item, _, _) => *item,
+            Variable::GlobalInputArray { item, .. } => *item,
+            Variable::GlobalOutputArray { item, .. } => *item,
+            Variable::GlobalScalar { elem, .. } => Item::new(*elem),
+            Variable::Local { item, .. } => *item,
+            Variable::LocalScalar { elem, .. } => Item::new(*elem),
+            Variable::ConstantScalar { elem, .. } => Item::new(*elem),
+            Variable::SharedMemory { item, .. } => *item,
+            Variable::LocalArray { item, .. } => *item,
+            Variable::Slice { item, .. } => *item,
+            Variable::Matrix { mat, .. } => Item::new(mat.elem),
             Variable::AbsolutePos => Item::new(Elem::UInt),
             Variable::Rank => Item::new(Elem::UInt),
             Variable::UnitPos => Item::new(Elem::UInt),
@@ -107,7 +147,6 @@ impl Variable {
             Variable::CubeCount => Item::new(Elem::UInt),
             Variable::CubeDim => Item::new(Elem::UInt),
             Variable::SubcubeDim => Item::new(Elem::UInt),
-            Variable::Matrix(_, matrix) => Item::new(matrix.elem),
         }
     }
 }

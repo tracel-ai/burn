@@ -423,17 +423,24 @@ impl KernelIntegrator {
                     } else {
                         item
                     };
-                    let elem_adapted = bool_item(item);
+                    let item_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {
-                        item: elem_adapted,
+                        item: item_adapted,
                         visibility: Visibility::ReadWrite,
                         location: Location::Storage,
                         size: None,
                     });
                     self.expansion.scope.write_global(
-                        Variable::Local(local, item, self.expansion.scope.depth),
-                        Variable::GlobalOutputArray(index, elem_adapted),
+                        Variable::Local {
+                            id: local,
+                            item,
+                            depth: self.expansion.scope.depth,
+                        },
+                        Variable::GlobalOutputArray {
+                            id: index,
+                            item: item_adapted,
+                        },
                         position,
                     );
                     index += 1;
@@ -451,8 +458,15 @@ impl KernelIntegrator {
                     };
 
                     self.expansion.scope.write_global(
-                        Variable::Local(local, item, self.expansion.scope.depth),
-                        Variable::GlobalInputArray(input, bool_item(item)),
+                        Variable::Local {
+                            id: local,
+                            item,
+                            depth: self.expansion.scope.depth,
+                        },
+                        Variable::GlobalInputArray {
+                            id: input,
+                            item: bool_item(item),
+                        },
                         position,
                     );
                 }

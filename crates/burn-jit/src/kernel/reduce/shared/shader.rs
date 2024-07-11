@@ -51,8 +51,14 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray(0, item_input);
-        let output = Variable::GlobalOutputArray(0, item_output);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_input,
+        };
+        let output = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_output,
+        };
 
         // Reduce groups are elements that are aligned along the reduce dim
         SharedReduceDimComputeShader {

@@ -127,43 +127,53 @@ impl WgslCompiler {
 
     fn compile_variable(&mut self, value: cube::Variable) -> wgsl::Variable {
         match value {
-            cube::Variable::GlobalInputArray(index, item) => {
-                wgsl::Variable::GlobalInputArray(index, Self::compile_item(item))
+            cube::Variable::GlobalInputArray { id, item } => {
+                wgsl::Variable::GlobalInputArray(id, Self::compile_item(item))
             }
-            cube::Variable::GlobalScalar(index, elem) => {
-                wgsl::Variable::GlobalScalar(index, Self::compile_elem(elem), elem)
+            cube::Variable::GlobalScalar { id, elem } => {
+                wgsl::Variable::GlobalScalar(id, Self::compile_elem(elem), elem)
             }
-            cube::Variable::Local(index, item, scope_depth) => wgsl::Variable::Local {
-                index,
+            cube::Variable::Local { id, item, depth } => wgsl::Variable::Local {
+                id,
                 item: Self::compile_item(item),
-                scope_depth,
+                depth,
             },
-            cube::Variable::LocalScalar(index, elem, scope_depth) => wgsl::Variable::LocalScalar {
-                index,
+            cube::Variable::Slice { id, item, depth } => wgsl::Variable::Slice {
+                id,
+                item: Self::compile_item(item),
+                depth,
+            },
+            cube::Variable::LocalScalar { id, elem, depth } => wgsl::Variable::LocalScalar {
+                id,
                 elem: Self::compile_elem(elem),
-                scope_depth,
+                depth,
             },
-            cube::Variable::GlobalOutputArray(index, item) => {
-                wgsl::Variable::GlobalOutputArray(index, Self::compile_item(item))
+            cube::Variable::GlobalOutputArray { id, item } => {
+                wgsl::Variable::GlobalOutputArray(id, Self::compile_item(item))
             }
-            cube::Variable::ConstantScalar(index, elem) => {
-                wgsl::Variable::ConstantScalar(index, Self::compile_elem(elem))
+            cube::Variable::ConstantScalar { value, elem } => {
+                wgsl::Variable::ConstantScalar(value, Self::compile_elem(elem))
             }
-            cube::Variable::SharedMemory(index, item, size) => {
+            cube::Variable::SharedMemory { id, item, length } => {
                 let item = Self::compile_item(item);
-                if !self.shared_memories.iter().any(|s| s.index == index) {
+                if !self.shared_memories.iter().any(|s| s.index == id) {
                     self.shared_memories
-                        .push(SharedMemory::new(index, item, size));
+                        .push(SharedMemory::new(id, item, length));
                 }
-                wgsl::Variable::SharedMemory(index, item, size)
+                wgsl::Variable::SharedMemory(id, item, length)
             }
-            cube::Variable::LocalArray(index, item, scope_depth, size) => {
+            cube::Variable::LocalArray {
+                id,
+                item,
+                depth,
+                length,
+            } => {
                 let item = Self::compile_item(item);
-                if !self.local_arrays.iter().any(|s| s.index == index) {
+                if !self.local_arrays.iter().any(|s| s.index == id) {
                     self.local_arrays
-                        .push(LocalArray::new(index, item, scope_depth, size));
+                        .push(LocalArray::new(id, item, depth, length));
                 }
-                wgsl::Variable::LocalArray(index, item, scope_depth, size)
+                wgsl::Variable::LocalArray(id, item, depth, length)
             }
             cube::Variable::AbsolutePos => {
                 self.id = true;
@@ -241,7 +251,7 @@ impl WgslCompiler {
                 wgsl::Variable::NumWorkgroups
             }
             cube::Variable::SubcubeDim => wgsl::Variable::SubgroupSize,
-            cube::Variable::Matrix(_, _) => {
+            cube::Variable::Matrix { .. } => {
                 panic!("Cooperative matrix-multiply and accumulate not supported.")
             }
         }
@@ -252,6 +262,11 @@ impl WgslCompiler {
         let processing = value.process();
 
         for var in processing.variables {
+            // We don't declare slices.
+            if let cube::Variable::Slice { .. } = var {
+                continue;
+            }
+
             instructions.push(wgsl::Instruction::DeclareVariable {
                 var: self.compile_variable(var),
             });
@@ -427,8 +442,8 @@ impl WgslCompiler {
             cube::Metadata::Stride { dim, var, out } => {
                 self.stride = true;
                 let position = match var {
-                    cube::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    cube::Variable::GlobalInputArray { id, .. } => id as usize,
+                    cube::Variable::GlobalOutputArray { id, .. } => self.num_inputs + id as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 wgsl::Instruction::Stride {
@@ -440,8 +455,8 @@ impl WgslCompiler {
             cube::Metadata::Shape { dim, var, out } => {
                 self.shape = true;
                 let position = match var {
-                    cube::Variable::GlobalInputArray(idx, _) => idx as usize,
-                    cube::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    cube::Variable::GlobalInputArray { id, .. } => id as usize,
+                    cube::Variable::GlobalOutputArray { id, .. } => self.num_inputs + id as usize,
                     _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
                 wgsl::Instruction::Shape {
@@ -450,7 +465,7 @@ impl WgslCompiler {
                     out: self.compile_variable(out),
                 }
             }
-            cube::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
+            cube::Metadata::Length { var, out } => wgsl::Instruction::Length {
                 out: self.compile_variable(out),
                 var: self.compile_variable(var),
             },
@@ -650,6 +665,12 @@ impl WgslCompiler {
             cube::Operator::Remainder(op) => wgsl::Instruction::Remainder {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            cube::Operator::Slice(op) => wgsl::Instruction::Slice {
+                input: self.compile_variable(op.input),
+                start: self.compile_variable(op.start),
+                end: self.compile_variable(op.end),
                 out: self.compile_variable(op.out),
             },
         }

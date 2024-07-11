@@ -185,8 +185,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let out_grad = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let out_grad = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         InterpolateNearestBackwardShader {
             out_grad,

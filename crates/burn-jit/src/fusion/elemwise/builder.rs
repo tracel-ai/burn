@@ -288,7 +288,10 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar(1.0, desc.dtype.into());
+                let input = Variable::ConstantScalar {
+                    value: 1.0,
+                    elem: desc.dtype.into(),
+                };
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
@@ -301,7 +304,10 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar(0.0, desc.dtype.into());
+                let input = Variable::ConstantScalar {
+                    value: 0.0,
+                    elem: desc.dtype.into(),
+                };
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder

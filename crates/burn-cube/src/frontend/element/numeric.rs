@@ -47,7 +47,10 @@ pub trait Numeric:
 
     /// Expand version of from_int
     fn from_int_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
-        let new_var = Variable::ConstantScalar(val as f64, Self::as_elem());
+        let new_var = Variable::ConstantScalar {
+            value: val as f64,
+            elem: Self::as_elem(),
+        };
         ExpandElement::Plain(new_var)
     }
 

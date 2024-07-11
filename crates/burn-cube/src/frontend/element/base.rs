@@ -160,7 +160,7 @@ impl ExpandElement {
     pub fn can_mut(&self) -> bool {
         match self {
             ExpandElement::Managed(var) => {
-                if let Variable::Local(_, _, _) = var.as_ref() {
+                if let Variable::Local { .. } = var.as_ref() {
                     Rc::strong_count(var) <= 2
                 } else {
                     false
@@ -201,10 +201,10 @@ impl Init for ExpandElement {
         let mut init = |elem: Self| init_expand(context, elem, Operator::Assign);
 
         match *self {
-            Variable::GlobalScalar(_, _) => init(self),
-            Variable::LocalScalar(_, _, _) => init(self),
-            Variable::ConstantScalar(_, _) => init(self),
-            Variable::Local(_, _, _) => init(self),
+            Variable::GlobalScalar { .. } => init(self),
+            Variable::LocalScalar { .. } => init(self),
+            Variable::ConstantScalar { .. } => init(self),
+            Variable::Local { .. } => init(self),
             // Constant should be initialized since the new variable can be mutated afterward.
             // And it is assumed those values are cloned.
             Variable::Rank
@@ -230,11 +230,12 @@ impl Init for ExpandElement {
             | Variable::AbsolutePosY
             | Variable::AbsolutePosZ => init(self),
             // Array types can't be copied, so we should simply return the same variable.
-            Variable::SharedMemory(_, _, _)
-            | Variable::GlobalInputArray(_, _)
-            | Variable::GlobalOutputArray(_, _)
-            | Variable::LocalArray(_, _, _, _)
-            | Variable::Matrix(_, _) => self,
+            Variable::SharedMemory { .. }
+            | Variable::GlobalInputArray { .. }
+            | Variable::GlobalOutputArray { .. }
+            | Variable::LocalArray { .. }
+            | Variable::Slice { .. }
+            | Variable::Matrix { .. } => self,
         }
     }
 }
