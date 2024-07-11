@@ -64,7 +64,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Return a read-only view of all elements comprise between the start and end index.
     #[allow(unused_variables)]
-    fn slice<Start: Index, End: Index>(&self, start: Start, end: End) -> Slice<'_, E> {
+    fn slice<Start: Index, End: Index>(&self, start: Start, end: End) -> &'_ Slice<'_, E> {
         unexpanded!()
     }
     /// Expand function of [SliceOperator::slice].
@@ -79,7 +79,11 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Return a read-write view of all elements comprise between the start and end index.
     #[allow(unused_variables)]
-    fn slice_mut<Start: Index, End: Index>(&mut self, start: Start, end: End) -> SliceMut<'_, E> {
+    fn slice_mut<Start: Index, End: Index>(
+        &mut self,
+        start: Start,
+        end: End,
+    ) -> &'_ mut SliceMut<'_, E> {
         unexpanded!()
     }
 
@@ -119,7 +123,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Reinterprete the current type as a read-only slice.
     #[allow(unused_variables)]
-    fn as_slice(&self) -> Slice<'_, E> {
+    fn as_slice(&self) -> &'_ Slice<'_, E> {
         unexpanded!()
     }
 
@@ -133,7 +137,7 @@ pub trait SliceOperator<E>: CubeType<ExpandType = Self::Expand> {
 
     /// Reinterprete the current type as a read-write slice.
     #[allow(unused_variables)]
-    fn as_slice_mut(&mut self) -> SliceMut<'_, E> {
+    fn as_slice_mut(&mut self) -> &'_ mut SliceMut<'_, E> {
         unexpanded!()
     }
 

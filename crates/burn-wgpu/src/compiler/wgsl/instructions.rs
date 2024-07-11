@@ -625,18 +625,6 @@ fn index(
     out: &Variable,
     offset: Option<Variable>,
 ) -> core::fmt::Result {
-    // match lhs {
-    //     Variable::Slice { .. } => {
-    //         let item = out.item();
-    //         f.write_fmt(format_args!(
-    //             "{out} = {item}((*{lhs}_ptr)[{rhs} + {lhs}_offset]);\n"
-    //         ))
-    //     }
-    //     _ => {
-    //         let item = out.item();
-    //         f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
-    //     }
-    // }
     let item = out.item();
     match offset {
         Some(offset) => f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs} + {offset}]);\n")),

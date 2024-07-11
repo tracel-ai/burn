@@ -12,7 +12,7 @@ pub fn slice_select<F: Float>(input: &Array<F>, output: &mut Array<F>) {
 #[cube(launch)]
 pub fn slice_assign<F: Float>(input: &Array<F>, output: &mut Array<F>) {
     if UNIT_POS == UInt::new(0) {
-        let mut slice_1 = output.slice_mut(2, 3);
+        let slice_1 = output.slice_mut(2, 3);
         slice_1[0] = input[0u32];
     }
 }
