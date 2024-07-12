@@ -42,7 +42,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
-        while_not_expand::<ElemType>(&mut context, lhs);
+        while_not::__expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(false));
@@ -54,7 +54,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
-        manual_loop_break_expand::<ElemType>(&mut context, lhs);
+        manual_loop_break::__expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(false));
@@ -66,7 +66,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(ElemType::as_elem()));
 
-        loop_with_return_expand::<ElemType>(&mut context, lhs);
+        loop_with_return::__expand::<ElemType>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref(true));

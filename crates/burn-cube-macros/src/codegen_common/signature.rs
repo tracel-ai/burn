@@ -2,10 +2,17 @@ use quote::ToTokens;
 
 use crate::tracker::VariableTracker;
 
+#[derive(Copy, Clone, Debug)]
+pub enum ExpandMode {
+    FuncImpl,
+    MethodImpl,
+}
+
 pub fn expand_sig(
     sig: &syn::Signature,
     visibility: &syn::Visibility,
     mut variable_tracker: Option<&mut VariableTracker>,
+    mode: ExpandMode,
 ) -> proc_macro2::TokenStream {
     let mut inputs = quote::quote!();
 
@@ -42,7 +49,10 @@ pub fn expand_sig(
     }
 
     let ident = &sig.ident;
-    let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
+    let ident = match mode {
+        ExpandMode::FuncImpl => syn::Ident::new("__expand".to_string().as_str(), ident.span()),
+        _ => syn::Ident::new(format!("__expand_{ident}").as_str(), ident.span()),
+    };
 
     let generics = sig.generics.clone().into_token_stream();
 

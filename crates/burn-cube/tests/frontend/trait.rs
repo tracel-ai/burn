@@ -4,7 +4,7 @@ use burn_cube::prelude::*;
 /// for all their methods. However, one does not need to provide its
 /// implementation, see examples below.
 #[cube]
-trait Strategy<T: Numeric> {
+pub trait Strategy<T: Numeric> {
     fn operation(input_1: T, input_2: T) -> T;
 }
 
@@ -13,7 +13,7 @@ struct AddStrategy;
 #[cube]
 /// The actual implementation of AddStrategy's operation
 /// Automatically generated an _expand variant
-fn add_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
+pub fn add_strategy_operation<T: Numeric>(input_1: T, input_2: T) -> T {
     input_1 + input_2
 }
 
@@ -34,19 +34,19 @@ impl<T: Numeric> Strategy<T> for SubStrategy {
 }
 
 #[cube]
-fn with_strategy_trait<S: Strategy<T>, T: Numeric>(x: T, y: T) -> T {
+pub fn with_strategy_trait<S: Strategy<T>, T: Numeric>(x: T, y: T) -> T {
     S::operation(x, y)
 }
 
 #[cube]
-fn two_strategy_traits<S1: Strategy<F>, S2: Strategy<F>, F: Float>(x: F, y: F) -> F {
+pub fn two_strategy_traits<S1: Strategy<F>, S2: Strategy<F>, F: Float>(x: F, y: F) -> F {
     let z = S1::operation(x, y);
     S2::operation(z, y)
 }
 
-trait MethodTypedStrategy {
+pub trait MethodTypedStrategy {
     fn operation<T: Numeric>(input_1: T, input_2: T) -> T;
-    fn operation_expand<T: Numeric>(
+    fn __expand_operation<T: Numeric>(
         _context: &mut CubeContext,
         input_1: <T as CubeType>::ExpandType,
         input_2: <T as CubeType>::ExpandType,
@@ -58,17 +58,17 @@ impl MethodTypedStrategy for AddStrategy {
         add_strategy_operation(input_1, input_2)
     }
 
-    fn operation_expand<T: Numeric>(
+    fn __expand_operation<T: Numeric>(
         context: &mut CubeContext,
         input_1: <T as CubeType>::ExpandType,
         input_2: <T as CubeType>::ExpandType,
     ) -> <T as CubeType>::ExpandType {
-        add_strategy_operation_expand::<T>(context, input_1, input_2)
+        add_strategy_operation::__expand::<T>(context, input_1, input_2)
     }
 }
 
 #[cube]
-fn with_trait_generic_method<S: MethodTypedStrategy, T: Numeric>(x: T, y: T) -> T {
+pub fn with_trait_generic_method<S: MethodTypedStrategy, T: Numeric>(x: T, y: T) -> T {
     S::operation::<T>(x, y)
 }
 
@@ -87,7 +87,7 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
         let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        with_strategy_trait_expand::<AddStrategy, ElemType>(&mut context, x, y);
+        with_strategy_trait::__expand::<AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -103,7 +103,7 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
         let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        with_strategy_trait_expand::<SubStrategy, ElemType>(&mut context, x, y);
+        with_strategy_trait::__expand::<SubStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -119,7 +119,7 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
         let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        two_strategy_traits_expand::<SubStrategy, AddStrategy, ElemType>(&mut context, x, y);
+        two_strategy_traits::__expand::<SubStrategy, AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_two());
@@ -132,7 +132,7 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
         let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        with_trait_generic_method_expand::<AddStrategy, ElemType>(&mut context, x, y);
+        with_trait_generic_method::__expand::<AddStrategy, ElemType>(&mut context, x, y);
         let scope = context.into_scope();
 
         assert_eq!(

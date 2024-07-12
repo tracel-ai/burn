@@ -45,8 +45,11 @@ pub trait Numeric:
 
     type Primitive: ScalarArgSettings;
 
-    /// Expand version of from_int
-    fn from_int_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
+    fn from_vec<const D: usize>(_vec: [i64; D]) -> Self {
+        unexpanded!()
+    }
+
+    fn __expand_from_int(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
         let new_var = Variable::ConstantScalar {
             value: val as f64,
             elem: Self::as_elem(),
@@ -54,11 +57,7 @@ pub trait Numeric:
         ExpandElement::Plain(new_var)
     }
 
-    fn from_vec<const D: usize>(_vec: [i64; D]) -> Self {
-        unexpanded!()
-    }
-
-    fn from_vec_expand<const D: usize>(
+    fn __expand_from_vec<const D: usize>(
         context: &mut CubeContext,
         vec: [i64; D],
     ) -> <Self as CubeType>::ExpandType {

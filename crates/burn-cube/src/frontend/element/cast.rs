@@ -6,7 +6,7 @@ use crate::{frontend::ExpandElement, unexpanded};
 pub trait Cast: CubePrimitive {
     fn cast_from<From: CubePrimitive>(value: From) -> Self;
 
-    fn cast_from_expand<From>(
+    fn __expand_cast_from<From>(
         context: &mut CubeContext,
         value: From,
     ) -> <Self as CubeType>::ExpandType

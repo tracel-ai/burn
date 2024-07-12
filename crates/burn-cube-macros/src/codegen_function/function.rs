@@ -106,22 +106,42 @@ pub(crate) fn codegen_call(
     // Path
     let mut path_tokens = TokenStream::new();
     let mut is_comptime = false;
+    let mut is_plain_func = true;
     let mut comptime_func: Option<String> = None;
 
     for (i, (ident, generics)) in path.iter().enumerate() {
-        if *ident == "Comptime" {
+        let name = ident.to_string();
+
+        if name == "Comptime" {
             is_comptime = true;
             continue;
         }
+
+        if let Some(first_char) = name.chars().next() {
+            if first_char.is_uppercase() {
+                is_plain_func = false;
+            }
+        }
+
         if i == path.len() - 1 {
             if is_comptime {
                 comptime_func = Some(ident.to_string());
                 break;
             }
-            let func_name_expand = syn::Ident::new(
-                format!("{ident}_expand").as_str(),
-                proc_macro2::Span::call_site(),
-            );
+
+            let func_name_expand = if is_plain_func {
+                quote::quote! {
+                    #ident::__expand
+                }
+            } else {
+                let ident = syn::Ident::new(
+                    format!("__expand_{ident}").as_str(),
+                    proc_macro2::Span::call_site(),
+                );
+                quote::quote! {
+                    #ident
+                }
+            };
             path_tokens.extend(quote_spanned! {func_name_expand.span() => #func_name_expand });
             if let Some(generics) = generics {
                 path_tokens.extend(quote_spanned! {generics.span() => #generics });

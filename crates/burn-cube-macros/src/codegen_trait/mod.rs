@@ -1,4 +1,6 @@
-use crate::codegen_common::signature::expand_sig;
+use proc_macro2::TokenStream;
+
+use crate::codegen_common::signature::{expand_sig, ExpandMode};
 
 pub fn expand_trait_def(mut tr: syn::ItemTrait) -> proc_macro2::TokenStream {
     let mut expand_items = Vec::new();
@@ -6,7 +8,12 @@ pub fn expand_trait_def(mut tr: syn::ItemTrait) -> proc_macro2::TokenStream {
     for item in tr.items.iter() {
         match item {
             syn::TraitItem::Fn(func) => {
-                let expand = expand_sig(&func.sig, &syn::Visibility::Inherited, None);
+                let expand = expand_sig(
+                    &func.sig,
+                    &syn::Visibility::Inherited,
+                    None,
+                    ExpandMode::MethodImpl,
+                );
                 expand_items.push(syn::parse_quote!(#expand;));
             }
             _ => continue,
@@ -26,7 +33,7 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
         match item {
             syn::ImplItem::Fn(func) => {
                 let ident = &func.sig.ident;
-                let ident = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
+                let ident = quote::quote! {#ident::__expand};
                 let mut inputs = quote::quote!();
 
                 for input in &func.sig.inputs {
@@ -41,7 +48,12 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
                     }
                 }
 
-                let expand = expand_sig(&func.sig, &syn::Visibility::Inherited, None);
+                let expand = expand_sig(
+                    &func.sig,
+                    &syn::Visibility::Inherited,
+                    None,
+                    ExpandMode::MethodImpl,
+                );
 
                 let tokens = if !tr.generics.params.is_empty() {
                     let mut func = func.clone();
@@ -67,7 +79,7 @@ pub fn expand_trait_impl(mut tr: syn::ItemImpl) -> proc_macro2::TokenStream {
 
 fn register_expand(
     func: &syn::ImplItemFn,
-    name: &syn::Ident,
+    name: &TokenStream,
     expand: proc_macro2::TokenStream,
     inputs: proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
@@ -91,7 +103,7 @@ fn register_expand(
     quote::quote! (
         #expand {
             #[cube]
-            #func
+            pub #func
             #func_expand
         }
     )

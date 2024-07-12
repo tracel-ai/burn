@@ -1,27 +1,27 @@
 use burn_cube::prelude::*;
 
 #[cube]
-fn mut_assign() {
+pub fn mut_assign() {
     let mut x = UInt::new(0);
     x += UInt::new(1);
 }
 
 #[cube]
-fn mut_assign_input(y: UInt) -> UInt {
+pub fn mut_assign_input(y: UInt) -> UInt {
     let mut x = y;
     x += UInt::new(1);
     y + UInt::new(2)
 }
 
 #[cube]
-fn assign_mut_input(mut y: UInt) -> UInt {
+pub fn assign_mut_input(mut y: UInt) -> UInt {
     let x = y;
     y += UInt::new(1);
     x + UInt::new(2)
 }
 
 #[cube]
-fn assign_vectorized(y: UInt) -> UInt {
+pub fn assign_vectorized(y: UInt) -> UInt {
     let vectorization_factor = Comptime::vectorization(&y);
     let x = UInt::vectorized(1, Comptime::get(vectorization_factor));
     x + y
@@ -38,7 +38,7 @@ mod tests {
     fn cube_mut_assign_test() {
         let mut context = CubeContext::root();
 
-        mut_assign_expand(&mut context);
+        mut_assign::__expand(&mut context);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -53,7 +53,7 @@ mod tests {
 
         let y = context.create_local(Item::new(UInt::as_elem()));
 
-        mut_assign_input_expand(&mut context, y);
+        mut_assign_input::__expand(&mut context, y);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -68,7 +68,7 @@ mod tests {
 
         let y = context.create_local(Item::new(UInt::as_elem()));
 
-        assign_mut_input_expand(&mut context, y);
+        assign_mut_input::__expand(&mut context, y);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -83,7 +83,7 @@ mod tests {
 
         let y = context.create_local(Item::vectorized(UInt::as_elem(), 4));
 
-        assign_vectorized_expand(&mut context, y);
+        assign_vectorized::__expand(&mut context, y);
         let scope = context.into_scope();
 
         assert_eq!(

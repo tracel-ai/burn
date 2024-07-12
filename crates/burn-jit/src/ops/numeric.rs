@@ -26,7 +26,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     #[cube(launch)]
-    pub(crate) fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
+    pub fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
         if ABSOLUTE_POS >= tensor.len() {
             return;
         }
@@ -42,7 +42,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
         SUBCUBE_DIM_APPROX,
     );
 
-    full_kernel_launch::<E::Primitive, R>(
+    full_kernel::launch::<E::Primitive, R>(
         empty.client.clone(),
         cube_count,
         CubeDim::default(),
@@ -127,7 +127,7 @@ pub fn add_scalar<R: JitRuntime, E: JitElement, const D: usize>(
         fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
             lhs + rhs
         }
-        execute_expand::<C>(context, lhs, rhs)
+        execute::__expand::<C>(context, lhs, rhs)
     })
 }
 
@@ -156,7 +156,7 @@ pub fn sub_scalar<R: JitRuntime, E: JitElement, const D: usize>(
         fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
             lhs - rhs
         }
-        execute_expand::<C>(context, lhs, rhs)
+        execute::__expand::<C>(context, lhs, rhs)
     })
 }
 
@@ -185,7 +185,7 @@ pub fn mul_scalar<R: JitRuntime, E: JitElement, const D: usize>(
         fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
             lhs * rhs
         }
-        execute_expand::<C>(context, lhs, rhs)
+        execute::__expand::<C>(context, lhs, rhs)
     })
 }
 
@@ -214,7 +214,7 @@ pub fn div_scalar<R: JitRuntime, E: JitElement, const D: usize>(
         fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
             lhs / rhs
         }
-        execute_expand::<C>(context, lhs, rhs)
+        execute::__expand::<C>(context, lhs, rhs)
     })
 }
 

@@ -18,7 +18,7 @@ pub fn kernel_without_generics(output: &mut Array<F32>) {
 pub fn test_kernel_with_generics<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     let handle = client.create(f32::as_bytes(&[0.0, 1.0]));
 
-    kernel_with_generics_launch::<F32, R>(
+    kernel_with_generics::launch::<F32, R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::default(),
@@ -34,7 +34,7 @@ pub fn test_kernel_with_generics<R: Runtime>(client: ComputeClient<R::Server, R:
 pub fn test_kernel_without_generics<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     let handle = client.create(f32::as_bytes(&[0.0, 1.0]));
 
-    kernel_without_generics_launch::<R>(
+    kernel_without_generics::launch::<R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::default(),

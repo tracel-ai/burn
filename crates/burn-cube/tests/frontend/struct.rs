@@ -1,25 +1,25 @@
 use burn_cube::prelude::*;
 
 #[derive(CubeType)]
-struct State<T: Numeric> {
+pub struct State<T: Numeric> {
     first: T,
     second: T,
 }
 
 #[cube]
-fn state_receiver_with_reuse<T: Numeric>(state: State<T>) -> T {
+pub fn state_receiver_with_reuse<T: Numeric>(state: State<T>) -> T {
     let x = state.first + state.second;
     state.second + x + state.first
 }
 
 #[cube]
-fn attribute_modifier_reuse_field<T: Numeric>(mut state: State<T>) -> T {
+pub fn attribute_modifier_reuse_field<T: Numeric>(mut state: State<T>) -> T {
     state.first = T::from_int(4);
     state.first
 }
 
 #[cube]
-fn attribute_modifier_reuse_struct<T: Numeric>(mut state: State<T>) -> State<T> {
+pub fn attribute_modifier_reuse_struct<T: Numeric>(mut state: State<T>) -> State<T> {
     state.first = T::from_int(4);
     state
 }
@@ -48,7 +48,7 @@ mod tests {
         let x = context.create_local(Item::new(ElemType::as_elem()));
         let y = context.create_local(Item::new(ElemType::as_elem()));
 
-        creator_expand::<ElemType>(&mut context, x, y);
+        creator::__expand::<ElemType>(&mut context, x, y);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -68,7 +68,7 @@ mod tests {
             first: x,
             second: y,
         };
-        state_receiver_with_reuse_expand::<ElemType>(&mut context, expanded_state);
+        state_receiver_with_reuse::__expand::<ElemType>(&mut context, expanded_state);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -88,7 +88,7 @@ mod tests {
             first: x,
             second: y,
         };
-        attribute_modifier_reuse_field_expand::<ElemType>(&mut context, expanded_state);
+        attribute_modifier_reuse_field::__expand::<ElemType>(&mut context, expanded_state);
         let scope = context.into_scope();
 
         assert_eq!(
@@ -108,7 +108,7 @@ mod tests {
             first: x,
             second: y,
         };
-        attribute_modifier_reuse_struct_expand::<ElemType>(&mut context, expanded_state);
+        attribute_modifier_reuse_struct::__expand::<ElemType>(&mut context, expanded_state);
         let scope = context.into_scope();
 
         assert_eq!(

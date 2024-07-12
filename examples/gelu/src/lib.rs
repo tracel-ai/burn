@@ -20,7 +20,7 @@ pub fn launch<R: Runtime>(device: &R::Device) {
     let input_handle = client.create(f32::as_bytes(input));
     let output_handle = client.empty(input.len() * core::mem::size_of::<f32>());
 
-    gelu_launch::<F32, R>(
+    gelu::launch::<F32, R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::default(),

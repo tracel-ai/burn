@@ -29,15 +29,15 @@ pub trait Float:
     + core::ops::IndexMut<UInt, Output = Self>
 {
     fn new(val: f32) -> Self;
-    fn new_expand(context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType;
     fn vectorized(val: f32, vectorization: UInt) -> Self;
-    fn vectorized_expand(
+    fn vectorized_empty(vectorization: UInt) -> Self;
+    fn __expand_new(context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType;
+    fn __expand_vectorized(
         context: &mut CubeContext,
         val: f32,
         vectorization: UInt,
     ) -> <Self as CubeType>::ExpandType;
-    fn vectorized_empty(vectorization: UInt) -> Self;
-    fn vectorized_empty_expand(
+    fn __expand_vectorized_empty(
         context: &mut CubeContext,
         vectorization: UInt,
     ) -> <Self as CubeType>::ExpandType;
@@ -74,14 +74,6 @@ macro_rules! impl_float {
                 }
             }
 
-            fn new_expand(_context: &mut CubeContext, val: f32) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar {
-                    value: val as f64,
-                    elem: Self::as_elem(),
-                };
-                ExpandElement::Plain(new_var)
-            }
-
             fn vectorized(val: f32, vectorization: UInt) -> Self {
                 if vectorization.val == 1 {
                     Self::new(val)
@@ -93,13 +85,28 @@ macro_rules! impl_float {
                 }
             }
 
-            fn vectorized_expand(
+            fn vectorized_empty(vectorization: UInt) -> Self {
+                Self::vectorized(0., vectorization)
+            }
+
+            fn __expand_new(
+                _context: &mut CubeContext,
+                val: f32,
+            ) -> <Self as CubeType>::ExpandType {
+                let new_var = Variable::ConstantScalar {
+                    value: val as f64,
+                    elem: Self::as_elem(),
+                };
+                ExpandElement::Plain(new_var)
+            }
+
+            fn __expand_vectorized(
                 context: &mut CubeContext,
                 val: f32,
                 vectorization: UInt,
             ) -> <Self as CubeType>::ExpandType {
                 if vectorization.val == 1 {
-                    Self::new_expand(context, val)
+                    Self::__expand_new(context, val)
                 } else {
                     let mut new_var = context
                         .create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8));
@@ -111,16 +118,12 @@ macro_rules! impl_float {
                 }
             }
 
-            fn vectorized_empty(vectorization: UInt) -> Self {
-                Self::vectorized(0., vectorization)
-            }
-
-            fn vectorized_empty_expand(
+            fn __expand_vectorized_empty(
                 context: &mut CubeContext,
                 vectorization: UInt,
             ) -> <Self as CubeType>::ExpandType {
                 if vectorization.val == 1 {
-                    Self::new_expand(context, 0.)
+                    Self::__expand_new(context, 0.)
                 } else {
                     context.create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8))
                 }

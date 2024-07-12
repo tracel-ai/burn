@@ -11,7 +11,8 @@ pub use crate::runtime::Runtime;
 
 /// Elements
 pub use crate::frontend::{
-    Array, ArrayHandle, Float, LaunchArg, Slice, Tensor, TensorArg, UInt, F16, F32, F64, I32, I64,
+    Array, ArrayHandle, Bool, Float, LaunchArg, Slice, SliceMut, Tensor, TensorArg, UInt, F16, F32,
+    F64, I32, I64,
 };
 pub use crate::pod::CubeElement;
 
@@ -23,10 +24,7 @@ pub use crate::frontend::{
 };
 
 /// Export subcube operations.
-pub use crate::frontend::{
-    subcube_all, subcube_all_expand, subcube_max, subcube_max_expand, subcube_min,
-    subcube_min_expand, subcube_prod, subcube_prod_expand, subcube_sum, subcube_sum_expand,
-};
+pub use crate::frontend::{subcube_all, subcube_max, subcube_min, subcube_prod, subcube_sum};
 pub use burn_compute::client::ComputeClient;
 
 pub use crate::frontend::*;

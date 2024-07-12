@@ -20,7 +20,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(F32::as_elem()));
 
-        generic_kernel_expand::<F32>(&mut context, lhs);
+        generic_kernel::__expand::<F32>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_float());
@@ -32,7 +32,7 @@ mod tests {
 
         let lhs = context.create_local(Item::new(I32::as_elem()));
 
-        generic_kernel_expand::<I32>(&mut context, lhs);
+        generic_kernel::__expand::<I32>(&mut context, lhs);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_int());

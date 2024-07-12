@@ -9,9 +9,9 @@ use super::{LaunchArgExpand, ScalarArgSettings, UInt, Vectorized};
 /// Signed integer. Used as input in int kernels
 pub trait Int: Numeric + std::ops::Rem<Output = Self> {
     fn new(val: i64) -> Self;
-    fn new_expand(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
     fn vectorized(val: i64, vectorization: UInt) -> Self;
-    fn vectorized_expand(
+    fn __expand_new(context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType;
+    fn __expand_vectorized(
         context: &mut CubeContext,
         val: i64,
         vectorization: UInt,
@@ -48,14 +48,6 @@ macro_rules! impl_int {
                 }
             }
 
-            fn new_expand(_context: &mut CubeContext, val: i64) -> <Self as CubeType>::ExpandType {
-                let new_var = Variable::ConstantScalar {
-                    value: val as f64,
-                    elem: Self::as_elem(),
-                };
-                ExpandElement::Plain(new_var)
-            }
-
             fn vectorized(val: i64, vectorization: UInt) -> Self {
                 if vectorization.val == 1 {
                     Self::new(val)
@@ -67,13 +59,24 @@ macro_rules! impl_int {
                 }
             }
 
-            fn vectorized_expand(
+            fn __expand_new(
+                _context: &mut CubeContext,
+                val: i64,
+            ) -> <Self as CubeType>::ExpandType {
+                let new_var = Variable::ConstantScalar {
+                    value: val as f64,
+                    elem: Self::as_elem(),
+                };
+                ExpandElement::Plain(new_var)
+            }
+
+            fn __expand_vectorized(
                 context: &mut CubeContext,
                 val: i64,
                 vectorization: UInt,
             ) -> <Self as CubeType>::ExpandType {
                 if vectorization.val == 1 {
-                    Self::new_expand(context, val)
+                    Self::__expand_new(context, val)
                 } else {
                     let mut new_var = context
                         .create_local(Item::vectorized(Self::as_elem(), vectorization.val as u8));

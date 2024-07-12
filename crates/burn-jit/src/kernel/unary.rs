@@ -4,7 +4,7 @@ use burn_cube::{
     SUBCUBE_DIM_APPROX,
 };
 
-use super::{index_offset_with_layout, index_offset_with_layout_expand, Kernel};
+use super::{index_offset_with_layout, Kernel};
 
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;
@@ -13,7 +13,7 @@ pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     fn execute(_input: C, _options: &Self::Options) -> C {
         unexpanded!();
     }
-    fn execute_expand(
+    fn __expand_execute(
         context: &mut CubeContext,
         input: C::ExpandType,
         options: <Self::Options as CubeType>::ExpandType,
@@ -78,7 +78,7 @@ where
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
-        unary_kernel_launch::<E::Primitive, O, R>(
+        unary_kernel::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -104,7 +104,7 @@ where
             buffer,
         );
 
-        unary_kernel_launch::<E::Primitive, O, R>(
+        unary_kernel::launch::<E::Primitive, O, R>(
             client,
             cube_count,
             CubeDim::default(),
@@ -136,7 +136,7 @@ macro_rules! unary_op {
             type Options = ();
 
             #[allow(clippy::redundant_closure_call)]
-            fn execute_expand(
+            fn __expand_execute(
                 context: &mut CubeContext,
                 input: C::ExpandType,
                 _options: <Self::Options as CubeType>::ExpandType,
@@ -152,7 +152,7 @@ macro_rules! unary_op {
             type Options = C;
 
             #[allow(clippy::redundant_closure_call)]
-            fn execute_expand(
+            fn __expand_execute(
                 context: &mut CubeContext,
                 input: C::ExpandType,
                 scalar: C::ExpandType,

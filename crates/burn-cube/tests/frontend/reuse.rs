@@ -32,7 +32,7 @@ mod tests {
 
         let x = context.create_local(Item::new(ElemType::as_elem()));
 
-        reuse_expand::<ElemType>(&mut context, x);
+        reuse::__expand::<ElemType>(&mut context, x);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_assign());
@@ -44,7 +44,7 @@ mod tests {
 
         let x = context.create_local(Item::new(ElemType::as_elem()));
 
-        reuse_incr_expand::<ElemType>(&mut context, x);
+        reuse_incr::__expand::<ElemType>(&mut context, x);
         let scope = context.into_scope();
 
         assert_eq!(format!("{:?}", scope.operations), inline_macro_ref_incr());

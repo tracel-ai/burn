@@ -3,6 +3,10 @@ use crate::ir::Elem;
 
 use super::Vectorized;
 
+// To be consistent with other primitive type.
+/// Boolean type.
+pub type Bool = bool;
+
 impl CubeType for bool {
     type ExpandType = ExpandElement;
 }

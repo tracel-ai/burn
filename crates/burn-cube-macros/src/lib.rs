@@ -10,7 +10,7 @@ mod tracker;
 pub(crate) mod codegen_common;
 
 use analyzer::VariableAnalyzer;
-use codegen_common::signature::expand_sig;
+use codegen_common::signature::{expand_sig, ExpandMode};
 use codegen_function::{codegen_launch, codegen_statement};
 use codegen_trait::{expand_trait_def, expand_trait_impl};
 use codegen_type::generate_cube_type;
@@ -69,20 +69,8 @@ pub fn cube(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 fn cube_fn(func: syn::ItemFn, attrs: &SupportedAttributes) -> TokenStream {
     let mut variable_tracker = VariableAnalyzer::create_tracker(&func);
 
-    match codegen_cube(&func, &mut variable_tracker) {
-        Ok(code) => {
-            if attrs.launch {
-                let launch = codegen_launch(&func.sig);
-
-                quote::quote! {
-                    #code
-                    #launch
-                }
-                .into()
-            } else {
-                code.into()
-            }
-        }
+    match codegen_cube(&func, &mut variable_tracker, attrs.launch) {
+        Ok(code) => code.into(),
         Err(err) => err.into(),
     }
 }
@@ -120,8 +108,15 @@ fn parse_attributes(args: &Punctuated<Meta, Comma>) -> SupportedAttributes {
 fn codegen_cube(
     func: &syn::ItemFn,
     variable_tracker: &mut VariableTracker,
+    launch: bool,
 ) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
-    let signature = expand_sig(&func.sig, &func.vis, Some(variable_tracker));
+    let signature = expand_sig(
+        &func.sig,
+        &syn::Visibility::Public(Default::default()), // Always public, otherwise we can't import
+        // it from an outside module.
+        Some(variable_tracker),
+        ExpandMode::FuncImpl,
+    );
     let mut body = quote::quote! {};
 
     for statement in func.block.stmts.iter() {
@@ -148,15 +143,36 @@ fn codegen_cube(
         return Err(code);
     }
 
+    let launch_doc = if launch { "and launch function " } else { "" };
+
+    let launch = if launch {
+        codegen_launch(&func.sig)
+    } else {
+        quote::quote! {}
+    };
+
+    let mod_name = &func.sig.ident;
+    let vis = &func.vis;
+    let doc = format!("Module containing the expand method {launch_doc}of {mod_name}.");
+
     Ok(quote::quote! {
         #[allow(dead_code)]
         #[allow(clippy::too_many_arguments)]
         #func
 
-        #[allow(unused_mut)]
-        #[allow(clippy::too_many_arguments)]
-        #signature {
-            #body
+
+        #[doc = #doc]
+        #vis mod #mod_name {
+            use super::*;
+
+            #launch
+
+            #[allow(unused_mut)]
+            #[allow(clippy::too_many_arguments)]
+            #signature {
+                #body
+            }
+
         }
     })
 }

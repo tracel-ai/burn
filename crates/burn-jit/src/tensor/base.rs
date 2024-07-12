@@ -146,7 +146,7 @@ where
             fn execute<C: Numeric>(input: C) -> C {
                 input
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 

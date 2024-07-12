@@ -64,7 +64,7 @@ pub fn test_simple_1<R: Runtime>(client: ComputeClient<R::Server, R::Channel>) {
     let rhs = client.create(f16::as_bytes(&rhs));
     let out = client.empty(core::mem::size_of::<f32>() * 256);
 
-    kernel_simple_1_launch::<R>(
+    kernel_simple_1::launch::<R>(
         client.clone(),
         CubeCount::Static(1, 1, 1),
         CubeDim::new(16, 16, 1),

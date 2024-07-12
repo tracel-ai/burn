@@ -211,7 +211,7 @@ impl Codegen {
         }
     }
 
-    fn gen_define_impl(&self, expand: &Ident) -> TokenStream {
+    fn gen_define_impl(&self, expand: &TokenStream) -> TokenStream {
         let mut expand_args = quote::quote! { &mut builder.context, };
 
         let mut variables = quote::quote! {};
@@ -340,7 +340,7 @@ impl Codegen {
         tokens
     }
 
-    fn gen_compile_impl(&self, expand: &Ident) -> TokenStream {
+    fn gen_compile_impl(&self, expand: &TokenStream) -> TokenStream {
         let ident = Ident::new(&self.name, Span::call_site());
         let generics = add_runtime(self.generics.clone());
         let (impl_gen, ty_gen, where_gen) = generics.split_for_impl();
@@ -453,22 +453,27 @@ pub fn codegen_launch(sig: &syn::Signature) -> TokenStream {
     let codegen = Codegen::from_sig(sig);
 
     let ident = &sig.ident;
-    let ident_expand = syn::Ident::new(format!("{ident}_expand").as_str(), ident.span());
-    let ident = syn::Ident::new(format!("{ident}_launch").as_str(), ident.span());
+
+    let ident_expand = quote::quote! {
+        __expand
+    };
 
     let generics = add_runtime(add_lifetime(sig.generics.clone()));
     let body = codegen.gen_launch_body();
     let kernel = codegen.gen_kernel_struct();
     let compile = codegen.gen_compile_impl(&ident_expand);
     let (inputs, output) = (codegen.fn_inputs, codegen.fn_output);
+    let doc =
+        format!("Launch the kernel [{ident}] with the provided argument on the given runtime.");
 
     quote::quote! {
         #kernel
         #compile
 
         #[allow(clippy::too_many_arguments)]
-        /// Launch
-        pub fn #ident #generics (
+        #[doc = #doc]
+        /// Launch the kernel.
+        pub fn launch #generics (
             client: ComputeClient<R::Server, R::Channel>,
             cube_count: CubeCount<R::Server>,
             cube_dim: CubeDim,

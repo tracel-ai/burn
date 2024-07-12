@@ -7,14 +7,13 @@ use crate::{
         into_contiguous,
         matmul::{
             config::{tiling2d_cube_count, tiling2d_cube_dim, CubeTiling2dConfig},
+            tiling2d_cube::base::tiling2d_cube_kernel,
             Tiling2dConfig,
         },
     },
     tensor::{JitTensor, MatrixLayout},
     FloatElement, JitRuntime,
 };
-
-use super::base::tiling2d_cube_launch;
 
 /// Matrix multiplication using tiling 2d algorithm
 pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
@@ -69,7 +68,7 @@ pub fn matmul_tiling_2d_cube<R: JitRuntime, E: FloatElement, const D: usize>(
     let cube_dim = tiling2d_cube_dim(&config);
     let cube_config = CubeTiling2dConfig::new(&config, m, k, n, lhs_transposed, rhs_transposed);
 
-    tiling2d_cube_launch::<E::FloatPrimitive, R>(
+    tiling2d_cube_kernel::launch::<E::FloatPrimitive, R>(
         client,
         cube_count,
         cube_dim,
