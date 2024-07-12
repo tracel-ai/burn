@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use cubecl::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
+use cubecl::tune::{AutotuneOperation, AutotuneOperationSet};
 
 use crate::{
     element::JitElement,

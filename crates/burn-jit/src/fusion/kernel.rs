@@ -5,12 +5,12 @@ use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::kernel::Kernel;
 use crate::JitRuntime;
-use cubecl::client::ComputeClient;
-use cubecl::server::Binding;
-use cubecl::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
+use cubecl::client::ComputeClient;
+use cubecl::server::Binding;
+use cubecl::tune::AutotuneOperation;
 use std::marker::PhantomData;
 use std::sync::Arc;
 

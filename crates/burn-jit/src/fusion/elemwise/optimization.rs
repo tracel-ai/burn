@@ -10,8 +10,8 @@ use crate::{
     JitRuntime,
 };
 use burn_common::id::IdGenerator;
-use cubecl::client::ComputeClient;
 use burn_fusion::stream::Context;
+use cubecl::client::ComputeClient;
 use cubecl::ir::CubeDim;
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,7 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
         let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.num_operations,
             self.autotune_shape(context),
-        )).to_string();
+        ));
 
         if let Some(index) = client.autotune_result(&key) {
             self.run_kernel(context, client, index)
@@ -107,7 +107,7 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
         &mut self,
         context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
-        key: JitAutotuneKey,
+        key: String,
     ) {
         let info = self.trace.running();
 

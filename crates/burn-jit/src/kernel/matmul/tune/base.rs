@@ -1,5 +1,10 @@
-use cubecl::tune::{AutotuneOperation, AutotuneOperationSet};
-use burn_tensor::{Element, ElementConversion};
+use burn_tensor::{
+    backend::{DeviceId, DeviceOps},
+    Element, ElementConversion,
+};
+use cubecl::tune::{AutotuneOperation, AutotuneOperationSet, LocalTuner, Tuner};
+use hashbrown::HashMap;
+use spin::RwLock;
 
 use crate::{
     element::FloatElement,
@@ -116,9 +121,13 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element, const D: usize>
 
     let output = init_matmul_output(&lhs, &rhs);
 
-    let operation_set = Box::new(MatmulAutotuneOperationSet::new(lhs, rhs, output.clone()));
+    static TUNER: LocalTuner<JitAutotuneKey, DeviceId> = LocalTuner::new("matmul");
 
-    client.autotune_execute(operation_set);
+    TUNER.execute(
+        &DeviceOps::id(&lhs.device),
+        &client,
+        Box::new(MatmulAutotuneOperationSet::new(lhs, rhs, output.clone())),
+    );
 
     output
 }

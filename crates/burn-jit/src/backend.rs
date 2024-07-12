@@ -1,8 +1,8 @@
 use crate::{
     tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
 };
-use cubecl::server::ComputeServer;
 use burn_tensor::backend::{Backend, SyncType};
+use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -53,7 +53,7 @@ where
     fn sync(device: &Self::Device, sync_type: SyncType) {
         let sync = match sync_type {
             SyncType::Flush => cubecl::client::SyncType::Flush,
-            SyncType::Wait =>  cubecl::client::SyncType::Wait,
+            SyncType::Wait => cubecl::client::SyncType::Wait,
         };
         let client = R::client(device);
         client.sync(sync);

@@ -719,6 +719,7 @@ dependencies = [
  "burn-common",
  "burn-tensor-testgen",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "half",
  "hashbrown 0.14.5",

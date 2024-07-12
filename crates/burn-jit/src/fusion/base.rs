@@ -3,10 +3,10 @@ use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
     IntElement, JitBackend, JitRuntime,
 };
-use cubecl::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
+use cubecl::client::ComputeClient;
 use cubecl::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};

@@ -26,3 +26,28 @@ pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
 pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
+
+#[cfg(feature = "cubecl")]
+mod cube {
+    use cubecl::ir::{Elem, FloatKind, IntKind};
+
+    impl From<crate::DType> for cubecl::ir::Elem {
+        fn from(dtype: crate::DType) -> Self {
+            match dtype {
+                crate::DType::F64 => Elem::Float(FloatKind::F64),
+                crate::DType::F32 => Elem::Float(FloatKind::F32),
+                crate::DType::F16 => Elem::Float(FloatKind::F16),
+                crate::DType::BF16 => Elem::Float(FloatKind::BF16),
+                crate::DType::I64 => Elem::Int(IntKind::I64),
+                crate::DType::I32 => Elem::Int(IntKind::I32),
+                crate::DType::I16 => panic!("i16 isn't supported yet."),
+                crate::DType::I8 => panic!("i8 isn't supported yet."),
+                crate::DType::U64 => Elem::UInt,
+                crate::DType::U32 => Elem::UInt,
+                crate::DType::U8 => panic!("u8 isn't supported yet."),
+                crate::DType::Bool => Elem::Bool,
+                crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),
+            }
+        }
+    }
+}
