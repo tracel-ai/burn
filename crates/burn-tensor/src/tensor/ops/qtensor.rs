@@ -81,4 +81,19 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B, D>,
         strategy: QuantizationStrategy,
     ) -> impl Future<Output = TensorData> + Send;
+
+    /// Sets the `require_grad` flag of a tensor.
+    fn q_set_require_grad<const D: usize>(
+        tensor: QuantizedTensor<B, D>,
+        _require_grad: bool,
+    ) -> QuantizedTensor<B, D> {
+        // Should only be overridden by autodiff backends.
+        tensor
+    }
+
+    /// Returns the `require_grad` flag of a tensor.
+    fn q_is_require_grad<const D: usize>(_tensor: &QuantizedTensor<B, D>) -> bool {
+        // Should only be overridden by autodiff backends.
+        false
+    }
 }
