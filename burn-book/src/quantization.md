@@ -57,6 +57,36 @@ let mut quantizer = Quantizer {
 let model = model.quantize_weights(&mut quantizer);
 ```
 
+> Given that all operations are currently performed in floating point precision, it might be wise to
+> dequantize the module parameters before inference. This allows us to save disk space by storing
+> the model in reduced precision while preserving the inference speed.
+>
+> This can easily be implemented with a `ModuleMapper`.
+>
+> ```rust, ignore
+> # use burn::module::{ModuleMapper, ParamId};
+> # use burn::tensor::{backend::Backend, Tensor};
+> #
+> /// Module mapper used to dequantize the model params being loaded.
+> pub struct Dequantize {}
+>
+> impl<B: Backend> ModuleMapper<B> for Dequantize {
+>     fn map_float<const D: usize>(
+>         &mut self,
+>         _id: &ParamId,
+>         tensor: Tensor<B, D>,
+>     ) -> Tensor<B, D> {
+>         tensor.dequantize()
+>     }
+> }
+>
+> // Load saved quantized model in floating point precision
+> model = model
+>     .load_file(file_path, recorder, &device)
+>     .expect("Should be able to load the quantized model weights")
+>     .map(&mut Dequantize {});
+> ```
+
 ### Calibration
 
 Calibration is the step during quantization where the range of all floating-point tensors is
