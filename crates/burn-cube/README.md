@@ -197,6 +197,6 @@ Note that you don't have to specify `launch` in a function that is only used by 
 In addition, you can have return types without problem, which isn't the case when you are writing an entry point to a kernel using the `launch` attribute.
 The function `gelu_expand` will actually use `gelu_scalar_expand`, making it easy to combine your functions.
 
-## Ressource
+## Resource
 
 If you have any questions or want to contribute, don't hesitate to join the [Discord](https://discord.gg/uPEBbYYDB6).
