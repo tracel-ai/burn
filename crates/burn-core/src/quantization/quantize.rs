@@ -4,22 +4,10 @@ use crate::module::{ModuleMapper, ParamId};
 
 use super::Calibration;
 
-/// Describes how to quantize a module by providing quantizer settings for activations and weights respectively.
-pub struct QuantizationConfig<CW: Calibration> {
-    // TODO:
-    /// The quantizer used to quantize the activations (i.e., a layer's output).
-    // pub activations: Quantizer<CA>,
-    /// The quantizer used to quantize the weights.
-    pub weights: Quantizer<CW>,
-}
-
 /// Describes how to quantize a module.
 pub struct Quantizer<C: Calibration> {
     /// The calibration method used in quantization.
     pub calibration: C,
-    // TODO: dynamic quant
-    // /// Dynamic quantization computes the quantized parameters at runtime.
-    // pub dynamic: bool,
 }
 
 impl<B: Backend, C: Calibration> ModuleMapper<B> for Quantizer<C> {
