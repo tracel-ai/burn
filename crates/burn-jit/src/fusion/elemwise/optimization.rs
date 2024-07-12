@@ -11,8 +11,12 @@ use crate::{
 };
 use burn_common::id::IdGenerator;
 use burn_fusion::stream::Context;
-use cubecl::client::ComputeClient;
+use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::ir::CubeDim;
+use cubecl::{
+    client::ComputeClient,
+    tune::{local_tuner, LocalTuner},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
@@ -71,10 +75,14 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
             self.autotune_shape(context),
         ));
 
-        if let Some(index) = client.autotune_result(&key) {
+        let id = DeviceOps::id(&self.device);
+
+        static TUNER: LocalTuner<JitAutotuneKey, DeviceId> = local_tuner!("fusion-elemwise");
+
+        if let Some(index) = TUNER.autotune_result(&id, &key) {
             self.run_kernel(context, client, index)
         } else {
-            self.run_autotune(context, client, key)
+            self.run_autotune(context, client, id, key, &TUNER)
         }
     }
 
@@ -107,7 +115,9 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
         &mut self,
         context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
-        key: String,
+        id: DeviceId,
+        key: JitAutotuneKey,
+        tuner: &LocalTuner<JitAutotuneKey, DeviceId>,
     ) {
         let info = self.trace.running();
 
@@ -136,12 +146,16 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
             false,
         );
 
-        client.autotune_execute(Box::new(ElementWiseAutotuneOperationSet::new(
-            key,
-            kernel_1.into(),
-            kernel_2.into(),
-            kernel_default.into(),
-        )));
+        tuner.execute(
+            &id,
+            &client,
+            Box::new(ElementWiseAutotuneOperationSet::new(
+                key,
+                kernel_1.into(),
+                kernel_2.into(),
+                kernel_default.into(),
+            )),
+        );
     }
 
     pub(crate) fn len(&self) -> usize {

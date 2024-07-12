@@ -1,8 +1,8 @@
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::{binary, JitRuntime};
 use crate::{element::JitElement, tensor::JitTensor};
-use cubecl::client::ComputeClient;
 use burn_tensor::{ElementConversion, Shape};
+use cubecl::client::ComputeClient;
 use cubecl::ir::{BinaryOperator, Elem, Operator, Scope, Variable};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
 use cubecl::{tensor_vectorization_factor, Runtime};
