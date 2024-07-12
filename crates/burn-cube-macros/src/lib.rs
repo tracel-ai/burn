@@ -143,7 +143,11 @@ fn codegen_cube(
         return Err(code);
     }
 
-    let launch_doc = if launch { "and launch function " } else { "" };
+    let launch_doc = if launch {
+        "and launch functions "
+    } else {
+        "function "
+    };
 
     let launch = if launch {
         codegen_launch(&func.sig)
@@ -153,7 +157,7 @@ fn codegen_cube(
 
     let mod_name = &func.sig.ident;
     let vis = &func.vis;
-    let doc = format!("Module containing the expand method {launch_doc}of {mod_name}.");
+    let doc = format!("Module containing the expand {launch_doc}of {mod_name}.");
 
     Ok(quote::quote! {
         #[allow(dead_code)]

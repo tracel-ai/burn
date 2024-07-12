@@ -103,7 +103,7 @@ fn register_expand(
     quote::quote! (
         #expand {
             #[cube]
-            pub #func
+            #func
             #func_expand
         }
     )
