@@ -9,24 +9,24 @@
 
 ---
 
-**Multi-platform high-performance compute language for Rust.**
+**Multi-platform high-performance compute language extension for Rust.**
 <br/>
 
 </div>
 
 ## TL;DR
 
-With CubeCL, you can use Rust to program your GPU, any GPU!
+With CubeCL, you can program your GPU using Rust leveraging zero-cost abstraction to create maintainable, flexible and optimal compute kernels.
 
 ## Motivation
 
 The goal of CubeCL is to ease the pain of writing highly optimized compute kernels that are portable across hardware.
 There is currently no adequate solution when you want optimal performance while still being multi-platform.
 You either have to write custom kernels for different hardware, often with different languages such as CUDA, Metal, or ROCm.
-To make it possible, we created a Just-in-Time compiler with three core features: **automatic vectorization**, **comptime**, and **autotune**!
+To fix this, we created a Just-in-Time compiler with three core features: **automatic vectorization**, **comptime**, and **autotune**!
 
 These features are extremely useful for anyone writing high-performance kernels, even when portability is not a concern.
-They improve code composability, reusability, and maintainability, all while staying optimal.
+They improve code composability, reusability, testability, and maintainability, all while staying optimal.
 
 ### Disclaimer & History
 
@@ -35,7 +35,7 @@ The only supported runtimes are CUDA and WebGPU for now.
 It's easy to add more GPU runtimes and we intend to support Metal, ROCm, and Vulkan; contributions are welcome!
 We also want to have an optimized JIT CPU runtime with SIMD instructions, leveraging [Cranelift](https://cranelift.dev).
 
-While CubeCL is currently in use in [Burn](https://burn.dev), the user experience, such as error messages and other edge cases, isn't refined yet.
+While CubeCL is currently in use in [Burn](https://burn.dev), there are still a lot of rough edges; it isn't refined yet.
 The project started as a WebGPU-only backend for Burn.
 As we optimized it, we realized that we needed an intermediate representation (IR) that could be optimized then compiled to WGSL.
 Having an IR made it easy to support another compilation target, so we made a CUDA runtime.
@@ -45,7 +45,7 @@ Hence, CubeCL was born!
 
 ## Design
 
-CubeCL is designed around - you guessed it - Cubes! More precisely, cuboids since not all axes are forced to be the same size.
+CubeCL is designed around - you guessed it - Cubes! More specifically, it's based on cuboids, because not all axes are the same size.
 Since all compute APIs need to map to the hardware, which are tiles that can be accessed using a 3D representation, our topology can easily be mapped to concepts from other APIs.
 
 <div align="center">
@@ -58,13 +58,13 @@ Since all compute APIs need to map to the hardware, which are tiles that can be 
 <br />
 
 _A cube is composed of units, so a 3x3x3 cube has 27 units that can be accessed by their positions along the x, y, and z axes.
-Similarly, an hyper-cube is composed of cubes, just as a cube is composed of units.
+Similarly, a hyper-cube is composed of cubes, just as a cube is composed of units.
 Each cube in the hyper-cube can be accessed by its position relative to the hyper-cube along the x, y, and z axes.
-Hence, an hyper-cube of 3x3x3 will have 27 cubes.
+Hence, a hyper-cube of 3x3x3 will have 27 cubes.
 In this example, the total number of working units would be 27 x 27 = 729._
 
 <details>
-<summary>Topology Equivalent 👇</summary>
+<summary>Topology Equivalence 👇</summary>
 <br />
 
 Since all topology variables are constant within the kernel entry point, we chose to use the Rust constant syntax with capital letters.
@@ -140,7 +140,7 @@ You can simply add an attribute on the top of a Rust function for it to be execu
 
 ```rust
 #[cube(launch)]
-fn gelu<F: Float>(input: Array<F>, mut output: Array<F>) {
+fn gelu<F: Float>(input: &Array<F>, output: &mut Array<F>) {
     if ABSOLUTE_POS < input.len() {
         let x = input[ABSOLUTE_POS]
         let gelu = x * (1 + erf(x / sqrt(2))) / 2;
@@ -157,9 +157,10 @@ fn main() {
     let input_handle = client.create(f32::as_bytes(&[-1., 0., 1., 5.]));
     let output_handle = client.empty(input.len() * core::mem::size_of::<f32>());
 
-    gelu_launch::<F32, Runtime>(
+    gelu::launch::<F32, Runtime>(
         client,
-        KernelSettings::default(),
+        CubeCount::new(1, 1, 1),
+        CubeDim::new(4, 1, 1),
         &input_handle,
         &output_handle,
     );
@@ -196,18 +197,6 @@ Note that you don't have to specify `launch` in a function that is only used by 
 In addition, you can have return types without problem, which isn't the case when you are writing an entry point to a kernel using the `launch` attribute.
 The function `gelu_expand` will actually use `gelu_scalar_expand`, making it easy to combine your functions.
 
-## Limitations
+## Ressource
 
-There are some limitations right now, some that could be addressed later on, but some that will stick around by design.
-
-* Using functions with generic requires the generics to be specify at all time.
-Since we don't have access to symbols during the procedure macro, we don't have the type information and aren't able to properly do type inference
-
-* Early returns in functions are not supported yet.
-
-## Resources
-
-Check out our matmul example, which autotunes between a simple vectorized version, a tiled algorithm and one based cooperative matrix.
-Clone the project and run the example locally to see how autotune fares and your own device.
-
-If you have any questions or want to contribute, don't hesitate to join the Discord.
+If you have any questions or want to contribute, don't hesitate to join the [Discord](https://discord.gg/uPEBbYYDB6).
