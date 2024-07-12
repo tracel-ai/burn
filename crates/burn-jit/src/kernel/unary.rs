@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use cubecl::{
     calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, unexpanded,
     SUBCUBE_DIM_APPROX,
 };

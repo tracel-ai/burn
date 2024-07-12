@@ -655,13 +655,12 @@ version = "0.14.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
- "burn-compute",
- "burn-cube",
  "burn-fusion",
  "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "half",
  "hashbrown 0.14.5",
@@ -769,6 +768,7 @@ dependencies = [
  "burn-jit",
  "burn-tensor",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "hashbrown 0.14.5",
  "log",
@@ -1354,6 +1354,94 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "cubecl"
+version = "0.1.0"
+dependencies = [
+ "cubecl-core",
+ "cubecl-cuda",
+ "cubecl-wgpu",
+]
+
+[[package]]
+name = "cubecl-common"
+version = "0.1.0"
+dependencies = [
+ "derive-new",
+ "getrandom",
+ "pollster",
+ "rand",
+ "serde",
+ "spin",
+ "web-time",
+]
+
+[[package]]
+name = "cubecl-core"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cubecl-macros",
+ "cubecl-runtime",
+ "derive-new",
+ "half",
+ "log",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
+name = "cubecl-cuda"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cubecl-common",
+ "cubecl-core",
+ "cubecl-runtime",
+ "cudarc",
+ "derive-new",
+ "half",
+ "log",
+]
+
+[[package]]
+name = "cubecl-macros"
+version = "0.1.0"
+dependencies = [
+ "derive-new",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.69",
+]
+
+[[package]]
+name = "cubecl-runtime"
+version = "0.1.0"
+dependencies = [
+ "cubecl-common",
+ "derive-new",
+ "hashbrown 0.14.5",
+ "log",
+ "spin",
+ "web-time",
+]
+
+[[package]]
+name = "cubecl-wgpu"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "bytemuck",
+ "cubecl-common",
+ "cubecl-core",
+ "cubecl-runtime",
+ "derive-new",
+ "hashbrown 0.14.5",
+ "log",
+ "pollster",
+ "wgpu",
 ]
 
 [[package]]

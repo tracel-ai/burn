@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
+use cubecl::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{

@@ -1,6 +1,6 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 use burn_tensor::Shape;
+use cubecl::{frontend::TensorHandle, CubeCountSettings, Execution};
 
 use super::AdaptivePool2dEagerKernel;
 

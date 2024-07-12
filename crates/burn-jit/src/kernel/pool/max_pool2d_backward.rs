@@ -5,7 +5,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},

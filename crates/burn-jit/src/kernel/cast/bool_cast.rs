@@ -1,5 +1,5 @@
 use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
-use burn_cube::{
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{Elem, Item, KernelDefinition, Scope, Variable, Visibility},

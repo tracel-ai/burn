@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 use crate::kernel::matmul::{
     config::CubeTiling2dConfig,

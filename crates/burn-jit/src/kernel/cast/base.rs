@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{KernelDefinition, Scope, Variable, Visibility},

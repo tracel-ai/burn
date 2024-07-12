@@ -1,7 +1,7 @@
 use crate::{
     tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
 };
-use burn_compute::server::ComputeServer;
+use cubecl::server::ComputeServer;
 use burn_tensor::backend::{Backend, SyncType};
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
@@ -19,7 +19,7 @@ pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement> {
 impl<R, F, I> Backend for JitBackend<R, F, I>
 where
     R: JitRuntime,
-    R::Server: ComputeServer<AutotuneKey = JitAutotuneKey>,
+    R::Server: ComputeServer<AutotuneKey = String>,
     R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
     I: IntElement,
@@ -51,8 +51,12 @@ where
     }
 
     fn sync(device: &Self::Device, sync_type: SyncType) {
+        let sync = match sync_type {
+            SyncType::Flush => cubecl::client::SyncType::Flush,
+            SyncType::Wait =>  cubecl::client::SyncType::Wait,
+        };
         let client = R::client(device);
-        client.sync(sync_type);
+        client.sync(sync);
     }
 }
 

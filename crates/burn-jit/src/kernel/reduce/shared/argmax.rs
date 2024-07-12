@@ -1,5 +1,5 @@
 use crate::{kernel::reduce::Argmax, JitElement};
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
 };

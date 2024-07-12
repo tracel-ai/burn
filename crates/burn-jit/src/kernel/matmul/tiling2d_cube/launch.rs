@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use burn_cube::{frontend::TensorArg, Compiler};
+use cubecl::{frontend::TensorArg, Compiler};
 
 use crate::{
     kernel::{

@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa, frontend::TensorHandle, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
     Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
@@ -10,7 +10,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
+use cubecl::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
 
 use super::base::ReduceDimShared;
 

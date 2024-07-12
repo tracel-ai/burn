@@ -3,11 +3,11 @@ use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
     IntElement, JitBackend, JitRuntime,
 };
-use burn_compute::client::ComputeClient;
-use burn_cube::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
+use cubecl::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
+use cubecl::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -162,7 +162,7 @@ pub struct JitFusionHandle<R: JitRuntime> {
     /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: burn_compute::server::Handle<R::Server>,
+    pub handle: cubecl::server::Handle<R::Server>,
     /// The device of the current tensor.
     pub device: R::Device,
     pub(crate) strides: Vec<usize>,

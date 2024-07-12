@@ -4,15 +4,15 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
     KernelIntegrator, KernelSettings,
 };
-use burn_cube::{
+use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
+use cubecl::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]

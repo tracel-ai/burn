@@ -1,5 +1,5 @@
-use burn_cube::cpa;
-use burn_cube::ir::{BinaryOperator, Scope, Synchronization, Variable};
+use cubecl::cpa;
+use cubecl::ir::{BinaryOperator, Scope, Synchronization, Variable};
 
 use crate::kernel::matmul::config::Tiling2dConfig;
 use crate::kernel::matmul::tiling2d_shader::{

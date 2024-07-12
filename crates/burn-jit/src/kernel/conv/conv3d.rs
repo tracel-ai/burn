@@ -1,4 +1,4 @@
-use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
 
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},

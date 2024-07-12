@@ -1,10 +1,10 @@
 use super::{index_offset_with_layout, Kernel};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use burn_tensor::Shape;
+use cubecl::{
     calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, Runtime,
     SUBCUBE_DIM_APPROX,
 };
-use burn_tensor::Shape;
 
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {

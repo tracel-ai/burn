@@ -1,5 +1,5 @@
 use crate::{kernel::reduce::MeanDim, JitElement};
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Item, Scope, Variable},
 };

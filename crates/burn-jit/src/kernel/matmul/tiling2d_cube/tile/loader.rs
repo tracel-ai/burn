@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 use crate::kernel::matmul::tiling2d_cube::load_shared_memory::{LoadInfo, Loader};
 

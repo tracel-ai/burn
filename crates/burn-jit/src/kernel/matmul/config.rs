@@ -1,9 +1,9 @@
-use burn_cube::{
+use burn_tensor::Shape;
+use cubecl::{
     compute::CubeCount,
     frontend::{CubeContext, Init, UInt},
     ir::CubeDim,
 };
-use burn_tensor::Shape;
 
 use crate::JitRuntime;
 

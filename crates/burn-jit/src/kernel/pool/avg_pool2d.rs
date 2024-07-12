@@ -1,11 +1,11 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use std::fmt::Debug;
 
 use super::{Pool2dEagerKernel, PoolStrategy};

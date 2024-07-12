@@ -1,7 +1,7 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},

@@ -1,8 +1,4 @@
-use crate::{
-    compiler::wgsl,
-    compute::{WgpuServer, WgpuStorage},
-    AutoGraphicsApi, GraphicsApi, WgpuDevice,
-};
+use crate::{AutoGraphicsApi, GraphicsApi, WgpuDevice};
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
 use burn_compute::{

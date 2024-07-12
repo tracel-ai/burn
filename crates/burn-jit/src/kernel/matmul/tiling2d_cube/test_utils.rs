@@ -1,5 +1,5 @@
-use burn_compute::server::Handle;
-use burn_cube::CubeElement;
+use cubecl::server::Handle;
+use cubecl::CubeElement;
 
 use crate::{
     kernel::matmul::config::{CubeTiling2dConfig, Tiling2dConfig},

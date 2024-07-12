@@ -1,10 +1,10 @@
-use burn_cube::{
+use burn_tensor::{Element, Shape};
+use cubecl::{
     frontend::TensorHandle,
     ir::{BinaryOperator, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
-use burn_tensor::{Element, Shape};
 
 use crate::{
     element::JitElement,

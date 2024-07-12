@@ -1,8 +1,8 @@
-use burn_cube::{
+use burn_tensor::repr::TensorDescription;
+use cubecl::{
     calculate_cube_count_elemwise, calculate_num_elems_dyn_rank, ir::CubeDim, KernelExpansion,
     KernelSettings,
 };
-use burn_tensor::repr::TensorDescription;
 
 use crate::{
     fusion::{

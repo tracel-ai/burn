@@ -1,6 +1,6 @@
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
-use burn_cube::prelude::*;
 use burn_tensor::Shape;
+use cubecl::prelude::*;
 
 use super::{
     config::Tiling2dConfig, init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d,

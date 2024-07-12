@@ -4,7 +4,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     calculate_cube_count_elemwise, cpa,
     frontend::TensorHandle,
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},

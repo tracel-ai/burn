@@ -1,8 +1,8 @@
-use burn_cube::{
+use burn_tensor::Shape;
+use cubecl::{
     cpa,
     ir::{Elem, FloatKind, Scope, Variable},
 };
-use burn_tensor::Shape;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},

@@ -1,7 +1,7 @@
 use super::Kernel;
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
-use burn_cube::{calculate_cube_count_elemwise, prelude::*};
-use burn_cube::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
 
 /// Returns the offset of the tensor corresponding to the layout tensor.
 #[cube]

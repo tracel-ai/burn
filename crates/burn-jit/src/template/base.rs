@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 use super::SourceTemplate;
 

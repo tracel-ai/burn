@@ -1,11 +1,11 @@
 use crate::element::JitElement;
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::JitRuntime;
-use burn_compute::client::ComputeClient;
-use burn_compute::server::Handle;
-use burn_cube::frontend::Numeric;
-use burn_cube::prelude::*;
 use burn_tensor::Shape;
+use cubecl::client::ComputeClient;
+use cubecl::frontend::Numeric;
+use cubecl::prelude::*;
+use cubecl::server::Handle;
 use std::marker::PhantomData;
 
 use super::layout::{memory_layout, MatrixLayout};

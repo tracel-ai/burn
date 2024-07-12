@@ -4,9 +4,6 @@ use crate::{
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitRuntime,
 };
-use burn_cube::ir::{
-    BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
-};
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     repr::{
@@ -16,6 +13,7 @@ use burn_tensor::{
     },
     Element,
 };
+use cubecl::ir::{BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWiseBuilder<R: JitRuntime> {

@@ -2,10 +2,10 @@ use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_cube::frontend::Numeric;
-use burn_cube::prelude::*;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
+use cubecl::frontend::Numeric;
+use cubecl::prelude::*;
 use std::ops::Range;
 
 impl<R, F, I> IntTensorOps<Self> for JitBackend<R, F, I>

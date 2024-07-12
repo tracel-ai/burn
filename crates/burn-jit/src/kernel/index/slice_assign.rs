@@ -1,11 +1,11 @@
 use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use burn_tensor::ElementConversion;
+use cubecl::{
     cpa,
     frontend::TensorHandle,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
-use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
 
 #[derive(new)]

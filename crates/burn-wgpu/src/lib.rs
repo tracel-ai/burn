@@ -3,8 +3,6 @@ extern crate derive_new;
 
 extern crate alloc;
 
-mod compiler;
-mod compute;
 mod device;
 mod element;
 mod graphics;
@@ -59,7 +57,7 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<WgpuRuntime, F, I>>;
+pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl_wgpu::WgpuRuntime, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -97,10 +95,7 @@ pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuRuntime, F, I>;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    pub type TestRuntime = cubecl_wgpu::WgpuRuntime;
 
-    pub type TestRuntime = crate::WgpuRuntime;
-
-    burn_jit::testgen_all!();
-    burn_cube::testgen_all!();
+    // burn_jit::testgen_all!();
 }

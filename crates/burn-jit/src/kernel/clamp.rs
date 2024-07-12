@@ -1,4 +1,4 @@
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 use crate::kernel::{launch_unary, UnaryOp};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
