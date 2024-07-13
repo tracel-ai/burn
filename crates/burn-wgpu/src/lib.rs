@@ -3,10 +3,14 @@ extern crate alloc;
 #[cfg(feature = "template")]
 pub use burn_jit::{
     kernel::{into_contiguous, Kernel},
-    kernel_wgsl,
+    kernel_source,
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
+
 pub use burn_jit::{tensor::JitTensor, JitBackend};
+pub use burn_jit::{FloatElement, IntElement};
+pub use cubecl::ir::CubeDim;
+pub use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.

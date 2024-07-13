@@ -35,12 +35,12 @@ impl<K: KernelSource> CubeTask for SourceKernel<K> {
 
 /// Generates kernel source code by replacing some information using templating.
 #[macro_export]
-macro_rules! kernel_wgsl {
+macro_rules! kernel_source {
     (
         $struct:ident,
         $file:expr
     ) => {
-        /// Generated kernel from wgsl file.
+        /// Generated kernel from a source file.
         #[derive(new)]
         pub struct $struct;
 

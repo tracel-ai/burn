@@ -17,6 +17,7 @@ half_precision = []
 burn = { path = "../../crates/burn", version = "0.14.0", default-features = false, features = [
     "ndarray",
 ] }
+cubecl = { workspace = true, features = ["wgpu"] }
 burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", default-features = false }
 burn-candle = { path = "../../crates/burn-candle", version = "0.14.0", default-features = false }
 
