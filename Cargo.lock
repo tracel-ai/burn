@@ -1408,10 +1408,16 @@ dependencies = [
 name = "cubecl-runtime"
 version = "0.1.0"
 dependencies = [
+ "async-channel",
  "cubecl-common",
  "derive-new",
+ "dirs 5.0.1",
  "hashbrown 0.14.5",
  "log",
+ "md5",
+ "pollster",
+ "serde",
+ "serde_json",
  "spin",
  "web-time",
 ]

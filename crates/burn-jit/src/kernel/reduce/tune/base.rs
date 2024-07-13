@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{
-    Element, ElementConversion,
-};
+use burn_tensor::{Element, ElementConversion};
 use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTuner};
 
 use crate::{
@@ -130,7 +128,7 @@ pub(crate) fn reduce_dim_autotune<
         reduce_dim,
     ));
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!("reduce_dim");
+    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
     TUNER.execute(&id, &client, operation_set);
 

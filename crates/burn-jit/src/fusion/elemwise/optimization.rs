@@ -76,7 +76,7 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
 
         let id = JitTuneId::new::<R>(&self.device);
 
-        static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!("fusion-elemwise");
+        static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
         if let Some(index) = TUNER.autotune_result(&id, &key) {
             self.run_kernel(context, client, index)
