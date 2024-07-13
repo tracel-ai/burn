@@ -1,7 +1,5 @@
-use crate::{
-    tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
-};
-use burn_tensor::backend::{Backend, SyncType};
+use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime, PrecisionBridge};
+use burn_tensor::backend::{Backend, DeviceOps, SyncType};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
@@ -19,7 +17,7 @@ pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement> {
 impl<R, F, I> Backend for JitBackend<R, F, I>
 where
     R: JitRuntime,
-    R::Server: ComputeServer<AutotuneKey = String>,
+    R::Server: ComputeServer,
     R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
     I: IntElement,
@@ -76,4 +74,12 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Default for JitBackend<R, F,
     fn default() -> Self {
         Self::new()
     }
+}
+
+impl<R: cubecl::Runtime> JitRuntime for R
+where
+    R::Device: DeviceOps,
+{
+    type JitDevice = R::Device;
+    type JitServer = R::Server;
 }

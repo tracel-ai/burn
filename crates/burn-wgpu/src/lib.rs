@@ -1,28 +1,11 @@
-#[macro_use]
-extern crate derive_new;
-
 extern crate alloc;
 
-mod device;
-mod element;
-mod graphics;
-mod runtime;
-
-#[cfg(feature = "template")]
-pub use burn_cube::ir::CubeDim;
 #[cfg(feature = "template")]
 pub use burn_jit::{
     kernel::{into_contiguous, Kernel},
     kernel_wgsl,
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
-
-pub use device::*;
-pub use element::*;
-pub use graphics::*;
-pub use runtime::*;
-
-pub use burn_cube::prelude::CubeCount;
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]
@@ -57,7 +40,7 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl_wgpu::WgpuRuntime, F, I>>;
+pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -95,7 +78,8 @@ pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuRuntime, F, I>;
 
 #[cfg(test)]
 mod tests {
-    pub type TestRuntime = cubecl_wgpu::WgpuRuntime;
+    use burn_jit::JitBackend;
+    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
 
-    // burn_jit::testgen_all!();
+    burn_jit::testgen_all!();
 }

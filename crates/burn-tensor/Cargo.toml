@@ -18,6 +18,8 @@ export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "burn-common/rayon"]
 repr = []
 cubecl = ["dep:cubecl"]
+cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
+cubecl-cuda = ["cubecl", "cubecl/cuda"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.14.0", default-features = false}
