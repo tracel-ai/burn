@@ -463,17 +463,13 @@ dependencies = [
 name = "burn-common"
 version = "0.14.0"
 dependencies = [
+ "cubecl-common",
  "dashmap",
  "data-encoding",
- "derive-new",
  "getrandom",
  "indicatif",
- "pollster",
- "rand",
  "rayon",
  "reqwest 0.12.5",
- "serde",
- "spin",
  "tokio",
  "web-time",
 ]
