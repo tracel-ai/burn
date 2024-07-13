@@ -63,6 +63,7 @@ pub struct HuggingfaceDatasetLoader {
     base_dir: Option<PathBuf>,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
+    trust_remote_code: bool,
 }
 
 impl HuggingfaceDatasetLoader {
@@ -74,6 +75,7 @@ impl HuggingfaceDatasetLoader {
             base_dir: None,
             huggingface_token: None,
             huggingface_cache_dir: None,
+            trust_remote_code: true,
         }
     }
 
@@ -108,6 +110,14 @@ impl HuggingfaceDatasetLoader {
     /// If not specified, the dataset will be stored in `~/.cache/huggingface/datasets`.
     pub fn with_huggingface_cache_dir(mut self, huggingface_cache_dir: &str) -> Self {
         self.huggingface_cache_dir = Some(huggingface_cache_dir.to_string());
+        self
+    }
+
+    /// Specify whether or not to trust remote code.
+    ///
+    /// If not specified, trust remote code is set to true.
+    pub fn with_trust_remote_code(mut self, trust_remote_code: bool) -> Self {
+        self.trust_remote_code = trust_remote_code;
         self
     }
 
@@ -153,6 +163,7 @@ impl HuggingfaceDatasetLoader {
                 base_dir,
                 self.huggingface_token,
                 self.huggingface_cache_dir,
+                self.trust_remote_code,
             )?;
         }
 
@@ -168,6 +179,7 @@ fn import(
     base_dir: PathBuf,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
+    trust_remote_code: bool,
 ) -> Result<(), ImporterError> {
     let venv_python_path = install_python_deps(&base_dir)?;
 
@@ -195,7 +207,10 @@ fn import(
         command.arg("--cache_dir");
         command.arg(huggingface_cache_dir);
     }
-
+    if trust_remote_code {
+        command.arg("--trust_remote_code");
+        command.arg("True");
+    }
     let mut handle = command.spawn().unwrap();
     handle
         .wait()
@@ -291,4 +306,23 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
     })?;
 
     Ok(venv_python_path)
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    pub fn check_import() {
+        use crate::HuggingfaceDatasetLoader;
+        use crate::SqliteDataset;
+        use serde::Deserialize;
+
+        #[derive(Deserialize, Debug, Clone)]
+        struct MnistItemRaw {
+            pub _image_bytes: Vec<u8>,
+            pub _label: usize,
+        }
+        let _train_ds: SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
+            .dataset("train")
+            .unwrap();
+    }
 }
