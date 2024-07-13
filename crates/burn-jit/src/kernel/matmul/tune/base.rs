@@ -1,5 +1,4 @@
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     Element, ElementConversion,
 };
 use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTuner};
@@ -13,7 +12,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
-    JitRuntime,
+    JitRuntime, JitTuneId,
 };
 
 use super::key::MatmulAutotuneKey;
@@ -119,10 +118,10 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element, const D: usize>
 
     let output = init_matmul_output(&lhs, &rhs);
 
-    static TUNER: LocalTuner<JitAutotuneKey, DeviceId> = local_tuner!("matmul");
+    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!("matmul");
 
     TUNER.execute(
-        &DeviceOps::id(&lhs.device),
+        &JitTuneId::new::<R>(&lhs.device),
         &client,
         Box::new(MatmulAutotuneOperationSet::new(lhs, rhs, output.clone())),
     );

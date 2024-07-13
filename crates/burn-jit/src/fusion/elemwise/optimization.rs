@@ -7,11 +7,10 @@ use super::{
 use crate::{
     fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
     tune_key::JitAutotuneKey,
-    JitRuntime,
+    JitRuntime, JitTuneId,
 };
 use burn_common::id::IdGenerator;
 use burn_fusion::stream::Context;
-use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::ir::CubeDim;
 use cubecl::{
     client::ComputeClient,
@@ -75,9 +74,9 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
             self.autotune_shape(context),
         ));
 
-        let id = DeviceOps::id(&self.device);
+        let id = JitTuneId::new::<R>(&self.device);
 
-        static TUNER: LocalTuner<JitAutotuneKey, DeviceId> = local_tuner!("fusion-elemwise");
+        static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!("fusion-elemwise");
 
         if let Some(index) = TUNER.autotune_result(&id, &key) {
             self.run_kernel(context, client, index)
@@ -115,9 +114,9 @@ impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
         &mut self,
         context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
-        id: DeviceId,
+        id: JitTuneId,
         key: JitAutotuneKey,
-        tuner: &LocalTuner<JitAutotuneKey, DeviceId>,
+        tuner: &LocalTuner<JitAutotuneKey, JitTuneId>,
     ) {
         let info = self.trace.running();
 

@@ -75,3 +75,15 @@ mod cube_wgpu {
         }
     }
 }
+
+#[cfg(feature = "cubecl-cuda")]
+mod cube_cuda {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::cuda::CudaDevice;
+
+    impl DeviceOps for CudaDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, self.index as u32)
+        }
+    }
+}

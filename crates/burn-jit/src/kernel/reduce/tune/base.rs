@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     Element, ElementConversion,
 };
 use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTuner};
@@ -18,7 +17,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
-    JitRuntime,
+    JitRuntime, JitTuneId,
 };
 
 use super::ReduceAutotuneKey;
@@ -123,7 +122,7 @@ pub(crate) fn reduce_dim_autotune<
     let client = input.client.clone();
 
     let output = init_reduce_output(&input, reduce_dim);
-    let id = DeviceOps::id(&input.device);
+    let id = JitTuneId::new::<R>(&input.device);
 
     let operation_set = Box::new(ReduceDimAutotuneOperationSet::<RD, R, EI, EO, D>::new(
         input,
@@ -131,7 +130,7 @@ pub(crate) fn reduce_dim_autotune<
         reduce_dim,
     ));
 
-    static TUNER: LocalTuner<JitAutotuneKey, DeviceId> = local_tuner!("reduce_dim");
+    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!("reduce_dim");
 
     TUNER.execute(&id, &client, operation_set);
 

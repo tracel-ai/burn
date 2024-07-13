@@ -557,14 +557,11 @@ dependencies = [
 name = "burn-cuda"
 version = "0.14.0"
 dependencies = [
- "burn-common",
- "burn-compute",
- "burn-cube",
  "burn-fusion",
  "burn-jit",
  "burn-tensor",
  "bytemuck",
- "cudarc",
+ "cubecl",
  "derive-new",
  "half",
  "log",
@@ -761,20 +758,10 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.14.0"
 dependencies = [
- "async-channel",
- "burn-common",
- "burn-compute",
- "burn-cube",
  "burn-fusion",
  "burn-jit",
  "burn-tensor",
- "bytemuck",
  "cubecl",
- "derive-new",
- "hashbrown 0.14.5",
- "log",
- "pollster",
- "wgpu",
 ]
 
 [[package]]

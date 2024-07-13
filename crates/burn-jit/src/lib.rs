@@ -18,6 +18,7 @@ pub(crate) mod tune;
 /// Elements for JIT backend
 pub mod element;
 
+use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{
     compute::{CubeCount, CubeTask},
     Runtime,
@@ -52,4 +53,27 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
         Kernel = Box<dyn CubeTask>,
         DispatchOptions = CubeCount<Self::JitServer>,
     >;
+}
+
+/// ID used to identify a Just-in-Time environment.
+#[derive(Hash, PartialEq, Eq,Debug, Clone)]
+pub struct JitTuneId {
+    device: DeviceId,
+    name: &'static str,
+}
+
+impl JitTuneId {
+    /// Create a new ID.
+    pub fn new<R: JitRuntime>(device: &R::Device) -> Self {
+        Self {
+            device: DeviceOps::id(device),
+            name: R::name(),
+        }
+    }
+}
+
+impl core::fmt::Display for JitTuneId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}-{}", self.device, self.name))
+    }
 }
