@@ -326,7 +326,10 @@ where
         dim1: usize,
         dim2: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        let d = tensor.shape.dims.len();
+        let mut axes: Vec<usize> = (0..d).collect();
+        axes.swap(dim1, dim2);
+        Self::sparse_permute(tensor, &axes)
     }
 
     fn sparse_permute<const D: usize>(
