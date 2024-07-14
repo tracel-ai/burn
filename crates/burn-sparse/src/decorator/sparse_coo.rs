@@ -2,9 +2,9 @@ use crate::backend::SparseBackend;
 use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
 use crate::decorator::SparseDecorator;
-use burn_tensor::ops::FloatTensor;
 use burn_tensor::{
-    backend::Backend, ElementConversion, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+    backend::Backend, Bool, ElementConversion, Float, Int, Shape, Tensor, TensorData,
+    TensorPrimitive,
 };
 
 #[derive(Clone, Debug)]
@@ -360,7 +360,40 @@ where
         tensor: SparseTensor<Self, D>,
         axes: &[usize],
     ) -> SparseTensor<Self, D> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
+
+        let nnz = coordinates.shape().dims[1];
+        let device = &coordinates.device();
+
+        let mut mask = [0; D];
+        for &axis in axes {
+            mask[axis] = 1;
+        }
+        let mask: Tensor<B, 2, Bool> = Tensor::<_, 1, _>::from_ints(mask, device)
+            .unsqueeze_dim(1)
+            .repeat(1, nnz)
+            .bool();
+
+        let flipped: Tensor<B, 2, Int> = Tensor::<_, 1, _>::from_ints(shape.dims, device)
+            .unsqueeze_dim(1)
+            .repeat(1, nnz)
+            .sub(coordinates.clone())
+            .sub_scalar(1);
+
+        // println!("mask: {}", mask);
+        // println!("flipped: {}", flipped);
+
+        let coordinates = coordinates.mask_where(mask, flipped);
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        }
     }
 
     fn sparse_slice_assign<const D1: usize, const D2: usize>(
@@ -368,6 +401,11 @@ where
         ranges: [std::ops::Range<usize>; D2],
         value: SparseTensor<Self, D1>,
     ) -> SparseTensor<Self, D1> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
@@ -376,6 +414,11 @@ where
         dim: usize,
         times: usize,
     ) -> SparseTensor<Self, D> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
@@ -403,6 +446,11 @@ where
     fn sparse_any<const D: usize>(
         tensor: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, 1> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
@@ -410,12 +458,22 @@ where
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
     fn sparse_all<const D: usize>(
         tensor: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, 1> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
@@ -423,6 +481,11 @@ where
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 
@@ -430,6 +493,11 @@ where
         tensor: SparseTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> SparseTensor<Self, D2> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        } = tensor;
         todo!()
     }
 }
