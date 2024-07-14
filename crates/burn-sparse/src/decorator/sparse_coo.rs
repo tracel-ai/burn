@@ -269,7 +269,6 @@ where
     fn sparse_into_data<const D: usize>(
         tensor: SparseTensor<Self, D>,
     ) -> impl std::future::Future<Output = TensorData> + Send {
-        // TODO this could be way better
         B::float_into_data(Self::sparse_to_dense(tensor))
     }
 
@@ -316,7 +315,10 @@ where
     }
 
     fn sparse_transpose<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
-        todo!()
+        let d = tensor.shape.dims.len();
+        let mut axes: Vec<usize> = (0..d).collect();
+        axes.swap(d - 1, d - 2);
+        Self::sparse_permute(tensor, &axes)
     }
 
     fn sparse_swap_dims<const D: usize>(
@@ -331,7 +333,24 @@ where
         tensor: SparseTensor<Self, D>,
         axes: &[usize],
     ) -> SparseTensor<Self, D> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            mut shape,
+        } = tensor;
+
+        for (i, &j) in (0..D).zip(axes).filter(|(i, j)| i < j) {
+            shape.dims.swap(i, j);
+        }
+
+        let axes = Tensor::from(axes);
+        let coordinates = coordinates.select(0, axes);
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        }
     }
 
     fn sparse_flip<const D: usize>(
