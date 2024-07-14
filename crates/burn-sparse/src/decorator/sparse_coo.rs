@@ -414,9 +414,34 @@ where
         let SparseCOOTensor {
             coordinates,
             values,
-            shape,
+            mut shape,
         } = tensor;
-        todo!()
+
+        let device = coordinates.device();
+        let nnz = coordinates.shape().dims[1];
+
+        let values = values.repeat(0, times);
+
+        let coordinates_mask: Tensor<B, 2, Int> = Tensor::zeros(coordinates.shape(), &device);
+        let ones: Tensor<B, 2, Int> = Tensor::ones(Shape::new([1, nnz]), &device);
+        let coordinates_mask = coordinates_mask.slice_assign([dim..dim + 1, 0..nnz], ones);
+        let coordinates = Tensor::cat(
+            (0..times)
+                .map(|n| {
+                    coordinates.clone()
+                        + coordinates_mask.clone() * (n as i32) * (shape.dims[dim] as i32)
+                })
+                .collect::<Vec<_>>(),
+            1,
+        );
+
+        shape.dims[dim] *= times;
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+        }
     }
 
     fn sparse_cat<const D: usize>(
