@@ -384,9 +384,6 @@ where
             .sub(coordinates.clone())
             .sub_scalar(1);
 
-        // println!("mask: {}", mask);
-        // println!("flipped: {}", flipped);
-
         let coordinates = coordinates.mask_where(mask, flipped);
 
         SparseCOOTensor {
@@ -451,19 +448,15 @@ where
             values,
             shape,
         } = tensor;
-        todo!()
+        let any = coordinates.shape().dims[1] > 0;
+        Tensor::<B, 1, Bool>::from([any]).into_primitive()
     }
 
     fn sparse_any_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-        } = tensor;
-        todo!()
+        panic!("any_dim is unsupported for the SparseCOO Decorator due to performance issues, convert to dense explicitly to ensure you understand");
     }
 
     fn sparse_all<const D: usize>(
@@ -474,19 +467,15 @@ where
             values,
             shape,
         } = tensor;
-        todo!()
+        let all = shape.num_elements() == coordinates.shape().dims[1];
+        Tensor::<B, 1, Bool>::from([all]).into_primitive()
     }
 
     fn sparse_all_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-        } = tensor;
-        todo!()
+        panic!("all_dim is unsupported for the SparseCOO Decorator due to performance issues, convert to dense explicitly to ensure you understand");
     }
 
     fn sparse_expand<const D1: usize, const D2: usize>(
