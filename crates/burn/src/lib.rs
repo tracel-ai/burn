@@ -47,6 +47,18 @@
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
+//! # Quantization (Beta)
+//!
+//! Quantization techniques perform computations and store tensors in lower precision data types like 8-bit integer
+//! instead of floating point precision. There are multiple approaches to quantize a deep learning model. In most cases,
+//! the model is trained in floating point precision and later converted to the lower precision data type. This is called
+//! post-training quantization (PTQ). On the other hand, quantization aware training (QAT) models the effects of quantization
+//! during training. Quantization errors are thus modeled in the forward and backward passes, which helps the model learn
+//! representations that are more robust to the reduction in precision.
+//!
+//! Quantization support in Burn is currently in active development. It supports the following modes on some backends:
+//! - Static per-tensor quantization to signed 8-bit integer (`i8`)
+//!
 //! ## Feature Flags
 //!
 //! The following feature flags are available.

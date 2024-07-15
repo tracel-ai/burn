@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{Element, TensorPrimitive};
+use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1697,7 +1697,15 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        TensorPrimitive::Float(B::float_reshape(tensor.tensor(), shape))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_reshape(tensor, shape))
+            }
+            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
+                tensor: B::q_reshape(tensor, shape),
+                strategy,
+            },
+        }
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
@@ -1750,11 +1758,20 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
-        B::float_into_data(tensor.tensor()).await
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
+            TensorPrimitive::QFloat { tensor, strategy } => B::q_into_data(tensor, strategy).await,
+        }
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_from_data(data, device))
+        match data.dtype {
+            DType::QFloat(strategy) => TensorPrimitive::QFloat {
+                tensor: B::q_from_data(data, device),
+                strategy,
+            },
+            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+        }
     }
 
     fn repeat<const D: usize>(

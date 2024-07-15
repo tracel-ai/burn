@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_tensor::{QuantizationStrategy, Shape};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};
@@ -511,5 +511,31 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         descending: bool,
     ) -> TchTensor<i64, D> {
         TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
+    }
+
+    pub fn quantize<const D: usize, I: tch::kind::Element>(
+        tensor: TchTensor<E, D>,
+        strategy: &QuantizationStrategy,
+    ) -> TchTensor<I, D> {
+        let mut tensor = tensor;
+        // Quantize only works on Float Tensor
+        if tensor.tensor.kind() == tch::Kind::Half {
+            tensor.tensor = tensor.tensor.to_kind(tch::Kind::Float);
+        }
+
+        match strategy {
+            QuantizationStrategy::PerTensorAffineInt8(ref q) => {
+                TchTensor::new(tensor.tensor.quantize_per_tensor(
+                    q.scale.into(),
+                    q.offset.into(),
+                    tch::Kind::QInt8,
+                ))
+            }
+            QuantizationStrategy::PerTensorSymmetricInt8(ref q) => TchTensor::new(
+                tensor
+                    .tensor
+                    .quantize_per_tensor(q.scale.into(), 0, tch::Kind::QInt8),
+            ),
+        }
     }
 }
