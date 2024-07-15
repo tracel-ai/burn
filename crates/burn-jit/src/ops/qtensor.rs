@@ -1,6 +1,7 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape, TensorData,
+    quantization::QuantizationStrategy,
+    Device, Shape, TensorData,
 };
 
 use crate::{FloatElement, IntElement, JitBackend, JitRuntime};

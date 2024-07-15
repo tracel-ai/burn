@@ -1,7 +1,8 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    DType, Device, QuantizationStrategy, Shape, TensorData,
+    quantization::QuantizationStrategy,
+    DType, Device, Shape, TensorData,
 };
 
 use crate::{

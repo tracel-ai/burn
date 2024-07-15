@@ -1,4 +1,4 @@
-use crate::{backend::Backend, QuantizationStrategy};
+use crate::{backend::Backend, quantization::QuantizationStrategy};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]

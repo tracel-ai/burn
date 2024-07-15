@@ -1,8 +1,6 @@
-use burn_tensor::{backend::Backend, Tensor};
+use burn_tensor::{backend::Backend, quantization::Calibration, Tensor};
 
 use crate::module::{ModuleMapper, ParamId};
-
-use super::Calibration;
 
 /// Describes how to quantize a module.
 pub struct Quantizer<C: Calibration> {

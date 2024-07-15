@@ -7,7 +7,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, Shape, TensorData};
 use crate::Tensor;
-use crate::{check, QuantizationStrategy};
+use crate::{check, quantization::QuantizationStrategy};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>

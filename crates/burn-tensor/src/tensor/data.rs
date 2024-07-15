@@ -7,8 +7,9 @@ use alloc::vec::Vec;
 use half::{bf16, f16};
 
 use crate::{
-    tensor::Shape, DType, Distribution, Element, ElementConversion, Quantization,
-    QuantizationStrategy,
+    quantization::{Quantization, QuantizationStrategy},
+    tensor::Shape,
+    DType, Distribution, Element, ElementConversion,
 };
 
 use num_traits::pow::Pow;

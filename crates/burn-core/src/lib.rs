@@ -33,9 +33,6 @@ pub mod module;
 /// Neural network module.
 pub mod nn;
 
-/// Quantization module.
-pub mod quantization;
-
 /// Module for the recorder.
 pub mod record;
 

@@ -1,6 +1,7 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    DType, Quantization, QuantizationStrategy, Shape, TensorData,
+    quantization::{Quantization, QuantizationStrategy},
+    DType, Shape, TensorData,
 };
 
 use crate::{LibTorch, LibTorchDevice, TchElement, TchShape, TchTensor};

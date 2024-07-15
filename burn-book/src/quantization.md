@@ -44,7 +44,7 @@ tensors and can collect their statistics, such as the min and max value when usi
 `MinMaxCalibration`, to compute the quantization parameters.
 
 ```rust , ignore
-# use burn::quantization::{MinMaxCalibration, QuantizationScheme, QuantizationType, Quantizer};
+# use burn::tensor::quantization::{MinMaxCalibration, QuantizationScheme, QuantizationType, Quantizer};
 #
 // Quantization config
 let mut quantizer = Quantizer {

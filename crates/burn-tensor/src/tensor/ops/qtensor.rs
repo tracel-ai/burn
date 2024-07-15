@@ -1,6 +1,6 @@
 use core::future::Future;
 
-use crate::{backend::Backend, Device, QuantizationStrategy, Shape, TensorData};
+use crate::{backend::Backend, quantization::QuantizationStrategy, Device, Shape, TensorData};
 
 use super::{FloatTensor, QuantizedTensor};
 

@@ -1,4 +1,4 @@
-use burn_tensor::{QuantizationStrategy, Shape};
+use burn_tensor::{quantization::QuantizationStrategy, Shape};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};

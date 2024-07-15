@@ -1,7 +1,8 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape, TensorData,
+    quantization::QuantizationStrategy,
+    Device, Shape, TensorData,
 };
 
 use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};

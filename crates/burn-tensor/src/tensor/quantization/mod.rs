@@ -1,7 +1,7 @@
 mod calibration;
-mod quantize;
 mod scheme;
+mod strategy;
 
 pub use calibration::*;
-pub use quantize::*;
 pub use scheme::*;
+pub use strategy::*;

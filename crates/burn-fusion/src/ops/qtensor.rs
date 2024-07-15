@@ -1,7 +1,8 @@
 use burn_tensor::{
     backend::Backend,
     ops::{QTensorOps, QuantizedTensor},
-    Device, QuantizationStrategy, Shape, TensorData,
+    quantization::QuantizationStrategy,
+    Device, Shape, TensorData,
 };
 
 use crate::{client::FusionClient, Fusion, FusionBackend};
