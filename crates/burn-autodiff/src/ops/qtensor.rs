@@ -17,15 +17,12 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
-        _strategy: &QuantizationStrategy,
+        _strategy: QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
         todo!() // required for QAT
     }
 
-    fn dequantize<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _strategy: &QuantizationStrategy,
-    ) -> FloatTensor<Self, D> {
+    fn dequantize<const D: usize>(_tensor: QuantizedTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
     }
 
@@ -44,10 +41,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         B::q_reshape(tensor, shape)
     }
 
-    async fn q_into_data<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        strategy: QuantizationStrategy,
-    ) -> TensorData {
-        B::q_into_data(tensor, strategy).await
+    async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
+        B::q_into_data(tensor).await
     }
 }

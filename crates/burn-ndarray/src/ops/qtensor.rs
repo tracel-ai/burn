@@ -4,7 +4,10 @@ use burn_tensor::{
     DType, Shape, TensorData,
 };
 
-use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
+use crate::{
+    element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor,
+    QNdArrayTensor,
+};
 
 use super::NdArrayOps;
 
@@ -23,11 +26,17 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
             DType::QFloat(strategy) => match strategy {
                 QuantizationStrategy::PerTensorAffineInt8(_) => {
                     let data = data.convert::<i8>();
-                    NdArrayTensor::<i8, D>::from_data(data)
+                    QNdArrayTensor {
+                        qtensor: NdArrayTensor::<i8, D>::from_data(data),
+                        strategy,
+                    }
                 }
                 QuantizationStrategy::PerTensorSymmetricInt8(_) => {
                     let data = data.convert::<i8>();
-                    NdArrayTensor::<i8, D>::from_data(data)
+                    QNdArrayTensor {
+                        qtensor: NdArrayTensor::<i8, D>::from_data(data),
+                        strategy,
+                    }
                 }
             },
             _ => panic!(
@@ -39,18 +48,18 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
 
     fn quantize<const D: usize>(
         tensor: FloatTensor<Self, D>,
-        strategy: &QuantizationStrategy,
+        strategy: QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
-        let data = into_data(tensor).with_quantization(*strategy);
-        NdArrayTensor::<i8, D>::from_data(data)
+        let data = into_data(tensor).with_quantization(strategy);
+        QNdArrayTensor {
+            qtensor: NdArrayTensor::<i8, D>::from_data(data),
+            strategy,
+        }
     }
 
-    fn dequantize<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        strategy: &QuantizationStrategy,
-    ) -> FloatTensor<Self, D> {
-        let data = into_data(tensor);
-        let values = match strategy {
+    fn dequantize<const D: usize>(tensor: QuantizedTensor<Self, D>) -> FloatTensor<Self, D> {
+        let data = into_data(tensor.qtensor);
+        let values = match tensor.strategy {
             QuantizationStrategy::PerTensorAffineInt8(s) => s.dequantize(data.as_slice().unwrap()),
             QuantizationStrategy::PerTensorSymmetricInt8(s) => {
                 s.dequantize(data.as_slice().unwrap())
@@ -60,7 +69,7 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
     }
 
     fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
-        tensor.shape()
+        tensor.qtensor.shape()
     }
 
     fn q_device<const D: usize>(_tensor: &QuantizedTensor<Self, D>) -> NdArrayDevice {
@@ -71,15 +80,15 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
         tensor: QuantizedTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> QuantizedTensor<Self, D2> {
-        NdArrayOps::reshape(tensor, shape)
+        QNdArrayTensor {
+            qtensor: NdArrayOps::reshape(tensor.qtensor, shape),
+            strategy: tensor.strategy,
+        }
     }
 
-    async fn q_into_data<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        strategy: QuantizationStrategy,
-    ) -> TensorData {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-        TensorData::quantized(values, shape, strategy)
+    async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
+        let shape = tensor.qtensor.shape();
+        let values = tensor.qtensor.array.into_iter().collect();
+        TensorData::quantized(values, shape, tensor.strategy)
     }
 }

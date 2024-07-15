@@ -270,10 +270,7 @@ where
     pub fn is_require_grad(&self) -> bool {
         match &self.primitive {
             TensorPrimitive::Float(tensor) => B::float_is_require_grad(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_is_require_grad(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_is_require_grad(tensor),
         }
     }
 
@@ -286,10 +283,9 @@ where
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_set_require_grad(tensor, require_grad))
             }
-            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
-                tensor: B::q_set_require_grad(tensor, require_grad),
-                strategy,
-            },
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_set_require_grad(tensor, require_grad))
+            }
         };
         Self::new(primitive)
     }
@@ -325,10 +321,10 @@ where
     ///
     /// The quantized tensor.
     pub fn quantize(self, strategy: QuantizationStrategy) -> Tensor<B, D> {
-        Tensor::new(TensorPrimitive::QFloat {
-            tensor: B::quantize(self.primitive.tensor(), &strategy),
+        Tensor::new(TensorPrimitive::QFloat(B::quantize(
+            self.primitive.tensor(),
             strategy,
-        })
+        )))
     }
 
     /// Convert the tensor back to a higher precision data type.

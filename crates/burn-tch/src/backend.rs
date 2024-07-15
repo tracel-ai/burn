@@ -4,6 +4,7 @@ use super::element::TchElement;
 use super::TchTensor;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncType};
 use burn_tensor::ops::IntTensorOps;
+use burn_tensor::quantization::{QTensorPrimitive, QuantizationStrategy};
 use burn_tensor::{Int, Tensor};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,7 +103,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = TchTensor<i8, D>;
+    type QuantizedTensorPrimitive<const D: usize> = QTchTensor<D>;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);
@@ -132,5 +133,20 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 }
             }
         }
+    }
+}
+
+/// A quantized tensor for the tch backend.
+#[derive(Clone, Debug)]
+pub struct QTchTensor<const D: usize> {
+    /// The quantized tensor.
+    pub qtensor: TchTensor<i8, D>,
+    /// The quantization strategy.
+    pub strategy: QuantizationStrategy,
+}
+
+impl<const D: usize> QTensorPrimitive for QTchTensor<D> {
+    fn strategy(&self) -> QuantizationStrategy {
+        self.strategy
     }
 }

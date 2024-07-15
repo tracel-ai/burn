@@ -22,14 +22,11 @@ pub trait QTensorOps<B: Backend> {
     /// Convert the tensor to a lower precision data type based on the quantization strategy.
     fn quantize<const D: usize>(
         tensor: FloatTensor<B, D>,
-        strategy: &QuantizationStrategy,
+        strategy: QuantizationStrategy,
     ) -> QuantizedTensor<B, D>;
 
     /// Convert the tensor back to a higher precision data type based on the quantization strategy.
-    fn dequantize<const D: usize>(
-        tensor: QuantizedTensor<B, D>,
-        strategy: &QuantizationStrategy,
-    ) -> FloatTensor<B, D>;
+    fn dequantize<const D: usize>(tensor: QuantizedTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Gets the shape of the tensor.
     ///
@@ -79,7 +76,6 @@ pub trait QTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn q_into_data<const D: usize>(
         tensor: QuantizedTensor<B, D>,
-        strategy: QuantizationStrategy,
     ) -> impl Future<Output = TensorData> + Send;
 
     /// Sets the `require_grad` flag of a tensor.

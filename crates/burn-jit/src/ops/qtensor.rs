@@ -4,7 +4,7 @@ use burn_tensor::{
     Device, Shape, TensorData,
 };
 
-use crate::{FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{FloatElement, IntElement, JitBackend, JitRuntime, QJitTensor};
 
 impl<R, F, I> QTensorOps<Self> for JitBackend<R, F, I>
 where
@@ -21,37 +21,34 @@ where
 
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
-        _strategy: &QuantizationStrategy,
+        _strategy: QuantizationStrategy,
     ) -> QuantizedTensor<Self, D> {
         unimplemented!()
     }
 
-    fn dequantize<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _strategy: &QuantizationStrategy,
-    ) -> FloatTensor<Self, D> {
+    fn dequantize<const D: usize>(_tensor: QuantizedTensor<Self, D>) -> FloatTensor<Self, D> {
         unimplemented!()
     }
 
     fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
-        tensor.shape.clone()
+        tensor.qtensor.shape.clone()
     }
 
     fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
-        tensor.device.clone()
+        tensor.qtensor.device.clone()
     }
 
     fn q_reshape<const D1: usize, const D2: usize>(
         tensor: QuantizedTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> QuantizedTensor<Self, D2> {
-        super::reshape(tensor, shape)
+        QJitTensor {
+            qtensor: super::reshape(tensor.qtensor, shape),
+            strategy: tensor.strategy,
+        }
     }
 
-    async fn q_into_data<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _strategy: QuantizationStrategy,
-    ) -> TensorData {
+    async fn q_into_data<const D: usize>(_tensor: QuantizedTensor<Self, D>) -> TensorData {
         unimplemented!()
     }
 }

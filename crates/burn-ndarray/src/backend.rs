@@ -3,6 +3,7 @@ use crate::{element::FloatNdArrayElement, PrecisionBridge};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
+use burn_tensor::quantization::{QTensorPrimitive, QuantizationStrategy};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -50,7 +51,7 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
 
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = NdArrayTensor<i8, D>;
+    type QuantizedTensorPrimitive<const D: usize> = QNdArrayTensor<D>;
 
     fn ad_enabled() -> bool {
         false
@@ -64,5 +65,20 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
         let rng = StdRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
+    }
+}
+
+/// A quantized tensor for the ndarray backend.
+#[derive(Clone, Debug)]
+pub struct QNdArrayTensor<const D: usize> {
+    /// The quantized tensor.
+    pub qtensor: NdArrayTensor<i8, D>,
+    /// The quantization strategy.
+    pub strategy: QuantizationStrategy,
+}
+
+impl<const D: usize> QTensorPrimitive for QNdArrayTensor<D> {
+    fn strategy(&self) -> QuantizationStrategy {
+        self.strategy
     }
 }
