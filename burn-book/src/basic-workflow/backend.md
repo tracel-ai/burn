@@ -8,7 +8,7 @@ entrypoint of our program, namely the `main` function defined in `src/main.rs`.
 # mod data;
 # mod model;
 # mod training;
-# 
+#
 use crate::{model::ModelConfig, training::TrainingConfig};
 use burn::{
     backend::{Autodiff, Wgpu},
@@ -30,9 +30,9 @@ fn main() {
 }
 ```
 
-In this example, we use the `Wgpu` backend which is compatible with any operating system and will
+In this code snippet, we use the `Wgpu` backend which is compatible with any operating system and will
 use the GPU. For other options, see the Burn README. This backend type takes the graphics API, the
-float type and the int type as generic arguments that will be used during the training. The autodiff 
+float type and the int type as generic arguments that will be used during the training. The autodiff
 backend is simply the same backend, wrapped within the `Autodiff` struct which imparts differentiability \
 to any backend.
 
@@ -47,6 +47,7 @@ You can now train your freshly created model with the command:
 cargo run --release
 ```
 
-When running the example, you should see the training progression through a basic CLI dashboard:
+When running your project with the commande above, you should see the training progression through a
+basic CLI dashboard:
 
 <img title="a title" alt="Alt text" src="./training-output.png">
