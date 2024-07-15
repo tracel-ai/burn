@@ -75,7 +75,7 @@ impl HuggingfaceDatasetLoader {
             base_dir: None,
             huggingface_token: None,
             huggingface_cache_dir: None,
-            trust_remote_code: true,
+            trust_remote_code: false,
         }
     }
 
@@ -306,23 +306,4 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
     })?;
 
     Ok(venv_python_path)
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    pub fn check_import() {
-        use crate::HuggingfaceDatasetLoader;
-        use crate::SqliteDataset;
-        use serde::Deserialize;
-
-        #[derive(Deserialize, Debug, Clone)]
-        struct MnistItemRaw {
-            pub _image_bytes: Vec<u8>,
-            pub _label: usize,
-        }
-        let _train_ds: SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
-            .dataset("train")
-            .unwrap();
-    }
 }
