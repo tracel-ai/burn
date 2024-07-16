@@ -13,7 +13,10 @@ use burn_tensor::{
     },
     Element,
 };
-use cubecl::ir::{BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable};
+use cubecl::ir::{
+    BinaryOperator, ConditionalAssign, ConstantScalarValue, Elem, Operator, Procedure,
+    UnaryOperator, Variable,
+};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
@@ -286,10 +289,14 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar {
-                    value: 1.0,
-                    elem: desc.dtype.into(),
+                let elem: Elem = desc.dtype.into();
+                let input = match elem {
+                    Elem::Float(kind) => ConstantScalarValue::Float(1.0, kind),
+                    Elem::Int(kind) => ConstantScalarValue::Int(1, kind),
+                    Elem::UInt => ConstantScalarValue::UInt(1),
+                    Elem::Bool => ConstantScalarValue::Bool(true),
                 };
+                let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
@@ -302,10 +309,14 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar {
-                    value: 0.0,
-                    elem: desc.dtype.into(),
+                let elem: Elem = desc.dtype.into();
+                let input = match elem {
+                    Elem::Float(kind) => ConstantScalarValue::Float(0.0, kind),
+                    Elem::Int(kind) => ConstantScalarValue::Int(0, kind),
+                    Elem::UInt => ConstantScalarValue::UInt(0),
+                    Elem::Bool => ConstantScalarValue::Bool(false),
                 };
+                let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder

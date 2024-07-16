@@ -18,11 +18,9 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
     ) -> Self::Accumulator {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
-
-        let min = Variable::ConstantScalar {
-            value: E::maximum_value().to_f64(),
-            elem: input_item.elem(),
-        };
+        let min = input_item
+            .elem()
+            .constant_from_f64(E::maximum_value().to_f64());
         cpa!(scope, value_shared_memory[write_position] = min);
         (value_shared_memory, index_shared_memory)
     }
