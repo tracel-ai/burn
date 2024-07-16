@@ -9,7 +9,7 @@ use burn_tensor::{
 
 use crate::{
     element::{NdArrayElement, QuantElement},
-    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, NdArrayQTensor,
+    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
 };
 
 use super::NdArrayOps;

@@ -7,7 +7,7 @@ use burn_tensor::{
     DType, Shape, TensorData,
 };
 
-use crate::{LibTorch, LibTorchDevice, TchQTensor, QuantElement, TchElement, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
 
 use super::TchOps;
 
