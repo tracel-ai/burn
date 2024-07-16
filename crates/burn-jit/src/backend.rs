@@ -1,11 +1,9 @@
 use crate::{
-    tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
+    tensor::{JitTensor, QJitTensor},
+    FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
 };
 use burn_compute::server::ComputeServer;
-use burn_tensor::{
-    backend::{Backend, SyncType},
-    quantization::{QTensorPrimitive, QuantizationStrategy},
-};
+use burn_tensor::backend::{Backend, SyncType};
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -55,31 +53,6 @@ where
     fn sync(device: &Self::Device, sync_type: SyncType) {
         let client = R::client(device);
         client.sync(sync_type);
-    }
-}
-
-/// A quantized tensor primitive.
-#[derive(Debug)]
-pub struct QJitTensor<R: JitRuntime, const D: usize> {
-    /// The quantized tensor.
-    // TODO: implement `JitElement` / `CubeElement` for quantized type
-    pub qtensor: JitTensor<R, u32, D>,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
-}
-
-impl<R: JitRuntime, const D: usize> QTensorPrimitive for QJitTensor<R, D> {
-    fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
-    }
-}
-
-impl<R: JitRuntime, const D: usize> Clone for QJitTensor<R, D> {
-    fn clone(&self) -> Self {
-        Self {
-            qtensor: self.qtensor.clone(),
-            strategy: self.strategy,
-        }
     }
 }
 

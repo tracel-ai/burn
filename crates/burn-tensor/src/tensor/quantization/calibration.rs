@@ -1,38 +1,34 @@
-use crate::{backend::Backend, ElementConversion, Tensor};
+use crate::{backend::Backend, Tensor};
 
-use super::{
-    AffineQuantization, Quantization, QuantizationScheme, QuantizationStrategy, QuantizationType,
-    SymmetricQuantization,
-};
+/// The observed input calibration range.
+#[derive(Clone, Debug)]
+pub struct CalibrationRange<B: Backend> {
+    /// Minimum observed value.
+    pub min: Tensor<B, 1>,
+    /// Maximum observed value.
+    pub max: Tensor<B, 1>,
+}
 
 /// Calibration method used to compute the quantization range mapping.
 pub trait Calibration {
-    /// Configure the quantization strategy.
-    fn configure<B: Backend, const D: usize>(&self, tensor: &Tensor<B, D>) -> QuantizationStrategy;
+    /// Compute the input tensor range.
+    fn compute_range<B: Backend, const D: usize>(
+        &self,
+        tensor: &Tensor<B, D>,
+    ) -> CalibrationRange<B>;
 }
 
-/// Computes the quantization range mapping based on the running min and max values.
-pub struct MinMaxCalibration {
-    /// Quantization scheme to be used.
-    pub scheme: QuantizationScheme,
-}
+/// Computes the per-tensor quantization range mapping based on the min and max values.
+pub struct MinMaxCalibration {}
 
 impl Calibration for MinMaxCalibration {
-    fn configure<B: Backend, const D: usize>(&self, tensor: &Tensor<B, D>) -> QuantizationStrategy {
-        let min = tensor.clone().min().into_scalar().elem::<f32>();
-        let max = tensor.clone().max().into_scalar().elem::<f32>();
+    fn compute_range<B: Backend, const D: usize>(
+        &self,
+        tensor: &Tensor<B, D>,
+    ) -> CalibrationRange<B> {
+        let min = tensor.clone().min();
+        let max = tensor.clone().max();
 
-        match &self.scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::new(min, max))
-                }
-            },
-            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-                QuantizationType::QInt8 => QuantizationStrategy::PerTensorSymmetricInt8(
-                    SymmetricQuantization::new(min, max),
-                ),
-            },
-        }
+        CalibrationRange { min, max }
     }
 }

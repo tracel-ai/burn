@@ -1,9 +1,9 @@
-use crate::NdArrayTensor;
-use crate::{element::FloatNdArrayElement, PrecisionBridge};
+use crate::element::{FloatNdArrayElement, QuantElement};
+use crate::PrecisionBridge;
+use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
-use burn_tensor::quantization::{QTensorPrimitive, QuantizationStrategy};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -35,11 +35,12 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32> {
-    phantom: PhantomData<E>,
+pub struct NdArray<E = f32, Q = i8> {
+    _e: PhantomData<E>,
+    _q: PhantomData<Q>,
 }
 
-impl<E: FloatNdArrayElement> Backend for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
     type Device = NdArrayDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
@@ -51,7 +52,7 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
 
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = QNdArrayTensor<D>;
+    type QuantizedTensorPrimitive<const D: usize> = NdArrayQTensor<D>;
 
     fn ad_enabled() -> bool {
         false
@@ -65,20 +66,5 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
         let rng = StdRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
-    }
-}
-
-/// A quantized tensor for the ndarray backend.
-#[derive(Clone, Debug)]
-pub struct QNdArrayTensor<const D: usize> {
-    /// The quantized tensor.
-    pub qtensor: NdArrayTensor<i8, D>,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
-}
-
-impl<const D: usize> QTensorPrimitive for QNdArrayTensor<D> {
-    fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
     }
 }

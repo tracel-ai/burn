@@ -1,4 +1,7 @@
-use burn_tensor::{Element, Shape, TensorData};
+use burn_tensor::{
+    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
+    Element, Shape, TensorData,
+};
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
@@ -108,6 +111,27 @@ where
             array array,
             d D
         )
+    }
+}
+
+/// A quantized tensor for the ndarray backend.
+#[derive(Clone, Debug)]
+pub struct NdArrayQTensor<const D: usize> {
+    /// The quantized tensor.
+    pub qtensor: NdArrayTensor<i8, D>,
+    /// The quantization scheme.
+    pub scheme: QuantizationScheme,
+    /// The quantization strategy.
+    pub strategy: QuantizationStrategy,
+}
+
+impl<const D: usize> QTensorPrimitive for NdArrayQTensor<D> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
+    }
+
+    fn strategy(&self) -> QuantizationStrategy {
+        self.strategy
     }
 }
 

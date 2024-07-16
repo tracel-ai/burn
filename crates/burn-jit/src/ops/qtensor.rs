@@ -1,10 +1,10 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    quantization::QuantizationStrategy,
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     Device, Shape, TensorData,
 };
 
-use crate::{FloatElement, IntElement, JitBackend, JitRuntime, QJitTensor};
+use crate::{tensor::QJitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 
 impl<R, F, I> QTensorOps<Self> for JitBackend<R, F, I>
 where
@@ -21,7 +21,8 @@ where
 
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
-        _strategy: QuantizationStrategy,
+        _scheme: &QuantizationScheme,
+        _qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self, D> {
         unimplemented!()
     }
@@ -44,7 +45,7 @@ where
     ) -> QuantizedTensor<Self, D2> {
         QJitTensor {
             qtensor: super::reshape(tensor.qtensor, shape),
-            strategy: tensor.strategy,
+            scheme: tensor.scheme,
         }
     }
 

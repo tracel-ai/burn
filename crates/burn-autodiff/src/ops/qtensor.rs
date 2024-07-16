@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    quantization::QuantizationStrategy,
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     Device, Shape, TensorData,
 };
 
@@ -17,7 +17,8 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn quantize<const D: usize>(
         _tensor: FloatTensor<Self, D>,
-        _strategy: QuantizationStrategy,
+        _scheme: &QuantizationScheme,
+        _qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self, D> {
         todo!() // required for QAT
     }

@@ -1,14 +1,17 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    quantization::{Quantization, QuantizationStrategy},
+    quantization::{
+        QTensorPrimitive, Quantization, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationStrategy, QuantizationType,
+    },
     DType, Shape, TensorData,
 };
 
-use crate::{LibTorch, LibTorchDevice, QTchTensor, TchElement, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, TchQTensor, QuantElement, TchElement, TchShape, TchTensor};
 
 use super::TchOps;
 
-impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
     fn q_from_data<const D: usize>(
         data: TensorData,
         device: &LibTorchDevice,
@@ -20,7 +23,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/quantized/Quantizer.cpp#L322
         // So for now we have to load the dequantized values to quantize them back since the dequantization
         // methods take the values provided when quantizing.
-        let (tensor, strategy) = match data.dtype {
+        let (tensor, scheme) = match data.dtype {
             DType::QFloat(strategy) => match strategy {
                 QuantizationStrategy::PerTensorAffineInt8(q) => {
                     let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
@@ -30,7 +33,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
                         &strategy,
                     )
                     .tensor;
-                    (tensor, strategy)
+                    (tensor, strategy.scheme())
                 }
                 QuantizationStrategy::PerTensorSymmetricInt8(q) => {
                     let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
@@ -40,7 +43,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
                         &strategy,
                     )
                     .tensor;
-                    (tensor, strategy)
+                    (tensor, strategy.scheme())
                 }
             },
             _ => panic!(
@@ -48,15 +51,16 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
                 data.dtype
             ),
         };
-        QTchTensor {
+        TchQTensor {
             qtensor: TchTensor::new(tensor),
-            strategy,
+            scheme,
         }
     }
 
     fn quantize<const D: usize>(
         tensor: FloatTensor<Self, D>,
-        strategy: QuantizationStrategy,
+        scheme: &QuantizationScheme,
+        qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self, D> {
         let mut tensor = tensor;
         // Quantize only works on Float Tensor
@@ -64,23 +68,26 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
             tensor.tensor = tensor.tensor.to_kind(tch::Kind::Float);
         }
 
-        match strategy {
-            QuantizationStrategy::PerTensorAffineInt8(ref q) => QTchTensor {
-                qtensor: TchTensor::new(tensor.tensor.quantize_per_tensor(
-                    q.scale.into(),
-                    q.offset.into(),
+        let qtensor = match scheme {
+            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
+                QuantizationType::QInt8 => tensor.tensor.quantize_per_tensor_tensor_qparams(
+                    &qparams.scale.tensor,
+                    &qparams.offset.unwrap().tensor,
                     tch::Kind::QInt8,
-                )),
-                strategy,
+                ),
             },
-            QuantizationStrategy::PerTensorSymmetricInt8(ref q) => QTchTensor {
-                qtensor: TchTensor::new(tensor.tensor.quantize_per_tensor(
-                    q.scale.into(),
-                    0,
+            QuantizationScheme::PerTensorSymmetric(_) => {
+                tensor.tensor.quantize_per_tensor_tensor_qparams(
+                    &qparams.scale.tensor,
+                    &tch::Tensor::zeros_like(&qparams.scale.tensor),
                     tch::Kind::QInt8,
-                )),
-                strategy,
-            },
+                )
+            }
+        };
+
+        TchQTensor {
+            qtensor: TchTensor::new(qtensor),
+            scheme: scheme.clone(),
         }
     }
 
@@ -100,18 +107,20 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         tensor: QuantizedTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> QuantizedTensor<Self, D2> {
-        QTchTensor {
+        TchQTensor {
             qtensor: TchOps::reshape(tensor.qtensor, shape),
-            strategy: tensor.strategy,
+            scheme: tensor.scheme,
         }
     }
 
     async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
         let shape = Self::q_shape(&tensor);
         let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
+        let strategy = tensor.strategy();
+
         // To get the integer values we have to call `int_repr()`
         let values: Result<Vec<i8>, tch::TchError> = tensor.qtensor.tensor.int_repr().try_into();
 
-        TensorData::quantized(values.unwrap(), shape, tensor.strategy)
+        TensorData::quantized(values.unwrap(), shape, strategy)
     }
 }

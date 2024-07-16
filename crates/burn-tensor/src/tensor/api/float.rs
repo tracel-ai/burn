@@ -1,13 +1,14 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
+use crate::check;
 use crate::check::TensorCheck;
 use crate::ops::FullPrecisionBackend;
+use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, Shape, TensorData};
 use crate::Tensor;
-use crate::{check, quantization::QuantizationStrategy};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
@@ -311,19 +312,25 @@ where
             .div_scalar(n as f32 - correction_factor as f32)
     }
 
-    /// Convert the tensor to a lower precision data type based on the quantization strategy.
+    /// Convert the tensor to a lower precision data type based on the quantization scheme.
     ///
     /// # Arguments
     ///
-    /// * `strategy` - The quantization strategy.
+    /// * `scheme` - The quantization scheme.
+    /// * `qparams` - The pre-computed quantization parameters.
     ///
     /// # Returns
     ///
     /// The quantized tensor.
-    pub fn quantize(self, strategy: QuantizationStrategy) -> Tensor<B, D> {
+    pub fn quantize(
+        self,
+        scheme: &QuantizationScheme,
+        qparams: QuantizationParameters<B>,
+    ) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize(
             self.primitive.tensor(),
-            strategy,
+            scheme,
+            qparams.into(),
         )))
     }
 

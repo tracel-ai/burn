@@ -1,7 +1,7 @@
 use burn_tensor::{
     backend::Backend,
     ops::{QTensorOps, QuantizedTensor},
-    quantization::QuantizationStrategy,
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     Device, Shape, TensorData,
 };
 
@@ -17,7 +17,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
     fn quantize<const D: usize>(
         _tensor: <Self as Backend>::FloatTensorPrimitive<D>,
-        _strategy: QuantizationStrategy,
+        _scheme: &QuantizationScheme,
+        _qparams: QuantizationParametersPrimitive<Self>,
     ) -> <Self as Backend>::QuantizedTensorPrimitive<D> {
         unimplemented!()
     }

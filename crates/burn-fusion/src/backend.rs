@@ -1,10 +1,10 @@
 use crate::{
     client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
+    QFusionTensor,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps, SyncType},
     ops::FloatTensor,
-    quantization::{QTensorPrimitive, QuantizationStrategy},
     repr::{OperationDescription, ReprBackend},
     Device,
 };
@@ -56,30 +56,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn ad_enabled() -> bool {
         false
-    }
-}
-
-/// A quantized tensor primitive for fusion backends.
-#[derive(Debug)]
-pub struct QFusionTensor<R: FusionRuntime> {
-    /// The quantized tensor.
-    pub qtensor: FusionTensor<R>,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
-}
-
-impl<R: FusionRuntime> QTensorPrimitive for QFusionTensor<R> {
-    fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
-    }
-}
-
-impl<R: FusionRuntime> Clone for QFusionTensor<R> {
-    fn clone(&self) -> Self {
-        Self {
-            qtensor: self.qtensor.clone(),
-            strategy: self.strategy,
-        }
     }
 }
 

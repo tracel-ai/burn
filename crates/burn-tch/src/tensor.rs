@@ -1,5 +1,11 @@
-use crate::{element::TchElement, LibTorch, LibTorchDevice};
-use burn_tensor::{ops::FloatTensorOps, Element, Shape, TensorData};
+use crate::{LibTorchDevice, QuantElement};
+use burn_tensor::{
+    quantization::{
+        AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
+    },
+    Element, Shape, TensorData,
+};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -136,14 +142,6 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
             storage,
             phantom: PhantomData,
         }
-    }
-}
-
-impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        LibTorch::float_add(self, rhs)
     }
 }
 
@@ -314,8 +312,48 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     }
 }
 
+/// A quantized tensor for the tch backend.
+#[derive(Clone, Debug)]
+pub struct TchQTensor<Q: QuantElement, const D: usize> {
+    /// The quantized tensor.
+    pub qtensor: TchTensor<Q, D>,
+    /// The quantization scheme.
+    pub scheme: QuantizationScheme,
+}
+
+impl<Q: QuantElement, const D: usize> QTensorPrimitive for TchQTensor<Q, D> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
+    }
+
+    fn strategy(&self) -> QuantizationStrategy {
+        match &self.scheme {
+            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
+                QuantizationType::QInt8 => {
+                    let scale = self.qtensor.tensor.q_scale();
+                    let offset = self.qtensor.tensor.q_zero_point();
+                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                        scale as f32,
+                        offset as i8,
+                    ))
+                }
+            },
+            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
+                QuantizationType::QInt8 => {
+                    let scale = self.qtensor.tensor.q_scale();
+                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                        scale as f32,
+                    ))
+                }
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::LibTorch;
+
     use super::*;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::prelude::StdRng;

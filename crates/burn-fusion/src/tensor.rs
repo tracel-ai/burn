@@ -1,5 +1,6 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
 use burn_tensor::{
+    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Shape, TensorData,
 };
@@ -154,6 +155,34 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}
+        }
+    }
+}
+
+/// A quantized tensor primitive for fusion backends.
+#[derive(Debug)]
+pub struct QFusionTensor<R: FusionRuntime> {
+    /// The quantized tensor.
+    pub qtensor: FusionTensor<R>,
+    /// The quantization scheme.
+    pub scheme: QuantizationScheme,
+}
+
+impl<R: FusionRuntime> QTensorPrimitive for QFusionTensor<R> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
+    }
+
+    fn strategy(&self) -> QuantizationStrategy {
+        todo!()
+    }
+}
+
+impl<R: FusionRuntime> Clone for QFusionTensor<R> {
+    fn clone(&self) -> Self {
+        Self {
+            qtensor: self.qtensor.clone(),
+            scheme: self.scheme.clone(),
         }
     }
 }

@@ -117,5 +117,6 @@ macro_rules! testgen_all {
 
         // test quantization
         burn_tensor::testgen_calibration!();
+        burn_tensor::testgen_scheme!();
     };
 }

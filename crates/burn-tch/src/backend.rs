@@ -1,10 +1,9 @@
-use crate::PrecisionBridge;
+use crate::{PrecisionBridge, QuantElement, TchQTensor};
 
 use super::element::TchElement;
 use super::TchTensor;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncType};
 use burn_tensor::ops::IntTensorOps;
-use burn_tensor::quantization::{QTensorPrimitive, QuantizationStrategy};
 use burn_tensor::{Int, Tensor};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,11 +86,12 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32> {
+pub struct LibTorch<E = f32, Q = i8> {
     _e: E,
+    _q: Q,
 }
 
-impl<E: TchElement> Backend for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type Device = LibTorchDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
@@ -103,7 +103,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = QTchTensor<D>;
+    type QuantizedTensorPrimitive<const D: usize> = TchQTensor<Q, D>;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);
@@ -133,20 +133,5 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 }
             }
         }
-    }
-}
-
-/// A quantized tensor for the tch backend.
-#[derive(Clone, Debug)]
-pub struct QTchTensor<const D: usize> {
-    /// The quantized tensor.
-    pub qtensor: TchTensor<i8, D>,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
-}
-
-impl<const D: usize> QTensorPrimitive for QTchTensor<D> {
-    fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
     }
 }
