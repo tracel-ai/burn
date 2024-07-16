@@ -53,6 +53,8 @@ impl Scope {
             // The tensor originated from an initializer or lifted constant
             self.constant_set.insert(tensor.name.clone());
             self.tensor_register_variable(&tensor, node_position);
+            //pretend this is the first use of a tensor declared
+            self.variables.get_mut(&tensor.name).unwrap().references += 1;
         }
     }
 

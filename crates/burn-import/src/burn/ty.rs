@@ -1,3 +1,7 @@
+use std::slice::ChunksExact;
+
+use half::f16;
+use onnx_ir::ir::Data as OnnxData;
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
@@ -11,6 +15,71 @@ pub struct TensorType {
     pub dim: usize,
     pub kind: TensorKind,
     pub shape: Option<Vec<usize>>,
+    pub val: Option<TensorData>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorData {
+    Float32(Vec<f32>),
+    Float64(Vec<f64>),
+    //Float16(Vec<f16>),
+    Int32(Vec<i32>),
+    Int64(Vec<i64>),
+    Bool(Vec<bool>),
+}
+impl TensorData {
+    fn len(&self) -> usize {
+        match self {
+            TensorData::Float32(data) => data.len(),
+            TensorData::Float64(data) => data.len(),
+            //TensorData::Float16(data) => data.len(),
+            TensorData::Int32(data) => data.len(),
+            TensorData::Int64(data) => data.len(),
+            TensorData::Bool(data) => data.len(),
+        }
+    }
+
+    fn as_tokens(&self) -> Vec<TokenStream> {
+        match self {
+            TensorData::Float32(data) => data.iter().map(|x| quote! { #x }).collect(),
+            TensorData::Float64(data) => data.iter().map(|x| quote! { #x }).collect(),
+            //TensorData::Float16(data) => data.iter().map(|x| quote! { #x }).collect(),
+            TensorData::Int32(data) => data.iter().map(|x| quote! { #x }).collect(),
+            TensorData::Int64(data) => data.iter().map(|x| quote! { #x }).collect(),
+            TensorData::Bool(data) => data.iter().map(|x| quote! { #x }).collect(),
+        }
+    }
+}
+
+impl From<OnnxData> for TensorData {
+    fn from(data: OnnxData) -> Self {
+        match data {
+            OnnxData::Float32s(data) => TensorData::Float32(data),
+            OnnxData::Float64s(data) => TensorData::Float64(data),
+            OnnxData::Int32s(data) => TensorData::Int32(data),
+            OnnxData::Int64s(data) => TensorData::Int64(data),
+            OnnxData::Bools(data) => TensorData::Bool(data),
+            //OnnxData::Float16s(data) => TensorData::Float16(data),
+            OnnxData::Float16(_) | OnnxData::Float16s(_) => {
+                panic!("Float16 not supported for constant tensors")
+            }
+            _ => panic!("Expected Vector of numeric data, got {:?}", data),
+        }
+    }
+}
+
+impl Iterator for TensorData {
+    type Item = TokenStream;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            TensorData::Float32(data) => data.pop().map(|x| quote! { #x }),
+            TensorData::Float64(data) => data.pop().map(|x| quote! { #x }),
+            //TensorData::Float16(data) => data.pop().map(|x| quote! { #x }),
+            TensorData::Int32(data) => data.pop().map(|x| quote! { #x }),
+            TensorData::Int64(data) => data.pop().map(|x| quote! { #x }),
+            TensorData::Bool(data) => data.pop().map(|x| quote! { #x }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +205,7 @@ impl TensorType {
             dim,
             kind,
             shape,
+            val: None,
         }
     }
     pub fn new_float<S: AsRef<str>>(name: S, dim: usize) -> Self {
@@ -172,6 +242,75 @@ impl TensorType {
                 Tensor<B, #dim, Bool>
             },
         }
+    }
+    /// Note on the order of dims:
+    /// The order of dims is reversed from the order of the shape.
+    /// Consider two tensors with shapes [3, 1, 1] and [1, 1, 3].
+    /// The resulting stream of tokens should be:
+    /// [3, 1, 1] -> [[[v]], [[v]], [[v]]]
+    /// [1, 1, 3] -> [[[v, v, v]]]
+    pub fn val(&self) -> TokenStream {
+        if let Some(val) = &self.val {
+            let val = val.as_tokens();
+            if let Some(shape) = &self.shape {
+                // let's just handle the case where the shape is a single value
+                if shape.len() == 1 {
+                    if shape[0] != val.len() {
+                        panic!(
+                            "Tensor {:?} has shape {:?} but value has length {:?}",
+                            self.name,
+                            shape,
+                            val.len()
+                        );
+                    }
+                    return self.tensor_internal(self.render_row(&val).clone());
+                }
+                let take_n = shape.last().unwrap();
+                let mut chunks = val.chunks_exact(*take_n);
+
+                let mut result = Vec::new();
+                //for each dimension, we need to iterate over all the following dimensions
+                for i in (0..shape.len() - 1).rev() {
+                    for j in (i..shape.len() - 1).rev() {
+                        let dim = shape[j];
+                        let mut tmp = Vec::new();
+                        for _ in 0..dim {
+                            tmp.push(self.render_row(chunks.next().unwrap()));
+                        }
+                        //treat the lower dimensions as a value in a row
+                        result.push(self.render_row(&tmp));
+                    }
+                }
+                return self.tensor_internal(self.render_row(&result));
+            } else {
+                panic!(
+                    "Tensor {:?} has no shape, likely should be scalar or shape",
+                    self.name
+                );
+            }
+        } else {
+            quote! {}
+        }
+    }
+    fn render_row(&self, row: &[TokenStream]) -> TokenStream {
+        quote! {
+            [#(#row),*]
+        }
+    }
+    fn tensor_internal(&self, tok: TokenStream) -> TokenStream {
+        //what to do for bools?
+        let dim = self.dim;
+        return match self.kind {
+            TensorKind::Int => quote! {
+                Tensor::<B,#dim>::from_ints(#tok, &self.device)
+            },
+            TensorKind::Float => quote! {
+                Tensor::<B,#dim>::from_floats(#tok,&self.device)
+            },
+            TensorKind::Bool => quote! {
+                Tensor::<B,#dim>::from_data(#tok, &self.device)
+            },
+        };
     }
 }
 

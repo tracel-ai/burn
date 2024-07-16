@@ -337,7 +337,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|(name, var_data)| {
                 // we can safely unwrap since: 1. we know the tensor is from this node, 2. the matching input is a tensor
                 to_tensor(
-                    self.nodes[var_data.node_position - 1]
+                    self.nodes[var_data.node_position]
                         .input_types()
                         .iter()
                         .find(|input| input.name() == name)
@@ -412,21 +412,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
     fn codegen_struct(&self) -> TokenStream {
         let mut body = quote! {};
 
-        // if !self.graph_constants.is_empty() {
-        //     body.extend(quote! {
-        //         __comment__!("Constants")
-        //     });
-        //     self.graph_constants.iter().for_each(|constant| {
-        //         let ty = constant.ty();
-        //         let name = &constant.name;
-        //         body.extend(quote! {
-        //             #name: #ty,
-        //         });
-        //     });
-        //     body.extend(quote! {
-        //         __comment__!("Nodes")
-        //     });
-        // }
+        if !self.graph_constants.is_empty() {
+            body.extend(quote! {
+                __comment__!("Constants")
+            });
+            self.graph_constants.iter().for_each(|constant| {
+                let ty = constant.ty();
+                let name = &constant.name;
+                body.extend(quote! {
+                    #name: #ty,
+                });
+            });
+            body.extend(quote! {
+                __comment__!("Nodes")
+            });
+        }
 
         self.nodes
             .iter()
