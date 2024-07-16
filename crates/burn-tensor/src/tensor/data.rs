@@ -48,6 +48,15 @@ impl TensorData {
         Self::init(value, shape, E::dtype())
     }
 
+    /// Creates a new quantized tensor data structure.
+    pub fn quantized<E: Element, S: Into<Vec<usize>>>(
+        value: Vec<E>,
+        shape: S,
+        strategy: QuantizationStrategy,
+    ) -> Self {
+        Self::init(value, shape, DType::QFloat(strategy))
+    }
+
     /// Initializes a new tensor data structure from the provided values.
     fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
         Self {
@@ -258,15 +267,15 @@ impl TensorData {
             "Only f32 data type can be quantized"
         );
         match &quantization {
-            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::init(
+            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::quantized(
                 strategy.quantize(self.as_slice().unwrap()),
                 self.shape,
-                DType::QFloat(quantization),
+                quantization,
             ),
-            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::init(
+            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::quantized(
                 strategy.quantize(self.as_slice().unwrap()),
                 self.shape,
-                DType::QFloat(quantization),
+                quantization,
             ),
         }
     }

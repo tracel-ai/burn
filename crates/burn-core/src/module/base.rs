@@ -1,5 +1,6 @@
 use super::ParamId;
 use crate::{
+    quantization::{Calibration, Quantizer},
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
@@ -201,6 +202,11 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         let record = recorder.load(file_path.into(), device)?;
 
         Ok(self.load_record(record))
+    }
+
+    /// Quantize the weights of the module.
+    fn quantize_weights<C: Calibration>(self, quantizer: &mut Quantizer<C>) -> Self {
+        self.map(quantizer)
     }
 }
 

@@ -1,9 +1,11 @@
 use burn_tensor::{
     ops::{FloatTensor, QTensorOps, QuantizedTensor},
-    Quantization, QuantizationStrategy, Shape, TensorData,
+    DType, Quantization, QuantizationStrategy, Shape, TensorData,
 };
 
 use crate::{element::NdArrayElement, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor};
+
+use super::NdArrayOps;
 
 fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
     let shape = tensor.shape();
@@ -12,6 +14,28 @@ fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> 
 }
 
 impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
+    fn q_from_data<const D: usize>(
+        data: TensorData,
+        _device: &NdArrayDevice,
+    ) -> QuantizedTensor<Self, D> {
+        match data.dtype {
+            DType::QFloat(strategy) => match strategy {
+                QuantizationStrategy::PerTensorAffineInt8(_) => {
+                    let data = data.convert::<i8>();
+                    NdArrayTensor::<i8, D>::from_data(data)
+                }
+                QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                    let data = data.convert::<i8>();
+                    NdArrayTensor::<i8, D>::from_data(data)
+                }
+            },
+            _ => panic!(
+                "Invalid dtype (expected DType::QFloat, got {:?})",
+                data.dtype
+            ),
+        }
+    }
+
     fn quantize<const D: usize>(
         tensor: FloatTensor<Self, D>,
         strategy: &QuantizationStrategy,
@@ -40,5 +64,21 @@ impl<E: FloatNdArrayElement> QTensorOps<Self> for NdArray<E> {
 
     fn q_device<const D: usize>(_tensor: &QuantizedTensor<Self, D>) -> NdArrayDevice {
         NdArrayDevice::Cpu
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        NdArrayOps::reshape(tensor, shape)
+    }
+
+    async fn q_into_data<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        strategy: QuantizationStrategy,
+    ) -> TensorData {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        TensorData::quantized(values, shape, strategy)
     }
 }

@@ -3,9 +3,12 @@ use burn_cube::prelude::*;
 use burn_tensor::Shape;
 
 use super::{
-    config::Tiling2dConfig, init_matmul_output, matmul_autotune, matmul_simple, matmul_tiling_2d,
+    config::Tiling2dConfig, init_matmul_output, matmul_simple, matmul_tiling_2d,
     matmul_tiling_2d_cube, matmul_tiling_2d_padded,
 };
+
+#[cfg(feature = "autotune")]
+use super::matmul_autotune;
 
 /// The strategy to be used when launching a matmul kernel.
 pub enum MatmulStrategy {
@@ -27,11 +30,14 @@ pub enum MatmulStrategy {
     Tiling2dCube(Tiling2dConfig),
 }
 
-#[allow(clippy::derivable_impls)] // Necessary otherwise the feature flags dont' work.
-#[cfg(feature = "autotune")]
 impl Default for MatmulStrategy {
     fn default() -> Self {
-        MatmulStrategy::Autotune
+        // if autotune is enabled, default to autotune
+        #[cfg(feature = "autotune")]
+        return MatmulStrategy::Autotune;
+
+        #[cfg(not(feature = "autotune"))]
+        MatmulStrategy::Tiling2d(Tiling2dConfig::default())
     }
 }
 

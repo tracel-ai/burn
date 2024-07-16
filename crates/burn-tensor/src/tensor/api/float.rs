@@ -271,9 +271,9 @@ where
         match &self.primitive {
             TensorPrimitive::Float(tensor) => B::float_is_require_grad(tensor),
             TensorPrimitive::QFloat {
-                tensor: _,
+                tensor,
                 strategy: _,
-            } => B::float_is_require_grad(&self.primitive.clone().tensor()),
+            } => B::q_is_require_grad(tensor),
         }
     }
 
@@ -282,10 +282,16 @@ where
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_set_require_grad(
-            self.primitive.tensor(),
-            require_grad,
-        )))
+        let primitive = match self.primitive {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_set_require_grad(tensor, require_grad))
+            }
+            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
+                tensor: B::q_set_require_grad(tensor, require_grad),
+                strategy,
+            },
+        };
+        Self::new(primitive)
     }
 
     /// Applies the relu function to the tensor.
