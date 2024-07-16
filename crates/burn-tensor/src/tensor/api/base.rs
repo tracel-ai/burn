@@ -589,13 +589,14 @@ where
     /// # Behavior
     ///
     /// - Supports partial and full slicing in any number of dimensions.
+    /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
     /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
     ///
     /// # Panics
     ///
-    /// - If the number of ranges provided doesn't match the tensor's dimensions.
+    /// - If the number of ranges provided exceeds the tensor's dimensions.
     /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
     ///
     /// # Examples
