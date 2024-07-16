@@ -37,8 +37,8 @@ impl QuantizationScheme {
             QuantizationScheme::PerTensorAffine(dtype) => match dtype {
                 QuantizationType::QInt8 => {
                     // Quantized range `[a, b]`
-                    let a = i8::min_value() as i32;
-                    let b = i8::max_value() as i32;
+                    let a = i8::MIN as i32;
+                    let b = i8::MAX as i32;
 
                     // Input range `[alpha, beta]`
                     let input_range = range.max.clone().sub(range.min.clone());
@@ -54,7 +54,7 @@ impl QuantizationScheme {
             QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
                 QuantizationType::QInt8 => {
                     // Quantized range `[a, b]`
-                    let b = i8::max_value() as i32;
+                    let b = i8::MAX as i32;
                     let a = -b;
 
                     // Compute scale to convert an input value in range `[-alpha, alpha]`
