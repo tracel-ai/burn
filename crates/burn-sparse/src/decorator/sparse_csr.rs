@@ -186,4 +186,18 @@ where
     ) -> SparseTensor<Self, D2> {
         todo!()
     }
+
+    fn sparse_coalesce_sum<const D: usize>(
+        tensor: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D> {
+        todo!()
+    }
+
+    fn sparse_nonzero<const D: usize>(tensor: Self::SparseTensorPrimitive<D>) -> usize {
+        todo!()
+    }
+
+    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> usize {
+        todo!()
+    }
 }

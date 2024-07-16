@@ -28,6 +28,14 @@ pub trait SparseBackend: Backend {
         rhs: Self::FloatTensorPrimitive<D>,
     ) -> Self::SparseTensorPrimitive<D>;
 
+    fn sparse_coalesce_sum<const D: usize>(
+        tensor: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D>;
+
+    fn sparse_nonzero<const D: usize>(tensor: Self::SparseTensorPrimitive<D>) -> usize;
+
+    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> usize;
+
     /// Gets the element at the given indices.
     ///
     /// # Arguments
