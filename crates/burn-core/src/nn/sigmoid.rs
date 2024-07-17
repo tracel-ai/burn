@@ -6,7 +6,6 @@ use crate::tensor::Tensor;
 
 /// Applies the sigmoid function element-wise
 /// See also [sigmoid](burn::tensor::activation::sigmoid)
-///
 #[derive(Module, Clone, Debug, Default)]
 pub struct Sigmoid;
 
