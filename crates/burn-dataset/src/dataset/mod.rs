@@ -6,6 +6,7 @@ mod iterator;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 mod sqlite;
 mod window;
+#[cfg(any(feature = "dataframe"))]
 mod dataframe;
 
 #[cfg(any(test, feature = "fake"))]
@@ -16,4 +17,5 @@ pub use iterator::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
 pub use sqlite::*;
 pub use window::*;
+#[cfg(any(feature = "dataframe"))]
 pub use dataframe::*;
