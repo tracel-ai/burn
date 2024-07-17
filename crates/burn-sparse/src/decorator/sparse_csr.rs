@@ -3,6 +3,7 @@ use crate::backend::SparseTensor;
 use crate::decorator::SparseCSR;
 use crate::decorator::SparseDecorator;
 use burn_tensor::backend::Backend;
+use burn_tensor::ops::FloatElem;
 use core::marker::PhantomData;
 
 #[derive(Debug, Default, Clone)]
@@ -198,6 +199,90 @@ where
     }
 
     fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> f32 {
+        todo!()
+    }
+
+    fn sparse_add<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_add_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_add_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
         todo!()
     }
 }

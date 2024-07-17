@@ -1,5 +1,9 @@
 use crate::backend::SparseTensor;
-use burn_tensor::{backend::Backend, ops::BoolTensor, Device, Shape, TensorData};
+use burn_tensor::{
+    backend::Backend,
+    ops::{BoolTensor, FloatElem, FloatTensor},
+    Device, Shape, TensorData,
+};
 use core::{future::Future, ops::Range};
 
 pub trait SparseBackend: Backend {
@@ -184,4 +188,184 @@ pub trait SparseBackend: Backend {
         tensor: SparseTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> SparseTensor<Self, D2>;
+
+    /// Adds two sparse tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the two tensors together.
+    fn sparse_add<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Adds a sparse and dense tensor together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the two tensors together.
+    fn sparse_add_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Adds a scalar to a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the scalar to the tensor.
+    fn sparse_add_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Subtracts two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the two tensors.
+    fn sparse_sub<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Subtracts a dense from a sparse tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor (sparse).
+    /// * `rhs` - The right hand side tensor (dense).
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the two tensors.
+    fn sparse_sub_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Subtracts a scalar from a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the scalar from the tensor.
+    fn sparse_sub_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Multiplies two sparse tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together.
+    fn sparse_mul<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Multiplies  a sparse and dense tensor together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together.
+    fn sparse_mul_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Multiplies a scalar to a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the scalar with the tensor.
+    fn sparse_mul_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Divides two sparse tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the two tensors.
+    fn sparse_div<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Divides a sparse and dense tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the two tensors.
+    fn sparse_div_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D>;
+
+    /// Divides a tensor by a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the tensor by the scalar.
+    fn sparse_div_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D>;
 }

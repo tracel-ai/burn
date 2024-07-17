@@ -2,6 +2,7 @@ use crate::backend::SparseBackend;
 use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
 use crate::decorator::SparseDecorator;
+use burn_tensor::ops::FloatElem;
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::Device;
 use burn_tensor::{
@@ -721,5 +722,129 @@ where
             }
             None => 0.0,
         }
+    }
+
+    fn sparse_add<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        let SparseCOOTensor {
+            coordinates: lhs_coordinates,
+            values: lhs_values,
+            shape: lhs_shape,
+            device: lhs_device,
+        } = lhs;
+        let (Some(lhs_coordinates), Some(lhs_values)) = (lhs_coordinates, lhs_values) else {
+            return rhs;
+        };
+
+        let SparseCOOTensor {
+            coordinates: rhs_coordinates,
+            values: rhs_values,
+            shape: rhs_shape,
+            device: rhs_device,
+        } = rhs;
+        let (Some(rhs_coordinates), Some(rhs_values)) = (rhs_coordinates, rhs_values) else {
+            return SparseCOOTensor {
+                coordinates: Some(lhs_coordinates),
+                values: Some(lhs_values),
+                shape: lhs_shape,
+                device: lhs_device,
+            };
+        };
+
+        assert_eq!(lhs_shape, rhs_shape);
+        assert_eq!(lhs_device, rhs_device);
+
+        let coordinates = Some(Tensor::cat(vec![lhs_coordinates, rhs_coordinates], 1));
+        let values = Some(Tensor::cat(vec![lhs_values, rhs_values], 0));
+        let shape = lhs_shape;
+        let device = lhs_device;
+
+        let result = SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        };
+
+        Self::sparse_coalesce_sum(result)
+    }
+
+    fn sparse_add_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_add_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sub_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mul_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div_dense<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_div_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
     }
 }
