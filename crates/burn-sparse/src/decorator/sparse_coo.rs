@@ -241,8 +241,9 @@ where
             device,
         } = tensor;
 
-        let indices: [core::ops::Range<usize>; D1] =
-            Vec::from(indices).try_into().expect("D1 should equal D2");
+        let mut indices = Vec::from(indices);
+        indices.extend(shape.dims[indices.len()..D1].iter().map(|&l| 0..l));
+        let indices: [core::ops::Range<usize>; D1] = indices.try_into().expect("D2 must be <= D1");
         let out_shape = Shape::new(indices.clone().map(|r| r.end));
 
         let (Some(coordinates), Some(values)) = (coordinates, values) else {
@@ -292,7 +293,7 @@ where
         SparseCOOTensor {
             coordinates,
             values,
-            shape,
+            shape: out_shape,
             device,
         }
     }
