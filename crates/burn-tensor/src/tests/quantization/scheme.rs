@@ -9,7 +9,6 @@ mod tests {
     #[test]
     fn per_tensor_affine_int8() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let range = CalibrationRange {
             min: Tensor::<TestBackend, 1>::from_floats([-1.8], &device),
@@ -32,7 +31,6 @@ mod tests {
     #[test]
     fn per_tensor_symmetric_int8() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
         let scheme = QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8);
         let range = CalibrationRange {
             min: Tensor::<TestBackend, 1>::from_floats([-1.8], &device),

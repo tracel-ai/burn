@@ -3,14 +3,14 @@ use crate::{backend::Backend, Int, Tensor};
 use super::{CalibrationRange, QuantizationParameters};
 
 /// Quantization data type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum QuantizationType {
     /// 8-bit signed integer.
     QInt8,
 }
 
 /// Quantization scheme.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum QuantizationScheme {
     /// Per-tensor affine/asymmetric quantization.
     PerTensorAffine(QuantizationType),

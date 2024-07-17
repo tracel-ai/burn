@@ -5,6 +5,8 @@ use burn_tensor::{
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
+use crate::element::QuantElement;
+
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 #[derive(new, Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
@@ -116,16 +118,16 @@ where
 
 /// A quantized tensor for the ndarray backend.
 #[derive(Clone, Debug)]
-pub struct NdArrayQTensor<const D: usize> {
+pub struct NdArrayQTensor<Q: QuantElement, const D: usize> {
     /// The quantized tensor.
-    pub qtensor: NdArrayTensor<i8, D>,
+    pub qtensor: NdArrayTensor<Q, D>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization strategy.
     pub strategy: QuantizationStrategy,
 }
 
-impl<const D: usize> QTensorPrimitive for NdArrayQTensor<D> {
+impl<Q: QuantElement, const D: usize> QTensorPrimitive for NdArrayQTensor<Q, D> {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
@@ -137,9 +139,15 @@ impl<const D: usize> QTensorPrimitive for NdArrayQTensor<D> {
 
 #[cfg(test)]
 mod tests {
+    use crate::NdArray;
+
     use super::*;
     use burn_common::rand::get_seeded_rng;
-    use burn_tensor::Distribution;
+    use burn_tensor::{
+        ops::QTensorOps,
+        quantization::{AffineQuantization, QuantizationParametersPrimitive, QuantizationType},
+        Distribution,
+    };
 
     #[test]
     fn should_support_into_and_from_data_1d() {
@@ -195,5 +203,22 @@ mod tests {
         let data_actual = tensor.into_data();
 
         assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn should_support_qtensor_strategy() {
+        let tensor = NdArrayTensor::<f32, 1>::from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]));
+        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let qparams = QuantizationParametersPrimitive {
+            scale: NdArrayTensor::from_data(TensorData::from([0.009_019_608])),
+            offset: Some(NdArrayTensor::from_data(TensorData::from([72]))),
+        };
+        let qtensor: NdArrayQTensor<i8, 1> = NdArray::quantize(tensor, &scheme, qparams);
+
+        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(
+            qtensor.strategy(),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+        );
     }
 }

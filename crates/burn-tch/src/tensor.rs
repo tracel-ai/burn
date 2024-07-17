@@ -355,6 +355,8 @@ mod tests {
     use crate::LibTorch;
 
     use super::*;
+    use burn_tensor::ops::QTensorOps;
+    use burn_tensor::quantization::QuantizationParametersPrimitive;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
@@ -412,6 +414,29 @@ mod tests {
         assert_ne!(
             tensor_3.to_data().as_slice::<f32>().unwrap(),
             tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
+    }
+
+    #[test]
+    fn should_support_qtensor_strategy() {
+        let tensor = TchTensor::<f32, 1>::from_data(
+            TensorData::from([-1.8, -1.0, 0.0, 0.5]),
+            tch::Device::Cpu,
+        );
+        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let qparams = QuantizationParametersPrimitive {
+            scale: TchTensor::from_data(TensorData::from([0.009_019_608]), tch::Device::Cpu),
+            offset: Some(TchTensor::from_data(
+                TensorData::from([72]),
+                tch::Device::Cpu,
+            )),
+        };
+        let qtensor: TchQTensor<i8, 1> = LibTorch::quantize(tensor, &scheme, qparams);
+
+        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(
+            qtensor.strategy(),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
         );
     }
 }

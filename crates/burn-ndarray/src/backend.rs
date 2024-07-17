@@ -52,7 +52,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
 
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = NdArrayQTensor<D>;
+    type QuantizedTensorPrimitive<const D: usize> = NdArrayQTensor<Q, D>;
 
     fn ad_enabled() -> bool {
         false

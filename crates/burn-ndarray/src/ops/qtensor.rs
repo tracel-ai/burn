@@ -30,7 +30,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q>
                 QuantizationStrategy::PerTensorAffineInt8(_) => {
                     let data = data.convert::<i8>();
                     NdArrayQTensor {
-                        qtensor: NdArrayTensor::<i8, D>::from_data(data),
+                        qtensor: NdArrayTensor::<Q, D>::from_data(data),
                         scheme: strategy.scheme(),
                         strategy,
                     }
@@ -38,7 +38,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q>
                 QuantizationStrategy::PerTensorSymmetricInt8(_) => {
                     let data = data.convert::<i8>();
                     NdArrayQTensor {
-                        qtensor: NdArrayTensor::<i8, D>::from_data(data),
+                        qtensor: NdArrayTensor::<Q, D>::from_data(data),
                         scheme: strategy.scheme(),
                         strategy,
                     }
@@ -74,7 +74,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q>
 
         let data = into_data(tensor).with_quantization(strategy);
         NdArrayQTensor {
-            qtensor: NdArrayTensor::<i8, D>::from_data(data),
+            qtensor: NdArrayTensor::<Q, D>::from_data(data),
             strategy,
             scheme: scheme.clone(),
         }
