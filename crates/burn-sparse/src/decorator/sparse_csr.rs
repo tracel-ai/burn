@@ -197,7 +197,7 @@ where
         todo!()
     }
 
-    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> usize {
+    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> f32 {
         todo!()
     }
 }

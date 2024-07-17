@@ -34,7 +34,7 @@ pub trait SparseBackend: Backend {
 
     fn sparse_nonzero<const D: usize>(tensor: Self::SparseTensorPrimitive<D>) -> usize;
 
-    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> usize;
+    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> f32;
 
     /// Gets the element at the given indices.
     ///

@@ -714,7 +714,12 @@ where
         }
     }
 
-    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> usize {
-        todo!()
+    fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> f32 {
+        match sparse.coordinates {
+            Some(coordinates) => {
+                coordinates.shape().dims[1] as f32 / sparse.shape.num_elements() as f32
+            }
+            None => 0.0,
+        }
     }
 }
