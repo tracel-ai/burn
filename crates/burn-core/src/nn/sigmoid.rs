@@ -4,7 +4,7 @@ use crate::module::Module;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
-/// Applies the rectified linear unit function element-wise
+/// Applies the sigmoid function element-wise
 /// See also [sigmoid](burn::tensor::activation::sigmoid)
 ///
 #[derive(Module, Clone, Debug, Default)]
