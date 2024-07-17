@@ -459,11 +459,6 @@ fn squeeze_update_output(node: &mut Node) {
 
     if axes.is_none() {
         panic!("Squeeze must specify an axis");
-    } else if axes.as_ref().unwrap().len() > 1 {
-        panic!(
-            "Squeeze must specify only 1 axis, found {:?}",
-            axes.as_ref().unwrap().len()
-        );
     }
 
     let input_dim = match &node.inputs[0].ty {
