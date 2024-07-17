@@ -669,7 +669,7 @@ where
             .slice([1..unique])
             .sub(steps.slice([0..unique - 1]))
             .max()
-            .sub_scalar(1)
+            // .sub_scalar(1)
             .into_scalar()
             .elem::<i32>();
 
