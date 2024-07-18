@@ -1,10 +1,14 @@
 use std::io;
 use std::marker::PhantomData;
+
 use polars::frame::DataFrame;
 use polars::frame::row::Row;
 use polars::prelude::*;
-use serde::{de::DeserializeOwned};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::{json, to_string, Value};
+use serde_json::value::Serializer;
+
 use crate::Dataset;
 
 pub type Result<T> = core::result::Result<T, DataframeDatasetError>;
@@ -106,6 +110,16 @@ impl<I> DataframeDataset<I> {
         }
         Ok(Value::Object(obj))
     }
+
+    fn row_to_serde_value_native(row: &Row, schema: &Schema) -> Result<Value> {
+        let mut obj = serde_json::Map::new();
+        for (field, any_value) in schema.iter_fields().zip(row.0.iter()) {
+            if let Ok(value) = any_value.serialize(Serializer) {
+                obj.insert(field.name().to_string(), value);
+            }
+        }
+        Ok(Value::Object(obj))
+    }
 }
 
 impl<I> Dataset<I> for DataframeDataset<I>
@@ -116,39 +130,56 @@ where
     fn get(&self, index: usize) -> Option<I> {
         match self.dataframe.get_row(index) { 
             Ok(row) => {
-        let schema = self.dataframe.schema();
-        match Self::check_if_row_is_serializable(&row, &schema) {
-            Ok(check) => {
-                match check {
-                    true => {
-                        match Self::row_to_serde_value(&row, &schema) {
-                            Ok(serialized_row) => {
-                                if let Some(deserialized_row) = serialized_row.as_object() {
-                                    let json_str = to_string(deserialized_row).unwrap();
-                                    return match serde_json::from_str(&json_str) {
-                                        Ok(row) => Some(row),
-                                        Err(e) => {
-                                            println!("An error occurred while converting string \
-                                            to serde str: {}", e);
-                                            None
-                                        }
-                                    }
-                                } else { None }
-                            },
-                            Err(e) => {
-                                println!("An error occurred while serializing Polars dataframe row. Error: {:?}", e);
-                                None
+                let schema = self.dataframe.schema();
+                if let Ok(serialized_row) = Self::row_to_serde_value_native(&row, &schema) {
+                    println!("Serialized Row: {}", serialized_row);
+                    if let Some(serde_map) = serialized_row.as_object() {
+                        println!("Serde Map: {:?}", serde_map);
+                        if let Ok(json_str) = to_string(serde_map) {
+                            println!("JSON String: {:?}", json_str);
+                            return match serde_json::from_str::<I>(json_str.as_str()) {
+                                Ok(row) => Some(row),
+                                Err(e) => None
                             }
-                        }
-                    },
-                    false => { None }
-                }
-            },
-            Err(e) => {
-                println!("An error occurred while checking if a Polars row is serializable: Error: {:?}", e);
-                None
-            }
-        }
+                        } else { None }
+                    } else { None }
+                } else { None }
+                // match Self::check_if_row_is_serializable(&row, &schema) {
+                //     Ok(check) => {
+                //         match check {
+                //             true => {
+                //                 match Self::row_to_serde_value(&row, &schema) {
+                //                     Ok(serialized_row) => {
+                //                         println!("Serialized Row: {}", serialized_row);
+                //                         if let Some(serde_map) = serialized_row.as_object() {
+                //                             println!("Serde Map: {:?}", serde_map);
+                //                             if let Ok(json_str) = to_string(serde_map) {
+                //                                 println!("JSON String: {:?}", json_str);
+                //                                 return match serde_json::from_str::<I>(&json_str) {
+                //                                     Ok(deserialized_row) => Some(deserialized_row),
+                //                                     Err(e) => {
+                //                                         println!("An error occurred while \
+                //                                         deserializing string into struct: {}", e);
+                //                                         None
+                //                                     }
+                //                                 }
+                //                             } else { None }
+                //                         } else { None }
+                //                     },
+                //                     Err(e) => {
+                //                         println!("An error occurred while serializing Polars dataframe row. Error: {:?}", e);
+                //                         None
+                //                     }
+                //                 }
+                //             },
+                //             false => { None }
+                //         }
+                //     },
+                //     Err(e) => {
+                //         println!("An error occurred while checking if a Polars row is serializable: Error: {:?}", e);
+                //         None
+                //     }
+                // }
             },
             Err(e) =>{
                 println!("An error occurred while getting row from polars dataframe. Error: {}", e);
@@ -162,10 +193,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
+
     use crate::Dataset;
+
+    use super::*;
 
     type DataframeSample = DataframeDataset<SampleDf>;
 

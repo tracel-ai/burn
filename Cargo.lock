@@ -393,6 +393,9 @@ name = "bitflags"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf4b9d6a944f767f8e5e0db018570623c85f3d925ac718db4e06d0187adb21c1"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitstream-io"
@@ -4213,8 +4216,7 @@ dependencies = [
 [[package]]
 name = "polars"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e3351ea4570e54cd556e6755b78fe7a2c85368d820c0307cca73c96e796a7ba"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "getrandom",
  "polars-arrow",
@@ -4233,8 +4235,7 @@ dependencies = [
 [[package]]
 name = "polars-arrow"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba65fc4bcabbd64fca01fd30e759f8b2043f0963c57619e331d4b534576c0b47"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "atoi",
@@ -4278,8 +4279,7 @@ dependencies = [
 [[package]]
 name = "polars-compute"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f099516af30ac9ae4b4480f4ad02aa017d624f2f37b7a16ad4e9ba52f7e5269"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "bytemuck",
  "either",
@@ -4294,8 +4294,7 @@ dependencies = [
 [[package]]
 name = "polars-core"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2439484be228b8c302328e2f953e64cfd93930636e5c7ceed90339ece7fef6c"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "bitflags 2.5.0",
@@ -4317,6 +4316,7 @@ dependencies = [
  "rand_distr",
  "rayon",
  "regex",
+ "serde",
  "smartstring",
  "thiserror",
  "version_check",
@@ -4326,8 +4326,7 @@ dependencies = [
 [[package]]
 name = "polars-error"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c9b06dfbe79cabe50a7f0a90396864b5ee2c0e0f8d6a9353b2343c29c56e937"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "polars-arrow-format",
  "regex",
@@ -4338,8 +4337,7 @@ dependencies = [
 [[package]]
 name = "polars-expr"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c630385a56a867c410a20f30772d088f90ec3d004864562b84250b35268f97"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "bitflags 2.5.0",
@@ -4358,14 +4356,14 @@ dependencies = [
 [[package]]
 name = "polars-io"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d7363cd14e4696a28b334a56bd11013ff49cc96064818ab3f91a126e453462d"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "atoi_simd",
  "bytes",
  "chrono",
  "fast-float",
+ "glob",
  "home",
  "itoa",
  "memchr",
@@ -4388,12 +4386,10 @@ dependencies = [
 [[package]]
 name = "polars-lazy"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03877e74e42b5340ae52ded705f6d5d14563d90554c9177b01b91ed2412a56ed"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "bitflags 2.5.0",
- "glob",
  "memchr",
  "once_cell",
  "polars-arrow",
@@ -4414,8 +4410,7 @@ dependencies = [
 [[package]]
 name = "polars-mem-engine"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dea9e17771af750c94bf959885e4b3f5b14149576c62ef3ec1c9ef5827b2a30f"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "polars-arrow",
  "polars-core",
@@ -4432,8 +4427,7 @@ dependencies = [
 [[package]]
 name = "polars-ops"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6066552eb577d43b307027fb38096910b643ffb2c89a21628c7e41caf57848d0"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "argminmax",
@@ -4462,8 +4456,7 @@ dependencies = [
 [[package]]
 name = "polars-parquet"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b35b2592a2e7ef7ce9942dc2120dc4576142626c0e661668e4c6b805042e461"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "base64 0.22.0",
@@ -4481,8 +4474,7 @@ dependencies = [
 [[package]]
 name = "polars-pipe"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "021bce7768c330687d735340395a77453aa18dd70d57c184cbb302311e87c1b9"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-queue",
@@ -4507,8 +4499,7 @@ dependencies = [
 [[package]]
 name = "polars-plan"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "220d0d7c02d1c4375802b2813dbedcd1a184df39c43b74689e729ede8d5c2921"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -4534,8 +4525,7 @@ dependencies = [
 [[package]]
 name = "polars-row"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1d70d87a2882a64a43b431aea1329cb9a2c4100547c95c417cc426bb82408b3"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "bytemuck",
  "polars-arrow",
@@ -4546,8 +4536,7 @@ dependencies = [
 [[package]]
 name = "polars-sql"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6fc1c9b778862f09f4a347f768dfdd3d0ba9957499d306d83c7103e0fa8dc5b"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "hex",
  "once_cell",
@@ -4567,8 +4556,7 @@ dependencies = [
 [[package]]
 name = "polars-time"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "179f98313a15c0bfdbc8cc0f1d3076d08d567485b9952d46439f94fbc3085df5"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "atoi",
  "bytemuck",
@@ -4588,8 +4576,7 @@ dependencies = [
 [[package]]
 name = "polars-utils"
 version = "0.41.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e6dd89fcccb1ec1a62f752c9a9f2d482a85e9255153f46efecc617b4996d50"
+source = "git+https://github.com/ragyabraham/polars.git?branch=17678-serialize-for-anytype-has-todo#1992559c3551074eea1dd0dc2fc6f063ebb71d3e"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -5774,6 +5761,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fb72c633efbaa2dd666986505016c32c3044395ceaf881518399d2f4127ee29"
 dependencies = [
  "autocfg",
+ "serde",
  "static_assertions",
  "version_check",
 ]
