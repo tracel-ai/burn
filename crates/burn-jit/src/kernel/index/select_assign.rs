@@ -6,7 +6,7 @@ use crate::{
 };
 use cubecl::{
     calculate_cube_count_elemwise, cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
@@ -212,11 +212,11 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
-            TensorHandle::new(&indices.handle, &strides, &strides),
+            TensorHandleRef::new(&indices.handle, &strides, &strides),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

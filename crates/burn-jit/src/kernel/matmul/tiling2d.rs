@@ -1,6 +1,6 @@
 use burn_tensor::{Element, Shape};
 use cubecl::{
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{BinaryOperator, Elem, FloatKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -109,10 +109,10 @@ pub fn matmul_tiling_2d<R: JitRuntime, E: JitElement + Element, const D: usize>(
 
     Execution::start(kernel, client)
         .inputs(&[
-            TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandleRef::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandleRef::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &out.handle,
             &out.strides,
             &out.shape.dims,
@@ -170,10 +170,10 @@ pub fn matmul_tiling_2d_padded<R: JitRuntime, E: JitElement + Element, const D: 
 
     Execution::start(kernel, client)
         .inputs(&[
-            TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            TensorHandleRef::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            TensorHandleRef::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &rounded_output.handle,
             &rounded_output.strides,
             &rounded_output.shape.dims,

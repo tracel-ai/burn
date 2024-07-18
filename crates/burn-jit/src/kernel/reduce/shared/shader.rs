@@ -1,5 +1,5 @@
 use cubecl::{
-    cpa, frontend::TensorHandle, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
+    cpa, frontend::TensorHandleRef, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
     Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
@@ -269,12 +269,12 @@ pub fn reduce_dim_shared<
     );
 
     Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

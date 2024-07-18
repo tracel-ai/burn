@@ -7,7 +7,7 @@ use crate::{
 };
 use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -353,10 +353,10 @@ pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: 
 
     Execution::start(kernel, x.client)
         .inputs(&[
-            TensorHandle::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&grad.handle, &grad.strides, &grad.shape.dims),
+            TensorHandleRef::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&grad.handle, &grad.strides, &grad.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

@@ -1,6 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
-use cubecl::{frontend::TensorHandle, CubeCountSettings, Execution};
+use cubecl::{frontend::TensorHandleRef, CubeCountSettings, Execution};
 
 /// Creates a binary kernel.
 #[macro_export]
@@ -156,8 +156,8 @@ where
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         Execution::start(kernel_inplace_lhs, rhs.client)
             .inputs(&[
-                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandleRef::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandleRef::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
             .execute(CubeCountSettings::Input { pos: 0 });
 
@@ -165,8 +165,8 @@ where
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
         Execution::start(kernel_inplace_rhs, lhs.client)
             .inputs(&[
-                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandleRef::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandleRef::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
             .execute(CubeCountSettings::Input { pos: 1 });
 
@@ -189,10 +189,10 @@ where
 
         Execution::start(kernel, lhs.client)
             .inputs(&[
-                TensorHandle::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                TensorHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                TensorHandleRef::<R>::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                TensorHandleRef::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ])
-            .outputs(&[TensorHandle::new(
+            .outputs(&[TensorHandleRef::new(
                 &out.handle,
                 &out.strides,
                 &out.shape.dims,

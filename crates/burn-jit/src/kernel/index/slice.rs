@@ -4,7 +4,7 @@ use crate::{
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -134,12 +134,12 @@ pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, con
     let kernel = SliceEagerKernel::<R, E>::new(D1);
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

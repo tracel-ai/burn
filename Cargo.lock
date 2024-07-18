@@ -1301,6 +1301,7 @@ version = "0.1.0"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
+ "cubecl-linalg",
  "cubecl-wgpu",
 ]
 
@@ -1343,6 +1344,16 @@ dependencies = [
  "derive-new",
  "half",
  "log",
+]
+
+[[package]]
+name = "cubecl-linalg"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cubecl-core",
+ "cubecl-runtime",
+ "half",
 ]
 
 [[package]]

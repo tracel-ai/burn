@@ -1,6 +1,6 @@
 use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution,
 };
@@ -137,8 +137,8 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
-        .outputs(&[TensorHandle::new(
+        .inputs(&[TensorHandleRef::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -190,10 +190,10 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandleRef::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
         .outputs(&[
-            TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&output.handle, &output.strides, &output.shape.dims),
+            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
         .with_scalars(&[
             stride[0] as i32,
