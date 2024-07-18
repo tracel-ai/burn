@@ -1,11 +1,14 @@
-use std::io;
 use std::marker::PhantomData;
 
+use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 use polars::frame::row::Row;
-use polars::prelude::*;
+use polars::prelude::Schema;
+use polars::series::Series;
 use serde::de::DeserializeOwned;
-use serde_json::{json, to_string, Value};
+use serde::Serialize;
+use serde_json::{to_string, Value};
+use serde_json::value::Serializer;
 
 use crate::Dataset;
 
@@ -14,15 +17,6 @@ pub type Result<T> = core::result::Result<T, DataframeDatasetError>;
 /// Custom error type for DataframeDataset type
 #[derive(thiserror::Error, Debug)]
 pub enum DataframeDatasetError {
-    /// IO related error.
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
-    /// Serde related error.
-    #[error("Serde error: {0}")]
-    Serde(#[from] rmp_serde::encode::Error),
-    /// Polars related error
-    #[error("Polars error: {0}")]
-    PolarsError(#[from] PolarsError),
     /// Any other error.
     #[error("{0}")]
     Other(&'static str),
@@ -47,7 +41,7 @@ pub struct DataframeDataset<I> {
 }
 
 impl<I> DataframeDataset<I> {
-     /// Initialise a DataframeDataset from a polars dataframe
+    /// Initialise a DataframeDataset from a polars dataframe
     pub fn from_dataframe(df: DataFrame) -> Result<Self> {
         let len = df.height();
         Ok(DataframeDataset {
@@ -56,29 +50,19 @@ impl<I> DataframeDataset<I> {
             phantom: PhantomData,
         })
     }
-    /// Utility method to check if a row can indeed be serialised
-    fn check_if_row_is_serializable(row: &Row, schema: &Schema) -> Result<bool> {
-        match Self::row_to_serde_value(row, schema) {
-            Ok(s) => {
-                if !s.is_null() { Ok(true) } else { Ok(false) }
-            },
-            Err(e) => Err(e)
-        }
-    }
-
     fn anyvalue_list_to_json(series: &Series) -> Value {
         let json_array: Vec<Value> = series
             .iter()
             .map(|av| match av {
                 AnyValue::Null => Value::Null,
-                AnyValue::Boolean(b) => json!(b),
-                AnyValue::String(s) => json!(s),
-                AnyValue::Int32(i) => json!(i),
-                AnyValue::Int64(i) => json!(i),
-                AnyValue::UInt32(i) => json!(i),
-                AnyValue::UInt64(i) => json!(i),
-                AnyValue::Float32(f) => json!(f),
-                AnyValue::Float64(f) => json!(f),
+                AnyValue::Boolean(b) => b.serialize(Serializer).unwrap(),
+                AnyValue::String(s) => s.serialize(Serializer).unwrap(),
+                AnyValue::Int32(i) => i.serialize(Serializer).unwrap(),
+                AnyValue::Int64(i) => i.serialize(Serializer).unwrap(),
+                AnyValue::UInt32(i) => i.serialize(Serializer).unwrap(),
+                AnyValue::UInt64(i) => i.serialize(Serializer).unwrap(),
+                AnyValue::Float32(f) => f.serialize(Serializer).unwrap(),
+                AnyValue::Float64(f) => f.serialize(Serializer).unwrap(),
                 AnyValue::List(inner_series) => Self::anyvalue_list_to_json(&inner_series), // Recursive call for nested lists
                 _ => panic!("Unsupported AnyValue type"),
             })
@@ -90,19 +74,19 @@ impl<I> DataframeDataset<I> {
         let mut obj = serde_json::Map::new();
         for (field, any_value) in schema.iter_fields().zip(row.0.iter()) {
             let value = match any_value {
-                AnyValue::Null => json!(null),
-                AnyValue::Boolean(v) => json!(v),
-                AnyValue::String(v) => json!(v),
-                AnyValue::Int32(v) => json!(v),
-                AnyValue::Int64(v) => json!(v),
-                AnyValue::UInt32(v) => json!(v),
-                AnyValue::UInt64(v) => json!(v),
-                AnyValue::Float32(v) => json!(v),
-                AnyValue::Float64(v) => json!(v),
-                AnyValue::Date(v) => json!(v),
-                AnyValue::Binary(v) => json!(v),
+                AnyValue::Null => Value::Null,
+                AnyValue::Boolean(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::String(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Int32(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Int64(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::UInt32(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::UInt64(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Float32(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Float64(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Date(v) => v.serialize(Serializer).unwrap(),
+                AnyValue::Binary(v) => v.serialize(Serializer).unwrap(),
                 AnyValue::List(v) => Self::anyvalue_list_to_json(v),
-                _ => json!(null),
+                _ => Value::Null,
             };
             obj.insert(field.name().to_string(), value);
         }
@@ -116,49 +100,14 @@ where
 {
     /// This method will return the row by its index in the format of the struct I
     fn get(&self, index: usize) -> Option<I> {
-        match self.dataframe.get_row(index) { 
-            Ok(row) => {
+        let row = self.dataframe.get_row(index).unwrap();
         let schema = self.dataframe.schema();
-        match Self::check_if_row_is_serializable(&row, &schema) {
-            Ok(check) => {
-                match check {
-                    true => {
-                        match Self::row_to_serde_value(&row, &schema) {
-                            Ok(serialized_row) => {
-                                if let Some(serde_map) = serialized_row.as_object() {
-                                    if let Ok(json_str) = to_string(serde_map) {
-                                        // Deserialize row into generic struct I
-                                        return match serde_json::from_str::<I>(&json_str) {
-                                            Ok(deserialized_row) => Some(deserialized_row),
-                                            Err(e) => {
-                                                println!("An error occurred while \
-                                                        deserializing string into struct: {}", e);
-                                                None
-                                            }
-                                        }
-                                    } else { None }
-                                } else { None }
-                            },
-                            Err(e) => {
-                                println!("An error occurred while serializing Polars dataframe row. Error: {:?}", e);
-                                None
-                            }
-                        }
-                    },
-                    false => { None }
-                }
-            },
-            Err(e) => {
-                println!("An error occurred while checking if a Polars row is serializable: Error: {:?}", e);
-                None
-            }
-        }
-            },
-            Err(e) =>{
-                println!("An error occurred while getting row from polars dataframe. Error: {}", e);
-                None
-            }
-        }
+
+        let serialized_row = Self::row_to_serde_value(&row, &schema).unwrap();
+        let serde_map = serialized_row.as_object().unwrap();
+        let json_str = to_string(serde_map).unwrap();
+        let deserialized_row = serde_json::from_str::<I>(&json_str).unwrap();
+        Some(deserialized_row)
     }
     fn len(&self) -> usize {self.len}
     fn is_empty(&self) -> bool {self.dataframe.is_empty()}
@@ -166,14 +115,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use polars::datatypes::DataType;
+    use polars::prelude::NamedFrom;
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
 
     use crate::Dataset;
 
     use super::*;
-
-    type DataframeSample = DataframeDataset<SampleDf>;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct SampleDf {
@@ -188,7 +137,7 @@ mod tests {
     }
 
     #[fixture]
-    fn train_dataframe() -> DataframeSample {
+    fn ds() -> DataframeDataset<SampleDf> {
         let s_bool = Series::new("bool_column", &[true, false, true]);
         let s_int32 = Series::new("int32_column", &[1, 2, 3]);
         let s_int64 = Series::new("int64_column", &[10i64, 20, 30]);
@@ -207,13 +156,13 @@ mod tests {
     }
 
     #[rstest]
-    fn len(train_dataframe: DataframeSample) {
-        assert_eq!(train_dataframe.len(), 3);
+    fn len(ds: DataframeDataset<SampleDf>) {
+        assert_eq!(ds.len(), 3);
     }
 
     #[rstest]
-    fn get(train_dataframe: DataframeSample) {
-        let item = train_dataframe.get(0).unwrap();
+    fn get(ds: DataframeDataset<SampleDf>) {
+        let item = ds.get(0).unwrap();
         assert_eq!(item.bool_column, true);
         assert_eq!(item.int32_column, 1);
         assert_eq!(item.int64_column, 10i64);
@@ -222,7 +171,7 @@ mod tests {
     }
 
     #[rstest]
-    fn get_none(train_dataframe: DataframeSample) {
-        assert_eq!(train_dataframe.get(10), None);
+    fn get_none(ds: DataframeDataset<SampleDf>) {
+        assert_eq!(ds.get(10), None);
     }
 }
