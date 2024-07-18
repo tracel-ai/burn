@@ -334,6 +334,22 @@ where
         )))
     }
 
+    // /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `scheme` - The quantization scheme.
+    // ///
+    // /// # Returns
+    // ///
+    // /// The quantized tensor.
+    // pub fn quantize_dynamic(self, scheme: QuantizationScheme) -> Tensor<B, D> {
+    //     Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
+    //         self.primitive.tensor(),
+    //         scheme,
+    //     )))
+    // }
+
     /// Convert the tensor back to a higher precision data type.
     ///
     /// If the tensor is not quantized, its value is simply returned.

@@ -12,6 +12,10 @@ pub struct Quantizer<C: Calibration> {
     pub calibration: C,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
+    // TODO: dynamic quant? I think we won't support fully static (with observers to record the values on data samples)
+    // just yet so this is not required.
+    // /// Dynamic quantization computes the quantized parameters at runtime.
+    // pub dynamic: bool,
 }
 
 impl<B: Backend, C: Calibration> ModuleMapper<B> for Quantizer<C> {
@@ -21,3 +25,12 @@ impl<B: Backend, C: Calibration> ModuleMapper<B> for Quantizer<C> {
         tensor.quantize(&self.scheme, qparams)
     }
 }
+
+// /// Describes how to quantize a module by providing quantizer settings for activations and weights respectively.
+// pub struct QuantizationConfig<CW: Calibration> {
+//     // TODO: quantization config
+//     /// The quantizer used to quantize the activations (i.e., a layer's output).
+//     // pub activations: Quantizer<CA>,
+//     /// The quantizer used to quantize the weights.
+//     pub weights: Quantizer<CW>,
+// }

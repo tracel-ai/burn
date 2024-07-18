@@ -115,6 +115,15 @@ where
         NdArrayTensor::new(array)
     }
 
+    pub fn permute<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        axes: [usize; D],
+    ) -> NdArrayTensor<E, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
+
+        NdArrayTensor::new(array)
+    }
+
     /// Broadcasts the tensor to the given shape
     pub(crate) fn expand<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,

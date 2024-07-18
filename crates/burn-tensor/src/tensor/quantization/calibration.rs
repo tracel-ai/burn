@@ -32,3 +32,25 @@ impl Calibration for MinMaxCalibration {
         CalibrationRange { min, max }
     }
 }
+
+// Observers keep a running min/max, so for static quantization this can be computed multiple times w/ representative data to get the "global" min/max
+
+// pub struct PerChannelCalibrationSettings {
+//     pub dtype: QuantizationType,
+//     pub symmetric: bool,
+// }
+
+// For now, we only support static quantization. Since the tensor is dequantized to a float at the first operation, the remaining operations will all be performed on floats anyways.
+// But to test dynamic quantization, just make the first layer use dynamic quantization.
+
+/*
+let q_activation = Quantizer {
+    calibration: MinMaxCalibration {scheme: QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)},
+    dynamic: true,
+};
+let q_weights = Quantizer {
+    calibration: MinMaxCalibration {scheme: QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)},
+    dynamic: false,
+}
+
+*/

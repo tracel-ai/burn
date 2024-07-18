@@ -1,6 +1,6 @@
-use crate::{backend::Backend, Tensor};
+use crate::{backend::Backend, Tensor, TensorPrimitive};
 
-use super::{CalibrationRange, QuantizationParameters};
+use super::{CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive};
 
 /// Quantization data type.
 #[derive(Clone, Debug, PartialEq)]
@@ -64,5 +64,18 @@ impl QuantizationScheme {
                 }
             },
         }
+    }
+
+    /// Compute the quantization parameters.
+    pub(crate) fn compute_q_params_primitive<B: Backend>(
+        &self,
+        min: B::FloatTensorPrimitive<1>,
+        max: B::FloatTensorPrimitive<1>,
+    ) -> QuantizationParametersPrimitive<B> {
+        let range = CalibrationRange {
+            min: Tensor::from_primitive(TensorPrimitive::Float(min)),
+            max: Tensor::from_primitive(TensorPrimitive::Float(max)),
+        };
+        self.compute_q_params(range).into()
     }
 }

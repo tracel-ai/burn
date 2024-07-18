@@ -506,6 +506,14 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchOps::sort(tensor, dim, descending)
     }
 
+    fn float_sort_with_indices<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
+        TchOps::sort_with_indices(tensor, dim, descending)
+    }
+
     fn float_argsort<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
         dim: usize,
