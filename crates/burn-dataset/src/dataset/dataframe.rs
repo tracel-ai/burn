@@ -5,10 +5,9 @@ use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 use polars::frame::row::Row;
 use polars::prelude::*;
-use polars::prelude::LazyFrame;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::{Map, to_string, Value};
+use serde_json::{to_string, Value};
 use serde_json::value::Serializer;
 
 use crate::Dataset;
@@ -110,39 +109,13 @@ where
 {
     /// This method will return the row by its index
     fn get(&self, index: usize) -> Option<I> {
-        match self.dataframe.get_row(index) { 
-            Ok(row) => {
-                let schema = self.dataframe.schema();
-                match Self::row_to_serde_value(&row, &schema) {
-                    Ok(serialized_row) => {
-                        println!("Serialized Row: {}", serialized_row);
-                        if let Some(serde_map) = serialized_row.as_object() {
-                            println!("Serde Map: {:?}", serde_map);
-                            if let Ok(json_str) = to_string(serde_map) {
-                                println!("JSON String: {:?}", json_str);
-                                return match serde_json::from_str::<I>(&json_str) {
-                                    Ok(deserialized_row) => Some(deserialized_row),
-                                    Err(e) => {
-                                        println!("An error occurred while \
-                                        deserializing string into struct: {}", e);
-                                        None
-                                    }
-                                }
-                            } else { None }
-                        } else { None }
-                    },
-                    Err(e) => {
-                        println!("An error occurred while serializing Polars dataframe row. Error: {:?}", e);
-                        None
-                    }
-                }
-                    
-            },
-            Err(e) =>{
-                println!("An error occurred while getting row from polars dataframe. Error: {}", e);
-                None
-            }
-        }
+        let row = self.dataframe.get_row(index).unwrap();
+        let schema = self.dataframe.schema();
+        let serialized_row = Self::row_to_serde_value(&row, &schema).unwrap();
+        let serde_map = serialized_row.as_object().unwrap();
+        let json_str = to_string(serde_map).unwrap();
+        let deserialized_row = serde_json::from_str::<I>(&json_str).unwrap();
+        Some(deserialized_row)
     }
     fn len(&self) -> usize {self.len}
     fn is_empty(&self) -> bool {self.dataframe.is_empty()}
@@ -156,7 +129,6 @@ mod tests {
     use crate::Dataset;
 
     use super::*;
-
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct SampleDf {
