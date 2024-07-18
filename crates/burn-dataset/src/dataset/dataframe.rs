@@ -1,10 +1,12 @@
 use std::io;
 use std::marker::PhantomData;
+
 use polars::frame::DataFrame;
 use polars::frame::row::Row;
 use polars::prelude::*;
-use serde::{de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use serde_json::{json, to_string, Value};
+
 use crate::Dataset;
 
 pub type Result<T> = core::result::Result<T, DataframeDatasetError>;
@@ -112,7 +114,7 @@ impl<I> Dataset<I> for DataframeDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
-    /// This method will return the row by its index
+    /// This method will return the row by its index in the format of the struct I
     fn get(&self, index: usize) -> Option<I> {
         match self.dataframe.get_row(index) { 
             Ok(row) => {
@@ -123,16 +125,18 @@ where
                     true => {
                         match Self::row_to_serde_value(&row, &schema) {
                             Ok(serialized_row) => {
-                                if let Some(deserialized_row) = serialized_row.as_object() {
-                                    let json_str = to_string(deserialized_row).unwrap();
-                                    return match serde_json::from_str(&json_str) {
-                                        Ok(row) => Some(row),
-                                        Err(e) => {
-                                            println!("An error occurred while converting string \
-                                            to serde str: {}", e);
-                                            None
+                                if let Some(serde_map) = serialized_row.as_object() {
+                                    if let Ok(json_str) = to_string(serde_map) {
+                                        // Deserialize row into generic struct I
+                                        return match serde_json::from_str::<I>(&json_str) {
+                                            Ok(deserialized_row) => Some(deserialized_row),
+                                            Err(e) => {
+                                                println!("An error occurred while \
+                                                        deserializing string into struct: {}", e);
+                                                None
+                                            }
                                         }
-                                    }
+                                    } else { None }
                                 } else { None }
                             },
                             Err(e) => {
@@ -162,10 +166,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
+
     use crate::Dataset;
+
+    use super::*;
 
     type DataframeSample = DataframeDataset<SampleDf>;
 
