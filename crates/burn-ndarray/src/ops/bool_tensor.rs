@@ -7,7 +7,7 @@ use core::ops::Range;
 use ndarray::IntoDimension;
 
 // Current crate
-use crate::element::FloatNdArrayElement;
+use crate::element::{FloatNdArrayElement, QuantElement};
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArray};
 
@@ -16,7 +16,7 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E, Q> {
     fn bool_from_data<const D: usize>(
         data: TensorData,
         _device: &NdArrayDevice,

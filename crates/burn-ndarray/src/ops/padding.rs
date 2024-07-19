@@ -1,8 +1,12 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
+use crate::{
+    element::{FloatNdArrayElement, QuantElement},
+    tensor::NdArrayTensor,
+    NdArray,
+};
 use burn_tensor::ops::FloatTensorOps;
 use ndarray::{Array4, Array5};
 
-pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
+pub(crate) fn apply_padding_4d<E: FloatNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E, 4>,
     padding: [usize; 2],
     elem: E,
@@ -18,7 +22,7 @@ pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
     );
     let mut x_new = NdArrayTensor::new(x_new.into_shared().into_dyn());
 
-    x_new = NdArray::float_slice_assign(
+    x_new = NdArray::<E, Q>::float_slice_assign(
         x_new,
         [
             0..batch_size,
@@ -32,7 +36,7 @@ pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
     x_new
 }
 
-pub(crate) fn apply_padding_5d<E: FloatNdArrayElement>(
+pub(crate) fn apply_padding_5d<E: FloatNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E, 5>,
     padding: [usize; 3],
     elem: E,
@@ -55,7 +59,7 @@ pub(crate) fn apply_padding_5d<E: FloatNdArrayElement>(
     );
     let mut x_new = NdArrayTensor::new(x_new.into_shared().into_dyn());
 
-    x_new = NdArray::float_slice_assign(
+    x_new = NdArray::<E, Q>::float_slice_assign(
         x_new,
         [
             0..batch_size,

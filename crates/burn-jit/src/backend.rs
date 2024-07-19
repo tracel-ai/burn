@@ -1,5 +1,6 @@
 use crate::{
-    tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
+    tensor::{JitTensor, QJitTensor},
+    FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
 };
 use burn_compute::server::ComputeServer;
 use burn_tensor::backend::{Backend, SyncType};
@@ -33,8 +34,7 @@ where
     type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
     type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
-    // TODO: implement `JitElement` / `CubeElement` for quantized type
-    type QuantizedTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
+    type QuantizedTensorPrimitive<const D: usize> = QJitTensor<R, D>;
 
     fn name() -> String {
         format!("jit<{}>", R::name())
