@@ -27,7 +27,7 @@ def main():
     model.eval()
     device = torch.device("cpu")
 
-    test_input = torch.randn(3, 4, 1, 5, 1, device=device)
+    test_input = torch.randn(3, 4, 1, 5, device=device)
 
     # Export to ONNX
     torch.onnx.export(model, test_input, "squeeze_opset16.onnx", verbose=False, opset_version=16)
