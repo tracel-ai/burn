@@ -9,10 +9,3 @@ pub use base::*;
 pub use simple::*;
 pub use tune::*;
 pub use utils::*;
-
-#[cfg(feature = "export_tests")]
-#[allow(missing_docs)]
-pub mod padding;
-
-#[cfg(not(feature = "export_tests"))]
-mod padding;

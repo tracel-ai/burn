@@ -56,7 +56,7 @@ fn bench<B: Backend>(
     let m = 1024;
     let k = 1024;
     let n = 1024;
-    let shape_lhs = [batch_size, k, m].into();
+    let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
