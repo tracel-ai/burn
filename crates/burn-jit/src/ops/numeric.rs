@@ -43,7 +43,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     );
 
     full_kernel::launch::<E::Primitive, R>(
-        empty.client.clone(),
+        &empty.client,
         cube_count,
         CubeDim::default(),
         TensorArg::vectorized(

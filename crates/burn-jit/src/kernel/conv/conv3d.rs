@@ -189,7 +189,7 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
     };
 
     conv3d_kernel::launch::<E::FloatPrimitive, R>(
-        input.client,
+        &input.client,
         calculate_cube_count_elemwise(output.shape.num_elements(), SUBCUBE_DIM_APPROX),
         CubeDim::default(),
         TensorArg::new(&input.handle, &input.strides, &input.shape.dims),

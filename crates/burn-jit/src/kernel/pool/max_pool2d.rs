@@ -137,7 +137,11 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandleRef::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandleRef::<R>::new(
+            &x.handle,
+            &x.strides,
+            &x.shape.dims,
+        )])
         .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
@@ -190,7 +194,11 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandleRef::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandleRef::<R>::new(
+            &x.handle,
+            &x.strides,
+            &x.shape.dims,
+        )])
         .outputs(&[
             TensorHandleRef::new(&output.handle, &output.strides, &output.shape.dims),
             TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),

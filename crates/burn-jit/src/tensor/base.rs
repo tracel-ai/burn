@@ -4,11 +4,10 @@ use crate::JitRuntime;
 use burn_tensor::Shape;
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::prelude::*;
+use cubecl::linalg::tensor::{matrix_layout, MatrixLayout, TensorHandle};
+use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
 use std::marker::PhantomData;
-
-use super::layout::{memory_layout, MatrixLayout};
 
 /// The basic tensor primitive struct.
 #[derive(new)]
@@ -28,6 +27,14 @@ where
     /// The strides of the tensor.
     pub strides: [usize; D],
     pub(crate) elem: PhantomData<E>,
+}
+
+impl<R: JitRuntime, E: JitElement, const D: usize> Into<TensorHandle<R, E::Primitive>>
+    for JitTensor<R, E, D>
+{
+    fn into(self) -> TensorHandle<R, E::Primitive> {
+        TensorHandle::new(self.shape.dims.to_vec(), self.strides.to_vec(), self.handle)
+    }
 }
 
 impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
@@ -121,6 +128,15 @@ where
         }
     }
 
+    /// Return the reference to a tensor handle.
+    pub fn as_handle_ref<'a>(&'a self) -> TensorHandleRef<'a, R> {
+        TensorHandleRef {
+            handle: &self.handle,
+            strides: &self.strides,
+            shape: &self.shape.dims,
+        }
+    }
+
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
         if !self.handle.can_mut() {
             return false;
@@ -171,6 +187,6 @@ where
     }
 
     pub(crate) fn matrix_layout(&self) -> MatrixLayout {
-        memory_layout(&self.strides)
+        matrix_layout(&self.strides)
     }
 }

@@ -3,10 +3,7 @@ use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTu
 
 use crate::{
     element::FloatElement,
-    kernel::{
-        matmul::{config::Tiling2dConfig, utils::init_matmul_output},
-        prng::random_like_uniform,
-    },
+    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
@@ -59,32 +56,7 @@ impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperationSet<JitAut
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Tiling2dMatmul::new(lhs.clone(), rhs.clone(), out.clone())),
-            Box::new(Tiling2dMatmulUnrolled::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Tiling2dMatmulPadded::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Tiling2dMatmulPaddedUnrolled::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Tiling2dMatmulCube::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
-            Box::new(Tiling2dMatmulCubeUnrolled::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
+            Box::new(MatmulCube::new(lhs.clone(), rhs.clone(), out.clone())),
         ]
     }
 
@@ -92,16 +64,7 @@ impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperationSet<JitAut
         match fastest_index {
             0 => Box::new(SimpleMatmul::new(self.lhs, self.rhs, self.out)),
             1 => Box::new(SimpleMatmul16x16::new(self.lhs, self.rhs, self.out)),
-            2 => Box::new(Tiling2dMatmul::new(self.lhs, self.rhs, self.out)),
-            3 => Box::new(Tiling2dMatmulUnrolled::new(self.lhs, self.rhs, self.out)),
-            4 => Box::new(Tiling2dMatmulPadded::new(self.lhs, self.rhs, self.out)),
-            5 => Box::new(Tiling2dMatmulPaddedUnrolled::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            6 => Box::new(Tiling2dMatmulCube::new(self.lhs, self.rhs, self.out)),
-            7 => Box::new(Tiling2dMatmulCubeUnrolled::new(
-                self.lhs, self.rhs, self.out,
-            )),
+            2 => Box::new(MatmulCube::new(self.lhs, self.rhs, self.out)),
             _ => panic!("Fastest index is out of bound"),
         }
     }
@@ -164,56 +127,15 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
     crate::kernel::matmul::matmul_simple(lhs, rhs, out, 16, 16)
 });
 
-// Maybe the fastest for transposed inputs, without loop unrolling
-matmul_tune_ops!(Tiling2dMatmul, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, Tiling2dConfig::default())
-});
-
-// Maybe the fastest for transposed inputs, with loop unrolling
-matmul_tune_ops!(Tiling2dMatmulUnrolled, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d(
-        lhs,
-        rhs,
-        out,
-        Tiling2dConfig {
-            unroll: true,
-            ..Default::default()
-        },
-    )
-});
-
-// Maybe the fastest when fixed size, without loop unrolling
-matmul_tune_ops!(Tiling2dMatmulPadded, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, Tiling2dConfig::default())
-});
-
-// Maybe the fastest when fixed sizes, with loop unrolling
-matmul_tune_ops!(Tiling2dMatmulPaddedUnrolled, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d_padded(
-        lhs,
-        rhs,
-        out,
-        Tiling2dConfig {
-            unroll: true,
-            ..Default::default()
-        },
-    )
-});
-
 // Probably the fastest in the general case, without loop unrolling
-matmul_tune_ops!(Tiling2dMatmulCube, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d_cube(lhs, rhs, out, Tiling2dConfig::default())
-});
-
-// Probably the fastest in the general case, with loop unrolling
-matmul_tune_ops!(Tiling2dMatmulCubeUnrolled, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d_cube(
-        lhs,
-        rhs,
-        out,
-        Tiling2dConfig {
-            unroll: true,
-            ..Default::default()
-        },
-    )
-});
+matmul_tune_ops!(
+    MatmulCube,
+    |lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>| {
+        cubecl::linalg::matmul::launch_ref::<R, E::Primitive>(
+            &lhs.client,
+            lhs.as_handle_ref(),
+            rhs.as_handle_ref(),
+            out.as_handle_ref(),
+        );
+    }
+);

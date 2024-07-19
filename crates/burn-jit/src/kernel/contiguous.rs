@@ -88,7 +88,7 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     );
 
     into_contiguous_kernel::launch::<E::Primitive, R>(
-        client,
+        &client,
         cube_count,
         CubeDim::default(),
         TensorArg::vectorized(

@@ -5,8 +5,8 @@ use crate::{
     JitRuntime,
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings, KernelExpansion,
-    KernelIntegrator, KernelSettings,
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings,
+    KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},

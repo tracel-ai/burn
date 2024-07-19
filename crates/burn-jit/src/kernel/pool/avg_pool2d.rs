@@ -101,7 +101,11 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandleRef::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandleRef::<R>::new(
+            &x.handle,
+            &x.strides,
+            &x.shape.dims,
+        )])
         .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,

@@ -117,7 +117,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     };
 
     matmul_kernel::launch::<E::FloatPrimitive, R>(
-        lhs.client,
+        &lhs.client,
         cube_count,
         CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
         TensorArg::vectorized(

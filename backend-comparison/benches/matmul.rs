@@ -29,7 +29,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
-        lhs.clone().transpose().matmul(rhs.clone());
+        lhs.clone().matmul(rhs.clone());
     }
 
     fn prepare(&self) -> Self::Args {
