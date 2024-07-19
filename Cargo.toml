@@ -16,7 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    # "crates/burn-cuda"     # comment this line to work on burn-cuda
+    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -140,11 +140,8 @@ nvml-wrapper = "0.10.0"
 sysinfo = "0.30.12"
 systemstat = "0.2.3"
 
-cubecl = { version = "0.1.0", path = "../cubecl/crates/cubecl" }
-cubecl-common = { version = "0.1.0", path = "../cubecl/crates/cubecl-common" }
-
-# cubecl = { version = "0.1.0", git = "https://github.com/tracel-ai/cubecl" }
-# cubecl-common = { version = "0.1.0", git = "https://github.com/tracel-ai/cubecl" }
+cubecl = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl" }
+cubecl-common = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
