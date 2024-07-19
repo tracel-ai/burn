@@ -1,6 +1,3 @@
-use std::slice::ChunksExact;
-
-use half::f16;
 use onnx_ir::ir::Data as OnnxData;
 use proc_macro2::Ident;
 use proc_macro2::Span;
@@ -226,21 +223,16 @@ impl TensorType {
             TensorType {
                 kind: TensorKind::Float,
                 ..
-            } => quote! {
-                Tensor<B, #dim>
-            },
+            } => quote! { Tensor<B, #dim> },
             TensorType {
                 kind: TensorKind::Int,
                 ..
-            } => quote! {
-                Tensor<B, #dim, Int>
-            },
+            } => quote! { Tensor<B, #dim, Int> },
+
             TensorType {
                 kind: TensorKind::Bool,
                 ..
-            } => quote! {
-                Tensor<B, #dim, Bool>
-            },
+            } => quote! { Tensor<B, #dim, Bool> },
         }
     }
     /// Note on the order of dims:

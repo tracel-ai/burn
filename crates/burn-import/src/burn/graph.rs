@@ -413,19 +413,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut body = quote! {};
 
         if !self.graph_constants.is_empty() {
-            body.extend(quote! {
-                __comment__!("Constants")
-            });
+            // let msg = format!("{}", "Constants");
+            // body.extend(quote! {
+            //     _comment_!(#msg)
+            // });
             self.graph_constants.iter().for_each(|constant| {
                 let ty = constant.ty();
                 let name = &constant.name;
                 body.extend(quote! {
-                    #name: #ty,
+                    #name: burn::module::Param<#ty>,
                 });
             });
-            body.extend(quote! {
-                __comment__!("Nodes")
-            });
+            // let msg = format!("{}", "Nodes");
+            // body.extend(quote! {
+            //     _comment_!(#msg)
+            // });
         }
 
         self.nodes
