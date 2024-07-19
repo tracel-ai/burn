@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-# used to generate model: squeeze.onnx
+# used to generate models: squeeze_opset13.onnx, 
+# squeeze_opset16.onnx, and squeeze_multiple.onnx
 
 import torch
 import onnx
