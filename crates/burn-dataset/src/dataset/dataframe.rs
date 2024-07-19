@@ -7,8 +7,7 @@ use polars::prelude::Schema;
 use polars::series::Series;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::{to_string, Value};
-use serde_json::value::Serializer;
+use serde_json::{Value, value::Serializer};
 
 use crate::Dataset;
 
@@ -64,7 +63,7 @@ impl<I> DataframeDataset<I> {
                 AnyValue::Float32(f) => f.serialize(Serializer).unwrap(),
                 AnyValue::Float64(f) => f.serialize(Serializer).unwrap(),
                 AnyValue::List(inner_series) => Self::anyvalue_list_to_json(&inner_series), // Recursive call for nested lists
-                _ => panic!("Unsupported AnyValue type"),
+                _ => Value::Null,
             })
             .collect();
         Value::Array(json_array)
@@ -102,10 +101,8 @@ where
     fn get(&self, index: usize) -> Option<I> {
         let row = self.dataframe.get_row(index).unwrap();
         let schema = self.dataframe.schema();
-
         let serialized_row = Self::row_to_serde_value(&row, &schema).unwrap();
-        let serde_map = serialized_row.as_object().unwrap();
-        let json_str = to_string(serde_map).unwrap();
+        let json_str = serialized_row.to_string();
         let deserialized_row = serde_json::from_str::<I>(&json_str).unwrap();
         Some(deserialized_row)
     }
