@@ -255,7 +255,6 @@ dependencies = [
  "arboard",
  "burn",
  "burn-common",
- "burn-cuda",
  "burn-wgpu",
  "clap 4.5.9",
  "colored",
@@ -509,20 +508,6 @@ dependencies = [
  "spin",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "burn-cuda"
-version = "0.14.0"
-dependencies = [
- "burn-fusion",
- "burn-jit",
- "burn-tensor",
- "bytemuck",
- "cubecl",
- "derive-new",
- "half",
- "log",
 ]
 
 [[package]]

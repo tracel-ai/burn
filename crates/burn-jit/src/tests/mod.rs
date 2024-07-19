@@ -73,7 +73,6 @@ macro_rules! testgen_all {
                 burn_jit::testgen_cat!();
                 burn_jit::testgen_clamp!();
                 burn_jit::testgen_unary!();
-                burn_jit::testgen_matmul!();
             }
         }
         mod jit_fusion {

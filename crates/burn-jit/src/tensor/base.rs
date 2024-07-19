@@ -29,11 +29,11 @@ where
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> Into<TensorHandle<R, E::Primitive>>
-    for JitTensor<R, E, D>
+impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>>
+    for TensorHandle<R, E::Primitive>
 {
-    fn into(self) -> TensorHandle<R, E::Primitive> {
-        TensorHandle::new(self.shape.dims.to_vec(), self.strides.to_vec(), self.handle)
+    fn from(val: JitTensor<R, E, D>) -> Self {
+        TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
 }
 
@@ -129,7 +129,7 @@ where
     }
 
     /// Return the reference to a tensor handle.
-    pub fn as_handle_ref<'a>(&'a self) -> TensorHandleRef<'a, R> {
+    pub fn as_handle_ref(&self) -> TensorHandleRef<'_, R> {
         TensorHandleRef {
             handle: &self.handle,
             strides: &self.strides,
