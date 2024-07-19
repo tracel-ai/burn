@@ -52,7 +52,8 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
+        ScalarKind, ScalarType, ShapeType, TensorData as CodeGenTensorData, TensorKind, TensorType,
+        Type,
     },
     format_tokens,
     logger::init_log,
@@ -1178,7 +1179,10 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
 
 impl From<&OnnxArgument> for TensorType {
     fn from(arg: &OnnxArgument) -> Self {
-        match &arg.ty {
+        if arg.name.contains("initializer") {
+            println!("{:#?}", arg);
+        }
+        let mut res = match &arg.ty {
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
                 dim,
@@ -1195,7 +1199,11 @@ impl From<&OnnxArgument> for TensorType {
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *dim),
             _ => panic!("Can't transform scalar to tensor."),
-        }
+        };
+        if arg.value.is_some() {
+            res.val = Some(CodeGenTensorData::from(arg.value.clone().unwrap()));
+        };
+        res
     }
 }
 impl From<&OnnxArgument> for Type {

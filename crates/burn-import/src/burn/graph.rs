@@ -413,10 +413,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut body = quote! {};
 
         if !self.graph_constants.is_empty() {
-            // let msg = format!("{}", "Constants");
-            // body.extend(quote! {
-            //     _comment_!(#msg)
-            // });
             self.graph_constants.iter().for_each(|constant| {
                 let ty = constant.ty();
                 let name = &constant.name;
@@ -424,10 +420,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     #name: burn::module::Param<#ty>,
                 });
             });
-            // let msg = format!("{}", "Nodes");
-            // body.extend(quote! {
-            //     _comment_!(#msg)
-            // });
         }
 
         self.nodes
@@ -471,22 +463,25 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
-        // if !self.graph_constants.is_empty() {
-        //     self.graph_constants.iter().for_each(|constant| {
-        //         let name = &constant.name;
-        //         let ty = constant.ty();
-        //         body.extend(quote! {
-        //             // just realized tensor values aren't stored
-        //             let #name =
-        //         });
-        //     });
-        // }
-        let fields = self
-            .nodes
-            .iter()
-            .flat_map(|node| node.field_type())
-            .map(|field| field.name().clone())
-            .collect::<Vec<_>>();
+        let mut fields = Vec::new();
+        if !self.graph_constants.is_empty() {
+            fields.extend(self.graph_constants.iter().map(|constant| {
+                let name = &constant.name;
+                let val = constant.val();
+                body.extend(quote! {
+
+                    let #name = #val;
+                });
+                name.clone()
+            }));
+        }
+        fields.extend(
+            self.nodes
+                .iter()
+                .flat_map(|node| node.field_type())
+                .map(|field| field.name().clone())
+                .collect::<Vec<_>>(),
+        );
 
         quote! {
             #[allow(unused_variables)]
