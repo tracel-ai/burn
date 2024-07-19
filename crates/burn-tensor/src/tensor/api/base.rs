@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{Element, TensorPrimitive};
+use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -589,13 +589,14 @@ where
     /// # Behavior
     ///
     /// - Supports partial and full slicing in any number of dimensions.
+    /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
     /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
     ///
     /// # Panics
     ///
-    /// - If the number of ranges provided doesn't match the tensor's dimensions.
+    /// - If the number of ranges provided exceeds the tensor's dimensions.
     /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
     ///
     /// # Examples
@@ -1686,10 +1687,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_shape(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
         }
     }
 
@@ -1697,7 +1695,12 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        TensorPrimitive::Float(B::float_reshape(tensor.tensor(), shape))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_reshape(tensor, shape))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_reshape(tensor, shape)),
+        }
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
@@ -1735,10 +1738,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_device(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
@@ -1750,11 +1750,17 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
-        B::float_into_data(tensor.tensor()).await
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
+            TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
+        }
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_from_data(data, device))
+        match data.dtype {
+            DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
+            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+        }
     }
 
     fn repeat<const D: usize>(

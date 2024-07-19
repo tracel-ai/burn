@@ -1,5 +1,6 @@
 use crate::{
     client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
+    QFusionTensor,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps, SyncType},
@@ -37,7 +38,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
-    type QuantizedTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type QuantizedTensorPrimitive<const D: usize> = QFusionTensor<B::FusionRuntime>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())

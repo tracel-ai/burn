@@ -307,7 +307,7 @@ Those operations are only available for `Float` tensors on backends that impleme
 
 | Burn API                             | PyTorch Equivalent              |
 | ------------------------------------ | ------------------------------- |
-| `tensor.quantize(strategy)`          | N/A                             |
+| `tensor.quantize(scheme, qparams)`   | N/A                             |
 | `tensor.dequantize()`                | N/A                             |
 
 ## Activation Functions

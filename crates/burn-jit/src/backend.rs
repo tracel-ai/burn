@@ -1,4 +1,7 @@
-use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime, PrecisionBridge};
+use crate::{
+    tensor::{JitTensor, QJitTensor},
+    FloatElement, IntElement, JitRuntime, PrecisionBridge,
+};
 use burn_tensor::backend::{Backend, DeviceOps, SyncType};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
@@ -31,8 +34,7 @@ where
     type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
     type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
-    // TODO: implement `JitElement` / `CubeElement` for quantized type
-    type QuantizedTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
+    type QuantizedTensorPrimitive<const D: usize> = QJitTensor<R, D>;
 
     fn name() -> String {
         format!("jit<{}>", R::name())

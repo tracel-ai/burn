@@ -1,8 +1,10 @@
+use super::{init_matmul_output, matmul_simple};
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::prelude::*;
 
-use super::{init_matmul_output, matmul_autotune, matmul_simple};
+#[cfg(feature = "autotune")]
+use super::matmul_autotune;
 
 /// The strategy to be used when launching a matmul kernel.
 pub enum MatmulStrategy {
@@ -20,10 +22,13 @@ pub enum MatmulStrategy {
     Cube,
 }
 
-#[allow(clippy::derivable_impls)] // Necessary otherwise the feature flags dont' work.
-#[cfg(feature = "autotune")]
 impl Default for MatmulStrategy {
     fn default() -> Self {
+        // if autotune is enabled, default to autotune
+        #[cfg(feature = "autotune")]
+        return MatmulStrategy::Autotune;
+
+        #[cfg(not(feature = "autotune"))]
         MatmulStrategy::Cube
     }
 }

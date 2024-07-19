@@ -67,13 +67,13 @@ jobs:
       matrix:
         os: [blaze/macos-14, ubuntu-22.04, windows-2022]
         # We support both the latest Rust toolchain and the preceding version.
-        rust: [stable, 1.75.0]
+        rust: [stable, 1.79.0]
         test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
             rust: stable
-          - cache: 1-75-0
-            rust: 1.75.0
+          - cache: 1-79-0
+            rust: 1.79.0
           - os: ubuntu-22.04
             coverage-flags: COVERAGE=1
             rust: stable
@@ -88,7 +88,7 @@ jobs:
             # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
         exclude:
           # only need to check this once
-          - rust: 1.75.0
+          - rust: 1.79.0
             test: 'examples'
           # Do not run no-std tests on macos
           - os: blaze/macos-14

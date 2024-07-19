@@ -1,4 +1,4 @@
-use crate::{backend::Backend, QuantizationStrategy};
+use crate::backend::Backend;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -18,19 +18,14 @@ pub enum TensorPrimitive<B: Backend, const D: usize> {
     /// Float tensor primitive.
     Float(B::FloatTensorPrimitive<D>),
     /// Quantized float tensor primitive.
-    QFloat {
-        /// The underlying quantized tensor.
-        tensor: B::QuantizedTensorPrimitive<D>,
-        /// The tensor quantization strategy.
-        strategy: QuantizationStrategy,
-    },
+    QFloat(B::QuantizedTensorPrimitive<D>),
 }
 
 impl<B: Backend, const D: usize> TensorPrimitive<B, D> {
     /// Returns the full tensor representation.
     pub fn tensor(self) -> B::FloatTensorPrimitive<D> {
         match self {
-            Self::QFloat { tensor, strategy } => B::dequantize(tensor, &strategy),
+            Self::QFloat(tensor) => B::dequantize(tensor),
             Self::Float(tensor) => tensor,
         }
     }

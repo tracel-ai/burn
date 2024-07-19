@@ -18,7 +18,9 @@ burn = { path = "../../crates/burn", version = "0.14.0", default-features = fals
     "ndarray",
 ] }
 cubecl = { workspace = true, features = ["wgpu"] }
-burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", default-features = false }
+burn-wgpu = { path = "../../crates/burn-wgpu", version = "0.14.0", default-features = false, features = [
+    "autotune",
+] }
 burn-candle = { path = "../../crates/burn-candle", version = "0.14.0", default-features = false }
 
 log = { workspace = true }
