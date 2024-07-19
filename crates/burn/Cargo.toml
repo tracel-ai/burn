@@ -9,7 +9,7 @@ name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
 version.workspace = true
-rust-version = "1.75"
+rust-version = "1.79"
 
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]

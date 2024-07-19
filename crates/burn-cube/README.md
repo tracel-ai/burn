@@ -4,7 +4,7 @@
 <br />
 <br />
 
-[![Rust Version](https://img.shields.io/badge/Rust-1.75.0+-blue)](https://releases.rs/docs/1.75.0)
+[![Rust Version](https://img.shields.io/badge/Rust-1.79.0+-blue)](https://releases.rs/docs/1.79.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---

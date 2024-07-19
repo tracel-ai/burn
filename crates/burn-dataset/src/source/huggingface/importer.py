@@ -6,7 +6,14 @@ from sqlalchemy import Column, Integer, Table, create_engine, event, inspect
 from sqlalchemy.types import LargeBinary
 
 
-def download_and_export(name: str, subset: str, db_file: str, token: str, cache_dir: str):
+def download_and_export(
+    name: str,
+    subset: str,
+    db_file: str,
+    token: str,
+    cache_dir: str,
+    trust_remote_code: bool,
+):
     """
     Download a dataset from using HuggingFace dataset and export it to a sqlite database.
     """
@@ -15,18 +22,24 @@ def download_and_export(name: str, subset: str, db_file: str, token: str, cache_
     # bytes can be none {'bytes': None, 'path': 'healthy_train.265.jpg'}
     # We should handle this case, but unfortunately we did not come across this case yet to test it.
 
-    print("*"*80)
+    print("*" * 80)
     print("Starting huggingface dataset download and export")
     print(f"Dataset Name: {name}")
     print(f"Subset Name: {subset}")
     print(f"Sqlite database file: {db_file}")
+    print(f"Trust remote code: {trust_remote_code}")
     if cache_dir is None:
         print(f"Custom cache dir: {cache_dir}")
-    print("*"*80)
+    print("*" * 80)
 
     # Load the dataset
     dataset_all = load_dataset(
-        name, subset, cache_dir=cache_dir, use_auth_token=token)
+        name,
+        subset,
+        cache_dir=cache_dir,
+        use_auth_token=token,
+        trust_remote_code=trust_remote_code,
+    )
 
     print(f"Dataset: {dataset_all}")
 
@@ -34,10 +47,10 @@ def download_and_export(name: str, subset: str, db_file: str, token: str, cache_
     engine = create_engine(f"sqlite:///{db_file}")
 
     # Set some sqlite pragmas to speed up the database
-    event.listen(engine, 'connect', set_sqlite_pragma)
+    event.listen(engine, "connect", set_sqlite_pragma)
 
     # Add an row_id column to each table as primary key (datasets does not have API for this)
-    event.listen(Table, 'before_create', add_pk_column)
+    event.listen(Table, "before_create", add_pk_column)
 
     # Export each split in the dataset
     for key in dataset_all.keys():
@@ -61,7 +74,7 @@ def download_and_export(name: str, subset: str, db_file: str, token: str, cache_
             engine,
             # don't save the index, use row_id instead (index is not unique)
             index=False,
-            dtype=blob_columns(dataset),   # save binary columns as blob
+            dtype=blob_columns(dataset),  # save binary columns as blob
         )
 
     # Print the schema of the database so we can reference the columns in the rust code
@@ -89,8 +102,8 @@ def rename_columns(dataset):
     """
 
     for name in dataset.features.keys():
-        if '.' in name:
-            dataset = dataset.rename_column(name, name.replace('.', '_'))
+        if "." in name:
+            dataset = dataset.rename_column(name, name.replace(".", "_"))
 
     return dataset
 
@@ -151,10 +164,21 @@ def parse_args():
         "--subset", type=str, help="Subset name", required=False, default=None
     )
     parser.add_argument(
-        "--token", type=str, help="HuggingFace authentication token", required=False, default=None
+        "--token",
+        type=str,
+        help="HuggingFace authentication token",
+        required=False,
+        default=None,
     )
     parser.add_argument(
         "--cache_dir", type=str, help="Cache directory", required=False, default=None
+    )
+    parser.add_argument(
+        "--trust_remote_code",
+        type=bool,
+        help="Trust remote code",
+        required=False,
+        default=None,
     )
 
     return parser.parse_args()
@@ -169,6 +193,7 @@ def run():
         args.file,
         args.token,
         args.cache_dir,
+        args.trust_remote_code,
     )
 
 
