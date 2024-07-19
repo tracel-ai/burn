@@ -8,10 +8,11 @@ import torch.nn as nn
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
+        self.dims = 2
 
     def forward(self, x):
         # With no second argument, squeeze removes all singleton dimensions
-        x = torch.squeeze(x)
+        x = torch.squeeze(x, self.dims)
         return x
 
 
