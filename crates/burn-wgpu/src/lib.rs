@@ -10,10 +10,10 @@ pub use burn_jit::{
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 pub use burn_jit::{FloatElement, IntElement};
 pub use cubecl::ir::CubeDim;
-pub use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
+pub use cubecl::wgpu::*;
 
 #[cfg(feature = "fusion")]
-/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+/// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan] on Linux, Windows, and Android.
@@ -39,7 +39,7 @@ pub use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
 ///
 /// # Notes
 ///
-/// This version of the [wgpu] backend uses [burn_fusion] to compile and optimize streams of tensor
+/// This version of the wgpu backend uses [burn_fusion] to compile and optimize streams of tensor
 /// operations for improved performance.
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
@@ -47,7 +47,7 @@ pub use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
 pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
-/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+/// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan] on Linux, Windows, and Android.
@@ -73,7 +73,7 @@ pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::W
 ///
 /// # Notes
 ///
-/// This version of the [wgpu] backend doesn't use [burn_fusion] to compile and optimize streams of tensor
+/// This version of the wgpu backend doesn't use [burn_fusion] to compile and optimize streams of tensor
 /// operations.
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
