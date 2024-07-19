@@ -1,96 +1,68 @@
 use std::marker::PhantomData;
 
 use polars::datatypes::AnyValue;
-use polars::frame::DataFrame;
 use polars::frame::row::Row;
-use polars::prelude::Schema;
-use polars::series::Series;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use serde_json::{to_string, Value};
-use serde_json::value::Serializer;
+use polars::frame::DataFrame;
+use serde::{
+    de::{self, DeserializeOwned, Deserializer, SeqAccess, Visitor},
+    forward_to_deserialize_any, Deserialize,
+};
 
 use crate::Dataset;
 
-pub type Result<T> = core::result::Result<T, DataframeDatasetError>;
+type Result<T> = core::result::Result<T, DataframeDatasetError>;
 
-/// Custom error type for DataframeDataset type
+/// Error type for DataframeDataset
 #[derive(thiserror::Error, Debug)]
 pub enum DataframeDatasetError {
-    /// Any other error.
+    /// Error occurred during deserialization
     #[error("{0}")]
-    Other(&'static str),
+    Other(String),
 }
 
-impl From<&'static str> for DataframeDatasetError {
-    fn from(s: &'static str) -> Self {
-        DataframeDatasetError::Other(s)
+impl de::Error for DataframeDatasetError {
+    fn custom<T: std::fmt::Display>(msg: T) -> Self {
+        DataframeDatasetError::Other(msg.to_string())
     }
 }
-/// A struct that is used to hold a polars dataframe.
-/// each instance of this struct will represent a single polars dataframe.
-/// this struct provides basic Dataset functionality to a polars dataframe, so that they are able
-/// to natively be used for training/validation.
-/// Currently there is no native way to deserialize a polars row, so a trial and error approach
-/// has been taken. This could very well change in the future.
+
+/// Dataset implementation for Polars DataFrame
 #[derive(Debug)]
 pub struct DataframeDataset<I> {
     dataframe: DataFrame,
     len: usize,
+    column_name_mapping: Vec<usize>,
     phantom: PhantomData<I>,
 }
 
-impl<I> DataframeDataset<I> {
-    /// Initialise a DataframeDataset from a polars dataframe
+impl<I> DataframeDataset<I>
+where
+    I: Clone + Send + Sync + DeserializeOwned,
+{
+    // TODO from Lazy frame
+
+    /// Create a new DataframeDataset from a Polars DataFrame
     pub fn from_dataframe(df: DataFrame) -> Result<Self> {
         let len = df.height();
+
+        let field_names = extract_field_names::<I>();
+
+        let column_name_mapping = field_names
+            .iter()
+            .map(|name| {
+                df.schema()
+                    .try_get_full(name)
+                    .expect("Corresponding column should exist in the DataFrame")
+                    .0
+            })
+            .collect::<Vec<_>>();
+
         Ok(DataframeDataset {
             dataframe: df,
             len,
+            column_name_mapping,
             phantom: PhantomData,
         })
-    }
-    fn anyvalue_list_to_json(series: &Series) -> Value {
-        let json_array: Vec<Value> = series
-            .iter()
-            .map(|av| match av {
-                AnyValue::Null => Value::Null,
-                AnyValue::Boolean(b) => b.serialize(Serializer).unwrap(),
-                AnyValue::String(s) => s.serialize(Serializer).unwrap(),
-                AnyValue::Int32(i) => i.serialize(Serializer).unwrap(),
-                AnyValue::Int64(i) => i.serialize(Serializer).unwrap(),
-                AnyValue::UInt32(i) => i.serialize(Serializer).unwrap(),
-                AnyValue::UInt64(i) => i.serialize(Serializer).unwrap(),
-                AnyValue::Float32(f) => f.serialize(Serializer).unwrap(),
-                AnyValue::Float64(f) => f.serialize(Serializer).unwrap(),
-                AnyValue::List(inner_series) => Self::anyvalue_list_to_json(&inner_series), // Recursive call for nested lists
-                _ => panic!("Unsupported AnyValue type"),
-            })
-            .collect();
-        Value::Array(json_array)
-    }
-
-    fn row_to_serde_value(row: &Row, schema: &Schema) -> Result<Value> {
-        let mut obj = serde_json::Map::new();
-        for (field, any_value) in schema.iter_fields().zip(row.0.iter()) {
-            let value = match any_value {
-                AnyValue::Null => Value::Null,
-                AnyValue::Boolean(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::String(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Int32(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Int64(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::UInt32(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::UInt64(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Float32(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Float64(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Date(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::Binary(v) => v.serialize(Serializer).unwrap(),
-                AnyValue::List(v) => Self::anyvalue_list_to_json(v),
-                _ => Value::Null,
-            };
-            obj.insert(field.name().to_string(), value);
-        }
-        Ok(Value::Object(obj))
     }
 }
 
@@ -98,80 +70,200 @@ impl<I> Dataset<I> for DataframeDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
-    /// This method will return the row by its index in the format of the struct I
     fn get(&self, index: usize) -> Option<I> {
-        let row = self.dataframe.get_row(index).unwrap();
-        let schema = self.dataframe.schema();
+        let row = self.dataframe.get_row(index).ok()?;
 
-        let serialized_row = Self::row_to_serde_value(&row, &schema).unwrap();
-        let serde_map = serialized_row.as_object().unwrap();
-        let json_str = to_string(serde_map).unwrap();
-        let deserialized_row = serde_json::from_str::<I>(&json_str).unwrap();
-        Some(deserialized_row)
+        let mut deserializer = RowDeserializer::new(&row, &self.column_name_mapping);
+        I::deserialize(&mut deserializer).ok()
     }
-    fn len(&self) -> usize {self.len}
-    fn is_empty(&self) -> bool {self.dataframe.is_empty()}
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dataframe.is_empty()
+    }
+}
+
+struct RowDeserializer<'a> {
+    row: &'a Row<'a>,
+    column_name_mapping: &'a Vec<usize>,
+    index: usize,
+}
+
+impl<'a> RowDeserializer<'a> {
+    fn new(
+        row: &'a Row, //schema: &'a Schema,
+        column_name_mapping: &'a Vec<usize>,
+    ) -> RowDeserializer<'a> {
+        RowDeserializer {
+            row,
+            column_name_mapping,
+            index: 0,
+        }
+    }
+}
+
+impl<'de, 'a> Deserializer<'de> for &'a mut RowDeserializer<'a> {
+    type Error = DataframeDatasetError;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        let i = self.column_name_mapping[self.index];
+
+        let value = &self.row.0[i];
+
+        match value {
+            AnyValue::Null => visitor.visit_none(),
+            AnyValue::Boolean(b) => visitor.visit_bool(*b),
+            AnyValue::Int32(i) => visitor.visit_i32(*i),
+            AnyValue::Int64(i) => visitor.visit_i64(*i),
+            AnyValue::UInt32(i) => visitor.visit_u32(*i),
+            AnyValue::UInt64(i) => visitor.visit_u64(*i),
+            AnyValue::Float32(f) => visitor.visit_f32(*f),
+            AnyValue::Float64(f) => visitor.visit_f64(*f),
+            AnyValue::String(s) => visitor.visit_string(s.to_string()),
+            // TODO: implement other types
+            _ => Err(DataframeDatasetError::Other("Unsupported type".to_string())),
+        }
+    }
+
+    fn deserialize_struct<V>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(self)
+    }
+
+    // Forward other methods to deserialize_any
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map enum identifier ignored_any
+    }
+}
+
+impl<'de, 'a> SeqAccess<'de> for RowDeserializer<'a> {
+    type Error = DataframeDatasetError;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if self.index >= self.row.0.len() {
+            return Ok(None);
+        }
+        let mut deserializer = RowDeserializer {
+            row: self.row,
+            // schema: self.schema,
+            column_name_mapping: self.column_name_mapping,
+            index: self.index,
+        };
+        self.index += 1;
+        seed.deserialize(&mut deserializer).map(Some)
+    }
+}
+
+fn extract_field_names<'de, T>() -> Vec<&'static str>
+where
+    T: Deserialize<'de>,
+{
+    struct FieldExtractor {
+        fields: Vec<&'static str>,
+    }
+
+    impl<'de> Deserializer<'de> for &mut FieldExtractor {
+        type Error = de::value::Error;
+
+        fn deserialize_any<V>(self, _visitor: V) -> core::result::Result<V::Value, Self::Error>
+        where
+            V: Visitor<'de>,
+        {
+            Err(de::Error::custom("Field extractor"))
+        }
+
+        fn deserialize_struct<V>(
+            self,
+            _name: &'static str,
+            fields: &'static [&'static str],
+            _visitor: V,
+        ) -> core::result::Result<V::Value, Self::Error>
+        where
+            V: Visitor<'de>,
+        {
+            self.fields.extend_from_slice(fields);
+            Err(de::Error::custom("Field extractor"))
+        }
+
+        serde::forward_to_deserialize_any! {
+            bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
+            byte_buf option unit unit_struct newtype_struct seq tuple
+            tuple_struct map enum identifier ignored_any
+        }
+    }
+
+    let mut extractor = FieldExtractor { fields: Vec::new() };
+    let _ = T::deserialize(&mut extractor);
+    extractor.fields
 }
 
 #[cfg(test)]
 mod tests {
-    use polars::datatypes::DataType;
-    use polars::prelude::NamedFrom;
-    use rstest::{fixture, rstest};
-    use serde::{Deserialize, Serialize};
-
-    use crate::Dataset;
-
     use super::*;
+    use polars::prelude::*;
+    use serde::Deserialize;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-    pub struct SampleDf {
-        bool_column: bool,
-        int32_column: i32,
-        int64_column: i64,
-        uint32_column: u32,
-        uint64_column: u64,
-        float32_column: f32,
-        float64_column: f64,
-        utf8_column: String,
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    struct TestData {
+        a: i32,
+        b: bool,
+        c: f64,
     }
 
-    #[fixture]
-    fn ds() -> DataframeDataset<SampleDf> {
-        let s_bool = Series::new("bool_column", &[true, false, true]);
-        let s_int32 = Series::new("int32_column", &[1, 2, 3]);
-        let s_int64 = Series::new("int64_column", &[10i64, 20, 30]);
-        let s_uint32 = Series::new("uint32_column", &[100u32, 200, 300]);
-        let s_uint64 = Series::new("uint64_column", &[1000u64, 2000, 3000]);
-        let s_float32 = Series::new("float32_column", &[1.1f32, 2.2, 3.3]);
-        let s_float64 = Series::new("float64_column", &[10.1f64, 20.2, 30.3]);
-        let s_utf8 = Series::new("utf8_column", &["a", "b", "c"]);
-        let s_date = Series::new("date_column", &[1, 2, 3]).cast(&DataType::Date).unwrap();
-
-        let df = DataFrame::new(vec![
-            s_bool, s_int32, s_int64, s_uint32, s_uint64,
-            s_float32, s_float64, s_utf8, s_date,
-        ]).unwrap();
-        DataframeDataset::<SampleDf>::from_dataframe(df).unwrap()
+    fn create_test_dataframe() -> DataFrame {
+        let s0 = Series::new("a", &[1, 2, 3]);
+        let s1 = Series::new("b", &[true, false, true]);
+        let s2 = Series::new("c", &[1.1, 2.2, 3.3]);
+        let s3 = Series::new("d", &["Boo", "Boo2", "Boo3"]);
+        DataFrame::new(vec![s1, s2, s0, s3]).unwrap()
     }
 
-    #[rstest]
-    fn len(ds: DataframeDataset<SampleDf>) {
-        assert_eq!(ds.len(), 3);
+    #[test]
+    fn test_dataframe_dataset() {
+        let df = create_test_dataframe();
+        let dataset: DataframeDataset<TestData> = DataframeDataset::from_dataframe(df).unwrap();
+
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.is_empty(), false);
+
+        let item = dataset.get(1).unwrap();
+        assert_eq!(
+            item,
+            TestData {
+                a: 2,
+                b: false,
+                c: 2.2
+            }
+        );
+
+        let item = dataset.get(2).unwrap();
+        assert_eq!(
+            item,
+            TestData {
+                a: 3,
+                b: true,
+                c: 3.3
+            }
+        );
     }
 
-    #[rstest]
-    fn get(ds: DataframeDataset<SampleDf>) {
-        let item = ds.get(0).unwrap();
-        assert_eq!(item.bool_column, true);
-        assert_eq!(item.int32_column, 1);
-        assert_eq!(item.int64_column, 10i64);
-        assert_eq!(item.utf8_column, "a".to_string());
-        assert_eq!(item.float32_column, 1.1f32);
-    }
-
-    #[rstest]
-    fn get_none(ds: DataframeDataset<SampleDf>) {
-        assert_eq!(ds.get(10), None);
-    }
+    // TODO test non existing struct fields
 }
