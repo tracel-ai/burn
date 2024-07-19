@@ -9,6 +9,37 @@ use crate::{
 
 use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
 
+/// Automatically applies dequantization -> float operation -> quantization.
+#[macro_export]
+macro_rules! dequant_op_quant {
+    // Binary tensor float op w/ lhs & rhs
+    (
+        ty $ty:ty, float_op $float_op:expr, $t1:expr, $t2:expr
+    ) => {{
+        // Heuristic: prioritize lhs scheme
+        let scheme = $t1.scheme().clone();
+
+        let t1_f = <$ty>::dequantize($t1);
+        let t2_f = <$ty>::dequantize($t2);
+        #[allow(clippy::redundant_closure_call)]
+        let out_f = $float_op(t1_f, t2_f);
+
+        <$ty>::quantize_dynamic(out_f, &scheme)
+    }};
+    // Unary tensor float op
+    (
+        ty $ty:ty, float_op $float_op:expr, $tensor:expr
+    ) => {{
+        let scheme = $tensor.scheme().clone();
+
+        let tensor_f = <$ty>::dequantize($tensor);
+        #[allow(clippy::redundant_closure_call)]
+        let out_f = $float_op(tensor_f);
+
+        <$ty>::quantize_dynamic(out_f, &scheme)
+    }};
+}
+
 /// Quantized Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
 pub trait QTensorOps<B: Backend> {
@@ -146,14 +177,13 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        // Heuristic: prioritize lhs scheme
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let rhs_f = Self::dequantize(rhs);
-        let out_f = B::float_add(lhs_f, rhs_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        // dequant_op_quant!(Self, B::float_add, lhs, rhs)
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_add(lhs, rhs),
+            lhs,
+            rhs
+        )
     }
 
     /// Adds a scalar to a tensor.
@@ -260,14 +290,13 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        // Heuristic: prioritize lhs scheme
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let rhs_f = Self::dequantize(rhs);
-        let out_f = B::float_sub(lhs_f, rhs_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        // dequant_op_quant!(Self, B::float_sub, lhs, rhs)
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_sub(lhs, rhs),
+            lhs,
+            rhs
+        )
     }
 
     /// Subtracts a scalar from a tensor.
@@ -297,14 +326,13 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        // Heuristic: prioritize lhs scheme
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let rhs_f = Self::dequantize(rhs);
-        let out_f = B::float_mul(lhs_f, rhs_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        // dequant_op_quant!(Self, B::float_mul, lhs, rhs)
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_mul(lhs, rhs),
+            lhs,
+            rhs
+        )
     }
 
     /// Multiplies a tensor by a scalar.
@@ -343,14 +371,13 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        // Heuristic: prioritize lhs scheme
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let rhs_f = Self::dequantize(rhs);
-        let out_f = B::float_div(lhs_f, rhs_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        // dequant_op_quant!(Self, B::float_div, lhs, rhs)
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_div(lhs, rhs),
+            lhs,
+            rhs
+        )
     }
 
     /// Divides a tensor by a scalar.
@@ -410,14 +437,13 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        // Heuristic: prioritize lhs scheme
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let rhs_f = Self::dequantize(rhs);
-        let out_f = B::float_matmul(lhs_f, rhs_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        // dequant_op_quant!(Self, B::float_matmul, lhs, rhs)
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_matmul(lhs, rhs),
+            lhs,
+            rhs
+        )
     }
 
     /// Negates a tensor element-wise.
@@ -532,13 +558,12 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B, D>,
         value: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let value_f = Self::dequantize(value);
-        let out_f = B::float_scatter(dim, tensor_f, indices, value_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor, value| B::float_scatter(dim, tensor, indices, value),
+            tensor,
+            value
+        )
     }
 
     /// Select tensor elements along the given dimension corresponding for the given indices.
@@ -577,13 +602,12 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B, 1>,
         value: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let value_f = Self::dequantize(value);
-        let out_f = B::float_select_assign(tensor_f, dim, indices, value_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor, value| B::float_select_assign(tensor, dim, indices, value),
+            tensor,
+            value
+        )
     }
 
     /// Select tensor elements corresponding for the given ranges.
@@ -617,13 +641,12 @@ pub trait QTensorOps<B: Backend> {
         ranges: [Range<usize>; D2],
         value: QuantizedTensor<B, D1>,
     ) -> QuantizedTensor<B, D1> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let value_f = Self::dequantize(value);
-        let out_f = B::float_slice_assign(tensor_f, ranges, value_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor, value| B::float_slice_assign(tensor, ranges, value),
+            tensor,
+            value
+        )
     }
 
     /// Update the given tensor with the value tensor where the mask is true.
@@ -642,13 +665,12 @@ pub trait QTensorOps<B: Backend> {
         mask: BoolTensor<B, D>,
         value: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let value_f = Self::dequantize(value);
-        let out_f = B::float_mask_where(tensor_f, mask, value_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor, value| B::float_mask_where(tensor, mask, value),
+            tensor,
+            value
+        )
     }
 
     /// Update the given tensor with the value where the mask is true.
@@ -667,12 +689,11 @@ pub trait QTensorOps<B: Backend> {
         mask: BoolTensor<B, D>,
         value: FloatElem<B>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_mask_fill(tensor_f, mask, value);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_mask_fill(tensor, mask, value),
+            tensor
+        )
     }
 
     /// Equal comparison of two tensors.
@@ -919,12 +940,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A scalar tensor with the sum of all elements in `tensor`.
     fn q_sum<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, 1> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_sum(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sum(tensor),
+            tensor
+        )
     }
 
     /// Sum of all elements in a tensor along a dimension.
@@ -941,12 +961,11 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B, D>,
         dim: usize,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_sum_dim(tensor_f, dim);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sum_dim(tensor, dim),
+            tensor
+        )
     }
 
     /// Product of all elements in a tensor.
@@ -959,12 +978,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A scalar tensor with the product of all elements in `tensor`.
     fn q_prod<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, 1> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_prod(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_prod(tensor),
+            tensor
+        )
     }
 
     /// Product of all elements in a tensor along a dimension.
@@ -980,12 +998,11 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B, D>,
         dim: usize,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_prod_dim(tensor_f, dim);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_prod_dim(tensor, dim),
+            tensor
+        )
     }
 
     /// Mean of all elements in a tensor.
@@ -998,12 +1015,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A scalar tensor with the mean of all elements in `tensor`.
     fn q_mean<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, 1> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_mean(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_mean(tensor),
+            tensor
+        )
     }
 
     /// Mean of all elements in a tensor along a dimension.
@@ -1020,12 +1036,11 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B, D>,
         dim: usize,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_mean_dim(tensor_f, dim);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_mean_dim(tensor, dim),
+            tensor
+        )
     }
 
     /// Returns a new tensor with exponential values.
@@ -1038,12 +1053,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with exponential values.
     fn q_exp<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_exp(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_exp(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with natural logarithm values.
@@ -1056,12 +1070,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with natural logarithm values.
     fn q_log<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_log(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_log(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with logarithm values of (1 + Xi).
@@ -1074,12 +1087,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
     fn q_log1p<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_log1p(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_log1p(tensor),
+            tensor
+        )
     }
 
     /// Element-wise power with a FloatTensor.
@@ -1096,12 +1108,11 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: FloatTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let out_f = B::float_powf(lhs_f, rhs);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_powf(tensor, rhs),
+            lhs
+        )
     }
 
     /// Element-wise power with an IntTensor.
@@ -1118,12 +1129,11 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: IntTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let out_f = B::float_powi(lhs_f, rhs);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_powi(tensor, rhs),
+            lhs
+        )
     }
 
     /// Element-wise power with an int scalar.
@@ -1140,12 +1150,11 @@ pub trait QTensorOps<B: Backend> {
         lhs: QuantizedTensor<B, D>,
         rhs: IntElem<B>,
     ) -> QuantizedTensor<B, D> {
-        let scheme = lhs.scheme().clone();
-
-        let lhs_f = Self::dequantize(lhs);
-        let out_f = B::float_powi_scalar(lhs_f, rhs);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_powi_scalar(tensor, rhs),
+            lhs
+        )
     }
 
     /// Element-wise power with a float scalar.
@@ -1162,12 +1171,11 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B, D>,
         value: f32,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_powf_scalar(tensor_f, value);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_powf_scalar(tensor, value),
+            tensor
+        )
     }
 
     /// Returns a new tensor with square root values.
@@ -1180,12 +1188,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with square root values.
     fn q_sqrt<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_sqrt(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sqrt(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with absolute values.
@@ -1198,12 +1205,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with absolute values.
     fn q_abs<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_abs(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_abs(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with cosine values.
@@ -1216,12 +1222,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with cosine values.
     fn q_cos<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_cos(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_cos(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with sine values.
@@ -1234,12 +1239,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with sine values.
     fn q_sin<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_sin(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sin(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with tangent values.
@@ -1252,12 +1256,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
     fn q_tanh<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_tanh(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_tanh(tensor),
+            tensor
+        )
     }
 
     /// Returns a new tensor with the error function values.
@@ -1270,12 +1273,11 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with error function values.
     fn q_erf<const D: usize>(tensor: QuantizedTensor<B, D>) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_erf(tensor_f);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_erf(tensor),
+            tensor
+        )
     }
 
     /// Concatenates tensors along a dimension.
@@ -1460,12 +1462,11 @@ pub trait QTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> QuantizedTensor<B, D> {
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_narrow(tensor_f, dim, start, length);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_narrow(tensor, dim, start, length),
+            tensor
+        )
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -1583,12 +1584,11 @@ pub trait QTensorOps<B: Backend> {
         descending: bool,
     ) -> QuantizedTensor<B, D> {
         // Default implementation. Backends can sort on the int values since qparams remain the same.
-        let scheme = tensor.scheme().clone();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_sort(tensor_f, dim, descending);
-
-        Self::quantize_dynamic(out_f, &scheme)
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sort(tensor, dim, descending),
+            tensor
+        )
     }
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
