@@ -179,7 +179,7 @@ where
                     .expect("Unable to send buffer slice result to async channel.")
             });
 
-            device.poll(wgpu::Maintain::Wait);
+            device.poll(wgpu::Maintain::Poll);
 
             let result = receiver
                 .recv()
