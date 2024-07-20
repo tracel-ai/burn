@@ -167,25 +167,25 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn sub<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_sub(lhs, rhs)
     }
 
     fn sub_scalar<const D: usize, E: burn_tensor::ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_sub_scalar(lhs, rhs.elem())
     }
 
     fn div<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_div(lhs, rhs)
     }
 
     fn div_scalar<const D: usize, E: burn_tensor::ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_div_scalar(lhs, rhs.elem())
     }
 
     fn remainder_scalar<const D: usize, E: burn_tensor::ElementConversion>(
@@ -196,14 +196,14 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn mul<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_mul(lhs, rhs)
     }
 
     fn mul_scalar<const D: usize, E: burn_tensor::ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_mul_scalar(lhs, rhs.elem())
     }
 
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
@@ -218,14 +218,14 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         shape: Shape<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_empty(shape, device)
     }
 
     fn ones<const D: usize>(
         shape: Shape<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_to_sparse(B::float_ones(shape, device))
     }
 
     fn full<const D: usize, E: burn_tensor::ElementConversion>(
@@ -233,7 +233,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         fill_value: E,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_to_sparse(B::float_full(shape, fill_value.elem(), device))
     }
 
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {

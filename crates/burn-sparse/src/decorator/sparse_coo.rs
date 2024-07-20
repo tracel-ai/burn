@@ -1,8 +1,12 @@
+use std::ops::Mul;
+
 use crate::backend::SparseBackend;
 use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
 use crate::decorator::SparseDecorator;
 use burn_tensor::ops::FloatElem;
+use burn_tensor::ops::FloatTensor;
+use burn_tensor::ops::FloatTensorOps;
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::Device;
 use burn_tensor::{
@@ -17,6 +21,43 @@ pub struct SparseCOOTensor<B: Backend, const D: usize> {
     pub values: Option<Tensor<B, 1, Float>>,
     pub shape: Shape<D>,
     pub device: Device<B>,
+}
+
+fn flatten_coordinates<B: Backend, const D: usize>(
+    coordinates: Tensor<B, 2, Int>,
+    shape: Shape<D>,
+    device: &Device<B>,
+) -> Tensor<B, 2, Int> {
+    let mut strides_data = [[1]; D];
+    for i in (0..D - 1).rev() {
+        strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
+    }
+    let strides_data: TensorData = TensorData::from(strides_data);
+    let strides: Tensor<B, 2, Int> = Tensor::from_data(strides_data, device);
+    let flat_coordinates: Tensor<B, 1, Int> = strides.mul(coordinates).sum_dim(0).flatten(0, 1);
+
+    flat_coordinates.unsqueeze_dim(0)
+}
+
+fn unflatten_coordinates<B: Backend, const D: usize>(
+    flat_coordinates: Tensor<B, 2, Int>,
+    new_shape: Shape<D>,
+) -> Tensor<B, 2, Int> {
+    let flat_coordinates = flat_coordinates.squeeze::<1>(0);
+    let mut remaining_flat_coordinates = flat_coordinates.clone();
+    let mut new_coordinates = Vec::with_capacity(D);
+
+    for &dim_size in new_shape.dims.iter().rev() {
+        let size = dim_size as i64;
+        let new_coord = remaining_flat_coordinates.clone().remainder_scalar(size);
+        new_coordinates.push(new_coord.clone());
+        remaining_flat_coordinates = remaining_flat_coordinates.div_scalar(size);
+    }
+
+    new_coordinates.reverse();
+    let reshaped_coordinates = Tensor::stack(new_coordinates, 0);
+
+    reshaped_coordinates
 }
 
 impl<B> SparseBackend for SparseDecorator<B, SparseCOO>
@@ -89,22 +130,9 @@ where
                 .tensor();
         };
 
-        let num_nonzero = coordinates.shape().dims[1];
-
         let dense: Tensor<B, 1, Float> = Tensor::zeros(Shape::new([shape.num_elements()]), &device);
-
-        let mut strides_data = [[1]; D];
-        for i in (0..D - 1).rev() {
-            strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
-        }
-
-        let strides_data: TensorData = TensorData::from(strides_data);
-
-        let strides: Tensor<B, 2, Int> = Tensor::from_data(strides_data, &device);
-
-        let coordinates = strides.mul(coordinates).sum_dim(0).flatten(0, 1);
-
-        let dense = dense.select_assign(0, coordinates, values);
+        let flat_coordinates = flatten_coordinates(coordinates, shape.clone(), &device).squeeze(0);
+        let dense = dense.select_assign(0, flat_coordinates, values);
 
         dense.reshape(shape).into_primitive().tensor()
     }
@@ -235,27 +263,27 @@ where
         tensor: Self::SparseTensorPrimitive<D1>,
         indices: [core::ops::Range<usize>; D2],
     ) -> SparseTensor<Self, D1> {
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-            device,
-        } = tensor;
-
         let mut indices = Vec::from(indices);
-        indices.extend(shape.dims[indices.len()..D1].iter().map(|&l| 0..l));
+        indices.extend(tensor.shape.dims[indices.len()..D1].iter().map(|&l| 0..l));
         let indices: [core::ops::Range<usize>; D1] = indices.try_into().expect("D2 must be <= D1");
         let out_shape = Shape::new(indices.clone().map(|r| r.end));
 
-        let (Some(coordinates), Some(values)) = (coordinates, values) else {
-            // All zeros, exit early
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
             return SparseCOOTensor {
                 coordinates: None,
                 values: None,
                 shape: out_shape,
-                device,
+                device: tensor.device,
             };
-        };
+        }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let device = tensor.device;
 
         let number_nonzero = coordinates.shape().dims[1];
 
@@ -314,55 +342,36 @@ where
     }
 
     fn sparse_reshape<const D1: usize, const D2: usize>(
-        tensor: SparseTensor<Self, D1>,
+        tensor: SparseCOOTensor<B, D1>,
         out_shape: Shape<D2>,
-    ) -> SparseTensor<Self, D2> {
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-            device,
-        } = tensor;
-
-        let (Some(coordinates), Some(values)) = (coordinates, values) else {
-            // All zeros, exit early
+    ) -> SparseCOOTensor<B, D2> {
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
             return SparseCOOTensor {
                 coordinates: None,
                 values: None,
                 shape: out_shape,
-                device,
+                device: tensor.device,
             };
-        };
-
-        // Flatten the coordinates:
-        let mut strides_data = [[1]; D1];
-        for i in (0..D1 - 1).rev() {
-            strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
-        }
-        let strides_data: TensorData = TensorData::from(strides_data);
-        let strides: Tensor<B, 2, Int> = Tensor::from_data(strides_data, &device);
-        let flat_coordinates: Tensor<B, 1, Int> = strides.mul(coordinates).sum_dim(0).flatten(0, 1);
-
-        // Convert the flattened coordinates to the new shape
-        let mut remaining_flat_coordinates = flat_coordinates.clone();
-        let mut new_coordinates = Vec::with_capacity(D2);
-
-        for &dim_size in out_shape.dims.iter().rev() {
-            let size = dim_size as i64;
-            let new_coord = remaining_flat_coordinates.clone().remainder_scalar(size);
-            new_coordinates.push(new_coord.clone());
-            remaining_flat_coordinates = remaining_flat_coordinates.div_scalar(size);
         }
 
-        new_coordinates.reverse();
-        let coordinates = Tensor::stack(new_coordinates, 0);
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let shape = tensor.shape;
+        let device = tensor.device;
 
-        let coordinates = Some(coordinates);
-        let values = Some(values);
+        // Flatten the coordinates
+        let flat_coordinates = flatten_coordinates(coordinates, shape, &device);
+
+        // Unflatten the coordinates to the new shape
+        let new_coordinates = unflatten_coordinates(flat_coordinates, out_shape.clone());
 
         SparseCOOTensor {
-            coordinates,
-            values,
+            coordinates: Some(new_coordinates),
+            values: Some(values),
             shape: out_shape,
             device,
         }
@@ -615,35 +624,27 @@ where
             return tensor;
         }
         let original_shape = tensor.shape.clone();
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-            device,
-        } = Self::sparse_reshape(tensor, Shape::new([original_shape.num_elements()]));
-        let (Some(coordinates), Some(values)) = (coordinates, values) else {
-            // All zeros, exit early
-            return Self::sparse_reshape(
-                SparseCOOTensor {
-                    coordinates: None,
-                    values: None,
-                    shape,
-                    device,
-                },
-                original_shape,
-            );
-        };
 
-        let nnz = coordinates.shape().dims[1];
-        if nnz <= 1 {
-            // impossible to be uncoalesced
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
             return SparseCOOTensor {
-                coordinates: Some(coordinates),
-                values: Some(values),
+                coordinates: None,
+                values: None,
                 shape: original_shape,
-                device,
+                device: tensor.device,
             };
         }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let device = tensor.device;
+        let nnz = coordinates.shape().dims[1];
+
+        let coordinates = flatten_coordinates(coordinates, original_shape.clone(), &device);
+        let flat_shape = Shape::new([original_shape.num_elements()]);
 
         let (coordinates, indices) = coordinates.sort_with_indices(1);
         let values = values.select(0, indices.squeeze(0));
@@ -693,19 +694,18 @@ where
         let values = zeroed.scatter(0, scatter_indices.squeeze(0), values);
         let values = values.gather(0, unique_indices.clone());
         let coordinates = coordinates.gather(1, unique_indices.unsqueeze::<2>());
+        let coordinates = unflatten_coordinates(coordinates, original_shape.clone());
 
         let coordinates = Some(coordinates);
         let values = Some(values);
 
         // reshape back into the original shape and send it!
-        let out = SparseCOOTensor {
+        SparseCOOTensor {
             coordinates,
             values,
-            shape,
+            shape: original_shape,
             device,
-        };
-
-        Self::sparse_reshape(out, original_shape)
+        }
     }
 
     fn sparse_nonzero<const D: usize>(tensor: Self::SparseTensorPrimitive<D>) -> usize {
@@ -772,79 +772,132 @@ where
     }
 
     fn sparse_add_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
-        rhs: FloatElem<Self>,
+        _: SparseTensor<Self, D>,
+        _: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("Cannot add scalar to sparse, only zero preserving operations are permitted");
     }
 
     fn sparse_add_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
-        todo!()
+    ) -> FloatTensor<Self, D> {
+        if lhs.shape != B::float_shape(&rhs) {
+            panic!("lhs and rhs must have the same shape for sparse_add_dense");
+        }
+
+        if lhs.coordinates.is_none() && lhs.values.is_none() {
+            return rhs;
+        }
+
+        let coordinates = lhs
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = lhs.values.expect("Mismatch between coordinates and values");
+        let device = lhs.device;
+        let shape = lhs.shape;
+
+        let coordinates = flatten_coordinates(coordinates, shape.clone(), &device);
+        let dense = B::float_reshape(rhs, Shape::new([shape.num_elements()]));
+
+        let dense = B::float_scatter(
+            0,
+            dense,
+            coordinates.squeeze(0).into_primitive(),
+            values.into_primitive().tensor(),
+        );
+
+        B::float_reshape(dense, shape)
     }
 
     fn sparse_sub<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        Self::sparse_add(
+            lhs,
+            Self::sparse_mul_scalar(rhs, FloatElem::<Self>::from_elem(-1.0)),
+        )
     }
 
     fn sparse_sub_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
-        todo!()
+    ) -> FloatTensor<Self, D> {
+        Self::sparse_add_dense(
+            lhs,
+            B::float_mul_scalar(rhs, FloatElem::<Self>::from_elem(-1.0)),
+        )
     }
 
     fn sparse_sub_scalar<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("Cannot add scalar to sparse, only zero preserving operations are permitted");
     }
 
     fn sparse_mul<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_mul is unsupported until scatter supports multiplication based reduction");
     }
 
     fn sparse_mul_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
-        todo!()
+    ) -> FloatTensor<Self, D> {
+        if lhs.shape != B::float_shape(&rhs) {
+            panic!("lhs and rhs must have the same shape for sparse_add_dense");
+        }
+
+        if lhs.coordinates.is_none() && lhs.values.is_none() {
+            return Self::float_zeros(lhs.shape, &lhs.device);
+        }
+
+        // TODO: this could be optimized a little if/when scatter gets other reduction strategies
+        let lhs = Self::sparse_to_dense(lhs);
+        Self::float_mul(lhs, rhs)
     }
 
     fn sparse_mul_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
+        mut lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        lhs.values = lhs.values.map(|values| values.mul_scalar(rhs));
+        lhs
     }
 
     fn sparse_div<const D: usize>(
-        lhs: SparseTensor<Self, D>,
-        rhs: SparseTensor<Self, D>,
+        _: SparseTensor<Self, D>,
+        _: SparseTensor<Self, D>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_div is unsupported until scatter supports multiplication based reduction");
     }
 
     fn sparse_div_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
-        todo!()
+    ) -> FloatTensor<Self, D> {
+        if lhs.shape != B::float_shape(&rhs) {
+            panic!("lhs and rhs must have the same shape for sparse_add_dense");
+        }
+
+        if lhs.coordinates.is_none() && lhs.values.is_none() {
+            return Self::float_zeros(lhs.shape, &lhs.device);
+        }
+
+        // TODO: this could be optimized a little if/when scatter gets other reduction strategies
+        let lhs = Self::sparse_to_dense(lhs);
+        Self::float_div(lhs, rhs)
     }
 
     fn sparse_div_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
+        mut lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        lhs.values = lhs.values.map(|values| values.div_scalar(rhs));
+        lhs
     }
 }

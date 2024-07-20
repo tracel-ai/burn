@@ -217,7 +217,7 @@ pub trait SparseBackend: Backend {
     fn sparse_add_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D>;
+    ) -> FloatTensor<Self, D>;
 
     /// Adds a scalar to a tensor.
     ///
@@ -262,7 +262,7 @@ pub trait SparseBackend: Backend {
     fn sparse_sub_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D>;
+    ) -> FloatTensor<Self, D>;
 
     /// Subtracts a scalar from a tensor.
     ///
@@ -307,7 +307,7 @@ pub trait SparseBackend: Backend {
     fn sparse_mul_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D>;
+    ) -> FloatTensor<Self, D>;
 
     /// Multiplies a scalar to a tensor.
     ///
@@ -352,7 +352,7 @@ pub trait SparseBackend: Backend {
     fn sparse_div_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D>;
+    ) -> FloatTensor<Self, D>;
 
     /// Divides a tensor by a scalar.
     ///

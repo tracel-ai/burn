@@ -22,6 +22,8 @@ where
     fn coalesce(self, reduce: CoalesceReduction) -> Tensor<B, D, Sparse>;
     fn number_nonzero(self) -> usize;
     fn density(self) -> f32;
+    fn add_dense(self, rhs: Tensor<B, D>) -> Tensor<B, D>;
+    fn mul_dense(self, rhs: Tensor<B, D>) -> Tensor<B, D>;
 }
 
 impl<const D: usize, B> ToSparse<D, B> for Tensor<B, D>
@@ -66,5 +68,19 @@ where
 
     fn density(self) -> f32 {
         B::sparse_density(self.into_primitive())
+    }
+
+    fn add_dense(self, rhs: Tensor<B, D>) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::sparse_add_dense(
+            self.into_primitive(),
+            rhs.into_primitive().tensor(),
+        )))
+    }
+
+    fn mul_dense(self, rhs: Tensor<B, D>) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::sparse_mul_dense(
+            self.into_primitive(),
+            rhs.into_primitive().tensor(),
+        )))
     }
 }

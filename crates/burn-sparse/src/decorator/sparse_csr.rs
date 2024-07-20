@@ -4,6 +4,7 @@ use crate::decorator::SparseCSR;
 use crate::decorator::SparseDecorator;
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::FloatElem;
+use burn_tensor::ops::FloatTensor;
 use core::marker::PhantomData;
 
 #[derive(Debug, Default, Clone)]
@@ -219,7 +220,7 @@ where
     fn sparse_add_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
+    ) -> FloatTensor<Self, D> {
         todo!()
     }
 
@@ -233,7 +234,7 @@ where
     fn sparse_sub_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
+    ) -> FloatTensor<Self, D> {
         todo!()
     }
 
@@ -254,7 +255,7 @@ where
     fn sparse_mul_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
+    ) -> FloatTensor<Self, D> {
         todo!()
     }
 
@@ -275,7 +276,7 @@ where
     fn sparse_div_dense<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> SparseTensor<Self, D> {
+    ) -> FloatTensor<Self, D> {
         todo!()
     }
 
