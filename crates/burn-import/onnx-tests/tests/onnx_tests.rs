@@ -93,6 +93,7 @@ include_models!(
     unsqueeze_opset11,
     squeeze_opset16,
     squeeze_opset13,
+    squeeze_multiple,
     random_uniform,
     random_normal,
     constant_of_shape,
@@ -1636,6 +1637,17 @@ mod tests {
         let device = Default::default();
         let model = squeeze_opset13::Model::<Backend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5]);
+        let expected_shape = Shape::from([3, 4, 5]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn squeeze_multiple() {
+        let device = Default::default();
+        let model = squeeze_multiple::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 1, 5, 1]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);
