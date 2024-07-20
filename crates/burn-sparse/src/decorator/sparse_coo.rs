@@ -306,7 +306,18 @@ where
             mask = mask.mul(mask_lower).mul(mask_upper);
         }
 
-        let nonzero = mask.not_equal_elem(B::IntElem::from_elem(0)).nonzero();
+        let nonzero = mask.not_equal_elem(B::IntElem::from_elem(0));
+        if !nonzero.clone().any().into_scalar() {
+            // no existing values were in the slice, so return an empty tensor
+            return SparseCOOTensor {
+                coordinates: None,
+                values: None,
+                shape: out_shape,
+                device,
+            };
+        }
+
+        let nonzero = nonzero.nonzero();
 
         let indices_dim1 = nonzero
             .get(0)
@@ -475,15 +486,31 @@ where
     fn sparse_slice_assign<const D1: usize, const D2: usize>(
         tensor: SparseTensor<Self, D1>,
         ranges: [core::ops::Range<usize>; D2],
-        value: SparseTensor<Self, D1>,
+        mut value: SparseTensor<Self, D1>,
     ) -> SparseTensor<Self, D1> {
-        let SparseCOOTensor {
-            coordinates,
-            values,
-            shape,
-            device,
-        } = tensor;
-        todo!()
+        let value_nnz = value
+            .coordinates
+            .as_ref()
+            .map(|coords| coords.shape().dims[1])
+            .unwrap_or(0);
+
+        let mut ranges = Vec::from(ranges);
+        ranges.extend(tensor.shape.dims[ranges.len()..D1].iter().map(|&l| 0..l));
+        let ranges: [core::ops::Range<usize>; D1] = ranges.try_into().expect("D2 must be <= D1");
+
+        let shape = tensor.shape.clone();
+        let sliced = Self::sparse_reshape(
+            Self::sparse_slice(tensor.clone(), ranges.clone()),
+            shape.clone(),
+        );
+        let tensor = Self::sparse_sub(tensor, sliced);
+        let offset = Tensor::<B, 1, Int>::from_ints(ranges.map(|r| r.start), &tensor.device);
+        let offset = offset.unsqueeze_dim::<2>(1).repeat(1, value_nnz);
+
+        value.shape = shape;
+        value.coordinates = value.coordinates.map(|coords| coords + offset);
+
+        Self::sparse_add(tensor, value)
     }
 
     fn sparse_repeat<const D: usize>(
@@ -494,7 +521,7 @@ where
         let SparseCOOTensor {
             coordinates,
             values,
-            mut shape,
+            shape,
             device,
         } = tensor;
 
@@ -551,14 +578,14 @@ where
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("elementwise equal is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_not_equal<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("elementwise not_equal is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_any<const D: usize>(
