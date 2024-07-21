@@ -16,6 +16,7 @@ pub trait SparseTensorApi<const D: usize, B>
 where
     B: SparseBackend,
 {
+    fn sddmm(self, lhs: Tensor<B, D>, rhs: Tensor<B, D>) -> Self;
     fn dense_int(self) -> Tensor<B, D, Int>;
     fn spmm(self, rhs: Tensor<B, D>) -> Tensor<B, D>;
     fn dense(self) -> Tensor<B, D>;
@@ -54,6 +55,14 @@ where
             self.into_primitive(),
             rhs.into_primitive().tensor(),
         )))
+    }
+
+    fn sddmm(self, lhs: Tensor<B, D>, rhs: Tensor<B, D>) -> Self {
+        Tensor::new(B::sparse_sddmm(
+            lhs.into_primitive().tensor(),
+            rhs.into_primitive().tensor(),
+            self.into_primitive(),
+        ))
     }
 
     fn coalesce(self, reduction: CoalesceReduction) -> Tensor<B, D, Sparse> {

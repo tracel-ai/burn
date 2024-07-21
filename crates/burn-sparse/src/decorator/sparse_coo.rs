@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use crate::backend::SparseBackend;
 use crate::backend::SparseTensor;
 use crate::decorator::SparseCOO;
@@ -13,7 +11,6 @@ use burn_tensor::{
     backend::Backend, Bool, ElementConversion, Float, Int, Shape, Tensor, TensorData,
     TensorPrimitive,
 };
-use half::vec;
 
 #[derive(Clone, Debug)]
 pub struct SparseCOOTensor<B: Backend, const D: usize> {
@@ -23,14 +20,20 @@ pub struct SparseCOOTensor<B: Backend, const D: usize> {
     pub device: Device<B>,
 }
 
-fn flatten_coordinates<B: Backend, const D: usize>(
+fn flatten_coordinates<B: Backend, const D: usize, const S: usize>(
     coordinates: Tensor<B, 2, Int>,
     shape: Shape<D>,
     device: &Device<B>,
 ) -> Tensor<B, 2, Int> {
     let mut strides_data = [[1]; D];
-    for i in (0..D - 1).rev() {
-        strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
+    for i in (0..D).rev() {
+        if D - 1 - i == S {
+            strides_data[i] = [1];
+        } else if D - 1 - i < S {
+            strides_data[i] = [0];
+        } else {
+            strides_data[i] = [strides_data[i + 1][0] * shape.dims[i + 1] as i64];
+        }
     }
     let strides_data: TensorData = TensorData::from(strides_data);
     let strides: Tensor<B, 2, Int> = Tensor::from_data(strides_data, device);
@@ -131,10 +134,75 @@ where
         };
 
         let dense: Tensor<B, 1, Float> = Tensor::zeros(Shape::new([shape.num_elements()]), &device);
-        let flat_coordinates = flatten_coordinates(coordinates, shape.clone(), &device).squeeze(0);
+        let flat_coordinates =
+            flatten_coordinates::<B, D, 0>(coordinates, shape.clone(), &device).squeeze(0);
         let dense = dense.select_assign(0, flat_coordinates, values);
 
         dense.reshape(shape).into_primitive().tensor()
+    }
+
+    fn sparse_sddmm<const D: usize>(
+        lhs: Self::FloatTensorPrimitive<D>,
+        rhs: Self::FloatTensorPrimitive<D>,
+        sparse: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D> {
+        if sparse.coordinates.is_none() || sparse.values.is_none() {
+            return sparse;
+        }
+
+        // Flatten the lhs and rhs into a tensor of rows and cols respectively
+        let lhs = Tensor::<B, D>::new(burn_tensor::TensorPrimitive::Float(lhs));
+        let rhs = Tensor::<B, D>::new(burn_tensor::TensorPrimitive::Float(rhs)).transpose();
+        let lhs_dims = lhs.shape().dims;
+        let rhs_dims = rhs.shape().dims;
+
+        if lhs_dims[D - 1] != rhs_dims[D - 1]
+            || lhs_dims[D - 2] != sparse.shape.dims[D - 2]
+            || rhs_dims[D - 2] != sparse.shape.dims[D - 1]
+        {
+            panic!("invalid dimensions for sddmm. lhs and rhs must have compatible shapes for matmul, and sparse must have the correct shape for output of matmul between lhs and rhs.");
+        }
+
+        let lhs = lhs.reshape([-1, lhs_dims[D - 1] as i32]);
+        let rhs = rhs.reshape([-1, rhs_dims[D - 1] as i32]);
+
+        // Flatten the sparse tensor into
+        let device = sparse.device.clone();
+        let mut shape = sparse.shape.clone();
+        let lhs_coordinates = sparse
+            .coordinates
+            .clone()
+            .expect("Expected non-empty sparse tensor");
+
+        // swap the last two dims so its column-first
+        let swizzle = Tensor::<B, 1, Int>::arange(0..D as i64, &device)
+            .slice_assign(
+                [D - 2..D],
+                Tensor::<B, 1, Int>::from_ints([D - 1, D - 2], &device),
+            )
+            .unsqueeze_dim(1)
+            .repeat(1, lhs_coordinates.shape().dims[1]);
+        let rhs_coordinates = lhs_coordinates.clone().gather(0, swizzle);
+
+        let row_indices = flatten_coordinates::<B, D, 1>(lhs_coordinates, shape.clone(), &device);
+
+        shape.dims.swap(D - 1, D - 2);
+        let col_indices = flatten_coordinates::<B, D, 1>(rhs_coordinates, shape.clone(), &device);
+
+        let row_indices = row_indices.transpose().repeat(1, lhs_dims[D - 1]);
+        let col_indices = col_indices.transpose().repeat(1, rhs_dims[D - 1]);
+
+        let lhs = lhs.gather(0, row_indices);
+        let rhs = rhs.gather(0, col_indices);
+
+        let dotted = lhs.mul(rhs).sum_dim(1).squeeze(1);
+
+        SparseCOOTensor {
+            coordinates: sparse.coordinates,
+            values: Some(dotted),
+            shape: sparse.shape,
+            device,
+        }
     }
 
     fn sparse_spmm<const D: usize>(
@@ -216,13 +284,6 @@ where
         let scattered = output.scatter(0, scatter_index, multiplied);
 
         scattered.reshape(out_shape).into_primitive().tensor()
-    }
-
-    fn sparse_sddmm<const D: usize>(
-        lhs: Self::SparseTensorPrimitive<D>,
-        rhs: Self::FloatTensorPrimitive<D>,
-    ) -> Self::SparseTensorPrimitive<D> {
-        todo!()
     }
 
     fn sparse_device<const D: usize>(tensor: &SparseTensor<Self, D>) -> burn_tensor::Device<Self> {
@@ -375,7 +436,7 @@ where
         let device = tensor.device;
 
         // Flatten the coordinates
-        let flat_coordinates = flatten_coordinates(coordinates, shape, &device);
+        let flat_coordinates = flatten_coordinates::<B, D1, 0>(coordinates, shape, &device);
 
         // Unflatten the coordinates to the new shape
         let new_coordinates = unflatten_coordinates(flat_coordinates, out_shape.clone());
@@ -670,7 +731,8 @@ where
         let device = tensor.device;
         let nnz = coordinates.shape().dims[1];
 
-        let coordinates = flatten_coordinates(coordinates, original_shape.clone(), &device);
+        let coordinates =
+            flatten_coordinates::<B, D, 0>(coordinates, original_shape.clone(), &device);
         let flat_shape = Shape::new([original_shape.num_elements()]);
 
         let (coordinates, indices) = coordinates.sort_with_indices(1);
@@ -824,7 +886,7 @@ where
         let device = lhs.device;
         let shape = lhs.shape;
 
-        let coordinates = flatten_coordinates(coordinates, shape.clone(), &device);
+        let coordinates = flatten_coordinates::<B, D, 0>(coordinates, shape.clone(), &device);
         let dense = B::float_reshape(rhs, Shape::new([shape.num_elements()]));
 
         let dense = B::float_scatter(
@@ -883,7 +945,7 @@ where
             return Self::float_zeros(lhs.shape, &lhs.device);
         }
 
-        // TODO: this could be optimized a little if/when scatter gets other reduction strategies
+        // TODO: this could potentially be optimized if/when scatter gets other reduction strategies
         let lhs = Self::sparse_to_dense(lhs);
         Self::float_mul(lhs, rhs)
     }
@@ -915,7 +977,7 @@ where
             return Self::float_zeros(lhs.shape, &lhs.device);
         }
 
-        // TODO: this could be optimized a little if/when scatter gets other reduction strategies
+        // TODO: this could potentially be optimized if/when scatter gets other reduction strategies
         let lhs = Self::sparse_to_dense(lhs);
         Self::float_div(lhs, rhs)
     }
@@ -926,5 +988,235 @@ where
     ) -> SparseTensor<Self, D> {
         lhs.values = lhs.values.map(|values| values.div_scalar(rhs));
         lhs
+    }
+
+    fn sparse_max<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_max_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_min<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_min_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_abs<const D: usize>(mut tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        tensor.values = tensor.values.map(|values| values.abs());
+        tensor
+    }
+
+    fn sparse_powf<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powi<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powf_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powi_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp_min<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp_max<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_select<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        indices: burn_tensor::ops::IntTensor<Self, 1>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_select_assign<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        indices: burn_tensor::ops::IntTensor<Self, 1>,
+        values: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_gather<const D: usize>(
+        dim: usize,
+        tensor: SparseTensor<Self, D>,
+        indices: burn_tensor::ops::IntTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_scatter<const D: usize>(
+        dim: usize,
+        tensor: SparseTensor<Self, D>,
+        indices: burn_tensor::ops::IntTensor<Self, D>,
+        values: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sum<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_sum_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_prod<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_prod_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mean<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_mean_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_not_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_remainder_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_neg<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sign<const D: usize>(mut tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        tensor.values = tensor.values.map(|values| values.sign());
+        tensor
     }
 }

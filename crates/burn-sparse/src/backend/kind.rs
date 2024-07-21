@@ -192,7 +192,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_remainder_scalar(lhs, rhs.elem())
     }
 
     fn mul<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D> {
@@ -207,11 +207,11 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_neg(tensor)
     }
 
     fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_sign(tensor)
     }
 
     fn zeros<const D: usize>(
@@ -237,97 +237,97 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        todo!()
+        B::sparse_sum(tensor)
     }
 
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_sum_dim(tensor, dim)
     }
 
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        todo!()
+        B::sparse_prod(tensor)
     }
 
     fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_prod_dim(tensor, dim)
     }
 
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        todo!()
+        B::sparse_mean(tensor)
     }
 
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_mean_dim(tensor, dim)
     }
 
     fn equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_equal_elem(lhs, rhs))
     }
 
     fn not_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_not_equal_elem(lhs, rhs))
     }
 
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_greater(lhs, rhs))
     }
 
     fn greater_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_greater_elem(lhs, rhs))
     }
 
     fn greater_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_greater_equal(lhs, rhs))
     }
 
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_greater_equal_elem(lhs, rhs))
     }
 
     fn lower<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_lower(lhs, rhs))
     }
 
     fn lower_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_lower_elem(lhs, rhs))
     }
 
     fn lower_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_lower_equal(lhs, rhs))
     }
 
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, burn_tensor::Bool> {
-        todo!()
+        Tensor::new(B::sparse_lower_equal_elem(lhs, rhs))
     }
 
     fn mask_where<const D: usize>(
@@ -335,7 +335,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         mask: Tensor<B, D, burn_tensor::Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        todo!()
+        panic!("masking of sparse tensors is unsupported")
     }
 
     fn mask_fill<const D: usize>(
@@ -343,7 +343,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         mask: Tensor<B, D, burn_tensor::Bool>,
         value: Self::Elem,
     ) -> Self::Primitive<D> {
-        todo!()
+        panic!("masking of sparse tensors is unsupported")
     }
 
     fn gather<const D: usize>(
@@ -351,7 +351,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         tensor: Self::Primitive<D>,
         indices: Tensor<B, D, burn_tensor::Int>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_gather(dim, tensor, indices.into_primitive())
     }
 
     fn scatter<const D: usize>(
@@ -360,7 +360,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         indices: Tensor<B, D, burn_tensor::Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_scatter(dim, tensor, indices.into_primitive(), values)
     }
 
     fn select<const D: usize>(
@@ -368,7 +368,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         dim: usize,
         indices: Tensor<B, 1, burn_tensor::Int>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_select(tensor, dim, indices.into_primitive())
     }
 
     fn select_assign<const D: usize>(
@@ -377,29 +377,29 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         indices: Tensor<B, 1, burn_tensor::Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_select_assign(tensor, dim, indices.into_primitive(), values)
     }
 
     fn argmax<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        panic!("Argmax is unsupported for sparse tensors");
     }
 
     fn argmin<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        todo!()
+        panic!("Argmin is unsupported for sparse tensors");
     }
 
     fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        todo!()
+        B::sparse_max(tensor)
     }
 
     fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_max_dim(tensor, dim)
     }
 
     fn max_dim_with_indices<const D: usize>(
@@ -410,11 +410,11 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        todo!()
+        B::sparse_min(tensor)
     }
 
     fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_min_dim(tensor, dim)
     }
 
     fn min_dim_with_indices<const D: usize>(
@@ -429,53 +429,53 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         min: Self::Elem,
         max: Self::Elem,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_clamp(tensor, min, max)
     }
 
     fn clamp_min<const D: usize>(
         tensor: Self::Primitive<D>,
         min: Self::Elem,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_clamp_min(tensor, min)
     }
 
     fn clamp_max<const D: usize>(
         tensor: Self::Primitive<D>,
         max: Self::Elem,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_clamp_max(tensor, max)
     }
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_abs(tensor)
     }
 
     fn powf<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_powf(lhs, rhs)
     }
 
     fn powi<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_powi(lhs, rhs)
     }
 
     fn powf_scalar<const D: usize, E: burn_tensor::ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_powf_scalar(lhs, rhs.elem())
     }
 
     fn powi_scalar<const D: usize, E: burn_tensor::ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        todo!()
+        B::sparse_powi_scalar(lhs, rhs.elem())
     }
 
     fn random<const D: usize>(
@@ -483,7 +483,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         distribution: burn_tensor::Distribution,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        todo!()
+        panic!("Random is unsupported for sparse tensors")
     }
 
     fn sort<const D: usize>(
@@ -491,7 +491,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         dim: usize,
         descending: bool,
     ) -> Self::Primitive<D> {
-        todo!()
+        panic!("Sorting is unsupported for sparse tensors")
     }
 
     fn sort_with_indices<const D: usize>(
@@ -502,7 +502,7 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         Self::Primitive<D>,
         <burn_tensor::Int as TensorKind<B>>::Primitive<D>,
     ) {
-        todo!()
+        panic!("Sorting is unsupported for sparse tensors")
     }
 
     fn argsort<const D: usize>(
@@ -510,6 +510,6 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
         dim: usize,
         descending: bool,
     ) -> <burn_tensor::Int as TensorKind<B>>::Primitive<D> {
-        todo!()
+        panic!("Sorting is unsupported for sparse tensors")
     }
 }

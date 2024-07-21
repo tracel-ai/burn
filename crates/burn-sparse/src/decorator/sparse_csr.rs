@@ -45,8 +45,9 @@ where
     }
 
     fn sparse_sddmm<const D: usize>(
-        lhs: Self::SparseTensorPrimitive<D>,
+        lhs: Self::FloatTensorPrimitive<D>,
         rhs: Self::FloatTensorPrimitive<D>,
+        sparse: Self::SparseTensorPrimitive<D>,
     ) -> Self::SparseTensorPrimitive<D> {
         todo!()
     }
@@ -284,6 +285,234 @@ where
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_max<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_max_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_min<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_min_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_greater_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_equal<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_lower_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_abs<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powf<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powi<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powf_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_powi_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp_min<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_clamp_max<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_select<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        indices: burn_tensor::ops::IntTensor<Self, 1>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_select_assign<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+        indices: burn_tensor::ops::IntTensor<Self, 1>,
+        values: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_gather<const D: usize>(
+        dim: usize,
+        tensor: SparseTensor<Self, D>,
+        indices: burn_tensor::ops::IntTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_scatter<const D: usize>(
+        dim: usize,
+        tensor: SparseTensor<Self, D>,
+        indices: burn_tensor::ops::IntTensor<Self, D>,
+        values: SparseTensor<Self, D>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sum<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_sum_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_prod<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_prod_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_mean<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
+        todo!()
+    }
+
+    fn sparse_mean_dim<const D: usize>(
+        tensor: SparseTensor<Self, D>,
+        dim: usize,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_not_equal_elem<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_remainder_scalar<const D: usize>(
+        lhs: SparseTensor<Self, D>,
+        rhs: FloatElem<Self>,
+    ) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_neg<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        todo!()
+    }
+
+    fn sparse_sign<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
         todo!()
     }
 }
