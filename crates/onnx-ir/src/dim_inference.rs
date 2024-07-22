@@ -459,11 +459,6 @@ fn squeeze_update_output(node: &mut Node) {
 
     if axes.is_none() {
         panic!("Squeeze must specify an axis");
-    } else if axes.as_ref().unwrap().len() > 1 {
-        panic!(
-            "Squeeze must specify only 1 axis, found {:?}",
-            axes.as_ref().unwrap().len()
-        );
     }
 
     let input_dim = match &node.inputs[0].ty {
@@ -471,13 +466,15 @@ fn squeeze_update_output(node: &mut Node) {
         _ => panic!("Squeeze: invalid input type"),
     };
 
+    let new_dim = input_dim - axes.unwrap().len();
+
     let output_elem = match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => tensor.elem_type.clone(),
         _ => panic!("Squeeze: invalid output type"),
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: input_dim - 1,
+        dim: new_dim,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_elem,
     });
