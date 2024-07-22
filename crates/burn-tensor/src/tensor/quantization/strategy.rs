@@ -8,6 +8,10 @@ use burn_common::{iter_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
+use super::{QuantizationScheme, QuantizationType};
+
+// NOTE: QuantizationStrategy is used for TensorData (sync).
+
 /// Quantization strategy.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationStrategy {
@@ -15,6 +19,20 @@ pub enum QuantizationStrategy {
     PerTensorAffineInt8(AffineQuantization<f32, i8, i32>),
     /// Per-tensor `int8` symmetric quantization.
     PerTensorSymmetricInt8(SymmetricQuantization<f32, i8>),
+}
+
+impl QuantizationStrategy {
+    /// Returns the corresponding quantization scheme.
+    pub fn scheme(&self) -> QuantizationScheme {
+        match self {
+            QuantizationStrategy::PerTensorAffineInt8(_) => {
+                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+            }
+            QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8)
+            }
+        }
+    }
 }
 
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
@@ -41,6 +59,17 @@ pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
     _a: PhantomData<A>,
 }
 
+impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
+    /// Initialize an affine quantization scheme with the given parameters.
+    pub fn init(scale: E, offset: Q) -> Self {
+        Self {
+            scale,
+            offset,
+            _a: PhantomData,
+        }
+    }
+}
+
 impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization<E, Q, A> {
     fn new(alpha: E, beta: E) -> Self {
         // Q range `[a, b]`
@@ -49,11 +78,10 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
 
         // Compute scale and offset to convert a floating point value in range `[alpha, beta]` to the quantized range
         let range = beta - alpha;
-        Self {
-            scale: range / (b - a),
-            offset: Q::from(E::round(((beta * a) - (alpha * b)) / range)).unwrap(),
-            _a: PhantomData,
-        }
+        Self::init(
+            range / (b - a),
+            Q::from(E::round(((beta * a) - (alpha * b)) / range)).unwrap(),
+        )
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {
@@ -97,6 +125,16 @@ pub struct SymmetricQuantization<E: Float, Q: PrimInt> {
     _q: PhantomData<Q>,
 }
 
+impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
+    /// Initialize a symmetric quantization scheme with the given parameters.
+    pub fn init(scale: E) -> Self {
+        Self {
+            scale,
+            _q: PhantomData,
+        }
+    }
+}
+
 impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
     fn new(alpha: E, beta: E) -> Self {
         assert!(
@@ -110,10 +148,7 @@ impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
 
         // Compute scale to convert a floating point value in range `[-alpha, alpha]` to the quantized range
         let alpha = alpha.abs().max(beta.abs());
-        Self {
-            scale: (alpha + alpha) / (b - a),
-            _q: PhantomData,
-        }
+        Self::init((alpha + alpha) / (b - a))
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {

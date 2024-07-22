@@ -4,14 +4,12 @@ mod api;
 mod data;
 mod distribution;
 mod element;
-mod quantization_strategy;
 mod shape;
 
 pub use api::*;
 pub use data::*;
 pub use distribution::*;
 pub use element::*;
-pub use quantization_strategy::*;
 pub use shape::*;
 
 /// The activation module.
@@ -31,6 +29,9 @@ pub mod module;
 
 /// Operations on tensors module.
 pub mod ops;
+
+/// Tensor quantization module.
+pub mod quantization;
 
 #[cfg(feature = "experimental-named-tensor")]
 mod named;

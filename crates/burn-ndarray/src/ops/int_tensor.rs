@@ -12,6 +12,7 @@ use ndarray::IntoDimension;
 // Current crate
 use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
+use crate::element::QuantElement;
 use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
@@ -20,7 +21,7 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> IntTensorOps<Self> for NdArray<E, Q> {
     fn int_from_data<const D: usize>(
         data: TensorData,
         _device: &NdArrayDevice,

@@ -18,10 +18,7 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
             TensorPrimitive::Float(tensor) => B::grad(tensor, grads)
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
-            TensorPrimitive::QFloat {
-                tensor: _,
-                strategy: _,
-            } => B::grad(&self.primitive.clone().tensor(), grads)
+            TensorPrimitive::QFloat(_tensor) => B::grad(&self.primitive.clone().tensor(), grads)
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
         }
@@ -33,12 +30,11 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
             TensorPrimitive::Float(tensor) => B::grad_remove(tensor, grads)
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
-            TensorPrimitive::QFloat {
-                tensor: _,
-                strategy: _,
-            } => B::grad_remove(&self.primitive.clone().tensor(), grads)
-                .map(TensorPrimitive::Float)
-                .map(Tensor::new),
+            TensorPrimitive::QFloat(_tensor) => {
+                B::grad_remove(&self.primitive.clone().tensor(), grads)
+                    .map(TensorPrimitive::Float)
+                    .map(Tensor::new)
+            }
         }
     }
 
@@ -49,10 +45,7 @@ impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
             TensorPrimitive::Float(tensor) => {
                 B::grad_replace(tensor, grads, grad.primitive.tensor())
             }
-            TensorPrimitive::QFloat {
-                tensor: _,
-                strategy: _,
-            } => B::grad_replace(
+            TensorPrimitive::QFloat(_tensor) => B::grad_replace(
                 &self.primitive.clone().tensor(),
                 grads,
                 grad.primitive.tensor(),
@@ -89,10 +82,7 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
     ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D> {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
-            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
-                tensor: B::q_inner(tensor),
-                strategy,
-            },
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_inner(tensor)),
         }
     }
 
@@ -101,10 +91,7 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
     ) -> <Self as TensorKind<B>>::Primitive<D> {
         match inner {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
-            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
-                tensor: B::q_from_inner(tensor),
-                strategy,
-            },
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_from_inner(tensor)),
         }
     }
 }
