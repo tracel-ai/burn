@@ -1,6 +1,6 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -156,12 +156,12 @@ pub fn reduce_dim_naive<
     let kernel = NaiveReduceDimEagerKernel::<RD, R, EI, EO>::new(dim);
 
     Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

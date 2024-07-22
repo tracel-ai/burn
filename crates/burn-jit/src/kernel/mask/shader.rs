@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, IndexOffsetGlobalWithLayout, Item, KernelDefinition, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,

@@ -1,11 +1,11 @@
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::{binary, JitRuntime};
 use crate::{element::JitElement, tensor::JitTensor};
-use burn_compute::client::ComputeClient;
-use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, Variable};
-use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
-use burn_cube::{tensor_vectorization_factor, Runtime};
 use burn_tensor::{ElementConversion, Shape};
+use cubecl::client::ComputeClient;
+use cubecl::ir::{BinaryOperator, Elem, Operator, Scope, Variable};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
+use cubecl::{tensor_vectorization_factor, Runtime};
 
 pub fn full<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
@@ -43,7 +43,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     );
 
     full_kernel::launch::<E::Primitive, R>(
-        empty.client.clone(),
+        &empty.client,
         cube_count,
         CubeDim::default(),
         TensorArg::vectorized(

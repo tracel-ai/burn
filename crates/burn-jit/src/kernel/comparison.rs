@@ -1,10 +1,10 @@
 use super::{index_offset_with_layout, Kernel};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use burn_tensor::Shape;
+use cubecl::{
     calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, Runtime,
     SUBCUBE_DIM_APPROX,
 };
-use burn_tensor::Shape;
 
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
@@ -147,7 +147,7 @@ pub(crate) fn launch_cmp<
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -171,7 +171,7 @@ pub(crate) fn launch_cmp<
         JitTensor::new(lhs.client, lhs.handle, lhs.shape, lhs.device, lhs.strides)
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -200,7 +200,7 @@ pub(crate) fn launch_cmp<
         let output = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
 
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -252,7 +252,7 @@ pub(crate) fn launch_scalar_cmp<
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && tensor.can_mut() {
         kernel_scalar_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -283,7 +283,7 @@ pub(crate) fn launch_scalar_cmp<
         );
 
         kernel_scalar_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(

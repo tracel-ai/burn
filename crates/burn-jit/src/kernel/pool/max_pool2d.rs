@@ -1,6 +1,6 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution,
 };
@@ -21,10 +21,7 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial = Variable::ConstantScalar {
-            value: E::minimum_value().to_f64(),
-            elem: item.elem(),
-        };
+        let max_initial = item.elem().constant_from_f64(E::minimum_value().to_f64());
         cpa!(scope, max_val = max_initial);
         max_val
     }
@@ -70,10 +67,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial = Variable::ConstantScalar {
-            value: E::minimum_value().to_f64(),
-            elem: item.elem(),
-        };
+        let max_initial = item.elem().constant_from_f64(E::minimum_value().to_f64());
         cpa!(scope, max_val = max_initial);
         let max_index = scope.create_local(Elem::UInt);
         (max_val, max_index)
@@ -143,8 +137,12 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
-        .outputs(&[TensorHandle::new(
+        .inputs(&[TensorHandleRef::<R>::new(
+            &x.handle,
+            &x.strides,
+            &x.shape.dims,
+        )])
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -196,10 +194,14 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(&x.handle, &x.strides, &x.shape.dims)])
+        .inputs(&[TensorHandleRef::<R>::new(
+            &x.handle,
+            &x.strides,
+            &x.shape.dims,
+        )])
         .outputs(&[
-            TensorHandle::new(&output.handle, &output.strides, &output.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&output.handle, &output.strides, &output.shape.dims),
+            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
         .with_scalars(&[
             stride[0] as i32,

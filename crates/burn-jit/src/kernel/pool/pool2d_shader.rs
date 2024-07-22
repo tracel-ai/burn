@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,

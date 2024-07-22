@@ -1,5 +1,5 @@
 use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
-use burn_compute::tune::AutotuneKey;
+use cubecl::tune::AutotuneKey;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 

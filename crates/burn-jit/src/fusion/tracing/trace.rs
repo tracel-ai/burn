@@ -1,9 +1,9 @@
 use super::Scalars;
-use burn_cube::{
+use burn_tensor::repr::TensorDescription;
+use cubecl::{
     ir::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, OutputInfo,
 };
-use burn_tensor::repr::TensorDescription;
 use serde::{Deserialize, Serialize};
 
 /// A trace encapsulates all information necessary to perform the compilation and execution of

@@ -1,5 +1,5 @@
 use burn::serde::{Deserialize, Serialize};
-use burn_wgpu::GraphicsApi;
+use cubecl::wgpu::GraphicsApi;
 use std::collections::HashSet;
 use sysinfo;
 use wgpu;
@@ -51,7 +51,7 @@ impl BenchmarkSystemInfo {
     fn enumerate_gpus() -> Vec<String> {
         let instance = wgpu::Instance::default();
         let adapters: Vec<wgpu::Adapter> = instance
-            .enumerate_adapters(burn_wgpu::AutoGraphicsApi::backend().into())
+            .enumerate_adapters(cubecl::wgpu::AutoGraphicsApi::backend().into())
             .into_iter()
             .filter(|adapter| {
                 let info = adapter.get_info();

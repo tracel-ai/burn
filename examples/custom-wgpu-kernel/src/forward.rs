@@ -3,16 +3,17 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_wgsl, CubeCount, CubeDim, FloatElement, IntElement,
-        JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        build_info, into_contiguous, kernel_source, FloatElement, IntElement, JitBackend,
+        JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
+use cubecl::{CubeCount, CubeDim};
 use derive_new::new;
 use std::marker::PhantomData;
 
 // Source the kernel written in WGSL.
-kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
+kernel_source!(FusedMatmulAddReluRaw, "./kernel.wgsl");
 
 // Define our kernel type with cube information.
 #[derive(new, Debug)]

@@ -1,16 +1,16 @@
-use burn_cube::calculate_num_elems_dyn_rank;
-use burn_cube::prelude::*;
+use cubecl::calculate_num_elems_dyn_rank;
+use cubecl::prelude::*;
 
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::kernel::Kernel;
 use crate::JitRuntime;
-use burn_compute::client::ComputeClient;
-use burn_compute::server::Binding;
-use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
+use cubecl::client::ComputeClient;
+use cubecl::server::Binding;
+use cubecl::tune::AutotuneOperation;
 use std::marker::PhantomData;
 use std::sync::Arc;
 

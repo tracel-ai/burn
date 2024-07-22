@@ -1,4 +1,4 @@
-use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
+use cubecl::{frontend::TensorHandleRef, CubeCountSettings, Execution};
 
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
@@ -49,11 +49,11 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: u
 
     Execution::start(kernel, client)
         .inputs(&[
-            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandleRef::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -75,9 +75,9 @@ fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
 
     Execution::start(kernel, client)
         .inputs(&[
-            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            TensorHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandleRef::new(&mask.handle, &mask.strides, &mask.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .execute(CubeCountSettings::Input { pos: 0 });
 

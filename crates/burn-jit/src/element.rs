@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     frontend::{Float, Int, Numeric, UInt, BF16, F16, F32, I32},
     CubeElement,
 };

@@ -16,7 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    # "crates/burn-cuda"     # comment this line to work on burn-cuda
+    "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -27,7 +27,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 bytemuck = "1.16.1"
-candle-core = { version = "0.5.1" }
+candle-core = { version = "0.6.0" }
 clap = { version = "4.5.9", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -140,6 +140,9 @@ nvml-wrapper = "0.10.0"
 sysinfo = "0.30.13"
 systemstat = "0.2.3"
 
+cubecl = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl", default-features = false }
+cubecl-common = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl", default-features = false }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
+opt-level = 2

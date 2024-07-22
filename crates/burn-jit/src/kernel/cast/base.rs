@@ -1,6 +1,6 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -35,12 +35,12 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     );
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

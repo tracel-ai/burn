@@ -1,14 +1,14 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::{
+use burn_tensor::ElementConversion;
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
-use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -136,12 +136,12 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, const D: usize>(
     let kernel = FlipEagerKernel::<R, E>::new(D);
 
     Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &tensor.handle,
             &tensor.strides,
             &tensor.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

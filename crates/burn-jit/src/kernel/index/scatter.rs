@@ -4,15 +4,15 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
-    KernelIntegrator, KernelSettings,
+use cubecl::{
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings,
+    KernelExpansion, KernelIntegrator, KernelSettings,
 };
-use burn_cube::{
+use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
+use cubecl::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -227,9 +227,9 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 
