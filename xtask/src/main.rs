@@ -1,61 +1,64 @@
-use clap::{Parser, Subcommand};
+use xtask_common::clap::{self, Parser, Subcommand};
 
 mod books;
-mod dependencies;
-mod logging;
-mod publish;
 mod runchecks;
-mod utils;
-mod vulnerabilities;
 
 #[macro_use]
 extern crate log;
 
-#[derive(Parser)]
+use std::time::Instant;
+use xtask_common::{anyhow, commands::*, init_xtask, utils::time::format_duration};
+
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct XtaskArgs {
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Subcommand)]
-enum Command {
+pub enum Command {
     /// Run commands to manage Burn Books
     Books(books::BooksArgs),
-    /// Run the specified dependencies check locally
-    Dependencies {
-        /// The dependency check to run
-        dependency_check: dependencies::DependencyCheck,
-    },
-    /// Publish a crate to crates.io
-    Publish {
-        /// The name of the crate to publish on crates.io
-        name: String,
-    },
     /// Run the specified `burn` tests and checks locally.
     RunChecks {
         /// The environment to run checks against
         #[clap(value_enum, default_value_t = runchecks::CheckType::default())]
         env: runchecks::CheckType,
     },
+
+    // From common_xtask
+    /// Bump the version of all crates to be published
+    Bump(bump::BumpCmdArgs),
+    /// Run the specified dependencies check locally
+    Dependencies(dependencies::DependenciesCmdArgs),
+    /// Publish a crate to crates.io
+    Publish(publish::PublishCmdArgs),
     /// Run the specified vulnerability check locally. These commands must be called with 'cargo +nightly'.
-    Vulnerabilities {
-        /// The vulnerability check to run.
-        /// For the reference visit the page `<https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html>`
-        vulnerability_check: vulnerabilities::VulnerabilityCheck,
-    },
+    Vulnerabilities(vulnerabilities::VulnerabilitiesCmdArgs),
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    init_xtask();
+    let args = XtaskArgs::parse();
 
+    let start = Instant::now();
     match args.command {
         Command::Books(args) => args.parse(),
-        Command::Dependencies { dependency_check } => dependency_check.run(),
-        Command::Publish { name } => publish::run(name),
         Command::RunChecks { env } => env.run(),
-        Command::Vulnerabilities {
-            vulnerability_check,
-        } => vulnerability_check.run(),
-    }
+
+        // From common_xtask
+        Command::Bump(args) => bump::handle_command(args),
+        Command::Dependencies(args) => dependencies::handle_command(args),
+        Command::Publish(args) => publish::handle_command(args),
+        Command::Vulnerabilities(args) => vulnerabilities::handle_command(args),
+    }?;
+
+    let duration = start.elapsed();
+    info!(
+        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+        format_duration(&duration)
+    );
+
+    Ok(())
 }

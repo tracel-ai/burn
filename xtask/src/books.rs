@@ -1,19 +1,18 @@
-use std::{collections::HashMap, path::Path, time::Instant};
+use std::{collections::HashMap, path::Path};
 
-use clap::{Args, Subcommand};
-use derive_more::Display;
-
-use crate::{
+use xtask_common::{
+    anyhow,
+    clap::{self, Args, Subcommand},
+    derive_more::Display,
     endgroup, group,
-    logging::init_logger,
     utils::{
         cargo::ensure_cargo_crate_is_installed, mdbook::run_mdbook_with_path, process::random_port,
-        time::format_duration, Params,
+        Params,
     },
 };
 
-#[derive(Args)]
-pub(crate) struct BooksArgs {
+#[derive(clap::Args)]
+pub struct BooksArgs {
     #[command(subcommand)]
     book: BookKind,
 }
@@ -55,15 +54,7 @@ pub(crate) struct Book {
 
 impl BooksArgs {
     pub(crate) fn parse(&self) -> anyhow::Result<()> {
-        init_logger().init();
-        let start = Instant::now();
-        Book::run(&self.book)?;
-        let duration = start.elapsed();
-        info!(
-            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-            format_duration(&duration)
-        );
-        Ok(())
+        Book::run(&self.book)
     }
 }
 
@@ -91,37 +82,37 @@ impl Book {
                 &args.command,
             ),
         };
-        book.execute(command);
-        Ok(())
+        book.execute(command)
     }
 
-    fn execute(&self, command: &BookCommand) {
-        ensure_cargo_crate_is_installed("mdbook");
+    fn execute(&self, command: &BookCommand) -> anyhow::Result<()> {
+        ensure_cargo_crate_is_installed("mdbook", None, false)?;
         group!("{}: {}", self.name, command);
         match command {
             BookCommand::Build => self.build(),
             BookCommand::Open(args) => self.open(args),
-        };
+        }?;
         endgroup!();
+        Ok(())
     }
 
-    fn build(&self) {
+    fn build(&self) -> anyhow::Result<()> {
         run_mdbook_with_path(
             "build",
             Params::from([]),
             HashMap::new(),
             Some(self.path),
             "mdbook should build the book successfully",
-        );
+        )
     }
 
-    fn open(&self, args: &OpenArgs) {
+    fn open(&self, args: &OpenArgs) -> anyhow::Result<()> {
         run_mdbook_with_path(
             "serve",
             Params::from(["--open", "--port", &args.port.to_string()]),
             HashMap::new(),
             Some(self.path),
             "mdbook should build the book successfully",
-        );
+        )
     }
 }

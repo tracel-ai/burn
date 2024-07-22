@@ -4,29 +4,32 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
-use std::collections::HashMap;
-use std::env;
-use std::process::{Command, Stdio};
-use std::str;
-use std::time::Instant;
+use std::{
+    collections::HashMap,
+    env,
+    path::Path,
+    process::{Command, Stdio},
+    str,
+};
 
-use crate::logging::init_logger;
-use crate::utils::cargo::{run_cargo, run_cargo_with_path};
-use crate::utils::process::{handle_child_process, run_command};
-use crate::utils::rustup::{rustup_add_component, rustup_add_target};
-use crate::utils::time::format_duration;
-use crate::utils::workspace::{get_workspace_members, WorkspaceMemberType};
-use crate::utils::Params;
-use crate::{endgroup, group};
+use xtask_common::{
+    anyhow, clap, endgroup, group,
+    utils::{
+        cargo::{run_cargo, run_cargo_with_path},
+        process::{handle_child_process, run_command},
+        rustup::{rustup_add_component, rustup_add_target},
+        workspace::{get_workspace_members, WorkspaceMemberType},
+        Params,
+    },
+};
 
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
-const ARM_NO_ATOMIC_PTR_TARGET: &str = "thumbv6m-none-eabi";
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum CheckType {
-    /// Run all checks except examples
+pub enum CheckType {
+    /// Run all checks.
     #[default]
     All,
     /// Run `std` environment checks
@@ -41,18 +44,12 @@ pub(crate) enum CheckType {
 
 impl CheckType {
     pub(crate) fn run(&self) -> anyhow::Result<()> {
-        // Setup logger
-        init_logger().init();
-
-        // Start time measurement
-        let start = Instant::now();
-
         // The environment can assume ONLY "std", "no_std", "typos", "examples"
         //
         // Depending on the input argument, the respective environment checks
         // are run.
         //
-        // If no `environment` value has been passed, run all checks except examples.
+        // If no environment has been passed, run all checks.
         match self {
             Self::Std => std_checks(),
             Self::NoStd => no_std_checks(),
@@ -60,76 +57,65 @@ impl CheckType {
             Self::Examples => check_examples(),
             Self::All => {
                 /* Run all checks */
-                check_typos();
-                std_checks();
-                no_std_checks();
+                check_typos()?;
+                std_checks()?;
+                no_std_checks()?;
+                check_examples()
             }
         }
-
-        // Stop time measurement
-        //
-        // Compute runtime duration
-        let duration = start.elapsed();
-
-        // Print duration
-        info!(
-            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-            format_duration(&duration)
-        );
-
-        Ok(())
     }
 }
 
 /// Run cargo build command
-fn cargo_build(params: Params, envs: Option<HashMap<&str, String>>) {
+fn cargo_build(params: Params) -> anyhow::Result<()> {
     // Run cargo build
     run_cargo(
         "build",
         params + "--color=always",
-        envs.unwrap_or_default(),
+        HashMap::new(),
         "Failed to run cargo build",
-    );
+    )
 }
 
 /// Run cargo install command
-fn cargo_install(params: Params) {
+fn cargo_install(params: Params) -> anyhow::Result<()> {
     // Run cargo install
     run_cargo(
         "install",
         params + "--color=always",
         HashMap::new(),
         "Failed to run cargo install",
-    );
+    )
 }
 
 /// Run cargo test command
-fn cargo_test(params: Params) {
+fn cargo_test(params: Params) -> anyhow::Result<()> {
     // Run cargo test
     run_cargo(
         "test",
         params + "--color=always" + "--" + "--color=always",
         HashMap::new(),
         "Failed to run cargo test",
-    );
+    )
 }
 
 /// Run cargo fmt command
-fn cargo_fmt() {
+fn cargo_fmt() -> anyhow::Result<()> {
     group!("Cargo: fmt");
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         HashMap::new(),
         "Failed to run cargo fmt",
-    );
+    )?;
     endgroup!();
+    Ok(())
 }
 
 /// Run cargo clippy command
-fn cargo_clippy() {
+fn cargo_clippy() -> anyhow::Result<()> {
     if std::env::var("CI").is_ok() {
-        return;
+        return Ok(());
     }
     // Run cargo clippy
     run_cargo(
@@ -137,32 +123,32 @@ fn cargo_clippy() {
         ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
         HashMap::new(),
         "Failed to run cargo clippy",
-    );
+    )
 }
 
 /// Run cargo doc command
-fn cargo_doc(params: Params) {
+fn cargo_doc(params: Params) -> anyhow::Result<()> {
     // Run cargo doc
     run_cargo(
         "doc",
         params + "--color=always",
         HashMap::new(),
         "Failed to run cargo doc",
-    );
+    )
 }
 
 // Build and test a crate in a no_std environment
-fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
+fn build_and_test_no_std<const N: usize>(
+    crate_name: &str,
+    extra_args: [&str; N],
+) -> anyhow::Result<()> {
     group!("Checks: {} (no-std)", crate_name);
 
     // Run cargo build --no-default-features
-    cargo_build(
-        Params::from(["-p", crate_name, "--no-default-features"]) + extra_args,
-        None,
-    );
+    cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args)?;
 
     // Run cargo test --no-default-features
-    cargo_test(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
+    cargo_test(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args)?;
 
     // Run cargo build --no-default-features --target wasm32-unknown-unknowns
     cargo_build(
@@ -173,8 +159,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             "--target",
             WASM32_TARGET,
         ]) + extra_args,
-        None,
-    );
+    )?;
 
     // Run cargo build --no-default-features --target thumbv7m-none-eabi
     cargo_build(
@@ -185,31 +170,16 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             "--target",
             ARM_TARGET,
         ]) + extra_args,
-        None,
-    );
-
-    // Run cargo build --no-default-features --target thumbv6m-none-eabi
-    cargo_build(
-        Params::from([
-            "-p",
-            crate_name,
-            "--no-default-features",
-            "--target",
-            ARM_NO_ATOMIC_PTR_TARGET,
-        ]) + extra_args,
-        Some(HashMap::from([(
-            "RUSTFLAGS",
-            "--cfg portable_atomic_unsafe_assume_single_core".to_string(),
-        )])),
-    );
+    )?;
 
     endgroup!();
+    Ok(())
 }
 
 // Setup code coverage
 fn setup_coverage() {
     // Install llvm-tools-preview
-    rustup_add_component("llvm-tools-preview");
+    rustup_add_component("llvm-tools-preview").expect("rustup component should be installed");
 
     // Set coverage environment variables
     env::set_var("RUSTFLAGS", "-Cinstrument-coverage");
@@ -217,7 +187,7 @@ fn setup_coverage() {
 }
 
 // Run grcov to produce lcov.info
-fn run_grcov() {
+fn run_grcov() -> anyhow::Result<()> {
     // grcov arguments
     #[rustfmt::skip]
     let args = [
@@ -238,31 +208,29 @@ fn run_grcov() {
         &args,
         "Failed to run grcov",
         "Failed to wait for grcov child process",
-    );
+    )
 }
 
 // Run no_std checks
-fn no_std_checks() {
+fn no_std_checks() -> anyhow::Result<()> {
     // Install wasm32 target
-    rustup_add_target(WASM32_TARGET);
+    rustup_add_target(WASM32_TARGET)?;
 
     // Install ARM target
-    rustup_add_target(ARM_TARGET);
-
-    // Install ARM no atomic ptr target
-    rustup_add_target(ARM_NO_ATOMIC_PTR_TARGET);
+    rustup_add_target(ARM_TARGET)?;
 
     // Run checks for the following crates
-    build_and_test_no_std("burn", []);
-    build_and_test_no_std("burn-core", []);
-    build_and_test_no_std("burn-common", []);
-    build_and_test_no_std("burn-tensor", []);
-    build_and_test_no_std("burn-ndarray", []);
-    build_and_test_no_std("burn-no-std-tests", []);
+    build_and_test_no_std("burn", [])?;
+    build_and_test_no_std("burn-core", [])?;
+    build_and_test_no_std("burn-common", [])?;
+    build_and_test_no_std("burn-tensor", [])?;
+    build_and_test_no_std("burn-ndarray", [])?;
+    build_and_test_no_std("burn-no-std-tests", [])?;
+    Ok(())
 }
 
 // Test burn-core with tch and wgpu backend
-fn burn_core_std() {
+fn burn_core_std() -> anyhow::Result<()> {
     // Run cargo test --features test-tch, record-item-custom-serde
     group!("Test: burn-core (tch) and record-item-custom-serde");
     cargo_test(
@@ -273,48 +241,51 @@ fn burn_core_std() {
             "test-tch,record-item-custom-serde,",
         ]
         .into(),
-    );
+    )?;
     endgroup!();
 
     // Run cargo test --features test-wgpu
     if std::env::var("DISABLE_WGPU").is_err() {
         group!("Test: burn-core (wgpu)");
-        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into())?;
         endgroup!();
     }
+    Ok(())
 }
 
 // Test burn-dataset features
-fn burn_dataset_features_std() {
+fn burn_dataset_features_std() -> anyhow::Result<()> {
     group!("Checks: burn-dataset (all-features)");
 
     // Run cargo build --all-features
-    cargo_build(["-p", "burn-dataset", "--all-features"].into(), None);
+    cargo_build(["-p", "burn-dataset", "--all-features"].into())?;
 
     // Run cargo test --all-features
-    cargo_test(["-p", "burn-dataset", "--all-features"].into());
+    cargo_test(["-p", "burn-dataset", "--all-features"].into())?;
 
     // Run cargo doc --all-features
-    cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
+    cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into())?;
 
     endgroup!();
+    Ok(())
 }
 
 // macOS only checks
 #[cfg(target_os = "macos")]
-fn macos_checks() {
+fn macos_checks() -> anyhow::Result<()> {
     // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
     group!("Checks: burn-candle (accelerate)");
-    cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+    cargo_test(["-p", "burn-candle", "--features", "accelerate"].into())?;
     endgroup!();
 
     // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
     group!("Checks: burn-ndarray (accelerate)");
-    cargo_test(["-p", "burn-ndarray", "--features", "blas-accelerate"].into());
+    cargo_test(["-p", "burn-ndarray", "--features", "blas-accelerate"].into())?;
     endgroup!();
+    Ok(())
 }
 
-fn std_checks() {
+fn std_checks() -> anyhow::Result<()> {
     // Set RUSTDOCFLAGS environment variable to treat warnings as errors
     // for the documentation build
     env::set_var("RUSTDOCFLAGS", "-D warnings");
@@ -324,10 +295,10 @@ fn std_checks() {
     let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     // Check format
-    cargo_fmt();
+    cargo_fmt()?;
 
     // Check clippy lints
-    cargo_clippy();
+    cargo_clippy()?;
 
     // Produce documentation for each workspace member
     group!("Docs: crates");
@@ -335,7 +306,7 @@ fn std_checks() {
     // Exclude burn-cuda on all platforms
     params.params.push("--exclude".to_string());
     params.params.push("burn-cuda".to_string());
-    cargo_doc(params);
+    cargo_doc(params)?;
     endgroup!();
 
     // Setup code coverage
@@ -358,28 +329,29 @@ fn std_checks() {
         }
 
         group!("Checks: {}", member.name);
-        cargo_build(Params::from(["-p", &member.name]), None);
-        cargo_test(Params::from(["-p", &member.name]));
+        cargo_build(Params::from(["-p", &member.name]))?;
+        cargo_test(Params::from(["-p", &member.name]))?;
         endgroup!();
     }
 
     // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
-    macos_checks();
+    macos_checks()?;
 
     // Test burn-dataset features
-    burn_dataset_features_std();
+    burn_dataset_features_std()?;
 
     // Test burn-core with tch and wgpu backend
-    burn_core_std();
+    burn_core_std()?;
 
     // Run grcov and produce lcov.info
     if is_coverage {
-        run_grcov();
+        run_grcov()?;
     }
+    Ok(())
 }
 
-fn check_typos() {
+fn check_typos() -> anyhow::Result<()> {
     // This path defines where typos-cli is installed on different
     // operating systems.
     let typos_cli_path = std::env::var("CARGO_HOME")
@@ -390,24 +362,23 @@ fn check_typos() {
     // Check whether the file has been installed on
     if std::env::var("CI").is_err() && !typos_cli_path.exists() {
         // Install typos-cli
-        cargo_install(["typos-cli", "--version", "1.16.5"].into());
+        cargo_install(["typos-cli", "--version", "1.16.5"].into())?;
     }
 
     info!("Running typos check \n\n");
 
     // Run typos command as child process
     let typos = Command::new("typos")
-        .args(["--exclude", "**/*.onnx"])
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()) // Send stderr directly to terminal
         .spawn()
         .expect("Failed to run typos");
 
     // Handle typos child process
-    handle_child_process(typos, "Failed to wait for typos child process");
+    handle_child_process(typos, "Failed to wait for typos child process")
 }
 
-fn check_examples() {
+fn check_examples() -> anyhow::Result<()> {
     let members = get_workspace_members(WorkspaceMemberType::Example);
     for member in members {
         if member.name == "notebook" {
@@ -415,13 +386,15 @@ fn check_examples() {
         }
 
         group!("Checks: Example - {}", member.name);
+        let path = Path::new(&member.path);
         run_cargo_with_path(
             "check",
             ["--examples"].into(),
             HashMap::new(),
-            Some(member.path),
+            path,
             "Failed to check example",
-        );
+        )?;
         endgroup!();
     }
+    Ok(())
 }
