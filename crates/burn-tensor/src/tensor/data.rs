@@ -61,14 +61,14 @@ impl TensorData {
     /// Initializes a new tensor data structure from the provided values.
     fn init<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S, dtype: DType) -> Self {
         // Ensure `E` satisfies the `Pod` trait requirements
-        assert_eq!(std::mem::size_of::<E>() % std::mem::size_of::<u8>(), 0);
+        assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
 
-        let factor = std::mem::size_of::<E>() / std::mem::size_of::<u8>();
+        let factor = core::mem::size_of::<E>() / core::mem::size_of::<u8>();
         let len = value.len() * factor;
         let capacity = value.capacity() * factor;
         let ptr = value.as_mut_ptr();
 
-        std::mem::forget(value);
+        core::mem::forget(value);
 
         let bytes = unsafe { Vec::from_raw_parts(ptr as *mut u8, len, capacity) };
 
