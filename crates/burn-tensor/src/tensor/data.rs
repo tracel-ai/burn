@@ -59,9 +59,21 @@ impl TensorData {
     }
 
     /// Initializes a new tensor data structure from the provided values.
-    fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
+    fn init<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S, dtype: DType) -> Self {
+        // Ensure `E` satisfies the `Pod` trait requirements
+        assert_eq!(std::mem::size_of::<E>() % std::mem::size_of::<u8>(), 0);
+
+        let factor = std::mem::size_of::<E>() / std::mem::size_of::<u8>();
+        let len = value.len() * factor;
+        let capacity = value.capacity() * factor;
+        let ptr = value.as_mut_ptr();
+
+        std::mem::forget(value);
+
+        let bytes = unsafe { Vec::from_raw_parts(ptr as *mut u8, len, capacity) };
+
         Self {
-            bytes: bytemuck::checked::cast_slice(&value).to_vec(),
+            bytes,
             shape: shape.into(),
             dtype,
         }
@@ -1049,5 +1061,17 @@ mod tests {
         let data2 = TensorData::from([[3.0, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly() {
+        let mut vector: Vec<f32> = Vec::with_capacity(5);
+        vector.push(2.0);
+        vector.push(3.0);
+        let data1 = TensorData::new(vector, vec![2]);
+
+        let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
+        assert_eq!(data1.bytes.len(), 2 * factor);
+        assert_eq!(data1.bytes.capacity(), 5 * factor);
     }
 }
