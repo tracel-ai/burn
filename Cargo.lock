@@ -653,7 +653,7 @@ dependencies = [
  "thiserror",
  "tracing-core",
  "tracing-subscriber",
- "zip 2.1.3",
+ "zip 2.1.5",
 ]
 
 [[package]]
@@ -6699,9 +6699,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.1.3"
+version = "2.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "775a2b471036342aa69bc5a602bc889cb0a06cda00477d0c69566757d5553d39"
+checksum = "b895748a3ebcb69b9d38dcfdf21760859a4b0d0b0015277640c2ef4c69640e6f"
 dependencies = [
  "aes",
  "arbitrary",
