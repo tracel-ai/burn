@@ -749,7 +749,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads(node: &Node) -> Vec<usize> {
         if node.inputs.len() < 2 {
-            panic!("Pad: must provide two inputs")
+            panic!("Pad: must provide at least two inputs")
         }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
