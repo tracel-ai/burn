@@ -748,7 +748,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads(node: &Node) -> Vec<usize> {
-        if node.inputs.len() != 3 {
+        if node.inputs.len() > 1 {
             panic!("Pad: must provide three inputs")
         }
 
@@ -801,7 +801,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         // TODO: support int, boolean
         match &node.inputs[2].value {
             Some(Data::Float32s(shape)) => shape.first().unwrap().to_owned(),
-            _ => panic!("Pad: should provide a constant value input to pad with, for example 0.0"),
+            _ => 0.0,
         }
     }
 
