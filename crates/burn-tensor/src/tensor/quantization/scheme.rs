@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Int, Tensor};
+use crate::{backend::Backend, Tensor};
 
 use super::{CalibrationRange, QuantizationParameters};
 
@@ -22,11 +22,6 @@ pub enum QuantizationScheme {
     // PerChannelSymmetric,
 }
 
-/// Round the tensor to the nearest integer.
-fn round<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D, Int> {
-    tensor.add_scalar(0.5).int()
-}
-
 impl QuantizationScheme {
     /// Compute the quantization parameters.
     pub fn compute_q_params<B: Backend>(
@@ -40,15 +35,17 @@ impl QuantizationScheme {
                     let a = i8::MIN as i32;
                     let b = i8::MAX as i32;
 
-                    // Input range `[alpha, beta]`
-                    let input_range = range.max.clone().sub(range.min.clone());
+                    // We extend the `[min, max]` interval to ensure that it contains 0.
+                    // Otherwise, we would not meet the requirement that 0 be an exactly
+                    // representable value (zero-point).
+                    let zero = Tensor::zeros_like(&range.min);
+                    let min = range.min.min_pair(zero);
+                    let zero = Tensor::zeros_like(&range.max);
+                    let max = range.max.max_pair(zero);
 
-                    QuantizationParameters {
-                        scale: input_range.clone().div_scalar(b - a),
-                        offset: Some(round(
-                            (range.max.mul_scalar(a) - range.min.mul_scalar(b)).div(input_range),
-                        )),
-                    }
+                    let scale = max.sub(min.clone()).div_scalar(b - a);
+                    let offset = Some(-(min.div(scale.clone()).sub_scalar(a)).int());
+                    QuantizationParameters { scale, offset }
                 }
             },
             QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {

@@ -76,12 +76,16 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
         let a = E::from(Q::min_value()).unwrap();
         let b = E::from(Q::max_value()).unwrap();
 
+        // We extend the `[alpha, beta]` interval to ensure that it contains 0.
+        // Otherwise, we would not meet the requirement that 0 be an exactly
+        // representable value (zero-point).
+        let alpha = E::min(alpha, E::zero());
+        let beta = E::max(beta, E::zero());
+
         // Compute scale and offset to convert a floating point value in range `[alpha, beta]` to the quantized range
-        let range = beta - alpha;
-        Self::init(
-            range / (b - a),
-            Q::from(E::round(((beta * a) - (alpha * b)) / range)).unwrap(),
-        )
+        let scale = (beta - alpha) / (b - a);
+        let z = -(alpha / scale - a);
+        Self::init(scale, Q::from(z).unwrap())
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {
@@ -236,10 +240,29 @@ mod tests {
     #[test]
     fn test_int8_affine_quantization() {
         let x: [f32; 4] = [-1.8, -1.0, 0.0, 0.5];
-        let expected_q = vec![-128, -39, 72, 127];
-        let expected_d = vec![-1.8039216, -1.0011765, 0.0, 0.49607843];
+        let expected_q = vec![-128, -40, 71, 126];
+        let expected_d = vec![-1.794902, -1.0011765, 0.0, 0.49607843];
 
         let affine = AffineQuantization::<f32, i8, i32>::new(-1.8, 0.5);
+
+        let q = affine.quantize(&x);
+        assert_eq!(q, expected_q);
+
+        let d = affine.dequantize(&expected_q);
+
+        assert_eq!(d, expected_d);
+    }
+
+    #[test]
+    fn test_affine_should_ensure_zero_point() {
+        let x: [f32; 6] = [2.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let expected_q = vec![-26, -77, -26, 25, 76, 127];
+        let expected_d = x.to_vec();
+
+        let affine = AffineQuantization::<f32, i8, i32>::new(1.0, 5.0);
+
+        assert_eq!(affine.offset, -128);
+        assert_eq!(affine.scale, 0.019607844);
 
         let q = affine.quantize(&x);
         assert_eq!(q, expected_q);
