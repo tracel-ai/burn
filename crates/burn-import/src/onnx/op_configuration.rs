@@ -748,8 +748,8 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads(node: &Node) -> Vec<usize> {
-        if node.inputs.len() > 1 {
-            panic!("Pad: must provide three inputs")
+        if node.inputs.len() < 2 {
+            panic!("Pad: must provide two inputs")
         }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
