@@ -106,20 +106,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_argmax<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _dim: usize,
-    ) -> IntTensor<Self, D> {
-        unimplemented!()
-    }
-
-    fn q_argmin<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _dim: usize,
-    ) -> IntTensor<Self, D> {
-        unimplemented!()
-    }
-
     fn q_expand<const D1: usize, const D2: usize>(
         _tensor: QuantizedTensor<Self, D1>,
         _shape: Shape<D2>,

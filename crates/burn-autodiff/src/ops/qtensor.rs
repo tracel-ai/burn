@@ -108,17 +108,17 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
     }
 
     fn q_argmax<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _dim: usize,
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
     ) -> IntTensor<Self, D> {
-        unimplemented!()
+        B::q_argmax(tensor, dim)
     }
 
     fn q_argmin<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _dim: usize,
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
     ) -> IntTensor<Self, D> {
-        unimplemented!()
+        B::q_argmin(tensor, dim)
     }
 
     fn q_expand<const D1: usize, const D2: usize>(

@@ -222,14 +222,20 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         tensor: QuantizedTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        TchOps::argmax(tensor.qtensor, dim)
+        TchOps::argmax(
+            TchTensor::<Q, D>::new(tensor.qtensor.tensor.int_repr()),
+            dim,
+        )
     }
 
     fn q_argmin<const D: usize>(
         tensor: QuantizedTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        TchOps::argmin(tensor.qtensor, dim)
+        TchOps::argmin(
+            TchTensor::<Q, D>::new(tensor.qtensor.tensor.int_repr()),
+            dim,
+        )
     }
 
     fn q_max_dim<const D: usize>(

@@ -1082,7 +1082,11 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
-    fn q_argmax<const D: usize>(tensor: QuantizedTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+    fn q_argmax<const D: usize>(tensor: QuantizedTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        // Default implementation. Backends can sort on the int values since qparams remain the same.
+        let tensor_f = Self::dequantize(tensor);
+        B::float_argmax(tensor_f, dim)
+    }
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
@@ -1094,7 +1098,11 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
-    fn q_argmin<const D: usize>(tensor: QuantizedTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+    fn q_argmin<const D: usize>(tensor: QuantizedTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+        // Default implementation. Backends can sort on the int values since qparams remain the same.
+        let tensor_f = Self::dequantize(tensor);
+        B::float_argmin(tensor_f, dim)
+    }
 
     /// Gets the maximum element of a tensor.
     ///
