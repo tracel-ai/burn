@@ -163,6 +163,29 @@ pub trait QTensorOps<B: Backend> {
         false
     }
 
+    /// Repeat the tensor along the given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension to repeat.
+    /// * `times` - The number of times to repeat the dimension.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given dimension repeated.
+    fn q_repeat_dim<const D: usize>(
+        tensor: QuantizedTensor<B, D>,
+        dim: usize,
+        times: usize,
+    ) -> QuantizedTensor<B, D> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_repeat_dim(tensor, dim, times),
+            tensor
+        )
+    }
+
     /// Adds two tensors together.
     ///
     /// # Arguments
@@ -866,7 +889,7 @@ pub trait QTensorOps<B: Backend> {
         )
     }
 
-    /// Element-wise power with a FloatTensor.
+    /// Element-wise power with another tensor.
     ///
     /// # Arguments
     ///
@@ -878,12 +901,13 @@ pub trait QTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn q_powf<const D: usize>(
         lhs: QuantizedTensor<B, D>,
-        rhs: FloatTensor<B, D>,
+        rhs: QuantizedTensor<B, D>,
     ) -> QuantizedTensor<B, D> {
         dequant_op_quant!(
             ty Self,
-            float_op |tensor| B::float_powf(tensor, rhs),
-            lhs
+            float_op |lhs, rhs| B::float_powf(lhs, rhs),
+            lhs,
+            rhs
         )
     }
 
