@@ -106,8 +106,13 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     .tensor
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
             },
-            QuantizationScheme::PerTensorSymmetric(_) => {
-                panic!("LibTorch backend does not support symmetric quantize_dynamic")
+            QuantizationScheme::PerTensorSymmetric(dtype) => {
+                log::warn!("LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization");
+                match dtype {
+                    QuantizationType::QInt8 => tensor
+                        .tensor
+                        .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
+                }
             }
         };
 

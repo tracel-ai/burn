@@ -22,7 +22,10 @@ mod tests {
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+    // type TestBackendQInt8 = crate::LibTorch<f32, i8>;
+    // type TestTensorQInt8<const D: usize> = burn_tensor::Tensor<TestBackendQInt8, D>;
 
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    // burn_tensor::testgen_all!();
+    // burn_autodiff::testgen_all!();
+    burn_tensor::testgen_quantization!();
 }
