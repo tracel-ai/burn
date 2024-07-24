@@ -45,7 +45,7 @@ main types and traits used in the solution.
 
 <div align="center">
 <h4>Module Serialization Types</h4>
-<img src="./ModuleSerialization.png" width="700px"/>
+<img src="./module-serialization.png" width="700px"/>
 <div align="left">
 
 The way the types interact with each other is pretty straightforward. First, a module can be
