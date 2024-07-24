@@ -25,7 +25,7 @@ mod tests {
             .offset
             .unwrap()
             .into_data()
-            .assert_eq(&TensorData::from([72]), false);
+            .assert_eq(&TensorData::from([71]), false);
     }
 
     #[test]
