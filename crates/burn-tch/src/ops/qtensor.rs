@@ -189,16 +189,6 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         tensor
     }
 
-    fn q_gather<const D: usize>(
-        dim: usize,
-        tensor: QuantizedTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-    ) -> QuantizedTensor<Self, D> {
-        let mut tensor = tensor;
-        tensor.qtensor = TchOps::gather(dim, tensor.qtensor, indices);
-        tensor
-    }
-
     fn q_select<const D: usize>(
         tensor: QuantizedTensor<Self, D>,
         dim: usize,

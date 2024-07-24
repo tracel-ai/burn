@@ -537,7 +537,14 @@ pub trait QTensorOps<B: Backend> {
         dim: usize,
         tensor: QuantizedTensor<B, D>,
         indices: IntTensor<B, D>,
-    ) -> QuantizedTensor<B, D>;
+    ) -> QuantizedTensor<B, D> {
+        // Default implementation. Backends can gather on the quantized values when supported.
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_gather(dim, tensor, indices),
+            tensor
+        )
+    }
 
     /// Scatter elements into a tensor.
     ///
