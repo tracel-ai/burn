@@ -1,9 +1,14 @@
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
-use cubecl::{calculate_cube_count_elemwise, cpa, prelude::*, CubeDim};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 
 #[cube(launch)]
 fn bool_cast_kernel<T: Numeric>(input: &Tensor<Bool>, output: &mut Tensor<T>) {
-    output[ABSOLUTE_POS] = T::cast_from(input[ABSOLUTE_POS]);
+    let represents_true = input[ABSOLUTE_POS];
+    if represents_true {
+        output[ABSOLUTE_POS] = T::from_int(1);
+    } else {
+        output[ABSOLUTE_POS] = T::from_int(0);
+    }
 }
 
 /// Cast a bool tensor to the given element type.
@@ -24,16 +29,6 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
         buffer,
     );
 
-    let vectorization = |shape: usize| {
-        [4, 2]
-            .into_iter()
-            .filter(|v| shape % v == 0)
-            .map(|v| v as u8)
-            .next()
-            .unwrap_or(1)
-    };
-
-    let vectorization = vectorization(num_elems);
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim.x as usize);
 
@@ -41,18 +36,8 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
         &tensor.client,
         cube_count,
         cube_dim,
-        TensorArg::vectorized(
-            vectorization,
-            &tensor.handle,
-            &tensor.strides,
-            &tensor.shape.dims,
-        ),
-        TensorArg::vectorized(
-            vectorization,
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        ),
+        TensorArg::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
     );
 
     output
