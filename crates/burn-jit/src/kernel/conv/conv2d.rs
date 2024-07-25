@@ -161,11 +161,11 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     };
 
     let num_elems_output = output.shape.num_elements();
-    let cube_dim = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
+    let cube_count = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
 
     conv2d_kernel::launch::<E::FloatPrimitive, R>(
         &input.client,
-        cube_dim,
+        cube_count,
         CubeDim::default(),
         TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
         TensorArg::new(&weight.handle, &weight.strides, &weight.shape.dims),

@@ -46,5 +46,6 @@ mod tests {
         tensor_2
             .to_data()
             .assert_eq(&TensorData::from([[1., 0., 1.], [0., 0., 1.]]), false);
+        assert!(false);
     }
 }
