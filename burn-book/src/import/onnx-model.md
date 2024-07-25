@@ -59,8 +59,7 @@ Burn takes a unique approach to ONNX import, offering several advantages:
    potentially improving performance.
 3. **No runtime dependency**: Unlike some solutions that require an ONNX runtime, Burn's approach
    eliminates this dependency.
-4. **Trainability**: Imported models can be further trained or fine-tuned using Burn's native
-   training loop.
+4. **Trainability**: Imported models can be further trained or fine-tuned using Burn.
 5. **Portability**: The generated Rust code can be compiled for various targets, including
    WebAssembly and embedded devices.
 6. **Any Burn Backend**: The imported models can be used with any of Burn's backends.
@@ -117,8 +116,9 @@ use model::my_model::Model;
 fn main() {
     let device = NdArrayDevice::default();
 
-    // Create model instance and load weights from target dir (see more options below)
-    let model: Model<NdArray<f32>> = Model::new(&device);
+    // Create model instance and load weights from target dir default device.
+    // (see more load options below in "Loading and Using Models" section)
+    let model: Model<NdArray<f32>> = Model::default();
 
     // Create input tensor (replace with your actual input)
     let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 3, 224, 224], &device);
@@ -155,14 +155,19 @@ ModelGen::new()
 Depending on your configuration, you can load models in different ways:
 
 ```rust
-// Load from a file (must copy weights from target output directory)
+// Create a new model instance with device. Initializes weights randomly and lazily.
+// You can load weights via `load_record` afterwards.
+let model = Model::<Backend>::new(&device);
+
+// Load from a file (must specify weights file in the target output directory or copy it from there).
+// File type should match the record type specified in `ModelGen`.
 let model = Model::<Backend>::from_file("path/to/weights", &device);
 
 // Load from embedded weights (if embed_states was true)
 let model = Model::<Backend>::from_embedded();
 
-// Load from the default location (useful for testing)
-let model = Model::<Backend>::new(&device);
+// Load from the out director location and load to default device (useful for testing)
+let model = Model::<Backend>::default();
 ```
 
 ## Troubleshooting
@@ -182,6 +187,9 @@ Here are some common issues and their solutions:
 4. **Performance issues**: If your imported model is slower than expected, try using the
    `half_precision` option to reduce memory usage, or experiment with different `record_type`
    options.
+
+5. **Artifact Files**: You can view the generated Rust code and weights files in the `OUT_DIR`
+   directory specified in `build.rs` (usually `target/debug/build/<project>/out`).
 
 ## Examples and Resources
 
