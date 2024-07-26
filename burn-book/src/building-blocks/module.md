@@ -176,6 +176,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Relu`         | `nn.ReLU`                                     |
 | `RmsNorm`      | _No direct equivalent_                        |
 | `SwiGlu`       | _No direct equivalent_                        |
+| `Interpolate`  | _No direct equivalent_                        |
 
 ### Convolutions
 
