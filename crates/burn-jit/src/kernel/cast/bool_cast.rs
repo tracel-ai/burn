@@ -30,7 +30,7 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     );
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim.x as usize);
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     bool_cast_kernel::launch::<EO::Primitive, R>(
         &tensor.client,

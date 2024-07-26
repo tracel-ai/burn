@@ -44,7 +44,7 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
 
     let vectorization = vectorization(num_elems);
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim.x as usize);
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     cast_kernel::launch::<EI::Primitive, EO::Primitive, R>(
         &tensor.client,

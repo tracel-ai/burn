@@ -1,7 +1,7 @@
 use super::Kernel;
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{frontend::TensorArg, KernelSettings, SUBCUBE_DIM_APPROX};
+use cubecl::{frontend::TensorArg, KernelSettings};
 
 /// Returns the offset of the tensor corresponding to the layout tensor.
 #[cube]
@@ -82,15 +82,14 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         tensor.shape.clone(),
         buffer,
     );
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     into_contiguous_kernel::launch::<E::Primitive, R>(
         &client,
         cube_count,
-        CubeDim::default(),
+        cube_dim,
         TensorArg::vectorized(
             vectorization_factor,
             &tensor.handle,

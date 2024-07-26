@@ -8,7 +8,8 @@ use cubecl::{
     calculate_cube_count_elemwise, cpa,
     frontend::TensorHandleRef,
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    CubeCountSettings, CubeDim, Execution, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings,
 };
 use std::marker::PhantomData;
 
@@ -208,7 +209,8 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
         });
 
     let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
-    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
