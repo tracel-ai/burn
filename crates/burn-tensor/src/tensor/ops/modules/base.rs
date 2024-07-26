@@ -128,7 +128,7 @@ pub struct UnfoldOptions {
 }
 
 /// Algorithm used for upsampling.
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
     /// Nearest-neighbor interpolation.
     /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
