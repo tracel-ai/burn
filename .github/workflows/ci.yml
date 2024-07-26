@@ -1,0 +1,114 @@
+# Entry point for the CI pipeline
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.lock'
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - '**.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'Cargo.lock'
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - '**.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        rust: [stable]
+        include:
+          - rust: stable
+            cache-version: stable
+    steps:
+      - name: Checkout actions
+        uses: actions/checkout@v3
+      - name: setup
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-toolchain: ${{ matrix.rust }}
+          cache-key: ${{ matrix.cache-version }}-${{ runner.os }}
+      # TODO Disable for now, will fix later after the refactor is merged
+      # - name: Audit
+      #   run: cargo xtask ci audit
+      - name: Format
+        run: cargo xtask ci format
+      - name: Lint
+        run: cargo xtask ci lint
+      - name: Typos
+        run: cargo xtask ci typos
+
+  documentation:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        rust: [stable]
+        include:
+          - rust: stable
+            cache-version: stable
+    steps:
+      - name: Checkout actions
+        uses: actions/checkout@v3
+      - name: setup
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-toolchain: ${{ matrix.rust }}
+          cache-key: ${{ matrix.cache-version }}-${{ runner.os }}
+      - name: Documentation Tests
+        run: cargo xtask ci doc-tests
+
+  tests-linux-std:
+    strategy:
+      matrix:
+        rust: [stable, 1.79.0]
+        include:
+          - rust: stable
+            cache-version: stable
+          - rust: 1.79.0
+            cache-version: 1-79-0
+    uses: ./.github/workflows/ci-linux-std.yml
+    with:
+      runner-os: ubuntu-22.04
+      rust-toolchain: ${{ matrix.rust }}
+      cache-key: ${{ matrix.cache-version }}-linux
+
+  tests-linux-no-std:
+    strategy:
+      matrix:
+        rust: [stable, 1.79.0]
+        include:
+          - rust: stable
+            cache-version: stable
+          - rust: 1.79.0
+            cache-version: 1-79-0
+    uses: ./.github/workflows/ci-linux-no-std.yml
+    with:
+      runner-os: ubuntu-22.04
+      rust-toolchain: ${{ matrix.rust }}
+      cache-key: ${{ matrix.cache-version }}-linux

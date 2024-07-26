@@ -86,7 +86,7 @@ impl Book {
     }
 
     fn execute(&self, command: &BookCommand) -> anyhow::Result<()> {
-        ensure_cargo_crate_is_installed("mdbook", None, false)?;
+        ensure_cargo_crate_is_installed("mdbook", None, None, false)?;
         group!("{}: {}", self.name, command);
         match command {
             BookCommand::Build => self.build(),

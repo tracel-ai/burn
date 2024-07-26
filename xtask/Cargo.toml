@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-version = "0.5.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -8,7 +8,10 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 log = { workspace = true }
+# xtask-common = { git = "https://github.com/tracel-ai/xtask", tag = "v1.0.0" }
+# xtask-macros = { git = "https://github.com/tracel-ai/xtask", tag = "v1.0.0" }
 xtask-common = { git = "https://github.com/tracel-ai/xtask" }
+xtask-macros = { git = "https://github.com/tracel-ai/xtask" }
 
 [dev-dependencies]
 rstest = { workspace = true }

@@ -1,0 +1,28 @@
+name: Checkout and setup rust with cache support
+description: Bootstrap action to checkout the code, install the rust toolchain and retrieve the Rust dependency cache if any.
+
+inputs:
+  rust-toolchain:
+    type: string
+    description: Rust toolchain to install
+    required: true
+  cache-key:
+    type: string
+    description: The cache name as defined in the CI workflow matrix
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: install rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        components: rustfmt, clippy
+        toolchain: ${{ inputs.rust-toolchain }}
+    - name: caching
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}
+        prefix-key: v10-rust
