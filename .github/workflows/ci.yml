@@ -46,6 +46,12 @@ env:
   MESA_CI_BINARY_BUILD: "build18"
   # Sourced from https://www.nuget.org/packages/Microsoft.Direct3D.WARP
   WARP_VERSION: "1.0.8"
+  # Mozilla Grcov
+  GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+  GRCOV_VERSION: "0.8.19"
+  # Typos version
+  TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
+  TYPOS_VERSION: "1.23.4"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -69,6 +75,11 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
+      # --------------------------------------------------------------------------------
+      - name: Install typos
+        run: |
+          curl -L "$TYPOS_LINK/v$TYPOS_VERSION/typos-v$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
+          tar xz -C $HOME/.cargo/bin
       # --------------------------------------------------------------------------------
       # TODO Disable for now, will fix later after the refactor is merged
       # - name: Audit
@@ -132,7 +143,9 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Install grcov
-        run: cargo xtask coverage install
+        run: |
+          curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          tar xj -C $HOME/.cargo/bin
       # --------------------------------------------------------------------------------
       - name: Crates Build
         run: cargo xtask --enable-coverage ci --target crates build
