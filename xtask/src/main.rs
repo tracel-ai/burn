@@ -79,10 +79,10 @@ fn main() -> anyhow::Result<()> {
                 ExecutionEnvironment::Std => {
                     match cmd_args.command {
                         ci::CICommand::Build => {
+                            // Exclude problematic crates from build
                             cmd_args
                                 .exclude
                                 .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
-                            // additional builds and tests
                             // burn-dataset
                             helpers::additional_crates_build(
                                 vec!["burn-dataset"],
@@ -90,6 +90,10 @@ fn main() -> anyhow::Result<()> {
                             )?;
                         }
                         ci::CICommand::UnitTests => {
+                            // Exclude problematic crates from tests
+                            cmd_args
+                                .exclude
+                                .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
                             // burn-dataset
                             helpers::additional_crates_unit_tests(
                                 vec!["burn-dataset"],
@@ -122,6 +126,8 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
                         ci::CICommand::DocTests => {
+                            // TODO cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
+                            // Exclude problematic crates from documentation test
                             cmd_args.exclude.extend(vec!["burn-cuda".to_string()])
                         }
                         _ => {}

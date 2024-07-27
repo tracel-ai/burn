@@ -32,6 +32,7 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
+  # Cargo
   CARGO_TERM_COLOR: "always"
   CARGO_INCREMENTAL: "0"
 
@@ -118,7 +119,7 @@ jobs:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
-      - name: Documentation Tests
+      - name: Tests
         shell: bash
         run: cargo xtask ci doc-tests
 
@@ -155,25 +156,17 @@ jobs:
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
       # --------------------------------------------------------------------------------
-      - name: Crates Build
+      - name: Build
         shell: bash
-        run: cargo xtask --enable-coverage ci --target crates build
+        run: cargo xtask --enable-coverage ci build
       # --------------------------------------------------------------------------------
-      - name: Crates Unit Tests
+      - name: Unit Tests
         shell: bash
-        run: cargo xtask --enable-coverage ci --target crates unit-tests
+        run: cargo xtask --enable-coverage ci unit-tests
       # --------------------------------------------------------------------------------
-      - name: Crates Integration Tests
+      - name: Integration Tests
         shell: bash
-        run: cargo xtask --enable-coverage ci --target crates integration-tests
-      # --------------------------------------------------------------------------------
-      - name: Examples Unit Tests
-        shell: bash
-        run: cargo xtask ci --target examples unit-tests
-      # --------------------------------------------------------------------------------
-      - name: Examples Integration Tests
-        shell: bash
-        run: cargo xtask ci --target examples integration-tests
+        run: cargo xtask --enable-coverage ci integration-tests
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         shell: bash
