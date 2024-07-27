@@ -1,10 +1,10 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, unexpanded,
-    SUBCUBE_DIM_APPROX,
+    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    tensor_vectorization_factor, unexpanded, SUBCUBE_DIM_APPROX,
 };
 
-use super::{index_offset_with_layout, Kernel};
+use super::Kernel;
 
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;

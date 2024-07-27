@@ -96,16 +96,8 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}dim={}x={}y={}n={}divshape={}",
-            core::any::TypeId::of::<Self>(),
-            self.dim,
-            self.cube_dim_x,
-            self.cube_dim_y,
-            self.n_input_values_per_thread,
-            self.divisible_shape
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self, _>((self.dim, self.cube_dim_x, self.cube_dim_y, self.n_input_values_per_thread, self.divisible_shape))
     }
 }
 

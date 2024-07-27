@@ -24,6 +24,11 @@ pub enum MatmulStrategy {
 
 impl Default for MatmulStrategy {
     fn default() -> Self {
+        return MatmulStrategy::Simple {
+            grid_x: 16,
+            grid_y: 16,
+        };
+
         // if autotune is enabled, default to autotune
         #[cfg(feature = "autotune")]
         return MatmulStrategy::Autotune;
