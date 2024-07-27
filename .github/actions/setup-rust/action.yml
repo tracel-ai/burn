@@ -27,3 +27,4 @@ runs:
         key: ${{ inputs.cache-key }}
         prefix-key: v10-rust
         cache-on-failure: true
+        cache-all-crates: true
