@@ -26,3 +26,4 @@ runs:
       with:
         key: ${{ inputs.cache-key }}
         prefix-key: v10-rust
+        cache-on-failure: true
