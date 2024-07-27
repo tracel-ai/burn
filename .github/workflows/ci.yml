@@ -32,7 +32,8 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: "always"
+  CARGO_INCREMENTAL: "0"
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
@@ -47,10 +48,10 @@ env:
   # Sourced from https://www.nuget.org/packages/Microsoft.Direct3D.WARP
   WARP_VERSION: "1.0.8"
   # Mozilla Grcov
-  GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+  GRCOV_LINK: "https://github.com/mozilla/grcov/releases/download"
   GRCOV_VERSION: "0.8.19"
   # Typos version
-  TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
+  TYPOS_LINK: "https://github.com/crate-ci/typos/releases/download"
   TYPOS_VERSION: "1.23.4"
 
 concurrency:
