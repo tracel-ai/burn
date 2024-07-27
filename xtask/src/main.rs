@@ -68,9 +68,10 @@ fn main() -> anyhow::Result<()> {
                             ci::CICommand::Build => {
                                 helpers::additional_crates_build(no_std_crates.clone(), build_args)
                             }
-                            ci::CICommand::UnitTests => {
-                                helpers::additional_crates_build(no_std_crates.clone(), build_args)
-                            }
+                            ci::CICommand::UnitTests => helpers::additional_crates_unit_tests(
+                                no_std_crates.clone(),
+                                build_args,
+                            ),
                             _ => Ok(()),
                         }
                     })
