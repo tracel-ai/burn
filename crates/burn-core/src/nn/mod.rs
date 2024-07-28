@@ -16,11 +16,13 @@ pub mod pool;
 /// Transformer module
 pub mod transformer;
 
+/// Interpolate module
+pub mod interpolate;
+
 mod dropout;
 mod embedding;
 mod gelu;
 mod initializer;
-mod interpolate;
 mod leaky_relu;
 mod linear;
 mod norm;
@@ -39,7 +41,6 @@ pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
 pub use initializer::*;
-pub use interpolate::*;
 pub use leaky_relu::*;
 pub use linear::*;
 pub use norm::*;

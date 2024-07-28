@@ -5,60 +5,99 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
-use crate::tensor::ops::{InterpolateMode, InterpolateOptions};
+use crate::tensor::ops::{InterpolateMode as OpsInterpolateMode, InterpolateOptions};
 use crate::tensor::Tensor;
 
-/// Configuration for the interpolation module
+use super::CoordinateTransformationMode;
+
+/// Configuration for the 2D interpolation module
+///
+/// This struct defines the configuration options for the 2D interpolation operation.
+/// It allows specifying the output size, scale factor, interpolation mode,
+/// and coordinate transformation mode.
 #[derive(Config, Debug)]
-pub struct InterpolateConfig {
-    /// Output size
+pub struct Interpolate2dConfig {
+    /// Output size of the interpolated tensor.
+    /// If specified, this takes precedence over `scale_factor`.
     #[config(default = "None")]
     pub output_size: Option<[usize; 2]>,
 
-    /// Scale factor
+    /// Scale factor for resizing the input tensor.
+    /// This is used when `output_size` is not specified.
     #[config(default = "None")]
     pub scale_factor: Option<[f32; 2]>,
 
-    /// Interpolation mode
+    /// Interpolation mode to use for resizing.
+    /// Determines how the output values are calculated.
     #[config(default = "InterpolateMode::Nearest")]
     pub mode: InterpolateMode,
 
-    /// Coordinate transformation mode
+    /// Coordinate transformation mode.
+    /// Defines how the input and output coordinates are related.
     #[config(default = "CoordinateTransformationMode::Asymmetric")]
     pub coordinate_transformation_mode: CoordinateTransformationMode,
 }
 
-/// Coordinate transformation mode using scale_factor
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum CoordinateTransformationMode {
-    /// x_resized = (x_original + 0.5) * scale - 0.5
-    HalfPixel,
+/// Algorithm used for upsampling.
+#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub enum InterpolateMode {
+    /// Nearest-neighbor interpolation.
+    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    Nearest,
 
-    /// x_resized = x_original * scale
-    Asymmetric,
+    /// Bilinear interpolation.
+    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
+    Bilinear,
+
+    /// Bicubic interpolation.
+    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
+    Bicubic,
 }
 
-/// Interpolation module
+impl From<InterpolateMode> for OpsInterpolateMode {
+    fn from(mode: InterpolateMode) -> Self {
+        match mode {
+            InterpolateMode::Nearest => OpsInterpolateMode::Nearest,
+            InterpolateMode::Bilinear => OpsInterpolateMode::Bilinear,
+            InterpolateMode::Bicubic => OpsInterpolateMode::Bicubic,
+        }
+    }
+}
+
+/// Interpolate module for resizing tensors with shape [N, C, H, W].
+///
+/// This struct represents an interpolation module that can resize tensors
+/// using various interpolation methods and coordinate transformation modes.
+/// It provides flexibility in specifying either an output size or a scale factor
+/// for resizing, along with options for the interpolation mode and coordinate
+/// transformation mode.
+///
+/// The module can be used to upsample or downsample tensors, preserving the
+/// number of channels and batch size while adjusting the height and width
+/// dimensions.
+///
+/// The module can be created using the [Interpolate2dConfig] struct and the
+/// [init] method, which returns an instance of the [Interpolate2d] struct.
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
-pub struct Interpolate {
-    /// Output size
+pub struct Interpolate2d {
+    /// Output size of the interpolated tensor
     pub output_size: Option<[usize; 2]>,
 
-    /// Scale factor
+    /// Scale factor for resizing the input tensor
     pub scale_factor: Option<[f32; 2]>,
 
-    /// Interpolation mode
+    /// Interpolation mode used for resizing
     pub mode: Ignored<InterpolateMode>,
 
-    /// Coordinate transformation mode
+    /// Coordinate transformation mode for input and output coordinates
     pub coordinate_transformation_mode: Ignored<CoordinateTransformationMode>,
 }
 
-impl InterpolateConfig {
+impl Interpolate2dConfig {
     /// Initialize the interpolation module
-    pub fn init(self) -> Interpolate {
-        Interpolate {
+    pub fn init(self) -> Interpolate2d {
+        Interpolate2d {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
             mode: Ignored(self.mode),
@@ -66,17 +105,28 @@ impl InterpolateConfig {
         }
     }
 }
-
-impl Interpolate {
-    /// Forward pass of the interpolation module
+impl Interpolate2d {
+    /// Performs the forward pass of the interpolation module
     ///
     /// # Arguments
     ///
-    /// * `input` - Input tensor
+    /// * `input` - Input tensor with shape [N, C, H, W]
     ///
     /// # Returns
     ///
-    /// Output tensor
+    /// Resized tensor with shape [N, C, H', W'], where H' and W' are determined by
+    /// the output_size or scale_factor specified in the module configuration
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let input = Tensor::<Backend, 2>::random([1, 3, 64, 64], Distribution::Uniform(0.0, 1.0), &device);
+    /// let interpolate = Interpolate2dConfig::new()
+    ///     .with_output_size(Some([128, 128]))
+    ///     .init();
+    /// let output = interpolate.forward(input);
+    /// assert_eq!(output.dims(), [1, 3, 128, 128]);
+    /// ```
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let output_size = calculate_output_size(
             input.dims(),
@@ -87,7 +137,7 @@ impl Interpolate {
         interpolate(
             input,
             output_size,
-            InterpolateOptions::new(self.mode.0.clone()),
+            InterpolateOptions::new(self.mode.0.clone().into()),
         )
     }
 }
@@ -122,7 +172,7 @@ fn calculate_output_size(
     }
 }
 
-impl ModuleDisplay for Interpolate {
+impl ModuleDisplay for Interpolate2d {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -144,6 +194,10 @@ impl ModuleDisplay for Interpolate {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Distribution;
+
+    use crate::{nn::interpolate::CoordinateTransformationMode, TestBackend};
+
     use super::*;
 
     #[test]
@@ -192,13 +246,42 @@ mod tests {
     }
 
     #[test]
+    fn test_module() {
+        let input = Tensor::<TestBackend, 4>::random(
+            [2, 3, 4, 4],
+            Distribution::Uniform(0.0, 1.0),
+            &Default::default(),
+        );
+
+        // Test with output_size
+        let config = Interpolate2dConfig::new().with_output_size(Some([8, 8]));
+        let interpolate = config.init();
+        let output = interpolate.forward(input.clone());
+        assert_eq!(output.dims(), [2, 3, 8, 8]);
+
+        // Test with scale_factor
+        let config = Interpolate2dConfig::new().with_scale_factor(Some([0.5, 0.5]));
+        let interpolate = config.init();
+        let output = interpolate.forward(input.clone());
+        assert_eq!(output.dims(), [2, 3, 2, 2]);
+
+        // Test with different interpolation mode
+        let config = Interpolate2dConfig::new()
+            .with_output_size(Some([6, 6]))
+            .with_mode(InterpolateMode::Bilinear);
+        let interpolate = config.init();
+        let output = interpolate.forward(input);
+        assert_eq!(output.dims(), [2, 3, 6, 6]);
+    }
+
+    #[test]
     fn display() {
-        let config = InterpolateConfig::new().with_output_size(Some([20, 20]));
+        let config = Interpolate2dConfig::new().with_output_size(Some([20, 20]));
         let layer = config.init();
 
         assert_eq!(
             alloc::format!("{}", layer),
-            "Interpolate {mode: Nearest, output_size: Some([20, 20]), \
+            "Interpolate2d {mode: Nearest, output_size: Some([20, 20]), \
             scale_factor: None, coordinate_transformation_mode: Asymmetric}"
         );
     }
