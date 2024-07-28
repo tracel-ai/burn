@@ -632,6 +632,7 @@ where
         tensors: Vec<SparseTensor<Self, D>>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
+        let mut offset = 0;
         todo!()
     }
 
@@ -991,81 +992,89 @@ where
     }
 
     fn sparse_max<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
-        todo!()
+        panic!("max is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_max_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!(
+            "max_dim is unsupported for SparseCOO until scatter supports other reduction methods"
+        );
     }
 
     fn sparse_min<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
-        todo!()
+        panic!("min is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_min_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!(
+            "min_dim is unsupported for SparseCOO until scatter supports other reduction methods"
+        );
     }
 
     fn sparse_greater<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_greater is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_greater_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_greater_elem is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_greater_equal<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_greater_equal is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_greater_equal_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!(
+            "sparse_greater_equal_elem is not supported for SparseCOO as it outputs a dense tensor"
+        );
     }
 
     fn sparse_lower<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_lower is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_lower_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_lower_elem is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_lower_equal<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_lower_equal is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_lower_equal_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!(
+            "sparse_lower_equal_elem is not supported for SparseCOO as it outputs a dense tensor"
+        );
     }
 
     fn sparse_abs<const D: usize>(mut tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
@@ -1077,58 +1086,96 @@ where
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_powf is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_powi<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: SparseTensor<Self, D>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_powi is unsupported for SparseCOO until scatter supports other reduction methods");
     }
 
     fn sparse_powf_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
+        mut lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        lhs.values = lhs.values.map(|values| values.powf_scalar(rhs));
+        lhs
     }
 
     fn sparse_powi_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
+        mut lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        lhs.values = lhs.values.map(|values| values.powi_scalar(rhs));
+        lhs
     }
 
     fn sparse_clamp<const D: usize>(
-        tensor: SparseTensor<Self, D>,
+        mut tensor: SparseTensor<Self, D>,
         min: FloatElem<Self>,
         max: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        tensor.values = tensor.values.map(|values| values.clamp(min, max));
+        tensor
     }
 
     fn sparse_clamp_min<const D: usize>(
-        tensor: SparseTensor<Self, D>,
+        mut tensor: SparseTensor<Self, D>,
         min: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        tensor.values = tensor.values.map(|values| values.clamp_min(min));
+        tensor
     }
 
     fn sparse_clamp_max<const D: usize>(
-        tensor: SparseTensor<Self, D>,
+        mut tensor: SparseTensor<Self, D>,
         max: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        tensor.values = tensor.values.map(|values| values.clamp_max(max));
+        tensor
     }
 
     fn sparse_select<const D: usize>(
-        tensor: SparseTensor<Self, D>,
+        mut tensor: SparseTensor<Self, D>,
         dim: usize,
         indices: burn_tensor::ops::IntTensor<Self, 1>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
+            return tensor;
+        }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let device = tensor.device;
+        let mut shape = tensor.shape;
+        let indices = Tensor::<B, 1, Int>::new(indices);
+
+        let nnz = coordinates.shape().dims[1];
+        let dim_coords = coordinates
+            .clone()
+            .slice([dim..dim + 1, 0..nnz])
+            .squeeze::<1>(0);
+        let indices = indices.select(0, dim_coords);
+        let indices_len = indices.shape().num_elements();
+        let coordinates = coordinates.slice_assign(
+            [dim..dim + 1, 0..nnz],
+            indices.unsqueeze::<2>().repeat(1, D),
+        );
+
+        shape.dims[dim] = indices_len;
+
+        SparseCOOTensor {
+            coordinates: Some(coordinates),
+            values: Some(values),
+            shape,
+            device,
+        }
     }
 
     fn sparse_select_assign<const D: usize>(
@@ -1158,65 +1205,113 @@ where
     }
 
     fn sparse_sum<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
-        todo!()
+        tensor
+            .values
+            .map(|values| Self::sparse_to_sparse(values.sum().into_primitive().tensor()))
+            .unwrap_or(Self::sparse_empty(Shape::new([1]), &tensor.device))
     }
 
     fn sparse_sum_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_sum_dim unsupported for SparseCOO");
     }
 
     fn sparse_prod<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
-        todo!()
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
+            return Self::sparse_empty(Shape::new([1]), &tensor.device);
+        }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let device = tensor.device;
+        let shape = tensor.shape;
+
+        if shape.num_elements() != coordinates.dims()[1] {
+            Self::sparse_empty(Shape::new([1]), &device)
+        } else {
+            Self::sparse_to_sparse(values.sum().into_primitive().tensor())
+        }
     }
 
     fn sparse_prod_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("sparse_prod_dim is not supported for SparseCOO until scatter supports product reduction")
     }
 
     fn sparse_mean<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, 1> {
-        todo!()
+        tensor
+            .values
+            .map(|values| {
+                let elems = values.shape().num_elements();
+                Self::sparse_to_sparse((values.sum() / elems as f32).into_primitive().tensor())
+            })
+            .unwrap_or(Self::sparse_empty(Shape::new([1]), &tensor.device))
     }
 
     fn sparse_mean_dim<const D: usize>(
         tensor: SparseTensor<Self, D>,
         dim: usize,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        panic!("mean_dim is not supported for SparseCOO until scatter supports mean reduction");
     }
 
     fn sparse_equal_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_equal_elem is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_not_equal_elem<const D: usize>(
         lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
-        todo!()
+        panic!("sparse_not_equal_elem is not supported for SparseCOO as it outputs a dense tensor");
     }
 
     fn sparse_remainder_scalar<const D: usize>(
-        lhs: SparseTensor<Self, D>,
+        mut lhs: SparseTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> SparseTensor<Self, D> {
-        todo!()
+        lhs.values = lhs.values.map(|v| v.remainder_scalar(rhs));
+        lhs
     }
 
-    fn sparse_neg<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
-        todo!()
+    fn sparse_neg<const D: usize>(mut tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
+        tensor.values = tensor.values.map(|v| v.neg());
+        tensor
     }
 
     fn sparse_sign<const D: usize>(mut tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
         tensor.values = tensor.values.map(|values| values.sign());
         tensor
+    }
+
+    fn sparse_remove_zeros<const D: usize>(
+        tensor: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D> {
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
+            return tensor;
+        }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let device = tensor.device;
+        let mut shape = tensor.shape;
+
+        // let zeros = tensor.values.map(|values| values.equal_elem(0).nonzero());
+        todo!()
     }
 }

@@ -515,4 +515,10 @@ where
     fn sparse_sign<const D: usize>(tensor: SparseTensor<Self, D>) -> SparseTensor<Self, D> {
         todo!()
     }
+
+    fn sparse_remove_zeros<const D: usize>(
+        tensor: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D> {
+        todo!()
+    }
 }

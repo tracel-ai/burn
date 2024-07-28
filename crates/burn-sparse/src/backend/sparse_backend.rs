@@ -37,6 +37,10 @@ pub trait SparseBackend: Backend {
         tensor: Self::SparseTensorPrimitive<D>,
     ) -> Self::SparseTensorPrimitive<D>;
 
+    fn sparse_remove_zeros<const D: usize>(
+        tensor: Self::SparseTensorPrimitive<D>,
+    ) -> Self::SparseTensorPrimitive<D>;
+
     fn sparse_nonzero<const D: usize>(tensor: Self::SparseTensorPrimitive<D>) -> usize;
 
     fn sparse_density<const D: usize>(sparse: Self::SparseTensorPrimitive<D>) -> f32;
