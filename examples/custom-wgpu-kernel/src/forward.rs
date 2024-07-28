@@ -34,6 +34,10 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
             .register("elem", E::type_name())
             .register("int", "i32")
     }
+
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.cube_dim)
+    }
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.

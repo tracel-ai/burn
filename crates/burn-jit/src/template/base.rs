@@ -1,5 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::prelude::*;
+use alloc::sync::Arc;
+use cubecl::{prelude::*, KernelId};
 
 use super::SourceTemplate;
 
@@ -7,12 +8,14 @@ use super::SourceTemplate;
 pub trait KernelSource: Send + 'static + Sync {
     /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;
+    /// Identifier for the kernel, used for caching kernel compilation.
+    fn id(&self) -> KernelId;
 }
 
 #[derive(new)]
 /// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
 pub struct SourceKernel<K> {
-    kernel_source: K,
+    kernel_source: Arc<K>,
     cube_dim: CubeDim,
 }
 
@@ -31,7 +34,7 @@ impl<K: KernelSource> CubeTask for SourceKernel<K> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(())
+        self.kernel_source.id()
     }
 }
 

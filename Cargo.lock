@@ -1303,7 +1303,6 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1314,7 +1313,6 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "derive-new",
  "getrandom",
@@ -1328,7 +1326,6 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "bytemuck",
  "cubecl-macros",
@@ -1343,7 +1340,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1358,7 +1354,6 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1369,7 +1364,6 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -1380,7 +1374,6 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "async-channel",
  "cubecl-common",
@@ -1399,7 +1392,6 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?branch=feat/improve-id#1235ce0aa85435e8b0de568458eac79851b0e42b"
 dependencies = [
  "async-channel",
  "bytemuck",
