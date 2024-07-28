@@ -97,7 +97,13 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>((self.dim, self.cube_dim_x, self.cube_dim_y, self.n_input_values_per_thread, self.divisible_shape))
+        cubecl::KernelId::new::<Self, _>((
+            self.dim,
+            self.cube_dim_x,
+            self.cube_dim_y,
+            self.n_input_values_per_thread,
+            self.divisible_shape,
+        ))
     }
 }
 

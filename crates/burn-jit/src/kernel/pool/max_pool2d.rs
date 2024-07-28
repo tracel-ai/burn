@@ -70,8 +70,7 @@ struct MaxPoolWithIndices<E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<E: JitElement> core::cmp::Eq for MaxPoolWithIndices<E> {
-}
+impl<E: JitElement> core::cmp::Eq for MaxPoolWithIndices<E> {}
 
 impl<E: JitElement> core::hash::Hash for MaxPoolWithIndices<E> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

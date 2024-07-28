@@ -3,14 +3,8 @@ use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, SUBCUBE_DIM_APPROX,
 };
-use cubecl::{
-    cpa,
-    frontend::TensorHandleRef,
-    ir::{KernelDefinition, Scope, Variable, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
-    OutputInfo,
-};
-use std::{any::TypeId, marker::PhantomData};
+use cubecl::{ir::KernelDefinition, KernelSettings};
+use std::any::TypeId;
 
 #[cube(launch)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
@@ -58,7 +52,8 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     );
     let client = input.client.clone();
     let handle = client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = JitTensor::new_contiguous(client.clone(), input.device, input.shape.clone(), handle);
+    let output =
+        JitTensor::new_contiguous(client.clone(), input.device, input.shape.clone(), handle);
 
     cast_element::launch::<EI::Primitive, EO::Primitive, R>(
         &client,
