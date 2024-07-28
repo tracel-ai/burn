@@ -384,13 +384,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}count_include_pad={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-            self.count_include_pad
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.kernel_size, self.count_include_pad))
     }
 }
 

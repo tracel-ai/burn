@@ -90,13 +90,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}d={}r={}",
-            core::any::TypeId::of::<Self>(),
-            self.dim,
-            self.rank
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.dim, self.rank))
     }
 }
 

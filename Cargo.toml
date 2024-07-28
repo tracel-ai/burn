@@ -16,7 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "crates/burn-cuda",     # comment this line to work on burn-cuda
+    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -93,7 +93,7 @@ crossterm = "0.27.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "0.20.1"
+wgpu = "22.0.0"
 
 # Benchmarks and Burnbench
 arboard = "3.4.0"
@@ -140,8 +140,12 @@ nvml-wrapper = "0.10.0"
 sysinfo = "0.30.13"
 systemstat = "0.2.3"
 
+### For the main burn branch. ###
 cubecl = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl", default-features = false }
 cubecl-common = { version = "0.1.1", git = "https://github.com/tracel-ai/cubecl", default-features = false }
+### For local development. ###
+# cubecl = { path = "../cubecl/crates/cubecl" }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.

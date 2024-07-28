@@ -10,7 +10,7 @@ use std::fmt::Debug;
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
 struct AvgPool {
     kernel_size: [usize; 2],
     count_include_pad: bool,

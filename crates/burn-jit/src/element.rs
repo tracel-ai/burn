@@ -4,7 +4,7 @@ use cubecl::{
 };
 
 /// The base element trait for the jit backend.
-pub trait JitElement: burn_tensor::Element + CubeElement {
+pub trait JitElement: burn_tensor::Element + CubeElement + PartialEq {
     /// Cube primitive representing the jit element.
     type Primitive: Numeric<Primitive = Self>;
 }
