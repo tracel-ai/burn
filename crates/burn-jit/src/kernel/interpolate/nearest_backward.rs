@@ -215,7 +215,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(())
+        cubecl::KernelId::new::<Self>()
     }
 }
 

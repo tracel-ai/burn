@@ -175,7 +175,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectAssignEagerKernel<R, E> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.dim)
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 

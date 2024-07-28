@@ -79,7 +79,7 @@ impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kern
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.dim)
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 

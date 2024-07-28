@@ -91,7 +91,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>((self.dim, self.rank))
+        cubecl::KernelId::new::<Self>().info((self.dim, self.rank))
     }
 }
 

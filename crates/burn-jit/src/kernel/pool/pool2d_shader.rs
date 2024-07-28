@@ -250,6 +250,6 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Kernel for Pool2dEagerKernel
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>((self.kernel_size, self.pool_strategy.clone()))
+        cubecl::KernelId::new::<Self>().info((self.kernel_size, self.pool_strategy.clone()))
     }
 }

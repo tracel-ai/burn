@@ -1,5 +1,4 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use alloc::sync::Arc;
 use cubecl::{prelude::*, KernelId};
 
 use super::SourceTemplate;
@@ -15,7 +14,7 @@ pub trait KernelSource: Send + 'static + Sync {
 #[derive(new)]
 /// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
 pub struct SourceKernel<K> {
-    kernel_source: Arc<K>,
+    kernel_source: K,
     cube_dim: CubeDim,
 }
 

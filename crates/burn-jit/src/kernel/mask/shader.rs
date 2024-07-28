@@ -161,7 +161,7 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.reversed)
+        cubecl::KernelId::new::<Self>().info(self.reversed)
     }
 }
 
@@ -232,7 +232,7 @@ impl<M: MaskStrategy, R: JitRuntime, EI: JitElement, EM: JitElement> Kernel
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.reversed)
+        cubecl::KernelId::new::<Self>().info(self.reversed)
     }
 }
 

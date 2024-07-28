@@ -328,7 +328,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.kernel_size)
+        cubecl::KernelId::new::<Self>().info(self.kernel_size)
     }
 }
 

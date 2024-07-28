@@ -401,7 +401,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateBicubicEagerKernel<R, E
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(())
+        cubecl::KernelId::new::<Self>()
     }
 }
 

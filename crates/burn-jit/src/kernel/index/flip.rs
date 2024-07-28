@@ -106,7 +106,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(self.rank)
+        cubecl::KernelId::new::<Self>().info(self.rank)
     }
 }
 

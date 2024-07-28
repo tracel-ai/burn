@@ -91,7 +91,7 @@ impl<R: JitRuntime, EO: JitElement> Kernel for BoolCastEagerKernel<R, EO> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self, _>(())
+        cubecl::KernelId::new::<Self>()
     }
 }
 
