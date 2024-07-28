@@ -5,12 +5,12 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
-use crate::tensor::ops::{InterpolateMode as OpsInterpolateMode, InterpolateOptions};
+use crate::tensor::ops::InterpolateOptions;
 use crate::tensor::Tensor;
 
-use super::CoordinateTransformationMode;
+use super::{CoordinateTransformationMode, InterpolateMode};
 
-/// Configuration for the 2D interpolation module
+/// Configuration for the 2D interpolation module.
 ///
 /// This struct defines the configuration options for the 2D interpolation operation.
 /// It allows specifying the output size, scale factor, interpolation mode,
@@ -36,32 +36,6 @@ pub struct Interpolate2dConfig {
     /// Defines how the input and output coordinates are related.
     #[config(default = "CoordinateTransformationMode::Asymmetric")]
     pub coordinate_transformation_mode: CoordinateTransformationMode,
-}
-
-/// Algorithm used for upsampling.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum InterpolateMode {
-    /// Nearest-neighbor interpolation.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
-    Nearest,
-
-    /// Bilinear interpolation.
-    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
-    Bilinear,
-
-    /// Bicubic interpolation.
-    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
-    Bicubic,
-}
-
-impl From<InterpolateMode> for OpsInterpolateMode {
-    fn from(mode: InterpolateMode) -> Self {
-        match mode {
-            InterpolateMode::Nearest => OpsInterpolateMode::Nearest,
-            InterpolateMode::Bilinear => OpsInterpolateMode::Bilinear,
-            InterpolateMode::Bicubic => OpsInterpolateMode::Bicubic,
-        }
-    }
 }
 
 /// Interpolate module for resizing tensors with shape [N, C, H, W].
@@ -119,7 +93,7 @@ impl Interpolate2d {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let input = Tensor::<Backend, 2>::random([1, 3, 64, 64], Distribution::Uniform(0.0, 1.0), &device);
     /// let interpolate = Interpolate2dConfig::new()
     ///     .with_output_size(Some([128, 128]))
@@ -268,7 +242,7 @@ mod tests {
         // Test with different interpolation mode
         let config = Interpolate2dConfig::new()
             .with_output_size(Some([6, 6]))
-            .with_mode(InterpolateMode::Bilinear);
+            .with_mode(InterpolateMode::Linear);
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6, 6]);

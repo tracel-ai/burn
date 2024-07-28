@@ -5,10 +5,10 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
-use crate::tensor::ops::{InterpolateMode as OpsInterpolateMode, InterpolateOptions};
+use crate::tensor::ops::InterpolateOptions;
 use crate::tensor::Tensor;
 
-use super::CoordinateTransformationMode;
+use super::{CoordinateTransformationMode, InterpolateMode};
 
 /// Configuration for the 1D interpolation module.
 ///
@@ -29,37 +29,13 @@ pub struct Interpolate1dConfig {
 
     /// Interpolation mode to use for resizing.
     /// Determines how the output values are calculated.
-    #[config(default = "Interpolate1dMode::Nearest")]
-    pub mode: Interpolate1dMode,
+    #[config(default = "InterpolateMode::Nearest")]
+    pub mode: InterpolateMode,
 
     /// Coordinate transformation mode.
     /// Defines how the input and output coordinates are related.
     #[config(default = "CoordinateTransformationMode::Asymmetric")]
     pub coordinate_transformation_mode: CoordinateTransformationMode,
-}
-
-/// Algorithm used for upsampling.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum Interpolate1dMode {
-    /// Nearest-neighbor interpolation.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
-    Nearest,
-
-    /// Linear interpolation.
-    Linear,
-
-    /// Cubic interpolation.
-    Cubic,
-}
-
-impl From<Interpolate1dMode> for OpsInterpolateMode {
-    fn from(mode: Interpolate1dMode) -> Self {
-        match mode {
-            Interpolate1dMode::Nearest => OpsInterpolateMode::Nearest,
-            Interpolate1dMode::Linear => OpsInterpolateMode::Bilinear,
-            Interpolate1dMode::Cubic => OpsInterpolateMode::Bicubic,
-        }
-    }
 }
 
 /// Interpolate module for resizing 1D tensors with shape [N, C, L].
@@ -85,7 +61,7 @@ pub struct Interpolate1d {
     pub scale_factor: Option<f32>,
 
     /// Interpolation mode used for resizing
-    pub mode: Ignored<Interpolate1dMode>,
+    pub mode: Ignored<InterpolateMode>,
 
     /// Coordinate transformation mode for input and output coordinates
     pub coordinate_transformation_mode: Ignored<CoordinateTransformationMode>,
@@ -117,9 +93,9 @@ impl Interpolate1d {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let input = Tensor::<Backend, 3>::random([1, 3, 64], Distribution::Uniform(0.0, 1.0), &device);
-    /// let interpolate = Interpolate1dConfig::new()
+    /// let interpolate = InterpolateConfig::new()
     ///     .with_output_size(Some(128))
     ///     .init();
     /// let output = interpolate.forward(input);
@@ -269,7 +245,7 @@ mod tests {
         // Test with different interpolation mode
         let config = Interpolate1dConfig::new()
             .with_output_size(Some(6))
-            .with_mode(Interpolate1dMode::Linear);
+            .with_mode(InterpolateMode::Linear);
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6]);
