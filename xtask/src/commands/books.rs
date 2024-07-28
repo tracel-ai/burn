@@ -21,7 +21,7 @@ pub struct BooksArgs {
 pub(crate) enum BookKind {
     ///  Burn Book, a.k.a. the guide, made for the Burn users.
     Burn(BookKindArgs),
-    /// Contributor book, made for people willing to get all the technical understanding and advices to contribute actively to the project.
+    /// Contributor book, made for people willing to get all the technical understanding and advice to contribute actively to the project.
     Contributor(BookKindArgs),
 }
 
