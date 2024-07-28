@@ -6,18 +6,6 @@ pub use interpolate2d::*;
 
 use crate::tensor::ops::InterpolateMode as OpsInterpolateMode;
 
-/// Coordinate transformation mode using scale_factor
-///
-/// This enum defines different modes for coordinate transformation using a scale factor.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub enum CoordinateTransformationMode {
-    /// Transforms coordinates using the formula: x_resized = (x_original + 0.5) * scale - 0.5
-    HalfPixel,
-
-    /// Transforms coordinates using the formula: x_resized = x_original * scale
-    Asymmetric,
-}
-
 /// Algorithm used for downsampling and upsampling
 ///
 /// This enum defines different interpolation modes for resampling data.

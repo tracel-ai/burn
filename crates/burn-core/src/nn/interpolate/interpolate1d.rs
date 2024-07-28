@@ -8,13 +8,12 @@ use crate::tensor::backend::Backend;
 use crate::tensor::ops::InterpolateOptions;
 use crate::tensor::Tensor;
 
-use super::{CoordinateTransformationMode, InterpolateMode};
+use super::InterpolateMode;
 
 /// Configuration for the 1D interpolation module.
 ///
 /// This struct defines the configuration options for the 1D interpolation operation.
-/// It allows specifying the output size, scale factor, interpolation mode,
-/// and coordinate transformation mode.
+/// It allows specifying the output size, scale factor, and interpolation mode.
 #[derive(Config, Debug)]
 pub struct Interpolate1dConfig {
     /// Output size of the interpolated tensor.
@@ -31,20 +30,14 @@ pub struct Interpolate1dConfig {
     /// Determines how the output values are calculated.
     #[config(default = "InterpolateMode::Nearest")]
     pub mode: InterpolateMode,
-
-    /// Coordinate transformation mode.
-    /// Defines how the input and output coordinates are related.
-    #[config(default = "CoordinateTransformationMode::Asymmetric")]
-    pub coordinate_transformation_mode: CoordinateTransformationMode,
 }
 
 /// Interpolate module for resizing 1D tensors with shape [N, C, L].
 ///
 /// This struct represents a 1D interpolation module that can resize tensors
-/// using various interpolation methods and coordinate transformation modes.
-/// It provides flexibility in specifying either an output size or a scale factor
-/// for resizing, along with options for the interpolation mode and coordinate
-/// transformation mode.
+/// using various interpolation methods. It provides flexibility in specifying
+/// either an output size or a scale factor for resizing, along with options
+/// for the interpolation mode.
 ///
 /// The module can be used to upsample or downsample 1D tensors, preserving the
 /// number of channels and batch size while adjusting the length dimension.
@@ -62,9 +55,6 @@ pub struct Interpolate1d {
 
     /// Interpolation mode used for resizing
     pub mode: Ignored<InterpolateMode>,
-
-    /// Coordinate transformation mode for input and output coordinates
-    pub coordinate_transformation_mode: Ignored<CoordinateTransformationMode>,
 }
 
 impl Interpolate1dConfig {
@@ -74,7 +64,6 @@ impl Interpolate1dConfig {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
             mode: Ignored(self.mode),
-            coordinate_transformation_mode: Ignored(self.coordinate_transformation_mode),
         }
     }
 }
@@ -95,19 +84,14 @@ impl Interpolate1d {
     ///
     /// ```ignore
     /// let input = Tensor::<Backend, 3>::random([1, 3, 64], Distribution::Uniform(0.0, 1.0), &device);
-    /// let interpolate = InterpolateConfig::new()
+    /// let interpolate = Interpolate1dConfig::new()
     ///     .with_output_size(Some(128))
     ///     .init();
     /// let output = interpolate.forward(input);
     /// assert_eq!(output.dims(), [1, 3, 128]);
     /// ```
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let output_size = calculate_output_size(
-            input.dims(),
-            self.output_size,
-            self.scale_factor,
-            self.coordinate_transformation_mode.0,
-        );
+        let output_size = calculate_output_size(input.dims(), self.output_size, self.scale_factor);
 
         // Use the interpolate operation to resize the temporal input tensor
         // by adding a new dimension for the interpolation axis
@@ -124,11 +108,25 @@ impl Interpolate1d {
 }
 
 /// Calculate output size based on input dimensions, output size, and scale factor
+///
+/// # Arguments
+///
+/// * `input_dims` - Input dimensions of the tensor
+/// * `output_size` - Output size for the interpolated tensor
+/// * `scale_factor` - Scale factor for resizing the tensor
+///
+/// # Returns
+///
+/// Output size for the interpolated tensor
+///
+/// # Panics
+///
+/// Panics if neither output_size nor scale_factor is provided
+/// or if the scale factor is too large
 fn calculate_output_size(
     input_dims: [usize; 3],
     output_size: Option<usize>,
     scale_factor: Option<f32>,
-    coordinate_transformation_mode: CoordinateTransformationMode,
 ) -> usize {
     match (output_size, scale_factor) {
         (Some(output_size), None) => {
@@ -138,13 +136,14 @@ fn calculate_output_size(
         (None, Some(scale_factor)) => {
             // Calculate output size based on scale factor
             let [_, _, l] = input_dims;
-            match coordinate_transformation_mode {
-                CoordinateTransformationMode::HalfPixel => {
-                    ((l as f32 + 0.5) * scale_factor - 0.5) as usize
-                } // Floor rounding
 
-                CoordinateTransformationMode::Asymmetric => ((l as f32) * scale_factor) as usize, // Floor rounding
+            let new_dim = (l as f64) * (scale_factor as f64);
+
+            if new_dim > usize::MAX as f64 {
+                panic!("Scale factor is too large");
             }
+
+            new_dim as usize
         }
         _ => panic!("Either output_size or scale_factor must be provided"),
     }
@@ -162,64 +161,46 @@ impl ModuleDisplay for Interpolate1d {
             .add("mode", &self.mode)
             .add("output_size", &format!("{:?}", self.output_size))
             .add("scale_factor", &self.scale_factor)
-            .add(
-                "coordinate_transformation_mode",
-                &self.coordinate_transformation_mode,
-            )
             .optional()
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use burn_tensor::Distribution;
 
     use super::*;
     use crate::TestBackend;
-
     #[test]
     fn test_calculate_output_size() {
         let input_dims = [1, 1, 4];
 
-        let output_size = calculate_output_size(
-            input_dims,
-            Some(2),
-            None,
-            CoordinateTransformationMode::Asymmetric,
-        );
+        let output_size = calculate_output_size(input_dims, Some(2), None);
         assert_eq!(output_size, 2);
 
-        let output_size = calculate_output_size(
-            input_dims,
-            None,
-            Some(2.0),
-            CoordinateTransformationMode::Asymmetric,
-        );
+        let output_size = calculate_output_size(input_dims, None, Some(2.0));
         assert_eq!(output_size, 8);
 
-        let output_size = calculate_output_size(
-            input_dims,
-            None,
-            Some(0.5),
-            CoordinateTransformationMode::Asymmetric,
-        );
+        let output_size = calculate_output_size(input_dims, None, Some(0.5));
         assert_eq!(output_size, 2);
 
-        let output_size = calculate_output_size(
-            input_dims,
-            None,
-            Some(1.5),
-            CoordinateTransformationMode::Asymmetric,
-        );
+        let output_size = calculate_output_size(input_dims, None, Some(1.5));
         assert_eq!(output_size, 6);
+    }
 
-        let output_size = calculate_output_size(
-            input_dims,
-            None,
-            Some(0.7),
-            CoordinateTransformationMode::HalfPixel,
-        );
-        assert_eq!(output_size, 2);
+    #[test]
+    #[should_panic(expected = "Either output_size or scale_factor must be provided")]
+    fn test_panic() {
+        let input_dims = [1, 1, 4];
+        calculate_output_size(input_dims, None, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Scale factor is too large")]
+    fn test_large_scale_factor() {
+        let input_dims = [1, 1, usize::MAX - 1];
+        calculate_output_size(input_dims, None, Some(2.0));
     }
 
     #[test]
@@ -259,7 +240,7 @@ mod tests {
         assert_eq!(
             alloc::format!("{}", layer),
             "Interpolate1d {mode: Nearest, output_size: Some(20), \
-            scale_factor: None, coordinate_transformation_mode: Asymmetric}"
+            scale_factor: None}"
         );
     }
 }
