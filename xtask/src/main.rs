@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
                         match cmd_args.command {
                             ci::CICommand::Build => {
                                 helpers::additional_crates_build(no_std_crates.clone(), build_args)
-                            },
+                            }
                             _ => Ok(()),
                         }
                     })?;

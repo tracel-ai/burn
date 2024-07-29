@@ -34,7 +34,6 @@ env:
 
   # Cargo
   CARGO_TERM_COLOR: "always"
-  CARGO_INCREMENTAL: "0"
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
