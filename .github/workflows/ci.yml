@@ -38,19 +38,27 @@ env:
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
-  #
+
   # Sourced from https://vulkan.lunarg.com/sdk/home#linux
   VULKAN_SDK_VERSION: "1.3.268"
+
   # Sourced from https://archive.mesa3d.org/. Bumping this requires
   # updating the mesa build in https://github.com/gfx-rs/ci-build and creating a new release.
   MESA_VERSION: "23.3.1"
   # Corresponds to https://github.com/gfx-rs/ci-build/releases
   MESA_CI_BINARY_BUILD: "build18"
+
   # Sourced from https://www.nuget.org/packages/Microsoft.Direct3D.WARP
   WARP_VERSION: "1.0.8"
+  # Sourced from https://github.com/microsoft/DirectXShaderCompiler/releases
+  # Must also be changed in shaders.yaml
+  DXC_RELEASE: "v1.7.2308"
+  DXC_FILENAME: "dxc_2023_08_14.zip"
+
   # Mozilla Grcov
   GRCOV_LINK: "https://github.com/mozilla/grcov/releases/download"
   GRCOV_VERSION: "0.8.19"
+
   # Typos version
   TYPOS_LINK: "https://github.com/crate-ci/typos/releases/download"
   TYPOS_VERSION: "1.23.4"
@@ -84,10 +92,9 @@ jobs:
           curl -L "$TYPOS_LINK/v$TYPOS_VERSION/typos-v$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
           tar xz -C $HOME/.cargo/bin
       # --------------------------------------------------------------------------------
-      # TODO Disable for now, will fix later after the refactor is merged
-      # - name: Audit
-      #   shell: bash
-      #   run: cargo xtask ci audit
+      - name: Audit
+        shell: bash
+        run: cargo xtask ci audit
       # --------------------------------------------------------------------------------
       - name: Format
         shell: bash
@@ -213,3 +220,75 @@ jobs:
       - name: Crates Unit Tests
         shell: bash
         run: cargo xtask --execution-environment no-std ci unit-tests
+
+  tests-windows-std:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        rust: [stable, 1.79.0]
+        include:
+          - rust: stable
+            cache-version: stable
+          - rust: 1.79.0
+            cache-version: 1-79-0
+    steps:
+      - name: Checkout actions
+        uses: actions/checkout@v3
+      # --------------------------------------------------------------------------------
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-toolchain: ${{ matrix.rust }}
+          cache-key: ${{ matrix.cache-version }}-windows
+      # --------------------------------------------------------------------------------
+      - name: Setup Windows runner
+        uses: ./.github/actions/setup-windows
+        with:
+          dxc-release: ${{ env.DXC_RELEASE }}
+          dxc-filename: ${{ env.DXC_FILENAME }}
+          mesa-version: ${{ env.MESA_VERSION }}
+          warp-version: ${{ env.WARP_VERSION }}
+      # --------------------------------------------------------------------------------
+      - name: Build
+        shell: bash
+        run: cargo xtask ci build
+      # --------------------------------------------------------------------------------
+      - name: Unit Tests
+        shell: bash
+        run: cargo xtask ci unit-tests
+      # --------------------------------------------------------------------------------
+      - name: Integration Tests
+        shell: bash
+        run: cargo xtask ci integration-tests
+
+  tests-macos-std:
+    runs-on: blaze/macos-14
+    strategy:
+      matrix:
+        rust: [stable, 1.79.0]
+        include:
+          - rust: stable
+            cache-version: stable
+          - rust: 1.79.0
+            cache-version: 1-79-0
+    steps:
+      - name: Checkout actions
+        uses: actions/checkout@v3
+      # --------------------------------------------------------------------------------
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-toolchain: ${{ matrix.rust }}
+          cache-key: ${{ matrix.cache-version }}-windows
+      # --------------------------------------------------------------------------------
+      - name: Build
+        shell: bash
+        run: cargo xtask ci build
+      # --------------------------------------------------------------------------------
+      - name: Unit Tests
+        shell: bash
+        run: cargo xtask ci unit-tests
+      # --------------------------------------------------------------------------------
+      - name: Integration Tests
+        shell: bash
+        run: cargo xtask ci integration-tests
