@@ -77,7 +77,7 @@ jobs:
             cache-version: stable
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -117,7 +117,7 @@ jobs:
             cache-version: stable
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -141,7 +141,7 @@ jobs:
             cache-version: 1-79-0
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -197,7 +197,7 @@ jobs:
             cache-version: 1-79-0
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -232,7 +232,7 @@ jobs:
             cache-version: 1-79-0
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -272,7 +272,7 @@ jobs:
             cache-version: 1-79-0
     steps:
       - name: Checkout actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
