@@ -117,7 +117,7 @@ half = { version = "2.4.1", features = [
     "serde",
 ], default-features = false }
 ndarray = { version = "0.15.6", default-features = false }
-matrixmultiply = { version = "0.3.8", default-features = false }
+matrixmultiply = { version = "0.3.9", default-features = false }
 openblas-src = "0.10.9"
 blas-src = { version = "0.10.0", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
