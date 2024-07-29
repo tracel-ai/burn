@@ -87,12 +87,28 @@ fn main() -> anyhow::Result<()> {
                     })
                 }
                 ExecutionEnvironment::Std => {
+                    // Exclude crates that are not supported by CI
                     match cmd_args.command {
-                        ci::CICommand::Build => {
-                            // Exclude problematic crates from build
+                        ci::CICommand::Build | ci::CICommand::UnitTests => {
                             cmd_args
                                 .exclude
                                 .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
+                            if std::env::var("DISABLE_WGPU").is_ok() {
+                                cmd_args
+                                    .exclude
+                                    .extend(vec!["burn-wgpu".to_string()]);
+                            }
+                        },
+                        ci::CICommand::DocTests => {
+                            // TODO cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
+                            // Exclude problematic crates from documentation test
+                            cmd_args.exclude.extend(vec!["burn-cuda".to_string()])
+                        },
+                        _ => {}
+                    };
+                    // Specific additional builds to test specific features
+                    match cmd_args.command {
+                        ci::CICommand::Build => {
                             // burn-dataset
                             helpers::additional_crates_build(
                                 vec!["burn-dataset"],
@@ -100,10 +116,6 @@ fn main() -> anyhow::Result<()> {
                             )?;
                         }
                         ci::CICommand::UnitTests => {
-                            // Exclude problematic crates from tests
-                            cmd_args
-                                .exclude
-                                .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
                             // burn-dataset
                             helpers::additional_crates_unit_tests(
                                 vec!["burn-dataset"],
@@ -134,11 +146,6 @@ fn main() -> anyhow::Result<()> {
                                     vec!["--features", "blas-accelerate"],
                                 )?;
                             }
-                        }
-                        ci::CICommand::DocTests => {
-                            // TODO cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
-                            // Exclude problematic crates from documentation test
-                            cmd_args.exclude.extend(vec!["burn-cuda".to_string()])
                         }
                         _ => {}
                     }

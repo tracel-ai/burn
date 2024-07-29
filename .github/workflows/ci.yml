@@ -222,6 +222,8 @@ jobs:
 
   tests-windows-std:
     runs-on: windows-2022
+    env:
+      DISABLE_WGPU: '1'
     strategy:
       matrix:
         rust: [stable, 1.79.0]
@@ -241,6 +243,7 @@ jobs:
           cache-key: ${{ matrix.cache-version }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
+        if: env.DISABLE_WGPU != '1'
         uses: ./.github/actions/setup-windows
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
