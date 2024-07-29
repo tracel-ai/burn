@@ -97,6 +97,10 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Format
         shell: bash
+        env:
+          # work around for colors
+          # see: https://github.com/rust-lang/rustfmt/issues/3385
+          TERM: xterm-256color
         run: cargo xtask ci format
       # --------------------------------------------------------------------------------
       - name: Lint

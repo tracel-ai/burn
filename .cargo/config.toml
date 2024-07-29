@@ -1,2 +1,2 @@
 [alias]
-xtask = "run --release --target-dir target/xtask/release --package xtask --bin xtask --"
+xtask = "run --release --target-dir target/xtask/release --color always --package xtask --bin xtask --"

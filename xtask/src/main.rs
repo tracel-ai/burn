@@ -94,16 +94,14 @@ fn main() -> anyhow::Result<()> {
                                 .exclude
                                 .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
                             if std::env::var("DISABLE_WGPU").is_ok() {
-                                cmd_args
-                                    .exclude
-                                    .extend(vec!["burn-wgpu".to_string()]);
+                                cmd_args.exclude.extend(vec!["burn-wgpu".to_string()]);
                             }
-                        },
+                        }
                         ci::CICommand::DocTests => {
                             // TODO cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
                             // Exclude problematic crates from documentation test
                             cmd_args.exclude.extend(vec!["burn-cuda".to_string()])
-                        },
+                        }
                         _ => {}
                     };
                     // Specific additional builds to test specific features
