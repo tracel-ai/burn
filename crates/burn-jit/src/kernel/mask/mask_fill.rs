@@ -14,6 +14,15 @@ fn mask_fill_readonly_kernel<T: Numeric>(
         return;
     }
 
+    let index_input = index_offset_with_layout(
+        input,
+        output,
+        ABSOLUTE_POS,
+        UInt::new(0),
+        Comptime::runtime(rank),
+        Comptime::new(true),
+    );
+
     let index_mask = index_offset_with_layout(
         mask,
         output,
@@ -23,25 +32,10 @@ fn mask_fill_readonly_kernel<T: Numeric>(
         Comptime::new(true),
     );
 
-    if index_mask >= mask.len() {
-        return;
-    }
-
     if mask[index_mask] >= UInt::new(1) {
         output[ABSOLUTE_POS] = value;
     } else {
-        let index_input = index_offset_with_layout(
-            input,
-            output,
-            ABSOLUTE_POS,
-            UInt::new(0),
-            Comptime::runtime(rank),
-            Comptime::new(true),
-        );
-
-        if index_input < input.len() {
-            output[ABSOLUTE_POS] = input[index_input];
-        }
+        output[ABSOLUTE_POS] = input[index_input];
     }
 }
 
@@ -64,10 +58,6 @@ fn mask_fill_inplace_kernel<T: Numeric>(
         Comptime::runtime(rank),
         Comptime::new(true),
     );
-
-    if index_mask >= mask.len() {
-        return;
-    }
 
     if mask[index_mask] >= UInt::new(1) {
         input[ABSOLUTE_POS] = value;
