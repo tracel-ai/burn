@@ -67,10 +67,20 @@ fn main() -> anyhow::Result<()> {
                         match cmd_args.command {
                             ci::CICommand::Build => {
                                 helpers::additional_crates_build(no_std_crates.clone(), build_args)
-                            }
+                            },
+                            _ => Ok(()),
+                        }
+                    })?;
+                    let no_std_test_targets = ["Default"];
+                    no_std_test_targets.iter().try_for_each(|test_target| {
+                        let mut test_args = no_std_features_args.clone();
+                        if *test_target != "Default" {
+                            test_args.extend(vec!["--target", *test_target]);
+                        }
+                        match cmd_args.command {
                             ci::CICommand::UnitTests => helpers::additional_crates_unit_tests(
                                 no_std_crates.clone(),
-                                build_args,
+                                test_args,
                             ),
                             _ => Ok(()),
                         }
