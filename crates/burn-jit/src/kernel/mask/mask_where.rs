@@ -10,6 +10,10 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
     output: &mut Tensor<T>,
     rank: Comptime<UInt>,
 ) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
+
     let index_input = index_offset_with_layout(
         input,
         output,
@@ -47,11 +51,15 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
 #[cube(launch)]
 fn mask_where_inplace_kernel<T: CubePrimitive>(
     input: &mut Tensor<T>,
-    mask: &Tensor<Bool>,
+    mask: &Tensor<UInt>,
     value: &Tensor<T>,
     reverse: UInt,
     rank: Comptime<UInt>,
 ) {
+    if ABSOLUTE_POS >= input.len() {
+        return;
+    }
+
     let index_mask = index_offset_with_layout(
         mask,
         input,
@@ -70,7 +78,7 @@ fn mask_where_inplace_kernel<T: CubePrimitive>(
         Comptime::new(true),
     );
 
-    if mask[index_mask] != Bool::cast_from(reverse) {
+    if mask[index_mask] != reverse {
         input[ABSOLUTE_POS] = value[index_value];
     }
 }
