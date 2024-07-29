@@ -3,7 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 
 #[cube(launch)]
 fn bool_cast_kernel<T: Numeric>(input: &Tensor<UInt>, output: &mut Tensor<T>) {
-    if input[ABSOLUTE_POS] == UInt::new(1) {
+    if input[ABSOLUTE_POS] >= UInt::new(1) {
         output[ABSOLUTE_POS] = T::from_int(1);
     } else {
         output[ABSOLUTE_POS] = T::from_int(0);
