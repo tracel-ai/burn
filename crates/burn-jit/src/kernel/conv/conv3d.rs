@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
@@ -188,10 +188,13 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
         }
     };
 
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+
     conv3d_kernel::launch::<E::FloatPrimitive, R>(
         &input.client,
-        calculate_cube_count_elemwise(output.shape.num_elements(), SUBCUBE_DIM_APPROX),
-        CubeDim::default(),
+        cube_count,
+        cube_dim,
         TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
         TensorArg::new(&weight.handle, &weight.strides, &weight.shape.dims),
         TensorArg::new(&bias.handle, &bias.strides, &bias.shape.dims),

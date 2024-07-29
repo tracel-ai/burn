@@ -4,15 +4,15 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
+use cubecl::InputInfo;
 use cubecl::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings,
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings, CubeDim,
     KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use cubecl::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -223,7 +223,8 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     Execution::start(kernel, indices.client)
         .inputs(&[

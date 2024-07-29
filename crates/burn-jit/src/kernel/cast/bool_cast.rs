@@ -1,12 +1,14 @@
-use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
-use cubecl::{
-    cpa,
-    frontend::TensorHandleRef,
-    ir::{Elem, Item, KernelDefinition, Scope, Variable, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
-    OutputInfo,
-};
-use std::marker::PhantomData;
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
+
+#[cube(launch)]
+fn bool_cast_kernel<T: Numeric>(input: &Tensor<UInt>, output: &mut Tensor<T>) {
+    if input[ABSOLUTE_POS] == UInt::new(1) {
+        output[ABSOLUTE_POS] = T::from_int(1);
+    } else {
+        output[ABSOLUTE_POS] = T::from_int(0);
+    }
+}
 
 /// Cast a bool tensor to the given element type.
 ///
@@ -17,7 +19,6 @@ use std::marker::PhantomData;
 pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     tensor: JitTensor<R, u32, D>,
 ) -> JitTensor<R, EO, D> {
-    let kernel = BoolCastEagerKernel::<R, EO>::new();
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
     let output = JitTensor::new_contiguous(
@@ -27,86 +28,16 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
         buffer,
     );
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &tensor.handle,
-            &tensor.strides,
-            &tensor.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
-        .execute(CubeCountSettings::Output { pos: 0 });
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+
+    bool_cast_kernel::launch::<EO::Primitive, R>(
+        &tensor.client,
+        cube_count,
+        cube_dim,
+        TensorArg::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+    );
 
     output
-}
-
-pub(crate) struct BoolCastShader {
-    tensor: Variable,
-    output: Variable,
-}
-
-#[derive(new)]
-pub(crate) struct BoolCastEagerKernel<R: JitRuntime, EO: JitElement> {
-    _runtime: PhantomData<R>,
-    _elem_out: PhantomData<EO>,
-}
-
-impl<R: JitRuntime, EO: JitElement> Kernel for BoolCastEagerKernel<R, EO> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item_input = Item::new(Elem::Bool);
-        let item_output = EO::cube_elem().into();
-
-        let tensor = Variable::GlobalInputArray {
-            id: 0,
-            item: item_input,
-        };
-        let output = Variable::GlobalOutputArray {
-            id: 0,
-            item: item_output,
-        };
-
-        BoolCastShader { tensor, output }.expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let tensor = InputInfo::Array {
-            item: item_input,
-            visibility: Visibility::Read,
-        };
-
-        let out = OutputInfo::Array { item: item_output };
-
-        let info = KernelExpansion {
-            inputs: vec![tensor],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
-    }
-
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>()
-    }
-}
-
-impl BoolCastShader {
-    pub(crate) fn expand(self, scope: &mut Scope) {
-        let tensor = self.tensor;
-        let id = Variable::AbsolutePos;
-        let output = self.output;
-
-        let represents_true = scope.create_local(Elem::Bool);
-        cpa!(scope, represents_true = tensor[id]);
-        cpa!(scope, if(represents_true).then(|scope|{
-            cpa!(scope, output[id] = 1);
-        }).else(|scope|{
-            cpa!(scope, output[id] = 0);
-        }));
-    }
 }
