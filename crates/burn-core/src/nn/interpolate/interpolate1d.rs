@@ -1,3 +1,5 @@
+use alloc::format;
+
 use burn_tensor::module::interpolate;
 
 use crate as burn;
