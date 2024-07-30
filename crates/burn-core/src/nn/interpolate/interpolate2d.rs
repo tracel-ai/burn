@@ -44,7 +44,7 @@ pub struct Interpolate2dConfig {
 /// dimensions.
 ///
 /// The module can be created using the [Interpolate2dConfig] struct and the
-/// [init] method, which returns an instance of the [Interpolate2d] struct.
+/// `init` method, which returns an instance of the [Interpolate2d] struct.
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct Interpolate2d {

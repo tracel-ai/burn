@@ -43,7 +43,7 @@ pub struct Interpolate1dConfig {
 /// number of channels and batch size while adjusting the length dimension.
 ///
 /// The module can be created using the [Interpolate1dConfig] struct and the
-/// [init] method, which returns an instance of the [Interpolate1d] struct.
+/// `init` method, which returns an instance of the [Interpolate1d] struct.
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct Interpolate1d {
