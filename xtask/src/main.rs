@@ -28,7 +28,17 @@ struct XtaskArgs {
     command: Command,
 }
 
-#[xtask_macros::commands(Bump, Check, CI, Coverage, Doc, Dependencies, Publish, Vulnerabilities)]
+#[xtask_macros::commands(
+    Bump,
+    Check,
+    CI,
+    Coverage,
+    Doc,
+    Dependencies,
+    Publish,
+    Test,
+    Vulnerabilities
+)]
 pub enum Command {
     /// Run commands to manage Burn Books
     Books(commands::books::BooksArgs),
@@ -167,6 +177,7 @@ fn main() -> anyhow::Result<()> {
             doc::handle_command(cmd_args)
         }
         Command::Publish(cmd_args) => publish::handle_command(cmd_args),
+        Command::Test(cmd_args) => test::handle_command(cmd_args),
         Command::Vulnerabilities(cmd_args) => vulnerabilities::handle_command(cmd_args),
     }?;
 
