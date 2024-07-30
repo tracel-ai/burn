@@ -78,8 +78,8 @@ impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kern
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 

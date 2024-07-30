@@ -174,8 +174,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectAssignEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 

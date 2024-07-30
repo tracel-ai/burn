@@ -124,8 +124,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    /// for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    /// respectively.
+    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///    respectively.
     ///
     /// Returns:
     /// * Output tensor with the same shape as input tensor after applying rotary encoding.
@@ -139,8 +139,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    /// for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    /// respectively.
+    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///    respectively.
     /// * `start` - Sequence start position index.
     ///
     /// Returns:

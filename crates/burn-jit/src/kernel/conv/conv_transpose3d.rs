@@ -437,8 +437,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv3dTransposeEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 

@@ -214,8 +214,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 

@@ -11,9 +11,17 @@ use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 struct MaxPool<E: JitElement> {
     _elem: PhantomData<E>,
+}
+
+impl<E: JitElement> core::cmp::Eq for MaxPool<E> {}
+
+impl<E: JitElement> core::hash::Hash for MaxPool<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self._elem.hash(state);
+    }
 }
 
 impl<E: JitElement> PoolStrategy for MaxPool<E> {
@@ -57,9 +65,17 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 struct MaxPoolWithIndices<E: JitElement> {
     _elem: PhantomData<E>,
+}
+
+impl<E: JitElement> core::cmp::Eq for MaxPoolWithIndices<E> {}
+
+impl<E: JitElement> core::hash::Hash for MaxPoolWithIndices<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self._elem.hash(state);
+    }
 }
 
 impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {

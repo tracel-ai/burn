@@ -255,8 +255,8 @@ impl<R: JitRuntime> Kernel for FusionKernel<R> {
         KernelIntegrator::new(self.info.as_ref().clone()).integrate(self.settings.clone())
     }
 
-    fn id(&self) -> String {
-        format!("{}", self.settings) + self.id.as_str()
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.settings.clone(), self.id.clone()))
     }
 }
 
