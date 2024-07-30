@@ -911,7 +911,7 @@ mod tests {
         let output = model.forward(input);
 
         let output_sum = output.sum().into_scalar();
-        let expected_sum = -4.56822395324707; // from pytorch
+        let expected_sum = -4.568_224; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -940,7 +940,7 @@ mod tests {
         let output = model.forward(input);
 
         let output_sum = output.sum().into_scalar();
-        let expected_sum = -3.4011266231536865; // from pytorch
+        let expected_sum = -3.401_126_6; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -971,7 +971,7 @@ mod tests {
         assert_eq!(output.dims(), [1, 1, 9, 9]);
 
         let output_sum = output.sum().into_scalar();
-        let expected_sum = -0.812227725982666; // from pytorch
+        let expected_sum = -0.812_227_7; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -995,7 +995,7 @@ mod tests {
         assert_eq!(output.dims(), [1, 1, 9]);
 
         let output_sum = output.sum().into_scalar();
-        let expected_sum = -4.56822395324707; // from pytorch
+        let expected_sum = -4.568_224; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -1027,7 +1027,7 @@ mod tests {
 
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -3.515921115875244; // from pytorch
+        let expected_sum = -3.515_921; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-3, 2)));
     }

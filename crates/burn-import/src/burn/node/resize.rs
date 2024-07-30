@@ -70,14 +70,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         };
 
         let tokens = if self.input.dim == 3 {
-            let size = if let Some(size) = self.sizes.get(0) {
+            let size = if let Some(size) = self.sizes.first() {
                 let size = size.to_tokens();
                 quote! { Some(#size) }
             } else {
                 quote! { None }
             };
 
-            let scale_factor = if let Some(scale) = self.scales.get(0) {
+            let scale_factor = if let Some(scale) = self.scales.first() {
                 let scale = scale.to_tokens();
                 quote! { Some(#scale) }
             } else {

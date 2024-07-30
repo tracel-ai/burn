@@ -978,13 +978,13 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 
 pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     let mut mode: String = "".to_string();
-    let roi: Vec<f32>;
+
     let mut scales: Vec<f32>;
     let mut sizes: Vec<usize>;
 
     let input = if let ArgType::Tensor(tensor) = &node
         .inputs
-        .get(0)
+        .first()
         .expect("Resize: Input tensor must be present")
         .ty
     {
@@ -1035,7 +1035,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
         }
     }
 
-    roi = node
+    let roi: Vec<f32> = node
         .inputs
         .get(1)
         .map(|input| {
