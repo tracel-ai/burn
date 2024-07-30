@@ -1,8 +1,6 @@
 use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
 use cubecl::linalg::tensor::index_offset_with_layout;
-use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, SUBCUBE_DIM_APPROX,
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
 use cubecl::{ir::KernelDefinition, KernelSettings};
 use std::any::TypeId;
 
@@ -46,10 +44,10 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
         tensor_vectorization_factor(&[4, 2], &input.shape.dims, &input.strides, rank - 1);
 
     let num_elems: usize = input.shape.num_elements();
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let client = input.client.clone();
     let handle = client.empty(num_elems * core::mem::size_of::<EO>());
     let output =
@@ -58,7 +56,7 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
     cast_element::launch::<EI::Primitive, EO::Primitive, R>(
         &client,
         cube_count,
-        CubeDim::default(),
+        cube_dim,
         TensorArg::vectorized(
             vectorization_factor,
             &input.handle,
