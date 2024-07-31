@@ -722,8 +722,17 @@ where
     }
 
     /// Repeat the tensor along the given dimension.
-    pub fn repeat(self, dim: usize, times: usize) -> Self {
+    pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
         Self::new(K::repeat_dim(self.primitive, dim, times))
+    }
+
+    /// Repeat the tensor along the given dimensions.
+    pub fn repeat(self, sizes: &[(usize, usize)]) -> Self {
+        let mut tensor = self;
+        for &(dim, times) in sizes {
+            tensor = tensor.repeat_dim(dim, times);
+        }
+        return tensor;
     }
 
     /// Applies element-wise equal comparison and returns a boolean tensor.
@@ -1504,7 +1513,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For repeating a tensor, users should prefer the [Tensor::repeat](Tensor::repeat) function,
+    /// For repeating a tensor, users should prefer the [Tensor::repeat_dim](Tensor::repeat_dim) function,
     /// which is more high-level and designed for public use.
     fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
