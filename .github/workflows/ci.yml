@@ -226,8 +226,8 @@ jobs:
 
   tests-windows-std:
     runs-on: windows-2022
-    # env:
-    #   DISABLE_WGPU: '1'
+    env:
+      DISABLE_WGPU: '1'
     strategy:
       matrix:
         rust: [stable, 1.79.0]
