@@ -1,12 +1,11 @@
-use super::ParamId;
+use super::{ParamId, Quantizer};
 use crate::{
-    quantization::{Calibration, Quantizer},
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{Bool, Int, Tensor};
+use burn_tensor::{quantization::Calibration, Bool, Int, Tensor};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.

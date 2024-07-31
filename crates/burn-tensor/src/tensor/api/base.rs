@@ -1687,10 +1687,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_shape(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
         }
     }
 
@@ -1702,10 +1699,7 @@ impl<B: Backend> BasicOps<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_reshape(tensor, shape))
             }
-            TensorPrimitive::QFloat { tensor, strategy } => TensorPrimitive::QFloat {
-                tensor: B::q_reshape(tensor, shape),
-                strategy,
-            },
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_reshape(tensor, shape)),
         }
     }
 
@@ -1744,10 +1738,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_device(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
@@ -1761,16 +1752,13 @@ impl<B: Backend> BasicOps<B> for Float {
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
-            TensorPrimitive::QFloat { tensor, strategy } => B::q_into_data(tensor, strategy).await,
+            TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
         }
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
         match data.dtype {
-            DType::QFloat(strategy) => TensorPrimitive::QFloat {
-                tensor: B::q_from_data(data, device),
-                strategy,
-            },
+            DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data, device)),
         }
     }

@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::{
     fusion::kernel::AutotunableKernel, tune::anchor, tune_key::JitAutotuneKey, JitRuntime,
 };
-use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
+use cubecl::tune::{AutotuneOperation, AutotuneOperationSet};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
@@ -38,7 +38,7 @@ impl<R: JitRuntime> AutotuneOperationSet<JitAutotuneKey> for ElementWiseAutotune
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Box<dyn burn_compute::tune::AutotuneOperation>> {
+    fn autotunables(&self) -> Vec<Box<dyn cubecl::tune::AutotuneOperation>> {
         let kernel_1: Box<dyn AutotuneOperation> = self.kernel_1.clone();
         let kernel_2: Box<dyn AutotuneOperation> = self.kernel_2.clone();
 

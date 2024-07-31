@@ -1,6 +1,6 @@
 use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
-use burn_cube::CubeElement;
 use burn_tensor::{Shape, TensorData};
+use cubecl::CubeElement;
 use std::marker::PhantomData;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(

@@ -8,9 +8,9 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.86"
-clap = { version = "4.5.9", features = ["derive"] }
+clap = { version = "4.5.11", features = ["derive"] }
 derive_more = { version = "0.99.18", features = ["display"], default-features = false }
-env_logger = "0.11.3"
+env_logger = "0.11.5"
 log = "0.4.22"
 rand = { workspace = true, features = ["std"] }
 serde_json = { version = "1" }

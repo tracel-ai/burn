@@ -1,4 +1,4 @@
-use crate::{ops::TchOps, LibTorch, TchElement, TchTensor};
+use crate::{ops::TchOps, LibTorch, QuantElement, TchElement, TchTensor};
 use burn_tensor::{backend::BackendBridge, ops::FloatTensor, Device};
 use std::marker::PhantomData;
 
@@ -8,10 +8,11 @@ pub struct PrecisionBridge<E: TchElement> {
     _e: PhantomData<E>,
 }
 
-impl<TElem, OElem> BackendBridge<LibTorch<OElem>> for PrecisionBridge<TElem>
+impl<TElem, OElem, QElem> BackendBridge<LibTorch<OElem, QElem>> for PrecisionBridge<TElem>
 where
     TElem: TchElement,
     OElem: TchElement,
+    QElem: QuantElement,
 {
     type Target = LibTorch<TElem>;
 

@@ -2,6 +2,7 @@ mod activation;
 mod clone_invariance;
 mod module;
 mod ops;
+mod quantization;
 mod stats;
 
 #[allow(missing_docs)]
@@ -113,5 +114,9 @@ macro_rules! testgen_all {
 
         // test padding
         burn_tensor::testgen_padding!();
+
+        // test quantization
+        burn_tensor::testgen_calibration!();
+        burn_tensor::testgen_scheme!();
     };
 }

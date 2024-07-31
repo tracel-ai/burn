@@ -1,6 +1,6 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -360,8 +360,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 
@@ -410,11 +410,11 @@ pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
 
     Execution::start(kernel, input.client.clone())
         .inputs(&[
-            TensorHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            TensorHandle::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            TensorHandle::new(&bias.handle, &bias.strides, &bias.shape.dims),
+            TensorHandleRef::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            TensorHandleRef::new(&weight.handle, &weight.strides, &weight.shape.dims),
+            TensorHandleRef::new(&bias.handle, &bias.strides, &bias.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

@@ -1,8 +1,8 @@
 use alloc::string::String;
 pub use burn_common::sync_type::SyncType;
 
-use crate::ops::*;
 use crate::tensor::Element;
+use crate::{ops::*, quantization::QTensorPrimitive};
 
 use super::{BackendBridge, DeviceOps};
 
@@ -87,7 +87,11 @@ pub trait Backend:
     type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+    type QuantizedTensorPrimitive<const D: usize>: QTensorPrimitive
+        + Clone
+        + Send
+        + 'static
+        + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {

@@ -4,15 +4,15 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
-    KernelIntegrator, KernelSettings,
+use cubecl::InputInfo;
+use cubecl::{
+    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings, CubeDim,
+    KernelExpansion, KernelIntegrator, KernelSettings,
 };
-use burn_cube::{
+use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -182,8 +182,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -223,13 +223,14 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

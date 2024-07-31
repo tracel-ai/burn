@@ -1,5 +1,0 @@
-error: Only void return is supported.
- --> tests/error/return_value.rs:6:9
-  |
-6 |         return x;
-  |         ^^^^^^^^

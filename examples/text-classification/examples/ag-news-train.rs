@@ -84,13 +84,10 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::{launch, ElemType};
-    use burn::backend::{
-        wgpu::{Wgpu, WgpuDevice},
-        Autodiff,
-    };
+    use burn::backend::{wgpu::Wgpu, Autodiff};
 
     pub fn run() {
-        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![WgpuDevice::default()]);
+        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 

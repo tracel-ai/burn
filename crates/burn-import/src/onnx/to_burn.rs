@@ -40,6 +40,7 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
             random_uniform::RandomUniformNode,
@@ -63,7 +64,7 @@ use super::op_configuration::{
     concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
     conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
     layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config,
-    max_pool2d_config, reduce_max_config, reduce_mean_config, reduce_min_config,
+    max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
     reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
     slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
 };
@@ -157,7 +158,7 @@ impl ModelGen {
     /// # Arguments
     ///
     /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
-    /// saved as a separate file.
+    ///    saved as a separate file.
     pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
         self.embed_states = embed_states;
         self
@@ -324,6 +325,7 @@ impl ParsedOnnxGraph {
                 NodeType::ConvTranspose3d => {
                     graph.register(Self::conv_transpose3d_conversion::<PS>(node))
                 }
+                NodeType::Pad => graph.register(Self::pad_conversion(node)),
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
@@ -974,9 +976,19 @@ impl ParsedOnnxGraph {
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let mut weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let config = PReluConfig::new();
         let name = &node.name;
+
+        if weight.shape.len() > 1 {
+            if weight.shape[1..].iter().product::<usize>() == 1 {
+                // Burn accepts rank 1 alpha weight
+                weight.shape = weight.shape[..1].to_vec();
+            } else {
+                panic!("Invalid PRelu weight with shape {:?}", weight.shape);
+            }
+        }
+
         PReluNode::new(name, input, output, weight, config)
     }
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode {
@@ -1096,6 +1108,14 @@ impl ParsedOnnxGraph {
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         BinaryNode::lower_equal(lhs, rhs, output)
+    }
+
+    fn pad_conversion(node: Node) -> PadNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = pad_config(&node);
+
+        PadNode::new(input, output, config)
     }
 
     fn pow_conversion(node: Node) -> BinaryNode {

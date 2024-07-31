@@ -1,6 +1,10 @@
 use core::future::Future;
 
-use crate::{backend::Backend, Device, QuantizationStrategy, Shape, TensorData};
+use crate::{
+    backend::Backend,
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
+    Device, Shape, TensorData,
+};
 
 use super::{FloatTensor, QuantizedTensor};
 
@@ -19,17 +23,15 @@ pub trait QTensorOps<B: Backend> {
     /// The tensor with the given data.
     fn q_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> QuantizedTensor<B, D>;
 
-    /// Convert the tensor to a lower precision data type based on the quantization strategy.
+    /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
     fn quantize<const D: usize>(
         tensor: FloatTensor<B, D>,
-        strategy: &QuantizationStrategy,
+        scheme: &QuantizationScheme,
+        qparams: QuantizationParametersPrimitive<B>,
     ) -> QuantizedTensor<B, D>;
 
-    /// Convert the tensor back to a higher precision data type based on the quantization strategy.
-    fn dequantize<const D: usize>(
-        tensor: QuantizedTensor<B, D>,
-        strategy: &QuantizationStrategy,
-    ) -> FloatTensor<B, D>;
+    /// Convert the tensor back to a higher precision data type.
+    fn dequantize<const D: usize>(tensor: QuantizedTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Gets the shape of the tensor.
     ///
@@ -79,7 +81,6 @@ pub trait QTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn q_into_data<const D: usize>(
         tensor: QuantizedTensor<B, D>,
-        strategy: QuantizationStrategy,
     ) -> impl Future<Output = TensorData> + Send;
 
     /// Sets the `require_grad` flag of a tensor.

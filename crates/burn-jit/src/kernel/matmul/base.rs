@@ -1,11 +1,7 @@
+use super::{init_matmul_output, matmul_simple};
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
-use burn_cube::prelude::*;
 use burn_tensor::Shape;
-
-use super::{
-    config::Tiling2dConfig, init_matmul_output, matmul_simple, matmul_tiling_2d,
-    matmul_tiling_2d_cube, matmul_tiling_2d_padded,
-};
+use cubecl::prelude::*;
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -19,15 +15,11 @@ pub enum MatmulStrategy {
         /// Number of invocations in y
         grid_y: usize,
     },
-    /// A tiling 2d kernel will be used, with support for any matrix size without padding.
-    Tiling2d(Tiling2dConfig),
-    /// A tiling 2d kernel will be used, with support for any matrix size with padding.
-    Tiling2dPadded(Tiling2dConfig),
     #[cfg(feature = "autotune")]
     /// Using autotune to chose the best kernel based on runtime information.
     Autotune,
-    /// A tiling 2d kernel with everything vectorized, and comptime bound checks
-    Tiling2dCube(Tiling2dConfig),
+    /// Cube implementation of matmul.
+    Cube,
 }
 
 impl Default for MatmulStrategy {
@@ -37,7 +29,7 @@ impl Default for MatmulStrategy {
         return MatmulStrategy::Autotune;
 
         #[cfg(not(feature = "autotune"))]
-        MatmulStrategy::Tiling2d(Tiling2dConfig::default())
+        MatmulStrategy::Cube
     }
 }
 
@@ -52,17 +44,16 @@ pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
             let out = init_matmul_output(&lhs, &rhs);
             matmul_simple(lhs, rhs, out, grid_x, grid_y)
         }
-        MatmulStrategy::Tiling2d(config) => {
-            let out = init_matmul_output(&lhs, &rhs);
-            matmul_tiling_2d(lhs, rhs, out, config)
-        }
-        MatmulStrategy::Tiling2dPadded(config) => {
-            let out = init_matmul_output(&lhs, &rhs);
-            matmul_tiling_2d_padded(lhs, rhs, out, config)
-        }
-        MatmulStrategy::Tiling2dCube(config) => {
-            let out = init_matmul_output(&lhs, &rhs);
-            matmul_tiling_2d_cube(lhs, rhs, out, config)
+        MatmulStrategy::Cube => {
+            let out = init_matmul_output::<R, E, D>(&lhs, &rhs);
+            let client = &lhs.client;
+            cubecl::linalg::matmul::launch_ref::<R, E::Primitive>(
+                client,
+                lhs.as_handle_ref(),
+                rhs.as_handle_ref(),
+                out.as_handle_ref(),
+            );
+            out
         }
         #[cfg(feature = "autotune")]
         MatmulStrategy::Autotune => matmul_autotune(lhs, rhs),

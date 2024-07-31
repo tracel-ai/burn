@@ -1,10 +1,10 @@
-use super::{index_offset_with_layout, Kernel};
+use super::Kernel;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, Runtime,
-    SUBCUBE_DIM_APPROX,
-};
 use burn_tensor::Shape;
+use cubecl::{
+    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    tensor_vectorization_factor, Runtime,
+};
 
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
@@ -139,17 +139,17 @@ pub(crate) fn launch_cmp<
     let shape_out = Shape::new(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
-            CubeDim::default(),
+            cube_dim,
             TensorArg::vectorized(
                 vectorization_factor,
                 &lhs.handle,
@@ -171,7 +171,7 @@ pub(crate) fn launch_cmp<
         JitTensor::new(lhs.client, lhs.handle, lhs.shape, lhs.device, lhs.strides)
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -200,7 +200,7 @@ pub(crate) fn launch_cmp<
         let output = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
 
         kernel_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(
@@ -244,17 +244,17 @@ pub(crate) fn launch_scalar_cmp<
         tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<UInt>();
     if same_tensor_type && tensor.can_mut() {
         kernel_scalar_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
-            CubeDim::default(),
+            cube_dim,
             TensorArg::vectorized(
                 vectorization_factor,
                 &tensor.handle,
@@ -283,7 +283,7 @@ pub(crate) fn launch_scalar_cmp<
         );
 
         kernel_scalar_cmp::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(

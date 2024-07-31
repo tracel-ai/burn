@@ -2,11 +2,11 @@ use std::ops::Range;
 
 use burn_tensor::{backend::Backend, ops::IntTensorOps, Distribution, Shape, TensorData};
 
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 
 use super::TchOps;
 
-impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_from_data<const D: usize>(
         data: TensorData,
         device: &LibTorchDevice,

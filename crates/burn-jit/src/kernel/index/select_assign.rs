@@ -1,14 +1,10 @@
-use crate::{
-    element::JitElement,
-    kernel::{Kernel, SUBCUBE_DIM_APPROX},
-    tensor::JitTensor,
-    JitRuntime,
-};
-use burn_cube::{
+use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
+use cubecl::{
     calculate_cube_count_elemwise, cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    CubeCountSettings, CubeDim, Execution, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings,
 };
 use std::marker::PhantomData;
 
@@ -174,8 +170,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectAssignEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -208,15 +204,17 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
         });
 
     let kernel = SelectAssignEagerKernel::<R, E>::new(dim);
-    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
+
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
-            TensorHandle::new(&indices.handle, &strides, &strides),
+            TensorHandleRef::new(&indices.handle, &strides, &strides),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

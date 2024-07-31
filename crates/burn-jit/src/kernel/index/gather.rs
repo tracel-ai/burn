@@ -1,11 +1,11 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::ir::{
+use cubecl::ir::{
     Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
 };
-use burn_cube::{
-    cpa, frontend::TensorHandle, CubeCountSettings, Execution, InputInfo, KernelExpansion,
+use cubecl::{
+    cpa, frontend::TensorHandleRef, CubeCountSettings, Execution, InputInfo, KernelExpansion,
     KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
@@ -120,8 +120,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -136,10 +136,10 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

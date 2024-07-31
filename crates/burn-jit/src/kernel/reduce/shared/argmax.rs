@@ -1,5 +1,5 @@
 use crate::{kernel::reduce::Argmax, JitElement};
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
 };
@@ -17,11 +17,9 @@ impl<E: JitElement> ReduceDimShared<E> for Argmax {
     ) -> Self::Accumulator {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
-
-        let max = Variable::ConstantScalar {
-            value: E::minimum_value().to_f64(),
-            elem: input_item.elem(),
-        };
+        let max = input_item
+            .elem()
+            .constant_from_f64(E::minimum_value().to_f64());
         cpa!(scope, value_shared_memory[write_position] = max);
         (value_shared_memory, index_shared_memory)
     }

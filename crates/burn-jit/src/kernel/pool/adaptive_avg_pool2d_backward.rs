@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -239,8 +239,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AdaptiveAvgPool2dBackwardEagerKern
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 
@@ -261,12 +261,12 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let kernel = AdaptiveAvgPool2dBackwardEagerKernel::<R, E>::new();
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &out_grad.handle,
             &out_grad.strides,
             &out_grad.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

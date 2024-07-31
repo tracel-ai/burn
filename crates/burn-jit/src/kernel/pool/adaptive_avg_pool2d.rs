@@ -1,6 +1,6 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_cube::{frontend::TensorHandle, CubeCountSettings, Execution};
 use burn_tensor::Shape;
+use cubecl::{frontend::TensorHandleRef, CubeCountSettings, Execution};
 
 use super::AdaptivePool2dEagerKernel;
 
@@ -16,12 +16,12 @@ pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
     let kernel = AdaptivePool2dEagerKernel::<R, E>::new();
 
     Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

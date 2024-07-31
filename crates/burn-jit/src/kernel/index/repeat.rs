@@ -1,7 +1,7 @@
 use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -90,13 +90,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}d={}r={}",
-            core::any::TypeId::of::<Self>(),
-            self.dim,
-            self.rank
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.dim, self.rank))
     }
 }
 
@@ -123,12 +118,12 @@ pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
     let kernel = RepeatEagerKernel::<R, E>::new(dim, D1);
 
     Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
+        .inputs(&[TensorHandleRef::<R>::new(
             &input.handle,
             &input.strides,
             &input.shape.dims,
         )])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

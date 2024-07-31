@@ -4,10 +4,10 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, launch_unary, reduce, unary_op, UnaryOp};
 use crate::JitBackend;
 use crate::{FloatElement, IntElement, JitRuntime};
-use burn_cube::prelude::*;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
+use cubecl::prelude::*;
 use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>

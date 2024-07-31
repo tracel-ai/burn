@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, Scope, Variable},
     prelude::*,
@@ -31,7 +31,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     let seeds = get_seeds();
 
     Execution::start(kernel, client)
-        .outputs(&[TensorHandle::<R>::new(
+        .outputs(&[TensorHandleRef::<R>::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
@@ -118,8 +118,8 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, 
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 

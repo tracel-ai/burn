@@ -11,8 +11,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-common"
 version.workspace = true
 
 [features]
-default = ["std"]
-std = ["rand/std", "data-encoding/std", "dep:pollster"]
+default = ["std", "cubecl-common/default"]
+std = ["cubecl-common/std"]
 doc = ["default"]
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 rayon = ["dep:rayon"]
@@ -23,13 +23,7 @@ web-time = { version = "1.1.0" }
 
 
 [dependencies]
-# ** Please make sure all dependencies support no_std when std is disabled **
-rand = { workspace = true }
-spin = { workspace = true }                      # using in place of use std::sync::Mutex;
-derive-new = { workspace = true }
-serde = { workspace = true }
 data-encoding = { workspace = true }
-pollster = { workspace = true, optional = true }
 
 # Network downloader
 indicatif = { workspace = true, optional = true }
@@ -38,6 +32,7 @@ tokio = { workspace = true, optional = true }
 
 # Parallel
 rayon = { workspace = true, optional = true }
+cubecl-common = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

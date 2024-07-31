@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::prelude::*;
+use cubecl::{prelude::*, KernelId};
 
 use super::SourceTemplate;
 
@@ -7,6 +7,8 @@ use super::SourceTemplate;
 pub trait KernelSource: Send + 'static + Sync {
     /// Convert to [source](SourceTemplate)
     fn source(&self) -> SourceTemplate;
+    /// Identifier for the kernel, used for caching kernel compilation.
+    fn id(&self) -> KernelId;
 }
 
 #[derive(new)]
@@ -22,25 +24,27 @@ impl<K: KernelSource> CubeTask for SourceKernel<K> {
         let source = source_template.complete();
 
         CompiledKernel {
+            name: Some(core::any::type_name::<K>()),
             source,
             cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
+            debug_info: None,
         }
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<K>())
+    fn id(&self) -> cubecl::KernelId {
+        self.kernel_source.id()
     }
 }
 
 /// Generates kernel source code by replacing some information using templating.
 #[macro_export]
-macro_rules! kernel_wgsl {
+macro_rules! kernel_source {
     (
         $struct:ident,
         $file:expr
     ) => {
-        /// Generated kernel from wgsl file.
+        /// Generated kernel from a source file.
         #[derive(new)]
         pub struct $struct;
 

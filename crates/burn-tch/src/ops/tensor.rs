@@ -1,11 +1,11 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 use burn_tensor::{
     backend::Backend, ops::FloatTensorOps, Distribution, ElementConversion, Shape, TensorData,
 };
 use std::ops::Range;
 
-impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     fn float_from_data<const D: usize>(
         data: TensorData,
         device: &LibTorchDevice,

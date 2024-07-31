@@ -5,9 +5,9 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -327,12 +327,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.kernel_size)
     }
 }
 
@@ -353,10 +349,10 @@ pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: 
 
     Execution::start(kernel, x.client)
         .inputs(&[
-            TensorHandle::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&grad.handle, &grad.strides, &grad.shape.dims),
+            TensorHandleRef::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
+            TensorHandleRef::new(&grad.handle, &grad.strides, &grad.shape.dims),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

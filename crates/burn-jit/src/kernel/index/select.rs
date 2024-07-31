@@ -1,9 +1,9 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -110,8 +110,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -128,14 +128,14 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     Execution::start(kernel, tensor.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            TensorHandle::new(&indices.handle, &[1; D], &[1; D]),
+            TensorHandleRef::new(&indices.handle, &[1; D], &[1; D]),
         ])
-        .outputs(&[TensorHandle::new(
+        .outputs(&[TensorHandleRef::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,

@@ -55,6 +55,7 @@ include_models!(
     mul,
     neg,
     not,
+    pad,
     greater,
     greater_or_equal,
     less,
@@ -93,6 +94,7 @@ include_models!(
     unsqueeze_opset11,
     squeeze_opset16,
     squeeze_opset13,
+    squeeze_multiple,
     random_uniform,
     random_normal,
     constant_of_shape,
@@ -1407,6 +1409,26 @@ mod tests {
     }
 
     #[test]
+    fn pad() {
+        let device = Default::default();
+        let model: pad::Model<Backend> = pad::Model::new(&device);
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.], [5., 6.]], &device);
+        let output = model.forward(input).to_data();
+        let expected = TensorData::from([
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 1., 2., 0., 0., 0., 0.],
+            [0.0_f32, 0., 3., 4., 0., 0., 0., 0.],
+            [0.0_f32, 0., 5., 6., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+        ]);
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
     fn greater() {
         let device = Default::default();
         let model: greater::Model<Backend> = greater::Model::new(&device);
@@ -1636,6 +1658,17 @@ mod tests {
         let device = Default::default();
         let model = squeeze_opset13::Model::<Backend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5]);
+        let expected_shape = Shape::from([3, 4, 5]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn squeeze_multiple() {
+        let device = Default::default();
+        let model = squeeze_multiple::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 1, 5, 1]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);

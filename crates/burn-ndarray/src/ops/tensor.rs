@@ -5,7 +5,7 @@ use ndarray::IntoDimension;
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
-use crate::element::FloatNdArrayElement;
+use crate::element::{FloatNdArrayElement, QuantElement};
 use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
@@ -20,7 +20,7 @@ use num_traits::Float;
 
 use libm::erf;
 
-impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> FloatTensorOps<Self> for NdArray<E, Q> {
     fn float_from_data<const D: usize>(
         data: TensorData,
         _device: &NdArrayDevice,

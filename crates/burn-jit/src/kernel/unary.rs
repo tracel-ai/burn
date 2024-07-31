@@ -1,10 +1,10 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, unexpanded,
-    SUBCUBE_DIM_APPROX,
+use cubecl::{
+    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    tensor_vectorization_factor, unexpanded,
 };
 
-use super::{index_offset_with_layout, Kernel};
+use super::Kernel;
 
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;
@@ -71,17 +71,17 @@ where
 
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
         unary_kernel::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
-            CubeDim::default(),
+            cube_dim,
             TensorArg::vectorized(
                 vectorization_factor,
                 &tensor.handle,
@@ -105,7 +105,7 @@ where
         );
 
         unary_kernel::launch::<E::Primitive, O, R>(
-            client,
+            &client,
             cube_count,
             CubeDim::default(),
             TensorArg::vectorized(

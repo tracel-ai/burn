@@ -1,4 +1,4 @@
-use crate::PrecisionBridge;
+use crate::{PrecisionBridge, QuantElement, TchQTensor};
 
 use super::element::TchElement;
 use super::TchTensor;
@@ -86,11 +86,12 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32> {
+pub struct LibTorch<E = f32, Q = i8> {
     _e: E,
+    _q: Q,
 }
 
-impl<E: TchElement> Backend for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type Device = LibTorchDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
@@ -102,7 +103,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = TchTensor<i8, D>;
+    type QuantizedTensorPrimitive<const D: usize> = TchQTensor<Q, D>;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);

@@ -1,11 +1,11 @@
 use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
-use burn_cube::{
+use burn_tensor::ElementConversion;
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
-use burn_tensor::ElementConversion;
 use std::{marker::PhantomData, ops::Range};
 
 #[derive(new)]
@@ -113,8 +113,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}-rank={:?}", core::any::TypeId::of::<Self>(), self.rank)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.rank)
     }
 }
 
@@ -138,8 +138,8 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const 
 
     Execution::start(kernel, value.client)
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
         ])
         .with_scalars(&scalars)
         .execute(CubeCountSettings::Input { pos: 0 });

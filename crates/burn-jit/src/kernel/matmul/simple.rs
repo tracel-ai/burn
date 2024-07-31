@@ -4,11 +4,11 @@ use crate::{
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
-use burn_cube::ir::KernelDefinition;
-use burn_cube::{frontend::TensorArg, KernelSettings};
+use cubecl::ir::KernelDefinition;
+use cubecl::{frontend::TensorArg, KernelSettings};
 
 use super::simple_cube_count;
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 #[cube(launch)]
 fn matmul_kernel<F: Float>(
@@ -117,7 +117,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     };
 
     matmul_kernel::launch::<E::FloatPrimitive, R>(
-        lhs.client,
+        &lhs.client,
         cube_count,
         CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
         TensorArg::vectorized(

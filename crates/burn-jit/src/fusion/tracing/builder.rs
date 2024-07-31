@@ -1,11 +1,11 @@
 use super::{trace::Trace, Scalars};
-use burn_cube::ir::{
-    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, Subcube, UnaryOperator,
-    Variable,
-};
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     Element,
+};
+use cubecl::ir::{
+    BinaryOperator, Elem, Item, Operation, Operator, Procedure, Scope, Subcube, UnaryOperator,
+    Variable,
 };
 use hashbrown::HashMap;
 
