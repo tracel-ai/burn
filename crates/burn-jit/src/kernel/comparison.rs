@@ -163,9 +163,9 @@ pub(crate) fn launch_cmp<
                 &rhs.shape.dims,
             ),
             TensorArg::alias(0),
-            Some(UInt::new(D as u32)),
+            None,
             false,
-            !rhs.is_contiguous(),
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
         );
 
         JitTensor::new(lhs.client, lhs.handle, lhs.shape, lhs.device, lhs.strides)
@@ -187,17 +187,17 @@ pub(crate) fn launch_cmp<
                 &rhs.shape.dims,
             ),
             TensorArg::alias(1),
-            Some(UInt::new(D as u32)),
-            !lhs.is_contiguous(),
+            None,
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
             false,
         );
 
         JitTensor::new(rhs.client, rhs.handle, rhs.shape, rhs.device, rhs.strides)
     } else {
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let to_contiguous_lhs = !lhs.is_contiguous();
-        let to_contiguous_rhs = !rhs.is_contiguous();
         let output = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
+        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
         kernel_cmp::launch::<E::Primitive, O, R>(
             &client,
@@ -221,7 +221,7 @@ pub(crate) fn launch_cmp<
                 &output.strides,
                 &output.shape.dims,
             ),
-            Some(UInt::new(D as u32)),
+            None,
             to_contiguous_lhs,
             to_contiguous_rhs,
         );
