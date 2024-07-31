@@ -7,7 +7,7 @@ mod index;
 mod mask;
 mod unary;
 
-pub use binary::*;
+pub(crate) use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
