@@ -1,21 +1,19 @@
 use std::marker::PhantomData;
 
-use polars::frame::row::Row;
-use polars::prelude::*;
-use serde::{
-    de::{self, DeserializeOwned, Deserializer, SeqAccess, Visitor},
-    Deserialize, forward_to_deserialize_any,
-};
-use serde::de::DeserializeSeed;
-
 use crate::Dataset;
 
-type Result<T> = core::result::Result<T, DataframeDatasetError>;
+use polars::frame::row::Row;
+use polars::prelude::*;
+use serde::de::DeserializeSeed;
+use serde::{
+    de::{self, DeserializeOwned, Deserializer, SeqAccess, Visitor},
+    forward_to_deserialize_any, Deserialize,
+};
 
 /// Error type for DataframeDataset
 #[derive(thiserror::Error, Debug)]
 pub enum DataframeDatasetError {
-    /// Error occurred during deserialization
+    /// Error occurred during deserialization or other operations
     #[error("{0}")]
     Other(String),
 }
@@ -26,17 +24,12 @@ impl de::Error for DataframeDatasetError {
     }
 }
 
-/// Enum to hold either a DataFrame or a LazyFrame
-pub enum Frame {
-    /// Represents a Polars Dataframe
-    Data(DataFrame),
-    /// Represents a Polars LazyFrame
-    Lazy(LazyFrame),
-}
-
-/// Dataset implementation for Polars Frame (DataFrame or LazyFrame)
+/// Dataset implementation for Polars DataFrame
+///
+/// This struct provides a way to access data from a Polars DataFrame
+/// as if it were a Dataset of type I.
 pub struct DataframeDataset<I> {
-    frame: Frame,
+    df: DataFrame,
     len: usize,
     column_name_mapping: Vec<usize>,
     phantom: PhantomData<I>,
@@ -46,78 +39,35 @@ impl<I> DataframeDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
-    /// Create a new DataframeDataset from a Polars DataFrame or LazyFrame
-    pub fn new(df: Frame) -> Result<Self> {
-        match df {
-            Frame::Data(data) => {
-                let len = data.height();
-                let field_names = extract_field_names::<I>();
+    /// Create a new DataframeDataset from a Polars DataFrame
+    ///
+    /// # Arguments
+    ///
+    /// * `df` - A Polars DataFrame
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the new DataframeDataset or a DataframeDatasetError
+    pub fn new(df: DataFrame) -> Result<Self, DataframeDatasetError> {
+        let len = df.height();
+        let field_names = extract_field_names::<I>();
 
-                let column_name_mapping = field_names
-                    .iter()
-                    .map(|name| {
-                        data.schema()
-                            .try_get_full(name)
-                            .expect("Corresponding column should exist in the DataFrame")
-                            .0
-                    })
-                    .collect::<Vec<_>>();
+        let column_name_mapping = field_names
+            .iter()
+            .map(|name| {
+                df.schema()
+                    .try_get_full(name)
+                    .expect("Corresponding column should exist in the DataFrame")
+                    .0
+            })
+            .collect::<Vec<_>>();
 
-                Ok(DataframeDataset {
-                    frame: Frame::Data(data),
-                    len,
-                    column_name_mapping,
-                    phantom: PhantomData,
-                })
-            },
-            Frame::Lazy(lazy) => {
-                let schema = lazy
-                    .clone()
-                    .schema()
-                    .map_err(
-                        |e| DataframeDatasetError::Other(e.to_string()))?;
-                // LazyFrame doesn't know the length upfront so set to zero initially 
-                let len = 0;
-                let field_names = extract_field_names::<I>();
-
-                let column_name_mapping = field_names
-                    .iter()
-                    .filter_map(|name| {
-                        schema
-                            .iter()
-                            .position(|(col_name, _)| col_name == name)
-                    })
-                    .collect::<Vec<_>>();
-                Ok(DataframeDataset {
-                    frame: Frame::Lazy(lazy),
-                    len,
-                    column_name_mapping,
-                    phantom: PhantomData,
-                })
-            },
-        }
-    }
-
-    /// Create a new DataframeDataset from a Polars LazyFrame
-    pub fn from_lazyframe(lf: LazyFrame) -> Result<Self> {
-        Self::new(Frame::Lazy(lf))
-    }
-    /// Create a new DataframeDataset from a Polars Dataframe
-    pub fn from_dataframe(df: DataFrame) -> Result<Self> {
-        Self::new(Frame::Data(df))
-    }
-
-    /// Collect the LazyFrame into a DataFrame and get the length
-    pub fn collect_and_get_len(&mut self) -> Result<usize> {
-        if let Frame::Lazy(lazy) = &self.frame {
-            let df = lazy.clone().collect().map_err(
-                |e|
-                DataframeDatasetError::Other(e.to_string())
-            )?;
-            self.len = df.height();
-            self.frame = Frame::Data(df);
-        }
-        Ok(self.len)
+        Ok(DataframeDataset {
+            df,
+            len,
+            column_name_mapping,
+            phantom: PhantomData,
+        })
     }
 }
 
@@ -125,24 +75,34 @@ impl<I> Dataset<I> for DataframeDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
+    /// Get an item from the dataset at the specified index
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of the item to retrieve
+    ///
+    /// # Returns
+    ///
+    /// An Option containing the item if it exists, or None if it doesn't
     fn get(&self, index: usize) -> Option<I> {
-        if let Frame::Data(ref df) = self.frame {
-            let row = df.get_row(index).ok()?;
+        let row = self.df.get_row(index).ok()?;
 
-            let mut deserializer = RowDeserializer::new(&row, &self.column_name_mapping);
-            I::deserialize(&mut deserializer).ok()
-        } else {
-            None // Or handle LazyFrame differently if needed
-        }
+        let mut deserializer = RowDeserializer::new(&row, &self.column_name_mapping);
+        I::deserialize(&mut deserializer).ok()
     }
 
+    /// Get the length of the dataset
     fn len(&self) -> usize {
         self.len
     }
 
-    fn is_empty(&self) -> bool { self.len == 0 }
+    /// Check if the dataset is empty
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
+/// A deserializer for Polars DataFrame rows
 struct RowDeserializer<'a> {
     row: &'a Row<'a>,
     column_name_mapping: &'a Vec<usize>,
@@ -150,6 +110,12 @@ struct RowDeserializer<'a> {
 }
 
 impl<'a> RowDeserializer<'a> {
+    /// Create a new RowDeserializer
+    ///
+    /// # Arguments
+    ///
+    /// * `row` - A reference to a Polars DataFrame row
+    /// * `column_name_mapping` - A reference to a vector mapping field names to column indices
     fn new(row: &'a Row, column_name_mapping: &'a Vec<usize>) -> RowDeserializer<'a> {
         RowDeserializer {
             row,
@@ -162,7 +128,7 @@ impl<'a> RowDeserializer<'a> {
 impl<'de, 'a> Deserializer<'de> for &'a mut RowDeserializer<'a> {
     type Error = DataframeDatasetError;
 
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DataframeDatasetError>
     where
         V: Visitor<'de>,
     {
@@ -185,11 +151,12 @@ impl<'de, 'a> Deserializer<'de> for &'a mut RowDeserializer<'a> {
             AnyValue::Date(i) => visitor.visit_i32(*i),
             AnyValue::String(s) => visitor.visit_string(s.to_string()),
             AnyValue::Binary(b) => {
-                let v: Vec<usize> = b.iter().map(|&x| x as usize).collect();
-                visitor.visit_seq(de::value::SeqDeserializer::new(v.into_iter()))
-            },
-            // TODO: add support for complex types
-            _ => Err(DataframeDatasetError::Other("Unsupported type".to_string())),
+                visitor.visit_seq(de::value::SeqDeserializer::new(b.iter().copied()))
+            }
+            AnyValue::Time(t) => visitor.visit_i64(*t),
+            ty => Err(DataframeDatasetError::Other(
+                format!("Unsupported type: {ty:?}").to_string(),
+            )),
         }
     }
 
@@ -198,7 +165,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut RowDeserializer<'a> {
         _name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
-    ) -> Result<V::Value>
+    ) -> Result<V::Value, DataframeDatasetError>
     where
         V: Visitor<'de>,
     {
@@ -215,7 +182,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut RowDeserializer<'a> {
 impl<'de, 'a> SeqAccess<'de> for RowDeserializer<'a> {
     type Error = DataframeDatasetError;
 
-    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, DataframeDatasetError>
     where
         T: DeserializeSeed<'de>,
     {
@@ -232,6 +199,11 @@ impl<'de, 'a> SeqAccess<'de> for RowDeserializer<'a> {
     }
 }
 
+/// Extract field names from a type T that implements Deserialize
+///
+/// # Returns
+///
+/// A vector of field names as static string slices
 fn extract_field_names<'de, T>() -> Vec<&'static str>
 where
     T: Deserialize<'de>,
@@ -281,46 +253,118 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-
     #[derive(Clone, Debug, Deserialize, PartialEq)]
     struct TestData {
-        a: i32,
-        b: bool,
-        c: f64,
-        d: String,
-        e: Vec<i32>
+        int32: i32,
+        bool: bool,
+        float64: f64,
+        string: String,
+        int16: i16,
+        uint32: u32,
+        uint64: u64,
+        float32: f32,
+        int64: i64,
+        int8: i8,
+        binary: Vec<u8>,
     }
 
     fn create_test_dataframe() -> DataFrame {
-        let s0 = Series::new("a", &[1, 2, 3, ]);
-        let s1 = Series::new("b", &[true, false, true]);
-        let s2 = Series::new("c", &[1.1, 2.2, 3.3]);
-        let s3 = Series::new("d", &["Boo", "Boo2", "Boo3"]);
-        let s4 = Series::new("e", &[
-            vec![1, 2, 3],
-            vec![4, 5, 6],
-            vec![7, 8, 9]
-        ]);
-        DataFrame::new(vec![s1, s2, s0, s3, s4]).unwrap()
+        let s0 = Series::new("int32", &[1i32, 2i32, 3i32]);
+        let s1 = Series::new("bool", &[true, false, true]);
+        let s2 = Series::new("float64", &[1.1f64, 2.2f64, 3.3f64]);
+        let s3 = Series::new("string", &["Boo", "Boo2", "Boo3"]);
+        let s6 = Series::new("int16", &[1i16, 2i16, 3i16]);
+        let s8 = Series::new("uint32", &[1u32, 2u32, 3u32]);
+        let s9 = Series::new("uint64", &[1u64, 2u64, 3u64]);
+        let s10 = Series::new("float32", &[1.1f32, 2.2f32, 3.3f32]);
+        let s11 = Series::new("int64", &[1i64, 2i64, 3i64]);
+        let s12 = Series::new("int8", &[1i8, 2i8, 3i8]);
+
+        let binary_data: Vec<&[u8]> = vec![&[1, 2, 3], &[4, 5, 6], &[7, 8, 9]];
+
+        let s13 = Series::new("binary", binary_data);
+        DataFrame::new(vec![s0, s1, s2, s3, s6, s8, s9, s10, s11, s12, s13]).unwrap()
     }
 
-    fn create_test_lazyframe() -> LazyFrame {
-        let s0 = Series::new("a", &[1, 2, 3, ]);
-        let s1 = Series::new("b", &[true, false, true]);
-        let s2 = Series::new("c", &[1.1, 2.2, 3.3]);
-        let s3 = Series::new("d", &["Boo", "Boo2", "Boo3"]);
-        let s4 = Series::new("e", &[
-            vec![1, 2, 3],
-            vec![4, 5, 6],
-            vec![7, 8, 9]
-        ]);
-        DataFrame::new(vec![s1, s2, s0, s3, s4]).unwrap().lazy()
+    #[test]
+    fn test_dataframe_dataset_creation() {
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<TestData>::new(df);
+        assert!(dataset.is_ok());
+    }
+
+    #[test]
+    fn test_dataframe_dataset_length() {
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<TestData>::new(df).unwrap();
+        assert_eq!(dataset.len(), 3);
+        assert!(!dataset.is_empty());
+    }
+
+    #[test]
+    fn test_dataframe_dataset_get() {
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<TestData>::new(df).unwrap();
+
+        let expected_items = vec![
+            TestData {
+                int32: 1,
+                bool: true,
+                float64: 1.1,
+                string: "Boo".to_string(),
+                int16: 1,
+                uint32: 1,
+                uint64: 1,
+                float32: 1.1,
+                int64: 1,
+                int8: 1,
+                binary: vec![1, 2, 3],
+            },
+            TestData {
+                int32: 2,
+                bool: false,
+                float64: 2.2,
+                string: "Boo2".to_string(),
+                int16: 2,
+                uint32: 2,
+                uint64: 2,
+                float32: 2.2,
+                int64: 2,
+                int8: 2,
+                binary: vec![4, 5, 6],
+            },
+            TestData {
+                int32: 3,
+                bool: true,
+                float64: 3.3,
+                string: "Boo3".to_string(),
+                int16: 3,
+                uint32: 3,
+                uint64: 3,
+                float32: 3.3,
+                int64: 3,
+                int8: 3,
+                binary: vec![7, 8, 9],
+            },
+        ];
+
+        for (index, expected_item) in expected_items.iter().enumerate() {
+            let item = dataset.get(index).unwrap();
+            assert_eq!(&item, expected_item);
+        }
+    }
+
+    #[test]
+    fn test_dataframe_dataset_out_of_bounds() {
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<TestData>::new(df).unwrap();
+        assert!(dataset.get(3).is_none());
     }
 
     #[test]
     fn test_dataframe_dataset() {
         let df = create_test_dataframe();
-        let dataset: DataframeDataset<TestData> = DataframeDataset::from_dataframe(df).unwrap();
+        let dataset: DataframeDataset<TestData> = DataframeDataset::new(df).unwrap();
 
         assert_eq!(dataset.len(), 3);
         assert_eq!(dataset.is_empty(), false);
@@ -329,11 +373,17 @@ mod tests {
         assert_eq!(
             item,
             TestData {
-                a: 2,
-                b: false,
-                c: 2.2,
-                d: "Boo2".to_string(),
-                e: vec![4, 5, 6]
+                int32: 2,
+                bool: false,
+                float64: 2.2,
+                string: "Boo2".to_string(),
+                int16: 2,
+                uint32: 2,
+                uint64: 2,
+                float32: 2.2,
+                int64: 2,
+                int8: 2,
+                binary: vec![4, 5, 6],
             }
         );
 
@@ -342,20 +392,51 @@ mod tests {
         assert_eq!(
             item,
             TestData {
-                a: 3,
-                b: true,
-                c: 3.3,
-                d: "Boo3".to_string(),
-                e: vec![7, 8, 9]
+                int32: 3,
+                bool: true,
+                float64: 3.3,
+                string: "Boo3".to_string(),
+                int16: 3,
+                uint32: 3,
+                uint64: 3,
+                float32: 3.3,
+                int64: 3,
+                int8: 3,
+                binary: vec![7, 8, 9],
             }
         );
     }
 
     #[test]
-    fn test_lazyframe_dataset() {
-        let df = create_test_lazyframe();
-        let mut dataset: DataframeDataset<TestData> = DataframeDataset::from_lazyframe(df).unwrap();
-        dataset.collect_and_get_len().unwrap();
+    #[should_panic = "Corresponding column should exist in the DataFrame: SchemaFieldNotFound(ErrString(\"non_existent\"))"]
+    fn test_non_existing_struct_fields() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        struct PartialTestData {
+            int32: i32,
+            bool: bool,
+            non_existent: String,
+        }
+
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<PartialTestData>::new(df);
+
+        assert!(dataset.is_err());
+        if let Err(e) = dataset {
+            assert!(matches!(e, DataframeDatasetError::Other(_)));
+        }
+    }
+
+    #[test]
+    fn test_partial_table() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        struct PartialTestData {
+            int32: i32,
+            bool: bool,
+            string: String,
+        }
+
+        let df = create_test_dataframe();
+        let dataset = DataframeDataset::<PartialTestData>::new(df).unwrap();
 
         assert_eq!(dataset.len(), 3);
         assert_eq!(dataset.is_empty(), false);
@@ -363,28 +444,21 @@ mod tests {
         let item = dataset.get(1).unwrap();
         assert_eq!(
             item,
-            TestData {
-                a: 2,
-                b: false,
-                c: 2.2,
-                d: "Boo2".to_string(),
-                e: vec![4, 5, 6],
+            PartialTestData {
+                int32: 2,
+                bool: false,
+                string: "Boo2".to_string(),
             }
         );
 
         let item = dataset.get(2).unwrap();
-
         assert_eq!(
             item,
-            TestData {
-                a: 3,
-                b: true,
-                c: 3.3,
-                d: "Boo3".to_string(),
-                e: vec![7, 8, 9],
+            PartialTestData {
+                int32: 3,
+                bool: true,
+                string: "Boo3".to_string(),
             }
         );
     }
-
-    // TODO test non existing struct fields
 }
