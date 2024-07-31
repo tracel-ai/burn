@@ -130,7 +130,7 @@ pub(crate) fn launch_binop<
     let vectorization_factor_lhs =
         tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, D - 1);
 
     let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
