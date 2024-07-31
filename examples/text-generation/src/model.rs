@@ -64,7 +64,7 @@ impl<B: Backend> TextGenerationModel<B> {
 
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
+            .repeat_dim(0, batch_size);
 
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(inputs);
