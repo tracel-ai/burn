@@ -128,9 +128,9 @@ pub(crate) fn launch_binop<
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+        tensor_vectorization_factor(&[1], &lhs.shape.dims, &lhs.strides, D - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+        tensor_vectorization_factor(&[1], &lhs.shape.dims, &lhs.strides, D - 1);
 
     let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
@@ -153,6 +153,7 @@ pub(crate) fn launch_binop<
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if lhs.can_mut_broadcast(&rhs) {
+        println!("Mut broadcast lhs");
         kernel_binop::launch::<E::Primitive, O, R>(
             &client,
             cube_count,
@@ -177,6 +178,7 @@ pub(crate) fn launch_binop<
 
         lhs
     } else if rhs.can_mut_broadcast(&lhs) {
+        println!("Mut broadcast Rhs");
         kernel_binop::launch::<E::Primitive, O, R>(
             &client,
             cube_count,
