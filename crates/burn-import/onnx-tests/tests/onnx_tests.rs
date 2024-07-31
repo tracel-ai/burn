@@ -15,19 +15,23 @@ macro_rules! include_models {
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
-    add_int,
     add,
+    add_int,
     argmax,
-    avg_pool2d,
     avg_pool1d,
+    avg_pool2d,
     batch_norm,
     cast,
     clip_opset16,
     clip_opset7,
     concat,
+    constant_of_shape,
+    constant_of_shape_full_like,
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose2d,
+    conv_transpose3d,
     cos,
     div,
     dropout_opset16,
@@ -41,37 +45,46 @@ include_models!(
     gather_elements,
     gelu,
     global_avr_pool,
+    greater,
+    greater_or_equal,
     layer_norm,
     leaky_relu,
+    less,
+    less_or_equal,
     linear,
-    log_softmax,
     log,
+    log_softmax,
     mask_where,
     matmul,
-    min,
     max,
     maxpool1d,
     maxpool2d,
+    min,
     mul,
     neg,
     not,
     pad,
-    greater,
-    greater_or_equal,
-    less,
-    less_or_equal,
+    pow,
+    pow_int,
     prelu,
+    random_normal,
+    random_uniform,
     range,
     recip,
     reduce_max,
-    reduce_min,
     reduce_mean,
+    reduce_min,
     reduce_prod,
-    reduce_sum_opset13,
     reduce_sum_opset11,
+    reduce_sum_opset13,
     relu,
     reshape,
-    resize,
+    resize_with_sizes,
+    resize_1d_linear_scale,
+    resize_1d_nearest_scale,
+    resize_2d_bicubic_scale,
+    resize_2d_bilinear_scale,
+    resize_2d_nearest_scale,
     shape,
     sigmoid,
     sign,
@@ -79,26 +92,18 @@ include_models!(
     slice,
     softmax,
     sqrt,
-    sub_int,
+    squeeze_multiple,
+    squeeze_opset13,
+    squeeze_opset16,
     sub,
+    sub_int,
     sum,
     sum_int,
     tanh,
     transpose,
-    conv_transpose2d,
-    conv_transpose3d,
-    pow,
-    pow_int,
     unsqueeze,
-    unsqueeze_opset16,
     unsqueeze_opset11,
-    squeeze_opset16,
-    squeeze_opset13,
-    squeeze_multiple,
-    random_uniform,
-    random_normal,
-    constant_of_shape,
-    constant_of_shape_full_like
+    unsqueeze_opset16
 );
 
 #[cfg(test)]
@@ -865,10 +870,10 @@ mod tests {
     }
 
     #[test]
-    fn resize() {
+    fn resize_with_sizes() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: resize::Model<Backend> = resize::Model::new(&device);
+        let model: resize_with_sizes::Model<Backend> = resize_with_sizes::Model::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 4>::from_floats(
@@ -880,12 +885,151 @@ mod tests {
             ]]],
             &device,
         );
-        let size = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 3], &device);
 
-        let output = model.forward(input, size);
+        // The sizes are [1, 1, 2, 3]
+        let output = model.forward(input);
         let expected = TensorData::from([[[[0.0f32, 1.5, 3.0], [12.0, 13.5, 15.0]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
+    fn resize_with_scales_1d_linear() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_1d_linear_scale::Model<Backend> =
+            resize_1d_linear_scale::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+            &device,
+        );
+
+        // The scales are 1.5
+        let output = model.forward(input);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -4.568_224; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_bilinear() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_bilinear_scale::Model<Backend> =
+            resize_2d_bilinear_scale::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -3.401_126_6; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_nearest() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_nearest_scale::Model<Backend> =
+            resize_2d_nearest_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9, 9]);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -0.812_227_7; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_1d_nearest() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_1d_nearest_scale::Model<Backend> =
+            resize_1d_nearest_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9]);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -4.568_224; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_bicubic() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_bicubic_scale::Model<Backend> =
+            resize_2d_bicubic_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9, 9]);
+
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -3.515_921; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-3, 2)));
     }
 
     #[test]

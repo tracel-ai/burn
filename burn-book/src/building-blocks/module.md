@@ -161,21 +161,23 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 ### General
 
-| Burn API       | PyTorch Equivalent                            |
-| -------------- | --------------------------------------------- |
-| `BatchNorm`    | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
-| `Dropout`      | `nn.Dropout`                                  |
-| `Embedding`    | `nn.Embedding`                                |
-| `Gelu`         | `nn.Gelu`                                     |
-| `GroupNorm`    | `nn.GroupNorm`                                |
-| `InstanceNorm` | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
-| `LayerNorm`    | `nn.LayerNorm`                                |
-| `LeakyRelu`    | `nn.LeakyReLU`                                |
-| `Linear`       | `nn.Linear`                                   |
-| `Prelu`        | `nn.PReLu`                                    |
-| `Relu`         | `nn.ReLU`                                     |
-| `RmsNorm`      | _No direct equivalent_                        |
-| `SwiGlu`       | _No direct equivalent_                        |
+| Burn API        | PyTorch Equivalent                            |
+| --------------- | --------------------------------------------- |
+| `BatchNorm`     | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
+| `Dropout`       | `nn.Dropout`                                  |
+| `Embedding`     | `nn.Embedding`                                |
+| `Gelu`          | `nn.Gelu`                                     |
+| `GroupNorm`     | `nn.GroupNorm`                                |
+| `InstanceNorm`  | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
+| `LayerNorm`     | `nn.LayerNorm`                                |
+| `LeakyRelu`     | `nn.LeakyReLU`                                |
+| `Linear`        | `nn.Linear`                                   |
+| `Prelu`         | `nn.PReLu`                                    |
+| `Relu`          | `nn.ReLU`                                     |
+| `RmsNorm`       | _No direct equivalent_                        |
+| `SwiGlu`        | _No direct equivalent_                        |
+| `Interpolate1d` | _No direct equivalent_                        |
+| `Interpolate2d` | _No direct equivalent_                        |
 
 ### Convolutions
 

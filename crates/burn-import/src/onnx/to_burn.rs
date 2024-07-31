@@ -46,7 +46,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
-            resize::{ResizeNode, ResizeOptions},
+            resize::ResizeNode,
             slice::SliceNode,
             squeeze::SqueezeNode,
             sum::SumNode,
@@ -646,13 +646,12 @@ impl ParsedOnnxGraph {
         let name = &node.name;
 
         let input = TensorType::from(&node.inputs[0]);
-        let output_size = TensorType::from(&node.inputs[3]);
 
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let mode = resize_config(&node);
+        let (mode, scales, sizes) = resize_config(&node);
 
-        ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
+        ResizeNode::new(name, input, output, mode, scales, sizes)
     }
 
     fn min_conversion(node: Node) -> BinaryNode {

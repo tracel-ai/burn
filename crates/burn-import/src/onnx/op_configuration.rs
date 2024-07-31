@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{pad::PadConfig, resize::ResizeMode};
+use crate::burn::node::pad::PadConfig;
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -976,26 +976,132 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
-pub fn resize_config(node: &Node) -> ResizeMode {
+pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     let mut mode: String = "".to_string();
+
+    let mut scales: Vec<f32>;
+    let mut sizes: Vec<usize>;
+
+    let input = if let ArgType::Tensor(tensor) = &node
+        .inputs
+        .first()
+        .expect("Resize: Input tensor must be present")
+        .ty
+    {
+        tensor
+    } else {
+        panic!("Resize: input must be a tensor")
+    };
+
+    // Note: we are ignoring some attributes because results are approximately the same
+    // and we are not supporting all the attributes of the Resize operator.
+    // However, some attributes are important to be checked and we are checking
+    // against the default values of the attributes.
+    // TODO revisit this when we have more Resize operators in the model
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "coordinate_transformation_mode" => {}
-            "cubic_coeff_a" => {}
-            "mode" => mode = value.clone().into_string(),
-            "nearest_mode" => {}
+            "antialias" => assert_eq!(
+                value.clone().into_i32(),
+                0,
+                "Resize: antialias other than 0 is not supported"
+            ),
+            "axes" => panic!("Resize: custom axes attribute is not supported"),
+            "coordinate_transformation_mode" => {
+                log::warn!("Resize: coordinate_transformation_mode is ignored")
+            }
+
+            "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
+            "exclude_outside" => assert_eq!(
+                value.clone().into_i32(),
+                0,
+                "Resize: exclude_outside other than 0 is not supported"
+            ),
+            "extrapolation_value" => assert_eq!(
+                value.clone().into_f32(),
+                0.0,
+                "Resize: extrapolation_value other than 0.0 is not supported"
+            ),
+            "keep_aspect_ratio_policy" => {
+                assert_eq!(
+                    value.clone().into_string().to_lowercase(),
+                    "stretch",
+                    "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
+                )
+            }
+            "mode" => mode = value.clone().into_string().to_lowercase(),
+            "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
+
             _ => {}
         }
     }
 
-    let mode = match mode.as_str() {
-        "nearest" => ResizeMode::Nearest,
-        "linear" => ResizeMode::Linear,
-        "cubic" => ResizeMode::Cubic,
-        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
-    };
+    let roi: Vec<f32> = node
+        .inputs
+        .get(1)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone().into_f32s()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
 
-    mode
+    scales = node
+        .inputs
+        .get(2)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone().into_f32s()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+
+    sizes = node
+        .inputs
+        .get(3)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+
+    if mode.is_empty() {
+        panic!("Resize: mode attribute is required")
+    }
+
+    if !roi.is_empty() {
+        panic!("Resize: roi input is not supported")
+    }
+
+    if scales.is_empty() && sizes.is_empty() {
+        panic!("Resize: either scales or sizes input is required")
+    }
+
+    if !scales.is_empty() {
+        assert!(scales.len() == input.dim);
+        // ignore the fist two items from scales
+        // because they are the batch and channel dimensions
+        scales = scales.iter().skip(2).cloned().collect();
+    }
+
+    if !sizes.is_empty() {
+        assert!(sizes.len() == input.dim);
+        // ignore the fist two items from sizes
+        // because they are the batch and channel dimensions
+        sizes = sizes.iter().skip(2).cloned().collect();
+    }
+
+    (mode, scales, sizes)
 }
 
 //Note this function should only execute if the second input is a constant
