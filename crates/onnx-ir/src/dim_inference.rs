@@ -62,7 +62,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
-        NodeType::Resize => resize_update_outputs(node),
+        NodeType::Resize => same_as_input(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
@@ -316,33 +316,6 @@ fn reshape_update_outputs(node: &mut Node) {
             ..output
         });
     }
-}
-
-fn resize_update_outputs(node: &mut Node) {
-    let input = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Resize: invalid input type"),
-    };
-
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Resize: invalid output type"),
-    };
-
-    let output_size = match &node.inputs[3].ty {
-        ArgType::Tensor(output_size) => output_size.clone(),
-        _ => panic!("Resize: invalid output_size type"),
-    };
-
-    if output_size.dim != 1 {
-        panic!("Resize: output_size must be 1D");
-    }
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: input.dim,
-        shape: None, // shape is calculated at runtime
-        ..output
-    });
 }
 
 fn greater_update_outputs(node: &mut Node) {
@@ -838,7 +811,7 @@ fn gather_update_outputs(node: &mut Node) {
 
     let input_tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+        ty => panic!("Only tensor input is valid but received: {:?}", ty),
     };
 
     let indices_tensor = match &node.inputs[1].ty {

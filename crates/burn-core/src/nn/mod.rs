@@ -16,6 +16,9 @@ pub mod pool;
 /// Transformer module
 pub mod transformer;
 
+/// Interpolate module
+pub mod interpolate;
+
 mod dropout;
 mod embedding;
 mod gelu;
