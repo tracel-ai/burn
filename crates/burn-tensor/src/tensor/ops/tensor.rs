@@ -174,7 +174,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated.
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,
         times: usize,

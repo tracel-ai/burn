@@ -848,8 +848,8 @@ impl RelativeOps for BaseOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            BaseOperationDescription::Repeat(desc) => {
-                BaseOperationDescription::Repeat(RepeatOperationDescription {
+            BaseOperationDescription::RepeatDim(desc) => {
+                BaseOperationDescription::RepeatDim(RepeatDimOperationDescription {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
                     times: desc.times,

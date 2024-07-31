@@ -723,7 +723,7 @@ where
 
     /// Repeat the tensor along the given dimension.
     pub fn repeat(self, dim: usize, times: usize) -> Self {
-        Self::new(K::repeat(self.primitive, dim, times))
+        Self::new(K::repeat_dim(self.primitive, dim, times))
     }
 
     /// Applies element-wise equal comparison and returns a boolean tensor.
@@ -1506,7 +1506,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For repeating a tensor, users should prefer the [Tensor::repeat](Tensor::repeat) function,
     /// which is more high-level and designed for public use.
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
@@ -1763,12 +1763,12 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_repeat(tensor.tensor(), dim, times))
+        TensorPrimitive::Float(B::float_repeat_dim(tensor.tensor(), dim, times))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
@@ -1888,12 +1888,12 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::int_repeat(tensor, dim, times)
+        B::int_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
@@ -2010,12 +2010,12 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::bool_repeat(tensor, dim, times)
+        B::bool_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
