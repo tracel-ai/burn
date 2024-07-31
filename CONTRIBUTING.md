@@ -82,7 +82,7 @@ You may also want to enable debugging by creating a `.vscode/settings.json` file
 3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
 
 <div align="center">
-<img src="./assets/debug-options-vscode.png" width="700px"/>
+<img src="./contributor-book/src/getting-started/debug-options-vscode.png" width="700px"/>
 <div align="left">
 
 4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
