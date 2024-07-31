@@ -1,4 +1,5 @@
-mod binary;
+// mod binary;
+mod binary_new;
 mod cast;
 mod clamp;
 mod comparison;
@@ -7,7 +8,7 @@ mod index;
 mod mask;
 mod unary;
 
-pub use binary::*;
+pub(crate) use binary_new::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
