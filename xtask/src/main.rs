@@ -108,13 +108,13 @@ fn main() -> anyhow::Result<()> {
                             }
                         }
                         ci::CICommand::DocTests => {
-                            // TODO cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
                             // Exclude problematic crates from documentation test
                             cmd_args.exclude.extend(vec!["burn-cuda".to_string()])
                         }
                         _ => {}
                     };
-                    // Specific additional builds to test specific features
+                    ci::handle_command(cmd_args.clone())?;
+                    // Specific additional commands to test specific features
                     match cmd_args.command {
                         ci::CICommand::Build => {
                             // burn-dataset
@@ -157,7 +157,7 @@ fn main() -> anyhow::Result<()> {
                         }
                         _ => {}
                     }
-                    ci::handle_command(cmd_args.clone())
+                    Ok(())
                 }
             }
         }
@@ -165,8 +165,16 @@ fn main() -> anyhow::Result<()> {
         Command::Dependencies(cmd_args) => dependencies::handle_command(cmd_args),
         Command::Doc(mut cmd_args) => {
             match cmd_args.command {
+                // Exclude crates that are not supported by CI
                 doc::DocCommand::Build => {
                     cmd_args.exclude.push("burn-cuda".to_string());
+                }
+            }
+            doc::handle_command(cmd_args)?;
+            // Specific additional commands to build other docs
+            match cmd_args.command {
+                // Exclude crates that are not supported by CI
+                doc::DocCommand::Build => {
                     // burn-dataset
                     helpers::additional_crates_doc_build(
                         vec!["burn-dataset"],
@@ -174,7 +182,7 @@ fn main() -> anyhow::Result<()> {
                     )?;
                 }
             }
-            doc::handle_command(cmd_args)
+            Ok(())
         }
         Command::Publish(cmd_args) => publish::handle_command(cmd_args),
         Command::Test(cmd_args) => test::handle_command(cmd_args),
