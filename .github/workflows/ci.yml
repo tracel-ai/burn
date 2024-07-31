@@ -133,7 +133,7 @@ jobs:
         shell: bash
         run: cargo xtask ci doc-tests
 
-  tests-linux-std:
+  linux-std:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -189,7 +189,7 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  tests-linux-no-std:
+  linux-no-std:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -224,7 +224,7 @@ jobs:
         shell: bash
         run: cargo xtask --execution-environment no-std ci unit-tests
 
-  tests-windows-std:
+  windows-std:
     runs-on: windows-2022
     env:
       DISABLE_WGPU: '1'
@@ -267,7 +267,7 @@ jobs:
         shell: bash
         run: cargo xtask ci integration-tests
 
-  tests-macos-std:
+  macos-std:
     runs-on: blaze/macos-14
     strategy:
       matrix:
