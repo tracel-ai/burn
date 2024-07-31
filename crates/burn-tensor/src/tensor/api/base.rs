@@ -732,7 +732,7 @@ where
         for &(dim, times) in sizes {
             tensor = tensor.repeat_dim(dim, times);
         }
-        return tensor;
+        tensor
     }
 
     /// Applies element-wise equal comparison and returns a boolean tensor.

@@ -19,7 +19,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
         mask = mask.slice_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }
 
-    mask = mask.repeat(0, batch_size);
+    mask = mask.repeat_dim(0, batch_size);
 
     mask.equal_elem(1_i64.elem::<i64>())
 }

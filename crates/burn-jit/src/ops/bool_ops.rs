@@ -94,12 +94,12 @@ where
         tensor
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> BoolTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn bool_permute<const D: usize>(

@@ -1,5 +1,5 @@
 use super::cat::cat_with_slice_assign;
-use super::repeat::repeat_with_slice_assign;
+use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;

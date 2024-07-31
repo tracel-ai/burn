@@ -152,7 +152,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
                     * weights
                         .clone()
                         .reshape([1, nr_classes])
-                        .repeat(0, batch_size);
+                        .repeat_dim(0, batch_size);
                 let weights = weights.clone().gather(0, targets);
                 let tensor = Self::apply_mask_2d(tensor, mask);
                 tensor.sum().neg() / weights.sum()
@@ -224,7 +224,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     fn apply_mask_2d(mut tensor: Tensor<B, 2>, mask: Option<Tensor<B, 1, Bool>>) -> Tensor<B, 2> {
         if let Some(mask) = mask {
             let [batch_size, nr_classes] = tensor.dims();
-            tensor = tensor.mask_fill(mask.reshape([batch_size, 1]).repeat(1, nr_classes), 0);
+            tensor = tensor.mask_fill(mask.reshape([batch_size, 1]).repeat_dim(1, nr_classes), 0);
         }
 
         tensor
@@ -312,7 +312,7 @@ mod tests {
             * targets_logits
             * Tensor::<TestBackend, 1>::from_floats(weights.as_slice(), &device)
                 .unsqueeze()
-                .repeat(0, 4);
+                .repeat_dim(0, 4);
         let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }

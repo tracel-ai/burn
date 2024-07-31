@@ -1,6 +1,6 @@
 use super::{
-    cat::cat_with_slice_assign, repeat::repeat_with_slice_assign, BoolTensor, Device, FloatTensor,
-    IntTensor,
+    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
+    FloatTensor, IntTensor,
 };
 use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,

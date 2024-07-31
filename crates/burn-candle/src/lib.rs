@@ -94,7 +94,7 @@ mod tests {
     // burn_tensor::testgen_powf!();
 
     burn_tensor::testgen_random!();
-    burn_tensor::testgen_repeat!();
+    burn_tensor::testgen_repeat_dim!();
     burn_tensor::testgen_reshape!();
     burn_tensor::testgen_select!();
     burn_tensor::testgen_sin!();
