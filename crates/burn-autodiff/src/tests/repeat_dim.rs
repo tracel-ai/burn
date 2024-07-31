@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(ad_repeat)]
+#[burn_tensor_testgen::testgen(ad_repeat_dim)]
 mod tests {
     use super::*;
     use burn_tensor::{activation, TensorData};
@@ -12,7 +12,7 @@ mod tests {
         let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
-        let tensor_3 = tensor_2.clone().repeat(1, 3);
+        let tensor_3 = tensor_2.clone().repeat_dim(1, 3);
 
         let tensor_3 = tensor_1.matmul(tensor_3);
         let grads = tensor_3.backward();
