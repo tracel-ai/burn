@@ -92,7 +92,7 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Audit
         shell: bash
-        run: cargo xtask ci audit
+        run: cargo xtask check audit
       # --------------------------------------------------------------------------------
       - name: Format
         shell: bash
@@ -100,15 +100,15 @@ jobs:
           # work around for colors
           # see: https://github.com/rust-lang/rustfmt/issues/3385
           TERM: xterm-256color
-        run: cargo xtask ci format
+        run: cargo xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
         shell: bash
-        run: cargo xtask ci lint
+        run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
         shell: bash
-        run: cargo xtask ci typos
+        run: cargo xtask check typos
 
   documentation:
     runs-on: ubuntu-22.04
@@ -172,11 +172,11 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Build
         shell: bash
-        run: cargo xtask --enable-coverage ci build
+        run: cargo xtask --enable-coverage build
       # --------------------------------------------------------------------------------
       - name: Tests
         shell: bash
-        run: cargo xtask --enable-coverage ci all-tests
+        run: cargo xtask --enable-coverage test all
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         shell: bash
@@ -218,11 +218,11 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Crates Build
         shell: bash
-        run: cargo xtask --execution-environment no-std ci build
+        run: cargo xtask --execution-environment no-std build
       # --------------------------------------------------------------------------------
       - name: Crates Tests
         shell: bash
-        run: cargo xtask --execution-environment no-std ci all-tests
+        run: cargo xtask --execution-environment no-std test all
 
   windows-std-tests:
     runs-on: windows-2022
@@ -256,11 +256,11 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Build
         shell: bash
-        run: cargo xtask ci build
+        run: cargo xtask build
       # --------------------------------------------------------------------------------
       - name: Tests
         shell: bash
-        run: cargo xtask ci all-tests
+        run: cargo xtask test all
 
   macos-std-tests:
     runs-on: blaze/macos-14
@@ -283,8 +283,8 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Build
         shell: bash
-        run: cargo xtask ci build
+        run: cargo xtask build
       # --------------------------------------------------------------------------------
       - name: Tests
         shell: bash
-        run: cargo xtask ci all-tests
+        run: cargo xtask test all

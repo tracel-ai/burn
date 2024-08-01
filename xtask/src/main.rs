@@ -1,4 +1,4 @@
-use xtask_common::clap;
+use xtask_common::{clap, utils::rustup::rustup_add_target, ExecutionEnvironment};
 
 mod commands;
 
@@ -13,11 +13,22 @@ use xtask_common::{
     utils::time::format_duration,
 };
 
+// no-std
+const WASM32_TARGET: &str = "wasm32-unknown-unknown";
+const ARM_TARGET: &str = "thumbv7m-none-eabi";
+const NO_STD_CRATES: &[&str] = &[
+    "burn",
+    "burn-core",
+    "burn-common",
+    "burn-tensor",
+    "burn-ndarray",
+    "burn-no-std-tests",
+];
+
 #[xtask_macros::commands(
     Bump,
     Build,
-    Checks,
-    CI,
+    Check,
     Compile,
     Coverage,
     Doc,
@@ -25,24 +36,29 @@ use xtask_common::{
     Fix,
     Publish,
     Test,
+    Validate,
     Vulnerabilities
 )]
 pub enum Command {
-    /// Run commands to manage Burn Books
+    /// Run commands to manage Burn Books.
     Books(commands::books::BooksArgs),
 }
 
 fn main() -> anyhow::Result<()> {
     let start = Instant::now();
-
     let args = init_xtask::<Command>()?;
+
+    if args.execution_environment == ExecutionEnvironment::NoStd {
+        // Install additional targets for no-std execution environments
+        rustup_add_target(WASM32_TARGET)?;
+        rustup_add_target(ARM_TARGET)?;
+    }
+
     match args.command {
         Command::Books(cmd_args) => cmd_args.parse(),
-        // Commands from common_xtask
         Command::Build(cmd_args) => build::handle_command(cmd_args),
         Command::Bump(cmd_args) => bump::handle_command(cmd_args),
-        Command::Checks => commands::checks::handle_command(),
-        Command::CI(cmd_args) => commands::ci::handle_command(cmd_args, args.execution_environment),
+        Command::Check(cmd_args) => check::handle_command(cmd_args),
         Command::Coverage(cmd_args) => coverage::handle_command(cmd_args),
         Command::Compile(cmd_args) => compile::handle_command(cmd_args),
         Command::Dependencies(cmd_args) => dependencies::handle_command(cmd_args),
@@ -50,6 +66,7 @@ fn main() -> anyhow::Result<()> {
         Command::Fix(cmd_args) => fix::handle_command(cmd_args, None),
         Command::Publish(cmd_args) => publish::handle_command(cmd_args),
         Command::Test(cmd_args) => test::handle_command(cmd_args),
+        Command::Validate => commands::validate::handle_command(),
         Command::Vulnerabilities(cmd_args) => vulnerabilities::handle_command(cmd_args),
     }?;
 
