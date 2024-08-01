@@ -259,7 +259,7 @@ jobs:
         shell: bash
         run: cargo xtask ci build
       # --------------------------------------------------------------------------------
-      - name: Unit Tests
+      - name: Tests
         shell: bash
         run: cargo xtask ci all-tests
 
@@ -286,6 +286,6 @@ jobs:
         shell: bash
         run: cargo xtask ci build
       # --------------------------------------------------------------------------------
-      - name: Unit Tests
+      - name: Tests
         shell: bash
         run: cargo xtask ci all-tests

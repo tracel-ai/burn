@@ -59,7 +59,7 @@ pub(crate) fn handle_command(
         ExecutionEnvironment::Std => {
             // Exclude crates that are not supported by CI
             match args.command {
-                CICommand::Build | CICommand::UnitTests => {
+                CICommand::Build | CICommand::AllTests => {
                     args.exclude
                         .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
                     if std::env::var("DISABLE_WGPU").is_ok() {
@@ -93,12 +93,12 @@ pub(crate) fn handle_command(
                     #[cfg(target_os = "macos")]
                     {
                         // burn-candle
-                        helpers::additional_crates_unit_tests(
+                        helpers::additional_crates_tests(
                             vec!["burn-candle"],
                             vec!["--features", "accelerate"],
                         )?;
                         // burn-ndarray
-                        helpers::additional_crates_unit_tests(
+                        helpers::additional_crates_tests(
                             vec!["burn-ndarray"],
                             vec!["--features", "blas-accelerate"],
                         )?;
