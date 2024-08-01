@@ -67,7 +67,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
+  code-quality:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -129,11 +129,15 @@ jobs:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
-      - name: Tests
+      - name: Documentation Build
+        shell: bash
+        run: cargo xtask doc build
+      # --------------------------------------------------------------------------------
+      - name: Documentation Tests
         shell: bash
         run: cargo xtask ci doc-tests
 
-  linux-std:
+  linux-std-tests:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -189,7 +193,7 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  linux-no-std:
+  linux-no-std-tests:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -224,7 +228,7 @@ jobs:
         shell: bash
         run: cargo xtask --execution-environment no-std ci unit-tests
 
-  windows-std:
+  windows-std-tests:
     runs-on: windows-2022
     env:
       DISABLE_WGPU: '1'
@@ -267,7 +271,7 @@ jobs:
         shell: bash
         run: cargo xtask ci integration-tests
 
-  macos-std:
+  macos-std-tests:
     runs-on: blaze/macos-14
     strategy:
       matrix:
