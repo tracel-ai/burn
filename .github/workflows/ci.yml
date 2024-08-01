@@ -279,7 +279,7 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-windows
+          cache-key: ${{ matrix.cache-version }}-macos
       # --------------------------------------------------------------------------------
       - name: Build
         shell: bash
