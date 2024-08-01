@@ -429,6 +429,9 @@ impl TraceBuilder {
                         Procedure::IndexOffsetGlobalWithLayout(_) => {
                             // Nothing to do here.
                         }
+                        Procedure::EarlyReturn(_) => {
+                            // Nothing to do here.
+                        }
                     }
                 }
                 Operation::Metadata(_) => {
