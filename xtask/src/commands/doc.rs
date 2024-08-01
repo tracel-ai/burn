@@ -17,10 +17,7 @@ pub(crate) fn handle_command(mut args: DocCmdArgs) -> anyhow::Result<()> {
         // Exclude crates that are not supported by CI
         doc::DocCommand::Build => {
             // burn-dataset
-            helpers::additional_crates_doc_build(
-                vec!["burn-dataset"],
-                vec!["--all-features"],
-            )?;
+            helpers::additional_crates_doc_build(vec!["burn-dataset"], vec!["--all-features"])?;
         }
     }
     Ok(())

@@ -24,7 +24,9 @@ pub fn handle_command() -> anyhow::Result<()> {
         CICommand::UnitTests,
         CICommand::IntegrationTests,
         CICommand::DocTests,
-    ].iter().try_for_each(|c| {
+    ]
+    .iter()
+    .try_for_each(|c| {
         super::ci::handle_command(
             common_ci::CICmdArgs {
                 target: target.clone(),
@@ -39,26 +41,25 @@ pub fn handle_command() -> anyhow::Result<()> {
         target: target.clone(),
         exclude: exclude.clone(),
         only: only.clone(),
-        command: common_doc::DocCommand::Build
+        command: common_doc::DocCommand::Build,
     })?;
 
     // no-std checks
     // =============
     #[cfg(target_os = "linux")]
-    [
-        CICommand::Build,
-        CICommand::UnitTests,
-    ].iter().try_for_each(|c| {
-        super::ci::handle_command(
-            common_ci::CICmdArgs {
-                target: target.clone(),
-                exclude: exclude.clone(),
-                only: only.clone(),
-                command: c.clone(),
-            },
-            ExecutionEnvironment::NoStd,
-        )
-    })?;
+    [CICommand::Build, CICommand::UnitTests]
+        .iter()
+        .try_for_each(|c| {
+            super::ci::handle_command(
+                common_ci::CICmdArgs {
+                    target: target.clone(),
+                    exclude: exclude.clone(),
+                    only: only.clone(),
+                    command: c.clone(),
+                },
+                ExecutionEnvironment::NoStd,
+            )
+        })?;
 
     Ok(())
 }
