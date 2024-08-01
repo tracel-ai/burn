@@ -182,7 +182,7 @@ jobs:
       - name: Generate lcov.info
         shell: bash
         # /* is to exclude std library code coverage from analysis
-        run: cargo xtask --enable-coverage ci coverage generate --ignore "/*,xtask/*,examples/*"
+        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
         uses: codecov/codecov-action@v4
