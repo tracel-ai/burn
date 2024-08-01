@@ -91,6 +91,17 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "cuda-jit")]
+mod cuda_jit {
+    use crate::{launch, ElemType};
+    use burn::backend::{CudaJit, Autodiff};
+
+    pub fn run() {
+        println!("TYo");
+        launch::<Autodiff<CudaJit>>(vec![Default::default()]);
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -105,4 +116,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
+    #[cfg(feature = "cuda-jit")]
+    cuda_jit::run();
 }

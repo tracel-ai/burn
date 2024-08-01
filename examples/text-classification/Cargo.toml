@@ -16,6 +16,7 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+cuda-jit = ["burn/cuda-jit"]
 
 [dependencies]
 # Burn

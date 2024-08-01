@@ -16,7 +16,6 @@ members = [
 
 exclude = [
     "examples/notebook",
-    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
