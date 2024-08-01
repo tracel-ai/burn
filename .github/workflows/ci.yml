@@ -135,7 +135,7 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Documentation Tests
         shell: bash
-        run: cargo xtask ci doc-tests
+        run: cargo xtask doc tests
 
   linux-std-tests:
     runs-on: ubuntu-22.04
@@ -169,23 +169,20 @@ jobs:
         run: |
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
+          cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Build
         shell: bash
         run: cargo xtask --enable-coverage ci build
       # --------------------------------------------------------------------------------
-      - name: Unit Tests
+      - name: Tests
         shell: bash
-        run: cargo xtask --enable-coverage ci unit-tests
-      # --------------------------------------------------------------------------------
-      - name: Integration Tests
-        shell: bash
-        run: cargo xtask --enable-coverage ci integration-tests
+        run: cargo xtask --enable-coverage ci all-tests
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         shell: bash
         # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
+        run: cargo xtask --enable-coverage ci coverage generate --ignore "/*,xtask/*,examples/*"
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
         uses: codecov/codecov-action@v4
@@ -224,9 +221,9 @@ jobs:
         shell: bash
         run: cargo xtask --execution-environment no-std ci build
       # --------------------------------------------------------------------------------
-      - name: Crates Unit Tests
+      - name: Crates Tests
         shell: bash
-        run: cargo xtask --execution-environment no-std ci unit-tests
+        run: cargo xtask --execution-environment no-std ci all-tests
 
   windows-std-tests:
     runs-on: windows-2022
@@ -264,11 +261,7 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Unit Tests
         shell: bash
-        run: cargo xtask ci unit-tests
-      # --------------------------------------------------------------------------------
-      - name: Integration Tests
-        shell: bash
-        run: cargo xtask ci integration-tests
+        run: cargo xtask ci all-tests
 
   macos-std-tests:
     runs-on: blaze/macos-14
@@ -295,8 +288,4 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Unit Tests
         shell: bash
-        run: cargo xtask ci unit-tests
-      # --------------------------------------------------------------------------------
-      - name: Integration Tests
-        shell: bash
-        run: cargo xtask ci integration-tests
+        run: cargo xtask ci all-tests

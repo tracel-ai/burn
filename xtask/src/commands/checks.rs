@@ -21,9 +21,7 @@ pub fn handle_command() -> anyhow::Result<()> {
         CICommand::Lint,
         CICommand::Typos,
         CICommand::Build,
-        CICommand::UnitTests,
-        CICommand::IntegrationTests,
-        CICommand::DocTests,
+        CICommand::AllTests,
     ]
     .iter()
     .try_for_each(|c| {
@@ -47,7 +45,7 @@ pub fn handle_command() -> anyhow::Result<()> {
     // no-std checks
     // =============
     #[cfg(target_os = "linux")]
-    [CICommand::Build, CICommand::UnitTests]
+    [CICommand::Build, CICommand::AllTests]
         .iter()
         .try_for_each(|c| {
             super::ci::handle_command(

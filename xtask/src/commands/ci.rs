@@ -18,6 +18,7 @@ pub(crate) fn handle_command(
             // Install additional targets for no-std execution environments
             rustup_add_target(WASM32_TARGET)?;
             rustup_add_target(ARM_TARGET)?;
+            let no_std_features_args = vec!["--no-default-features"];
             let no_std_crates = vec![
                 "burn",
                 "burn-core",
@@ -26,7 +27,7 @@ pub(crate) fn handle_command(
                 "burn-ndarray",
                 "burn-no-std-tests",
             ];
-            let no_std_features_args = vec!["--no-default-features"];
+            // build
             let no_std_build_targets = ["Default", WASM32_TARGET, ARM_TARGET];
             no_std_build_targets.iter().try_for_each(|build_target| {
                 let mut build_args = no_std_features_args.clone();
@@ -40,6 +41,7 @@ pub(crate) fn handle_command(
                     _ => Ok(()),
                 }
             })?;
+            // tests
             let no_std_test_targets = ["Default"];
             no_std_test_targets.iter().try_for_each(|test_target| {
                 let mut test_args = no_std_features_args.clone();
@@ -47,8 +49,8 @@ pub(crate) fn handle_command(
                     test_args.extend(vec!["--target", *test_target]);
                 }
                 match args.command {
-                    CICommand::UnitTests => {
-                        helpers::additional_crates_unit_tests(no_std_crates.clone(), test_args)
+                    CICommand::AllTests => {
+                        helpers::additional_crates_tests(no_std_crates.clone(), test_args)
                     }
                     _ => Ok(()),
                 }
@@ -73,23 +75,16 @@ pub(crate) fn handle_command(
             ci::handle_command(args.clone())?;
             // Specific additional commands to test specific features
             match args.command {
-                CICommand::Build => {
+                CICommand::AllTests => {
                     // burn-dataset
-                    helpers::additional_crates_build(vec!["burn-dataset"], vec!["--all-features"])?;
-                }
-                CICommand::UnitTests => {
-                    // burn-dataset
-                    helpers::additional_crates_unit_tests(
-                        vec!["burn-dataset"],
-                        vec!["--all-features"],
-                    )?;
+                    helpers::additional_crates_tests(vec!["burn-dataset"], vec!["--all-features"])?;
                     // burn-core
-                    helpers::additional_crates_unit_tests(
+                    helpers::additional_crates_tests(
                         vec!["burn-core"],
                         vec!["--features", "test-tch,record-item-custom-serde"],
                     )?;
                     if std::env::var("DISABLE_WGPU").is_err() {
-                        helpers::additional_crates_unit_tests(
+                        helpers::additional_crates_tests(
                             vec!["burn-core"],
                             vec!["--features", "test-wgpu"],
                         )?;
@@ -108,6 +103,10 @@ pub(crate) fn handle_command(
                             vec!["--features", "blas-accelerate"],
                         )?;
                     }
+                }
+                CICommand::Build => {
+                    // burn-dataset
+                    helpers::additional_crates_build(vec!["burn-dataset"], vec!["--all-features"])?;
                 }
                 _ => {}
             }
