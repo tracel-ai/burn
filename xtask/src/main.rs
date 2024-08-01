@@ -8,7 +8,6 @@ extern crate log;
 use std::time::Instant;
 use xtask_common::{
     anyhow::{self, Ok},
-    commands::*,
     init_xtask,
     utils::time::format_duration,
 };
@@ -56,18 +55,26 @@ fn main() -> anyhow::Result<()> {
 
     match args.command {
         Command::Books(cmd_args) => cmd_args.parse(),
-        Command::Build(cmd_args) => build::handle_command(cmd_args),
-        Command::Bump(cmd_args) => bump::handle_command(cmd_args),
-        Command::Check(cmd_args) => check::handle_command(cmd_args),
-        Command::Coverage(cmd_args) => coverage::handle_command(cmd_args),
-        Command::Compile(cmd_args) => compile::handle_command(cmd_args),
-        Command::Dependencies(cmd_args) => dependencies::handle_command(cmd_args),
+        Command::Build(cmd_args) => {
+            commands::build::handle_command(cmd_args, args.execution_environment)
+        }
+        Command::Bump(cmd_args) => xtask_common::commands::bump::handle_command(cmd_args),
+        Command::Check(cmd_args) => xtask_common::commands::check::handle_command(cmd_args),
+        Command::Coverage(cmd_args) => xtask_common::commands::coverage::handle_command(cmd_args),
+        Command::Compile(cmd_args) => xtask_common::commands::compile::handle_command(cmd_args),
+        Command::Dependencies(cmd_args) => {
+            xtask_common::commands::dependencies::handle_command(cmd_args)
+        }
         Command::Doc(cmd_args) => commands::doc::handle_command(cmd_args),
-        Command::Fix(cmd_args) => fix::handle_command(cmd_args, None),
-        Command::Publish(cmd_args) => publish::handle_command(cmd_args),
-        Command::Test(cmd_args) => test::handle_command(cmd_args),
+        Command::Fix(cmd_args) => xtask_common::commands::fix::handle_command(cmd_args, None),
+        Command::Publish(cmd_args) => xtask_common::commands::publish::handle_command(cmd_args),
+        Command::Test(cmd_args) => {
+            commands::test::handle_command(cmd_args, args.execution_environment)
+        }
         Command::Validate => commands::validate::handle_command(),
-        Command::Vulnerabilities(cmd_args) => vulnerabilities::handle_command(cmd_args),
+        Command::Vulnerabilities(cmd_args) => {
+            xtask_common::commands::vulnerabilities::handle_command(cmd_args)
+        }
     }?;
 
     let duration = start.elapsed();
