@@ -6,3 +6,7 @@ extend-exclude = [
     "assets/ModuleSerialization.xml",
     "examples/image-classification-web/src/model/label.txt",
 ]
+
+[default.extend-words]
+# Don't correct "arange" which is intentional
+arange = "arange"
