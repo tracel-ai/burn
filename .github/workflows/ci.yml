@@ -232,14 +232,13 @@ jobs:
     runs-on: windows-2022
     env:
       DISABLE_WGPU: '1'
+    # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable]
         include:
           - rust: stable
             cache-version: stable
-          - rust: 1.79.0
-            cache-version: 1-79-0
     steps:
       - name: Checkout actions
         uses: actions/checkout@v4
@@ -273,14 +272,13 @@ jobs:
 
   macos-std-tests:
     runs-on: blaze/macos-14
+    # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable]
         include:
           - rust: stable
             cache-version: stable
-          - rust: 1.79.0
-            cache-version: 1-79-0
     steps:
       - name: Checkout actions
         uses: actions/checkout@v4
