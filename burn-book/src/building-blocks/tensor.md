@@ -189,6 +189,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`        |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
+| `tensor.contains_nan()`                                         | N/A                                            |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
@@ -198,6 +199,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                             |
 | `tensor.greater_equal_elem(scalar)`                             | `tensor.ge(scalar)`                            |
 | `tensor.is_close(other, atol, rtol)`                            | `torch.isclose(tensor, other, atol, rtol)`     |
+| `tensor.is_nan()`                                               | `torch.isnan(tensor)`                          |
 | `tensor.lower(other)`                                           | `tensor.lt(other)`                             |
 | `tensor.lower_elem(scalar)`                                     | `tensor.lt(scalar)`                            |
 | `tensor.lower_equal(other)`                                     | `tensor.le(other)`                             |
@@ -303,12 +305,13 @@ Those operations are only available for `Bool` tensors.
 
 ### Quantization Operations
 
-Those operations are only available for `Float` tensors on backends that implement quantization strategies.
+Those operations are only available for `Float` tensors on backends that implement quantization
+strategies.
 
-| Burn API                             | PyTorch Equivalent              |
-| ------------------------------------ | ------------------------------- |
-| `tensor.quantize(scheme, qparams)`   | N/A                             |
-| `tensor.dequantize()`                | N/A                             |
+| Burn API                           | PyTorch Equivalent |
+| ---------------------------------- | ------------------ |
+| `tensor.quantize(scheme, qparams)` | N/A                |
+| `tensor.dequantize()`              | N/A                |
 
 ## Activation Functions
 
