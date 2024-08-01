@@ -126,6 +126,11 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
     let kernel = SelectEagerKernel::<R, E>::new(dim);
 
+    let num_elems = indices.shape.dims[0];
+    let mut shapes = [1; D];
+    let mut strides = [num_elems; D];
+    shapes[D - 1] = num_elems;
+    strides[D - 1] = 1;
     Execution::start(kernel, tensor.client)
         .inputs(&[
             TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
@@ -133,7 +138,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            TensorHandleRef::new(&indices.handle, &[1; D], &[1; D]),
+            TensorHandleRef::new(&indices.handle, &strides, &shapes),
         ])
         .outputs(&[TensorHandleRef::new(
             &output.handle,
