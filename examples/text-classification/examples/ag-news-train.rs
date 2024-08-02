@@ -94,10 +94,9 @@ mod wgpu {
 #[cfg(feature = "cuda-jit")]
 mod cuda_jit {
     use crate::{launch, ElemType};
-    use burn::backend::{CudaJit, Autodiff};
+    use burn::backend::{Autodiff, CudaJit};
 
     pub fn run() {
-        println!("TYo");
         launch::<Autodiff<CudaJit>>(vec![Default::default()]);
     }
 }
