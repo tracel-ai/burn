@@ -727,6 +727,8 @@ where
     }
 
     /// Repeat the tensor along the given dimensions.
+    /// # Arguments
+    /// - `sizes`: Borrowed slice of 2-tuples (dimension to repeat, times to repeat)
     pub fn repeat(self, sizes: &[(usize, usize)]) -> Self {
         let mut tensor = self;
         for &(dim, times) in sizes {
