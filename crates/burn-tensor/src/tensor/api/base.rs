@@ -728,11 +728,13 @@ where
 
     /// Repeat the tensor along the given dimensions.
     /// # Arguments
-    /// - `sizes`: Borrowed slice of 2-tuples (dimension to repeat, times to repeat)
-    pub fn repeat(self, sizes: &[(usize, usize)]) -> Self {
+    /// - `sizes`: Borrowed slice of the number of times to repeat each dimension.
+    pub fn repeat(self, sizes: &[usize]) -> Self {
         let mut tensor = self;
-        for &(dim, times) in sizes {
-            tensor = tensor.repeat_dim(dim, times);
+        for (dim, &times) in sizes.into_iter().enumerate() {
+            if times > 1 {
+                tensor = tensor.repeat_dim(dim, times);
+            }
         }
         tensor
     }

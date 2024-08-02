@@ -8,7 +8,7 @@ mod tests {
         let data = TensorData::from([[0.0f32, 1.0f32, 2.0f32]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 4)]);
+        let output = tensor.repeat(&[4, 1, 1]);
         let expected = TensorData::from([
             [0.0f32, 1.0f32, 2.0f32],
             [0.0f32, 1.0f32, 2.0f32],
@@ -24,7 +24,7 @@ mod tests {
         let data = TensorData::from([[true, false, false]]);
         let tensor = Tensor::<TestBackend, 2, Bool>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 4)]);
+        let output = tensor.repeat(&[4, 1, 1]);
         let expected = TensorData::from([
             [true, false, false],
             [true, false, false],
@@ -39,7 +39,7 @@ mod tests {
         let data = TensorData::from([[0i32, 1i32, 2i32]]);
         let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 4)]);
+        let output = tensor.repeat(&[4, 1, 1]);
         let expected = TensorData::from([
             [0i32, 1i32, 2i32],
             [0i32, 1i32, 2i32],
@@ -60,7 +60,7 @@ mod tests {
         ]);
         let tensor = Tensor::<TestBackend, 3>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 2), (1, 3), (2, 2)]);
+        let output = tensor.repeat(&[2, 3, 2]);
         let expected = TensorData::from([
             [
                 [1.0f32, 2.0f32, 1.0f32, 2.0f32],
@@ -141,7 +141,7 @@ mod tests {
         ]);
         let tensor = Tensor::<TestBackend, 3, Int>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 2), (1, 3), (2, 2)]);
+        let output = tensor.repeat(&[2, 3, 2]);
 
         let expected = TensorData::from([
             [
@@ -221,7 +221,7 @@ mod tests {
         ]);
         let tensor = Tensor::<TestBackend, 3, Bool>::from_data(data, &Default::default());
 
-        let output = tensor.repeat(&[(0, 2), (1, 3), (2, 2)]);
+        let output = tensor.repeat(&[2, 3, 2]);
         let expected = TensorData::from([
             [
                 [false, true, false, true],
