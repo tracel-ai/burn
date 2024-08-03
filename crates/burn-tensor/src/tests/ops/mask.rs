@@ -70,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn float_mask_fill_infinit() {
+    fn float_mask_fill_infinite() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data(
             [
