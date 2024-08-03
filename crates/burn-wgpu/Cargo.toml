@@ -11,12 +11,12 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-wgpu"
 version.workspace = true
 
 [features]
-default = ["fusion", "burn-jit/default", "cubecl/default"]
+default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 autotune = ["burn-jit/autotune"]
 template = ["burn-jit/template", "cubecl/template"]
 doc = ["burn-jit/doc"]
-std = ["burn-jit/std"]
+std = ["burn-jit/std", "cubecl/std"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
