@@ -132,11 +132,11 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_expand(tensor, shape)
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<B, D>,
         dim: usize,
         times: usize,
     ) -> BoolTensor<B, D> {
-        B::bool_repeat(tensor, dim, times)
+        B::bool_repeat_dim(tensor, dim, times)
     }
 }

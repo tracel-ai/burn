@@ -722,8 +722,21 @@ where
     }
 
     /// Repeat the tensor along the given dimension.
-    pub fn repeat(self, dim: usize, times: usize) -> Self {
-        Self::new(K::repeat(self.primitive, dim, times))
+    pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
+        Self::new(K::repeat_dim(self.primitive, dim, times))
+    }
+
+    /// Repeat the tensor along the given dimensions.
+    /// # Arguments
+    /// - `sizes`: Borrowed slice of the number of times to repeat each dimension.
+    pub fn repeat(self, sizes: &[usize]) -> Self {
+        let mut tensor = self;
+        for (dim, &times) in sizes.iter().enumerate() {
+            if times > 1 {
+                tensor = tensor.repeat_dim(dim, times);
+            }
+        }
+        tensor
     }
 
     /// Applies element-wise equal comparison and returns a boolean tensor.
@@ -1504,9 +1517,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For repeating a tensor, users should prefer the [Tensor::repeat](Tensor::repeat) function,
+    /// For repeating a tensor, users should prefer the [Tensor::repeat_dim](Tensor::repeat_dim) function,
     /// which is more high-level and designed for public use.
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
@@ -1763,12 +1776,12 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_repeat(tensor.tensor(), dim, times))
+        TensorPrimitive::Float(B::float_repeat_dim(tensor.tensor(), dim, times))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
@@ -1888,12 +1901,12 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::int_repeat(tensor, dim, times)
+        B::int_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
@@ -2010,12 +2023,12 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::bool_repeat(tensor, dim, times)
+        B::bool_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(

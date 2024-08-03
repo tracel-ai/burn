@@ -467,12 +467,12 @@ where
         })
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> FloatTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn float_powf<const D: usize>(

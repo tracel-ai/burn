@@ -18,12 +18,12 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         tensor.shape()
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: TchTensor<i64, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<i64, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
     async fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> TensorData {

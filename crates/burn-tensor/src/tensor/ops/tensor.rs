@@ -1,5 +1,5 @@
 use super::cat::cat_with_slice_assign;
-use super::repeat::repeat_with_slice_assign;
+use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
@@ -174,7 +174,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated.
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<B, D>,
         dim: usize,
         times: usize,

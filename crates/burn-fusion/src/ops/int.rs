@@ -1755,22 +1755,22 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<Self, D> {
         #[derive(new)]
-        struct RepeatOps<B: FusionBackend, const D: usize> {
-            desc: RepeatOperationDescription,
+        struct RepeatDimOps<B: FusionBackend, const D: usize> {
+            desc: RepeatDimOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatOps<B, D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatDimOps<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B, D>(&self.desc.tensor);
 
-                let output = B::int_repeat::<D>(tensor, self.desc.dim, self.desc.times);
+                let output = B::int_repeat_dim::<D>(tensor, self.desc.dim, self.desc.times);
 
                 handles.register_int_tensor::<B, D>(&self.desc.out.id, output);
             }
@@ -1783,7 +1783,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
 
-        let desc = RepeatOperationDescription {
+        let desc = RepeatDimOperationDescription {
             tensor: tensor.into_description(),
             dim,
             times,
@@ -1791,8 +1791,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::BaseInt(BaseOperationDescription::Repeat(desc.clone())),
-            RepeatOps::<B, D>::new(desc),
+            OperationDescription::BaseInt(BaseOperationDescription::RepeatDim(desc.clone())),
+            RepeatDimOps::<B, D>::new(desc),
         );
 
         out

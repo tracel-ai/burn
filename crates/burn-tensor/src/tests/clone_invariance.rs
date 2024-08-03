@@ -349,7 +349,7 @@ mod tests {
         clone_invariance_test!(
             unary: Repeat,
             ops_float: |tensor: TestTensor<2>| {
-                tensor.reshape([1, 32, 32]).repeat(0, 4).reshape([4 * 32, 32])
+                tensor.reshape([1, 32, 32]).repeat_dim(0, 4).reshape([4 * 32, 32])
             }
         );
         clone_invariance_test!(
@@ -633,7 +633,7 @@ mod tests {
         clone_invariance_test!(
             unary: Repeat,
             ops_int: |tensor: TestTensorInt<2>| {
-                tensor.reshape([1, 32, 32]).repeat(0, 4).reshape([4 * 32, 32])
+                tensor.reshape([1, 32, 32]).repeat_dim(0, 4).reshape([4 * 32, 32])
             }
         );
         clone_invariance_test!(

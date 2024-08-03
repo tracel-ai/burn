@@ -33,7 +33,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor.tensor.reshape(shape_tch.dims), tensor.storage)
     }
 
-    pub fn repeat<const D: usize>(
+    pub fn repeat_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         times: usize,

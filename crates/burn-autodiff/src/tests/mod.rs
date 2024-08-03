@@ -47,7 +47,7 @@ mod permute;
 mod pow;
 mod recip;
 mod relu;
-mod repeat;
+mod repeat_dim;
 mod reshape;
 mod select;
 mod sigmoid;
@@ -133,6 +133,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sign!();
         burn_autodiff::testgen_ad_expand!();
         burn_autodiff::testgen_ad_sort!();
-        burn_autodiff::testgen_ad_repeat!();
+        burn_autodiff::testgen_ad_repeat_dim!();
     };
 }

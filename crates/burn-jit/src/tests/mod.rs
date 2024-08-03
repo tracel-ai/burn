@@ -17,7 +17,7 @@ mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
 mod reduce;
-mod repeat;
+mod repeat_dim;
 mod scatter;
 mod select;
 mod select_assign;
@@ -48,7 +48,7 @@ macro_rules! testgen_all {
                 burn_jit::testgen_conv_transpose2d!();
                 burn_jit::testgen_conv_transpose3d!();
 
-                burn_jit::testgen_repeat!();
+                burn_jit::testgen_repeat_dim!();
                 burn_jit::testgen_gather!();
                 burn_jit::testgen_scatter!();
 
