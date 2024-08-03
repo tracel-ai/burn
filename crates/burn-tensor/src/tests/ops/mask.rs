@@ -68,4 +68,25 @@ mod tests {
 
         output.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn float_mask_fill_infinit() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 2>::from_data(
+            [
+                [f32::NEG_INFINITY, f32::NEG_INFINITY],
+                [f32::NEG_INFINITY, f32::NEG_INFINITY],
+            ],
+            &device,
+        );
+        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+            TensorData::from([[true, false], [false, true]]),
+            &device,
+        );
+
+        let output = tensor.mask_fill(mask, 10.0f32);
+        let expected = TensorData::from([[10f32, f32::NEG_INFINITY], [f32::NEG_INFINITY, 10f32]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
 }
