@@ -2,7 +2,7 @@
 authors = ["aasheeshsingh <aasheeshdtu@gmail.com>"]
 edition.workspace = true
 license.workspace = true
-name = "regression"
+name = "simple-regression"
 publish = false
 version.workspace = true
 

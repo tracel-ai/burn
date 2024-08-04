@@ -23,10 +23,10 @@ class Model(nn.Module):
         # Subtract a scalar constant from a scalar input
         d = k - self.b
 
-        # Sutract a scalar from a tensor
+        # Subtract a scalar from a tensor
         x = x - d
 
-        # Sutract a tensor from a scalar
+        # Subtract a tensor from a scalar
         x = d - x
 
         return x
