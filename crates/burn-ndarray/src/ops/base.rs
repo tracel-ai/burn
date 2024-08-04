@@ -3,7 +3,7 @@ use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
-use ndarray::s;
+use ndarray::{ArcArray, s};
 use ndarray::Array2;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
@@ -288,6 +288,17 @@ where
             5 => keepdim!(4, dim, tensor, sum),
             6 => keepdim!(5, dim, tensor, sum),
             _ => panic!("Dim not supported {D}"),
+        }
+    }
+
+    pub fn cumsum<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+        let mut new = tensor.array.to_owned();
+        new.accumulate_axis_inplace(Axis(dim), |&prev, curr| {
+            *curr += prev;
+        });
+        dbg!(&new);
+        NdArrayTensor {
+            array: ArcArray::from(new)
         }
     }
 
