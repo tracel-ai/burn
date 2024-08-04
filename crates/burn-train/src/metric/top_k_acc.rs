@@ -6,25 +6,35 @@ use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
-/// The accuracy metric.
+/// The Top-K accuracy metric.
+///
+/// For K=1, this is equivalent to the [accuracy metric](`super::acc::AccuracyMetric`).
 #[derive(Default)]
-pub struct AccuracyMetric<B: Backend> {
+pub struct TopKAccuracyMetric<B: Backend> {
+    k: usize,
     state: NumericMetricState,
+    /// If specified, targets equal to this value will be considered padding and will not count
+    /// towards the metric
     pad_token: Option<usize>,
     _b: PhantomData<B>,
 }
 
-/// The [accuracy metric](AccuracyMetric) input type.
+/// The [top-k accuracy metric](TopKAccuracyMetric) input type.
 #[derive(new)]
-pub struct AccuracyInput<B: Backend> {
+pub struct TopKAccuracyInput<B: Backend> {
+    /// The outputs (batch_size, num_classes)
     outputs: Tensor<B, 2>,
+    /// The labels (batch_size)
     targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> AccuracyMetric<B> {
+impl<B: Backend> TopKAccuracyMetric<B> {
     /// Creates the metric.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(k: usize) -> Self {
+        Self {
+            k,
+            ..Default::default()
+        }
     }
 
     /// Sets the pad token.
@@ -34,40 +44,44 @@ impl<B: Backend> AccuracyMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for AccuracyMetric<B> {
-    const NAME: &'static str = "Accuracy";
+impl<B: Backend> Metric for TopKAccuracyMetric<B> {
+    const NAME: &'static str = "Top-K Accuracy";
 
-    type Input = AccuracyInput<B>;
+    type Input = TopKAccuracyInput<B>;
 
-    fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &TopKAccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone().to_device(&B::Device::default());
+
+
         let outputs = input
             .outputs
             .clone()
-            .argmax(1)
+            .argsort_descending(1)
+            .narrow(1, 0, self.k)
             .to_device(&B::Device::default())
-            .reshape([batch_size]);
+            .reshape([batch_size, self.k]);
 
-        let accuracy = match self.pad_token {
+        let (targets, num_pad) = match self.pad_token {
             Some(pad_token) => {
+                // we ignore the samples where the target is equal to the pad token
                 let mask = targets.clone().equal_elem(pad_token as i64);
-                let matches = outputs.equal(targets).int().mask_fill(mask.clone(), 0);
-                let num_pad = mask.int().sum().into_scalar().elem::<f64>();
-
-                matches.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
+                let num_pad = mask.clone().int().sum().into_scalar().elem::<f64>();
+                (targets.clone().mask_fill(mask, -1_i64), num_pad)
             }
-            None => {
-                outputs
-                    .equal(targets)
+            None => (targets.clone(), 0_f64),
+        };
+
+        let accuracy = targets
+                    .reshape([batch_size, 1])
+                    .repeat_dim(1, self.k)
+                    .equal(outputs)
                     .int()
                     .sum()
                     .into_scalar()
                     .elem::<f64>()
-                    / batch_size as f64
-            }
-        };
+                    / (batch_size as f64 - num_pad);
 
         self.state.update(
             100.0 * accuracy,
@@ -81,7 +95,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for AccuracyMetric<B> {
+impl<B: Backend> Numeric for TopKAccuracyMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -95,14 +109,14 @@ mod tests {
     #[test]
     fn test_accuracy_without_padding() {
         let device = Default::default();
-        let mut metric = AccuracyMetric::<TestBackend>::new();
-        let input = AccuracyInput::new(
+        let mut metric = TopKAccuracyMetric::<TestBackend>::new(2);
+        let input = TopKAccuracyInput::new(
             Tensor::from_data(
                 [
-                    [0.0, 0.2, 0.8], // 2
-                    [1.0, 2.0, 0.5], // 1
-                    [0.4, 0.1, 0.2], // 0
-                    [0.6, 0.7, 0.2], // 1
+                    [0.0, 0.2, 0.8], // 2, 1
+                    [1.0, 2.0, 0.5], // 1, 0
+                    [0.4, 0.1, 0.2], // 0, 2
+                    [0.6, 0.7, 0.2], // 1, 0
                 ],
                 &device,
             ),
@@ -116,14 +130,14 @@ mod tests {
     #[test]
     fn test_accuracy_with_padding() {
         let device = Default::default();
-        let mut metric = AccuracyMetric::<TestBackend>::new().with_pad_token(3);
-        let input = AccuracyInput::new(
+        let mut metric = TopKAccuracyMetric::<TestBackend>::new(2).with_pad_token(3);
+        let input = TopKAccuracyInput::new(
             Tensor::from_data(
                 [
-                    [0.0, 0.2, 0.8, 0.0], // 2
-                    [1.0, 2.0, 0.5, 0.0], // 1
-                    [0.4, 0.1, 0.2, 0.0], // 0
-                    [0.6, 0.7, 0.2, 0.0], // 1
+                    [0.0, 0.2, 0.8, 0.0], // 2, 1
+                    [1.0, 2.0, 0.5, 0.0], // 1, 0
+                    [0.4, 0.1, 0.2, 0.0], // 0, 2
+                    [0.6, 0.7, 0.2, 0.0], // 1, 0
                     [0.0, 0.1, 0.2, 5.0], // Predicted padding should not count
                     [0.0, 0.1, 0.2, 0.0], // Error on padding should not count
                     [0.6, 0.0, 0.2, 0.0], // Error on padding should not count
