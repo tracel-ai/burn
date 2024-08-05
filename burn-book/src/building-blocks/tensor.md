@@ -316,6 +316,7 @@ Those operations are only available for `Float` tensors on backends that impleme
 | Burn API                                         | PyTorch Equivalent                                 |
 | ------------------------------------------------ | -------------------------------------------------- |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::hard_sigmoid(tensor, alpha, beta)   | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
 | `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
 | `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
