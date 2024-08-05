@@ -94,7 +94,7 @@ You may also want to enable debugging by creating a `.vscode/settings.json` file
 On Unix systems, run `run-checks.sh` using this command
 
 ```
-run-checks.sh environment
+./run-checks.sh environment
 ```
 
 On Windows systems, run `run-checks.ps1` using this command:
@@ -106,9 +106,11 @@ run-checks.ps1 environment
 The `environment` argument can assume **ONLY** the following values:
 
 - `std` to perform checks using `libstd`
-- `no_std` to perform checks on an embedded environment using `libcore`
+- `no-std` to perform checks on an embedded environment using `libcore`
+- `typos` to check for typos in the codebase
+- `examples` to check the examples compile
 
-If no `environment` value has been passed, run both `std` and `no_std` checks.
+If no `environment` value has been passed, run all checks except examples.
 
 ## Continuous Deployment
 

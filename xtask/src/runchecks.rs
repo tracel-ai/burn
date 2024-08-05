@@ -51,7 +51,7 @@ impl CheckType {
         // Depending on the input argument, the respective environment checks
         // are run.
         //
-        // If no environment has been passed, run all checks.
+        // If no `environment` value has been passed, run all checks except examples.
         match self {
             Self::Std => std_checks(),
             Self::NoStd => no_std_checks(),
@@ -62,7 +62,6 @@ impl CheckType {
                 check_typos();
                 std_checks();
                 no_std_checks();
-                check_examples();
             }
         }
 
