@@ -25,7 +25,8 @@ const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum CheckType {
-    /// Run all checks.
+    /// Run all checks except examples
+    #[default]
     All,
     /// Run `std` environment checks
     Std,
@@ -35,9 +36,6 @@ pub(crate) enum CheckType {
     Typos,
     /// Test the examples
     Examples,
-    /// No args are provided
-    #[default]
-    NoArgs,
 }
 
 impl CheckType {
@@ -61,12 +59,6 @@ impl CheckType {
             Self::Examples => check_examples(),
             Self::All => {
                 /* Run all checks */
-                check_typos();
-                std_checks();
-                no_std_checks();
-                check_examples();
-            }
-            Self::NoArgs => {
                 check_typos();
                 std_checks();
                 no_std_checks();
