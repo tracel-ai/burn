@@ -96,7 +96,7 @@ crossterm = "0.27.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "22.0.0"
+wgpu = "22.1.0"
 
 # Benchmarks and Burnbench
 arboard = "3.4.0"
