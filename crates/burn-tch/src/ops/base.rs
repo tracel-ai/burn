@@ -48,16 +48,21 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor: TchTensor<E, D1>,
         ranges: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        let storage = tensor.storage.clone();
-        let mut tensor = tensor.tensor.shallow_clone();
+        let mut inner = tensor.tensor.shallow_clone();
 
+        // Handle 0-dim tch tensor slice for one element (treated as rank 1 w/ burn_tensor::Tensor)
+        if inner.size().is_empty() && D1 == 1 && ranges[0] == (Range { start: 0, end: 1 }) {
+            return tensor;
+        }
+
+        let storage = tensor.storage.clone();
         for (i, index) in ranges.iter().enumerate().take(D2) {
             let start = index.start as i64;
             let length = (index.end - index.start) as i64;
-            tensor = tensor.narrow(i as i64, start, length);
+            inner = inner.narrow(i as i64, start, length);
         }
 
-        TchTensor::partial(tensor, storage)
+        TchTensor::partial(inner, storage)
     }
 
     pub fn slice_assign<const D1: usize, const D2: usize>(
