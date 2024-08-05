@@ -5,8 +5,8 @@ use cubecl::ir::{
     Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
 };
 use cubecl::{
-    cpa, frontend::TensorHandleRef, CubeCountSettings, Execution, InputInfo, KernelExpansion,
-    KernelIntegrator, KernelSettings, OutputInfo,
+    cpa, CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -134,16 +134,9 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
     let kernel = GatherEagerKernel::<R, E>::new(dim);
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[
-            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
-        ])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, tensor.client.clone())
+        .inputs(&[tensor.as_handle_ref(), indices.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

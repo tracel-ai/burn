@@ -23,7 +23,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
 
             let ogwl = ABSOLUTE_POS / tensor.stride(i);
 
-            offset_tensor += ogwl % tensor.shape(i) * tensor.stride(i);
+            offset_tensor += ogwl % shape_tensor * tensor.stride(i);
             offset_value += ogwl % value.shape(i) * value.stride(i);
         }
     }
@@ -32,10 +32,14 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
         return;
     }
 
+    let strides_tensor_dim = tensor.stride(dim);
+    let strides_value_dim = value.stride(dim);
+    let shape_value_dim = value.shape(dim);
+
     // Main operation
-    for i in range(0, value.shape(dim), Comptime::new(false)) {
-        let index_tensor = UInt::cast_from(indices[i]) * tensor.stride(dim) + offset_tensor;
-        let index_value = i * value.stride(dim) + offset_value;
+    for i in range(0, shape_value_dim, Comptime::new(false)) {
+        let index_tensor = UInt::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
+        let index_value = i * strides_value_dim + offset_value;
 
         tensor[index_tensor] += value[index_value];
     }
@@ -66,15 +70,16 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    println!("COUNT {:?} elem {:?}", cube_count, num_elems);
 
     unsafe {
         select_assign_kernel::launch_unchecked::<E::Primitive, I::Primitive, R>(
             &tensor.client,
             cube_count,
             cube_dim,
-            TensorArg::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorArg::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorArg::new(&value.handle, &value.strides, &value.shape.dims),
+            tensor.as_tensor_arg(1),
+            TensorArg::from_raw_parts(&indices.handle, &tensor.strides, &tensor.shape.dims, 1),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         );
     };

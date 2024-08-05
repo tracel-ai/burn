@@ -47,12 +47,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
         &empty.client,
         cube_count,
         cube_dim,
-        TensorArg::vectorized(
-            vectorization_factor,
-            &empty.handle,
-            &empty.strides,
-            &empty.shape.dims,
-        ),
+        empty.as_tensor_arg(vectorization_factor),
         ScalarArg::new(value),
     );
 

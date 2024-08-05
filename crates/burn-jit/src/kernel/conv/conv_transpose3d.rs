@@ -1,6 +1,5 @@
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -498,15 +497,11 @@ pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
 
     Execution::start(kernel, input.client.clone())
         .inputs(&[
-            TensorHandleRef::<R>::new(&input.handle, &input.strides, &input.shape.dims),
-            TensorHandleRef::new(&weight.handle, &weight.strides, &weight.shape.dims),
-            TensorHandleRef::new(&bias.handle, &bias.strides, &bias.shape.dims),
+            input.as_handle_ref(),
+            weight.as_handle_ref(),
+            bias.as_handle_ref(),
         ])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&[
             options.stride[0] as u32,
             options.stride[1] as u32,

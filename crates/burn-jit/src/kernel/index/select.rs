@@ -131,20 +131,16 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let mut strides = [num_elems; D];
     shapes[D - 1] = num_elems;
     strides[D - 1] = 1;
-    Execution::start(kernel, tensor.client)
+    Execution::start(kernel, tensor.client.clone())
         .inputs(&[
-            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            tensor.as_handle_ref(),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            TensorHandleRef::new(&indices.handle, &strides, &shapes),
+            unsafe { TensorHandleRef::from_raw_parts(&indices.handle, &strides, &shapes) },
         ])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

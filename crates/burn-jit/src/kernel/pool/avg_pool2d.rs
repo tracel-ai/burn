@@ -2,7 +2,6 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, Item, Scope, Variable},
     CubeCountSettings, Execution,
 };
@@ -100,17 +99,9 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
     let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
 
-    Execution::start(kernel, x.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &x.handle,
-            &x.strides,
-            &x.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, x.client.clone())
+        .inputs(&[x.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&[
             stride[0] as u32,
             stride[1] as u32,
