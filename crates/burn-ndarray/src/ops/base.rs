@@ -296,7 +296,6 @@ where
         new.accumulate_axis_inplace(Axis(dim), |&prev, curr| {
             *curr += prev;
         });
-        dbg!(&new);
         NdArrayTensor {
             array: ArcArray::from(new)
         }

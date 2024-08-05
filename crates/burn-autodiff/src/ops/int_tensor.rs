@@ -155,7 +155,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     }
 
     fn int_cumsum<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
-        unimplemented!()
+        B::int_cumsum(tensor, dim)
     }
 
     fn int_mean<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {

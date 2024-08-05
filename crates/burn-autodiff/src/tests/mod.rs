@@ -21,6 +21,8 @@ mod conv_transpose2d;
 mod conv_transpose3d;
 mod cos;
 mod cross_entropy;
+
+mod cumsum;
 mod div;
 mod erf;
 mod exp;
@@ -103,6 +105,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_cat!();
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
+        burn_autodiff::testgen_ad_cumsum!();
         burn_autodiff::testgen_ad_div!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
