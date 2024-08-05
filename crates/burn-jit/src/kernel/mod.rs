@@ -27,6 +27,7 @@ pub mod pool;
 pub mod prng;
 /// Reduction algorithms
 pub mod reduce;
+mod accumulate;
 
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;

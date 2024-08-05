@@ -310,6 +310,13 @@ where
         reduce::sum_dim(tensor, dim, Default::default())
     }
 
+    fn float_cumsum<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+    ) -> FloatTensor<Self, D> {
+        reduce::cumsum(tensor, dim, Default::default())
+    }
+
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
