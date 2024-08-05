@@ -60,13 +60,22 @@ impl Storage {
     }
 }
 
-/// A tensor that uses the tch backend.
+/// A tensor using the tch backend.
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     /// Handle to the tensor. Call methods on this field.
     pub tensor: tch::Tensor,
+
     /// The tensor's storage
     pub storage: Storage,
+
+    /// Whether the tensor should be cloned when a hint is given.
+    ///
+    /// Typically set from a previous operation, indicating that the tensor
+    /// should be cloned instead of being used in-place.
+    pub should_clone_hint: bool,
+
+    /// The element type of the tensor.
     phantom: PhantomData<E>,
 }
 
@@ -84,8 +93,9 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
         Self {
             tensor,
-            phantom: PhantomData,
             storage,
+            should_clone_hint: false,
+            phantom: PhantomData,
         }
     }
 
@@ -126,6 +136,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
+            should_clone_hint: false,
             phantom: PhantomData,
         }
     }
@@ -140,6 +151,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
+            should_clone_hint: false,
             phantom: PhantomData,
         }
     }
@@ -167,7 +179,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if !self.storage.can_mut() {
+        if !self.storage.can_mut() || self.should_clone_hint {
             return None;
         }
 
@@ -184,7 +196,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if !self.storage.can_mut() {
+        if !self.storage.can_mut() || self.should_clone_hint {
             return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 
@@ -241,6 +253,7 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
             tensor: self.tensor.shallow_clone(),
             phantom: PhantomData,
             storage: self.storage.clone(),
+            should_clone_hint: false, // Reset the hint since we are cloning.
         }
     }
 }

@@ -493,8 +493,13 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor: TchTensor<E, D>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {
-        let tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
-        TchTensor::new(tensor)
+        let storage = tensor.storage.clone();
+        let broadcasted_tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
+        let mut expanded_tensor = TchTensor::from_existing(broadcasted_tensor, storage);
+
+        // Hint that the tensor should be cloned for in-place operations
+        expanded_tensor.should_clone_hint = true;
+        expanded_tensor
     }
 
     pub fn sort<const D: usize>(
