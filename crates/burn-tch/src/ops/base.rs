@@ -48,21 +48,16 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor: TchTensor<E, D1>,
         ranges: [Range<usize>; D2],
     ) -> TchTensor<E, D1> {
-        let mut inner = tensor.tensor.shallow_clone();
-
-        // Handle 0-dim tch tensor slice for one element (treated as rank 1 w/ burn_tensor::Tensor)
-        if inner.size().is_empty() && D1 == 1 && ranges[0] == (Range { start: 0, end: 1 }) {
-            return tensor;
-        }
-
         let storage = tensor.storage.clone();
+        let mut tensor = tensor.tensor.shallow_clone();
+
         for (i, index) in ranges.iter().enumerate().take(D2) {
             let start = index.start as i64;
             let length = (index.end - index.start) as i64;
-            inner = inner.narrow(i as i64, start, length);
+            tensor = tensor.narrow(i as i64, start, length);
         }
 
-        TchTensor::partial(inner, storage)
+        TchTensor::partial(tensor, storage)
     }
 
     pub fn slice_assign<const D1: usize, const D2: usize>(
@@ -307,7 +302,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.mean(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.mean(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -321,7 +317,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.sum(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.sum(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -335,7 +332,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.prod(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.prod(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
