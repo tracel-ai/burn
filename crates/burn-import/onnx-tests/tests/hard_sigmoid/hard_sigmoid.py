@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model: relu.onnx
+# used to generate model: hard_sigmoid.onnx
 
 import torch
 import torch.nn as nn
