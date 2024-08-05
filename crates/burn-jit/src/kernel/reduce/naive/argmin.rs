@@ -1,52 +1,33 @@
-use cubecl::{
-    cpa,
-    ir::{Elem, Item, Scope, Variable},
-};
-
+use cubecl::prelude::{ABSOLUTE_POS, Cast, Numeric, Tensor, UInt};
 use crate::{kernel::reduce::Argmin, JitElement};
 
 use super::base::ReduceDimNaive;
 
-impl<E: JitElement> ReduceDimNaive<E> for Argmin {
-    type Accumulator = (Variable, Variable);
+impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmin {
 
-    fn initialize_naive(
-        scope: &mut Scope,
-        input_item: Item,
-        _output_item: Item,
-    ) -> Self::Accumulator {
-        let index = scope.create_local(Elem::UInt);
-        let min = scope.create_local(input_item);
-        let min_initial = input_item
-            .elem()
-            .constant_from_f64(E::maximum_value().to_f64());
+    type Accumulator = (EI, UInt);
 
-        cpa!(scope, min = min_initial);
-
-        (min, index)
+    fn initialize_naive() -> (EI, UInt) {
+        // TODO: how to get the max value of a Primitive?
+        (EI::from(u32::MAX), UInt::from(0))
     }
 
     fn inner_loop_naive(
-        scope: &mut Scope,
-        (min, index): Self::Accumulator,
-        value: Variable,
-        i: Variable,
+        (min, index): &mut Self::Accumulator,
+        current_value: EI,
+        i: UInt,
     ) {
-        let condition = scope.create_local(Elem::Bool);
-        cpa!(scope, condition = value < min);
-        cpa!(scope, if(condition).then(|scope| {
-            cpa!(scope, min = value);
-            cpa!(scope, index = i);
-        }));
+        if current_value < *min {
+            *min = current_value;
+            *index = i;
+        }
     }
 
     fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        (_min, index): Self::Accumulator,
-        _shape_reduce_dim: Variable,
+        output: &mut Tensor<EO>,
+        (_, index): Self::Accumulator,
+        _shape_reduce_dim: UInt,
     ) {
-        let id = Variable::AbsolutePos;
-        cpa!(scope, output[id] = index);
+        output[ABSOLUTE_POS] = EO::cast_from(index);
     }
 }
