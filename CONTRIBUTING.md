@@ -111,6 +111,7 @@ The `environment` argument can assume **ONLY** the following values:
 - `examples` to check the examples compile
 
 If no `environment` value has been passed, run all checks except examples.
+If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
 
 ## Continuous Deployment
 
