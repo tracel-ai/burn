@@ -38,6 +38,7 @@ fn main() {
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/greater/greater.onnx")
         .input("tests/greater_or_equal/greater_or_equal.onnx")
+        .input("tests/hard_sigmoid/hard_sigmoid.onnx")
         .input("tests/layer_norm/layer_norm.onnx")
         .input("tests/leaky_relu/leaky_relu.onnx")
         .input("tests/less/less.onnx")
