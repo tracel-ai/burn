@@ -35,6 +35,7 @@ enum Command {
     /// Run the specified `burn` tests and checks locally.
     RunChecks {
         /// The environment to run checks against
+        #[clap(value_enum, default_value_t = runchecks::CheckType::default())]
         env: runchecks::CheckType,
     },
     /// Run the specified vulnerability check locally. These commands must be called with 'cargo +nightly'.

@@ -34,7 +34,7 @@ jobs:
         uses: actions-rust-lang/audit@v1
 
       - name: Detect multiple versions of the same crate
-        uses: EmbarkStudios/cargo-deny-action@v1
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check bans licenses sources
 

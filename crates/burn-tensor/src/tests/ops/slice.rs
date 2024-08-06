@@ -192,6 +192,15 @@ mod tests {
     }
 
     #[test]
+    fn should_slice_aggregation_result() {
+        // Some backends (e.g., tch) tensor primitive results in 0-dim tensor for aggregation
+        let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0]).mean();
+
+        let output = tensor.clone().slice([(0..1)]);
+        output.into_data().assert_eq(&tensor.into_data(), true);
+    }
+
+    #[test]
     #[should_panic]
     fn should_panic_when_slice_with_too_many_dimensions() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
