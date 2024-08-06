@@ -30,7 +30,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MeanNode {
             .map(|t| scope.tensor_use_owned(t, node_position));
 
         let output = &self.output.name;
-        let inputs_len = self.inputs.len();
+        let inputs_len = self.inputs.len() as u32;
 
         quote! {
             let #output = (#(#inputs)+*) / #inputs_len;
@@ -97,7 +97,7 @@ mod tests {
                     tensor1: Tensor<B, 4>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 4> {
-                    let tensor3 = (tensor1 + tensor2) / 2usize;
+                    let tensor3 = (tensor1 + tensor2) / 2u32;
 
                     tensor3
                 }

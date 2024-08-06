@@ -13,12 +13,12 @@ use super::{
     reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode,
     unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
+use crate::burn::node::mean::MeanNode;
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
-use crate::burn::node::mean::MeanNode;
 
 /// Backend used for serialization.
 pub type SerializationBackend = NdArray<f32>;
