@@ -302,7 +302,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.mean(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.mean(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -316,7 +317,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.sum(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.sum(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -330,7 +332,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.prod(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.prod(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
