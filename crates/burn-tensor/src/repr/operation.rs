@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
 use crate::{
-    ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions},
+    ops::{
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+    },
     repr::tensor::TensorDescription,
     Distribution, Element,
 };
@@ -74,6 +76,8 @@ pub enum ModuleOperationDescription {
     Conv2d(Conv2dDescription),
     /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
     Conv3d(Conv3dDescription),
+    /// Operation corresponding to [deform_conv2d](crate::ops::ModuleOps::deform_conv2d)
+    DeformableConv2d(DeformableConv2dDescription),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
@@ -690,6 +694,18 @@ pub struct Conv2dDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct DeformableConv2dDescription {
+    pub x: TensorDescription,
+    pub offset: TensorDescription,
+    pub weight: TensorDescription,
+    pub mask: Option<TensorDescription>,
+    pub bias: Option<TensorDescription>,
+    pub options: DeformableConv2dOptionsDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv3dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -744,6 +760,16 @@ pub struct Conv2dOptionsDescription {
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
     pub groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct DeformableConv2dOptionsDescription {
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub weight_groups: usize,
+    pub offset_groups: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -818,6 +844,18 @@ impl From<ConvOptions<3>> for Conv3dOptionsDescription {
     }
 }
 
+impl From<DeformConvOptions<2>> for DeformableConv2dOptionsDescription {
+    fn from(value: DeformConvOptions<2>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            weight_groups: value.weight_groups,
+            offset_groups: value.offset_groups,
+        }
+    }
+}
+
 impl From<ConvTransposeOptions<1>> for ConvTranspose1dOptionsDescription {
     fn from(value: ConvTransposeOptions<1>) -> Self {
         Self {
@@ -883,6 +921,18 @@ impl From<Conv3dOptionsDescription> for ConvOptions<3> {
             padding: val.padding,
             dilation: val.dilation,
             groups: val.groups,
+        }
+    }
+}
+
+impl From<DeformableConv2dOptionsDescription> for DeformConvOptions<2> {
+    fn from(value: DeformableConv2dOptionsDescription) -> Self {
+        DeformConvOptions {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            weight_groups: value.weight_groups,
+            offset_groups: value.offset_groups,
         }
     }
 }
@@ -1404,6 +1454,12 @@ impl ModuleOperationDescription {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
+            ModuleOperationDescription::DeformableConv2d(desc) => match (&desc.mask, &desc.bias) {
+                (Some(mask), Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias],
+                (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
+                (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
+                (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
+            },
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]

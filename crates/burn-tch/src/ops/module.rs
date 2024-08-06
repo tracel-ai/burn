@@ -1,7 +1,7 @@
 use crate::{element::TchElement, LibTorch, QuantElement, TchTensor};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+    MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
@@ -84,6 +84,31 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         );
 
         TchTensor::new(tensor)
+    }
+
+    fn deform_conv2d(
+        _x: TchTensor<E, 4>,
+        _offset: TchTensor<E, 4>,
+        _weight: TchTensor<E, 4>,
+        _mask: Option<TchTensor<E, 4>>,
+        _bias: Option<TchTensor<E, 1>>,
+        _options: DeformConvOptions<2>,
+    ) -> TchTensor<E, 4> {
+        /*         let tensor = tch::Tensor::deform_conv2d(
+            &x.tensor,
+            &offset.tensor,
+            &weight.tensor,
+            mask.map(|t| t.tensor),
+            bias.map(|t| t.tensor),
+            options.stride.map(|i| i as i64),
+            options.padding.map(|i| i as i64),
+            options.dilation.map(|i| i as i64),
+            options.weight_groups as i64,
+            options.offset_groups as i64,
+        );
+
+        TchTensor::new(tensor) */
+        unimplemented!("Torch bindings don't support deform_conv2d");
     }
 
     fn conv_transpose1d(

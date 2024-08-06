@@ -10,6 +10,7 @@ mod conv3d;
 mod conv_transpose1d;
 mod conv_transpose2d;
 mod conv_transpose3d;
+mod deform_conv2d;
 mod forward;
 mod maxpool1d;
 mod maxpool2d;

@@ -150,6 +150,17 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationDescription::DeformableConv2d(desc) => {
+                ModuleOperationDescription::DeformableConv2d(DeformableConv2dDescription {
+                    x: desc.x.to_relative(converter),
+                    offset: desc.offset.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    mask: desc.mask.as_ref().map(|t| t.to_relative(converter)),
+                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 ModuleOperationDescription::ConvTranspose1d(ConvTranspose1dDescription {
                     x: desc.x.to_relative(converter),

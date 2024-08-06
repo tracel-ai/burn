@@ -5,9 +5,9 @@ use burn_tensor::{
             calculate_conv_output_size, calculate_conv_transpose_output_size,
             calculate_pool_output_size,
         },
-        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateOptions,
-        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
-        ModuleOps,
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, FloatTensor, IntTensor,
+        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps,
     },
     repr::*,
     Element,
@@ -148,6 +148,93 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             streams,
             OperationDescription::Module(ModuleOperationDescription::Conv2d(desc.clone())),
             Conv2dOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn deform_conv2d(
+        x: FloatTensor<Self, 4>,
+        offset: FloatTensor<Self, 4>,
+        weight: FloatTensor<Self, 4>,
+        mask: Option<FloatTensor<Self, 4>>,
+        bias: Option<FloatTensor<Self, 1>>,
+        options: DeformConvOptions<2>,
+    ) -> FloatTensor<Self, 4> {
+        make_ops!(
+            DeformableConv2dOps,
+            DeformableConv2dDescription,
+            |args: DeformableConv2dDescription, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let offset = handles.get_float_tensor::<B, 4>(&args.offset);
+                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let mask = args
+                    .mask
+                    .as_ref()
+                    .map(|mask| handles.get_float_tensor::<B, 4>(mask));
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+
+                let output =
+                    B::deform_conv2d(x, offset, weight, mask, bias, args.options.clone().into());
+
+                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+            }
+        );
+
+        let size_0 = calculate_conv_output_size(
+            weight.shape[2],
+            options.stride[0],
+            options.padding[0],
+            options.dilation[0],
+            x.shape[2],
+        );
+        let size_1 = calculate_conv_output_size(
+            weight.shape[3],
+            options.stride[1],
+            options.padding[1],
+            options.dilation[1],
+            x.shape[3],
+        );
+
+        let stream_1 = x.stream;
+        let stream_2 = offset.stream;
+        let stream_3 = weight.stream;
+        let stream_4 = mask.as_ref().map(|m| m.stream);
+        let stream_5 = bias.as_ref().map(|b| b.stream);
+        let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
+        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+
+        let desc = DeformableConv2dDescription {
+            x: x.into_description(),
+            offset: offset.into_description(),
+            weight: weight.into_description(),
+            mask: mask.map(|mask| mask.into_description()),
+            bias: bias.map(|bias| bias.into_description()),
+            options: options.into(),
+            out: out.to_description_out(),
+        };
+
+        let streams = match (stream_4, stream_5) {
+            (Some(stream_4), Some(stream_5)) => {
+                vec![stream_1, stream_2, stream_3, stream_4, stream_5]
+            }
+            (Some(stream_4), None) => {
+                vec![stream_1, stream_2, stream_3, stream_4]
+            }
+            (None, Some(stream_5)) => {
+                vec![stream_1, stream_2, stream_3, stream_5]
+            }
+            (None, None) => vec![stream_1, stream_2, stream_3],
+        };
+        out.client.register(
+            streams,
+            OperationDescription::Module(ModuleOperationDescription::DeformableConv2d(
+                desc.clone(),
+            )),
+            DeformableConv2dOps::<B>::new(desc),
         );
 
         out

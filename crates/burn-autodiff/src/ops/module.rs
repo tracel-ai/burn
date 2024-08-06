@@ -395,6 +395,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
     }
 
+    fn deform_conv2d(
+        _x: AutodiffTensor<B, 4>,
+        _offset: AutodiffTensor<B, 4>,
+        _weight: AutodiffTensor<B, 4>,
+        _mask: Option<AutodiffTensor<B, 4>>,
+        _bias: Option<AutodiffTensor<B, 1>>,
+        _options: DeformConvOptions<2>,
+    ) -> AutodiffTensor<B, 4> {
+        todo!()
+    }
+
     fn conv_transpose2d(
         x: AutodiffTensor<B, 4>,
         weight: AutodiffTensor<B, 4>,

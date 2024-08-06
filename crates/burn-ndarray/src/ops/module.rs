@@ -19,6 +19,17 @@ impl<E: FloatNdArrayElement, Q: QuantElement> ModuleOps<Self> for NdArray<E, Q> 
         conv2d::<E, Q>(x, weight, bias, options)
     }
 
+    fn deform_conv2d(
+        _x: NdArrayTensor<E, 4>,
+        _offset: NdArrayTensor<E, 4>,
+        _weight: NdArrayTensor<E, 4>,
+        _mask: Option<NdArrayTensor<E, 4>>,
+        _bias: Option<NdArrayTensor<E, 1>>,
+        _options: DeformConvOptions<2>,
+    ) -> NdArrayTensor<E, 4> {
+        todo!()
+    }
+
     fn conv_transpose2d(
         x: NdArrayTensor<E, 4>,
         weight: NdArrayTensor<E, 4>,
