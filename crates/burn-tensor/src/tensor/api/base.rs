@@ -1886,7 +1886,7 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        match vectors.get(0).unwrap() {
+        match vectors.first().unwrap() {
             TensorPrimitive::Float(_) => TensorPrimitive::Float(B::float_cat(
                 vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
                 dim,
