@@ -233,6 +233,18 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         )
     }
 
+    fn q_max_dim_with_indices<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
+    ) -> (QuantizedTensor<Self, D>, IntTensor<Self, D>) {
+        let (qtensor, indices) = TchOps::max_dim_with_indices(tensor.qtensor, dim);
+        let values = TchQTensor {
+            qtensor,
+            scheme: tensor.scheme,
+        };
+        (values, indices)
+    }
+
     fn q_max_dim<const D: usize>(
         tensor: QuantizedTensor<Self, D>,
         dim: usize,
@@ -251,6 +263,18 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             qtensor: TchOps::min_dim(tensor.qtensor, dim),
             scheme: tensor.scheme,
         }
+    }
+
+    fn q_min_dim_with_indices<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
+    ) -> (QuantizedTensor<Self, D>, IntTensor<Self, D>) {
+        let (qtensor, indices) = TchOps::min_dim_with_indices(tensor.qtensor, dim);
+        let values = TchQTensor {
+            qtensor,
+            scheme: tensor.scheme,
+        };
+        (values, indices)
     }
 
     fn q_narrow<const D: usize>(
