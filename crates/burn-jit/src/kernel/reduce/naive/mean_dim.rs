@@ -1,8 +1,10 @@
+use cubecl::cube;
 use crate::{kernel::reduce::MeanDim};
 use cubecl::prelude::{ABSOLUTE_POS, Cast, Numeric, Tensor, UInt};
 
 use super::base::ReduceDimNaive;
 
+#[cube]
 impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for MeanDim {
     type Accumulator = EI;
 
@@ -20,7 +22,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for MeanDim {
 
     fn assign_naive(
         output: &mut Tensor<EO>,
-        accumulator: Self::Accumulator,
+        accumulator: EI,
         shape_reduce_dim: UInt,
     ) {
         output[ABSOLUTE_POS] = EO::cast_from(accumulator) / EO::cast_from(shape_reduce_dim);

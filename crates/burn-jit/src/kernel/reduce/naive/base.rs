@@ -22,4 +22,22 @@ pub trait ReduceDimNaive<EI: Numeric, EO: Numeric>: Send + Sync + 'static {
         accumulator: Self::Accumulator,
         shape_reduce_dim: UInt,
     );
+
+    fn __expand_initialize_naive(
+        context: &mut cubecl::frontend::CubeContext,
+    ) -> <EI as cubecl::frontend::CubeType>::ExpandType;
+
+    fn __expand_inner_loop_naive(
+        context: &mut cubecl::frontend::CubeContext,
+        accumulator: <EI as cubecl::frontend::CubeType>::ExpandType,
+        current_value: <EI as cubecl::frontend::CubeType>::ExpandType,
+        _i: <UInt as cubecl::frontend::CubeType>::ExpandType,
+    );
+
+    fn __expand_assign_naive(
+        context: &mut cubecl::frontend::CubeContext,
+        output: <Tensor<EO> as cubecl::frontend::CubeType>::ExpandType,
+        accumulator: <Self::Accumulator as cubecl::frontend::CubeType>::ExpandType,
+        _shape_reduce_dim: <UInt as cubecl::frontend::CubeType>::ExpandType,
+    );
 }

@@ -1,9 +1,11 @@
+use cubecl::cube;
 use cubecl::frontend::{ABSOLUTE_POS, Tensor, UInt};
 use cubecl::prelude::{Cast, Numeric};
 use crate::kernel::reduce::Argmax;
 use super::base::ReduceDimNaive;
 
 
+#[cube]
 impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
 
     type Accumulator = (EI, UInt);
@@ -14,10 +16,11 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
     }
 
     fn inner_loop_naive(
-        (max, index): &mut Self::Accumulator,
+        accumulator: &mut (EI, UInt),
         current_value: EI,
         i: UInt,
     ) {
+        let (max, index) = accumulator;
         if current_value > *max {
             *max = current_value;
             *index = i;
@@ -26,9 +29,10 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
 
     fn assign_naive(
         output: &mut Tensor<EO>,
-        (_, index): Self::Accumulator,
+        accumulator: (EI, UInt),
         _shape_reduce_dim: UInt,
     ) {
+        let (_, index) = accumulator;
         output[ABSOLUTE_POS] = EO::cast_from(index);
     }
 }

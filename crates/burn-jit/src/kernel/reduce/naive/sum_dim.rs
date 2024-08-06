@@ -1,7 +1,9 @@
+use cubecl::cube;
 use crate::{kernel::reduce::SumDim};
 use cubecl::prelude::{ABSOLUTE_POS, Cast, Numeric, Tensor, UInt};
 use super::base::ReduceDimNaive;
 
+#[cube]
 impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for SumDim {
     type Accumulator = EI;
 
@@ -19,7 +21,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for SumDim {
 
     fn assign_naive(
         output: &mut Tensor<EO>,
-        accumulator: Self::Accumulator,
+        accumulator: EI,
         _shape_reduce_dim: UInt,
     ) {
         output[ABSOLUTE_POS] = EO::cast_from(accumulator);

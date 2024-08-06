@@ -5,7 +5,6 @@ use super::base::ReduceDimNaive;
 
 #[cube(launch)]
 pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI, EO>, EI: Numeric, EO: Numeric>(
-    // TODO: handle other types
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
     dim: UInt,
