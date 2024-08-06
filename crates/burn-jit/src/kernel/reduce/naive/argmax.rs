@@ -1,50 +1,38 @@
-use crate::{kernel::reduce::Argmax, JitElement};
-use cubecl::{
-    cpa,
-    ir::{Elem, Item, Scope, Variable},
-};
-
+use cubecl::cube;
+use cubecl::frontend::{ABSOLUTE_POS, Tensor, UInt};
+use cubecl::prelude::{Cast, Numeric};
+use crate::kernel::reduce::Argmax;
 use super::base::ReduceDimNaive;
 
-impl<E: JitElement> ReduceDimNaive<E> for Argmax {
-    type Accumulator = (Variable, Variable);
 
-    fn initialize_naive(
-        scope: &mut Scope,
-        input_item: Item,
-        _output_item: Item,
-    ) -> Self::Accumulator {
-        let index = scope.create_local(Elem::UInt);
-        let max = scope.create_local(input_item);
-        let max_initial = input_item
-            .elem()
-            .constant_from_f64(E::minimum_value().to_f64());
-        cpa!(scope, max = max_initial);
+#[cube]
+impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
 
-        (max, index)
+    type Accumulator = (EI, UInt);
+
+    fn initialize_naive() -> (EI, UInt) {
+        // TODO: how to get the min value of a Primitive?
+        (EI::from(u32::MIN), UInt::from(0))
     }
 
     fn inner_loop_naive(
-        scope: &mut Scope,
-        (max, index): Self::Accumulator,
-        value: Variable,
-        i: Variable,
+        accumulator: &mut (EI, UInt),
+        current_value: EI,
+        i: UInt,
     ) {
-        let condition = scope.create_local(Elem::Bool);
-        cpa!(scope, condition = value > max);
-        cpa!(scope, if(condition).then(|scope| {
-            cpa!(scope, max = value);
-            cpa!(scope, index = i);
-        }));
+        let (max, index) = accumulator;
+        if current_value > *max {
+            *max = current_value;
+            *index = i;
+        }
     }
 
     fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        (_max, index): Self::Accumulator,
-        _shape_reduce_dim: Variable,
+        output: &mut Tensor<EO>,
+        accumulator: (EI, UInt),
+        _shape_reduce_dim: UInt,
     ) {
-        let id = Variable::AbsolutePos;
-        cpa!(scope, output[id] = index);
+        let (_, index) = accumulator;
+        output[ABSOLUTE_POS] = EO::cast_from(index);
     }
 }
