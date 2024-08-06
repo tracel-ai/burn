@@ -191,7 +191,7 @@ represent the corresponding Burn Op.
 | [Tanh][182]                      |       ✅       |      ✅      |
 | [TfIdfVectorizer][183]           |       ❌       |      ❌      |
 | [ThresholdedRelu][184]           |       ❌       |      ❌      |
-| [Tile][185]                      |       ❌       |      ✅      |
+| [Tile][185]                      |       ✅       |      ✅      |
 | [TopK][186]                      |       ❌       |      ✅      |
 | [Transpose][187]                 |       ✅       |      ✅      |
 | [Trilu][188]                     |       ❌       |      ✅      |
