@@ -799,10 +799,13 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        match &node.inputs[2].value {
-            Some(Data::Float32s(shape)) => shape.first().unwrap().to_owned(),
-            _ => 0.0,
-        }
+        node.inputs
+            .get(2)
+            .and_then(|input| match &input.value {
+                Some(Data::Float32s(shape)) => shape.first().cloned(),
+                _ => None,
+            })
+            .unwrap_or(0.0)
     }
 
     let pads = get_pads(node);
