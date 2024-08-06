@@ -1,0 +1,109 @@
+use super::{Node, NodeCodegen};
+use crate::burn::{Scope, TensorType, Type};
+
+use burn::record::PrecisionSettings;
+use proc_macro2::TokenStream;
+use quote::quote;
+
+#[derive(Debug, Clone, new)]
+pub struct MeanNode {
+    pub inputs: Vec<TensorType>,
+    pub output: TensorType,
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for MeanNode {
+    fn output_types(&self) -> Vec<Type> {
+        vec![Type::Tensor(self.output.clone())]
+    }
+
+    fn input_types(&self) -> Vec<Type> {
+        self.inputs
+            .iter()
+            .map(|t| Type::Tensor(t.clone()))
+            .collect()
+    }
+
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|t| scope.tensor_use_owned(t, node_position));
+
+        let output = &self.output.name;
+        let inputs_len = self.inputs.len();
+
+        quote! {
+            let #output = (#(#inputs)+*) / #inputs_len;
+        }
+    }
+
+    fn into_node(self) -> Node<PS> {
+        Node::Mean(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::record::FullPrecisionSettings;
+
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph,
+        node::{mean::MeanNode, test::assert_tokens},
+        TensorType,
+    };
+
+    #[test]
+    fn test_codegen_sum() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(MeanNode::new(
+            vec![
+                TensorType::new_float("tensor1", 4),
+                TensorType::new_float("tensor2", 4),
+            ],
+            TensorType::new_float("tensor3", 4),
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>
+                ) -> Tensor<B, 4> {
+                    let tensor3 = (tensor1 + tensor2) / 2usize;
+
+                    tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+}

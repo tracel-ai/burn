@@ -108,7 +108,7 @@ represent the corresponding Burn Op.
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |
 | [MaxUnpool][100]                 |       ❌       |      ❌      |
-| [Mean][101]                      |       ❌       |      ✅      |
+| [Mean][101]                      |       ✅       |      ✅      |
 | [MeanVarianceNormalization][102] |       ❌       |      ❌      |
 | [MelWeightMatrix][103]           |       ❌       |      ❌      |
 | [Min][104]                       |       ✅       |      ✅      |

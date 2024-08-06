@@ -18,6 +18,7 @@ use burn::backend::NdArray;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
+use crate::burn::node::mean::MeanNode;
 
 /// Backend used for serialization.
 pub type SerializationBackend = NdArray<f32>;
@@ -105,6 +106,7 @@ pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
+    Mean(MeanNode),
     Pad(PadNode),
     Range(RangeNode),
     Reshape(ReshapeNode),
@@ -151,6 +153,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Mean(node) => $func(node),
             Node::Pad(node) => $func(node),
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
@@ -205,6 +208,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Mean(_) => "mean",
             Node::Pad(_) => "pad",
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
