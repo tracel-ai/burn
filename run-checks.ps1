@@ -8,7 +8,7 @@
 # where `environment` can assume **ONLY** the following values:
 #
 # - `std` to perform checks using `libstd`
-# - `no_std` to perform checks on an embedded environment using `libcore`
+# - `no-std` to perform checks on an embedded environment using `libcore`
 # - `typos` to check for typos in the codebase
 # - `examples` to check the examples compile
 # If no `environment` value has been passed, run all checks except examples.
