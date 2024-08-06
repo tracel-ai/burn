@@ -69,12 +69,6 @@ pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     /// The tensor's storage
     pub storage: Storage,
 
-    /// Whether the tensor should be cloned when a hint is given.
-    ///
-    /// Typically set from a previous operation, indicating that the tensor
-    /// should be cloned instead of being used in-place.
-    pub should_clone_hint: bool,
-
     /// The element type of the tensor.
     phantom: PhantomData<E>,
 }
@@ -94,7 +88,6 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
-            should_clone_hint: false,
             phantom: PhantomData,
         }
     }
@@ -136,7 +129,6 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
-            should_clone_hint: false,
             phantom: PhantomData,
         }
     }
@@ -151,7 +143,6 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
         Self {
             tensor,
             storage,
-            should_clone_hint: false,
             phantom: PhantomData,
         }
     }
@@ -170,7 +161,17 @@ unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
 unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
-    /// Execute an operation on a tensor if the data can be reused.
+    /// Checks if the tensor can be mutated in-place.
+    ///
+    /// Returns `true` if the tensor's stride does not contain zero (no broadcasting)
+    /// and the storage can be mutated.
+    pub fn can_mut(&self) -> bool {
+        let stride_contains_zero = self.tensor.stride().iter().any(|&s| s == 0);
+
+        !stride_contains_zero && self.storage.can_mut()
+    }
+
+    /// Executes an operation on a tensor if the data can be reused.
     pub fn mut_ops<
         F: Fn(&mut tch::Tensor) -> tch::Tensor,
         EOut: tch::kind::Element,
@@ -179,14 +180,15 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if !self.storage.can_mut() || self.should_clone_hint {
+        if !self.can_mut() {
             return None;
         }
 
         let data = self.storage.clone();
         Some(TchTensor::from_existing(func(&mut self.tensor), data))
     }
-    /// Execute a unary ops reusing the tensor data if possible.
+
+    /// Executes a unary operation, reusing the tensor data if possible.
     pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
         self,
         fown: FOwn,
@@ -196,14 +198,14 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if !self.storage.can_mut() || self.should_clone_hint {
+        if !self.can_mut() {
             return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 
         TchTensor::from_existing(fown(self.tensor), self.storage)
     }
 
-    /// Execute a binary ops reusing the tensor data if possible.
+    /// Executes a binary operation, reusing the tensor data if possible.
     pub fn binary_ops_tensor<FLMut, FRMut, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
         mut lhs: Self,
         mut rhs: Self,
@@ -226,14 +228,14 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 
         let num_elements_out = out_shape.num_elements();
 
-        // Safe to mut lhs tensor.
+        // Attempt to mutate lhs tensor
         if lhs_shape.num_elements() == num_elements_out {
             if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
                 return output;
             }
         }
 
-        // Safe to mut rhs tensor.
+        // Attempt to mutate rhs tensor
         if rhs_shape.num_elements() == num_elements_out {
             if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
                 return output;
@@ -253,7 +255,6 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
             tensor: self.tensor.shallow_clone(),
             phantom: PhantomData,
             storage: self.storage.clone(),
-            should_clone_hint: false, // Reset the hint since we are cloning.
         }
     }
 }
