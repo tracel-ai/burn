@@ -100,6 +100,7 @@ include_models!(
     sum,
     sum_int,
     tanh,
+    tile,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
@@ -1670,6 +1671,23 @@ mod tests {
         let expected = TensorData::from([[[[1.0000f32, 1.6000e+01, 7.2900e+02, 6.5536e+04]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn tile() {
+        let device = Default::default();
+        let model: tile::Model<Backend> = tile::Model::new(&device);
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.]], &device);
+        let output = model.forward(input).to_data();
+        let expected = TensorData::from([
+            [1.0f32, 2.0f32, 1.0f32, 2.0f32],
+            [3.0f32, 4.0f32, 3.0f32, 4.0f32],
+            [1.0f32, 2.0f32, 1.0f32, 2.0f32],
+            [3.0f32, 4.0f32, 3.0f32, 4.0f32],
+        ]);
+
+        output.assert_eq(&expected, true);
     }
 
     #[test]

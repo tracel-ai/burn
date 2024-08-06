@@ -33,7 +33,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TileNode {
         let repeats = self.config.repeats.iter().map(|r| r.to_tokens());
 
         quote! {
-            let #output = #input.tile(&[#(#repeats),*]);
+            let #output = #input.repeat(&[#(#repeats),*]);
         }
     }
 
@@ -86,7 +86,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-                    let output = input.tile(&[2, 3, 4]);
+                    let output = input.repeat(&[2, 3, 4]);
                     output
                 }
             }

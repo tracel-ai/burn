@@ -214,6 +214,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Slice(_) => "slice",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
+            Node::Tile(_) => "tile",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
             Node::Where(_) => "where",

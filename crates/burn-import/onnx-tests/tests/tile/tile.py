@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 import onnx
@@ -14,22 +13,19 @@ def build_model():
         shape=[2, 2]
     )
 
-    # Define the shape tensor for tiling as a constant
+    output_tensor = onnx.helper.make_tensor_value_info(
+        name="output_tensor",
+        elem_type=onnx.TensorProto.FLOAT,
+        shape=[4, 4]
+    )
+
+    # Define the shape tensor for tiling as an initializer
     shape_tensor = onnx.helper.make_tensor(
-        name="shape_tensor_value",
+        name="shape_tensor",
         data_type=onnx.TensorProto.INT64,
         dims=[2],
         vals=[2, 2]
     )
-
-    # Create the Constant node for the shape tensor
-    shape_node = onnx.helper.make_node(
-        "Constant",
-        inputs=[],
-        outputs=["shape_tensor"],
-        value=shape_tensor
-    )
-
     # Create the Tile node
     tile_node = onnx.helper.make_node(
         "Tile",
@@ -39,14 +35,11 @@ def build_model():
 
     # Build the graph
     graph = onnx.helper.make_graph(
-        nodes=[shape_node, tile_node],
+        nodes=[tile_node],
         name="main_graph",
         inputs=[input_tensor],
-        outputs=[onnx.helper.make_tensor_value_info(
-            name="output_tensor",
-            elem_type=onnx.TensorProto.FLOAT,
-            shape=[4, 4]
-        )]
+        outputs=[output_tensor],
+        initializer=[shape_tensor]
     )
 
     # Build the model
@@ -61,6 +54,9 @@ def build_model():
 
 def main():
     onnx_model = build_model()
+
+    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+
     file_name = "tile.onnx"
     onnx.save(onnx_model, file_name)
     onnx.checker.check_model(onnx_model)
