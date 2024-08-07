@@ -805,18 +805,26 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        node.inputs
-            .get(2)
-            .and_then(|input| match &input.value {
-                Some(Data::Float16s(constant_value)) => constant_value.first().cloned(),
-                Some(Data::Float32s(constant_value)) => constant_value.first().cloned(),
-                Some(Data::Float64s(constant_value)) => constant_value.first().cloned(),
-                Some(Data::Float16(constant_value)) => Some(constant_value.clone()),
-                Some(Data::Float32(constant_value)) => Some(constant_value.clone()),
-                Some(Data::Float64(constant_value)) => Some(constant_value.clone()),
-                _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
-            })
-            .unwrap_or(0.0) as f32
+        f32::from(
+            node.inputs
+                .get(2)
+                .and_then(|input| match &input.value {
+                    Some(Data::Float16s(constant_value)) => {
+                        constant_value.first().map(|&f| f32::from(f))
+                    }
+                    Some(Data::Float32s(constant_value)) => {
+                        constant_value.first().map(|&f| f)
+                    }
+                    Some(Data::Float64s(constant_value)) => {
+                        constant_value.first().map(|&f| f as f32)
+                    }
+                    Some(Data::Float16(constant_value)) => Some(f32::from(*constant_value)),
+                    Some(Data::Float32(constant_value)) => Some(*constant_value),
+                    Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
+                     _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
+                })
+                .unwrap_or(0.0),
+        )
     }
 
     let pads = get_pads(node);
