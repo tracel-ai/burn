@@ -816,7 +816,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
                 Some(Data::Float64(constant_value)) => Some(constant_value.clone()),
                 _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
             })
-            .unwrap_or(0.0)
+            .unwrap_or(0.0) as f32
     }
 
     let pads = get_pads(node);
