@@ -130,6 +130,19 @@ pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D>
     )))
 }
 
+/// Applies the hard sigmoid function
+pub fn hard_sigmoid<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    alpha: f64,
+    beta: f64,
+) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(B::hard_sigmoid(
+        tensor.primitive.tensor(),
+        crate::ElementConversion::elem(alpha),
+        crate::ElementConversion::elem(beta),
+    )))
+}
+
 /// Applies the log sigmoid function.
 pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::log_sigmoid(

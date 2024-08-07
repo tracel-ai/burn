@@ -63,10 +63,10 @@ use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
     concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
     conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
-    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config,
-    max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
-    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
-    slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
+    hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
+    max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
+    reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
+    shape_config, slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -292,6 +292,7 @@ impl ParsedOnnxGraph {
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::Gather => graph.register(Self::gather_conversion(node)),
                 NodeType::GatherElements => graph.register(Self::gather_elements_conversion(node)),
+                NodeType::HardSigmoid => graph.register(Self::hard_sigmoid_conversion(node)),
                 NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
@@ -572,6 +573,14 @@ impl ParsedOnnxGraph {
         let alpha = leaky_relu_config(&node);
 
         UnaryNode::leaky_relu(input, output, alpha)
+    }
+
+    fn hard_sigmoid_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let (alpha, beta) = hard_sigmoid_config(&node);
+
+        UnaryNode::hard_sigmoid(input, output, alpha, beta)
     }
 
     fn relu_conversion(node: Node) -> UnaryNode {
