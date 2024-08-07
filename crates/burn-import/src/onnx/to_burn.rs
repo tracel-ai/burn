@@ -78,6 +78,7 @@ use onnx_ir::{
 };
 
 pub use crate::burn::graph::RecordType;
+use crate::burn::node::mean::MeanNode;
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
@@ -268,6 +269,7 @@ impl ParsedOnnxGraph {
                 NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::Mean => graph.register(Self::mean_conversion(node)),
                 NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
                 NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
@@ -970,6 +972,13 @@ impl ParsedOnnxGraph {
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
+    }
+
+    fn mean_conversion(node: Node) -> MeanNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        MeanNode::new(inputs, output)
     }
 
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {

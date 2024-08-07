@@ -51,6 +51,7 @@ fn main() {
         .input("tests/maxpool1d/maxpool1d.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/min/min.onnx")
+        .input("tests/mean/mean.onnx")
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
         .input("tests/not/not.onnx")
