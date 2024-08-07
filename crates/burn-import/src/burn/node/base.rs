@@ -11,7 +11,7 @@ use super::{
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
     range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
-    squeeze::SqueezeNode, sum::SumNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -113,6 +113,7 @@ pub enum Node<PS: PrecisionSettings> {
     Slice(SliceNode),
     Squeeze(SqueezeNode),
     Sum(SumNode),
+    Tile(TileNode),
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
     Where(WhereNode),
@@ -160,6 +161,7 @@ macro_rules! match_all {
             Node::Slice(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
+            Node::Tile(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
             Node::Where(node) => $func(node),
@@ -215,6 +217,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Slice(_) => "slice",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
+            Node::Tile(_) => "tile",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
             Node::Where(_) => "where",

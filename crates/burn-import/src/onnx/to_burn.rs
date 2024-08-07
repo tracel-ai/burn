@@ -50,6 +50,7 @@ use crate::{
             slice::SliceNode,
             squeeze::SqueezeNode,
             sum::SumNode,
+            tile::TileNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -66,7 +67,8 @@ use super::op_configuration::{
     hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
     max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
     reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
-    shape_config, slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
+    shape_config, slice_config, softmax_config, squeeze_config, tile_config, transpose_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -335,6 +337,7 @@ impl ParsedOnnxGraph {
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::Tile => graph.register(Self::tile_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
@@ -1166,6 +1169,14 @@ impl ParsedOnnxGraph {
         let axes = squeeze_config(&node);
 
         SqueezeNode::new(input, output, axes)
+    }
+
+    fn tile_conversion(node: Node) -> TileNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = tile_config(&node);
+
+        TileNode::new(input, output, config)
     }
 }
 

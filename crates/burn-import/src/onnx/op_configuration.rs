@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::pad::PadConfig;
+use crate::burn::node::{pad::PadConfig, tile::TileConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -743,6 +743,26 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
         stash_type == 1,
     )
+}
+
+/// Create a TileConfig from the attributes of the node
+pub fn tile_config(node: &Node) -> TileConfig {
+    let repeat = node
+        .inputs
+        .get(1)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+    TileConfig::new(repeat)
 }
 
 /// Create a PadConfig from the attributes of the node
