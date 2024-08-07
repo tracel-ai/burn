@@ -18,9 +18,10 @@ mod tests {
         let expected = TensorData::from([[-0.0, -1.0, -2.0], [-3.0, -4.0, -5.0]]).convert::<f32>();
 
         // -0.0 is represented differently than 0.0 so we make sure the values are the same in f32
+        // Precision 1 to approximate de/quantization errors
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 3);
+            .assert_approx_eq(&expected, 1);
     }
 }

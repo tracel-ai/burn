@@ -200,10 +200,11 @@ mod tests {
     #[test]
     fn test_prod_dim_float() {
         // Quantized [[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
+        // NOTE: we use affine quantization to reduce quantization errors since `prod()` amplifies the error
         let data = TensorData::quantized(
-            vec![51i8, 25, 51, 76, 102, 127],
+            vec![-26i8, -77, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.03937008)),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
         );
         let tensor = TestTensor::<2>::from_data(data, &Default::default());
         let output = tensor.prod_dim(1);
@@ -216,9 +217,9 @@ mod tests {
 
         // Quantized [[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]
         let data = TensorData::quantized(
-            vec![51i8, 0, 51, 76, 102, 127],
+            vec![-26i8, -128, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.03937008)),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
         );
         let tensor_with_zero = TestTensor::<2>::from_data(data, &Default::default());
         let output = tensor_with_zero.prod_dim(1);

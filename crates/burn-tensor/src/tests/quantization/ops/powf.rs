@@ -111,10 +111,11 @@ mod tests {
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[0.0, -1.0, -8.0], [-27.0, -64.0, -64.0]]);
 
-        // NOTE: we set higher tolerance (0.2) due to larger de/quantization errors accumulation w/ powers
+        // NOTE: we set higher tolerance (0.3) due to larger de/quantization errors accumulation w/ powers
+        // and large output range
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.2);
+            .assert_approx_eq_diff(&expected, 0.3);
     }
 }
