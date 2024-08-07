@@ -34,6 +34,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
         NodeType::GatherElements => same_as_input(node),
+        NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),

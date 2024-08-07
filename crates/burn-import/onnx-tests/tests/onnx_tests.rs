@@ -47,6 +47,7 @@ include_models!(
     global_avr_pool,
     greater,
     greater_or_equal,
+    hard_sigmoid,
     layer_norm,
     leaky_relu,
     less,
@@ -60,6 +61,7 @@ include_models!(
     maxpool1d,
     maxpool2d,
     min,
+    mean,
     mul,
     neg,
     not,
@@ -205,6 +207,21 @@ mod tests {
 
         let output = model.forward(input1, input2, input3);
         let expected = TensorData::from([3i64, 6, 9, 12]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mean_tensor_and_tensor() {
+        let device = Default::default();
+        let model: mean::Model<Backend> = mean::Model::default();
+
+        let input1 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
+        let input2 = Tensor::<Backend, 1>::from_floats([2., 2., 4., 0.], &device);
+        let input3 = Tensor::<Backend, 1>::from_floats([3., 2., 5., -4.], &device);
+
+        let output = model.forward(input1, input2, input3);
+        let expected = TensorData::from([2.0f32, 2., 4., 0.]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -1196,6 +1213,29 @@ mod tests {
         let expected = TensorData::from([
             [0.58338636f32, 0.532_157_9, 0.55834854],
             [0.557_33, 0.24548186, 0.45355222],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn hard_sigmoid() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: hard_sigmoid::Model<Backend> = hard_sigmoid::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [
+                [0.33669037, 0.12880941, 0.23446237],
+                [0.23033303, -1.12285638, -0.18632829],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = TensorData::from([
+            [0.55611509, 0.52146822, 0.53907704],
+            [0.53838885, 0.31285727, 0.46894526],
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);

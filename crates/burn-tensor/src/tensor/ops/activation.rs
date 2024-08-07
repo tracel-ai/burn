@@ -182,6 +182,36 @@ pub trait ActivationOps<B: Backend> {
         B::float_mul(value, grad)
     }
 
+    /// Applies the hard Sigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `alpha` - The alpha value that the tensor is multiplied with.
+    /// * `beta` - The beta value that is added to the tensor
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn hard_sigmoid<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        alpha: super::FloatElem<B>,
+        beta: super::FloatElem<B>,
+    ) -> FloatTensor<B, D> {
+        let tensor_full = B::float_into_full_precision(tensor);
+
+        let tensor_tmp = FullPrecisionBackend::<B>::float_clamp(
+            FullPrecisionBackend::<B>::float_add_scalar(
+                FullPrecisionBackend::<B>::float_mul_scalar(tensor_full, alpha.elem()),
+                beta.elem(),
+            ),
+            0.0.elem(),
+            1.0.elem(),
+        );
+
+        B::float_from_full_precision(tensor_tmp)
+    }
+
     /// Applies the LogSigmoid activation function.
     ///
     /// # Arguments

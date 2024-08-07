@@ -771,6 +771,9 @@ pub fn pad_config(node: &Node) -> PadConfig {
         if node.inputs.len() < 2 {
             panic!("Pad: must provide at least two inputs")
         }
+        if node.inputs.len() >= 4 {
+            panic!("Pad: axes input is not supported")
+        }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.dim,
@@ -819,10 +822,24 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        match &node.inputs[2].value {
-            Some(Data::Float32s(shape)) => shape.first().unwrap().to_owned(),
-            _ => 0.0,
-        }
+        node.inputs
+                .get(2)
+                .and_then(|input| match &input.value {
+                    Some(Data::Float16s(constant_value)) => {
+                        constant_value.first().map(|&f| f32::from(f))
+                    }
+                    Some(Data::Float32s(constant_value)) => {
+                        constant_value.first().copied()
+                    }
+                    Some(Data::Float64s(constant_value)) => {
+                        constant_value.first().map(|&f| f as f32)
+                    }
+                    Some(Data::Float16(constant_value)) => Some(f32::from(*constant_value)),
+                    Some(Data::Float32(constant_value)) => Some(*constant_value),
+                    Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
+                     _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
+                })
+                .unwrap_or(0.0)
     }
 
     let pads = get_pads(node);
@@ -958,6 +975,22 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     }
 
     alpha
+}
+
+// Create a HardSigmoidConfig from the alpha and beta attributes of the node
+pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
+    let mut alpha = 0.2;
+    let mut beta = 0.5;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32() as f64,
+            "beta" => beta = value.clone().into_f32() as f64,
+            _ => {}
+        }
+    }
+
+    (alpha, beta)
 }
 
 pub fn reshape_config(node: &Node) -> Vec<i64> {
