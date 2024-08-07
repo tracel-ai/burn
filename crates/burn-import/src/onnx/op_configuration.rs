@@ -1,13 +1,10 @@
-use burn::{
-    lr_scheduler::constant,
-    nn::{
-        conv::{
-            Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
-        },
-        pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-        BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-        PaddingConfig2d, PaddingConfig3d,
+use burn::nn::{
+    conv::{
+        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
     },
+    pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d, PaddingConfig3d,
 };
 
 use crate::burn::node::pad::PadConfig;
@@ -805,15 +802,14 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        f32::from(
-            node.inputs
+        node.inputs
                 .get(2)
                 .and_then(|input| match &input.value {
                     Some(Data::Float16s(constant_value)) => {
                         constant_value.first().map(|&f| f32::from(f))
                     }
                     Some(Data::Float32s(constant_value)) => {
-                        constant_value.first().map(|&f| f)
+                        constant_value.first().copied()
                     }
                     Some(Data::Float64s(constant_value)) => {
                         constant_value.first().map(|&f| f as f32)
@@ -823,8 +819,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
                     Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
                      _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
                 })
-                .unwrap_or(0.0),
-        )
+                .unwrap_or(0.0)
     }
 
     let pads = get_pads(node);
