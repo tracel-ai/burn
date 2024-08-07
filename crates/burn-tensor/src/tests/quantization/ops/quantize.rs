@@ -84,15 +84,17 @@ mod tests {
     #[test]
     fn should_support_quantize_dynamic_int8() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+        // NOTE: we use fully representable values since different backend implementations could differ slightly
+        // due to rounding discrepancies
+        let tensor = Tensor::<TestBackend, 1>::from_floats([5., 0., 4., -10.], &device);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
 
         let x_q = tensor.quantize_dynamic(&scheme);
 
         let expected = TensorData::quantized(
-            vec![-128i8, -39, 72, 127],
+            vec![127i8, 42, 110, -128],
             [4],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72)),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, 42)),
         );
 
         x_q.to_data().assert_eq(&expected, true);

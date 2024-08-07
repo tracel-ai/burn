@@ -180,7 +180,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_eq(&TensorData::from([240.0]), false);
+            .assert_approx_eq(&TensorData::from([240.0]), 3);
 
         // Quantized [[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]
         let data = TensorData::quantized(
