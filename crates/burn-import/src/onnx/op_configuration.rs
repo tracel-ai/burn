@@ -1,10 +1,13 @@
-use burn::nn::{
-    conv::{
-        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
+use burn::{
+    lr_scheduler::constant,
+    nn::{
+        conv::{
+            Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
+        },
+        pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
+        BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+        PaddingConfig2d, PaddingConfig3d,
     },
-    pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d, PaddingConfig3d,
 };
 
 use crate::burn::node::pad::PadConfig;
@@ -751,6 +754,9 @@ pub fn pad_config(node: &Node) -> PadConfig {
         if node.inputs.len() < 2 {
             panic!("Pad: must provide at least two inputs")
         }
+        if node.inputs.len() >= 4 {
+            panic!("Pad: axes input is not supported")
+        }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.dim,
@@ -802,8 +808,13 @@ pub fn pad_config(node: &Node) -> PadConfig {
         node.inputs
             .get(2)
             .and_then(|input| match &input.value {
-                Some(Data::Float32s(shape)) => shape.first().cloned(),
-                _ => None,
+                Some(Data::Float16s(constant_value)) => constant_value.first().cloned(),
+                Some(Data::Float32s(constant_value)) => constant_value.first().cloned(),
+                Some(Data::Float64s(constant_value)) => constant_value.first().cloned(),
+                Some(Data::Float16(constant_value)) => Some(constant_value.clone()),
+                Some(Data::Float32(constant_value)) => Some(constant_value.clone()),
+                Some(Data::Float64(constant_value)) => Some(constant_value.clone()),
+                _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
             })
             .unwrap_or(0.0)
     }
