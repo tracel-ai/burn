@@ -8,12 +8,11 @@ use super::{
     conv_transpose_3d::ConvTranspose3dNode, dropout::DropoutNode, expand::ExpandNode,
     gather::GatherNode, gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
-    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, pad::PadNode, prelu::PReluNode,
+    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode, prelu::PReluNode,
     random_normal::RandomNormalNode, random_uniform::RandomUniformNode, range::RangeNode,
     reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode,
     unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
-use crate::burn::node::mean::MeanNode;
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
 use burn::record::PrecisionSettings;

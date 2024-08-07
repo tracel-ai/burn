@@ -54,7 +54,7 @@ mod tests {
     };
 
     #[test]
-    fn test_codegen_sum() {
+    fn test_codegen_mean() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(MeanNode::new(
