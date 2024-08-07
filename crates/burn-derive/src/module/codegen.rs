@@ -224,11 +224,6 @@ impl GenericsParser {
             );
 
             generics_names_except_backend.extend(quote! { <#ident as burn::module::AutodiffModule<B>>::InnerModule, });
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::Module<B::InnerBackend>
-                }
-            );
 
             module_autodiff.add_predicate(
                 parse_quote! {
