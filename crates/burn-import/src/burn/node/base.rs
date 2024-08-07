@@ -8,10 +8,10 @@ use super::{
     conv_transpose_3d::ConvTranspose3dNode, dropout::DropoutNode, expand::ExpandNode,
     gather::GatherNode, gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
-    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, pad::PadNode, prelu::PReluNode,
-    random_normal::RandomNormalNode, random_uniform::RandomUniformNode, range::RangeNode,
-    reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode,
-    unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
+    prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
+    squeeze::SqueezeNode, sum::SumNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -105,6 +105,7 @@ pub enum Node<PS: PrecisionSettings> {
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
+    Mean(MeanNode),
     Pad(PadNode),
     Range(RangeNode),
     Reshape(ReshapeNode),
@@ -151,6 +152,7 @@ macro_rules! match_all {
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Mean(node) => $func(node),
             Node::Pad(node) => $func(node),
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
@@ -205,6 +207,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Mean(_) => "mean",
             Node::Pad(_) => "pad",
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",

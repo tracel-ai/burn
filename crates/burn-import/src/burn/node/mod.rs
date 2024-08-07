@@ -25,6 +25,7 @@ pub(crate) mod mask_where;
 pub(crate) mod matmul;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
+pub(crate) mod mean;
 pub(crate) mod pad;
 pub(crate) mod prelu;
 pub(crate) mod random_normal;

@@ -28,6 +28,7 @@ pub enum UnaryNodeKind {
     Flatten,
     Gelu,
     LeakyRelu,
+    HardSigmoid,
     Log,
     LogSoftmax,
     Neg,
@@ -59,6 +60,7 @@ impl UnaryNodeKind {
             Self::Flatten => "flatten",
             Self::Gelu => "gelu",
             Self::LeakyRelu => "leaky_relu",
+            Self::HardSigmoid => "hard_sigmoid",
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
@@ -188,6 +190,14 @@ impl UnaryNode {
     pub(crate) fn sigmoid(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::sigmoid(#input) };
         Self::new(input, output, UnaryNodeKind::Sigmoid, Rc::new(function))
+    }
+
+    pub(crate) fn hard_sigmoid(input: Type, output: Type, alpha: f64, beta: f64) -> Self {
+        let alpha = alpha.to_tokens();
+        let beta = beta.to_tokens();
+        let function =
+            move |input| quote! { burn::tensor::activation::hard_sigmoid(#input, #alpha, #beta) };
+        Self::new(input, output, UnaryNodeKind::HardSigmoid, Rc::new(function))
     }
 
     pub(crate) fn log_softmax(input: Type, output: Type, dim: usize) -> Self {
@@ -569,6 +579,27 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::sigmoid(tensor1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_hard_sigmoid() {
+        one_node_graph(
+            UnaryNode::hard_sigmoid(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                0.2,
+                0.5,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::hard_sigmoid(tensor1, 0.2, 0.5);
 
                     tensor2
                 }

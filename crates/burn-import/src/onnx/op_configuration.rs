@@ -954,6 +954,22 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     alpha
 }
 
+// Create a HardSigmoidConfig from the alpha and beta attributes of the node
+pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
+    let mut alpha = 0.2;
+    let mut beta = 0.5;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32() as f64,
+            "beta" => beta = value.clone().into_f32() as f64,
+            _ => {}
+        }
+    }
+
+    (alpha, beta)
+}
+
 pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
