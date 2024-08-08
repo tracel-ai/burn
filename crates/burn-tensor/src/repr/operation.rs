@@ -77,7 +77,9 @@ pub enum ModuleOperationDescription {
     /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
     Conv3d(Conv3dDescription),
     /// Operation corresponding to [deform_conv2d](crate::ops::ModuleOps::deform_conv2d)
-    DeformableConv2d(DeformableConv2dDescription),
+    DeformableConv2d(DeformConv2dDescription),
+    /// Operation corresponding to [deform_conv2d_backward](crate::ops::ModuleOps::deform_conv2d_backward)
+    DeformableConv2dBackward(DeformConv2dBackwardDescription),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
@@ -694,7 +696,7 @@ pub struct Conv2dDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct DeformableConv2dDescription {
+pub struct DeformConv2dDescription {
     pub x: TensorDescription,
     pub offset: TensorDescription,
     pub weight: TensorDescription,
@@ -702,6 +704,23 @@ pub struct DeformableConv2dDescription {
     pub bias: Option<TensorDescription>,
     pub options: DeformableConv2dOptionsDescription,
     pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct DeformConv2dBackwardDescription {
+    pub x: TensorDescription,
+    pub offset: TensorDescription,
+    pub weight: TensorDescription,
+    pub mask: Option<TensorDescription>,
+    pub bias: Option<TensorDescription>,
+    pub out_grad: TensorDescription,
+    pub options: DeformableConv2dOptionsDescription,
+    pub input_grad: TensorDescription,
+    pub offset_grad: TensorDescription,
+    pub weight_grad: TensorDescription,
+    pub mask_grad: Option<TensorDescription>,
+    pub bias_grad: Option<TensorDescription>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1460,6 +1479,16 @@ impl ModuleOperationDescription {
                 (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
                 (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
             },
+            ModuleOperationDescription::DeformableConv2dBackward(desc) => {
+                match (&desc.mask, &desc.bias) {
+                    (Some(mask), Some(bias)) => {
+                        vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias]
+                    }
+                    (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
+                    (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
+                    (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
+                }
+            }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]

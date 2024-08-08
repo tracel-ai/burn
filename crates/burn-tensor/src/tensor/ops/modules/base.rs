@@ -18,6 +18,25 @@ pub struct Conv2dBackward<B: Backend> {
     pub bias_grad: Option<FloatTensor<B, 1>>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [deform_conv2d](ModuleOps::deform_conv2d).
+#[derive(new)]
+pub struct DeformConv2dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B, 4>,
+
+    /// Offset gradient.
+    pub offset_grad: FloatTensor<B, 4>,
+
+    /// Weights gradient.
+    pub weight_grad: FloatTensor<B, 4>,
+
+    /// Mask gradient.
+    pub mask_grad: Option<FloatTensor<B, 4>>,
+
+    /// Bias gradient.
+    pub bias_grad: Option<FloatTensor<B, 1>>,
+}
+
 /// Gradient computed during the backward pass for each tensor used by [conv3d](ModuleOps::conv3d).
 #[derive(new)]
 pub struct Conv3dBackward<B: Backend> {
@@ -290,18 +309,15 @@ pub trait ModuleOps<B: Backend> {
         options: DeformConvOptions<2>,
     ) -> FloatTensor<B, 4>;
     /// Backward pass for the [deform_conv2d](ModuleOps::deform_conv2d) operation.
-    fn deformable_conv2d_backward(
-        _x: FloatTensor<B, 4>,
-        _offset: FloatTensor<B, 4>,
-        _weight: FloatTensor<B, 4>,
-        _mask: Option<FloatTensor<B, 4>>,
-        _bias: Option<FloatTensor<B, 1>>,
-        _output_grad: FloatTensor<B, 4>,
-        _options: DeformConvOptions<2>,
-    ) -> Conv2dBackward<B> {
-        todo!("Implement backwards pass");
-        //conv::deformable_conv2d_backwards(x, weight, bias, output_grad, options)
-    }
+    fn deform_conv2d_backward(
+        x: FloatTensor<B, 4>,
+        offset: FloatTensor<B, 4>,
+        weight: FloatTensor<B, 4>,
+        mask: Option<FloatTensor<B, 4>>,
+        bias: Option<FloatTensor<B, 1>>,
+        output_grad: FloatTensor<B, 4>,
+        options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<B>;
 
     /// Three dimensional convolution.
     ///

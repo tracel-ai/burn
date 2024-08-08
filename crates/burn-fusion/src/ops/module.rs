@@ -5,8 +5,8 @@ use burn_tensor::{
             calculate_conv_output_size, calculate_conv_transpose_output_size,
             calculate_pool_output_size,
         },
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, FloatTensor, IntTensor,
-        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
+        IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
     repr::*,
@@ -162,9 +162,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         options: DeformConvOptions<2>,
     ) -> FloatTensor<Self, 4> {
         make_ops!(
-            DeformableConv2dOps,
-            DeformableConv2dDescription,
-            |args: DeformableConv2dDescription, handles: &mut HandleContainer<B::Handle>| {
+            DeformConv2dOps,
+            DeformConv2dDescription,
+            |args: DeformConv2dDescription, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B, 4>(&args.x);
                 let offset = handles.get_float_tensor::<B, 4>(&args.offset);
                 let weight = handles.get_float_tensor::<B, 4>(&args.weight);
@@ -207,7 +207,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
-        let desc = DeformableConv2dDescription {
+        let desc = DeformConv2dDescription {
             x: x.into_description(),
             offset: offset.into_description(),
             weight: weight.into_description(),
@@ -234,10 +234,128 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             OperationDescription::Module(ModuleOperationDescription::DeformableConv2d(
                 desc.clone(),
             )),
-            DeformableConv2dOps::<B>::new(desc),
+            DeformConv2dOps::<B>::new(desc),
         );
 
         out
+    }
+
+    fn deform_conv2d_backward(
+        x: FloatTensor<Self, 4>,
+        offset: FloatTensor<Self, 4>,
+        weight: FloatTensor<Self, 4>,
+        mask: Option<FloatTensor<Self, 4>>,
+        bias: Option<FloatTensor<Self, 1>>,
+        output_grad: FloatTensor<Self, 4>,
+        options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<Self> {
+        make_ops!(
+            DeformConv2dBackwardOps,
+            DeformConv2dBackwardDescription,
+            |args: DeformConv2dBackwardDescription, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let offset = handles.get_float_tensor::<B, 4>(&args.offset);
+                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let mask = args
+                    .mask
+                    .as_ref()
+                    .map(|mask| handles.get_float_tensor::<B, 4>(mask));
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                let output_grad = handles.get_float_tensor::<B, 4>(&args.out_grad);
+
+                let output = B::deform_conv2d_backward(
+                    x,
+                    offset,
+                    weight,
+                    mask,
+                    bias,
+                    output_grad,
+                    args.options.clone().into(),
+                );
+
+                handles.register_float_tensor::<B, 4>(&args.input_grad.id, output.x_grad);
+                handles.register_float_tensor::<B, 4>(&args.offset_grad.id, output.offset_grad);
+                handles.register_float_tensor::<B, 4>(&args.weight_grad.id, output.weight_grad);
+                if let Some((mask_grad, field)) = output.mask_grad.zip(args.mask_grad.as_ref()) {
+                    handles.register_float_tensor::<B, 4>(&field.id, mask_grad);
+                }
+                if let Some((bias_grad, field)) = output.bias_grad.zip(args.bias_grad.as_ref()) {
+                    handles.register_float_tensor::<B, 1>(&field.id, bias_grad);
+                }
+            }
+        );
+
+        let input_grad = x
+            .client
+            .tensor_uninitialized(x.shape.clone(), B::FloatElem::dtype());
+        let offset_grad = offset
+            .client
+            .tensor_uninitialized(offset.shape.clone(), B::FloatElem::dtype());
+        let weight_grad = offset
+            .client
+            .tensor_uninitialized(weight.shape.clone(), B::FloatElem::dtype());
+        let mask_grad = mask.as_ref().map(|mask| {
+            offset
+                .client
+                .tensor_uninitialized(mask.shape.clone(), B::FloatElem::dtype())
+        });
+        let bias_grad = bias.as_ref().map(|bias| {
+            offset
+                .client
+                .tensor_uninitialized(bias.shape.clone(), B::FloatElem::dtype())
+        });
+
+        let stream_1 = x.stream;
+        let stream_2 = offset.stream;
+        let stream_3 = weight.stream;
+        let stream_4 = mask.as_ref().map(|m| m.stream);
+        let stream_5 = bias.as_ref().map(|b| b.stream);
+        let stream_6 = output_grad.stream;
+
+        let desc = DeformConv2dBackwardDescription {
+            x: x.into_description(),
+            offset: offset.into_description(),
+            weight: weight.into_description(),
+            mask: mask.map(|mask| mask.into_description()),
+            bias: bias.map(|bias| bias.into_description()),
+            options: options.into(),
+            out_grad: output_grad.into_description(),
+            input_grad: input_grad.to_description_out(),
+            offset_grad: offset_grad.to_description_out(),
+            weight_grad: weight_grad.to_description_out(),
+            mask_grad: mask_grad
+                .as_ref()
+                .map(|mask_grad| mask_grad.to_description_out()),
+            bias_grad: bias_grad
+                .as_ref()
+                .map(|bias_grad| bias_grad.to_description_out()),
+        };
+
+        let streams = match (stream_4, stream_5) {
+            (Some(stream_4), Some(stream_5)) => {
+                vec![stream_1, stream_2, stream_3, stream_4, stream_5, stream_6]
+            }
+            (Some(stream_4), None) => {
+                vec![stream_1, stream_2, stream_3, stream_4, stream_6]
+            }
+            (None, Some(stream_5)) => {
+                vec![stream_1, stream_2, stream_3, stream_5, stream_6]
+            }
+            (None, None) => vec![stream_1, stream_2, stream_3, stream_6],
+        };
+
+        input_grad.client.register(
+            streams,
+            OperationDescription::Module(ModuleOperationDescription::DeformableConv2dBackward(
+                desc.clone(),
+            )),
+            DeformConv2dBackwardOps::<B>::new(desc),
+        );
+
+        DeformConv2dBackward::new(input_grad, offset_grad, weight_grad, mask_grad, bias_grad)
     }
 
     fn conv3d(
