@@ -201,16 +201,9 @@ impl GenericsParser {
 
             module.add_predicate(
                 parse_quote! {
-                    #ident: burn::module::ModuleDisplayDefault
-                }
-            );
-
-            module.add_predicate(
-                parse_quote! {
                     #ident: burn::module::ModuleDisplay
                 }
             );
-
 
             module_autodiff.add_predicate(
                 parse_quote! {
@@ -230,25 +223,7 @@ impl GenericsParser {
                 }
             );
 
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::ModuleDisplay
-                }
-            );
-
-
             generics_names_except_backend.extend(quote! { <#ident as burn::module::AutodiffModule<B>>::InnerModule, });
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::Module<B::InnerBackend>
-                }
-            );
-
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::ModuleDisplayDefault
-                }
-            );
 
             module_autodiff.add_predicate(
                 parse_quote! {
