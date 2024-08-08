@@ -1,7 +1,7 @@
 use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
-    conv::{conv2d, conv3d, conv_transpose2d, conv_transpose3d},
+    conv::{conv2d, conv3d, conv_transpose2d, conv_transpose3d, deform_conv2d},
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
@@ -20,13 +20,25 @@ impl<E: FloatNdArrayElement, Q: QuantElement> ModuleOps<Self> for NdArray<E, Q> 
     }
 
     fn deform_conv2d(
+        x: NdArrayTensor<E, 4>,
+        offset: NdArrayTensor<E, 4>,
+        weight: NdArrayTensor<E, 4>,
+        mask: Option<NdArrayTensor<E, 4>>,
+        bias: Option<NdArrayTensor<E, 1>>,
+        options: DeformConvOptions<2>,
+    ) -> NdArrayTensor<E, 4> {
+        deform_conv2d::<E, Q>(x, offset, weight, mask, bias, options)
+    }
+
+    fn deform_conv2d_backward(
         _x: NdArrayTensor<E, 4>,
         _offset: NdArrayTensor<E, 4>,
         _weight: NdArrayTensor<E, 4>,
         _mask: Option<NdArrayTensor<E, 4>>,
         _bias: Option<NdArrayTensor<E, 1>>,
+        _output_grad: NdArrayTensor<E, 4>,
         _options: DeformConvOptions<2>,
-    ) -> NdArrayTensor<E, 4> {
+    ) -> DeformConv2dBackward<Self> {
         todo!()
     }
 

@@ -2,7 +2,7 @@ use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
     ops::{
         conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
-        ConvOptions, ConvTransposeOptions,
+        ConvOptions, ConvTransposeOptions, DeformConvOptions,
     },
     ElementConversion,
 };
@@ -53,6 +53,78 @@ fn conv2d_mad_inner<E: FloatNdArrayElement>(
             or[ow] += ir[iw] * k;
         }
     }
+}
+
+#[inline(always)]
+fn deform_conv2d_mad_inner<E: FloatNdArrayElement>(
+    mut output: ArrayViewMut2<E>,
+    x: ArrayView2<E>,
+    offset: (ArrayView2<E>, ArrayView2<E>),
+    weight: E,
+    mask: Option<ArrayView2<E>>,
+    kernel_pos: (usize, usize),
+    out_dims: (usize, usize),
+    stride: (usize, usize),
+    dilation: (usize, usize),
+) {
+    let (kernel_y, kernel_x) = kernel_pos;
+    let (offset_y, offset_x) = offset;
+    let (out_width, out_height) = out_dims;
+    let (stride_width, stride_height) = stride;
+    let (dilation_width, dilation_height) = dilation;
+
+    for out_y in 0..out_height {
+        // Construct a sub-slice view of the input row.
+        // This is done upfront so that rustc does not have to emit bounds checks
+        // in the hot loop below.
+        let index_y = out_y * stride_height + kernel_y * dilation_height;
+        let offset_y_row = offset_y.row(out_y).to_slice().unwrap();
+        let offset_x_row = offset_x.row(out_y).to_slice().unwrap();
+
+        // Ditto. Construct a sub-slice view of the output row, and explicitly specify
+        // the bounds upfront as 0..out_width so that rustc can make the assumption
+        // that all accesses are in-bounds in the below loop.
+        let mut output_row = output.row_mut(out_y);
+        let output_row = &mut output_row.as_slice_mut().unwrap()[0..out_width];
+
+        #[allow(clippy::needless_range_loop)]
+        for out_x in 0..out_width {
+            let index_x = out_x * stride_width + kernel_x * dilation_width;
+            let offset_y = offset_y_row[out_x];
+            let offset_x = offset_x_row[out_x];
+
+            let index_y = E::from_usize(index_y).unwrap() + offset_y;
+            let index_x = E::from_usize(index_x).unwrap() + offset_x;
+
+            let mask = mask
+                .map(|mask| mask[[out_y, out_x]])
+                .unwrap_or(E::from_elem(1.0));
+
+            output_row[out_x] += bilinear_interpolate(x, index_y, index_x) * weight * mask;
+        }
+    }
+}
+
+fn bilinear_interpolate<E: FloatNdArrayElement>(image: ArrayView2<E>, y: E, x: E) -> E {
+    let y = y.to_f64();
+    let x = x.to_f64();
+
+    let y0 = y.floor();
+    let y1 = y.ceil();
+    let yw = y - y0;
+
+    let x0 = x.floor();
+    let x1 = x.ceil();
+    let xw = x - x0;
+
+    let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+
+    let p_a = image[(y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
+    let p_b = image[(y0, x1)].elem::<f64>() * xw * (1.0 - yw);
+    let p_c = image[(y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
+    let p_d = image[(y1, x1)].elem::<f64>() * xw * yw;
+
+    (p_a + p_b + p_c + p_d).elem()
 }
 
 #[inline(always)]
@@ -201,6 +273,178 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                             #[allow(clippy::needless_range_loop)]
                             for ow in 0..out_width {
                                 or[ow] += bias;
+                            }
+                        }
+                    }
+                },
+            );
+    });
+
+    let output = output
+        .into_shape([batch_size, out_channels, out_height, out_width])
+        .unwrap()
+        .into_dyn()
+        .into_shared();
+
+    NdArrayTensor::new(output)
+}
+
+pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
+    x: NdArrayTensor<E, 4>,
+    offset: NdArrayTensor<E, 4>,
+    weight: NdArrayTensor<E, 4>,
+    mask: Option<NdArrayTensor<E, 4>>,
+    bias: Option<NdArrayTensor<E, 1>>,
+    options: DeformConvOptions<2>,
+) -> NdArrayTensor<E, 4> {
+    let [dilation_height, dilation_width] = options.dilation;
+    let [padding_height, padding_width] = options.padding;
+    let [stride_height, stride_width] = options.stride;
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
+    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
+
+    let out_height = calculate_conv_output_size(
+        kernel_height,
+        stride_height,
+        padding_height,
+        dilation_height,
+        in_height,
+    );
+    let out_width = calculate_conv_output_size(
+        kernel_width,
+        stride_width,
+        padding_width,
+        dilation_width,
+        in_width,
+    );
+
+    let x = apply_padding_4d::<E, Q>(x, options.padding, 0i32.elem()).array;
+    let offsets = offset
+        .array
+        .into_shape([
+            batch_size,
+            2 * options.offset_groups,
+            kernel_height,
+            kernel_width,
+            out_height,
+            out_width,
+        ])
+        .unwrap();
+    let mask = mask.map(|mask| {
+        mask.array
+            .into_shape([
+                batch_size,
+                options.offset_groups,
+                kernel_height,
+                kernel_width,
+                out_height,
+                out_width,
+            ])
+            .unwrap()
+    });
+
+    // Convert inputs from dynamic indexes to static to improve perf.
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let offsets = offsets.into_dimensionality::<ndarray::Ix6>().unwrap();
+    let weights = weight.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let mask = mask.map(|mask| mask.into_dimensionality::<ndarray::Ix6>().unwrap());
+
+    let mut output = Array3::zeros(Dim([batch_size * out_channels, out_height, out_width]));
+    let channels_per_offset_group = in_channels / options.offset_groups;
+
+    run_par!(|| {
+        iter_par!(output.axis_iter_mut(Axis(0)))
+            .enumerate()
+            .for_each(
+                #[inline(never)]
+                |(index, mut output)| {
+                    let batch = index / out_channels;
+                    let out_channel = index % out_channels;
+                    let weight_group = index % options.weight_groups;
+
+                    for in_channel in
+                        (in_channels * weight_group)..(in_channels * (weight_group + 1))
+                    {
+                        let weight_in_channel = in_channel - (weight_group * in_channels);
+                        let offset_group = in_channel / channels_per_offset_group;
+
+                        let x = x.slice(s![batch, in_channel, .., ..]);
+                        let offset_kernel = offsets.slice(s![
+                            batch,
+                            (2 * offset_group)..(2 * offset_group) + 2,
+                            ..,
+                            ..,
+                            ..,
+                            ..
+                        ]);
+                        let kernel = weights.slice(s![out_channel, weight_in_channel, .., ..]);
+                        let mask_kernel = mask
+                            .as_ref()
+                            .map(|mask| mask.slice(s![batch, offset_group, .., .., .., ..]));
+
+                        for kernel_y in 0..kernel_height {
+                            for kernel_x in 0..kernel_width {
+                                let offset_y =
+                                    offset_kernel.slice(s![0, kernel_y, kernel_x, .., ..]);
+                                let offset_x =
+                                    offset_kernel.slice(s![1, kernel_y, kernel_x, .., ..]);
+                                let mask = mask_kernel
+                                    .as_ref()
+                                    .map(|mask| mask.slice(s![kernel_y, kernel_x, .., ..]));
+                                let weight = kernel[[kernel_y, kernel_x]];
+
+                                // NOTE: This function call is duplicated twice so that the compiler can perform auto-vectorization
+                                // in the case that the stride/dilation is 1.
+                                #[allow(clippy::if_same_then_else)]
+                                if (1, 1, 1, 1)
+                                    == (
+                                        stride_width,
+                                        stride_height,
+                                        dilation_width,
+                                        dilation_height,
+                                    )
+                                {
+                                    deform_conv2d_mad_inner(
+                                        output.view_mut(),
+                                        x.view(),
+                                        (offset_y.view(), offset_x.view()),
+                                        weight,
+                                        mask.as_ref().map(|mask| mask.view()),
+                                        (kernel_y, kernel_x),
+                                        (out_width, out_height),
+                                        (stride_width, stride_height),
+                                        (dilation_width, dilation_height),
+                                    );
+                                } else {
+                                    deform_conv2d_mad_inner(
+                                        output.view_mut(),
+                                        x.view(),
+                                        (offset_y.view(), offset_x.view()),
+                                        weight,
+                                        mask.as_ref().map(|mask| mask.view()),
+                                        (kernel_y, kernel_x),
+                                        (out_width, out_height),
+                                        (stride_width, stride_height),
+                                        (dilation_width, dilation_height),
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(bias) = &bias {
+                        let bias = bias.array[out_channel];
+
+                        for out_y in 0..out_height {
+                            // Get a mutable slice reference to the row we're looping over.
+                            // We explicitly define the bounds to 0..out_width so that rustc can make
+                            // the assumption that all accesses are in-bounds.
+                            let mut out_row = output.row_mut(out_y);
+                            let out_row = &mut out_row.as_slice_mut().unwrap()[0..out_width];
+
+                            #[allow(clippy::needless_range_loop)]
+                            for out_x in 0..out_width {
+                                out_row[out_x] += bias;
                             }
                         }
                     }
