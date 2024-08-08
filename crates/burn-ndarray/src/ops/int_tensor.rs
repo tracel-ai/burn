@@ -286,6 +286,13 @@ impl<E: FloatNdArrayElement, Q: QuantElement> IntTensorOps<Self> for NdArray<E, 
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
+    fn int_cumsum<const D: usize>(
+        tensor: NdArrayTensor<i64, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::cumsum(tensor, dim)
+    }
+
     fn int_prod<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, 1> {
         NdArrayMathOps::prod(tensor)
     }

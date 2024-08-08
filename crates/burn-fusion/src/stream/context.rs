@@ -628,6 +628,13 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOperationDescription::CumSum(desc) => {
+                NumericOperationDescription::CumSum(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs, // Dim should stay the same.
+                    out: desc.out.to_relative(converter),
+                })
+            }
             NumericOperationDescription::Prod(desc) => {
                 NumericOperationDescription::Prod(UnaryOperationDescription {
                     input: desc.input.to_relative(converter),
