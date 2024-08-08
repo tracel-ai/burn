@@ -7,13 +7,16 @@ use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
     PrecisionSettings, PrettyJsonFileRecorder, Recorder,
 };
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
     ser::{SerializeMap, SerializeTuple},
     Serialize,
 };
-use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
+use std::{
+    any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf, process::exit,
+};
 
 /// Type of the record to be saved.
 #[derive(Debug, Clone, Default, Copy)]
@@ -45,6 +48,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     default: Option<TokenStream>,
     blank_spaces: bool,
     graph_input_types: Vec<Type>,
+    graph_constants: Vec<TensorType>,
     graph_output_types: Vec<Type>,
     _ps: PhantomData<PS>,
 }
@@ -315,13 +319,9 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .for_each(|tensor| {
                         self.scope
                             .tensor_register_variable(&tensor, node_position + 1)
-                    })
-            });
+                    });
 
-        self.nodes
-            .iter()
-            .enumerate()
-            .for_each(|(node_position, node)| {
+                // since the graph is guaranteed to be a DAG, we can safely register future uses
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
@@ -330,6 +330,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                             .tensor_register_future_use(&tensor, node_position)
                     })
             });
+
+        self.graph_constants = self
+            .scope
+            .constants()
+            .map(|(name, var_data)| {
+                // we can safely unwrap since: 1. we know the tensor is from this node, 2. the matching input is a tensor
+                to_tensor(
+                    self.nodes[var_data.node_position]
+                        .input_types()
+                        .iter()
+                        .find(|input| input.name() == name)
+                        .unwrap()
+                        .clone(),
+                )
+                .unwrap()
+            })
+            .collect();
     }
 
     fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
@@ -394,6 +411,17 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
     fn codegen_struct(&self) -> TokenStream {
         let mut body = quote! {};
+
+        if !self.graph_constants.is_empty() {
+            self.graph_constants.iter().for_each(|constant| {
+                let ty = constant.ty();
+                let name = &constant.name;
+                body.extend(quote! {
+                    #name: burn::module::Param<#ty>,
+                });
+            });
+        }
+
         self.nodes
             .iter()
             .filter_map(|node| node.field_type())
@@ -435,12 +463,25 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .map(|node| node.field_init())
             .for_each(|code| body.extend(code));
 
-        let fields = self
-            .nodes
-            .iter()
-            .flat_map(|node| node.field_type())
-            .map(|field| field.name().clone())
-            .collect::<Vec<_>>();
+        let mut fields = Vec::new();
+        if !self.graph_constants.is_empty() {
+            fields.extend(self.graph_constants.iter().map(|constant| {
+                let name = &constant.name;
+                let val = constant.val();
+                body.extend(quote! {
+
+                    let #name = #val;
+                });
+                name.clone()
+            }));
+        }
+        fields.extend(
+            self.nodes
+                .iter()
+                .flat_map(|node| node.field_type())
+                .map(|field| field.name().clone())
+                .collect::<Vec<_>>(),
+        );
 
         quote! {
             #[allow(unused_variables)]
