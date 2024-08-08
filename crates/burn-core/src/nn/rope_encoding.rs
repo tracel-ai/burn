@@ -58,7 +58,7 @@ impl RotaryEncodingConfig {
                 .float()
                 .unsqueeze()
                 .transpose()
-                .repeat(1, self.d_model / 2)
+                .repeat_dim(1, self.d_model / 2)
                 * theta_i.unsqueeze();
 
         // Convert frequency values to complex numbers (polar form)
@@ -71,7 +71,7 @@ impl RotaryEncodingConfig {
             .reshape([self.max_sequence_length, 2, self.d_model / 2])
             .transpose()
             .unsqueeze_dim::<4>(2)
-            .repeat(2, 2)
+            .repeat_dim(2, 2)
             .reshape([self.max_sequence_length, self.d_model, 2]);
 
         RotaryEncoding {

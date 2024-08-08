@@ -162,12 +162,12 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_mean_dim(tensor, dim)
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<B, D> {
-        B::int_repeat(tensor, dim, times)
+        B::int_repeat_dim(tensor, dim, times)
     }
 
     fn int_greater<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {

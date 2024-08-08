@@ -94,7 +94,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn repeat<R: JitRuntime, E: JitElement, const D1: usize>(
+pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement, const D1: usize>(
     input: JitTensor<R, E, D1>,
     dim: usize,
     times: usize,

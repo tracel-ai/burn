@@ -73,7 +73,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
+            .repeat_dim(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
@@ -113,7 +113,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
+            .repeat_dim(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;

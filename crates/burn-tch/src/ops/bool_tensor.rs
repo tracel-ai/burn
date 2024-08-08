@@ -15,12 +15,12 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         tensor.shape()
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: TchTensor<bool, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<bool, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
     async fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> TensorData {

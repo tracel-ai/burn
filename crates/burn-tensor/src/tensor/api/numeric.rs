@@ -778,6 +778,32 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    pub fn is_nan(&self) -> Tensor<B, D, Bool> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        K::not_equal(self.primitive.clone(), self.primitive.clone())
+    }
+
+    /// Checks if the tensor contains any NaN values.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element indicating whether the tensor contains any NaN values.
+    pub fn contains_nan(&self) -> Tensor<B, 1, Bool> {
+        // Summing the tensor will result in NaN if the tensor contains any NaN values
+        // This is faster than checking each element individually
+        // because it rolls up the NaN values into a single value
+        let sum = K::sum(self.primitive.clone());
+
+        // Check if the sum is NaN by comparing it to itself
+        K::not_equal(sum.clone(), sum)
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>

@@ -74,6 +74,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_powf_scalar!();
         burn_tensor::testgen_random!();
         burn_tensor::testgen_recip!();
+        burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_select!();
@@ -102,6 +103,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_topk!();
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
+        burn_tensor::testgen_nan!();
 
         // test stats
         burn_tensor::testgen_var!();

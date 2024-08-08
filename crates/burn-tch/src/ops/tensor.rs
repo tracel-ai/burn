@@ -42,12 +42,12 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         }
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<E, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &LibTorchDevice) -> TchTensor<E, D> {

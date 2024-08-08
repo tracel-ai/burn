@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(repeat)]
+#[burn_tensor_testgen::testgen(repeat_dim)]
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor};
@@ -12,8 +12,8 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = tensor.repeat(dim, times);
-        let expected = tensor_ref.repeat(dim, times);
+        let actual = tensor.repeat_dim(dim, times);
+        let expected = tensor_ref.repeat_dim(dim, times);
 
         expected
             .into_data()
@@ -29,8 +29,8 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = tensor.repeat(dim, times);
-        let expected = tensor_ref.repeat(dim, times);
+        let actual = tensor.repeat_dim(dim, times);
+        let expected = tensor_ref.repeat_dim(dim, times);
 
         expected
             .into_data()
@@ -46,8 +46,8 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = tensor.repeat(dim, times);
-        let expected = tensor_ref.repeat(dim, times);
+        let actual = tensor.repeat_dim(dim, times);
+        let expected = tensor_ref.repeat_dim(dim, times);
 
         expected
             .into_data()
@@ -66,8 +66,8 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = tensor.repeat(dim, times);
-        let expected = tensor_ref.repeat(dim, times);
+        let actual = tensor.repeat_dim(dim, times);
+        let expected = tensor_ref.repeat_dim(dim, times);
 
         expected
             .into_data()

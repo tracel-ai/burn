@@ -318,12 +318,12 @@ where
         tensor
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn int_random<const D: usize>(
