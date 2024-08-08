@@ -395,8 +395,6 @@ use burn::tensor::{set_print_options, PrintOptions};
 
 let print_options = PrintOptions {
     precision: Some(2),
-    // threshold: 1000,
-    // edge_items: 3,
     ..Default::default()
 };
 

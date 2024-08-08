@@ -303,7 +303,7 @@ mod tests {
 
         // CAN'T DO THIS BECAUSE OF GLOBAL STATE
         // let print_options = PrintOptions {
-        //     precision: Some(1),
+        //     precision: Some(3),
         //     ..Default::default()
         // };
         // set_print_options(print_options);
@@ -329,7 +329,5 @@ mod tests {
             TestBackend::name(),
         );
         assert_eq!(output, expected);
-
-        // set_print_options(Default::default());
     }
 }
