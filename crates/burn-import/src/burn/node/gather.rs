@@ -164,7 +164,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     scalar1: i64
                 ) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.select(0, Tensor::from_data([scalar1], &*self.device())).squeeze(0);
+                    let tensor2 = tensor1.select(0, Tensor::from_data([scalar1], &*self.device)).squeeze(0);
 
                     tensor2
                 }
