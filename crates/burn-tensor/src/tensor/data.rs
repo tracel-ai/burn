@@ -65,7 +65,6 @@ impl TensorData {
 
         // Ensure shape is valid
         let shape = shape.into();
-        assert!(!shape.is_empty(), "0-dim TensorData is invalid");
         let shape_numel = Self::numel(&shape);
         let numel = value.len();
         assert_eq!(
