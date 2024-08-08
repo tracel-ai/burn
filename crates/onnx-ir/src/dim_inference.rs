@@ -815,7 +815,7 @@ fn gather_update_outputs(node: &mut Node) {
         _ => panic!("Only tensor indices is valid"),
     };
 
-    if indices_tensor.dim != 1 {
+    if indices_tensor.dim > 1 {
         panic!("Gather: indices tensor rank above 1 not supported")
     }
 
