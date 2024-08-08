@@ -57,10 +57,6 @@ fn main() {
     println!("Success!");
     println!("Predicted: {}", arg_max);
     println!("Actual: {}", item.label);
-
-    // Print the image URL if the image index is less than 100 (the online dataset only has 100 images)
-    if image_index < 100 {
-        println!("See the image online, click the link below:");
-        println!("https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/{image_index}/image/image.jpg");
-    }
+    println!("See the image online, click the link below:");
+    println!("https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row={image_index}");
 }
