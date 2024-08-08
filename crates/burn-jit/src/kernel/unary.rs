@@ -82,12 +82,7 @@ where
             &client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
+            tensor.as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             options(&()),
             None,
@@ -99,7 +94,7 @@ where
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
         let output = JitTensor::new_contiguous(
             tensor.client.clone(),
-            tensor.device,
+            tensor.device.clone(),
             tensor.shape.clone(),
             buffer,
         );
@@ -108,18 +103,8 @@ where
             &client,
             cube_count,
             CubeDim::default(),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &output.handle,
-                &output.strides,
-                &output.shape.dims,
-            ),
+            tensor.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             options(&()),
             Some(UInt::new(D as u32)),
             !is_contiguous,

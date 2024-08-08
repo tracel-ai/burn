@@ -49,6 +49,7 @@ template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
+cuda-jit = ["burn-core/cuda-jit"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
 

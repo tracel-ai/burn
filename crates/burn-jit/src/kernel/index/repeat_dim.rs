@@ -1,7 +1,6 @@
 use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -117,17 +116,9 @@ pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement, const D1: usize>(
 
     let kernel = RepeatEagerKernel::<R, E>::new(dim, D1);
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

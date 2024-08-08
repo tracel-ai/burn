@@ -50,25 +50,19 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let client = input.client.clone();
     let handle = client.empty(num_elems * core::mem::size_of::<EO>());
-    let output =
-        JitTensor::new_contiguous(client.clone(), input.device, input.shape.clone(), handle);
+    let output = JitTensor::new_contiguous(
+        client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+        handle,
+    );
 
     cast_element::launch::<EI::Primitive, EO::Primitive, R>(
         &client,
         cube_count,
         cube_dim,
-        TensorArg::vectorized(
-            vectorization_factor,
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        ),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        ),
+        input.as_tensor_arg(vectorization_factor),
+        output.as_tensor_arg(vectorization_factor),
         Some(UInt::new(rank as u32)),
     );
 

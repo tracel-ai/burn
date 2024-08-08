@@ -7,7 +7,6 @@ use crate::{
 };
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -404,16 +403,8 @@ pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let kernel = AvgPool2dBackwardEagerKernel::<R, E>::new(kernel_size, count_include_pad);
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &grad.handle,
-            &grad.strides,
-            &grad.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .inputs(&[grad.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&[
             stride[0] as i32,
             stride[1] as i32,
