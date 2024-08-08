@@ -1,3 +1,6 @@
+# Originally copied and modified from:
+# https://github.com/tensorflow/tensorflow/blob/e0b19f6ef223af40e2e6d1d21b8464c1b2ebee8f/tensorflow/lite/micro/examples/hello_world/train/train_hello_world_model.ipynb
+# under the following license: Apache License 2.0
 import os
 import numpy as np
 import tensorflow as tf
