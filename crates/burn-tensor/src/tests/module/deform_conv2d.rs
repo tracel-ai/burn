@@ -25,12 +25,12 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from([[
-            [[3.5122, 3.7539], [2.6651, 2.1670]],
-            [[3.0452, 2.5101], [2.7505, 1.8762]],
-            [[2.5257, 2.7189], [2.1275, 1.6800]],
-            [[2.6337, 2.9503], [2.5916, 1.9741]],
-            [[2.6041, 2.3439], [2.6403, 1.8981]],
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[122.4954, 86.2217], [69.6655, 56.6430]],
+            [[301.4954, 217.1068], [182.5671, 151.0068]],
+            [[480.4954, 347.9919], [295.4688, 245.3705]],
+            [[659.4954, 478.8770], [408.3705, 339.7342]],
+            [[838.4954, 609.7621], [521.2722, 434.0979]],
         ]]));
     }
 
@@ -53,7 +53,7 @@ mod tests {
     }
 
     impl DeformConv2dTestCase {
-        fn assert_output(self, y: TestTensor<4>) {
+        fn assert_output(self, y: Tensor<TestBackend, 4>) {
             let out_height =
                 (self.height + 2 * self.padding_1 - self.dilation_1 * (self.kernel_size_1 - 1) - 1)
                     / self.stride_1
@@ -62,6 +62,8 @@ mod tests {
                 (self.width + 2 * self.padding_2 - self.dilation_2 * (self.kernel_size_2 - 1) - 1)
                     / self.stride_2
                     + 1;
+
+            println!("Out dims: ({out_width}x{out_height})");
 
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let shape_weight = Shape::new([
@@ -78,35 +80,38 @@ mod tests {
             ]);
             let shape_mask = Shape::new([
                 self.batch_size,
-                self.kernel_size_1 * self.kernel_size_2 * self.offset_groups * 2,
+                self.kernel_size_1 * self.kernel_size_2 * self.offset_groups,
                 out_height,
                 out_width,
             ]);
             let device = Default::default();
-            let weight = TestTensor::from(
+            let weight = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
-                    .reshape(shape_weight)
+                    .reshape(shape_weight.clone())
                     .into_data(),
             );
-            let bias = TestTensor::from(
+            let bias = Tensor::<TestBackend, 1>::from(
                 TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             );
-            let x = TestTensor::from(
+            let x = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape(shape_x.clone())
                     .into_data(),
-            );
-            let offset = TestTensor::from(
+            )
+            .div_scalar(shape_x.num_elements() as f32);
+            let offset = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_offset.num_elements() as i64, &device)
-                    .reshape(shape_offset)
+                    .reshape(shape_offset.clone())
                     .into_data(),
-            );
-            let mask = TestTensor::from(
+            )
+            .div_scalar(shape_offset.num_elements() as f32);
+            let mask = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_mask.num_elements() as i64, &device)
-                    .reshape(shape_mask)
+                    .reshape(shape_mask.clone())
                     .into_data(),
-            );
-            println!("test input: {:?}", x);
+            )
+            .div_scalar(shape_mask.num_elements() as f32);
+
             let output = deform_conv2d(
                 x,
                 offset,
@@ -121,7 +126,6 @@ mod tests {
                     self.offset_groups,
                 ),
             );
-
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }
     }
