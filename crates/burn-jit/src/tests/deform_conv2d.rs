@@ -8,10 +8,10 @@ mod tests {
         let test_device = Default::default();
         let input =
             Tensor::<TestBackend, 4>::random([6, 16, 32, 32], Distribution::Default, &test_device);
-        let out_height = (32 + 2 * 2 - 2 * (2 - 1) - 1) / 2 + 1;
+        let out_height = (32 + 2 * 2 - 2 * (3 - 1) - 1) / 2 + 1;
         let out_width = (32 + 2 * 3 - 3 * (3 - 1) - 1) / 3 + 1;
         let offset = Tensor::<TestBackend, 4>::random(
-            [6, 2 * 3 * 2 * 3, out_height, out_width],
+            [6, 2 * 2 * 3 * 3, out_height, out_width],
             Distribution::Default,
             &test_device,
         );
@@ -31,7 +31,7 @@ mod tests {
         let mask_ref = Tensor::<ReferenceBackend, 4>::from_data(mask.to_data(), &ref_device);
         let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
-        let options = burn_tensor::ops::DeformConvOptions::new([2, 3], [2, 3], [2, 3], 2, 3);
+        let options = burn_tensor::ops::DeformConvOptions::new([2, 3], [2, 3], [2, 3], 2, 2);
 
         let output = module::deform_conv2d(
             input,
