@@ -43,6 +43,7 @@ include_models!(
     flatten,
     gather,
     gather_scalar,
+    gather_shape,
     gather_elements,
     gelu,
     global_avr_pool,
@@ -455,6 +456,21 @@ mod tests {
         let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
         let output = model.forward(input, index);
         let expected = TensorData::from([[1f32, 3.], [4., 6.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_shape() {
+        let model: gather_shape::Model<Backend> = gather_shape::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        // shape(input) = [2, 3]
+        let index = Tensor::<Backend, 1, Int>::from_ints([0], &device);
+        let output = model.forward(input, index);
+        let expected = TensorData::from([2i64]);
 
         assert_eq!(output.to_data(), expected);
     }
