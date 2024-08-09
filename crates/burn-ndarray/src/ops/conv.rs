@@ -300,8 +300,8 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     let [dilation_height, dilation_width] = options.dilation;
     let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
-    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
+    let [batch_size, in_channels, in_height, in_width] = x.shape().dims;
+    let [out_channels, in_channels_per_group, kernel_height, kernel_width] = weight.shape().dims;
 
     let out_height = calculate_conv_output_size(
         kernel_height,
@@ -362,10 +362,10 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                     let out_channel = index % out_channels;
                     let weight_group = index % options.weight_groups;
 
-                    for in_channel in
-                        (in_channels * weight_group)..(in_channels * (weight_group + 1))
+                    for in_channel in (in_channels_per_group * weight_group)
+                        ..(in_channels_per_group * (weight_group + 1))
                     {
-                        let weight_in_channel = in_channel - (weight_group * in_channels);
+                        let weight_in_channel = in_channel - (weight_group * in_channels_per_group);
                         let offset_group = in_channel / channels_per_offset_group;
 
                         let x = x.slice(s![batch, in_channel, .., ..]);
@@ -449,7 +449,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                         }
                     }
                 },
-            );
+            )
     });
 
     let output = output
