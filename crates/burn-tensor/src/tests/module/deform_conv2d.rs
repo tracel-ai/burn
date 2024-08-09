@@ -162,8 +162,6 @@ mod tests {
                     / self.stride_2
                     + 1;
 
-            println!("Out dims: ({out_width}x{out_height})");
-
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let shape_weight = Shape::new([
                 self.channels_out,
