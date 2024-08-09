@@ -1,6 +1,6 @@
 //! Naive matmul kernel implementation
 //!
-//! Each local thread will compute a single element of the output matrix.
+//! Each local unit will compute a single element of the output matrix.
 use crate::{
     kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
     ops::swap_dims,
