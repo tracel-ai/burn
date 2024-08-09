@@ -320,6 +320,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
 }
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
+#[allow(clippy::single_range_in_vec_init)]
 pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntElement>(
     x: JitTensor<R, E, 4>,
     offset: JitTensor<R, E, 4>,
@@ -473,6 +474,7 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
     weight_grad
 }
 
+#[allow(clippy::single_range_in_vec_init)]
 fn conv2d_weight_grad_groups<B: Backend>(
     x: FloatTensor<B, 4>,
     offset: FloatTensor<B, 4>,
@@ -534,6 +536,12 @@ fn conv2d_weight_grad_groups<B: Backend>(
     weight_grad
 }
 
+type InputGradients<R, E> = (
+    JitTensor<R, E, 4>,
+    JitTensor<R, E, 4>,
+    Option<JitTensor<R, E, 4>>,
+);
+
 fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     x: &JitTensor<R, E, 4>,
     offset: &JitTensor<R, E, 4>,
@@ -542,11 +550,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     output_grad: &JitTensor<R, E, 4>,
     columns: JitTensor<R, E, 4>,
     options: &DeformConvOptions<2>,
-) -> (
-    JitTensor<R, E, 4>,
-    JitTensor<R, E, 4>,
-    Option<JitTensor<R, E, 4>>,
-) {
+) -> InputGradients<R, E> {
     let (offset_gradient, mask_gradient) =
         compute_offset_and_mask_gradient(output_grad, x, offset, weight, mask.clone(), options);
 
