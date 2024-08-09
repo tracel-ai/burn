@@ -4,6 +4,8 @@ use crate::{
     Int, Tensor, TensorPrimitive,
 };
 
+use super::ops::DeformConvOptions;
+
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
 pub fn embedding<B>(weights: Tensor<B, 2>, indices: Tensor<B, 2, Int>) -> Tensor<B, 3>
 where
@@ -64,6 +66,28 @@ where
     Tensor::new(TensorPrimitive::Float(B::conv3d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+        options,
+    )))
+}
+
+/// Applies a [Deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d).
+pub fn deform_conv2d<B>(
+    x: Tensor<B, 4>,
+    offset: Tensor<B, 4>,
+    weight: Tensor<B, 4>,
+    mask: Option<Tensor<B, 4>>,
+    bias: Option<Tensor<B, 1>>,
+    options: DeformConvOptions<2>,
+) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::deform_conv2d(
+        x.primitive.tensor(),
+        offset.primitive.tensor(),
+        weight.primitive.tensor(),
+        mask.map(|m| m.primitive.tensor()),
         bias.map(|b| b.primitive.tensor()),
         options,
     )))
