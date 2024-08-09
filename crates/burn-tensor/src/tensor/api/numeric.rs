@@ -101,12 +101,16 @@ where
 
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::zeros(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
+        Self::new(K::zeros(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::ones(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
+        Self::new(K::ones(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -115,7 +119,9 @@ where
         fill_value: E,
         device: &B::Device,
     ) -> Self {
-        Self::new(K::full(shape.into(), fill_value, device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
+        Self::new(K::full(shape, fill_value, device))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
