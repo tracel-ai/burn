@@ -39,6 +39,7 @@ mod tests {
     use alloc::vec;
 
     burn_tensor::testgen_all!();
+    burn_tensor::testgen_quantization!();
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();

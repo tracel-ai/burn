@@ -1,5 +1,7 @@
+use core::ops::Range;
+
 use burn_tensor::{
-    ops::{FloatTensor, QTensorOps, QuantizedTensor},
+    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         AffineQuantization, Quantization, QuantizationParametersPrimitive, QuantizationScheme,
         QuantizationStrategy, QuantizationType, SymmetricQuantization,
@@ -12,7 +14,7 @@ use crate::{
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
 };
 
-use super::NdArrayOps;
+use super::{NdArrayMathOps, NdArrayOps};
 
 fn into_data<E: NdArrayElement, const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
     let shape = tensor.shape();
@@ -99,6 +101,13 @@ impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q>
         NdArrayDevice::Cpu
     }
 
+    fn q_to_device<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        _device: &NdArrayDevice,
+    ) -> QuantizedTensor<Self, D> {
+        tensor
+    }
+
     fn q_reshape<const D1: usize, const D2: usize>(
         tensor: QuantizedTensor<Self, D1>,
         shape: Shape<D2>,
@@ -114,5 +123,99 @@ impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q>
         let shape = tensor.qtensor.shape();
         let values = tensor.qtensor.array.into_iter().collect();
         TensorData::quantized(values, shape, tensor.strategy)
+    }
+
+    fn q_swap_dims<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> QuantizedTensor<Self, D> {
+        NdArrayQTensor {
+            qtensor: NdArrayOps::swap_dims(tensor.qtensor, dim1, dim2),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_permute<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        axes: [usize; D],
+    ) -> QuantizedTensor<Self, D> {
+        NdArrayQTensor {
+            qtensor: NdArrayOps::permute(tensor.qtensor, axes),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_flip<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        axes: &[usize],
+    ) -> QuantizedTensor<Self, D> {
+        NdArrayQTensor {
+            qtensor: NdArrayOps::flip(tensor.qtensor, axes),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_gather<const D: usize>(
+        dim: usize,
+        tensor: QuantizedTensor<Self, D>,
+        indices: IntTensor<Self, D>,
+    ) -> QuantizedTensor<Self, D> {
+        NdArrayQTensor {
+            qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_select<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
+        indices: IntTensor<Self, 1>,
+    ) -> QuantizedTensor<Self, D> {
+        NdArrayQTensor {
+            qtensor: NdArrayMathOps::select(tensor.qtensor, dim, indices),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_slice<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        ranges: [Range<usize>; D2],
+    ) -> QuantizedTensor<Self, D1> {
+        NdArrayQTensor {
+            qtensor: NdArrayOps::slice(tensor.qtensor, ranges),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
+    }
+
+    fn q_argmax<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
+    ) -> IntTensor<Self, D> {
+        NdArrayMathOps::argmax(tensor.qtensor, dim)
+    }
+
+    fn q_argmin<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+        dim: usize,
+    ) -> IntTensor<Self, D> {
+        NdArrayMathOps::argmin(tensor.qtensor, dim)
+    }
+
+    fn q_expand<const D1: usize, const D2: usize>(
+        tensor: QuantizedTensor<Self, D1>,
+        shape: Shape<D2>,
+    ) -> QuantizedTensor<Self, D2> {
+        NdArrayQTensor {
+            qtensor: NdArrayOps::expand(tensor.qtensor, shape),
+            scheme: tensor.scheme,
+            strategy: tensor.strategy,
+        }
     }
 }

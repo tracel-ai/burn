@@ -62,6 +62,12 @@ pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
 impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
     /// Initialize an affine quantization scheme with the given parameters.
     pub fn init(scale: E, offset: Q) -> Self {
+        let mut scale = scale;
+        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
+        // scale to 0.1 to avoid division by zero.
+        if scale.eq(&E::zero()) {
+            scale = E::from(0.1).unwrap();
+        }
         Self {
             scale,
             offset,
@@ -132,6 +138,12 @@ pub struct SymmetricQuantization<E: Float, Q: PrimInt> {
 impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
     /// Initialize a symmetric quantization scheme with the given parameters.
     pub fn init(scale: E) -> Self {
+        let mut scale = scale;
+        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
+        // scale to 0.1 to avoid division by zero.
+        if scale.eq(&E::zero()) {
+            scale = E::from(0.1).unwrap();
+        }
         Self {
             scale,
             _q: PhantomData,
