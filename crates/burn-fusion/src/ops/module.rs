@@ -231,9 +231,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
         out.client.register(
             streams,
-            OperationDescription::Module(ModuleOperationDescription::DeformableConv2d(
+            OperationDescription::Module(ModuleOperationDescription::DeformableConv2d(Box::new(
                 desc.clone(),
-            )),
+            ))),
             DeformConv2dOps::<B>::new(desc),
         );
 
@@ -350,7 +350,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         input_grad.client.register(
             streams,
             OperationDescription::Module(ModuleOperationDescription::DeformableConv2dBackward(
-                desc.clone(),
+                Box::new(desc.clone()),
             )),
             DeformConv2dBackwardOps::<B>::new(desc),
         );

@@ -151,7 +151,7 @@ impl RelativeOps for ModuleOperationDescription {
                 })
             }
             ModuleOperationDescription::DeformableConv2d(desc) => {
-                ModuleOperationDescription::DeformableConv2d(DeformConv2dDescription {
+                ModuleOperationDescription::DeformableConv2d(Box::new(DeformConv2dDescription {
                     x: desc.x.to_relative(converter),
                     offset: desc.offset.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
@@ -159,10 +159,10 @@ impl RelativeOps for ModuleOperationDescription {
                     bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
                     options: desc.options.clone(),
                     out: desc.out.to_relative(converter),
-                })
+                }))
             }
             ModuleOperationDescription::DeformableConv2dBackward(desc) => {
-                ModuleOperationDescription::DeformableConv2dBackward(
+                ModuleOperationDescription::DeformableConv2dBackward(Box::new(
                     DeformConv2dBackwardDescription {
                         x: desc.x.to_relative(converter),
                         offset: desc.offset.to_relative(converter),
@@ -177,7 +177,7 @@ impl RelativeOps for ModuleOperationDescription {
                         mask_grad: desc.mask_grad.as_ref().map(|t| t.to_relative(converter)),
                         bias_grad: desc.bias_grad.as_ref().map(|t| t.to_relative(converter)),
                     },
-                )
+                ))
             }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
                 ModuleOperationDescription::ConvTranspose1d(ConvTranspose1dDescription {

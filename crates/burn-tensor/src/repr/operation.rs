@@ -77,9 +77,9 @@ pub enum ModuleOperationDescription {
     /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
     Conv3d(Conv3dDescription),
     /// Operation corresponding to [deform_conv2d](crate::ops::ModuleOps::deform_conv2d)
-    DeformableConv2d(DeformConv2dDescription),
+    DeformableConv2d(Box<DeformConv2dDescription>),
     /// Operation corresponding to [deform_conv2d_backward](crate::ops::ModuleOps::deform_conv2d_backward)
-    DeformableConv2dBackward(DeformConv2dBackwardDescription),
+    DeformableConv2dBackward(Box<DeformConv2dBackwardDescription>),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
