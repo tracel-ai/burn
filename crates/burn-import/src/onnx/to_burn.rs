@@ -617,7 +617,7 @@ impl ParsedOnnxGraph {
 
     fn gather_conversion(node: Node) -> GatherNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let index = TensorType::from(node.inputs.get(1).unwrap());
+        let index = Type::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 

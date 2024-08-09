@@ -33,6 +33,7 @@ fn main() {
         .input("tests/expand/expand.onnx")
         .input("tests/flatten/flatten.onnx")
         .input("tests/gather/gather.onnx")
+        .input("tests/gather/gather_scalar.onnx")
         .input("tests/gather_elements/gather_elements.onnx")
         .input("tests/gelu/gelu.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
