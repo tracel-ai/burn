@@ -43,6 +43,8 @@ fn deform_conv2d_kernel<F: Float>(
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
+    // position shape: [batch_size, out_channels, out_h, out_w]
+
     if ABSOLUTE_POS >= output.len() {
         return;
     }
@@ -60,7 +62,7 @@ fn deform_conv2d_kernel<F: Float>(
     let out_y = ABSOLUTE_POS / output.stride(2) % output.shape(2);
     let out_x = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
-    let weight_group = (weight.shape(0) + out_channel) % args.weight_groups;
+    let weight_group = (output.shape(1) + out_channel) % args.weight_groups;
     let channels_per_offset_group = in_channels / args.offset_groups;
     let in_channels_start = channels_per_weight_group * weight_group;
     let in_channels_end = in_channels_start + channels_per_weight_group;

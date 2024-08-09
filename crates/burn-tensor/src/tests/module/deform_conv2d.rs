@@ -26,12 +26,110 @@ mod tests {
         };
 
         test.assert_output(Tensor::<TestBackend, 4>::from([[
-            [[122.4954, 86.2217], [69.6655, 56.6430]],
-            [[301.4954, 217.1068], [182.5671, 151.0068]],
-            [[480.4954, 347.9919], [295.4688, 245.3705]],
-            [[659.4954, 478.8770], [408.3705, 339.7342]],
-            [[838.4954, 609.7621], [521.2722, 434.0979]],
+            [[0.9074, 0.6387], [0.5160, 0.4196]],
+            [[2.4259, 1.8008], [1.5449, 1.3112]],
+            [[3.9444, 2.9629], [2.5738, 2.2027]],
+            [[5.4629, 4.1250], [3.6027, 3.0943]],
+            [[6.9814, 5.2871], [4.6316, 3.9859]],
         ]]));
+    }
+
+    #[test]
+    fn test_deform_conv2d_batched() {
+        let test = DeformConv2dTestCase {
+            batch_size: 2,
+            channels_in: 3,
+            channels_out: 5,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([
+            [
+                [[0.2155, 0.1928], [0.1934, 0.1755]],
+                [[0.7251, 0.6759], [0.6877, 0.6485]],
+                [[1.2347, 1.1590], [1.1821, 1.1215]],
+                [[1.7443, 1.6421], [1.6764, 1.5945]],
+                [[2.2539, 2.1252], [2.1708, 2.0675]],
+            ],
+            [
+                [[1.6530, 1.1369], [0.9840, 0.7184]],
+                [[4.8368, 3.4725], [3.1773, 2.4180]],
+                [[8.0206, 5.8080], [5.3705, 4.1176]],
+                [[11.2045, 8.1435], [7.5637, 5.8173]],
+                [[14.3883, 10.4790], [9.7570, 7.5169]],
+            ],
+        ]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_weight_groups() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 3,
+            channels_out: 6,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 3,
+            offset_groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[0.1018, 0.0658], [0.0467, 0.0362]],
+            [[0.4125, 0.3367], [0.3069, 0.2824]],
+            [[1.3076, 1.0242], [0.9025, 0.8000]],
+            [[1.8405, 1.4581], [1.2994, 1.1588]],
+            [[3.4022, 2.6346], [2.3052, 2.0143]],
+            [[4.1574, 3.2315], [2.8389, 2.4857]],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_offset_groups() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 3,
+            channels_out: 6,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 3,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[1.0794, 0.7676], [0.7209, 0.5337]],
+            [[2.7059, 2.0216], [1.9740, 1.5419]],
+            [[4.3325, 3.2755], [3.2271, 2.5501]],
+            [[5.9590, 4.5295], [4.4802, 3.5582]],
+            [[7.5855, 5.7835], [5.7333, 4.5664]],
+            [[9.2120, 7.0375], [6.9864, 5.5746]],
+        ]]))
     }
 
     struct DeformConv2dTestCase {
@@ -89,10 +187,12 @@ mod tests {
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                     .reshape(shape_weight.clone())
                     .into_data(),
-            );
+            )
+            .div_scalar(shape_weight.num_elements() as f32);
             let bias = Tensor::<TestBackend, 1>::from(
                 TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
-            );
+            )
+            .div_scalar(self.channels_out as f32);
             let x = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x.clone())
