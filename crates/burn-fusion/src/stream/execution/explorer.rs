@@ -5,6 +5,8 @@ use crate::{OptimizationBuilder, OptimizationStatus};
 
 /// Explore and create new optimization.
 pub struct Explorer<O> {
+    /// The optimization builders, one for each type of optimization that
+    /// we want to explore.
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     num_deferred: usize,
     num_explored: usize,
@@ -75,6 +77,7 @@ impl<O> Explorer<O> {
         self.is_still_optimizing = true;
     }
 
+    /// Register any operations that we had deferred
     fn update(&mut self, operations: &[OperationDescription]) {
         for i in (0..self.num_deferred).rev() {
             if !self.is_still_optimizing {
@@ -95,6 +98,8 @@ impl<O> Explorer<O> {
     }
 }
 
+/// Returns false if all optimization builders are closed, which means that no more
+/// optimizations are possible.
 fn still_optimizing<O>(optimizations: &[Box<dyn OptimizationBuilder<O>>]) -> bool {
     let mut num_stopped = 0;
 

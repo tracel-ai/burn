@@ -17,6 +17,10 @@ pub struct ExecutionPlanIndex {
     /// We rely instead on [`PartialEq`](core::cmp::PartialEq) to manually handle hash collisions.
     /// This is OK because we use `relative` operations where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
+    ///
+    /// Map from the hash of the `OperationDescription` to a list of `(OperationDescription, index)` pairs,
+    /// where `index` is the index of all the execution plans that start with the `OperationDescription`
+    /// in the `starters` list.
     mapping: HashMap<u64, Vec<(OperationDescription, usize)>>,
     starters: Vec<Vec<ExecutionPlanId>>,
 }
@@ -51,6 +55,7 @@ impl ExecutionPlanIndex {
         }
     }
 
+    /// Find execution plans starting with the `OperationDescription`
     fn find_starting_with(&self, operation: &OperationDescription) -> Vec<ExecutionPlanId> {
         let key = self.operation_key(operation);
         let values = match self.mapping.get(&key) {
@@ -75,6 +80,7 @@ impl ExecutionPlanIndex {
         val
     }
 
+    /// Update the index for an execution plan starting with operation `ops`
     fn insert_new_operation(&mut self, ops: &OperationDescription, new_id: ExecutionPlanId) {
         let key = self.operation_key(ops);
         let values = match self.mapping.get_mut(&key) {
