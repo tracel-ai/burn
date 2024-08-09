@@ -106,25 +106,49 @@ fn deform_conv2d_mad_inner<E: FloatNdArrayElement>(
 }
 
 fn bilinear_interpolate<E: FloatNdArrayElement>(image: ArrayView2<E>, y: E, x: E) -> E {
-    let y = y.to_f64();
     let x = x.to_f64();
+    let y = y.to_f64();
+    let (height, width) = image.dim();
+    let height = height as f64;
+    let width = width as f64;
 
-    let y0 = y.floor();
-    let y1 = y.ceil();
-    let yw = y - y0;
+    if y <= -1.0 || y > height || x <= -1.0 || x > width {
+        return E::from_elem(0.0);
+    }
 
-    let x0 = x.floor();
-    let x1 = x.ceil();
-    let xw = x - x0;
+    let y_low = y.floor();
+    let x_low = x.floor();
+    let y_high = y_low + 1.0;
+    let x_high = x_low + 1.0;
 
-    let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+    let mut v1 = 0.0;
+    let mut v2 = 0.0;
+    let mut v3 = 0.0;
+    let mut v4 = 0.0;
+    if y_low >= 0.0 && x_low >= 0.0 {
+        v1 = image[[y_low as usize, x_low as usize]].to_f64()
+    };
+    if y_low >= 0.0 && x_high <= width - 1.0 {
+        v2 = image[[y_low as usize, x_high as usize]].to_f64()
+    };
+    if y_high <= height - 1.0 && x_low >= 0.0 {
+        v3 = image[[y_high as usize, x_low as usize]].to_f64()
+    };
+    if y_high <= height - 1.0 && x_high <= width - 1.0 {
+        v4 = image[[y_high as usize, x_high as usize]].to_f64()
+    };
 
-    let p_a = image[(y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
-    let p_b = image[(y0, x1)].elem::<f64>() * xw * (1.0 - yw);
-    let p_c = image[(y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
-    let p_d = image[(y1, x1)].elem::<f64>() * xw * yw;
+    let l_y = y - y_low;
+    let l_x = x - x_low;
+    let h_y = 1.0 - l_y;
+    let h_x = 1.0 - l_x;
 
-    (p_a + p_b + p_c + p_d).elem()
+    let w1 = h_y * h_x;
+    let w2 = h_y * l_x;
+    let w3 = l_y * h_x;
+    let w4 = l_y * l_x;
+
+    E::from_elem(w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4)
 }
 
 #[inline(always)]
@@ -323,9 +347,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
         .array
         .into_shape([
             batch_size,
-            2 * options.offset_groups,
-            kernel_height,
-            kernel_width,
+            options.offset_groups * kernel_height * kernel_width * 2,
             out_height,
             out_width,
         ])
@@ -334,9 +356,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
         mask.array
             .into_shape([
                 batch_size,
-                options.offset_groups,
-                kernel_height,
-                kernel_width,
+                options.offset_groups * kernel_height * kernel_width,
                 out_height,
                 out_width,
             ])
@@ -345,9 +365,9 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
-    let offsets = offsets.into_dimensionality::<ndarray::Ix6>().unwrap();
+    let offsets = offsets.into_dimensionality::<ndarray::Ix4>().unwrap();
     let weights = weight.array.into_dimensionality::<ndarray::Ix4>().unwrap();
-    let mask = mask.map(|mask| mask.into_dimensionality::<ndarray::Ix6>().unwrap());
+    let mask = mask.map(|mask| mask.into_dimensionality::<ndarray::Ix4>().unwrap());
 
     let mut output = Array3::zeros(Dim([batch_size * out_channels, out_height, out_width]));
     let channels_per_offset_group = in_channels / options.offset_groups;
@@ -369,28 +389,22 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                         let offset_group = in_channel / channels_per_offset_group;
 
                         let x = x.slice(s![batch, in_channel, .., ..]);
-                        let offset_kernel = offsets.slice(s![
-                            batch,
-                            (2 * offset_group)..(2 * offset_group) + 2,
-                            ..,
-                            ..,
-                            ..,
-                            ..
-                        ]);
+                        let offset_kernel = offsets.slice(s![batch, .., .., ..]);
                         let kernel = weights.slice(s![out_channel, weight_in_channel, .., ..]);
-                        let mask_kernel = mask
-                            .as_ref()
-                            .map(|mask| mask.slice(s![batch, offset_group, .., .., .., ..]));
+                        let mask_kernel =
+                            mask.as_ref().map(|mask| mask.slice(s![batch, .., .., ..]));
 
                         for kernel_y in 0..kernel_height {
                             for kernel_x in 0..kernel_width {
-                                let offset_y =
-                                    offset_kernel.slice(s![0, kernel_y, kernel_x, .., ..]);
-                                let offset_x =
-                                    offset_kernel.slice(s![1, kernel_y, kernel_x, .., ..]);
+                                let mask_index = offset_group * (kernel_width * kernel_height)
+                                    + kernel_y * kernel_width
+                                    + kernel_x;
+                                let offset_index = mask_index * 2;
+                                let offset_y = offset_kernel.slice(s![offset_index, .., ..]);
+                                let offset_x = offset_kernel.slice(s![offset_index + 1, .., ..]);
                                 let mask = mask_kernel
                                     .as_ref()
-                                    .map(|mask| mask.slice(s![kernel_y, kernel_x, .., ..]));
+                                    .map(|mask| mask.slice(s![mask_index, .., ..]));
                                 let weight = kernel[[kernel_y, kernel_x]];
 
                                 // NOTE: This function call is duplicated twice so that the compiler can perform auto-vectorization
