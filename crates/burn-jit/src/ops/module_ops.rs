@@ -28,7 +28,7 @@ where
         bias: Option<FloatTensor<Self, 1>>,
         options: DeformConvOptions<2>,
     ) -> FloatTensor<Self, 4> {
-        kernel::conv::deform_conv2d(x, offset, weight, mask, bias, options)
+        kernel::conv::deform_conv2d::<R, F, I>(x, offset, weight, mask, bias, options)
     }
 
     fn deform_conv2d_backward(

@@ -225,6 +225,7 @@ mod tests {
                     self.offset_groups,
                 ),
             );
+
             y.to_data().assert_approx_eq(&output.into_data(), 3);
         }
     }
