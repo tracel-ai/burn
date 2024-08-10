@@ -747,6 +747,7 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.14.0"
 dependencies = [
+ "burn-autodiff",
  "burn-fusion",
  "burn-jit",
  "burn-tensor",

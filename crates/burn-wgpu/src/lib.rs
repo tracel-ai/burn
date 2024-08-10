@@ -85,5 +85,10 @@ mod tests {
     use burn_jit::JitBackend;
     pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
 
+    type TestBackend = crate::JitBackend<TestRuntime, f32, i32>;
+    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+
     burn_jit::testgen_all!();
+    burn_autodiff::testgen_all!();
 }

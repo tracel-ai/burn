@@ -1,8 +1,9 @@
 #[burn_tensor_testgen::testgen(module_deform_conv2d)]
 mod tests {
+
     use super::*;
     use burn_tensor::module::deform_conv2d;
-    use burn_tensor::ops::DeformConvOptions;
+    use burn_tensor::ops::{DeformConv2dBackward, DeformConvOptions, ModuleOps};
     use burn_tensor::{Shape, Tensor};
 
     #[test]
