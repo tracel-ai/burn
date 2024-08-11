@@ -5,9 +5,8 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -161,12 +160,30 @@ impl MaxPool2dBackwardComputeShader {
         output_stride_2: Variable,
         output_stride_3: Variable,
     ) -> (Variable, Variable, Variable, Variable) {
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
@@ -267,9 +284,12 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let indices = Variable::GlobalInputArray(0, Item::new(Elem::Int(IntKind::I32)));
-        let grad = Variable::GlobalInputArray(1, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let indices = Variable::GlobalInputArray {
+            id: 0,
+            item: Item::new(Elem::Int(IntKind::I32)),
+        };
+        let grad = Variable::GlobalInputArray { id: 1, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 
@@ -306,12 +326,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.kernel_size)
     }
 }
 
@@ -330,16 +346,9 @@ pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: 
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
     let kernel = MaxPool2dWithIndicesBackwardEagerKernel::<R, E>::new(kernel_size);
 
-    Execution::start(kernel, x.client)
-        .inputs(&[
-            TensorHandle::<R>::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&grad.handle, &grad.strides, &grad.shape.dims),
-        ])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, x.client.clone())
+        .inputs(&[indices.as_handle_ref(), grad.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&[
             stride[0] as i32,
             stride[1] as i32,

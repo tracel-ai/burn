@@ -1,9 +1,9 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchTensor};
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
-impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
     fn bool_from_data<const D: usize>(
         data: TensorData,
         device: &LibTorchDevice,
@@ -15,12 +15,12 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         tensor.shape()
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: TchTensor<bool, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<bool, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
     async fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> TensorData {

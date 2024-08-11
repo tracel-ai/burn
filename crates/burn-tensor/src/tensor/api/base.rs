@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::stub::Mutex;
+use burn_common::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{Element, TensorPrimitive};
+use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -589,13 +589,14 @@ where
     /// # Behavior
     ///
     /// - Supports partial and full slicing in any number of dimensions.
+    /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
     /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
     ///
     /// # Panics
     ///
-    /// - If the number of ranges provided doesn't match the tensor's dimensions.
+    /// - If the number of ranges provided exceeds the tensor's dimensions.
     /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
     ///
     /// # Examples
@@ -721,8 +722,21 @@ where
     }
 
     /// Repeat the tensor along the given dimension.
-    pub fn repeat(self, dim: usize, times: usize) -> Self {
-        Self::new(K::repeat(self.primitive, dim, times))
+    pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
+        Self::new(K::repeat_dim(self.primitive, dim, times))
+    }
+
+    /// Repeat the tensor along the given dimensions.
+    /// # Arguments
+    /// - `sizes`: Borrowed slice of the number of times to repeat each dimension.
+    pub fn repeat(self, sizes: &[usize]) -> Self {
+        let mut tensor = self;
+        for (dim, &times) in sizes.iter().enumerate() {
+            if times > 1 {
+                tensor = tensor.repeat_dim(dim, times);
+            }
+        }
+        tensor
     }
 
     /// Applies element-wise equal comparison and returns a boolean tensor.
@@ -1007,13 +1021,13 @@ where
             acc.push(' ');
         }
     }
-
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
         depth: usize,
         multi_index: &mut [usize],
         range: (usize, usize),
+        precision: Option<usize>,
     ) {
         let (start, end) = range;
         for i in start..end {
@@ -1029,7 +1043,10 @@ where
 
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
-                acc.push_str(&format!("{elem:?}"));
+                match (precision, K::name()) {
+                    (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    _ => acc.push_str(&format!("{:?}", elem)),
+                }
             } else {
                 acc.push_str("<Tensor data not available>");
             }
@@ -1088,7 +1105,13 @@ where
             // if we are at the innermost dimension, just push its elements into the accumulator
             if summarize && self.dims()[depth] > 2 * edge_items {
                 // print the starting `edge_items` elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, edge_items));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, edge_items),
+                    print_options.precision,
+                );
                 acc.push_str(", ...");
                 // print the last `edge_items` elements
                 self.fmt_inner_tensor(
@@ -1096,10 +1119,17 @@ where
                     depth,
                     multi_index,
                     (self.dims()[depth] - edge_items, self.dims()[depth]),
+                    print_options.precision,
                 );
             } else {
                 // print all the elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, self.dims()[depth]));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, self.dims()[depth]),
+                    print_options.precision,
+                );
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
@@ -1144,29 +1174,42 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 /// Options for Tensor pretty printing
 pub struct PrintOptions {
     /// number of elements to start summarizing tensor
     pub threshold: usize,
+
     /// number of starting elements and ending elements to display
     pub edge_items: usize,
+
+    /// Precision for floating point numbers
+    pub precision: Option<usize>,
 }
 
-static PRINT_OPTS: Mutex<PrintOptions> = Mutex::new(PrintOptions::const_default());
+static PRINT_OPTS: RwLock<PrintOptions> = RwLock::new(PrintOptions::const_default());
 
 impl PrintOptions {
-    // We cannot use the default trait as it's not const.
-    const fn const_default() -> Self {
+    /// Print options with default values
+    pub const fn const_default() -> Self {
         Self {
             threshold: 1000,
             edge_items: 3,
+            precision: None,
         }
+    }
+}
+
+impl Default for PrintOptions {
+    fn default() -> Self {
+        Self::const_default()
     }
 }
 
 /// Set print options
 pub fn set_print_options(options: PrintOptions) {
-    *PRINT_OPTS.lock().unwrap() = options
+    let mut print_opts = PRINT_OPTS.write().unwrap();
+    *print_opts = options;
 }
 
 /// Pretty print tensors
@@ -1181,7 +1224,15 @@ where
         writeln!(f, "Tensor {{")?;
 
         {
-            let po = PRINT_OPTS.lock().unwrap();
+            // Do not lock the mutex for the whole function
+            let mut po = { PRINT_OPTS.read().unwrap().clone() };
+
+            // Override the precision if it is set from the formatter
+            // This will be possible when the tensor is printed using the `{:.*}` syntax
+            if let Some(precision) = f.precision() {
+                po.precision = Some(precision);
+            }
+
             let mut acc = String::new();
             let mut multi_index = vec![0; D];
             let summarize = self.shape().num_elements() > po.threshold;
@@ -1503,9 +1554,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For repeating a tensor, users should prefer the [Tensor::repeat](Tensor::repeat) function,
+    /// For repeating a tensor, users should prefer the [Tensor::repeat_dim](Tensor::repeat_dim) function,
     /// which is more high-level and designed for public use.
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
@@ -1686,10 +1737,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_shape(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
         }
     }
 
@@ -1697,7 +1745,12 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        TensorPrimitive::Float(B::float_reshape(tensor.tensor(), shape))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_reshape(tensor, shape))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_reshape(tensor, shape)),
+        }
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
@@ -1735,10 +1788,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
-            TensorPrimitive::QFloat {
-                tensor,
-                strategy: _,
-            } => B::q_device(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
@@ -1750,19 +1800,25 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
-        B::float_into_data(tensor.tensor()).await
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
+            TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
+        }
     }
 
     fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_from_data(data, device))
+        match data.dtype {
+            DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
+            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+        }
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_repeat(tensor.tensor(), dim, times))
+        TensorPrimitive::Float(B::float_repeat_dim(tensor.tensor(), dim, times))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
@@ -1882,12 +1938,12 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::int_repeat(tensor, dim, times)
+        B::int_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(
@@ -2004,12 +2060,12 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_from_data(data, device)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::bool_repeat(tensor, dim, times)
+        B::bool_repeat_dim(tensor, dim, times)
     }
 
     fn equal<const D: usize>(

@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 
-use burn_cube::ir::{Item, Scope, Variable};
+use cubecl::ir::{Item, Scope, Variable};
 
-pub(crate) trait PoolStrategy: Send + Sync + 'static + Clone + Debug {
+pub(crate) trait PoolStrategy:
+    Send + Sync + 'static + Clone + Debug + core::hash::Hash + PartialEq + Eq
+{
     type Accumulator: Copy;
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator;

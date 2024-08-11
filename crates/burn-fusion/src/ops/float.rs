@@ -1696,22 +1696,22 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct RepeatOps<B: FusionBackend, const D: usize> {
-            desc: RepeatOperationDescription,
+        struct RepeatDimOps<B: FusionBackend, const D: usize> {
+            desc: RepeatDimOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatOps<B, D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatDimOps<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B, D>(&self.desc.tensor);
 
-                let output = B::float_repeat::<D>(tensor, self.desc.dim, self.desc.times);
+                let output = B::float_repeat_dim::<D>(tensor, self.desc.dim, self.desc.times);
 
                 handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
             }
@@ -1724,7 +1724,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::FloatElem::dtype());
 
-        let desc = RepeatOperationDescription {
+        let desc = RepeatDimOperationDescription {
             tensor: tensor.into_description(),
             dim,
             times,
@@ -1732,8 +1732,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::BaseFloat(BaseOperationDescription::Repeat(desc.clone())),
-            RepeatOps::<B, D>::new(desc),
+            OperationDescription::BaseFloat(BaseOperationDescription::RepeatDim(desc.clone())),
+            RepeatDimOps::<B, D>::new(desc),
         );
 
         out

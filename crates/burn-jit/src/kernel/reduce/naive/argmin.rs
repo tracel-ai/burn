@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
 };
@@ -17,7 +17,10 @@ impl<E: JitElement> ReduceDimNaive<E> for Argmin {
     ) -> Self::Accumulator {
         let index = scope.create_local(Elem::UInt);
         let min = scope.create_local(input_item);
-        let min_initial = Variable::ConstantScalar(E::maximum_value().to_f64(), input_item.elem());
+        let min_initial = input_item
+            .elem()
+            .constant_from_f64(E::maximum_value().to_f64());
+
         cpa!(scope, min = min_initial);
 
         (min, index)

@@ -1,10 +1,10 @@
-use burn_cube::{
+use cubecl::{
     frontend::{Float, Int, Numeric, UInt, BF16, F16, F32, I32},
     CubeElement,
 };
 
 /// The base element trait for the jit backend.
-pub trait JitElement: burn_tensor::Element + CubeElement {
+pub trait JitElement: burn_tensor::Element + CubeElement + PartialEq {
     /// Cube primitive representing the jit element.
     type Primitive: Numeric<Primitive = Self>;
 }

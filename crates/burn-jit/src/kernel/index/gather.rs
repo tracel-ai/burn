@@ -1,12 +1,12 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::ir::{
+use cubecl::ir::{
     Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
 };
-use burn_cube::{
-    cpa, frontend::TensorHandle, CubeCountSettings, Execution, InputInfo, KernelExpansion,
-    KernelIntegrator, KernelSettings, OutputInfo,
+use cubecl::{
+    cpa, CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator,
+    KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -27,8 +27,8 @@ struct GatherComputeShader {
 impl GatherComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         match self.tensor {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Tensor variable must be an global array."),
         };
 
@@ -78,10 +78,16 @@ impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
         let item_tensor = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let tensor = Variable::GlobalInputArray(0, item_tensor);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_tensor,
+        };
         let indices = scope.read_array(1, item_indices, Variable::AbsolutePos);
 
-        let output_array = Variable::GlobalOutputArray(0, item_tensor);
+        let output_array = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_tensor,
+        };
         let output_local = scope.create_local(item_tensor);
 
         GatherComputeShader {
@@ -114,8 +120,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for GatherEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -128,16 +134,9 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
     let kernel = GatherEagerKernel::<R, E>::new(dim);
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-        ])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, tensor.client.clone())
+        .inputs(&[tensor.as_handle_ref(), indices.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

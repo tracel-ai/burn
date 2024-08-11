@@ -1,11 +1,12 @@
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
-use crate::{binary, JitRuntime};
+use crate::kernel::{
+    launch_binop, launch_scalar_binop, AddOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+};
 use crate::{element::JitElement, tensor::JitTensor};
-use burn_compute::client::ComputeClient;
-use burn_cube::ir::{BinaryOperator, Elem, Operator, Scope, Variable};
-use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
-use burn_cube::{tensor_vectorization_factor, Runtime};
+use crate::{FloatElement, JitRuntime};
 use burn_tensor::{ElementConversion, Shape};
+use cubecl::client::ComputeClient;
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{tensor_vectorization_factor, Runtime};
 
 pub fn full<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
@@ -26,7 +27,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     #[cube(launch)]
-    pub(crate) fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
+    pub fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
         if ABSOLUTE_POS >= tensor.len() {
             return;
         }
@@ -37,21 +38,16 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     let num_elems = empty.shape.num_elements();
     let vectorization_factor =
         tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, D - 1);
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
 
-    full_kernel_launch::<E::Primitive, R>(
-        empty.client.clone(),
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+
+    full_kernel::launch::<E::Primitive, R>(
+        &empty.client,
         cube_count,
-        CubeDim::default(),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &empty.handle,
-            &empty.strides,
-            &empty.shape.dims,
-        ),
+        cube_dim,
+        empty.as_tensor_arg(vectorization_factor),
         ScalarArg::new(value),
     );
 
@@ -106,151 +102,68 @@ pub fn add<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Add(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs,
-        elem: E
-    )
+    launch_binop::<D, R, E, AddOp>(lhs, rhs)
 }
 
 pub fn add_scalar<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    unary_op!(numeric(lhs, rhs) => |context, lhs, rhs| {
-        #[cube]
-        fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
-            lhs + rhs
-        }
-        execute_expand::<C>(context, lhs, rhs)
-    })
+    launch_scalar_binop::<D, R, E, AddOp>(lhs, rhs)
 }
 
 pub fn sub<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Sub(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs,
-        elem: E
-    )
+    launch_binop::<D, R, E, SubOp>(lhs, rhs)
 }
 
 pub fn sub_scalar<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    unary_op!(numeric(lhs, rhs) => |context, lhs, rhs| {
-        #[cube]
-        fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
-            lhs - rhs
-        }
-        execute_expand::<C>(context, lhs, rhs)
-    })
+    launch_scalar_binop::<D, R, E, SubOp>(lhs, rhs)
 }
 
 pub fn mul<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Mul(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs,
-        elem: E
-    )
+    launch_binop::<D, R, E, MulOp>(lhs, rhs)
 }
 
 pub fn mul_scalar<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    unary_op!(numeric(lhs, rhs) => |context, lhs, rhs| {
-        #[cube]
-        fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
-            lhs * rhs
-        }
-        execute_expand::<C>(context, lhs, rhs)
-    })
+    launch_scalar_binop::<D, R, E, MulOp>(lhs, rhs)
 }
 
 pub fn div<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Div(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs,
-        elem: E
-    )
+    launch_binop::<D, R, E, DivOp>(lhs, rhs)
 }
 
 pub fn div_scalar<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    unary_op!(numeric(lhs, rhs) => |context, lhs, rhs| {
-        #[cube]
-        fn execute<C: Numeric>(lhs: C, rhs: C) -> C {
-            lhs / rhs
-        }
-        execute_expand::<C>(context, lhs, rhs)
-    })
+    launch_scalar_binop::<D, R, E, DivOp>(lhs, rhs)
 }
 
 pub fn remainder_scalar<R: JitRuntime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: E,
 ) -> JitTensor<R, E, D> {
-    let shape = lhs.shape.clone();
-    let device = lhs.device.clone();
-
-    let rhs_tensor = full::<R, E, D>(shape, &device, rhs);
-
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Remainder(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs_tensor,
-        elem: E
-    )
+    launch_scalar_binop::<D, R, E, RemainderOp>(lhs, rhs)
 }
 
-pub fn pow<R: JitRuntime, E: JitElement, const D: usize>(
+pub fn pow<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    binary!(
-        operation: |scope: &mut Scope, elem: Elem, position: Variable| Operator::Powf(BinaryOperator {
-            lhs: scope.read_array(0, elem, position),
-            rhs: scope.read_array(1, elem, position),
-            out: scope.create_local(elem),
-        }),
-        runtime: R,
-        input: lhs; rhs,
-        elem: E
-    )
+    launch_binop::<D, R, E, PowOp>(lhs, rhs)
 }

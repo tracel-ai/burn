@@ -523,44 +523,54 @@ impl Data {
             _ => self,
         }
     }
-
     pub fn into_f16(self) -> f16 {
-        if let Data::Float16(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float16, got {:?}", self);
+        match self {
+            Data::Float16(elem) => elem,
+            Data::Float32(elem) => f16::from_f32(elem),
+            Data::Float64(elem) => f16::from_f64(elem),
+            _ => panic!("Cannot convert {:?} to f16", self),
         }
     }
 
     pub fn into_f32(self) -> f32 {
-        if let Data::Float32(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float32, got {:?}", self);
+        match self {
+            Data::Float16(elem) => elem.to_f32(),
+            Data::Float32(elem) => elem,
+            Data::Float64(elem) => elem as f32,
+            Data::Int32(elem) => elem as f32,
+            Data::Int64(elem) => elem as f32,
+            _ => panic!("Cannot convert {:?} to f32", self),
         }
     }
 
     pub fn into_f64(self) -> f64 {
-        if let Data::Float64(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float64, got {:?}", self);
+        match self {
+            Data::Float16(elem) => elem.to_f64(),
+            Data::Float32(elem) => elem as f64,
+            Data::Float64(elem) => elem,
+            Data::Int32(elem) => elem as f64,
+            Data::Int64(elem) => elem as f64,
+            _ => panic!("Cannot convert {:?} to f64", self),
         }
     }
 
     pub fn into_i32(self) -> i32 {
-        if let Data::Int32(elem) = self {
-            elem
-        } else {
-            panic!("Expected Int32, got {:?}", self);
+        match self {
+            Data::Int32(elem) => elem,
+            Data::Int64(elem) => elem as i32,
+            Data::Float32(elem) => elem as i32,
+            Data::Float64(elem) => elem as i32,
+            _ => panic!("Cannot convert {:?} to i32", self),
         }
     }
 
     pub fn into_i64(self) -> i64 {
-        if let Data::Int64(elem) = self {
-            elem
-        } else {
-            panic!("Expected Int64, got {:?}", self);
+        match self {
+            Data::Int32(elem) => elem as i64,
+            Data::Int64(elem) => elem,
+            Data::Float32(elem) => elem as i64,
+            Data::Float64(elem) => elem as i64,
+            _ => panic!("Cannot convert {:?} to i64", self),
         }
     }
 
@@ -581,42 +591,53 @@ impl Data {
     }
 
     pub fn into_f16s(self) -> Vec<f16> {
-        if let Data::Float16s(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float16s, got {:?}", self);
+        match self {
+            Data::Float16s(elem) => elem,
+            Data::Float32s(elem) => elem.into_iter().map(f16::from_f32).collect(),
+            Data::Float64s(elem) => elem.into_iter().map(f16::from_f64).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<f16>", self),
         }
     }
 
     pub fn into_f32s(self) -> Vec<f32> {
-        if let Data::Float32s(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float32s, got {:?}", self);
+        match self {
+            Data::Float16s(elem) => elem.into_iter().map(|x| x.to_f32()).collect(),
+            Data::Float32s(elem) => elem,
+            Data::Float64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
+            Data::Int32s(elem) => elem.into_iter().map(|x| x as f32).collect(),
+            Data::Int64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<f32>", self),
         }
     }
 
     pub fn into_f64s(self) -> Vec<f64> {
-        if let Data::Float64s(elem) = self {
-            elem
-        } else {
-            panic!("Expected Float64s, got {:?}", self);
+        match self {
+            Data::Float16s(elem) => elem.into_iter().map(|x| x.to_f64()).collect(),
+            Data::Float32s(elem) => elem.into_iter().map(|x| x as f64).collect(),
+            Data::Float64s(elem) => elem,
+            Data::Int32s(elem) => elem.into_iter().map(|x| x as f64).collect(),
+            Data::Int64s(elem) => elem.into_iter().map(|x| x as f64).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<f64>", self),
         }
     }
 
     pub fn into_i32s(self) -> Vec<i32> {
-        if let Data::Int32s(elem) = self {
-            elem
-        } else {
-            panic!("Expected Int32s, got {:?}", self);
+        match self {
+            Data::Int32s(elem) => elem,
+            Data::Int64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
+            Data::Float32s(elem) => elem.into_iter().map(|x| x as i32).collect(),
+            Data::Float64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<i32>", self),
         }
     }
 
     pub fn into_i64s(self) -> Vec<i64> {
-        if let Data::Int64s(elem) = self {
-            elem
-        } else {
-            panic!("Expected Int64s, got {:?}", self);
+        match self {
+            Data::Int32s(elem) => elem.into_iter().map(|x| x as i64).collect(),
+            Data::Int64s(elem) => elem,
+            Data::Float32s(elem) => elem.into_iter().map(|x| x as i64).collect(),
+            Data::Float64s(elem) => elem.into_iter().map(|x| x as i64).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<i64>", self),
         }
     }
 

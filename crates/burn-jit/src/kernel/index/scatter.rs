@@ -4,15 +4,15 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandle, CubeCountSettings, KernelExpansion,
+use cubecl::InputInfo;
+use cubecl::{
+    calculate_cube_count_elemwise, cpa, CubeCountSettings, CubeDim, KernelExpansion,
     KernelIntegrator, KernelSettings,
 };
-use burn_cube::{
+use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     Execution,
 };
-use burn_cube::{InputInfo, SUBCUBE_DIM_APPROX};
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -32,13 +32,13 @@ struct ScatterComputeShader {
 impl ScatterComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         match self.input {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Input variable must be an global array."),
         };
         match self.value {
-            Variable::GlobalInputArray(_, _) => (),
-            Variable::GlobalOutputArray(_, _) => (),
+            Variable::GlobalInputArray { .. } => (),
+            Variable::GlobalOutputArray { .. } => (),
             _ => panic!("Value variable must be an global array."),
         };
 
@@ -136,9 +136,18 @@ impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
         let item_value = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let input_output = Variable::GlobalInputArray(0, item_value);
-        let indices = Variable::GlobalInputArray(1, Elem::Int(IntKind::I32).into());
-        let value = Variable::GlobalInputArray(2, item_value);
+        let input_output = Variable::GlobalInputArray {
+            id: 0,
+            item: item_value,
+        };
+        let indices = Variable::GlobalInputArray {
+            id: 1,
+            item: Elem::Int(IntKind::I32).into(),
+        };
+        let value = Variable::GlobalInputArray {
+            id: 2,
+            item: item_value,
+        };
 
         scope.write_global_custom(input_output);
 
@@ -173,8 +182,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -214,13 +223,14 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
-    let cube_count = calculate_cube_count_elemwise(num_elems, SUBCUBE_DIM_APPROX);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    Execution::start(kernel, indices.client)
+    Execution::start(kernel, indices.client.clone())
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandle::new(&value.handle, &value.strides, &value.shape.dims),
+            tensor.as_handle_ref(),
+            indices.as_handle_ref(),
+            value.as_handle_ref(),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

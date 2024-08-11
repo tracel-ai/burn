@@ -1,9 +1,9 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
+    frontend::TensorHandleRef,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -73,9 +73,12 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
         let item = E::cube_elem().into();
         let item_indices: Item = Elem::Int(IntKind::I32).into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let indices = Variable::GlobalInputArray(1, item_indices);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let indices = Variable::GlobalInputArray {
+            id: 1,
+            item: item_indices,
+        };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 
@@ -107,8 +110,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SelectEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -123,20 +126,21 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
     let kernel = SelectEagerKernel::<R, E>::new(dim);
 
-    Execution::start(kernel, tensor.client)
+    let num_elems = indices.shape.dims[0];
+    let mut shapes = [1; D];
+    let mut strides = [num_elems; D];
+    shapes[D - 1] = num_elems;
+    strides[D - 1] = 1;
+    Execution::start(kernel, tensor.client.clone())
         .inputs(&[
-            TensorHandle::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            tensor.as_handle_ref(),
             // This is a current hacks because the info buffer that contains the strides and shapes is
             // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
-            TensorHandle::new(&indices.handle, &[1; D], &[1; D]),
+            unsafe { TensorHandleRef::from_raw_parts(&indices.handle, &strides, &shapes) },
         ])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

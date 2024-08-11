@@ -1,6 +1,5 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -185,8 +184,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let out_grad = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let out_grad = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         InterpolateNearestBackwardShader {
             out_grad,
@@ -214,8 +213,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 
@@ -225,17 +224,9 @@ pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R, E, 4> {
     let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
 
-    Execution::start(kernel, out_grad.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &out_grad.handle,
-            &out_grad.strides,
-            &out_grad.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, out_grad.client.clone())
+        .inputs(&[out_grad.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

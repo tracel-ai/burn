@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 
-use crate::{cast::ToElement, Distribution, QuantizationStrategy};
+use crate::{cast::ToElement, quantization::QuantizationStrategy, Distribution};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};

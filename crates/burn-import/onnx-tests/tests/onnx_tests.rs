@@ -15,19 +15,23 @@ macro_rules! include_models {
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 include_models!(
-    add_int,
     add,
+    add_int,
     argmax,
-    avg_pool2d,
     avg_pool1d,
+    avg_pool2d,
     batch_norm,
     cast,
     clip_opset16,
     clip_opset7,
     concat,
+    constant_of_shape,
+    constant_of_shape_full_like,
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose2d,
+    conv_transpose3d,
     cos,
     div,
     dropout_opset16,
@@ -38,39 +42,52 @@ include_models!(
     expand,
     flatten,
     gather,
+    gather_scalar,
     gather_elements,
     gelu,
     global_avr_pool,
+    greater,
+    greater_or_equal,
+    hard_sigmoid,
     layer_norm,
     leaky_relu,
+    less,
+    less_or_equal,
     linear,
-    log_softmax,
     log,
+    log_softmax,
     mask_where,
     matmul,
-    min,
     max,
     maxpool1d,
     maxpool2d,
+    min,
+    mean,
     mul,
     neg,
     not,
-    greater,
-    greater_or_equal,
-    less,
-    less_or_equal,
+    pad,
+    pow,
+    pow_int,
     prelu,
+    random_normal,
+    random_uniform,
     range,
     recip,
     reduce_max,
-    reduce_min,
     reduce_mean,
+    reduce_min,
     reduce_prod,
-    reduce_sum_opset13,
     reduce_sum_opset11,
+    reduce_sum_opset13,
     relu,
     reshape,
-    resize,
+    resize_with_sizes,
+    resize_1d_linear_scale,
+    resize_1d_nearest_scale,
+    resize_2d_bicubic_scale,
+    resize_2d_bilinear_scale,
+    resize_2d_nearest_scale,
     shape,
     sigmoid,
     sign,
@@ -78,25 +95,19 @@ include_models!(
     slice,
     softmax,
     sqrt,
-    sub_int,
+    squeeze_multiple,
+    squeeze_opset13,
+    squeeze_opset16,
     sub,
+    sub_int,
     sum,
     sum_int,
     tanh,
+    tile,
     transpose,
-    conv_transpose2d,
-    conv_transpose3d,
-    pow,
-    pow_int,
     unsqueeze,
-    unsqueeze_opset16,
     unsqueeze_opset11,
-    squeeze_opset16,
-    squeeze_opset13,
-    random_uniform,
-    random_normal,
-    constant_of_shape,
-    constant_of_shape_full_like
+    unsqueeze_opset16
 );
 
 #[cfg(test)]
@@ -197,6 +208,21 @@ mod tests {
 
         let output = model.forward(input1, input2, input3);
         let expected = TensorData::from([3i64, 6, 9, 12]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mean_tensor_and_tensor() {
+        let device = Default::default();
+        let model: mean::Model<Backend> = mean::Model::default();
+
+        let input1 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
+        let input2 = Tensor::<Backend, 1>::from_floats([2., 2., 4., 0.], &device);
+        let input3 = Tensor::<Backend, 1>::from_floats([3., 2., 5., -4.], &device);
+
+        let output = model.forward(input1, input2, input3);
+        let expected = TensorData::from([2.0f32, 2., 4., 0.]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -429,6 +455,20 @@ mod tests {
         let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
         let output = model.forward(input, index);
         let expected = TensorData::from([[1f32, 3.], [4., 6.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_scalar() {
+        let model: gather_scalar::Model<Backend> = gather_scalar::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let index = 0;
+        let output = model.forward(input, index);
+        let expected = TensorData::from([1f32, 2., 3.]);
 
         assert_eq!(output.to_data(), expected);
     }
@@ -863,10 +903,10 @@ mod tests {
     }
 
     #[test]
-    fn resize() {
+    fn resize_with_sizes() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: resize::Model<Backend> = resize::Model::new(&device);
+        let model: resize_with_sizes::Model<Backend> = resize_with_sizes::Model::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 4>::from_floats(
@@ -878,12 +918,151 @@ mod tests {
             ]]],
             &device,
         );
-        let size = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 3], &device);
 
-        let output = model.forward(input, size);
+        // The sizes are [1, 1, 2, 3]
+        let output = model.forward(input);
         let expected = TensorData::from([[[[0.0f32, 1.5, 3.0], [12.0, 13.5, 15.0]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
+    fn resize_with_scales_1d_linear() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_1d_linear_scale::Model<Backend> =
+            resize_1d_linear_scale::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+            &device,
+        );
+
+        // The scales are 1.5
+        let output = model.forward(input);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -4.568_224; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_bilinear() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_bilinear_scale::Model<Backend> =
+            resize_2d_bilinear_scale::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -3.401_126_6; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_nearest() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_nearest_scale::Model<Backend> =
+            resize_2d_nearest_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9, 9]);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -0.812_227_7; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_1d_nearest() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_1d_nearest_scale::Model<Backend> =
+            resize_1d_nearest_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9]);
+
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -4.568_224; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_2d_bicubic() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: resize_2d_bicubic_scale::Model<Backend> =
+            resize_2d_bicubic_scale::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[[
+                [-1.1258, -1.1524, -0.2506, -0.4339, 0.8487, 0.6920],
+                [-0.3160, -2.1152, 0.3223, -1.2633, 0.3500, 0.3081],
+                [0.1198, 1.2377, 1.1168, -0.2473, -1.3527, -1.6959],
+                [0.5667, 0.7935, 0.4397, 0.1124, 0.6408, 0.4412],
+                [-0.2159, -0.7425, 0.5627, 0.2596, 0.5229, 2.3022],
+                [-1.4689, -1.5867, 1.2032, 0.0845, -1.2001, -0.0048],
+            ]]],
+            &device,
+        );
+
+        // The scales are 1.5, 1.5
+        let output = model.forward(input);
+
+        assert_eq!(output.dims(), [1, 1, 9, 9]);
+
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -3.515_921; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-3, 2)));
     }
 
     #[test]
@@ -1049,6 +1228,29 @@ mod tests {
         let expected = TensorData::from([
             [0.58338636f32, 0.532_157_9, 0.55834854],
             [0.557_33, 0.24548186, 0.45355222],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected, 7);
+    }
+
+    #[test]
+    fn hard_sigmoid() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: hard_sigmoid::Model<Backend> = hard_sigmoid::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [
+                [0.33669037, 0.12880941, 0.23446237],
+                [0.23033303, -1.12285638, -0.18632829],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = TensorData::from([
+            [0.55611509, 0.52146822, 0.53907704],
+            [0.53838885, 0.31285727, 0.46894526],
         ]);
 
         output.to_data().assert_approx_eq(&expected, 7);
@@ -1407,6 +1609,26 @@ mod tests {
     }
 
     #[test]
+    fn pad() {
+        let device = Default::default();
+        let model: pad::Model<Backend> = pad::Model::new(&device);
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.], [5., 6.]], &device);
+        let output = model.forward(input).to_data();
+        let expected = TensorData::from([
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 1., 2., 0., 0., 0., 0.],
+            [0.0_f32, 0., 3., 4., 0., 0., 0., 0.],
+            [0.0_f32, 0., 5., 6., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+            [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],
+        ]);
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
     fn greater() {
         let device = Default::default();
         let model: greater::Model<Backend> = greater::Model::new(&device);
@@ -1504,6 +1726,23 @@ mod tests {
         let expected = TensorData::from([[[[1.0000f32, 1.6000e+01, 7.2900e+02, 6.5536e+04]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn tile() {
+        let device = Default::default();
+        let model: tile::Model<Backend> = tile::Model::new(&device);
+
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.]], &device);
+        let output = model.forward(input).to_data();
+        let expected = TensorData::from([
+            [1.0f32, 2.0f32, 1.0f32, 2.0f32],
+            [3.0f32, 4.0f32, 3.0f32, 4.0f32],
+            [1.0f32, 2.0f32, 1.0f32, 2.0f32],
+            [3.0f32, 4.0f32, 3.0f32, 4.0f32],
+        ]);
+
+        output.assert_eq(&expected, true);
     }
 
     #[test]
@@ -1636,6 +1875,17 @@ mod tests {
         let device = Default::default();
         let model = squeeze_opset13::Model::<Backend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5]);
+        let expected_shape = Shape::from([3, 4, 5]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn squeeze_multiple() {
+        let device = Default::default();
+        let model = squeeze_multiple::Model::<Backend>::new(&device);
+        let input_shape = Shape::from([3, 4, 1, 5, 1]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
         let output = model.forward(input);

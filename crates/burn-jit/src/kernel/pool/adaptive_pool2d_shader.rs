@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
@@ -193,8 +193,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AdaptivePool2dEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 
@@ -223,7 +223,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for AdaptivePool2dEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }

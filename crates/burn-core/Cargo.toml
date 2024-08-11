@@ -20,6 +20,7 @@ default = [
     "burn-tch?/default",
     "burn-tensor/default",
     "burn-wgpu?/default",
+    "burn-cuda?/default",
     "burn-autodiff?/default",
 ]
 std = [
@@ -30,6 +31,7 @@ std = [
     "burn-ndarray?/std",
     "burn-tensor/std",
     "burn-wgpu?/std",
+    "burn-cuda?/std",
     "flate2",
     "half/std",
     "log",
@@ -58,6 +60,7 @@ doc = [
     "burn-tch/doc",
     "burn-tensor/doc",
     "burn-wgpu/doc",
+    "burn-cuda/doc",
 ]
 dataset = ["burn-dataset"]
 network = ["burn-common/network"]
@@ -84,6 +87,7 @@ tch = ["burn-tch"]
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 wgpu = ["burn-wgpu"]
+cuda-jit = ["burn-cuda"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror", "regex"]
@@ -109,6 +113,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.14.0", default-features = 
 # Backends
 burn-ndarray = { path = "../burn-ndarray", version = "0.14.0", optional = true, default-features = false }
 burn-wgpu = { path = "../burn-wgpu", version = "0.14.0", optional = true, default-features = false }
+burn-cuda = { path = "../burn-cuda", version = "0.14.0", optional = true, default-features = false }
 burn-autodiff = { path = "../burn-autodiff", version = "0.14.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.14.0", optional = true }
 burn-candle = { path = "../burn-candle", version = "0.14.0", optional = true }

@@ -4,13 +4,13 @@ use crate::{
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
-use burn_cube::ir::KernelDefinition;
-use burn_cube::{frontend::TensorArg, KernelSettings};
+use cubecl::ir::KernelDefinition;
+use cubecl::KernelSettings;
 
 use super::simple_cube_count;
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn matmul_kernel<F: Float>(
     lhs: &Tensor<F>,
     rhs: &Tensor<F>,
@@ -116,25 +116,22 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         false => 1,
     };
 
-    matmul_kernel_launch::<E::FloatPrimitive, R>(
-        lhs.client,
-        cube_count,
-        CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &lhs.handle,
-            &lhs.strides,
-            &lhs.shape.dims,
-        ),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &rhs.handle,
-            &rhs.strides,
-            &rhs_original_shape.dims,
-        ),
-        TensorArg::new(&out.handle, &out.strides, &out.shape.dims),
-        Some(UInt::new(D as u32 - 2)),
-    );
+    unsafe {
+        matmul_kernel::launch_unchecked::<E::FloatPrimitive, R>(
+            &lhs.client,
+            cube_count,
+            CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
+            lhs.as_tensor_arg(vectorization_factor),
+            TensorArg::from_raw_parts(
+                &rhs.handle,
+                &rhs.strides,
+                &rhs_original_shape.dims, // We need the original shape.
+                vectorization_factor,
+            ),
+            out.as_tensor_arg(1),
+            Some(UInt::new(D as u32 - 2)),
+        );
+    };
 
     out
 }

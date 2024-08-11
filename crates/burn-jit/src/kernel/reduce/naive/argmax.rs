@@ -1,5 +1,5 @@
 use crate::{kernel::reduce::Argmax, JitElement};
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
 };
@@ -16,7 +16,9 @@ impl<E: JitElement> ReduceDimNaive<E> for Argmax {
     ) -> Self::Accumulator {
         let index = scope.create_local(Elem::UInt);
         let max = scope.create_local(input_item);
-        let max_initial = Variable::ConstantScalar(E::minimum_value().to_f64(), input_item.elem());
+        let max_initial = input_item
+            .elem()
+            .constant_from_f64(E::minimum_value().to_f64());
         cpa!(scope, max = max_initial);
 
         (max, index)

@@ -1,4 +1,4 @@
-use burn_cube::{
+use cubecl::{
     cpa,
     ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
@@ -65,12 +65,30 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Pool2dComputeShader<P, R, E>
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
@@ -177,13 +195,13 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Kernel for Pool2dEagerKernel
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
         let indices = if P::with_indices() {
-            Some(Variable::GlobalOutputArray(
-                1,
-                Item::new(Elem::Int(IntKind::I32)),
-            ))
+            Some(Variable::GlobalOutputArray {
+                id: 1,
+                item: Item::new(Elem::Int(IntKind::I32)),
+            })
         } else {
             None
         };
@@ -231,12 +249,7 @@ impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Kernel for Pool2dEagerKernel
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}pl={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-            self.pool_strategy
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.kernel_size, self.pool_strategy.clone()))
     }
 }

@@ -41,6 +41,11 @@ pub trait ExpElement {
     fn int_abs_elem(self) -> Self;
 }
 
+/// A quantized element for the ndarray backend.
+pub trait QuantElement: NdArrayElement {}
+
+impl QuantElement for i8 {}
+
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
 

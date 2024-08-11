@@ -46,7 +46,7 @@ pub fn cartesian_grid<B: Backend, S: Into<Shape<D>>, const D: usize, const D2: u
             if i == dim {
                 continue;
             }
-            dim_range = dim_range.repeat(i, item);
+            dim_range = dim_range.repeat_dim(i, item);
         }
 
         indices.push(dim_range);

@@ -1,6 +1,5 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -41,8 +40,14 @@ impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kern
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray(0, item_input);
-        let output = Variable::GlobalOutputArray(0, item_output);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_input,
+        };
+        let output = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_output,
+        };
 
         NaiveReduceDimComputeShader {
             tensor,
@@ -72,8 +77,8 @@ impl<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Kern
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.dim)
     }
 }
 
@@ -149,17 +154,9 @@ pub fn reduce_dim_naive<
 ) -> JitTensor<R, EO, D> {
     let kernel = NaiveReduceDimEagerKernel::<RD, R, EI, EO>::new(dim);
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

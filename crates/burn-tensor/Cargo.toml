@@ -17,10 +17,14 @@ experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "burn-common/rayon"]
 repr = []
+cubecl = ["dep:cubecl"]
+cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
+cubecl-cuda = ["cubecl", "cubecl/cuda"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.14.0", default-features = false}
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.14.0", optional = true }
+cubecl = { workspace = true, optional = true }
 
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
@@ -34,6 +38,7 @@ hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
 serde = { workspace = true }
+serde_bytes = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std

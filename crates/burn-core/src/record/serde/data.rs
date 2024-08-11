@@ -183,6 +183,14 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a vector of bytes.
+    pub fn as_bytes(self) -> Option<Vec<u8>> {
+        match self {
+            NestedValue::U8s(u) => Some(u),
+            _ => None,
+        }
+    }
+
     /// Deserialize a nested value into a record type.
     pub fn try_into_record<T, PS, A, B>(self, device: &B::Device) -> Result<T, Error>
     where

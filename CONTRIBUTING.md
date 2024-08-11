@@ -82,7 +82,7 @@ You may also want to enable debugging by creating a `.vscode/settings.json` file
 3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
 
 <div align="center">
-<img src="./assets/debug-options-vscode.png" width="700px"/>
+<img src="./contributor-book/src/getting-started/debug-options-vscode.png" width="700px"/>
 <div align="left">
 
 4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
@@ -94,7 +94,7 @@ You may also want to enable debugging by creating a `.vscode/settings.json` file
 On Unix systems, run `run-checks.sh` using this command
 
 ```
-run-checks.sh environment
+./run-checks.sh environment
 ```
 
 On Windows systems, run `run-checks.ps1` using this command:
@@ -106,9 +106,12 @@ run-checks.ps1 environment
 The `environment` argument can assume **ONLY** the following values:
 
 - `std` to perform checks using `libstd`
-- `no_std` to perform checks on an embedded environment using `libcore`
+- `no-std` to perform checks on an embedded environment using `libcore`
+- `typos` to check for typos in the codebase
+- `examples` to check the examples compile
 
-If no `environment` value has been passed, run both `std` and `no_std` checks.
+If no `environment` value has been passed, run all checks except examples.
+If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
 
 ## Continuous Deployment
 

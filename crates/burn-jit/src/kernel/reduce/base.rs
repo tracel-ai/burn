@@ -7,6 +7,7 @@ use super::{
     shared::{base::ReduceDimShared, shader::reduce_dim_shared},
 };
 
+#[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<E: JitElement>:
     ReduceDimNaive<E> + ReduceDimShared<E>
 {

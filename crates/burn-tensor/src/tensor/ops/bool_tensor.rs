@@ -1,6 +1,6 @@
 use super::{
-    cat::cat_with_slice_assign, repeat::repeat_with_slice_assign, BoolTensor, Device, FloatTensor,
-    IntTensor,
+    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
+    FloatTensor, IntTensor,
 };
 use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,
@@ -157,7 +157,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the dimension repeated.
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<B, D>,
         dim: usize,
         times: usize,

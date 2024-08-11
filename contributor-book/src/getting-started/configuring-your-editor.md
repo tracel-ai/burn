@@ -10,7 +10,7 @@ Install the following extensions:
 - [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
   for Rust syntax and semantic analysis
 - [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-  for TOML syntax and semantic analysic
+  for TOML syntax and semantic analysis
 - [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates) for
   managing dependencies
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) for

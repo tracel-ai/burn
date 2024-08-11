@@ -2,13 +2,14 @@ use std::marker::PhantomData;
 
 use burn_tensor::{
     backend::{Backend, DeviceId, DeviceOps, SyncType},
+    quantization::{QTensorPrimitive, QuantizationStrategy},
     Device,
 };
 use candle_core::DeviceLocation;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleTensor, PrecisionBridge,
+    CandleQTensor, CandleTensor, PrecisionBridge,
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
@@ -92,8 +93,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
 
-    // NOTE: candle  does not implement `WithDType` for i8
-    type QuantizedTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+    type QuantizedTensorPrimitive<const D: usize> = CandleQTensor<D>;
 
     fn ad_enabled() -> bool {
         false

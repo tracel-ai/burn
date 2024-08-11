@@ -418,17 +418,16 @@ where
         mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_add = mask.array.mapv(|x| match x {
-            true => value,
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul) + mask_add;
-
-        NdArrayTensor::new(array)
+        let mut output = tensor.array.clone();
+        let broadcast_mask = mask.array.broadcast(output.dim()).unwrap();
+        Zip::from(&mut output)
+            .and(&broadcast_mask)
+            .for_each(|out, &mask_val| {
+                if mask_val {
+                    *out = value;
+                }
+            });
+        NdArrayTensor::new(output.into_shared())
     }
 
     fn gather_batch_size<const D: usize>(

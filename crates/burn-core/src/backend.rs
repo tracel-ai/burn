@@ -16,6 +16,12 @@ pub use burn_wgpu as wgpu;
 #[cfg(feature = "wgpu")]
 pub use burn_wgpu::Wgpu;
 
+#[cfg(feature = "cuda-jit")]
+pub use burn_cuda as cuda_jit;
+
+#[cfg(feature = "cuda-jit")]
+pub use burn_cuda::Cuda as CudaJit;
+
 #[cfg(feature = "candle")]
 pub use burn_candle as candle;
 

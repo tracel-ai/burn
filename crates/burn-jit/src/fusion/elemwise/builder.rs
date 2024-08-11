@@ -4,9 +4,6 @@ use crate::{
     fusion::{tracing::TraceBuilder, JitOptimization},
     JitRuntime,
 };
-use burn_cube::ir::{
-    BinaryOperator, ConditionalAssign, Operator, Procedure, UnaryOperator, Variable,
-};
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     repr::{
@@ -15,6 +12,10 @@ use burn_tensor::{
         TensorDescription, UnaryOperationDescription,
     },
     Element,
+};
+use cubecl::ir::{
+    BinaryOperator, ConditionalAssign, ConstantScalarValue, Elem, Operator, Procedure,
+    UnaryOperator, Variable,
 };
 
 /// Fused element wise operations that are normally memory bound.
@@ -288,7 +289,14 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar(1.0, desc.dtype.into());
+                let elem: Elem = desc.dtype.into();
+                let input = match elem {
+                    Elem::Float(kind) => ConstantScalarValue::Float(1.0, kind),
+                    Elem::Int(kind) => ConstantScalarValue::Int(1, kind),
+                    Elem::UInt => ConstantScalarValue::UInt(1),
+                    Elem::Bool => ConstantScalarValue::Bool(true),
+                };
+                let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
@@ -301,7 +309,14 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::ConstantScalar(0.0, desc.dtype.into());
+                let elem: Elem = desc.dtype.into();
+                let input = match elem {
+                    Elem::Float(kind) => ConstantScalarValue::Float(0.0, kind),
+                    Elem::Int(kind) => ConstantScalarValue::Int(0, kind),
+                    Elem::UInt => ConstantScalarValue::UInt(0),
+                    Elem::Bool => ConstantScalarValue::Bool(false),
+                };
+                let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
 
                 self.builder
