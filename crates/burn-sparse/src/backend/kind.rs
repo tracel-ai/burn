@@ -83,7 +83,7 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
     }
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
-        B::sparse_flip(tensor, &axes)
+        B::sparse_flip(tensor, axes)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -331,17 +331,17 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn mask_where<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, burn_tensor::Bool>,
-        source: Self::Primitive<D>,
+        _tensor: Self::Primitive<D>,
+        _mask: Tensor<B, D, burn_tensor::Bool>,
+        _source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
         panic!("masking of sparse tensors is unsupported")
     }
 
     fn mask_fill<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, burn_tensor::Bool>,
-        value: Self::Elem,
+        _tensor: Self::Primitive<D>,
+        _mask: Tensor<B, D, burn_tensor::Bool>,
+        _value: Self::Elem,
     ) -> Self::Primitive<D> {
         panic!("masking of sparse tensors is unsupported")
     }
@@ -381,15 +381,15 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn argmax<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
         panic!("Argmax is unsupported for sparse tensors");
     }
 
     fn argmin<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
         panic!("Argmin is unsupported for sparse tensors");
     }
@@ -403,8 +403,8 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn max_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         todo!()
     }
@@ -418,8 +418,8 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn min_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
         todo!()
     }
@@ -479,25 +479,25 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn random<const D: usize>(
-        shape: Shape<D>,
-        distribution: burn_tensor::Distribution,
-        device: &<B as Backend>::Device,
+        _shape: Shape<D>,
+        _distribution: burn_tensor::Distribution,
+        _device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
         panic!("Random is unsupported for sparse tensors")
     }
 
     fn sort<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
+        _descending: bool,
     ) -> Self::Primitive<D> {
         panic!("Sorting is unsupported for sparse tensors")
     }
 
     fn sort_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
+        _descending: bool,
     ) -> (
         Self::Primitive<D>,
         <burn_tensor::Int as TensorKind<B>>::Primitive<D>,
@@ -506,9 +506,9 @@ impl<B: SparseBackend> Numeric<B> for Sparse {
     }
 
     fn argsort<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
+        _tensor: Self::Primitive<D>,
+        _dim: usize,
+        _descending: bool,
     ) -> <burn_tensor::Int as TensorKind<B>>::Primitive<D> {
         panic!("Sorting is unsupported for sparse tensors")
     }
