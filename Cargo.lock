@@ -703,7 +703,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "serde",
- "syn 2.0.69",
+ "syn 2.0.72",
 ]
 
 [[package]]

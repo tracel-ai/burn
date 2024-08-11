@@ -3,18 +3,20 @@ use std::{future::Future, ops::Range};
 use crate::backend::SparseBackend;
 use burn_tensor::{backend::Backend, BasicOps, Numeric, Shape, Tensor, TensorData, TensorKind};
 
+pub trait SparseRepr {}
+
 /// A type-level representation of the kind of a sparse (float) tensor.
 #[derive(Clone, Debug)]
-pub struct Sparse;
+pub struct Sparse<R: SparseRepr>;
 
-impl<B: SparseBackend> TensorKind<B> for Sparse {
+impl<B: SparseBackend, R: SparseRepr> TensorKind<B> for Sparse<R> {
     type Primitive<const D: usize> = B::SparseTensorPrimitive<D>;
     fn name() -> &'static str {
         "Sparse"
     }
 }
 
-impl<B: SparseBackend> BasicOps<B> for Sparse {
+impl<B: SparseBackend, R: SparseRepr> BasicOps<B> for Sparse<R> {
     type Elem = B::FloatElem;
 
     fn into_data_async<const D: usize>(
@@ -94,7 +96,7 @@ impl<B: SparseBackend> BasicOps<B> for Sparse {
         B::sparse_slice_assign(tensor, ranges, value)
     }
 
-    fn repeat<const D: usize>(
+    fn repeat_dim<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
         times: usize,

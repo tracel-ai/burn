@@ -18,14 +18,15 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{DType, Element, TensorPrimitive};
+use crate::{DType, Dense, Element, TensorPrimitive, TensorRepr};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
-pub struct Tensor<B, const D: usize, K = Float>
+pub struct Tensor<B, const D: usize, K = Float, R = Dense>
 where
     B: Backend,
-    K: TensorKind<B>,
+    K: TensorKind<B, R>,
+    R: TensorRepr<B>,
 {
     pub(crate) primitive: K::Primitive<D>,
 }
@@ -1278,7 +1279,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait BasicOps<B: Backend>: TensorKind<B> {
+pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     /// The type of the tensor elements.
     type Elem: Element;
 

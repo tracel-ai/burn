@@ -1,4 +1,6 @@
 use crate::backend::Backend;
+use crate::{Dense, Sparse, SparseRepr, TensorRepr};
+use core::marker::PhantomData;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -32,7 +34,7 @@ impl<B: Backend, const D: usize> TensorPrimitive<B, D> {
 }
 
 /// A type-level representation of the kind of a tensor.
-pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
+pub trait TensorKind<B: Backend, R: TensorRepr<B> = Dense>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
     type Primitive<const D: usize>: Clone + core::fmt::Debug + Send;
 
@@ -47,6 +49,14 @@ impl<B: Backend> TensorKind<B> for Float {
     }
 }
 
+impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Float {
+    type Primitive<const D: usize> = R::FloatPrimitive<D>;
+
+    fn name() -> &'static str {
+        "SparseFloat"
+    }
+}
+
 impl<B: Backend> TensorKind<B> for Int {
     type Primitive<const D: usize> = B::IntTensorPrimitive<D>;
     fn name() -> &'static str {
@@ -54,9 +64,25 @@ impl<B: Backend> TensorKind<B> for Int {
     }
 }
 
+impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Int {
+    type Primitive<const D: usize> = R::IntPrimitive<D>;
+
+    fn name() -> &'static str {
+        "SparseInt"
+    }
+}
+
 impl<B: Backend> TensorKind<B> for Bool {
     type Primitive<const D: usize> = B::BoolTensorPrimitive<D>;
     fn name() -> &'static str {
         "Bool"
+    }
+}
+
+impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Bool {
+    type Primitive<const D: usize> = R::BoolPrimitive<D>;
+
+    fn name() -> &'static str {
+        "SparseBool"
     }
 }

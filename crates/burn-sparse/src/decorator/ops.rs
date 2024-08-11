@@ -647,14 +647,6 @@ where
         B::int_select_assign(tensor, dim, indices, value)
     }
 
-    fn int_repeat<const D: usize>(
-        tensor: IntTensor<SparseDecorator<B, R>, D>,
-        dim: usize,
-        times: usize,
-    ) -> IntTensor<SparseDecorator<B, R>, D> {
-        B::int_repeat(tensor, dim, times)
-    }
-
     fn int_cat<const D: usize>(
         tensors: Vec<IntTensor<SparseDecorator<B, R>, D>>,
         dim: usize,
@@ -975,26 +967,46 @@ where
     B: Backend,
     R: SparseRepresentation,
 {
-    fn quantize<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        strategy: &burn_tensor::QuantizationStrategy,
-    ) -> burn_tensor::ops::QuantizedTensor<B, D> {
-        B::quantize(tensor, strategy)
-    }
-
-    fn dequantize<const D: usize>(
-        tensor: burn_tensor::ops::QuantizedTensor<B, D>,
-        strategy: &burn_tensor::QuantizationStrategy,
-    ) -> FloatTensor<B, D> {
-        B::dequantize(tensor, strategy)
-    }
-
     fn q_shape<const D: usize>(tensor: &burn_tensor::ops::QuantizedTensor<B, D>) -> Shape<D> {
         B::q_shape(tensor)
     }
 
     fn q_device<const D: usize>(tensor: &burn_tensor::ops::QuantizedTensor<B, D>) -> Device<B> {
         B::q_device(tensor)
+    }
+
+    fn q_from_data<const D: usize>(
+        data: TensorData,
+        device: &Device<SparseDecorator<B, R>>,
+    ) -> burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D> {
+        B::q_from_data(data, device)
+    }
+
+    fn q_reshape<const D1: usize, const D2: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D1>,
+        shape: Shape<D2>,
+    ) -> burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D2> {
+        B::q_reshape(tensor, shape)
+    }
+
+    fn q_into_data<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D>,
+    ) -> impl std::future::Future<Output = TensorData> + Send {
+        B::q_into_data(tensor)
+    }
+
+    fn quantize<const D: usize>(
+        tensor: FloatTensor<SparseDecorator<B, R>, D>,
+        scheme: &burn_tensor::quantization::QuantizationScheme,
+        qparams: burn_tensor::quantization::QuantizationParametersPrimitive<SparseDecorator<B, R>>,
+    ) -> burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D> {
+        B::quantize(tensor, scheme, qparams)
+    }
+
+    fn dequantize<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<SparseDecorator<B, R>, D>,
+    ) -> FloatTensor<SparseDecorator<B, R>, D> {
+        B::dequantize(tensor)
     }
 }
 
