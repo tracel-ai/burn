@@ -8,7 +8,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for SumDim {
     type Accumulator = EI;
 
     fn initialize_naive() -> EI {
-        EI::from(0)
+        EI::from_int(0)
     }
 
     fn inner_loop_naive(

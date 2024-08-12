@@ -1,3 +1,4 @@
+use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
@@ -51,14 +52,14 @@ pub fn reduce_dim_naive<
     dim: usize,
 ) -> JitTensor<R, EO, D> {
     let cube_dim = CubeDim::default();
-    let cube_count = CubeCount::Static(1, 1, 1);
+    let cube_count = calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);
 
     naive_reduce_dim_compute_shader::launch::<RD, EI::Primitive, EO::Primitive, R>(
         &input.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        input.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         ScalarArg::new(dim as u32),
     );
 

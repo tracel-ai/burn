@@ -1,5 +1,5 @@
 use cubecl::cube;
-use cubecl::frontend::{ABSOLUTE_POS, Tensor, UInt};
+use cubecl::frontend::{ABSOLUTE_POS, Tensor, UInt, F32, Float};
 use cubecl::prelude::{Cast, Numeric};
 use crate::kernel::reduce::Argmax;
 use super::base::ReduceDimNaive;
@@ -8,28 +8,31 @@ use super::base::ReduceDimNaive;
 #[cube]
 impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
 
-    type Accumulator = (EI, UInt);
+    type Accumulator = (F32, UInt);
 
-    fn initialize_naive() -> (EI, UInt) {
-        // TODO: how to get the min value of a Primitive?
-        (EI::from(u32::MIN), UInt::from(0))
+    fn initialize_naive() -> (F32, UInt) {
+        // (F32::new(f32::NEG_INFINITY), UInt::new(0))
+        let a = F32::new(0.0);
+        let b = F32::new(1000000.0);
+        (a-b, UInt::new(0))
     }
 
     fn inner_loop_naive(
-        accumulator: &mut (EI, UInt),
+        accumulator: &mut (F32, UInt),
         current_value: EI,
         i: UInt,
     ) {
         let (max, index) = accumulator;
-        if current_value > *max {
-            *max = current_value;
+        let val = F32::cast_from(current_value);
+        if val > *max {
+            *max = val;
             *index = i;
         }
     }
 
     fn assign_naive(
         output: &mut Tensor<EO>,
-        accumulator: (EI, UInt),
+        accumulator: (F32, UInt),
         _shape_reduce_dim: UInt,
     ) {
         let (_, index) = accumulator;

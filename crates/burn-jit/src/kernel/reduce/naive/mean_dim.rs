@@ -9,7 +9,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for MeanDim {
     type Accumulator = EI;
 
     fn initialize_naive() -> EI {
-        EI::from(0)
+        EI::from_int(0)
     }
 
     fn inner_loop_naive(
@@ -17,7 +17,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for MeanDim {
         current_value: EI,
         _i: UInt,
     ) {
-        *accumulator += current_value;
+        *accumulator += current_value ;
     }
 
     fn assign_naive(

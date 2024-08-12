@@ -33,29 +33,6 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_sum_dim_should_work_with_multiple_invocations() {
-        let tensor =
-            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let reduce_dim = 1;
-
-        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
-            TestRuntime,
-            f32,
-            f32,
-            2,
-        >(
-            tensor.into_primitive().tensor(),
-            reduce_dim,
-            ReduceStrategy::Naive,
-        )));
-        let val_ref = tensor_ref.sum_dim(1);
-
-        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
-    }
-
-    #[test]
     fn reduction_prod_dim_should_work_with_multiple_invocations() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());

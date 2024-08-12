@@ -1,5 +1,5 @@
 use cubecl::cube;
-use crate::{kernel::reduce::ProdDim, JitElement};
+use crate::{kernel::reduce::ProdDim};
 use cubecl::prelude::{ABSOLUTE_POS, Cast, Numeric, Tensor, UInt};
 
 use super::base::ReduceDimNaive;
@@ -9,7 +9,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for ProdDim {
     type Accumulator = EI;
 
     fn initialize_naive() -> EI {
-        EI::from(1)
+        EI::from_int(1)
     }
 
     fn inner_loop_naive(
